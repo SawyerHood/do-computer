@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "#platform": ["./src/server/platform.node.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "server.node.mjs"],
+  "exclude": ["src/server.cloudflare.ts", "src/server/platform.cloudflare.ts"]
+}

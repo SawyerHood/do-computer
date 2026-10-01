@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "durable-computer",
+  "main": "./src/server.cloudflare.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "durable_objects": { "bindings": [{ "name": "AGENT", "class_name": "AgentObject" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AgentObject"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "durable-computer",
+      // Replace with the id printed by `wrangler d1 create durable-computer`.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "durable-computer" }],
+  "vars": { "DC_SIGNUP": "invite" }
+  // Secrets (wrangler secret put): DC_AUTH_SECRET, OPENROUTER_API_KEY, and optionally
+  // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET.
+}

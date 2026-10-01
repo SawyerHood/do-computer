@@ -1,0 +1,42 @@
+{
+  "name": "@durable-computer/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:cloudflare": "DC_TARGET=cloudflare vite dev --port 3000",
+    "build": "pnpm run build:node && pnpm run build:cloudflare",
+    "build:node": "vite build",
+    "build:cloudflare": "DC_TARGET=cloudflare vite build",
+    "start": "node server.node.mjs",
+    "deploy": "DC_TARGET=cloudflare vite build && wrangler deploy",
+    "check": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@durable-computer/agent": "workspace:*",
+    "@durable-computer/protocol": "workspace:*",
+    "@durable-computer/runtime": "workspace:*",
+    "@tanstack/react-router": "^1.170.41",
+    "@tanstack/react-start": "^1.168.60",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "srvx": "^1.0.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.62.4",
+    "@cloudflare/workers-types": "^5.20261001.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@typescript/native": "catalog:",
+    "@vitejs/plugin-react": "^6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "catalog:",
+    "vite": "^8.3.2",
+    "vitest": "catalog:",
+    "wrangler": "^4.146.0"
+  }
+}
