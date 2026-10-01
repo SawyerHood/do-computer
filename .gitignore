@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.output/
+.wrangler/
+.tanstack/
+.nitro/
+.expo/
+.turbo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.dev.vars
+.data/
+*.log
+.DS_Store
+coverage/
