@@ -14,7 +14,7 @@ minimumReleaseAgeExclude:
   - miniflare@5.20261001.0-alpha
   - workerd@1.20261001.1
   - wrangler@4.146.0
-  - '@cloudflare/vite-plugin@1.62.4'
+  - "@cloudflare/vite-plugin@1.62.4"
   - vite@8.3.2
 
 allowBuilds:

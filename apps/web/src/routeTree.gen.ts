@@ -11,6 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiMeRouteImport } from './routes/api/me'
+import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +26,86 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMeRoute = ApiMeRouteImport.update({
+  id: '/api/me',
+  path: '/api/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentsIndexRoute = ApiAgentsIndexRouteImport.update({
+  id: '/api/agents/',
+  path: '/api/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentsAgentIdSplatRoute = ApiAgentsAgentIdSplatRouteImport.update({
+  id: '/api/agents/$agentId/$',
+  path: '/api/agents/$agentId/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/me': typeof ApiMeRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/agents/': typeof ApiAgentsIndexRoute
+  '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/me': typeof ApiMeRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/agents': typeof ApiAgentsIndexRoute
+  '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/me': typeof ApiMeRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/agents/': typeof ApiAgentsIndexRoute
+  '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/health'
+  fullPaths:
+    | '/'
+    | '/api/health'
+    | '/api/me'
+    | '/api/auth/$'
+    | '/api/agents/'
+    | '/api/agents/$agentId/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/health'
-  id: '__root__' | '/' | '/api/health'
+  to:
+    | '/'
+    | '/api/health'
+    | '/api/me'
+    | '/api/auth/$'
+    | '/api/agents'
+    | '/api/agents/$agentId/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/health'
+    | '/api/me'
+    | '/api/auth/$'
+    | '/api/agents/'
+    | '/api/agents/$agentId/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiMeRoute: typeof ApiMeRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
+  ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +124,44 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/me': {
+      id: '/api/me'
+      path: '/api/me'
+      fullPath: '/api/me'
+      preLoaderRoute: typeof ApiMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agents/': {
+      id: '/api/agents/'
+      path: '/api/agents'
+      fullPath: '/api/agents/'
+      preLoaderRoute: typeof ApiAgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agents/$agentId/$': {
+      id: '/api/agents/$agentId/$'
+      path: '/api/agents/$agentId/$'
+      fullPath: '/api/agents/$agentId/$'
+      preLoaderRoute: typeof ApiAgentsAgentIdSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiMeRoute: ApiMeRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAgentsIndexRoute: ApiAgentsIndexRoute,
+  ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

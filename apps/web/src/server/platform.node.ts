@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs"
+import { randomBytes } from "node:crypto"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { createAgentActor, createAgentModels } from "@durable-computer/agent"
 import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "@durable-computer/runtime/node"
@@ -7,10 +8,20 @@ import { type Platform, readConfig } from "./platform.ts"
 const KEY = Symbol.for("durable-computer.platform")
 type Holder = { [KEY]?: Platform }
 
+/** A self-hosted install should start without setup: mint the session secret once and keep it. */
+function authSecret(directory: string): string {
+  const file = join(directory, "auth-secret")
+  if (existsSync(file)) return readFileSync(file, "utf8").trim()
+  const secret = randomBytes(32).toString("base64url")
+  writeFileSync(file, secret, { mode: 0o600 })
+  return secret
+}
+
 function create(): Platform {
-  const config = readConfig(process.env)
   const directory = resolve(process.env.DC_DATA_DIR ?? ".data")
   mkdirSync(directory, { recursive: true })
+  const fromEnv = readConfig(process.env)
+  const config = { ...fromEnv, authSecret: fromEnv.authSecret ?? authSecret(directory) }
   const { database, app } = openNodeAppDatabase(join(directory, "app.sqlite"))
   const models = createAgentModels(config)
   const agents = new NodeActorNamespace({

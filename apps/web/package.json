@@ -11,7 +11,7 @@
     "build:cloudflare": "DC_TARGET=cloudflare vite build",
     "start": "node server.node.mjs",
     "deploy": "DC_TARGET=cloudflare vite build && wrangler deploy",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc --noEmit -p tsconfig.cloudflare.json",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "@durable-computer/runtime": "workspace:*",
     "@tanstack/react-router": "^1.170.41",
     "@tanstack/react-start": "^1.168.60",
+    "better-auth": "^1.7.7",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "srvx": "^1.0.5"

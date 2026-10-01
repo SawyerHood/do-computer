@@ -12,11 +12,11 @@
       "binding": "DB",
       "database_name": "durable-computer",
       // Replace with the id printed by `wrangler d1 create durable-computer`.
-      "database_id": "00000000-0000-0000-0000-000000000000"
-    }
+      "database_id": "00000000-0000-0000-0000-000000000000",
+    },
   ],
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "durable-computer" }],
-  "vars": { "DC_SIGNUP": "invite" }
+  "vars": { "DC_SIGNUP": "invite" },
   // Secrets (wrangler secret put): DC_AUTH_SECRET, OPENROUTER_API_KEY, and optionally
   // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET.
 }
