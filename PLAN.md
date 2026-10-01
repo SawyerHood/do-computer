@@ -15,31 +15,31 @@ agent loop and `@earendil-works/pi-ai` for the model layer.
 
 ## 1. Decisions made with the owner
 
-| Area | Decision |
-|---|---|
-| Agent model | Many agents per user; each agent has its own VM, identity and memory |
-| Tenancy | Multi-user from day one; a self-hosted install is a deployment with few users |
-| Relation to do-computer | New codebase; port the proven parts (section 7) |
-| Milestone 1 scope | Web chat, durable agent, sandbox, schedules, skills, pairing own computers, Expo app |
-| Channels | Web and mobile only; define a channel interface, ship no messaging apps |
-| Approvals | Full trust by default; approval rules are opt-in |
-| Model keys | One deployment OpenRouter key; usage recorded, no limits, no user keys |
-| Connectors | MCP servers plus agent-written skills |
-| Memory and identity | Canonical in the harness store, mirrored into the workspace as files |
-| Onboarding | Conversation only: the agent works out its name, look and personality in chat |
-| Avatar | Bundled preset characters with customization |
-| Computer shape | Headless Linux with a headless browser; live take-over designed for, built later |
-| Proactivity | Schedules only: no heartbeat, no ideas feed, no nightly memory job |
-| Skill sources | Bundled, agent-written, and git or URL installs; no public hub |
-| Mobile scope | Streaming chat, push notifications, voice dictation, files and library, manage automations and skills |
-| Sandbox providers | Daytona, Cloudflare Containers, Modal, plus just-bash as the test and no-VM tier |
-| Runtime order | Cloudflare and Node in lockstep, with a shared conformance suite |
-| Chats | Many chats per agent, sharing memory, skills and computer |
-| Node storage | SQLite only |
-| Computer durability | Workspace directory persists; the system image is disposable |
-| Pairable devices | macOS and Linux daemon |
-| Sign-in | Email and password, Google, GitHub |
-| Dictation | Server-side transcription model |
+| Area                    | Decision                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| Agent model             | Many agents per user; each agent has its own VM, identity and memory                                  |
+| Tenancy                 | Multi-user from day one; a self-hosted install is a deployment with few users                         |
+| Relation to do-computer | New codebase; port the proven parts (section 7)                                                       |
+| Milestone 1 scope       | Web chat, durable agent, sandbox, schedules, skills, pairing own computers, Expo app                  |
+| Channels                | Web and mobile only; define a channel interface, ship no messaging apps                               |
+| Approvals               | Full trust by default; approval rules are opt-in                                                      |
+| Model keys              | One deployment OpenRouter key; usage recorded, no limits, no user keys                                |
+| Connectors              | MCP servers plus agent-written skills                                                                 |
+| Memory and identity     | Canonical in the harness store, mirrored into the workspace as files                                  |
+| Onboarding              | Conversation only: the agent works out its name, look and personality in chat                         |
+| Avatar                  | Bundled preset characters with customization                                                          |
+| Computer shape          | Headless Linux with a headless browser; live take-over designed for, built later                      |
+| Proactivity             | Schedules only: no heartbeat, no ideas feed, no nightly memory job                                    |
+| Skill sources           | Bundled, agent-written, and git or URL installs; no public hub                                        |
+| Mobile scope            | Streaming chat, push notifications, voice dictation, files and library, manage automations and skills |
+| Sandbox providers       | Daytona, Cloudflare Containers, Modal, plus just-bash as the test and no-VM tier                      |
+| Runtime order           | Cloudflare and Node in lockstep, with a shared conformance suite                                      |
+| Chats                   | Many chats per agent, sharing memory, skills and computer                                             |
+| Node storage            | SQLite only                                                                                           |
+| Computer durability     | Workspace directory persists; the system image is disposable                                          |
+| Pairable devices        | macOS and Linux daemon                                                                                |
+| Sign-in                 | Email and password, Google, GitHub                                                                    |
+| Dictation               | Server-side transcription model                                                                       |
 
 ## 2. Defaults chosen without asking (veto any of these)
 
@@ -79,22 +79,22 @@ define a narrow one and implement it twice. Sketch:
 ```ts
 // packages/runtime: one implementation for Durable Objects, one for Node
 interface AgentHost {
-  sql: SqliteDatabase;                        // pi-durable's facade: exec, run, get, all, transaction
-  setAlarm(at: number | null): Promise<void>; // one next-wake: DO alarm, or a Node timer
-  blobs: BlobStore;                           // R2, or a local directory
-  connections: ConnectionHub;                 // SSE subscribers and daemon sockets
-  now(): number;
+  sql: SqliteDatabase // pi-durable's facade: exec, run, get, all, transaction
+  setAlarm(at: number | null): Promise<void> // one next-wake: DO alarm, or a Node timer
+  blobs: BlobStore // R2, or a local directory
+  connections: ConnectionHub // SSE subscribers and daemon sockets
+  now(): number
 }
 ```
 
-| Concern | Cloudflare | Node |
-|---|---|---|
-| Agent actor | Durable Object per agent | In-process actor per agent, loaded on demand |
-| Agent store | Durable Object SQLite | One SQLite file per agent |
-| App database (users, agents, auth) | D1 | One SQLite file |
-| Wake-ups | Durable Object alarm | Timer, re-armed from the store on boot |
-| Blobs (library, uploads, workspace saves) | R2 | Local directory |
-| Daemon sockets | Hibernatable WebSocket in the actor | `ws` on the HTTP server |
+| Concern                                   | Cloudflare                          | Node                                         |
+| ----------------------------------------- | ----------------------------------- | -------------------------------------------- |
+| Agent actor                               | Durable Object per agent            | In-process actor per agent, loaded on demand |
+| Agent store                               | Durable Object SQLite               | One SQLite file per agent                    |
+| App database (users, agents, auth)        | D1                                  | One SQLite file                              |
+| Wake-ups                                  | Durable Object alarm                | Timer, re-armed from the store on boot       |
+| Blobs (library, uploads, workspace saves) | R2                                  | Local directory                              |
+| Daemon sockets                            | Hibernatable WebSocket in the actor | `ws` on the HTTP server                      |
 
 Every piece that touches this interface lands with both implementations and a conformance test.
 Anything importing `cloudflare:workers` sits behind an adapter module so the Node build never sees it.
@@ -123,25 +123,28 @@ do-computer: frozen memory snapshot per conversation, byte-stable tool schemas.
 
 ```ts
 interface SandboxProvider {
-  id: "daytona" | "cloudflare" | "modal" | "just-bash";
-  capabilities: { realBinaries: boolean; browser: boolean; nativeDisk: boolean };
-  ensure(agent: AgentRef): Promise<SandboxHandle>; // create only on a proven not-found
+  id: "daytona" | "cloudflare" | "modal" | "just-bash"
+  capabilities: { realBinaries: boolean; browser: boolean; nativeDisk: boolean }
+  ensure(agent: AgentRef): Promise<SandboxHandle> // create only on a proven not-found
 }
 interface SandboxHandle {
-  exec(command: string, opts?: { cwd?: string; timeoutMs?: number; stdin?: string }): Promise<ExecResult>;
-  readFile(path: string): Promise<Uint8Array>;
-  writeFile(path: string, data: Uint8Array): Promise<void>;
-  saveWorkspace(): Promise<void>;
-  restoreWorkspace(): Promise<void>;
+  exec(
+    command: string,
+    opts?: { cwd?: string; timeoutMs?: number; stdin?: string },
+  ): Promise<ExecResult>
+  readFile(path: string): Promise<Uint8Array>
+  writeFile(path: string, data: Uint8Array): Promise<void>
+  saveWorkspace(): Promise<void>
+  restoreWorkspace(): Promise<void>
 }
 ```
 
-| Provider | Cloudflare deployment | Node deployment | Workspace persistence |
-|---|---|---|---|
-| Daytona | Yes | Yes | Native disk across stop and start |
-| Cloudflare Containers | Yes | No | Save and restore the workspace directory to R2 (disk is lost on stop) |
-| Modal | No (SDK is gRPC, cannot run in a Worker) | Yes | Filesystem snapshot of the workspace (24-hour maximum lifetime) |
-| just-bash | Yes | Yes | In-memory filesystem persisted to the agent store; no real binaries, no browser |
+| Provider              | Cloudflare deployment                    | Node deployment | Workspace persistence                                                           |
+| --------------------- | ---------------------------------------- | --------------- | ------------------------------------------------------------------------------- |
+| Daytona               | Yes                                      | Yes             | Native disk across stop and start                                               |
+| Cloudflare Containers | Yes                                      | No              | Save and restore the workspace directory to R2 (disk is lost on stop)           |
+| Modal                 | No (SDK is gRPC, cannot run in a Worker) | Yes             | Filesystem snapshot of the workspace (24-hour maximum lifetime)                 |
+| just-bash             | Yes                                      | Yes             | In-memory filesystem persisted to the agent store; no real binaries, no browser |
 
 - The provider is a deployment setting with a per-agent override. Each runtime has one native
   provider plus Daytona as the shared one.
@@ -221,6 +224,7 @@ schedules, skills, computers and files; an SSE change feed applies server deltas
 writes; jotai holds UI-local state (composer draft, selected chat, panel state).
 
 **Web (TanStack Start):**
+
 - shadcn chat components (`MessageScroller`, `Message`, `Bubble`, `Attachment`, `Marker`) for the
   conversation layer. They own no data or transport, which suits a non-AI-SDK backend.
 - Hand-built: composer, tool-call rows, connector cards, approval cards. shadcn ships none of these.
@@ -263,31 +267,31 @@ packages/
 
 Each phase ends with both runtimes passing the same tests.
 
-| Phase | Builds | Done when |
-|---|---|---|
-| 0. Spikes | The unknowns in section 8 | Each has a written go or no-go |
-| 1. Skeleton | Monorepo, runtime interface and conformance suite, app database, auth, agent create and delete, one chat streaming to the web with just-bash | A signed-in user chats with an agent on a Worker and on Node; killing the process mid-turn resumes it; an end-to-end test runs with a fake model |
-| 2. Agent core | Conversational onboarding, identity and memory documents with file mirror, many chats, compaction, history search, steer and follow-up, library, usage recording, full web UI | An agent names itself, remembers across chats, and survives a restart with memory intact |
-| 3. Computers | Provider interface, Daytona, Cloudflare Containers, Modal, workspace save and restore, in-box CLI, browser skill | The same task runs on all three providers; a stopped box comes back with its workspace |
-| 4. Schedules, skills, connectors | Schedule store and alarms, isolated runs and delivery, skill store and authoring, git and URL install, MCP | A schedule created in chat fires after a process restart and reports back; the agent writes a skill and uses it in a later chat |
-| 5. Own computers | Daemon, pairing, `target`, opt-in rules, audit log | The agent runs a command on a paired laptop; revoking stops it immediately |
-| 6. Mobile | Expo auth, chat, push, dictation, library, automation and skill management | A scheduled result arrives as a push and opens the right chat |
-| 7. Release | Security review, sign-up gating, deploy guides for Wrangler and Node, docs | A new user can self-host from the README on either target |
+| Phase                            | Builds                                                                                                                                                                        | Done when                                                                                                                                        |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0. Spikes                        | The unknowns in section 8                                                                                                                                                     | Each has a written go or no-go                                                                                                                   |
+| 1. Skeleton                      | Monorepo, runtime interface and conformance suite, app database, auth, agent create and delete, one chat streaming to the web with just-bash                                  | A signed-in user chats with an agent on a Worker and on Node; killing the process mid-turn resumes it; an end-to-end test runs with a fake model |
+| 2. Agent core                    | Conversational onboarding, identity and memory documents with file mirror, many chats, compaction, history search, steer and follow-up, library, usage recording, full web UI | An agent names itself, remembers across chats, and survives a restart with memory intact                                                         |
+| 3. Computers                     | Provider interface, Daytona, Cloudflare Containers, Modal, workspace save and restore, in-box CLI, browser skill                                                              | The same task runs on all three providers; a stopped box comes back with its workspace                                                           |
+| 4. Schedules, skills, connectors | Schedule store and alarms, isolated runs and delivery, skill store and authoring, git and URL install, MCP                                                                    | A schedule created in chat fires after a process restart and reports back; the agent writes a skill and uses it in a later chat                  |
+| 5. Own computers                 | Daemon, pairing, `target`, opt-in rules, audit log                                                                                                                            | The agent runs a command on a paired laptop; revoking stops it immediately                                                                       |
+| 6. Mobile                        | Expo auth, chat, push, dictation, library, automation and skill management                                                                                                    | A scheduled result arrives as a push and opens the right chat                                                                                    |
+| 7. Release                       | Security review, sign-up gating, deploy guides for Wrangler and Node, docs                                                                                                    | A new user can self-host from the README on either target                                                                                        |
 
 ## 7. Ported from do-computer
 
 Source: `/home/sawyer/projects/do-browser/apps/do-computer`.
 
-| Piece | Source | Change on the way in |
-|---|---|---|
-| Identity key module | `src/identity.ts` | Add a real agent id; drop the shared dev account |
-| In-box CLI and callback token | `src/tools/registry.ts`, `src/tools/dc-token.ts` | Tokens expire and are scoped per agent |
-| Schedule grammar and store | `src/cron/schedule.ts`, `src/cron/jobs.ts`, `src/cron/runner.ts` | Per-agent alarm in place of a global minute tick |
-| Daemon and protocol | `src/computer-daemon/`, `packages/dc-protocol` | Pairing through Better Auth device authorization |
-| Target seam | `src/computers/remote-env.ts`, `src/sandboxes/tools.ts` | Unified with the sandbox handle |
-| Daytona adapter | `src/sandboxes/daytona.ts`, `src/sandboxes/index.ts` | Keep create-only-on-proven-404 |
-| Skill store | `src/skills/` | Canonical store moves outside the VM |
-| Memory caps and history search | `src/memory/` | Stored as pi-durable documents |
+| Piece                          | Source                                                           | Change on the way in                             |
+| ------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
+| Identity key module            | `src/identity.ts`                                                | Add a real agent id; drop the shared dev account |
+| In-box CLI and callback token  | `src/tools/registry.ts`, `src/tools/dc-token.ts`                 | Tokens expire and are scoped per agent           |
+| Schedule grammar and store     | `src/cron/schedule.ts`, `src/cron/jobs.ts`, `src/cron/runner.ts` | Per-agent alarm in place of a global minute tick |
+| Daemon and protocol            | `src/computer-daemon/`, `packages/dc-protocol`                   | Pairing through Better Auth device authorization |
+| Target seam                    | `src/computers/remote-env.ts`, `src/sandboxes/tools.ts`          | Unified with the sandbox handle                  |
+| Daytona adapter                | `src/sandboxes/daytona.ts`, `src/sandboxes/index.ts`             | Keep create-only-on-proven-404                   |
+| Skill store                    | `src/skills/`                                                    | Canonical store moves outside the VM             |
+| Memory caps and history search | `src/memory/`                                                    | Stored as pi-durable documents                   |
 
 Not ported: Flue and everything that reads its private tables, the Telegram delivery object, the
 restic backup system, the dobrowser.io auth hand-off.

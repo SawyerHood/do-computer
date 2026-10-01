@@ -1,0 +1,22 @@
+{
+  "name": "durable-computer",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @durable-computer/web dev",
+    "dev:cloudflare": "pnpm --filter @durable-computer/web dev:cloudflare",
+    "build": "pnpm --filter @durable-computer/web build",
+    "check": "pnpm -r run check",
+    "test": "pnpm -r run test",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "typescript": "catalog:",
+    "@typescript/native": "catalog:"
+  }
+}
