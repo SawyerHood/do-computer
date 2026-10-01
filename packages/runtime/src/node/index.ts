@@ -101,7 +101,12 @@ export class NodeActorNamespace implements ActorNamespace {
     for (const alarm of this.#alarms.values()) clearTimeout(alarm.timer)
     const instances = await Promise.allSettled(this.#instances.values())
     for (const instance of instances) {
-      if (instance.status === "fulfilled") await instance.value.database.close()
+      if (instance.status !== "fulfilled") continue
+      try {
+        await instance.value.actor.close?.()
+      } finally {
+        await instance.value.database.close()
+      }
     }
     this.#instances.clear()
     this.#index.close()

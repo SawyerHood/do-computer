@@ -52,6 +52,11 @@ export interface ActorHost {
 export interface Actor {
   fetch(request: Request): Promise<Response>
   alarm(): Promise<void>
+  /**
+   * Stop work and release the host's database before the process exits. Only a runtime that
+   * shuts down in order calls it; unfinished work must survive not being told.
+   */
+  close?(): Promise<void>
 }
 
 export type ActorFactory = (host: ActorHost) => Actor
