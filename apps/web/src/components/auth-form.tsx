@@ -1,0 +1,143 @@
+import { GithubLogoIcon, GoogleLogoIcon } from "@phosphor-icons/react"
+import { useQuery } from "@tanstack/react-query"
+import { Link, useNavigate } from "@tanstack/react-router"
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { authClient } from "@/lib/auth-client"
+
+type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
+
+/** Sign in or create an account, with email and password or a configured provider. */
+export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
+  const navigate = useNavigate()
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState<string>()
+  const [pending, setPending] = useState(false)
+  const { data: methods } = useQuery({
+    queryKey: ["auth-methods"],
+    queryFn: async (): Promise<Methods> => (await fetch("/api/auth-methods")).json(),
+  })
+  const signingUp = mode === "sign-up"
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(undefined)
+    setPending(true)
+    const result = signingUp
+      ? await authClient.signUp.email({
+          name: name.trim() || email.split("@")[0]!,
+          email,
+          password,
+        })
+      : await authClient.signIn.email({ email, password })
+    setPending(false)
+    if (result.error) {
+      setError(result.error.message ?? "That did not work. Check your details and try again.")
+      return
+    }
+    await navigate({ to: "/" })
+  }
+
+  const social = (provider: "google" | "github") =>
+    authClient.signIn.social({ provider, callbackURL: "/" })
+
+  return (
+    <main className="flex h-dvh items-center justify-center overflow-y-auto p-6">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {signingUp ? "Create your account" : "Welcome back"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {signingUp
+              ? "Then meet your agent: it gets its own name, memory and computer."
+              : "Sign in to pick up where you and your agent left off."}
+          </p>
+        </div>
+
+        {methods?.google || methods?.github ? (
+          <div className="flex flex-col gap-2">
+            {methods.google ? (
+              <Button variant="outline" onClick={() => social("google")}>
+                <GoogleLogoIcon weight="bold" /> Continue with Google
+              </Button>
+            ) : null}
+            {methods.github ? (
+              <Button variant="outline" onClick={() => social("github")}>
+                <GithubLogoIcon weight="bold" /> Continue with GitHub
+              </Button>
+            ) : null}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+              or
+            </div>
+          </div>
+        ) : null}
+
+        <form className="flex flex-col gap-4" onSubmit={submit}>
+          {signingUp ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                autoComplete="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              minLength={8}
+              autoComplete={signingUp ? "new-password" : "current-password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </div>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" disabled={pending}>
+            {pending ? "One moment…" : signingUp ? "Create account" : "Sign in"}
+          </Button>
+        </form>
+
+        <p className="text-sm text-muted-foreground">
+          {signingUp ? "Already have an account? " : "New here? "}
+          <Link
+            to={signingUp ? "/login" : "/signup"}
+            className="text-foreground underline underline-offset-3"
+          >
+            {signingUp ? "Sign in" : "Create an account"}
+          </Link>
+          {signingUp && methods?.signup === "invite" ? (
+            <span className="mt-2 block text-xs">
+              This deployment is invite-only: after the first account, only invited emails can sign
+              up.
+            </span>
+          ) : null}
+        </p>
+      </div>
+    </main>
+  )
+}

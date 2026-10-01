@@ -9,16 +9,43 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMeRouteImport } from './routes/api/me'
+import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
+import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
+import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
 
-const IndexRoute = IndexRouteImport.update({
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiAuthMethodsRoute = ApiAuthMethodsRouteImport.update({
+  id: '/api/auth-methods',
+  path: '/api/auth-methods',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -31,6 +58,11 @@ const ApiMeRoute = ApiMeRouteImport.update({
   path: '/api/me',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppAAgentIdRoute = AppAAgentIdRouteImport.update({
+  id: '/a/$agentId',
+  path: '/a/$agentId',
+  getParentRoute: () => AppRoute,
+} as any)
 const ApiAgentsIndexRoute = ApiAgentsIndexRouteImport.update({
   id: '/api/agents/',
   path: '/api/agents/',
@@ -41,66 +73,126 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppAAgentIdIndexRoute = AppAAgentIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
+const AppAAgentIdProfileRoute = AppAAgentIdProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
 const ApiAgentsAgentIdSplatRoute = ApiAgentsAgentIdSplatRouteImport.update({
   id: '/api/agents/$agentId/$',
   path: '/api/agents/$agentId/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
+  id: '/c/$chatId',
+  path: '/c/$chatId',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
+  '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/a/$agentId/': typeof AppAAgentIdIndexRoute
+  '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/agents': typeof ApiAgentsIndexRoute
+  '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/a/$agentId': typeof AppAAgentIdIndexRoute
+  '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
+  '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
+  '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
+    | '/signup'
+    | '/api/auth-methods'
     | '/api/health'
     | '/api/me'
+    | '/a/$agentId'
     | '/api/auth/$'
     | '/api/agents/'
+    | '/a/$agentId/profile'
     | '/api/agents/$agentId/$'
+    | '/a/$agentId/'
+    | '/a/$agentId/c/$chatId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/login'
+    | '/signup'
+    | '/api/auth-methods'
     | '/api/health'
     | '/api/me'
+    | '/'
     | '/api/auth/$'
     | '/api/agents'
+    | '/a/$agentId/profile'
     | '/api/agents/$agentId/$'
+    | '/a/$agentId'
+    | '/a/$agentId/c/$chatId'
   id:
     | '__root__'
-    | '/'
+    | '/_app'
+    | '/login'
+    | '/signup'
+    | '/api/auth-methods'
     | '/api/health'
     | '/api/me'
+    | '/_app/'
+    | '/_app/a/$agentId'
     | '/api/auth/$'
     | '/api/agents/'
+    | '/_app/a/$agentId/profile'
     | '/api/agents/$agentId/$'
+    | '/_app/a/$agentId/'
+    | '/_app/a/$agentId/c/$chatId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
+  ApiAuthMethodsRoute: typeof ApiAuthMethodsRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMeRoute: typeof ApiMeRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -110,11 +202,39 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/auth-methods': {
+      id: '/api/auth-methods'
+      path: '/api/auth-methods'
+      fullPath: '/api/auth-methods'
+      preLoaderRoute: typeof ApiAuthMethodsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -131,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/a/$agentId': {
+      id: '/_app/a/$agentId'
+      path: '/a/$agentId'
+      fullPath: '/a/$agentId'
+      preLoaderRoute: typeof AppAAgentIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/api/agents/': {
       id: '/api/agents/'
       path: '/api/agents'
@@ -145,6 +272,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/a/$agentId/': {
+      id: '/_app/a/$agentId/'
+      path: '/'
+      fullPath: '/a/$agentId/'
+      preLoaderRoute: typeof AppAAgentIdIndexRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
+    '/_app/a/$agentId/profile': {
+      id: '/_app/a/$agentId/profile'
+      path: '/profile'
+      fullPath: '/a/$agentId/profile'
+      preLoaderRoute: typeof AppAAgentIdProfileRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
     '/api/agents/$agentId/$': {
       id: '/api/agents/$agentId/$'
       path: '/api/agents/$agentId/$'
@@ -152,11 +293,49 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentsAgentIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/a/$agentId/c/$chatId': {
+      id: '/_app/a/$agentId/c/$chatId'
+      path: '/c/$chatId'
+      fullPath: '/a/$agentId/c/$chatId'
+      preLoaderRoute: typeof AppAAgentIdCChatIdRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
   }
 }
 
+interface AppAAgentIdRouteChildren {
+  AppAAgentIdProfileRoute: typeof AppAAgentIdProfileRoute
+  AppAAgentIdIndexRoute: typeof AppAAgentIdIndexRoute
+  AppAAgentIdCChatIdRoute: typeof AppAAgentIdCChatIdRoute
+}
+
+const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
+  AppAAgentIdProfileRoute: AppAAgentIdProfileRoute,
+  AppAAgentIdIndexRoute: AppAAgentIdIndexRoute,
+  AppAAgentIdCChatIdRoute: AppAAgentIdCChatIdRoute,
+}
+
+const AppAAgentIdRouteWithChildren = AppAAgentIdRoute._addFileChildren(
+  AppAAgentIdRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppIndexRoute: typeof AppIndexRoute
+  AppAAgentIdRoute: typeof AppAAgentIdRouteWithChildren
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppIndexRoute: AppIndexRoute,
+  AppAAgentIdRoute: AppAAgentIdRouteWithChildren,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
+  ApiAuthMethodsRoute: ApiAuthMethodsRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMeRoute: ApiMeRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
