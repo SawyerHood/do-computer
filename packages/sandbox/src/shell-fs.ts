@@ -26,7 +26,8 @@ const DESCRIBE = `describe() {
   printf '%s %s' "$k" "$s"
 }`
 
-function failure(outcome: ExecOutcome, path: string): SandboxError {
+/** The `SandboxError` for a file command that failed, read from what the command printed. */
+export function failure(outcome: ExecOutcome, path: string): SandboxError {
   const text = outcome.output.trim()
   const patterns: [RegExp, SandboxErrorCode][] = [
     [/no such file or directory/i, "not_found"],

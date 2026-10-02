@@ -10,5 +10,5 @@
     }
   },
   "include": ["src", "vite.config.ts", "server.node.mjs"],
-  "exclude": ["src/server.cloudflare.ts", "src/server/platform.cloudflare.ts"]
+  "exclude": ["src/server.cloudflare.ts", "src/server/*.cloudflare.ts"]
 }

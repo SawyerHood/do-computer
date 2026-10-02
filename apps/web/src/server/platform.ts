@@ -18,12 +18,37 @@ export type Config = {
   /** Comma-separated emails allowed to sign up when `signup` is `invite`. */
   readonly allowedEmails: readonly string[]
   /** What kind of computer agents get. Default `just-bash`. */
-  readonly sandbox: "just-bash" | "none"
+  readonly sandbox: SandboxKind
+  readonly daytona: {
+    readonly apiKey: string | undefined
+    readonly apiUrl: string | undefined
+    readonly target: string | undefined
+    readonly snapshot: string | undefined
+    readonly image: string | undefined
+  }
+  readonly modal: {
+    readonly tokenId: string | undefined
+    readonly tokenSecret: string | undefined
+    readonly app: string | undefined
+    readonly image: string | undefined
+    readonly environment: string | undefined
+  }
+  readonly cloudflare: {
+    /** `cloudflare/debian-trixie`, or an image named in the Wrangler configuration. */
+    readonly image: string | undefined
+    readonly instance: string | undefined
+  }
   /** Connectors may reach this machine and private networks. */
   readonly connectorsAllowPrivate: boolean
   /** OpenRouter speech-to-text model used for dictation. */
   readonly transcriptionModel: string
 }
+
+export const SANDBOX_KINDS = ["just-bash", "none", "daytona", "modal", "cloudflare"] as const
+export type SandboxKind = (typeof SANDBOX_KINDS)[number]
+
+/** A setting that is wrong in a way the deployment's owner has to fix. */
+export class ConfigError extends Error {}
 
 /** Everything the server code needs from its runtime. One implementation per target. */
 export type Platform = {
@@ -37,6 +62,17 @@ export type Platform = {
   readonly agents: ActorNamespace
   /** One actor per paired computer, holding its daemon's connection. */
   readonly computers: ActorNamespace
+}
+
+function sandboxKind(value: string | undefined): SandboxKind {
+  if (value === undefined) return "just-bash"
+  // A typo here must not quietly give agents a different computer than the one asked for.
+  if (!(SANDBOX_KINDS as readonly string[]).includes(value)) {
+    throw new ConfigError(
+      `DC_SANDBOX is "${value}". It must be one of: ${SANDBOX_KINDS.join(", ")}.`,
+    )
+  }
+  return value as SandboxKind
 }
 
 export function readConfig(env: Record<string, string | undefined>): Config {
@@ -55,7 +91,25 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .split(",")
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
-    sandbox: env.DC_SANDBOX === "none" ? "none" : "just-bash",
+    sandbox: sandboxKind(optional("DC_SANDBOX")),
+    daytona: {
+      apiKey: optional("DAYTONA_API_KEY"),
+      apiUrl: optional("DAYTONA_API_URL"),
+      target: optional("DAYTONA_TARGET"),
+      snapshot: optional("DC_DAYTONA_SNAPSHOT"),
+      image: optional("DC_DAYTONA_IMAGE"),
+    },
+    modal: {
+      tokenId: optional("MODAL_TOKEN_ID"),
+      tokenSecret: optional("MODAL_TOKEN_SECRET"),
+      app: optional("DC_MODAL_APP"),
+      image: optional("DC_MODAL_IMAGE"),
+      environment: optional("MODAL_ENVIRONMENT"),
+    },
+    cloudflare: {
+      image: optional("DC_CLOUDFLARE_IMAGE"),
+      instance: optional("DC_CLOUDFLARE_INSTANCE"),
+    },
     connectorsAllowPrivate: env.DC_CONNECTORS_ALLOW_PRIVATE === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
   }

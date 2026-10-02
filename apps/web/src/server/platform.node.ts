@@ -12,6 +12,7 @@ import {
 } from "@durable-computer/runtime/node"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyOwner } from "./push.ts"
+import { nodeProviders } from "./sandbox.node.ts"
 import { sandboxFactory } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
@@ -38,6 +39,8 @@ function create(): NodePlatform {
   const config = { ...fromEnv, authSecret: fromEnv.authSecret ?? authSecret(directory) }
   const { database, app } = openNodeAppDatabase(join(directory, "app.sqlite"))
   const models = createAgentModels(config)
+  // Checked once, here, so a wrong setting stops the server instead of failing each agent.
+  const sandbox = sandboxFactory(config, "Node", nodeProviders)
   const computers = new NodeActorNamespace({
     directory: join(directory, "computers"),
     blobs: () => fileBlobs(join(directory, "blobs", "computers")),
@@ -53,7 +56,7 @@ function create(): NodePlatform {
         models: models.models,
         defaultModel: models.defaultModel,
         modelOptions: models.options,
-        sandbox: sandboxFactory(config),
+        sandbox,
         connectorsAllowPrivateHosts: config.connectorsAllowPrivate,
         computerLinks: computers,
         onNotify: (notification) =>

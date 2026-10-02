@@ -58,13 +58,18 @@ export class Computer {
         hook(ToolTask, {
           beforeTool: async (call, _api, context) => {
             if (elsewhere(call.arguments)) return undefined
-            if (FILE_TOOLS.has(call.name) || call.name === "read") await this.#refresh(context)
+            if (FILE_TOOLS.has(call.name) || call.name === "read") {
+              // A computer that cannot be reached fails the tool itself, with the reason. Failing
+              // here instead would report the call as blocked, which it is not.
+              await this.#refresh(context).catch(() => {})
+            }
             return undefined
           },
           afterTool: async (call, result, _api, context) => {
             if (IDENTITY_TOOLS.has(call.name)) this.#stale = true
             if (!FILE_TOOLS.has(call.name) || elsewhere(call.arguments)) return undefined
-            const problems = await this.#absorb(context)
+            // If the computer cannot be read, the tool's own result already says so.
+            const problems = await this.#absorb(context).catch(() => [])
             if (problems.length === 0) return undefined
             const diagnostics: ToolDiagnostic[] = [
               ...(result.diagnostics ?? []),

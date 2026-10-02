@@ -10,6 +10,15 @@ export default createServerEntry({
 export { CONNECT_PATH }
 
 /**
+ * Open the data directory and wake the agents. Called once when the server starts, not on the
+ * first request: schedules have to fire on a server nobody has visited since it restarted, and a
+ * wrong setting should stop the server instead of failing every request.
+ */
+export function start(): void {
+  getPlatform()
+}
+
+/**
  * A daemon's WebSocket request, for the HTTP server that owns the socket. Resolves with a
  * function that attaches the accepted socket, or undefined when the token is not valid.
  */

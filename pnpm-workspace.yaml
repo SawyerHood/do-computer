@@ -27,6 +27,7 @@ allowBuilds:
   protobufjs: false
   "@mongodb-js/zstd": false
   node-liblzma: false
+  cbor-extract: false
 
 catalog:
   typescript: npm:@typescript/typescript6@^6.0.2

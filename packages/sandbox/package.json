@@ -5,19 +5,26 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./cloudflare": "./src/cloudflare/index.ts",
+    "./cloudflare/object": "./src/cloudflare/object.ts",
+    "./daytona": "./src/daytona/index.ts",
+    "./modal": "./src/modal/index.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@daytona/sdk": "^0.218.0",
     "@durable-computer/runtime": "workspace:*",
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
-    "just-bash": "^3.6.0"
+    "just-bash": "^3.6.0",
+    "modal": "^0.11.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261001.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "typescript": "catalog:",

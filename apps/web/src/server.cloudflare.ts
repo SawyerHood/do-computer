@@ -12,7 +12,10 @@ import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/co
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { readConfig } from "./server/platform.ts"
 import { notifyOwner } from "./server/push.ts"
+import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
 import { sandboxFactory } from "./server/sandbox.ts"
+
+export { SandboxObject } from "./server/sandbox.cloudflare.ts"
 
 /** One Durable Object per agent. */
 export const AgentObject = createDurableActorClass<Env>({
@@ -23,7 +26,7 @@ export const AgentObject = createDurableActorClass<Env>({
       models: models.models,
       defaultModel: models.defaultModel,
       modelOptions: models.options,
-      sandbox: sandboxFactory(config),
+      sandbox: sandboxFactory(config, "Cloudflare", cloudflareProviders(env)),
       connectorsAllowPrivateHosts: config.connectorsAllowPrivate,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       onNotify: (notification) =>

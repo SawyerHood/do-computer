@@ -9,11 +9,17 @@
     "bindings": [
       { "name": "AGENT", "class_name": "AgentObject" },
       { "name": "COMPUTER", "class_name": "ComputerObject" },
+      { "name": "SANDBOX", "class_name": "SandboxObject" },
     ],
   },
+  // To give each agent a Linux machine on Cloudflare Containers (Workers Paid plan), uncomment
+  // this and set DC_SANDBOX to "cloudflare" in `vars`. The machine starts from Cloudflare's
+  // managed Debian image, so there is nothing to build.
+  // "containers": [{ "class_name": "SandboxObject", "scheduling_policy": "durable_object" }],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["AgentObject"] },
     { "tag": "v2", "new_sqlite_classes": ["ComputerObject"] },
+    { "tag": "v3", "new_sqlite_classes": ["SandboxObject"] },
   ],
   "d1_databases": [
     {

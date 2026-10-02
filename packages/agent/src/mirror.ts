@@ -50,12 +50,15 @@ async function readText(sandbox: Sandbox, path: string): Promise<string | undefi
 /** Bring the workspace files in line with the documents. Writes only files that differ. */
 export async function writeMirror(sandbox: Sandbox, identity: Mirrored): Promise<void> {
   await sandbox.fs.mkdir(sandbox.home, { recursive: true })
-  for (const [name, content] of Object.entries(renderMirror(identity))) {
-    const path = `${sandbox.home}/${name}`
-    if ((await readText(sandbox, path)) !== content) {
-      await sandbox.fs.writeFile(path, encoder.encode(content))
-    }
-  }
+  // Side by side: on a remote computer each file is a round trip, and this runs before tools.
+  await Promise.all(
+    Object.entries(renderMirror(identity)).map(async ([name, content]) => {
+      const path = `${sandbox.home}/${name}`
+      if ((await readText(sandbox, path)) !== content) {
+        await sandbox.fs.writeFile(path, encoder.encode(content))
+      }
+    }),
+  )
   await sandbox.flush()
 }
 
@@ -108,12 +111,20 @@ export async function readMirrorChanges(
   const expected = renderMirror(identity)
   const change: Partial<Mirrored> = {}
   const problems: string[] = []
-  const edited = async (name: MirrorFile) => {
-    const text = await readText(sandbox, `${sandbox.home}/${name}`)
+  // Read side by side: this runs after every file tool, and each read may be a round trip.
+  const texts = new Map(
+    await Promise.all(
+      MIRROR_FILES.map(
+        async (name) => [name, await readText(sandbox, `${sandbox.home}/${name}`)] as const,
+      ),
+    ),
+  )
+  const edited = (name: MirrorFile) => {
+    const text = texts.get(name)
     return text === undefined || text === expected[name] ? undefined : text
   }
-  const limited = async (name: MirrorFile, field: "user" | "memory" | "soul", limit: number) => {
-    const text = await edited(name)
+  const limited = (name: MirrorFile, field: "user" | "memory" | "soul", limit: number) => {
+    const text = edited(name)
     if (text === undefined) return
     const value = withoutNewline(text)
     if (value.length > limit) {
@@ -122,10 +133,10 @@ export async function readMirrorChanges(
       )
     } else change[field] = value
   }
-  await limited("SOUL.md", "soul", 4000)
-  await limited("USER.md", "user", USER_LIMIT)
-  await limited("MEMORY.md", "memory", MEMORY_LIMIT)
-  const identityText = await edited("IDENTITY.md")
+  limited("SOUL.md", "soul", 4000)
+  limited("USER.md", "user", USER_LIMIT)
+  limited("MEMORY.md", "memory", MEMORY_LIMIT)
+  const identityText = edited("IDENTITY.md")
   if (identityText !== undefined)
     Object.assign(change, parseIdentity(identityText, identity, problems))
   return { change, problems }

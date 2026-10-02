@@ -8,6 +8,14 @@ import { WebSocketServer } from "ws"
 
 const app = await import("./dist/node/server/server.node.js")
 
+try {
+  app.start()
+} catch (error) {
+  // A setting the owner has to fix. Say what, without a stack trace to read past.
+  console.error(`durable computer cannot start: ${error instanceof Error ? error.message : error}`)
+  process.exit(1)
+}
+
 const port = Number(process.env.PORT ?? 3000)
 const hostname = process.env.HOST ?? "127.0.0.1"
 

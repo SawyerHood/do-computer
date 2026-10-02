@@ -6,6 +6,7 @@ export type Env = {
   DB: D1Database
   AGENT: DurableObjectNamespace
   COMPUTER: DurableObjectNamespace
+  SANDBOX: DurableObjectNamespace
   BLOBS: R2Bucket
 } & Record<string, string | undefined>
 

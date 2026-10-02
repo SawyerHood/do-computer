@@ -53,8 +53,47 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                           |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                          |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                          |
-| `DC_SANDBOX`                               | What computer agents get: `just-bash` (default) or `none`.                                                                           |
+| `DC_SANDBOX`                               | What computer agents get: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
+| `DC_CONNECTORS_ALLOW_PRIVATE`              | `1` lets connectors reach this machine and private networks, and use plain http. Off by default.                                     |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |
+
+## Computers
+
+Each agent has one computer. `DC_SANDBOX` chooses what it is, for every agent on the deployment.
+A remote machine is created the first time an agent runs something, and stops by itself when the
+agent is not using it.
+
+| `DC_SANDBOX` | The computer                                                                              | Runs on          | What persists                                | Settings                                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs, no network.              | Node, Cloudflare | The workspace, in the agent's own database   | none                                                                                                         |
+| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                      | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
+| `modal`      | A Linux machine on [Modal](https://modal.com)                                             | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
+| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/) | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
+| `none`       | No computer: no file or shell tools.                                                      | Node, Cloudflare |                                              | none                                                                                                         |
+
+Things to know before choosing one:
+
+- **Daytona** stops a machine after 15 minutes without use and starts the same machine again on
+  the next command. A machine is only ever created when Daytona says there is none; if Daytona
+  cannot be reached the agent is told so, and no empty replacement is made.
+- **Modal** stops a machine after 15 minutes without use, and after a day at most. A stopped
+  machine is gone, so the next command gets a new one with the same workspace. Packages installed
+  outside `/workspace` last until then.
+- **Cloudflare** needs the Workers Paid plan. Uncomment the `containers` line in
+  `apps/web/wrangler.jsonc` and set `DC_SANDBOX` to `cloudflare`. Machines start from Cloudflare's
+  managed Debian image, so there is nothing to build. A machine is saved as a snapshot after ten
+  minutes without use, and every fifteen while in use, then started from that snapshot.
+  Snapshots are in public beta and expire after 30 days, so a stopped machine is restored and
+  saved again every 20 days; an agent can be left alone for months and keep its disk.
+- On every remote machine, running processes do not survive a stop. Files do, as described above.
+- Changing `DC_SANDBOX` gives every agent a different, empty computer. The old ones are not
+  deleted and come back if you change it back.
+
+The three remote providers are tested against stand-ins that run real commands, and against the
+providers' real SDKs as far as an invalid key allows. None has yet been run with a real account
+from this repository: treat the first deployment on one as a trial.
+
+## Limits worth knowing
 
 Every model call is paid from the one deployment key and there are no per-user limits yet, which
 is why sign-up is by invitation unless you open it.
