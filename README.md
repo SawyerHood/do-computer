@@ -53,6 +53,7 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                           |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                          |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                          |
+| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                    |
 | `DC_SANDBOX`                               | What computer agents get: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
 | `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors and skill installs reach this machine and private networks, and use plain http. Off by default.                  |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |
@@ -101,7 +102,8 @@ is why sign-up is by invitation unless you open it.
 ## What an agent can do
 
 - **Chat**, in as many separate chats as you like, all sharing its memory. A reply keeps being
-  written when you close the tab, and is there when you come back.
+  written when you close the tab, and is there when you come back. It can search what was said in
+  its other chats, and so can you, from the chat list.
 - **Be someone.** It names itself in its first conversation, picks an avatar, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable under
   Identity and memory, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
@@ -109,18 +111,58 @@ is why sign-up is by invitation unless you open it.
 - **Use its computer**: read, write and edit files and run shell commands in a workspace that
   persists. The default computer is [just-bash](https://github.com/vercel-labs/just-bash), a shell
   interpreter with a durable virtual filesystem that needs no machine; it has the usual text tools
-  but no real programs.
+  but no real programs. For a real Linux machine, see [Computers](#computers); on one, the agent
+  also starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and
   reports back to the chat you asked in; see and pause them under Automations.
 - **Learn skills**: saved instructions it loads when a task calls for them, writes for itself, and
   can install from a GitHub folder or a `SKILL.md` URL.
+- **Use your services.** Under Connectors, add a remote [MCP](https://modelcontextprotocol.io)
+  server by its address, with an access token or by signing in to the service. Its tools become
+  the agent's. Tokens stay on the server; the agent never sees them.
+- **Send and keep files.** A file the agent sends appears in the chat and in the Library, where you
+  can also upload files for it.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
   prints a link; confirm it and choose the agent. The agent can then run commands and read and
   write files there, and everything it does is logged in `~/.durable-computer/audit.log` on that
   machine. Add `--read-only` to allow reading only.
 
-Agents act without asking first. A prompt injection in something an agent reads can therefore use
-whatever that agent can reach, including a paired computer. Pair machines with that in mind.
+You can talk instead of typing: the microphone button records, and the server transcribes with
+the same OpenRouter key (`DC_TRANSCRIPTION_MODEL`, default `openai/whisper-large-v3`).
+
+## Trust
+
+Agents act without asking first. That is the default on purpose, and it means a prompt injection
+in something an agent reads can use whatever that agent can reach, including its connectors and a
+paired computer. What limits the damage:
+
+- **Permissions.** For each thing the agent can do, each connector and each of your computers,
+  choose Allow, Ask first or Never. With Ask first the agent stops, a request with the exact
+  command or arguments appears above the composer and as a notification, and nothing happens until
+  you answer. A rule on one of your computers covers everything done there, reading included.
+- **Its own computer is not yours.** The default computer has no network and no real programs. A
+  remote one is a separate machine at a provider.
+- **Secrets stay on the server.** Connector tokens and sign-in grants are never in the model's
+  context or on the agent's computer.
+- **The server will not be used to reach inside your network.** Connector addresses and skill
+  installs must be https on a public host, re-checked on every redirect. `DC_ALLOW_PRIVATE_HOSTS=1`
+  lifts this for a deployment that wants services on its own network. The check reads the address
+  as written: a public name that resolves to a private address is not caught.
+- **Revocation.** Removing a computer cuts its daemon off at once. Removing a connector deletes its
+  credentials. Deleting an agent deletes its computer and everything it stored.
+
+## Mobile app
+
+`apps/mobile` is an Expo app for iOS and Android: chat with streaming replies, dictation, the
+library, automations, skills, approval requests and push notifications. It talks to your own
+deployment; on first launch it asks for the server's address.
+
+```sh
+pnpm mobile              # Expo dev server; open in a development build
+```
+
+Push notifications and the microphone need a development build, not Expo Go. The app's screens
+are tested through its web build; they have not yet been run on a device from this repository.
 
 ## Development
 
@@ -141,10 +183,13 @@ pairing.
 
 ```
 apps/web          TanStack Start app: UI, API, and the server entry for each runtime
+apps/mobile       the Expo app
 apps/daemon       the daemon a user runs on their own computer
 packages/runtime  one actor host interface (SQLite, alarm, blobs, sockets) over Durable Objects and Node
-packages/agent    the agent actor: pi-durable harness, identity, chats, schedules, skills, computers
-packages/sandbox  the sandbox interface, its adapter to pi-durable, and the just-bash provider
+packages/agent    the agent actor: pi-durable harness, identity, chats, history, schedules, skills,
+                  connectors, approvals, library
+packages/sandbox  the sandbox interface, its adapter to pi-durable, and the providers: just-bash,
+                  Daytona, Modal, Cloudflare Containers
 packages/computers  the daemon protocol and the actor that holds a paired computer's connection
 packages/protocol   types and reducers shared by server and clients
 packages/client     API client and reconnecting event streams, for the web and mobile apps

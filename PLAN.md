@@ -1,6 +1,8 @@
 # durable-computer: build plan
 
-**Status:** draft 1, 2026-10-01. Not yet reviewed. Nothing is built.
+**Status:** milestone 1 is built, as of 2026-10-02, on the `build/skeleton` branch. Section 0
+says what exists, where the build departed from this plan, and what has not been checked against
+a real service. The rest of the document is the plan as it was agreed, kept as the record of why.
 **Working name:** durable-computer. **License:** MIT.
 
 An open-source, self-hostable, always-on personal agent in the style of Meta Muse. Each agent has a
@@ -10,6 +12,72 @@ to Cloudflare Workers and to plain Node. Models are called through OpenRouter.
 
 Foundation: [`@earendil-works/pi-durable`](https://earendil.com/posts/pi-durable/) for the durable
 agent loop and `@earendil-works/pi-ai` for the model layer.
+
+---
+
+## 0. Where the build stands
+
+### Built and tested on both runtimes
+
+Everything below runs on Node and inside the Workers runtime, with the shared conformance suites
+for actor hosts, the app database and sandboxes passing on both.
+
+| Area                | What exists                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime             | One actor host (SQLite, one alarm, blobs, sockets, destroy) over a Durable Object and over a Node process; one app database over D1 and node:sqlite            |
+| Agent               | pi-durable harness per agent; many chats; streaming over resumable SSE; steer and follow-up; stop; recovery of an interrupted run by alarm                     |
+| Identity and memory | Conversational onboarding; name, tagline, avatar, personality, user profile and memory in documents with caps, mirrored as files in the workspace both ways    |
+| History             | Search across every chat, for the agent (a tool) and the user (web); earlier messages behind a summary or a fresh start; starting a chat fresh                 |
+| Computer            | just-bash with a durable virtual filesystem; Daytona; Modal; Cloudflare Containers; one interface, one conformance suite                                       |
+| Schedules           | Once, interval and cron with time zones; isolated runs; delivery to the chat they were made in; `[SILENT]`; at-most-once firing; survive a restart             |
+| Skills              | Bundled, agent-written, installed from GitHub or a URL; stored outside the computer and copied in when loaded; a browsing skill with a headless-browser script |
+| Connectors          | Remote MCP servers with a fixed token or OAuth (PKCE, dynamic registration); credentials in a table no tool reads                                              |
+| Own computers       | macOS and Linux daemon over an outbound WebSocket; pairing by a code a signed-in user confirms; read-only mode; audit log; revocation                          |
+| Approvals           | Opt-in rules per tool, connector or paired computer: allow, ask, never                                                                                         |
+| Library             | Files the agent sends and the user uploads, in blob storage, served with headers that keep a browser from running them                                         |
+| Usage               | Tokens and cost per agent, by model, with scheduled runs called out                                                                                            |
+| Accounts            | Better Auth with email and password, Google, GitHub; invite-only sign-up by default; several agents per account; deleting an agent with everything it has      |
+| Web                 | Chat, chat list and search, library, automations, skills, connectors, computers, permissions, identity and memory, usage                                       |
+| Mobile              | Expo app: sign-in, streaming chat, dictation, library, automations, skills, push registration, approval requests                                               |
+| Dictation and push  | Transcription through OpenRouter with the deployment key; notifications through Expo's push service                                                            |
+
+### Where the build departed from the plan
+
+| Plan                                                               | Built instead, and why                                                                                                                                                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An in-box CLI calling back to the server with a scoped token (4.5) | Model tools (`schedule`, `skill`, `memory`, `history`, `send_file`). It works on just-bash, which cannot run a CLI, and no token has to live on the computer.                                     |
+| Pairing through Better Auth device authorization (4.9)             | A pairing code the daemon prints and a signed-in user confirms, then a token stored only as a hash. Same flow for the user, less machinery, and revocation is one row.                            |
+| An "ask" that pauses the task (4.10)                               | The call is refused with an explanation and the answer is sent to the chat, where approval lets the next attempt through. Nothing is held open while the user is away, on either runtime.         |
+| Cloudflare Containers saving the workspace directory to R2 (4.4)   | Container snapshots of the whole disk, restored on start and refreshed before they expire. The platform's API changed on 2026-09-30 and now offers this directly; installed packages persist too. |
+| Modal restoring a filesystem snapshot (4.4)                        | A Modal volume mounted as the workspace. Simpler, and the workspace survives any way the machine can end.                                                                                         |
+| A provider per agent, overriding the deployment's (4.4)            | One provider per deployment (`DC_SANDBOX`).                                                                                                                                                       |
+| Drizzle for the app database (section 2)                           | Plain SQL behind a six-method interface. There are five tables besides Better Auth's.                                                                                                             |
+| A history index (section 7)                                        | Search reads the transcripts as stored, with a bound on how much one search reads. No index to keep in step on two runtimes.                                                                      |
+| The message stream as a TanStack DB collection (4.11)              | Agents and chats are collections; a chat's messages are reduced from its event stream into a jotai atom, which is what a token stream needs.                                                      |
+
+### Not built
+
+- Web search as a tool. An agent on a real computer can use the browsing skill and `curl`; an agent
+  on just-bash has no network. A search tool needs a decision on a second provider key (risk 7).
+- Mobile: managing connectors, permissions and paired computers, and deleting an agent. Those are
+  on the web only.
+- Archiving stale agent-written skills.
+- Usage limits. Usage is recorded and shown; nothing stops spending.
+
+### Not checked against the real thing
+
+Stated plainly, because tests cannot stand in for these:
+
+- **Model calls and transcription through OpenRouter.** No key was available while building. The
+  agent loop is tested with pi-ai's scripted provider and the app with a built-in echo model.
+- **Daytona, Modal, Cloudflare Containers.** Each passes the sandbox conformance suite against a
+  stand-in that runs real commands, and type-checks against the provider's SDK with no casts. With
+  the real SDKs, Daytona (on Node and in the Workers runtime) and Modal (on Node) were run as far
+  as an invalid key allows, and the Cloudflare sandbox object as far as a missing container.
+  No machine has been created on any of them.
+- **Native mobile.** The app's screens are tested through its web build. Secure storage, push
+  registration, the microphone and the share sheet have not run on a device.
+- **A deployed Worker.** The Cloudflare target is tested in workerd locally, never deployed.
 
 ---
 
@@ -142,8 +210,8 @@ interface SandboxHandle {
 | Provider              | Cloudflare deployment                    | Node deployment | Workspace persistence                                                           |
 | --------------------- | ---------------------------------------- | --------------- | ------------------------------------------------------------------------------- |
 | Daytona               | Yes                                      | Yes             | Native disk across stop and start                                               |
-| Cloudflare Containers | Yes                                      | No              | Save and restore the workspace directory to R2 (disk is lost on stop)           |
-| Modal                 | No (SDK is gRPC, cannot run in a Worker) | Yes             | Filesystem snapshot of the workspace (24-hour maximum lifetime)                 |
+| Cloudflare Containers | Yes                                      | No              | As built: snapshots of the whole disk (see section 0)                           |
+| Modal                 | No (SDK is gRPC, cannot run in a Worker) | Yes             | As built: a volume mounted as the workspace (see section 0)                     |
 | just-bash             | Yes                                      | Yes             | In-memory filesystem persisted to the agent store; no real binaries, no browser |
 
 - The provider is a deployment setting with a per-agent override. Each runtime has one native
