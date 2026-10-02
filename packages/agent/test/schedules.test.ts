@@ -10,12 +10,12 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
-import { createAgentActor, type ScheduledReport } from "../src/index.ts"
+import { type AgentNotification, createAgentActor } from "../src/index.ts"
 
 type World = {
   namespace: NodeActorNamespace
   faux: ReturnType<typeof fauxProvider>
-  reports: ScheduledReport[]
+  reports: AgentNotification[]
   errors: unknown[]
 }
 const worlds: World[] = []
@@ -24,7 +24,7 @@ function open(directory: string): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
-  const reports: ScheduledReport[] = []
+  const reports: AgentNotification[] = []
   const errors: unknown[] = []
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
@@ -37,7 +37,7 @@ function open(directory: string): World {
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
         keepAliveMs: 100,
-        onScheduledReport: (_agent, report) => reports.push(report),
+        onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
       }),
     onError: (error) => errors.push(error),
@@ -170,12 +170,16 @@ describe("schedules", () => {
     const run = await chatState(world, after!.lastRun!.chatId)
     expect(run.messages.at(-1)!.parts).toEqual([{ type: "text", text: "Sunny, 21°C." }])
     expect(after!.lastRun!.chatId).not.toBe(chat.id)
-    expect(world.reports).toEqual([
+    // The report is announced once. (These tests poll rather than follow the chat, so the
+    // agent's ordinary replies are announced too; those are not what is being checked.)
+    expect(world.reports.filter((notification) => notification.kind === "scheduled")).toEqual([
       {
-        scheduleId: created!.id,
-        title: "Weather check",
-        runChatId: after!.lastRun!.chatId,
+        agentId: "agent-1",
+        agentName: null,
+        kind: "scheduled",
+        heading: "Weather check",
         text: "Sunny, 21°C.",
+        chatId: chat.id,
       },
     ])
     expect(world.errors).toEqual([])
@@ -219,7 +223,7 @@ describe("schedules", () => {
     )
     expect(done!.lastRun).toMatchObject({ outcome: "silent" })
     expect((await chatState(world, chat.id)).messages.length).toBe(asked.messages.length)
-    expect(world.reports).toEqual([])
+    expect(world.reports.filter((notification) => notification.kind === "scheduled")).toEqual([])
   })
 
   it("still runs a schedule that came due while the process was down", async () => {

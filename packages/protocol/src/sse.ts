@@ -42,6 +42,7 @@ export async function* readSse<T>(body: ReadableStream<Uint8Array>): AsyncGenera
       }
     }
   } finally {
-    reader.releaseLock()
+    // A consumer that stops early is done with the connection, not just with reading it.
+    await reader.cancel().catch(() => {})
   }
 }

@@ -19,7 +19,7 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
-import { createAgentActor } from "../src/index.ts"
+import { type AgentNotification, createAgentActor } from "../src/index.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -306,5 +306,61 @@ describe("agent actor", () => {
       archived: true,
       title: "Renamed",
     })
+  })
+})
+
+describe("unseen replies", () => {
+  it("are reported only when nobody is following the chat", async () => {
+    const directory = temporary()
+    const faux = fauxProvider({
+      provider: "test",
+      models: [{ id: "model" }],
+      tokensPerSecond: 2_000,
+    })
+    const models = createModels()
+    models.setProvider(faux.provider)
+    const unseen: AgentNotification[] = []
+    const namespace = new NodeActorNamespace({
+      directory: join(directory, "actors"),
+      blobs: () => fileBlobs(join(directory, "blobs")),
+      factory: (host) =>
+        createAgentActor(host, {
+          models,
+          defaultModel: "test/model",
+          modelOptions: [
+            { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
+          ],
+          keepAliveMs: 100,
+          onNotify: (notification) => unseen.push(notification),
+        }),
+    })
+    const world: World = { namespace, faux, reports: [] }
+    worlds.push(world)
+    const chat = await setup(world)
+
+    // Someone is watching: no notification.
+    faux.setResponses([fauxAssistantMessage("While you watch.")])
+    const following = follow(world, chat.id, answered(1))
+    await send(world, chat.id, "hello")
+    await following
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(unseen).toEqual([])
+
+    // Nobody is: the answer is reported once it is complete.
+    faux.setResponses([fauxAssistantMessage("While you were away.")])
+    await send(world, chat.id, "and now?")
+    const deadline = Date.now() + 5_000
+    while (unseen.length === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    expect(unseen).toEqual([
+      {
+        agentId: "agent-1",
+        agentName: null,
+        kind: "reply",
+        text: "While you were away.",
+        chatId: chat.id,
+      },
+    ])
   })
 })

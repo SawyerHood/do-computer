@@ -39,6 +39,16 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       computer_id TEXT
     )`,
   ],
+  [
+    // Devices to notify when an agent has something for its user. The token is Expo's.
+    `CREATE TABLE dc_push_tokens (
+      token TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    "CREATE INDEX dc_push_tokens_by_user ON dc_push_tokens (user_id)",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

@@ -1,4 +1,5 @@
 import { getPlatform } from "#platform"
+import { expo } from "@better-auth/expo"
 import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
@@ -11,6 +12,8 @@ import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
  */
 const AUTH_SCHEMA = "better-auth-1.7:email-password,social"
 const AUTH_SCHEMA_KEY = "auth_schema"
+/** URL scheme of the mobile app; must match `scheme` in apps/mobile/app.json. */
+export const MOBILE_SCHEME = "durablecomputer"
 
 function authOptions(platform: Platform) {
   const { config } = platform
@@ -52,8 +55,11 @@ function authOptions(platform: Platform) {
         }
       },
     },
-    // Must stay last: it turns the Set-Cookie headers of server-side calls into response cookies.
-    plugins: [tanstackStartCookies()],
+    // The mobile app signs in from its own URL scheme and keeps the session cookie itself.
+    trustedOrigins: [`${MOBILE_SCHEME}://`],
+    // tanstackStartCookies must stay last: it turns the Set-Cookie headers of server-side calls
+    // into response cookies.
+    plugins: [expo(), tanstackStartCookies()],
   } satisfies BetterAuthOptions
 }
 

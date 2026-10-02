@@ -3,6 +3,7 @@ import { createComputerLinkActor } from "@durable-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
 import {
   createDurableActorClass,
+  d1Database,
   durableObjectNamespace,
   r2Blobs,
 } from "@durable-computer/runtime/cloudflare"
@@ -10,6 +11,7 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { readConfig } from "./server/platform.ts"
+import { notifyOwner } from "./server/push.ts"
 import { sandboxFactory } from "./server/sandbox.ts"
 
 /** One Durable Object per agent. */
@@ -23,6 +25,13 @@ export const AgentObject = createDurableActorClass<Env>({
       modelOptions: models.options,
       sandbox: sandboxFactory(config),
       computerLinks: durableObjectNamespace(env.COMPUTER),
+      onNotify: (notification) =>
+        void notifyOwner(
+          d1Database(env.DB),
+          notification.agentId,
+          notification.agentName,
+          notification,
+        ),
       onReport: (error) => console.error(`[agent ${host.name}]`, error),
     })
   },

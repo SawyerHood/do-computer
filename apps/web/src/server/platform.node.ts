@@ -11,6 +11,7 @@ import {
   type SocketLike,
 } from "@durable-computer/runtime/node"
 import { type Platform, readConfig } from "./platform.ts"
+import { notifyOwner } from "./push.ts"
 import { sandboxFactory } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
@@ -54,6 +55,8 @@ function create(): NodePlatform {
         modelOptions: models.options,
         sandbox: sandboxFactory(config),
         computerLinks: computers,
+        onNotify: (notification) =>
+          void notifyOwner(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       }),
     onError: (error, name) => console.error(`[agent ${name}] alarm failed`, error),

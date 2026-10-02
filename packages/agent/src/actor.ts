@@ -18,6 +18,7 @@ import type { Sandbox } from "@durable-computer/sandbox"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai/models"
 import {
+  AssistantEntry,
   type Conversation,
   type ConversationId,
   createRegistry,
@@ -39,7 +40,7 @@ import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./lib
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
-import { type ScheduledReport, ScheduleError, Scheduler } from "./schedules.ts"
+import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { projectChat } from "./project.ts"
@@ -76,8 +77,24 @@ export type AgentActorOptions = {
   readonly computerLinks?: ActorNamespace
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
-  /** Called when a scheduled task has a report for the user, for example to send a push. */
-  readonly onScheduledReport?: (agentId: string, report: ScheduledReport) => void
+  /**
+   * Called when the agent has something for a user who may not be looking: a scheduled task
+   * reported, or it finished answering in a chat nobody has open. For sending a push
+   * notification. Best effort: a reply that finishes after a restart is not announced.
+   */
+  readonly onNotify?: (notification: AgentNotification) => void
+}
+
+export type AgentNotification = {
+  agentId: string
+  /** Null while the agent has not named itself. */
+  agentName: string | null
+  kind: "reply" | "scheduled"
+  /** For a scheduled report, the task's title. */
+  heading?: string
+  text: string
+  /** The chat to open; null when the chat a report was meant for is gone. */
+  chatId: string | null
 }
 
 class HttpError extends Error {
@@ -179,6 +196,8 @@ export class AgentActor implements Actor {
   readonly #computer: Computer | undefined
   readonly #paired: PairedComputers | undefined
   readonly #library: Library
+  /** How many clients are following each chat right now. */
+  readonly #watchers = new Map<string, number>()
   readonly #scheduler: Scheduler
   readonly #skills: Skills
   #harness: Promise<Harness> | undefined
@@ -199,7 +218,13 @@ export class AgentActor implements Actor {
     })
     this.#scheduler = new Scheduler({
       now: () => host.now(),
-      onReport: (report) => options.onScheduledReport?.(host.name, report),
+      onReport: (report) =>
+        void this.#notify({
+          kind: "scheduled",
+          heading: report.title,
+          text: report.text,
+          chatId: report.chatId,
+        }),
       onError: (error) => options.onReport?.(error),
     })
   }
@@ -668,6 +693,7 @@ export class AgentActor implements Actor {
       context,
     )
     const chatId = String(conversation.id)
+    void this.#notifyWhenUnseen(harness, chatId, submission)
     await harness.commit(async (tx) => {
       const chat = (await tx.doc(ChatsDoc)).chats[chatId]
       if (chat === undefined) return
@@ -681,8 +707,44 @@ export class AgentActor implements Actor {
     return json({ submissionId: String(submission.id) }, 202)
   }
 
+  /** Tell the host when a run ends with an answer and no client is following the chat. */
+  async #notifyWhenUnseen(
+    harness: Harness,
+    chatId: string,
+    submission: Awaited<ReturnType<Conversation["submit"]>>,
+  ): Promise<void> {
+    if (this.#options.onNotify === undefined) return
+    try {
+      const settled = await submission.wait(context)
+      if (settled.status !== "done" || settled.type !== "input") return
+      if ((this.#watchers.get(chatId) ?? 0) > 0) return
+      const answer = await harness.commit((tx) => tx.entry(AssistantEntry, settled.answer), context)
+      const message = answer?.model?.[0]
+      const text =
+        message?.role === "assistant"
+          ? message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("")
+          : ""
+      if (text.trim() !== "") await this.#notify({ kind: "reply", text: text.trim(), chatId })
+    } catch (error) {
+      this.#options.onReport?.(error)
+    }
+  }
+
+  async #notify(notification: Omit<AgentNotification, "agentId" | "agentName">): Promise<void> {
+    const notify = this.#options.onNotify
+    if (notify === undefined || this.#harness === undefined) return
+    try {
+      const identity = await (await this.#harness).snapshot(IdentityDoc, context)
+      notify({ agentId: this.#host.name, agentName: identity?.name ?? null, ...notification })
+    } catch (error) {
+      this.#options.onReport?.(error)
+    }
+  }
+
   #chatEvents(conversation: Conversation): Response {
+    const chatId = String(conversation.id)
     return eventStream(async (emit, close) => {
+      this.#watchers.set(chatId, (this.#watchers.get(chatId) ?? 0) + 1)
       const watch = await conversation.watch(context)
       let state = projectChat(watch.value)
       await emit({ type: "snapshot", state })
@@ -693,7 +755,10 @@ export class AgentActor implements Actor {
         for (const event of events) await emit(event)
       })
       void watch.closed.then(close)
-      return () => void watch.stop()
+      return () => {
+        this.#watchers.set(chatId, Math.max(0, (this.#watchers.get(chatId) ?? 1) - 1))
+        void watch.stop()
+      }
     })
   }
 

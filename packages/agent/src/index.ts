@@ -1,4 +1,9 @@
-export { AgentActor, type AgentActorOptions, createAgentActor } from "./actor.ts"
+export {
+  AgentActor,
+  type AgentActorOptions,
+  type AgentNotification,
+  createAgentActor,
+} from "./actor.ts"
 export {
   ChatsDoc,
   type ChatRecord,

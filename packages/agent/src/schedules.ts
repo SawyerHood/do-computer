@@ -22,7 +22,15 @@ const MAX_PROMPT_CHARS = 8_000
 /** Entry kind of a scheduled task's report in the chat it was created in. */
 export const SCHEDULED_ENTRY = "dc.scheduled"
 
-export type ScheduledReport = { scheduleId: string; title: string; runChatId: string; text: string }
+export type ScheduledReport = {
+  scheduleId: string
+  title: string
+  /** The chat holding the run's full transcript. */
+  runChatId: string
+  /** The chat the report was delivered into, when it still exists. */
+  chatId: string | null
+  text: string
+}
 
 function preamble(title: string, now: number, timezone: string | null): string {
   return (
@@ -351,7 +359,7 @@ export class Scheduler {
         else {
           outcome = "delivered"
           await this.#deliver(
-            { scheduleId: id, title: record.title, runChatId: pending.chatId, text },
+            { scheduleId: id, title: record.title, runChatId: pending.chatId, chatId: null, text },
             record.originChatId,
             pending.firedAt,
             context,
@@ -396,7 +404,12 @@ export class Scheduler {
                 timestamp: now,
               },
             ],
-            data: report,
+            data: {
+              scheduleId: report.scheduleId,
+              title: report.title,
+              runChatId: report.runChatId,
+              text: report.text,
+            },
           },
         },
         context,
@@ -406,7 +419,7 @@ export class Scheduler {
         if (chat !== undefined) chat.updatedAt = now
       }, context)
     }
-    this.#options.onReport?.(report)
+    this.#options.onReport?.({ ...report, chatId: origin === undefined ? null : originChatId })
   }
 
   #tool() {
