@@ -115,6 +115,11 @@ function fakeDaytona() {
       if (faults.start) throw faults.start
       machine.state = "started"
     },
+    delete: async (machine) => {
+      const { name } = machine as FakeMachine
+      log.push(`delete ${name}`)
+      machines.delete(name)
+    },
   }
   return { client, machines, log, faults, home: root, make }
 }
@@ -240,6 +245,27 @@ describe("daytona: finding and starting the machine", () => {
     // No time has passed, so the machine was trusted; the failure is what reveals the stop.
     expect((await sandbox.exec("echo again")).output).toBe("again\n")
     expect(log).toEqual([`get ${name}`, "start", `get ${name}`])
+  })
+
+  it("deletes the machine, and treats one that is already gone as deleted", async () => {
+    const { sandbox, log, machines, name, faults } = open()
+    await sandbox.exec("true")
+    log.length = 0
+
+    await sandbox.destroy!()
+    expect(machines.has(name)).toBe(false)
+    await sandbox.destroy!()
+    expect(log).toEqual([`get ${name}`, `delete ${name}`, `get ${name}`])
+
+    // "Could not tell" is not "gone": the caller has to hear about it.
+    faults.get = new ApiError(503, "upstream unavailable")
+    await expect(sandbox.destroy!()).rejects.toThrow("upstream unavailable")
+  })
+
+  it("does not create a machine just to delete it", async () => {
+    const { sandbox, log, name } = open()
+    await sandbox.destroy!()
+    expect(log).toEqual([`get ${name}`])
   })
 
   it("passes a command's own failure through without retrying it", async () => {

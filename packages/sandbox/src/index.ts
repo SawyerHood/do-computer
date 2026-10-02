@@ -76,4 +76,9 @@ export interface Sandbox {
   exec(command: string, options?: ExecOptions): Promise<ExecOutcome>
   /** Make everything written so far durable. A no-op where writes already are. */
   flush(): Promise<void>
+  /**
+   * Delete the machine and everything on it, for good. Absent where the sandbox keeps nothing
+   * outside the agent's own storage. Succeeds when there was nothing to delete.
+   */
+  destroy?(): Promise<void>
 }

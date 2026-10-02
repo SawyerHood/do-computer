@@ -45,9 +45,11 @@ export type QueuedInput = {
   text: string
 }
 
+/** Tokens and money spent on models. */
 export type ChatUsage = {
   inputTokens: number
   outputTokens: number
+  /** In US dollars, as the model provider priced it. */
   cost: number
 }
 

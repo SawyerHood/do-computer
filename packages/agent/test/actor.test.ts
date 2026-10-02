@@ -1,8 +1,9 @@
-import { mkdtempSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   type AgentEvent,
+  type AgentUsage,
   type ChatEvent,
   type ChatState,
   type ChatSummary,
@@ -19,6 +20,8 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
+import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
+import type { Sandbox } from "@durable-computer/sandbox"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 
 type World = {
@@ -29,7 +32,7 @@ type World = {
 
 const worlds: World[] = []
 
-function open(directory: string, tokensPerSecond = 2_000): World {
+function open(directory: string, tokensPerSecond = 2_000, sandbox?: () => Sandbox): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -45,6 +48,7 @@ function open(directory: string, tokensPerSecond = 2_000): World {
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
         keepAliveMs: 100,
+        sandbox,
         onReport: (error) => reports.push(error),
       }),
     onError: (error) => reports.push(error),
@@ -306,6 +310,98 @@ describe("agent actor", () => {
       archived: true,
       title: "Renamed",
     })
+  })
+})
+
+describe("deleting an agent", () => {
+  it("removes its computer and everything it stored, leaving the name empty", async () => {
+    const directory = temporary()
+    let destroyed = 0
+    const world = open(directory, 2_000, () => ({
+      ...createLocalProcessSandbox(),
+      destroy: async () => void destroyed++,
+    }))
+    const chat = await setup(world)
+    world.faux.setResponses([fauxAssistantMessage("noted")])
+    await send(world, chat.id, "remember this")
+    await follow(world, chat.id, answered(1))
+    await world.namespace
+      .get("agent-1")
+      .fetch(new Request("http://actor/library?name=a.txt", { method: "POST", body: "a file" }))
+    expect(existsSync(join(directory, "actors", "agent-1.sqlite"))).toBe(true)
+    expect(
+      readdirSync(join(directory, "blobs", "agent-1"), { recursive: true }).length,
+    ).toBeGreaterThan(0)
+
+    expect(await call(world, "/destroy", "POST")).toEqual({ ok: true })
+    expect(destroyed).toBe(1)
+    expect(existsSync(join(directory, "actors", "agent-1.sqlite"))).toBe(false)
+    const left = existsSync(join(directory, "blobs", "agent-1"))
+      ? readdirSync(join(directory, "blobs", "agent-1"), {
+          recursive: true,
+          withFileTypes: true,
+        }).filter((entry) => entry.isFile())
+      : []
+    expect(left).toEqual([])
+
+    // The name is an agent nobody owns again: it answers nothing until it is given an owner.
+    await expect(call(world, "/")).rejects.toThrow()
+    await expect(call(world, `/chats/${chat.id}`)).rejects.toThrow()
+    expect(world.reports).toEqual([])
+  })
+
+  it("keeps the agent whole when its computer cannot be deleted", async () => {
+    const world = open(temporary(), 2_000, () => ({
+      ...createLocalProcessSandbox(),
+      destroy: async () => {
+        throw new Error("the provider is unreachable")
+      },
+    }))
+    const chat = await setup(world)
+    await expect(call(world, "/destroy", "POST")).rejects.toThrow(
+      /502: The agent's computer could not be deleted, so nothing was: the provider is unreachable/,
+    )
+    // Still there, and still working.
+    world.faux.setResponses([fauxAssistantMessage("still here")])
+    await send(world, chat.id, "are you there?")
+    const { state } = await follow(world, chat.id, answered(1))
+    expect(state.messages.at(-1)?.parts[0]).toMatchObject({ text: "still here" })
+  })
+})
+
+describe("usage", () => {
+  it("adds up what every chat spent, by model", async () => {
+    const world = open(temporary())
+    const first = await setup(world)
+    const empty = await call<AgentUsage>(world, "/usage")
+    expect(empty).toEqual({
+      total: { inputTokens: 0, outputTokens: 0, cost: 0 },
+      models: [],
+      scheduled: { inputTokens: 0, outputTokens: 0, cost: 0 },
+      chats: 1,
+    })
+
+    world.faux.setResponses([
+      fauxAssistantMessage("one"),
+      fauxAssistantMessage("two, a longer answer"),
+    ])
+    await send(world, first.id, "hello")
+    await follow(world, first.id, answered(1))
+    const second = await call<ChatSummary>(world, "/chats", "POST", {})
+    await send(world, second.id, "hello again")
+    await follow(world, second.id, answered(1))
+    const one = await call<ChatState>(world, `/chats/${first.id}`)
+    const two = await call<ChatState>(world, `/chats/${second.id}`)
+
+    const usage = await call<AgentUsage>(world, "/usage")
+    expect(usage.chats).toBe(2)
+    expect(usage.models.map((entry) => entry.model)).toEqual(["test/model"])
+    // The agent's total is the sum of what each chat reported for itself.
+    expect(usage.total.inputTokens).toBe(one.usage.inputTokens + two.usage.inputTokens)
+    expect(usage.total.outputTokens).toBe(one.usage.outputTokens + two.usage.outputTokens)
+    expect(usage.total.outputTokens).toBeGreaterThan(0)
+    expect(usage.models[0]).toMatchObject(usage.total)
+    expect(usage.scheduled.outputTokens).toBe(0)
   })
 })
 

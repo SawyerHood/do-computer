@@ -111,6 +111,8 @@ export function containerSandbox(options: ContainerSandboxClientOptions): Sandbo
     exec,
     // The object saves the disk when the machine goes idle, and at intervals while it is in use.
     flush: async () => {},
+    // Stops the machine and forgets its snapshot. Snapshots themselves expire on their own.
+    destroy: async () => void (await post("/reset", {})),
     fs: shellFs(exec, {
       readFile: async (path) =>
         new Uint8Array(

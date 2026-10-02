@@ -87,6 +87,22 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
             .getWebSockets()
             .filter((socket) => socket.readyState === WebSocket.OPEN)
             .map(actorSocket),
+        destroy: async () => {
+          for (const socket of this.ctx.getWebSockets()) {
+            try {
+              socket.close(1001, "This actor was deleted")
+            } catch {
+              // Already closed.
+            }
+          }
+          const blobs = options.blobs(this.env, name)
+          for (const object of await blobs.list("")) await blobs.delete(object.key)
+          await storage.deleteAlarm()
+          await storage.deleteAll()
+          // The next request for this name builds a new actor on empty storage.
+          this.#actor = undefined
+          this.#database = undefined
+        },
       }
     }
 

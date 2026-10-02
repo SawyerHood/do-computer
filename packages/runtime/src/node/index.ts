@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs"
+import { mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import {
@@ -208,6 +208,24 @@ export class NodeActorNamespace implements ActorNamespace {
         [...(this.#sockets.get(name)?.values() ?? [])]
           .filter(({ like }) => like.readyState === SOCKET_OPEN)
           .map(({ socket }) => socket),
+      destroy: async () => {
+        const alarm = this.#alarms.get(name)
+        if (alarm !== undefined) clearTimeout(alarm.timer)
+        this.#alarms.delete(name)
+        this.#index.prepare("DELETE FROM alarms WHERE name = ?").run(name)
+        for (const { like } of this.#sockets.get(name)?.values() ?? []) {
+          like.close(1001, "This actor was deleted")
+        }
+        this.#sockets.delete(name)
+        // The next request for this name opens a new, empty actor.
+        this.#instances.delete(name)
+        await database.close()
+        for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+          rmSync(`${file}${suffix}`, { force: true })
+        }
+        const blobs = this.#options.blobs(name)
+        for (const object of await blobs.list("")) await blobs.delete(object.key)
+      },
     }
     return { actor: this.#options.factory(host), database }
   }

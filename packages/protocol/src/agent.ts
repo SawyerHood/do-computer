@@ -1,3 +1,5 @@
+import type { ChatUsage } from "./chat.ts"
+
 /** A bundled character plus the options the user (or the agent) picked for it. */
 export type Avatar = {
   character: string
@@ -159,3 +161,14 @@ export type CreateChatRequest = { title?: string }
 export type UpdateChatRequest = { title?: string; archived?: boolean }
 
 export type ApiError = { error: string; code?: string }
+
+/** What an agent has spent on models, across all its chats and scheduled runs. */
+export type AgentUsage = {
+  total: ChatUsage
+  /** Spend by model, largest first. */
+  models: (ChatUsage & { model: string })[]
+  /** The part of the total spent in scheduled runs. */
+  scheduled: ChatUsage
+  /** How many chats and runs the total covers. */
+  chats: number
+}

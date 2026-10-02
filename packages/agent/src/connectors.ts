@@ -227,7 +227,9 @@ export class Connectors {
         error instanceof BlockedAddressError ? error.message : `"${input.url}" is not a URL.`,
       )
     }
-    const id = crypto.randomUUID().slice(0, 8)
+    // Starts with a letter so that it is never mistaken for a number, as "12345678" or "1e234567"
+    // would be by anything that parses a URL's query the way JSON is parsed.
+    const id = `c${crypto.randomUUID().slice(0, 8)}`
     await this.#require().commit(async (tx) => {
       const { connectors } = await tx.doc(ConnectorsDoc)
       if (Object.keys(connectors).length >= MAX_CONNECTORS) {

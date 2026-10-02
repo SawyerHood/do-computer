@@ -2,6 +2,7 @@ import {
   type AddConnectorRequest,
   type AgentEvent,
   type AgentSummary,
+  type AgentUsage,
   type ApiError as ApiErrorBody,
   type Avatar,
   type ChatEvent,
@@ -183,6 +184,9 @@ export function createClient(options: ClientOptions) {
     me: () => request<Me>("/api/me"),
     listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
     createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
+    /** Delete an agent for good, with its memory, files, schedules and computer. */
+    deleteAgent: (agentId: string) =>
+      request<{ ok: true }>(`/api/agents/${agentId}`, { method: "DELETE" }),
     /** Register this device for push notifications, with the token its push service issued. */
     registerPush: (token: string, platform: string) =>
       post<{ ok: true }>("/api/push/register", { token, platform }),
@@ -245,6 +249,8 @@ export function createClient(options: ClientOptions) {
           patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
         removeConnector: (connectorId: string) =>
           request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
+        /** What the agent has spent on models so far. */
+        usage: () => request<AgentUsage>(`${base}/usage`),
         library: async () => (await request<{ files: LibraryFile[] }>(`${base}/library`)).files,
         /** Where a library file's bytes are served from; needs the same credentials as any call. */
         libraryFileUrl: (fileId: string) => `${options.baseUrl}${base}/library/${fileId}`,

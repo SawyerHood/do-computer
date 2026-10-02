@@ -49,6 +49,12 @@ export interface ActorHost {
   getAlarm(): Promise<number | null>
   /** WebSockets attached to this actor that are still open. */
   sockets(): ActorSocket[]
+  /**
+   * Delete everything this actor has: its database, its blobs, its alarm and its sockets. The
+   * actor must have stopped using the database first, and must not use the host afterwards. The
+   * name can be used again later and finds nothing.
+   */
+  destroy(): Promise<void>
 }
 
 /**

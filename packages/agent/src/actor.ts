@@ -1,7 +1,10 @@
 import {
+  type AddConnectorRequest,
   type AgentEvent,
   type AgentSummary,
+  type AgentUsage,
   type ChatSummary,
+  type ChatUsage,
   type CreateChatRequest,
   diffChat,
   encodeSse,
@@ -10,13 +13,13 @@ import {
   type SendMessageRequest,
   SSE_HEADERS,
   SSE_HEARTBEAT,
-  type AddConnectorRequest,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
 import type { Actor, ActorHost, ActorNamespace } from "@durable-computer/runtime"
 import type { Sandbox } from "@durable-computer/sandbox"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
+import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
 import {
   AssistantEntry,
@@ -25,6 +28,7 @@ import {
   createRegistry,
   type Extension,
   Harness,
+  UsageDoc,
 } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import {
@@ -45,7 +49,7 @@ import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
-import { projectChat } from "./project.ts"
+import { addUsage, projectChat } from "./project.ts"
 
 const context = BACKGROUND_CONTEXT
 
@@ -346,6 +350,30 @@ export class AgentActor implements Actor {
     await (await harness)?.close(context)
   }
 
+  /**
+   * Delete the agent: its computer, then everything it has stored. For the gateway, after the
+   * owner asked for it.
+   */
+  async #destroy(): Promise<Response> {
+    // The computer first, while nothing else is lost yet. If its provider cannot be reached the
+    // agent is left whole, so the owner can try again instead of paying for a machine nobody
+    // can find.
+    try {
+      await this.#computer?.sandbox.destroy?.()
+    } catch (error) {
+      throw new HttpError(
+        502,
+        `The agent's computer could not be deleted, so nothing was: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
+    }
+    // Stop every run and release the database before the host removes it.
+    await this.close()
+    await this.#host.destroy()
+    return json({ ok: true })
+  }
+
   async fetch(request: Request): Promise<Response> {
     try {
       return await this.#route(request)
@@ -381,6 +409,7 @@ export class AgentActor implements Actor {
     if (segments[0] === "init" && method === "POST") {
       return this.#init(harness, await body<{ ownerId: string; model?: string }>(request))
     }
+    if (segments[0] === "destroy" && method === "POST") return this.#destroy()
     const identity = await this.#identity(harness)
 
     if (segments.length === 0) {
@@ -502,6 +531,9 @@ export class AgentActor implements Actor {
         }
       }
     }
+    if (segments[0] === "usage" && segments[1] === undefined && method === "GET") {
+      return json(await this.#usage(harness))
+    }
     if (segments[0] === "schedules") {
       const scheduleId = segments[1]
       if (scheduleId === undefined && method === "GET") {
@@ -590,6 +622,36 @@ export class AgentActor implements Actor {
     if (this.#options.models.getModel(ref.provider, ref.modelId) === undefined) {
       throw new HttpError(400, `Model "${model}" is not available`)
     }
+  }
+
+  /** What the agent has spent, summed from the ledger pi-durable keeps for each conversation. */
+  async #usage(harness: Harness): Promise<AgentUsage> {
+    const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
+    const zero = (): ChatUsage => ({ inputTokens: 0, outputTokens: 0, cost: 0 })
+    const usage: AgentUsage = { total: zero(), models: [], scheduled: zero(), chats: 0 }
+    const models = new Map<string, ChatUsage>()
+    for (const [chatId, chat] of Object.entries(chats)) {
+      const ledger = await harness.snapshot(UsageDoc, Number(chatId) as ConversationId, context)
+      usage.chats++
+      if (ledger === undefined) continue
+      const count = (spent: Usage, model?: string) => {
+        addUsage(usage.total, spent)
+        if (chat.kind === "schedule") addUsage(usage.scheduled, spent)
+        if (model === undefined) return
+        if (!models.has(model)) models.set(model, zero())
+        addUsage(models.get(model)!, spent)
+      }
+      for (const [model, spent] of Object.entries(ledger.models)) count(spent as Usage, model)
+      // A tool that calls a model of its own reports what that cost, without naming the model.
+      for (const spent of Object.values(ledger.tools)) count(spent as Usage)
+    }
+    usage.models = [...models]
+      .map(([model, total]) => ({ model, ...total }))
+      .sort(
+        (a, b) =>
+          b.cost - a.cost || b.inputTokens + b.outputTokens - a.inputTokens - a.outputTokens,
+      )
+    return usage
   }
 
   async #state(harness: Harness, identity: Readonly<IdentityState>) {

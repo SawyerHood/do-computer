@@ -162,6 +162,8 @@ describe("connectors", () => {
     const { world, chat } = await setup({ token: "s3cret-token" })
     const refused = await add(world, { name: "Private", url: world.mcp.url })
     expect(refused.connector.status).toBe("error")
+    // Ids travel in URLs, where "12345678" or "1e234567" would come back as a number.
+    expect(refused.connector.id).toMatch(/^c[0-9a-f]{8}$/)
     await call(world, `/connectors/${refused.connector.id}`, "DELETE")
 
     const { connector } = await add(world, {

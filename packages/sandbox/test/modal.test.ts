@@ -42,6 +42,9 @@ function fakeModal() {
       ended: null,
       commands: [],
       poll: async () => sandbox.ended,
+      terminate: async () => {
+        sandbox.ended = 137
+      },
       exec: async (command, params) => {
         if (sandbox.ended !== null) throw new NamedError("ClientClosedError", "Sandbox has ended")
         sandbox.commands.push(command)
@@ -96,6 +99,9 @@ function fakeModal() {
       const sandbox = make()
       running.set(name, sandbox)
       return sandbox
+    },
+    deleteVolume: async (name) => {
+      log.push(`delete volume ${name}`)
     },
   }
   return { session, running, log, faults, home: volume }
@@ -180,6 +186,22 @@ describe("modal: finding and replacing the machine", () => {
     await sandbox.exec("true")
     await sandbox.flush()
     expect(running.get(name)!.commands.at(-1)!.at(-1)).toContain(`sync '${home}'`)
+  })
+
+  it("stops the machine and deletes its workspace volume", async () => {
+    const { sandbox, log, running, name } = open()
+    await sandbox.exec("true")
+    const machine = running.get(name)!
+    log.length = 0
+
+    await sandbox.destroy!()
+    expect(machine.ended).not.toBe(null)
+    expect(log).toEqual([`find ${name}`, `delete volume ${name}`])
+
+    // With no machine running there is still a volume to delete.
+    log.length = 0
+    await sandbox.destroy!()
+    expect(log).toEqual([`find ${name}`, `delete volume ${name}`])
   })
 
   it("reports bad credentials and tries again next time", async () => {

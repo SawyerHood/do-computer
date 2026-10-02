@@ -1,6 +1,6 @@
 import type { Sandbox } from "./index.ts"
 
-export type LazySandboxOptions = Pick<Sandbox, "id" | "home" | "capabilities"> & {
+export type LazySandboxOptions = Pick<Sandbox, "id" | "home" | "capabilities" | "destroy"> & {
   /** Start or attach to the real sandbox. Called on first use; a failure is retried on the next. */
   readonly acquire: () => Promise<Sandbox>
 }
@@ -33,6 +33,8 @@ export function lazySandbox(options: LazySandboxOptions): Sandbox & { readonly s
     get started() {
       return started
     },
+    // Deleting does not start anything: the machine may exist from an earlier process.
+    ...(options.destroy === undefined ? {} : { destroy: options.destroy }),
     exec: async (command, execOptions) => (await real()).exec(command, execOptions),
     // Nothing was written if nothing was ever started.
     flush: async () => {

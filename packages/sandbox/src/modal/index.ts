@@ -44,6 +44,7 @@ export interface ModalSandboxLike {
   }
   /** `null` while the sandbox runs, its exit code once it has ended. */
   poll(): Promise<number | null>
+  terminate(): Promise<void>
 }
 
 /** The parts of the Modal client this provider uses, already narrowed to one app and image. */
@@ -52,6 +53,8 @@ export interface ModalSessionLike {
   find(name: string): Promise<ModalSandboxLike>
   /** A new sandbox with this name. Rejects with `AlreadyExistsError` if one is running. */
   create(name: string): Promise<ModalSandboxLike>
+  /** Delete the workspace volume with this name. Succeeds when there is none. */
+  deleteVolume(name: string): Promise<void>
 }
 
 export type ModalSandboxOptions = {
@@ -102,6 +105,7 @@ async function sdkSession(options: ModalSandboxOptions): Promise<ModalSessionLik
         idleTimeoutMs: IDLE_TIMEOUT_MS,
       })
     },
+    deleteVolume: (name) => client.volumes.delete(name, { allowMissing: true }),
   }
 }
 
@@ -201,5 +205,15 @@ export function modalSandbox(options: ModalSandboxOptions): Sandbox {
     home: real.home,
     capabilities: real.capabilities,
     acquire: async () => real,
+    destroy: async () => {
+      const modal = await session()
+      try {
+        // The machine first: a volume cannot go while something has it mounted.
+        await (await modal.find(name)).terminate()
+      } catch (error) {
+        if (!named(error, "NotFoundError")) throw error
+      }
+      await modal.deleteVolume(name)
+    },
   })
 }

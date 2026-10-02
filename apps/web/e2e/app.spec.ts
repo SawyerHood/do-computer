@@ -460,6 +460,41 @@ test.describe("connectors", () => {
   })
 })
 
+test("the settings page shows what the agent's thinking has cost", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole("button", { name: "Identity and memory" }).click()
+  const usage = page.getByRole("region", { name: "Usage" })
+  await expect(usage.getByRole("table", { name: "Usage by model" })).toBeVisible()
+  // The built-in echo model is free, and says so.
+  await expect(usage.getByRole("row").nth(1)).toContainText("$0")
+})
+
+test("a second agent can be made, and deleted without touching the first", async ({ page }) => {
+  await signIn(page)
+  const first = page.url().match(/\/a\/([^/]+)/)![1]!
+  await page.getByRole("button", { name: "Switch agent" }).click()
+  await page.getByRole("menuitem", { name: "New agent" }).click()
+  await expect(page).not.toHaveURL(new RegExp(`/a/${first}`))
+  const second = page.url().match(/\/a\/([^/]+)/)![1]!
+  await expect(page.getByText("It has no name yet")).toBeVisible()
+
+  await page.getByRole("button", { name: "Identity and memory" }).click()
+  await page.getByRole("button", { name: "Delete agent…" }).click()
+  const confirm = page.getByRole("button", { name: "Delete for good" })
+  await expect(confirm).toBeDisabled()
+  // It has no name yet, so the word to type is "delete".
+  await page.getByLabel(/to confirm/).fill("delete")
+  await confirm.click()
+
+  // Back on the first agent, which is as it was.
+  await expect(page).toHaveURL(new RegExp(`/a/${first}/c/\\d+`))
+  await expect(page.getByText("Juniper").first()).toBeVisible()
+  const gone = await page.request.get(`/api/agents/${second}`)
+  expect(gone.status()).toBe(404)
+  const agents = (await (await page.request.get("/api/agents")).json()) as { agents: unknown[] }
+  expect(agents.agents.length).toBe(1)
+})
+
 test("signing out ends the session", async ({ page }) => {
   await signIn(page)
   await page.getByRole("button", { name: "Sign out" }).click()

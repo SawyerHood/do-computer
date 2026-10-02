@@ -8,7 +8,12 @@ import {
   remoteMachine,
 } from "../remote.ts"
 import { shellFs } from "../shell-fs.ts"
-import { type DaytonaClientLike, type DaytonaMachineLike, getOrCreateSandbox } from "./lifecycle.ts"
+import {
+  type DaytonaClientLike,
+  type DaytonaMachineLike,
+  getOrCreateSandbox,
+  isNotFound,
+} from "./lifecycle.ts"
 
 export {
   type DaytonaClientLike,
@@ -89,6 +94,7 @@ export function daytonaSandbox(options: DaytonaSandboxOptions): Sandbox {
         get: (name) => daytona.get(name),
         create: (params) => daytona.create(params),
         start: (sandbox) => daytona.start(sandbox as Parameters<typeof daytona.start>[0]),
+        delete: (sandbox) => daytona.delete(sandbox as Parameters<typeof daytona.delete>[0]),
       }
       return narrowed
     })
@@ -164,5 +170,17 @@ export function daytonaSandbox(options: DaytonaSandboxOptions): Sandbox {
     home,
     capabilities: real.capabilities,
     acquire: async () => real,
+    destroy: async () => {
+      const daytona = await connect()
+      let sandbox: DaytonaSandboxLike
+      try {
+        sandbox = await daytona.get(name)
+      } catch (error) {
+        // Only a proven "there is none" counts as already deleted.
+        if (isNotFound(error)) return
+        throw error
+      }
+      await daytona.delete(sandbox)
+    },
   })
 }

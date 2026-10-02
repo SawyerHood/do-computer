@@ -9,6 +9,7 @@ export interface DaytonaClientLike<S extends DaytonaMachineLike> {
   get(name: string): Promise<S>
   create(params: Record<string, unknown>): Promise<S>
   start(sandbox: S): Promise<void>
+  delete(sandbox: S): Promise<void>
 }
 
 /**

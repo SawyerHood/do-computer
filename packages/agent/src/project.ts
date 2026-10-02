@@ -93,7 +93,7 @@ function notice(id: string, kind: "reset" | "compaction", text: string): ChatMes
   return { id, role: "notice", parts: [{ type: "notice", kind, text }], status: "done" }
 }
 
-function addUsage(total: ChatUsage, usage: Usage): void {
+export function addUsage(total: ChatUsage, usage: Usage): void {
   total.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
   total.outputTokens += usage.output
   total.cost += usage.cost.total

@@ -1,5 +1,6 @@
 import type { AgentPatch, AgentState } from "@durable-computer/client"
 import {
+  type AgentUsage,
   type Avatar,
   AVATAR_ACCESSORIES,
   AVATAR_CHARACTERS,
@@ -8,15 +9,15 @@ import {
 } from "@durable-computer/protocol"
 import { ArrowLeftIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { client } from "@/lib/client"
-import { agentKey, agentsKey } from "@/lib/collections"
+import { agentKey, agentsCollection, agentsKey, usageKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 
@@ -53,10 +54,13 @@ function Section({
   hint: string
   children: React.ReactNode
 }) {
+  const heading = useId()
   return (
-    <section className="flex flex-col gap-3 border-t pt-6">
+    <section aria-labelledby={heading} className="flex flex-col gap-3 border-t pt-6">
       <div>
-        <h2 className="text-sm font-medium">{title}</h2>
+        <h2 id={heading} className="text-sm font-medium">
+          {title}
+        </h2>
         <p className="text-sm text-muted-foreground">{hint}</p>
       </div>
       {children}
@@ -124,6 +128,155 @@ function Choice({
 }
 
 /** Who the agent is and what it remembers. The agent edits the same fields itself, in chat. */
+const tokens = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 })
+/** Small amounts keep their cents' cents: a chat can cost a fraction of one. */
+const dollars = (cost: number) =>
+  cost === 0 ? "$0" : cost < 0.01 ? "under $0.01" : `$${cost.toFixed(cost < 10 ? 2 : 0)}`
+
+/** What the agent has spent on models. Read-only: it is a record, not a setting. */
+function Usage({ agentId }: { agentId: string }) {
+  const { data: usage } = useQuery<AgentUsage>({
+    queryKey: usageKey(agentId),
+    queryFn: () => client.agent(agentId).usage(),
+  })
+  if (usage === undefined) return null
+  const used = usage.total.inputTokens + usage.total.outputTokens
+  return (
+    <Section
+      title="Usage"
+      hint="What this agent's thinking has cost so far, across its chats and scheduled runs."
+    >
+      {used === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing yet.</p>
+      ) : (
+        <>
+          <dl className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Cost</dt>
+              <dd className="text-lg font-medium tabular-nums">{dollars(usage.total.cost)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Read</dt>
+              <dd className="text-lg font-medium tabular-nums">
+                {tokens.format(usage.total.inputTokens)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Written</dt>
+              <dd className="text-lg font-medium tabular-nums">
+                {tokens.format(usage.total.outputTokens)}
+              </dd>
+            </div>
+          </dl>
+          <table className="w-full text-sm">
+            <caption className="sr-only">Usage by model</caption>
+            <thead className="text-left text-muted-foreground">
+              <tr>
+                <th className="py-1 font-normal">Model</th>
+                <th className="py-1 text-right font-normal">Tokens</th>
+                <th className="py-1 text-right font-normal">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usage.models.map((entry) => (
+                <tr key={entry.model} className="border-t">
+                  <td className="py-1.5 break-all">{entry.model}</td>
+                  <td className="py-1.5 text-right tabular-nums">
+                    {tokens.format(entry.inputTokens + entry.outputTokens)}
+                  </td>
+                  <td className="py-1.5 text-right tabular-nums">{dollars(entry.cost)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {usage.scheduled.inputTokens + usage.scheduled.outputTokens > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Scheduled runs account for {dollars(usage.scheduled.cost)} of the cost and{" "}
+              {tokens.format(usage.scheduled.inputTokens + usage.scheduled.outputTokens)} of the
+              tokens.
+            </p>
+          ) : null}
+        </>
+      )}
+    </Section>
+  )
+}
+
+/**
+ * Deleting an agent cannot be undone, so it asks for the agent's name first. That is slower than
+ * a second click, and it makes sure the agent on screen is the one being deleted.
+ */
+function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }) {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState("")
+  const expected = name ?? "delete"
+  const remove = useMutation({
+    mutationFn: () => client.deleteAgent(agentId),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: agentKey(agentId) })
+      await agentsCollection.utils.refetch()
+      // The index route picks another agent, or makes a new one if this was the last.
+      await navigate({ to: "/" })
+    },
+  })
+  return (
+    <Section
+      title="Delete this agent"
+      hint="Removes its memory, chats, files, schedules, skills, connectors and its computer, and unpairs your computers from it. This cannot be undone."
+    >
+      {open ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-destructive/40 p-4">
+          <Label htmlFor="confirm-delete">
+            Type <span className="font-semibold">{expected}</span> to confirm
+          </Label>
+          <Input
+            id="confirm-delete"
+            autoComplete="off"
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+          />
+          {remove.isError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {remove.error.message}
+            </p>
+          ) : null}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={typed.trim() !== expected || remove.isPending}
+              onClick={() => remove.mutate()}
+            >
+              {remove.isPending ? "Deleting…" : "Delete for good"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={remove.isPending}
+              onClick={() => {
+                setOpen(false)
+                setTyped("")
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start text-destructive"
+          onClick={() => setOpen(true)}
+        >
+          Delete agent…
+        </Button>
+      )}
+    </Section>
+  )
+}
+
 function ProfilePage() {
   const { agentId } = Route.useParams()
   const { data: state } = useQuery<AgentState>({
@@ -314,6 +467,9 @@ function ProfilePage() {
             ))}
           </select>
         </Section>
+
+        <Usage agentId={agentId} />
+        <DeleteAgent agentId={agentId} name={state.agent.name} />
 
         <div className="sticky bottom-4 flex items-center justify-end gap-3">
           {save.isError ? (

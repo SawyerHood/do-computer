@@ -104,6 +104,9 @@ export function conformanceActor(host: ActorHost): Actor {
             n: row?.n,
           })
         }
+        case "/destroy":
+          await host.destroy()
+          return json({ ok: true })
         case "/alarm/set": {
           const delay = Number(url.searchParams.get("in") ?? "0")
           await host.setAlarm(host.now() + delay)
@@ -380,6 +383,33 @@ export function registerHostConformance(
       type Fired = { fired: unknown[] }
       await until(async () => (await call<Fired>(namespace, name, "/alarm/fired")).fired.length > 0)
       expect((await call<Fired>(namespace, name, "/alarm/fired")).fired.length).toBe(1)
+    })
+
+    it("deletes everything an actor has when it is destroyed", async () => {
+      const namespace = options.namespace()
+      const [name, other] = [options.uniqueName(), options.uniqueName()]
+      const body = new Uint8Array([1, 2, 3])
+      for (const actor of [name, other]) {
+        await call(namespace, actor, "/put?key=k&value=kept")
+        await call(namespace, actor, "/blob/put?key=library/a.bin", { method: "POST", body })
+      }
+      await call(namespace, name, "/alarm/set?in=100")
+
+      await call(namespace, name, "/destroy")
+
+      // The same name is a new, empty actor: no rows, no blobs, and the alarm never fires.
+      expect((await call<{ value: string | null }>(namespace, name, "/get?key=k")).value).toBe(null)
+      expect(await call(namespace, name, "/blob/list?prefix=")).toEqual({ keys: [] })
+      expect(
+        (await call<{ pending: number | null }>(namespace, name, "/alarm/pending")).pending,
+      ).toBe(null)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect((await call<{ fired: unknown[] }>(namespace, name, "/alarm/fired")).fired).toEqual([])
+      // And nobody else's.
+      expect((await call<{ value: string }>(namespace, other, "/get?key=k")).value).toBe("kept")
+      expect(await call(namespace, other, "/blob/list?prefix=")).toEqual({
+        keys: ["library/a.bin"],
+      })
     })
 
     it("stores, lists and deletes blobs", async () => {

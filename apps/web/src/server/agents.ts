@@ -21,13 +21,16 @@ export async function withUser(
 type AgentRow = { id: string; owner_id: string; created_at: number }
 
 /** Call an agent's actor. The path is relative to the actor, for example `/chats`. */
-function callAgent(agentId: string, path: string, init?: RequestInit): Promise<Response> {
+export function callAgent(agentId: string, path: string, init?: RequestInit): Promise<Response> {
   return getPlatform()
     .agents.get(agentId)
     .fetch(new Request(`http://agent${path}`, init))
 }
 
-async function ownedAgent(user: SessionUser, agentId: string): Promise<AgentRow | undefined> {
+export async function ownedAgent(
+  user: SessionUser,
+  agentId: string,
+): Promise<AgentRow | undefined> {
   // Ownership is decided here, from the session and the app database, never from the client.
   return getPlatform().db.get<AgentRow>(
     "SELECT id, owner_id, created_at FROM dc_agents WHERE id = ? AND owner_id = ?",
@@ -35,6 +38,9 @@ async function ownedAgent(user: SessionUser, agentId: string): Promise<AgentRow 
     user.id,
   )
 }
+
+/** Actor routes only the gateway may call. */
+const INTERNAL = ["init", "destroy"]
 
 export async function listAgents(user: SessionUser): Promise<Response> {
   const rows = await getPlatform().db.all<AgentRow>(
@@ -88,7 +94,9 @@ export async function proxyToAgent(
 ): Promise<Response> {
   if ((await ownedAgent(user, agentId)) === undefined) return fail(404, "Agent not found")
   // Routes the actor keeps for the gateway itself.
-  if (path === "init" || path.startsWith("init/")) return fail(404, "Not found")
+  if (INTERNAL.some((route) => path === route || path.startsWith(`${route}/`))) {
+    return fail(404, "Not found")
+  }
   const url = new URL(request.url)
   let body: ArrayBuffer | undefined
   if (request.method !== "GET" && request.method !== "HEAD") {

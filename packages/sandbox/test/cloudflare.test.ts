@@ -177,6 +177,16 @@ describe("cloudflare containers: the machine's life", () => {
     expect(fake.state.starts.at(-1)!.image).toBe(DEFAULT_IMAGE)
   })
 
+  it("forgets the machine and its saved disk when the sandbox is destroyed", async () => {
+    const { fake, sandbox, machine, storage } = world()
+    await sandbox.exec("echo secret > private.txt")
+    await machine.fetch(new Request("http://sandbox/save", { method: "POST" }))
+
+    await sandbox.destroy!()
+    expect(fake.state.running).toBe(false)
+    expect(storage.values.has("snapshotId")).toBe(false)
+  })
+
   it("stops a command, and what it started, when the caller aborts", async () => {
     const { sandbox } = world()
     const controller = new AbortController()
