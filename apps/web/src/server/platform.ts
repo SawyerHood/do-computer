@@ -19,6 +19,8 @@ export type Config = {
   readonly allowedEmails: readonly string[]
   /** What kind of computer agents get. Default `just-bash`. */
   readonly sandbox: "just-bash" | "none"
+  /** OpenRouter speech-to-text model used for dictation. */
+  readonly transcriptionModel: string
 }
 
 /** Everything the server code needs from its runtime. One implementation per target. */
@@ -52,5 +54,6 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
     sandbox: env.DC_SANDBOX === "none" ? "none" : "just-bash",
+    transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
   }
 }

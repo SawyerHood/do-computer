@@ -12,7 +12,7 @@
     "start": "node server.node.mjs",
     "deploy": "pnpm build:cloudflare && wrangler deploy",
     "check": "pnpm generate && tsc --noEmit && tsc --noEmit -p tsconfig.cloudflare.json",
-    "test": "vitest run --dir src --passWithNoTests",
+    "test": "vitest run",
     "test:e2e": "pnpm build:node && playwright test",
     "generate": "pnpm --filter @durable-computer/daemon build"
   },

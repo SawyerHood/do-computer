@@ -80,15 +80,18 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate()}
-        >
-          {schedule.enabled ? <PauseIcon /> : <PlayIcon />}
-          {schedule.enabled ? "Pause" : "Resume"}
-        </Button>
+        {label === "Done" ? null : (
+          // A one-off that has run has nothing to pause or resume.
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={toggle.isPending}
+            onClick={() => toggle.mutate()}
+          >
+            {schedule.enabled ? <PauseIcon /> : <PlayIcon />}
+            {schedule.enabled ? "Pause" : "Resume"}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"

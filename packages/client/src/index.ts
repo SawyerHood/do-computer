@@ -171,6 +171,15 @@ export function createClient(options: ClientOptions) {
     me: () => request<Me>("/api/me"),
     listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
     createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
+    /** Turn a short recording into text. `type` is the recording's media type. */
+    transcribe: async (audio: { type: string; body: BodyInit }) =>
+      (
+        await request<{ text: string }>("/api/transcribe", {
+          method: "POST",
+          body: audio.body,
+          headers: { "content-type": audio.type },
+        })
+      ).text,
     listComputers: async () =>
       (await request<{ computers: ComputerSummary[] }>("/api/computers")).computers,
     removeComputer: (computerId: string) =>

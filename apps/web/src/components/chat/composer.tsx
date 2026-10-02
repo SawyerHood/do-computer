@@ -1,9 +1,11 @@
 import type { QueuedInput } from "@durable-computer/protocol"
-import { ArrowUpIcon, StopIcon } from "@phosphor-icons/react"
+import { ArrowUpIcon, CircleNotchIcon, MicrophoneIcon, StopIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { draftAtom } from "@/lib/atoms"
+import { useDictation } from "@/lib/use-dictation"
+import { cn } from "@/lib/utils"
 
 const MAX_HEIGHT_PX = 200
 
@@ -28,6 +30,11 @@ export function Composer({
 }) {
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
+  // Dictated text joins whatever is already typed, ready to be read over before sending.
+  const dictation = useDictation((text) => {
+    setDraft((current) => (current.trim() === "" ? text : `${current.trimEnd()} ${text}`))
+    input.current?.focus()
+  })
 
   useEffect(() => {
     const element = input.current
@@ -84,6 +91,29 @@ export function Composer({
             }
           }}
         />
+        {dictation.supported ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn(
+              "rounded-full text-muted-foreground",
+              dictation.state === "recording" && "bg-destructive/15 text-destructive",
+            )}
+            disabled={dictation.state === "transcribing"}
+            onClick={dictation.toggle}
+            aria-label={dictation.state === "recording" ? "Stop dictating" : "Dictate"}
+            aria-pressed={dictation.state === "recording"}
+          >
+            {dictation.state === "transcribing" ? (
+              <CircleNotchIcon className="animate-spin" />
+            ) : dictation.state === "recording" ? (
+              <StopIcon weight="fill" className="animate-pulse" />
+            ) : (
+              <MicrophoneIcon />
+            )}
+          </Button>
+        ) : null}
         {busy && draft.trim() === "" ? (
           <Button
             type="button"
@@ -107,6 +137,11 @@ export function Composer({
           </Button>
         )}
       </form>
+      {dictation.error ? (
+        <p role="alert" className="px-5 text-xs text-destructive">
+          {dictation.error}
+        </p>
+      ) : null}
     </div>
   )
 }

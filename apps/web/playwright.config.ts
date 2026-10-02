@@ -23,7 +23,11 @@ export default defineConfig({
     baseURL,
     colorScheme: "dark",
     viewport: { width: 1280, height: 860 },
-    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined },
+    launchOptions: {
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
+      // A synthetic microphone, for the dictation test.
+      args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+    },
     trace: "retain-on-failure",
   },
   webServer: {

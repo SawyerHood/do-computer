@@ -258,6 +258,23 @@ test("a file the agent sends appears in the chat and in the library", async ({ p
   await expect(page.getByRole("listitem").filter({ hasText: "plan.md" })).toHaveCount(0)
 })
 
+test("dictation without a model key says what is missing", async ({ browser, baseURL }) => {
+  // A browser with a fake microphone, so recording works without hardware or a prompt.
+  const context = await browser.newContext({
+    baseURL,
+    permissions: ["microphone"],
+    colorScheme: "dark",
+  })
+  const page = await context.newPage()
+  await signIn(page)
+  await page.getByRole("button", { name: "Dictate" }).click()
+  await expect(page.getByRole("button", { name: "Stop dictating" })).toBeVisible()
+  await page.waitForTimeout(600)
+  await page.getByRole("button", { name: "Stop dictating" }).click()
+  await expect(page.getByRole("alert")).toContainText("Dictation needs a model key")
+  await context.close()
+})
+
 test.describe("pairing a computer", () => {
   const home = mkdtempSync(join(tmpdir(), "dc-e2e-laptop-"))
   let daemon: ChildProcess | undefined

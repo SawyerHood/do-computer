@@ -20,6 +20,7 @@ import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
 import { Route as ApiDaemonVersionRouteImport } from './routes/api/daemon-version'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMeRouteImport } from './routes/api/me'
+import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -90,6 +91,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const ApiMeRoute = ApiMeRouteImport.update({
   id: '/api/me',
   path: '/api/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
+  id: '/api/transcribe',
+  path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppAAgentIdRoute = AppAAgentIdRouteImport.update({
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/_app/': typeof AppIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -280,6 +289,7 @@ export interface FileRouteTypes {
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
+    | '/api/transcribe'
     | '/a/$agentId'
     | '/api/auth/$'
     | '/api/computers/$computerId'
@@ -308,6 +318,7 @@ export interface FileRouteTypes {
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
+    | '/api/transcribe'
     | '/'
     | '/api/auth/$'
     | '/api/computers/$computerId'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
+    | '/api/transcribe'
     | '/_app/'
     | '/_app/a/$agentId'
     | '/api/auth/$'
@@ -367,6 +379,7 @@ export interface RootRouteChildren {
   ApiDaemonVersionRoute: typeof ApiDaemonVersionRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMeRoute: typeof ApiMeRoute
+  ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
@@ -455,6 +468,13 @@ declare module '@tanstack/react-router' {
       path: '/api/me'
       fullPath: '/api/me'
       preLoaderRoute: typeof ApiMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transcribe': {
+      id: '/api/transcribe'
+      path: '/api/transcribe'
+      fullPath: '/api/transcribe'
+      preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/a/$agentId': {
@@ -627,6 +647,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDaemonVersionRoute: ApiDaemonVersionRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMeRoute: ApiMeRoute,
+  ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
