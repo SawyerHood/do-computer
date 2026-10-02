@@ -112,7 +112,10 @@ describe("searching past chats", () => {
     const baking = await call<ChatSummary>(world, "/chats", "POST", { title: "Baking" })
     await say(world, baking.id, "Why is my bread flat?")
 
-    const ferry = await call<{ hits: HistoryHit[]; complete: boolean }>(world, "/search?q=ferry")
+    const ferry = await call<{ hits: HistoryHit[]; complete: boolean; partial: boolean }>(
+      world,
+      "/search?q=ferry",
+    )
     expect(ferry.complete).toBe(true)
     expect(ferry.hits).toMatchObject([
       { chatId: trip.id, chatTitle: "Trip planning", role: "assistant" },
@@ -122,7 +125,25 @@ describe("searching past chats", () => {
     // Every word must be there; case does not matter; a phrase stays together.
     const flight = await call<{ hits: HistoryHit[] }>(world, "/search?q=FLIGHT%20tp1352")
     expect(flight.hits.map((hit) => hit.role)).toEqual(["user"])
-    expect((await call<{ hits: HistoryHit[] }>(world, "/search?q=ferry%20bread")).hits).toEqual([])
+    // No message has both words, so the ones with either are offered, and marked as such.
+    const mixed = await call<{ hits: HistoryHit[]; partial: boolean }>(
+      world,
+      "/search?q=ferry%20bread",
+    )
+    expect(mixed.partial).toBe(true)
+    expect(mixed.hits.map((hit) => hit.chatTitle).sort()).toEqual(["Baking", "Trip planning"])
+    // A question in its own words still finds the answer, and filler words alone find nothing.
+    const asked = await call<{ hits: HistoryHit[]; partial: boolean }>(
+      world,
+      `/search?q=${encodeURIComponent("what time does the ferry leave for the river crossing")}`,
+    )
+    expect(asked.partial).toBe(true)
+    expect(asked.hits[0]).toMatchObject({ chatId: trip.id })
+    expect(
+      (await call<{ hits: HistoryHit[] }>(world, `/search?q=${encodeURIComponent("what was the")}`))
+        .hits,
+    ).toEqual([])
+    expect(ferry).toMatchObject({ partial: false })
     expect(
       (
         await call<{ hits: HistoryHit[] }>(

@@ -271,7 +271,10 @@ export class Scheduler {
       if (!options.advance) return
       let next: number | null = null
       try {
-        next = nextRunAt(parseSchedule(record.schedule, now, record.timezone ?? undefined), now)
+        const spec = parseSchedule(record.schedule, now, record.timezone ?? undefined)
+        // A one-off is spent by running. Asking when it runs next would read "1m" as a minute
+        // from now, and a reminder would come back every minute for ever.
+        next = spec.kind === "once" ? null : nextRunAt(spec, now)
       } catch {
         // A one-shot whose time has passed no longer parses; it is spent.
       }

@@ -21,6 +21,12 @@ const CURATED = [
 ]
 
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5.5"
+/**
+ * Reads web search results when no search model is configured. Reading a handful of pages and
+ * reporting what they say does not need the agent's own model, and one search with it cost
+ * about eight cents when measured.
+ */
+const DEFAULT_SEARCH_MODEL = "anthropic/claude-haiku-4.5"
 
 export type AgentModels = {
   readonly models: Models
@@ -38,7 +44,7 @@ export type AgentModelsConfig = {
   readonly openrouterApiKey?: string
   /** OpenRouter model id, for example `anthropic/claude-sonnet-5.5`. */
   readonly defaultModel?: string
-  /** OpenRouter model id that reads web search results. Default: the default model. */
+  /** OpenRouter model id that reads web search results. Default: a small, fast model. */
   readonly searchModel?: string
 }
 
@@ -159,7 +165,11 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     options,
     webSearch: {
       apiKey: key,
-      model: config.searchModel ?? defaultModel.slice("openrouter/".length),
+      model:
+        config.searchModel ??
+        (catalog.has(DEFAULT_SEARCH_MODEL)
+          ? DEFAULT_SEARCH_MODEL
+          : defaultModel.slice("openrouter/".length)),
     },
   }
 }

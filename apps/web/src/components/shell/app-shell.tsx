@@ -146,23 +146,32 @@ function SearchResults({
       ) : data.hits.length === 0 ? (
         <p className="px-3 py-2 text-sm text-muted-foreground">Nothing matches.</p>
       ) : (
-        data.hits.map((hit) => (
-          <Link
-            key={`${hit.chatId}/${hit.messageId}`}
-            to="/a/$agentId/c/$chatId"
-            params={{ agentId, chatId: hit.chatId }}
-            onClick={onNavigate}
-            className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-sm hover:bg-accent"
-          >
-            <span className="flex items-baseline justify-between gap-2">
-              <span className="truncate font-medium">{hit.chatTitle}</span>
-              {hit.at === null ? null : (
-                <span className="shrink-0 text-xs text-muted-foreground">{day.format(hit.at)}</span>
-              )}
-            </span>
-            <span className="line-clamp-3 text-xs text-muted-foreground">{hit.snippet}</span>
-          </Link>
-        ))
+        <>
+          {data.partial ? (
+            <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
+              Nothing has all of those words. These come closest.
+            </p>
+          ) : null}
+          {data.hits.map((hit) => (
+            <Link
+              key={`${hit.chatId}/${hit.messageId}`}
+              to="/a/$agentId/c/$chatId"
+              params={{ agentId, chatId: hit.chatId }}
+              onClick={onNavigate}
+              className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-sm hover:bg-accent"
+            >
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="truncate font-medium">{hit.chatTitle}</span>
+                {hit.at === null ? null : (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {day.format(hit.at)}
+                  </span>
+                )}
+              </span>
+              <span className="line-clamp-3 text-xs text-muted-foreground">{hit.snippet}</span>
+            </Link>
+          ))}
+        </>
       )}
       {data !== undefined && !data.complete && data.hits.length > 0 ? (
         <p className="px-3 py-2 text-xs text-muted-foreground">

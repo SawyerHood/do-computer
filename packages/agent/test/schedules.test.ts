@@ -20,7 +20,7 @@ type World = {
 }
 const worlds: World[] = []
 
-function open(directory: string): World {
+function open(directory: string, now?: () => number): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -29,6 +29,7 @@ function open(directory: string): World {
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
+    now,
     factory: (host) =>
       createAgentActor(host, {
         models,
@@ -268,6 +269,48 @@ describe("schedules", () => {
       output: "A scheduled run cannot change schedules.",
     })
     expect((await schedules(world)).length).toBe(1)
+  })
+
+  it("runs a reminder given as a duration once, not every time that duration passes", async () => {
+    // A clock the test moves, so "in a minute" does not take one.
+    const clock = { now: Date.now() }
+    const world = open(temporary(), () => clock.now)
+    const chat = await setup(world)
+    world.faux.setResponses([
+      fauxAssistantMessage(
+        [fauxToolCall("schedule", { action: "create", schedule: "1m", prompt: "Say: stretch." })],
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage("In a minute."),
+      fauxAssistantMessage("Stretch."),
+      fauxAssistantMessage("Stretch, again?"),
+    ])
+    await say(world, chat.id, "remind me to stretch in a minute")
+    const [created] = await schedules(world)
+    expect(created!.nextRunAt).toBe(created!.createdAt + 60_000)
+
+    // Touching the schedule makes the agent look at the clock again.
+    const nudge = (title: string) => call(world, `/schedules/${created!.id}`, "PATCH", { title })
+    clock.now += 61_000
+    await nudge("Stretch")
+    const [ran] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun?.outcome === "delivered",
+    )
+    // Spent: it has no next time and is switched off, as a one-off should be.
+    expect(ran).toMatchObject({ runCount: 1, nextRunAt: null, enabled: false })
+
+    // Another minute, and another ten, bring nothing more.
+    for (const later of [61_000, 600_000]) {
+      clock.now += later
+      await nudge(`Stretch ${later}`).catch(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+    expect((await schedules(world))[0]).toMatchObject({ runCount: 1, enabled: false })
+    expect(
+      texts(await chatState(world, chat.id)).filter((text) => text.includes("Stretch.")),
+    ).toEqual(["Stretch | Stretch."])
+    expect(world.errors).toEqual([])
   })
 
   it("can be paused, resumed, run on demand and removed", async () => {

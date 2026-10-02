@@ -54,7 +54,7 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                          |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                          |
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                    |
-| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default: the default model. A cheaper one works well.                  |
+| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                  |
 | `DC_SANDBOX`                               | What computer agents get: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
 | `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors and skill installs reach this machine and private networks, and use plain http. Off by default.                  |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |

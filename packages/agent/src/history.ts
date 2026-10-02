@@ -17,7 +17,7 @@ import { entryText, projectPast } from "./project.ts"
 const PAGE_SIZE = 200
 /** Entries one search will read. Past it, the search says it did not look at everything. */
 const SCAN_BUDGET = 10_000
-const MAX_TERMS = 8
+const MAX_TERMS = 24
 const SNIPPET_BEFORE = 80
 const SNIPPET_LENGTH = 280
 export const DEFAULT_HISTORY_PAGE = 50
@@ -35,6 +35,13 @@ export function searchTerms(query: string): string[] {
   return terms.slice(0, MAX_TERMS)
 }
 
+/** Common words that say nothing about which message is meant. */
+const FILLER = new Set(
+  "a about an and are as at be by can did do does for from had has have how i in is it me my of on or our that the this to was we were what when where which who why with you your".split(
+    " ",
+  ),
+)
+
 /** The part of `text` around its first match, on one line. */
 function snippet(text: string, terms: readonly string[]): string {
   const lower = text.toLowerCase()
@@ -48,11 +55,15 @@ export type SearchResult = {
   hits: HistoryHit[]
   /** False when the search stopped before reading every chat. */
   complete: boolean
+  /** True when no message had every word, and these are the ones with the most of them. */
+  partial: boolean
 }
 
 /**
  * Search everything said in the agent's chats, scheduled runs included, for messages containing
- * every term. Reads the transcripts as stored; there is no index to fall out of date.
+ * every term. When none has them all, the messages with the most of them are returned instead: a
+ * question is seldom phrased in the words of the answer. Reads the transcripts as stored; there is
+ * no index to fall out of date.
  */
 export async function searchHistory(
   harness: Harness,
@@ -68,7 +79,9 @@ export async function searchHistory(
     // Most recently active first, so the scan budget is spent where a match is likeliest to matter.
     .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
 
-  const hits: HistoryHit[] = []
+  // Words worth matching on their own when no message has them all.
+  const telling = terms.filter((term) => !FILLER.has(term) && term.length > 1)
+  const hits: (HistoryHit & { matched: number })[] = []
   let scanned = 0
   let complete = true
   search: for (const [chatId, chat] of chats) {
@@ -86,22 +99,36 @@ export async function searchHistory(
         const said = entryText(entry)
         if (said === undefined) continue
         const lower = said.text.toLowerCase()
-        if (!terms.every((term) => lower.includes(term))) continue
+        const all = terms.every((term) => lower.includes(term))
+        const found = all ? terms : telling.filter((term) => lower.includes(term))
+        if (found.length === 0) continue
         hits.push({
+          // Every word beats any number of some of them.
+          matched: all ? Number.MAX_SAFE_INTEGER : found.length,
           chatId,
           chatTitle: chat.title,
           chatKind: chat.kind,
           messageId: String(entry.id),
           role: said.role,
           at: said.at ?? null,
-          snippet: snippet(said.text, terms),
+          snippet: snippet(said.text, found),
         })
       }
       cursor = page.next
     } while (cursor !== undefined)
   }
-  hits.sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
-  return { hits: hits.slice(0, limit), complete: complete && hits.length <= limit }
+  const best = Math.max(0, ...hits.map((hit) => hit.matched))
+  const partial = hits.length > 0 && best !== Number.MAX_SAFE_INTEGER
+  // With every word found somewhere, only those messages count. Otherwise the closest ones do:
+  // those with as many of the telling words as the best has, or one fewer.
+  const kept = hits
+    .filter((hit) => hit.matched >= (partial ? Math.max(1, best - 1) : best))
+    .sort((a, b) => b.matched - a.matched || (b.at ?? 0) - (a.at ?? 0))
+  return {
+    hits: kept.slice(0, limit).map(({ matched: _matched, ...hit }) => hit),
+    complete: complete && kept.length <= limit,
+    partial,
+  }
 }
 
 /**
@@ -175,7 +202,7 @@ export function historyExtension(harness: () => Harness): Extension {
     execute: async (args, api, context) => {
       try {
         if (args.action === "search") {
-          const { hits, complete } = await searchHistory(
+          const { hits, complete, partial } = await searchHistory(
             harness(),
             args.query ?? "",
             // What is said in this chat is already in front of the agent.
@@ -193,6 +220,9 @@ export function historyExtension(harness: () => Harness): Extension {
                 hit.role === "user" ? "user" : "you"
               }: ${hit.snippet}`,
           )
+          if (partial) {
+            lines.unshift("No message has all of those words. These have the most of them:")
+          }
           if (!complete) lines.push("(There may be more; narrow the search to see other matches.)")
           return { content: [{ type: "text", text: lines.join("\n") }], details: { hits } }
         }

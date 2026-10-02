@@ -240,7 +240,7 @@ export function createClient(options: ClientOptions) {
         resetChat: (chatId: string) => post<{ ok: true }>(`${base}/chats/${chatId}/reset`),
         /** Search everything said in the agent's chats. */
         search: (query: string) =>
-          request<{ hits: HistoryHit[]; complete: boolean }>(
+          request<{ hits: HistoryHit[]; complete: boolean; partial: boolean }>(
             `${base}/search?q=${encodeURIComponent(query)}`,
           ),
         schedules: async () =>

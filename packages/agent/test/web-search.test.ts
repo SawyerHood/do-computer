@@ -194,10 +194,8 @@ describe("model configuration", () => {
   it("gives web search the deployment's key and model, and nothing without a key", () => {
     expect(createAgentModels({}).webSearch).toBe(undefined)
     const configured = createAgentModels({ openrouterApiKey: "sk-or-x" })
-    expect(configured.webSearch).toEqual({
-      apiKey: "sk-or-x",
-      model: configured.defaultModel.slice("openrouter/".length),
-    })
+    // A small model by default: reading search results does not need the agent's own.
+    expect(configured.webSearch).toEqual({ apiKey: "sk-or-x", model: "anthropic/claude-haiku-4.5" })
     expect(
       createAgentModels({ openrouterApiKey: "sk-or-x", searchModel: "vendor/cheap" }).webSearch
         ?.model,
