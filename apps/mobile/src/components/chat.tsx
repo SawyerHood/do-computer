@@ -1,11 +1,14 @@
-import type {
-  ChatMessage,
-  ChatState,
-  LibraryFile,
-  MessagePart,
-  ToolPart,
+import {
+  chatActivity,
+  type ChatMessage,
+  type ChatState,
+  isSentFile,
+  isShownPart,
+  isVisibleMessage,
+  type LibraryFile,
+  type MessagePart,
 } from "@durable-computer/protocol"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -22,39 +25,6 @@ import { formatBytes, openLibraryFile } from "@/lib/files"
 import { radius, space, useTheme } from "@/lib/theme"
 import { useDictation } from "@/lib/use-dictation"
 import { useSession } from "@/lib/use-session"
-
-/** How a tool call reads in the transcript, while it runs and once it is done. */
-function describeTool(part: ToolPart): string {
-  const args = (part.args ?? {}) as Record<string, unknown>
-  const active = part.status === "pending" || part.status === "running"
-  const path = typeof args.path === "string" ? args.path : "a file"
-  const lines: Record<string, [string, string]> = {
-    bash: [
-      "Running a command",
-      typeof args.command === "string" ? args.command.split("\n")[0]! : "Ran a command",
-    ],
-    read: ["Reading a file", `Read ${path}`],
-    write: ["Writing a file", `Wrote ${path}`],
-    edit: ["Editing a file", `Edited ${path}`],
-    send_file: ["Sending a file", `Sent ${path}`],
-    memory: ["Updating memory", "Updated its memory"],
-    set_identity: [
-      "Updating its identity",
-      typeof args.name === "string" ? `Named itself ${args.name}` : "Updated its identity",
-    ],
-    schedule: [
-      "Updating its schedule",
-      args.action === "create" ? "Scheduled a task" : "Updated its schedule",
-    ],
-    skill: [
-      "Using a skill",
-      args.action === "view" ? `Loaded the ${String(args.name)} skill` : "Updated its skills",
-    ],
-  }
-  const known = lines[part.name]
-  const label = known ? known[active ? 0 : 1] : `${active ? "Using" : "Used"} ${part.name}`
-  return part.status === "error" ? `${label} (failed)` : label
-}
 
 function FileCard({ agentId, file }: { agentId: string; file: LibraryFile }) {
   const theme = useTheme()
@@ -88,61 +58,12 @@ function FileCard({ agentId, file }: { agentId: string; file: LibraryFile }) {
   )
 }
 
-function ToolRow({ part, agentId }: { part: ToolPart; agentId: string }) {
-  const theme = useTheme()
-  const [open, setOpen] = useState(false)
-  if (part.name === "send_file" && part.status === "done" && part.details) {
-    return <FileCard agentId={agentId} file={part.details as unknown as LibraryFile} />
-  }
-  const active = part.status === "pending" || part.status === "running"
-  return (
-    <View style={{ gap: space(1.5) }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={describeTool(part)}
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen((value) => !value)}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space(2),
-          paddingHorizontal: space(1),
-        }}
-      >
-        {active ? (
-          <ActivityIndicator size="small" color={theme.muted} />
-        ) : (
-          <Icon.tool color={part.status === "error" ? theme.danger : theme.muted} />
-        )}
-        <Text
-          tone={part.status === "error" ? "danger" : "muted"}
-          size={14}
-          numberOfLines={1}
-          style={{ flexShrink: 1 }}
-        >
-          {describeTool(part)}
-        </Text>
-      </Pressable>
-      {open ? (
-        <View
-          style={[styles.detail, { backgroundColor: theme.surface, borderColor: theme.border }]}
-        >
-          <Text tone="muted" size={12} style={styles.mono}>
-            {JSON.stringify(part.args, null, 2)}
-          </Text>
-          {part.output ? (
-            <Text size={12} tone={part.status === "error" ? "danger" : "ink"} style={styles.mono}>
-              {part.output}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-    </View>
-  )
-}
-
 function Part({ part, agentId }: { part: MessagePart; agentId: string }) {
   const theme = useTheme()
+  // The one tool call that is shown: a file the agent delivered, as the file.
+  if (isSentFile(part)) {
+    return <FileCard agentId={agentId} file={part.details as unknown as LibraryFile} />
+  }
   switch (part.type) {
     case "text":
       return (
@@ -150,14 +71,6 @@ function Part({ part, agentId }: { part: MessagePart; agentId: string }) {
           <Markdown text={part.text} color={theme.ink} />
         </View>
       )
-    case "thinking":
-      return (
-        <Text tone="muted" size={14} style={{ paddingHorizontal: space(1) }}>
-          Thought for a moment
-        </Text>
-      )
-    case "tool":
-      return <ToolRow part={part} agentId={agentId} />
     case "notice":
       return (
         <View
@@ -207,7 +120,7 @@ function Message({ message, agentId }: { message: ChatMessage; agentId: string }
   }
   return (
     <View style={{ gap: space(2) }}>
-      {message.parts.map((part, index) => (
+      {message.parts.filter(isShownPart).map((part, index) => (
         <Part key={part.type === "tool" ? part.toolCallId : index} part={part} agentId={agentId} />
       ))}
       {message.status === "error" ? (
@@ -235,33 +148,50 @@ export function Transcript({
   /** Shown above the first message, for reaching what came before it. */
   header?: React.ReactElement | null
 }) {
+  const theme = useTheme()
   const list = useRef<FlatList<ChatMessage>>(null)
   const last = state.messages.at(-1)
-  const waiting = state.busy && (last === undefined || last.role === "user")
+  // What the agent is doing, when its answer is not already being written on screen. Tool calls
+  // and thinking are this one line while they happen, and nothing afterwards.
+  const activity = chatActivity(state)
+  const messages = useMemo(() => state.messages.filter(isVisibleMessage), [state.messages])
   // Follow new content at the end. Earlier messages arriving at the top change the first message
   // and not the last, and must not pull the reader back down.
   const firstId = state.messages[0]?.id
   const seenFirst = useRef(firstId)
   useEffect(() => {
     list.current?.scrollToEnd({ animated: true })
-  }, [last?.id, last?.parts.length, last?.status])
+  }, [last?.id, last?.parts.length, last?.status, activity])
   return (
     <FlatList
       ref={list}
       accessibilityRole="list"
       accessibilityLabel="Messages"
-      data={state.messages}
+      data={messages}
       keyExtractor={(message) => message.id}
       renderItem={({ item }) => <Message message={item} agentId={agentId} />}
-      contentContainerStyle={{ padding: space(4), gap: space(4), flexGrow: 1 }}
+      // A short chat sits at the bottom, next to the box the next message is typed in.
+      contentContainerStyle={{
+        padding: space(4),
+        gap: space(4),
+        flexGrow: 1,
+        justifyContent: "flex-end",
+      }}
       ListEmptyComponent={state.busy ? null : <>{empty}</>}
       ListHeaderComponent={header}
       ListFooterComponent={
-        waiting ? (
-          <Text tone="muted" size={14}>
-            Thinking…
-          </Text>
-        ) : null
+        activity === null ? null : (
+          <View
+            accessibilityRole="text"
+            accessibilityLiveRegion="polite"
+            style={{ flexDirection: "row", alignItems: "center", gap: space(2) }}
+          >
+            <ActivityIndicator size="small" color={theme.muted} />
+            <Text tone="muted" size={14} numberOfLines={1} style={{ flexShrink: 1 }}>
+              {activity}…
+            </Text>
+          </View>
+        )
       }
       keyboardShouldPersistTaps="handled"
       onContentSizeChange={() => {
@@ -391,20 +321,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
     paddingHorizontal: space(3.5),
     paddingVertical: space(2.5),
-  },
-  detail: {
-    marginLeft: space(6),
-    borderRadius: radius.sm,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    padding: space(3),
-    gap: space(2),
-  },
-  mono: {
-    fontFamily: Platform.select({
-      ios: "Menlo",
-      android: "monospace",
-      default: "ui-monospace, Menlo, monospace",
-    }),
   },
   composer: {
     flexDirection: "row",

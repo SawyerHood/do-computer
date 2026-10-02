@@ -1,11 +1,19 @@
-import type { ChatMessage, ChatState, MessagePart } from "@durable-computer/protocol"
+import {
+  chatActivity,
+  type ChatMessage,
+  type ChatState,
+  isSentFile,
+  isShownPart,
+  isVisibleMessage,
+  type MessagePart,
+} from "@durable-computer/protocol"
 import {
   ArrowsClockwiseIcon,
+  CircleNotchIcon,
   ClockIcon,
-  LightbulbIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
-import { useState } from "react"
+import { useEffect } from "react"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { Message, MessageContent } from "@/components/ui/message"
@@ -16,37 +24,13 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/components/ui/message-scroller"
-import { cn } from "@/lib/utils"
 import { Markdown } from "./markdown.tsx"
-import { ToolRow } from "./tool-row.tsx"
+import { SentFile } from "./sent-file.tsx"
 
-function Thinking({ text, live }: { text: string; live: boolean }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="flex flex-col gap-1.5 px-1">
-      <Marker
-        render={<button type="button" onClick={() => setOpen((value) => !value)} />}
-        className="w-fit rounded-md hover:text-foreground"
-        aria-expanded={open}
-      >
-        <MarkerIcon>
-          <LightbulbIcon />
-        </MarkerIcon>
-        <MarkerContent className={cn(live && "animate-shine")}>
-          {live ? "Thinking" : "Thought for a moment"}
-        </MarkerContent>
-      </Marker>
-      {open ? (
-        <p className="ml-6 whitespace-pre-wrap border-l pl-3 text-sm text-muted-foreground">
-          {text}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-function AssistantPart({ part, live }: { part: MessagePart; live: boolean }) {
+function AssistantPart({ part }: { part: MessagePart }) {
+  if (isSentFile(part)) return <SentFile part={part} />
   switch (part.type) {
     case "text":
       return (
@@ -56,10 +40,6 @@ function AssistantPart({ part, live }: { part: MessagePart; live: boolean }) {
           </BubbleContent>
         </Bubble>
       )
-    case "thinking":
-      return <Thinking text={part.text} live={live} />
-    case "tool":
-      return <ToolRow part={part} />
     case "notice":
       // Heads the report of a scheduled task.
       return (
@@ -115,16 +95,11 @@ function MessageView({ message }: { message: ChatMessage }) {
       </Message>
     )
   }
-  const live = message.status === "streaming"
   return (
     <Message>
       <MessageContent>
-        {message.parts.map((part, index) => (
-          <AssistantPart
-            key={part.type === "tool" ? part.toolCallId : index}
-            part={part}
-            live={live && index === message.parts.length - 1}
-          />
+        {message.parts.filter(isShownPart).map((part, index) => (
+          <AssistantPart key={part.type === "tool" ? part.toolCallId : index} part={part} />
         ))}
         {message.status === "error" ? (
           <Marker className="px-1 text-destructive">
@@ -146,7 +121,19 @@ function MessageView({ message }: { message: ChatMessage }) {
   )
 }
 
-/** The message list. Follows the newest message while the reader is at the end. */
+/** Brings the end into view when the user sends something, wherever they had scrolled to. */
+function FollowSends({ lastSent }: { lastSent: string | undefined }) {
+  const { scrollToEnd } = useMessageScroller()
+  useEffect(() => {
+    if (lastSent !== undefined) scrollToEnd({ behavior: "smooth" })
+  }, [lastSent, scrollToEnd])
+  return null
+}
+
+/**
+ * The message list. It rests at the newest message and follows it as it grows, the way a chat
+ * does, unless the reader has scrolled up to look at something.
+ */
 export function Transcript({
   state,
   empty,
@@ -157,32 +144,31 @@ export function Transcript({
   /** Shown above the first message, for reaching what came before it. */
   before?: React.ReactNode
 }) {
-  const last = state.messages.at(-1)
-  // The agent is working but has not produced anything visible for this turn yet.
-  const waiting = state.busy && (last === undefined || last.role === "user")
-  // Sending pins the new message near the top, leaving the space below it for the reply.
-  const anchor = state.messages.findLast((message) => message.role === "user")?.id
+  // What the agent is doing, when its answer is not already being written on screen.
+  const activity = chatActivity(state)
+  const lastSent = state.messages.findLast((message) => message.role === "user")?.id
   return (
-    <MessageScrollerProvider>
+    <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+      <FollowSends lastSent={lastSent} />
       <MessageScroller>
         <MessageScrollerViewport>
-          <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-5 px-4 pt-20 pb-6">
+          {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
+          <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-20 pb-6">
             {state.messages.length === 0 && !state.busy ? empty : null}
             {before}
-            {state.messages.map((message) => (
-              <MessageScrollerItem
-                key={message.id}
-                messageId={message.id}
-                scrollAnchor={message.id === anchor}
-              >
+            {state.messages.filter(isVisibleMessage).map((message) => (
+              <MessageScrollerItem key={message.id} messageId={message.id}>
                 <MessageView message={message} />
               </MessageScrollerItem>
             ))}
-            {waiting ? (
-              <Marker className="px-1">
-                <MarkerContent className="animate-shine">Thinking</MarkerContent>
+            {activity === null ? null : (
+              <Marker role="status" aria-live="polite" className="px-1">
+                <MarkerIcon>
+                  <CircleNotchIcon className="animate-spin" />
+                </MarkerIcon>
+                <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
               </Marker>
-            ) : null}
+            )}
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton />

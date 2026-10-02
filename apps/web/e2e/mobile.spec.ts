@@ -81,18 +81,19 @@ test("a chat streams the agent's reply and survives leaving and coming back", as
   await expect(page.getByText("You said: hello from the phone")).toBeVisible()
 })
 
-test("the agent's work shows as tool lines, and a sent file can be opened", async ({ page }) => {
+test("the agent's work leaves only its answer, and a sent file can be opened", async ({ page }) => {
   await signIn(page)
   await page.getByRole("link", { name: "hello from the phone" }).click()
   await composer(page).fill('/tool set_identity {"name":"Pip","tagline":"Small but mighty"}')
   await page.getByRole("button", { name: "Send" }).click()
-  await expect(page.getByRole("button", { name: "Named itself Pip" })).toBeVisible()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
 
   await composer(page).fill('/tool write {"path":"list.md","content":"- eggs\\n- flour\\n"}')
   await page.getByRole("button", { name: "Send" }).click()
-  await page.getByRole("button", { name: "Wrote list.md" }).click()
-  await expect(page.getByText("Successfully wrote to list.md").first()).toBeVisible()
+  await expect(page.getByText(/Successfully wrote to list\.md/).first()).toBeVisible()
+  // The calls themselves are not in the transcript, only what the agent said.
+  await expect(page.getByRole("button", { name: "Named itself Pip" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Wrote list.md" })).toHaveCount(0)
 
   await composer(page).fill('/tool send_file {"path":"list.md"}')
   await page.getByRole("button", { name: "Send" }).click()
@@ -161,7 +162,8 @@ test("automations made in chat can be run and removed from their tab", async ({ 
     '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Stretch","title":"Stretch break"}',
   )
   await page.getByRole("button", { name: "Send" }).click()
-  await expect(page.getByRole("button", { name: "Scheduled a task" })).toBeVisible()
+  // The echo model repeats what the tool told it, which says the schedule exists.
+  await expect(page.getByText(/Scheduled\. [0-9a-f]{8}: "Stretch break"/).first()).toBeVisible()
   await page.getByRole("button", { name: "Back to chats" }).click()
 
   await page.getByRole("tab", { name: "Automations" }).click()

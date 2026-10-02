@@ -9,7 +9,7 @@ import { client } from "@/lib/client"
 import { useLiveChat } from "@/lib/use-live-chat"
 import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
-import { AgentIdContext } from "./tool-row.tsx"
+import { AgentIdContext } from "./sent-file.tsx"
 import { Transcript } from "./transcript.tsx"
 
 function Welcome({ agent }: { agent: AgentSummary }) {

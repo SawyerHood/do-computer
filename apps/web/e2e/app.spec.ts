@@ -123,21 +123,30 @@ test("memory over its limit cannot be saved", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled()
 })
 
-test("the agent uses its computer, and the transcript shows what it ran", async ({ page }) => {
+test("the agent uses its computer: one line says what it is doing, and only its answer stays", async ({
+  page,
+}) => {
   await signIn(page)
   await newChat(page)
   await composer(page).fill(
-    '/tool bash {"command":"echo from the shell > note.txt && cat note.txt && ls"}',
+    '/tool bash {"command":"sleep 1; echo from the shell > note.txt && cat note.txt && ls"}',
   )
   await page.keyboard.press("Enter")
-  await expect(page.getByText("The tool returned:")).toBeVisible()
-  const row = page.getByRole("main").getByRole("button", { name: /echo from the shell/ })
-  await row.click()
-  await expect(page.locator("pre").filter({ hasText: "from the shell" }).last()).toContainText(
-    "note.txt",
-  )
+  // While it works, a single line says what it is doing, with the command it is running.
+  await expect(page.getByRole("status")).toContainText("Running: sleep 1; echo from the shell")
+
+  const transcript = page.getByRole("log")
+  await expect(transcript.getByText("The tool returned:")).toBeVisible()
+  await expect(transcript).toContainText("note.txt")
   // The identity files are part of the workspace.
-  await expect(page.locator("pre").last()).toContainText("MEMORY.md")
+  await expect(transcript).toContainText("MEMORY.md")
+
+  // Once it has answered, the line is gone and the call itself was never put in the transcript.
+  await expect(page.getByRole("status")).toHaveCount(0)
+  await expect(
+    page.getByRole("main").getByRole("button", { name: /echo from the shell/ }),
+  ).toHaveCount(0)
+  await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
 })
 
 test("a scheduled task runs on its own and reports back to the chat it was asked in", async ({
@@ -716,6 +725,49 @@ test("a message that cannot be sent says so and stays in the box", async ({ page
     page.getByRole("log").getByText("You said: this one will not get through"),
   ).toBeVisible()
   await expect(page.getByRole("alert")).toHaveCount(0)
+})
+
+test("the transcript rests at the newest message, with no empty space under it", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  /** How far the last message ends above the bottom of the transcript, and whether the page scrolls. */
+  const measure = () =>
+    page.evaluate(() => {
+      const viewport = document.querySelector('[data-slot="message-scroller-viewport"]')!
+      const items = document.querySelectorAll('[data-slot="message-scroller-item"]')
+      const last = items[items.length - 1]!.getBoundingClientRect()
+      const frame = viewport.getBoundingClientRect()
+      return {
+        gap: Math.round(frame.bottom - last.bottom),
+        atEnd: viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 2,
+        pageScrolls: document.scrollingElement!.scrollHeight > window.innerHeight + 1,
+      }
+    })
+  const say = async (text: string) => {
+    await composer(page).fill(text)
+    await composer(page).press("Enter")
+    await expect(
+      page.getByRole("log").getByText(new RegExp(`You said: ${text}[\\s\\S]*echo model`)),
+    ).toBeVisible()
+  }
+
+  // One exchange: it sits at the bottom, next to the message box, not at the top of an empty page.
+  await say("short one")
+  await expect.poll(async () => (await measure()).gap).toBeLessThan(60)
+
+  // A long conversation: still at the end, with nothing but the usual margin under the newest.
+  for (const n of [2, 3, 4, 5, 6, 7]) await say(`message ${n}`)
+  await expect.poll(async () => (await measure()).gap).toBeLessThan(60)
+  expect(await measure()).toMatchObject({ atEnd: true, pageScrolls: false })
+
+  // Someone reading further up is brought back when they send something.
+  await page.locator('[data-slot="message-scroller-viewport"]').evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await say("back to the end")
+  await expect.poll(async () => (await measure()).atEnd).toBe(true)
 })
 
 test("signing out ends the session", async ({ page }) => {
