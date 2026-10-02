@@ -128,11 +128,10 @@ export function fakeContainer() {
             const all = Buffer.concat(parts)
             return all.buffer.slice(all.byteOffset, all.byteOffset + all.byteLength) as ArrayBuffer
           }
-          return {
-            stdout: buffer(chunks.stdout),
-            stderr: buffer(chunks.stderr),
-            exitCode: await exitCode,
-          }
+          // The exit comes after every stream has closed, so stderr is complete by then. Reading
+          // it any earlier loses what arrives after stdout ends.
+          const code = await exitCode
+          return { stdout: buffer(chunks.stdout), stderr: buffer(chunks.stderr), exitCode: code }
         },
         kill(signal = 15) {
           child.kill(signal)
