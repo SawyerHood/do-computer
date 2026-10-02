@@ -99,6 +99,9 @@ Run on 2026-10-02 with real keys, on the Node build and inside the Workers runti
   up Playwright's Chromium on the machine, read example.com, and sent back a screenshot. `packages/sandbox/test/daytona.live.test.ts`
   repeats the first part for anyone with a key.
 
+- **A real MCP server.** DeepWiki's public server (no sign-in) was added as a connector: it
+  connected, listed its three tools, and a call through the agent returned its answer.
+
 Running for real found five bugs the tests had missed, all fixed with tests:
 
 1. A one-off reminder given as a duration ("1m") re-armed itself and repeated.
@@ -121,7 +124,8 @@ Running for real found five bugs the tests had missed, all fixed with tests:
 - **Native mobile.** The app's screens are tested through its web build. Secure storage, push
   registration, the microphone and the share sheet have not run on a device.
 - **Sign-in with Google and GitHub**, which need OAuth apps registered for a public address.
-- **A real MCP service.** Connectors are tested against a stand-in with its own sign-in page.
+- **A connector that needs a sign-in, against a real service.** The sign-in flow is tested
+  against a stand-in with its own sign-in page.
 
 ---
 
