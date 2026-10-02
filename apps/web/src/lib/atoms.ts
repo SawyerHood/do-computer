@@ -1,5 +1,5 @@
 import type { StreamStatus } from "@durable-computer/client"
-import { type ChatState, EMPTY_CHAT } from "@durable-computer/protocol"
+import { type ChatMessage, type ChatState, EMPTY_CHAT } from "@durable-computer/protocol"
 import { atom } from "jotai"
 
 export type LiveChat = { state: ChatState; status: StreamStatus; loaded: boolean }
@@ -21,6 +21,20 @@ function atomFamily<T>(create: (key: string) => T): (key: string) => T {
 
 /** The live state of one chat, keyed `agentId/chatId`, fed by its event stream. */
 export const liveChatAtom = atomFamily(() => atom<LiveChat>(INITIAL))
+
+export type EarlierMessages = {
+  /** The first message of the live transcript these lead up to. */
+  anchor?: string
+  messages: ChatMessage[]
+  /** Where the next page ends. Undefined until the first page is asked for; null at the start. */
+  before: string | null | undefined
+  loading: boolean
+}
+
+/** Messages from before the live transcript, loaded on request, per chat. */
+export const earlierAtom = atomFamily(() =>
+  atom<EarlierMessages>({ messages: [], before: undefined, loading: false }),
+)
 
 /** What the user has typed but not sent, per chat. */
 export const draftAtom = atomFamily(() => atom(""))

@@ -3,6 +3,8 @@ import {
   type AgentEvent,
   type AgentSummary,
   type AgentUsage,
+  type ChatHistoryPage,
+  type HistoryHit,
   type ApiError as ApiErrorBody,
   type Avatar,
   type ChatEvent,
@@ -223,6 +225,21 @@ export function createClient(options: ClientOptions) {
         send: (chatId: string, message: SendMessageRequest) =>
           post<SendMessageResponse>(`${base}/chats/${chatId}/messages`, message),
         abort: (chatId: string) => post<{ ok: true }>(`${base}/chats/${chatId}/abort`),
+        /**
+         * Messages of a chat from before `before`, a message id: what a summary or a fresh start
+         * moved out of the live transcript.
+         */
+        earlier: (chatId: string, before: string) =>
+          request<ChatHistoryPage>(
+            `${base}/chats/${chatId}/history?before=${encodeURIComponent(before)}`,
+          ),
+        /** Start the chat's context over. Earlier messages stay readable; memory is unaffected. */
+        resetChat: (chatId: string) => post<{ ok: true }>(`${base}/chats/${chatId}/reset`),
+        /** Search everything said in the agent's chats. */
+        search: (query: string) =>
+          request<{ hits: HistoryHit[]; complete: boolean }>(
+            `${base}/search?q=${encodeURIComponent(query)}`,
+          ),
         schedules: async () =>
           (await request<{ schedules: ScheduleSummary[] }>(`${base}/schedules`)).schedules,
         updateSchedule: (scheduleId: string, change: UpdateScheduleRequest) =>

@@ -16,6 +16,7 @@ import {
   SunIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react"
+import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router"
 import { and, eq, useLiveQuery } from "@tanstack/react-db"
 import { useAtom } from "jotai"
@@ -31,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { chatListOpenAtom } from "@/lib/atoms"
@@ -107,6 +109,69 @@ function AgentSwitcher({ agent }: { agent: AgentSummary }) {
   )
 }
 
+const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
+
+/** Matches for a search across everything said in the agent's chats. */
+function SearchResults({
+  agentId,
+  query,
+  onNavigate,
+}: {
+  agentId: string
+  query: string
+  onNavigate?: () => void
+}) {
+  // Wait for a pause in typing: each search reads the transcripts.
+  const [settled, setSettled] = useState(query)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(query), 250)
+    return () => clearTimeout(timer)
+  }, [query])
+  const { data, isError } = useQuery({
+    queryKey: ["agents", agentId, "search", settled],
+    queryFn: () => client.agent(agentId).search(settled),
+    staleTime: 10_000,
+  })
+  return (
+    <div
+      role="region"
+      aria-label="Search results"
+      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
+    >
+      {isError ? (
+        <p className="px-3 py-2 text-sm text-destructive">The search did not work. Try again.</p>
+      ) : data === undefined || settled !== query ? (
+        <p className="px-3 py-2 text-sm text-muted-foreground">Searching…</p>
+      ) : data.hits.length === 0 ? (
+        <p className="px-3 py-2 text-sm text-muted-foreground">Nothing matches.</p>
+      ) : (
+        data.hits.map((hit) => (
+          <Link
+            key={`${hit.chatId}/${hit.messageId}`}
+            to="/a/$agentId/c/$chatId"
+            params={{ agentId, chatId: hit.chatId }}
+            onClick={onNavigate}
+            className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-sm hover:bg-accent"
+          >
+            <span className="flex items-baseline justify-between gap-2">
+              <span className="truncate font-medium">{hit.chatTitle}</span>
+              {hit.at === null ? null : (
+                <span className="shrink-0 text-xs text-muted-foreground">{day.format(hit.at)}</span>
+              )}
+            </span>
+            <span className="line-clamp-3 text-xs text-muted-foreground">{hit.snippet}</span>
+          </Link>
+        ))
+      )}
+      {data !== undefined && !data.complete && data.hits.length > 0 ? (
+        <p className="px-3 py-2 text-xs text-muted-foreground">
+          There may be more. Add a word to narrow it down.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () => void }) {
   const navigate = useNavigate()
   const { chatId: activeChatId } = useParams({ strict: false })
@@ -119,6 +184,9 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
         .where(({ chat }) => and(eq(chat.archived, false), eq(chat.kind, "chat")))
         .orderBy(({ chat }) => chat.updatedAt, "desc"),
   })
+
+  const [query, setQuery] = useState("")
+  const searching = query.trim().length >= 2
 
   const create = async () => {
     const chat = await client.agent(agentId).createChat()
@@ -141,7 +209,23 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
           <NotePencilIcon />
         </Button>
       </div>
-      <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
+      <div className="px-3 pb-2">
+        <Input
+          type="search"
+          aria-label="Search chats"
+          placeholder="Search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="h-8 text-sm"
+        />
+      </div>
+      {searching ? (
+        <SearchResults agentId={agentId} query={query.trim()} onNavigate={onNavigate} />
+      ) : null}
+      <nav
+        hidden={searching}
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
+      >
         {(chats ?? []).map((chat) => (
           <div key={chat.id} className="group/chat relative">
             <Link

@@ -142,23 +142,15 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
   }
 }
 
-/**
- * What a client renders for one conversation, derived from pi-durable's committed view: the active
- * transcript, then the answer being generated. Pure, so two views of the same commit are equal.
- */
-export function projectChat(view: ConversationView): ChatState {
-  const live = view.docs["pi.live"] as LiveState | undefined
-  const inbox = view.docs["pi.inbox"] as InboxState | undefined
-  const usageDoc = view.docs["pi.usage"] as UsageState | undefined
-
+/** Transcript entries, oldest first, as messages, with each tool call joined to its result. */
+function projectEntries(entries: readonly EntryRecord[]) {
   const messages: ChatMessage[] = []
   const tools = new Map<string, ToolPart>()
   const register = (message: ChatMessage) => {
     for (const part of message.parts) if (part.type === "tool") tools.set(part.toolCallId, part)
   }
-
   let lastEntryId = "0"
-  for (const entry of view.entries) {
+  for (const entry of entries) {
     lastEntryId = String(entry.id)
     if (entry.kind === "pi.tool-result") {
       const result = entry.model?.[0] as ToolResultMessage | undefined
@@ -174,6 +166,64 @@ export function projectChat(view: ConversationView): ChatState {
     register(message)
     messages.push(message)
   }
+  return { messages, tools, register, lastEntryId }
+}
+
+/**
+ * Entries from a chat's past, oldest first, as messages. Nothing in the past is still running, so
+ * a tool call with no result was interrupted.
+ */
+export function projectPast(entries: readonly EntryRecord[]): ChatMessage[] {
+  const { messages, tools } = projectEntries(entries)
+  for (const part of tools.values()) {
+    if (part.status !== "pending") continue
+    part.status = "error"
+    part.output ??= "Interrupted before it finished."
+  }
+  return messages
+}
+
+/** The words of an entry that a person wrote or read, for searching. Undefined for the rest. */
+export function entryText(
+  entry: EntryRecord,
+): { role: "user" | "assistant"; text: string; at: number | undefined } | undefined {
+  const first = entry.model?.[0]
+  switch (entry.kind) {
+    case "pi.user":
+      return first?.role === "user"
+        ? { role: "user", text: contentText(first.content), at: first.timestamp }
+        : undefined
+    case "pi.assistant": {
+      if (first?.role !== "assistant") return undefined
+      const text = first.content
+        .filter((block): block is TextContent => block.type === "text")
+        .map((block) => block.text)
+        .join("\n")
+      return { role: "assistant", text, at: first.timestamp }
+    }
+    case "dc.scheduled": {
+      const report = entry.data as { title?: string; text?: string } | undefined
+      return {
+        role: "assistant",
+        text: [report?.title, report?.text].filter(Boolean).join("\n"),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    default:
+      return undefined
+  }
+}
+
+/**
+ * What a client renders for one conversation, derived from pi-durable's committed view: the active
+ * transcript, then the answer being generated. Pure, so two views of the same commit are equal.
+ */
+export function projectChat(view: ConversationView): ChatState {
+  const live = view.docs["pi.live"] as LiveState | undefined
+  const inbox = view.docs["pi.inbox"] as InboxState | undefined
+  const usageDoc = view.docs["pi.usage"] as UsageState | undefined
+
+  const { messages, tools, register, lastEntryId } = projectEntries(view.entries)
 
   const partial = live?.generation?.message
   if (partial !== undefined) {

@@ -181,3 +181,11 @@ export function reduceChat(state: ChatState, event: ChatEvent): ChatState {
     }
   }
 }
+
+/** A page of a chat's earlier messages: what came before the transcript a client already has. */
+export type ChatHistoryPage = {
+  /** Oldest first. */
+  messages: ChatMessage[]
+  /** Pass as `before` to get the page before this one. Null when this is the beginning. */
+  before: string | null
+}

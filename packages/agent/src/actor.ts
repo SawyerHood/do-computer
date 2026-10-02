@@ -42,6 +42,7 @@ import {
 import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { Computer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
+import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
 import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
@@ -247,6 +248,8 @@ export class AgentActor implements Actor {
     this.#harness ??= (async () => {
       const registry = createRegistry()
       const computer = this.#computer
+      // For tools that read the harness they are installed in, once it exists.
+      let opened: Harness | undefined
       registry.install(Persona)
       for (const extension of computer?.extensions ?? []) registry.install(extension)
       if (this.#paired !== undefined) {
@@ -258,6 +261,12 @@ export class AgentActor implements Actor {
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
+      registry.install(
+        historyExtension(() => {
+          if (opened === undefined) throw new Error("The agent is not open yet")
+          return opened
+        }),
+      )
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       const harness = await Harness.open(
         await SqliteStorage.open(this.#host.sql),
@@ -271,6 +280,7 @@ export class AgentActor implements Actor {
         },
         context,
       )
+      opened = harness
       computer?.attach(harness)
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
@@ -385,6 +395,7 @@ export class AgentActor implements Actor {
         error instanceof ScheduleError ||
         error instanceof SkillError ||
         error instanceof LibraryError ||
+        error instanceof HistoryError ||
         error instanceof ConnectorError
       ) {
         return json({ error: error.message }, 400)
@@ -531,6 +542,17 @@ export class AgentActor implements Actor {
         }
       }
     }
+    if (segments[0] === "search" && segments[1] === undefined && method === "GET") {
+      const limit = url.searchParams.get("limit")
+      return json(
+        await searchHistory(
+          harness,
+          url.searchParams.get("q") ?? "",
+          { limit: limit === null ? undefined : Number(limit) },
+          context,
+        ),
+      )
+    }
     if (segments[0] === "usage" && segments[1] === undefined && method === "GET") {
       return json(await this.#usage(harness))
     }
@@ -571,12 +593,32 @@ export class AgentActor implements Actor {
         if (rest === undefined && method === "PATCH") {
           return this.#updateChat(harness, chatId, await body<UpdateChatRequest>(request))
         }
+        if (rest === "history" && method === "GET") {
+          const limit = url.searchParams.get("limit")
+          return json(
+            await readHistory(
+              harness,
+              chatId,
+              {
+                before: url.searchParams.get("before") ?? undefined,
+                limit: limit === null ? undefined : Number(limit),
+              },
+              context,
+            ),
+          )
+        }
         if (rest === "events" && method === "GET") return this.#chatEvents(conversation)
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request))
         }
         if (rest === "abort" && method === "POST") {
           await conversation.abort(context)
+          return json({ ok: true })
+        }
+        if (rest === "reset" && method === "POST") {
+          // Starts the chat's context over. What was said stays readable as earlier messages,
+          // and what the agent remembers is unaffected.
+          await conversation.reset(undefined, context)
           return json({ ok: true })
         }
       }

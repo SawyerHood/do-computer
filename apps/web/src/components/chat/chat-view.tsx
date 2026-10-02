@@ -1,7 +1,10 @@
-import type { AgentSummary } from "@durable-computer/protocol"
-import { useCallback } from "react"
+import type { AgentSummary, ChatMessage } from "@durable-computer/protocol"
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
+import { useAtom } from "jotai"
+import { useCallback, useEffect, useMemo } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
-import { chatKey } from "@/lib/atoms"
+import { Button } from "@/components/ui/button"
+import { chatKey, earlierAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { useLiveChat } from "@/lib/use-live-chat"
 import { Composer } from "./composer.tsx"
@@ -22,10 +25,49 @@ function Welcome({ agent }: { agent: AgentSummary }) {
   )
 }
 
+/** A chat whose transcript starts at a summary or a fresh start has more before it. */
+const startsMidway = (first: ChatMessage | undefined) => first?.role === "notice"
+
 /** One chat: the transcript, kept live by its event stream, and the composer. */
 export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: string }) {
   const live = useLiveChat(agent.id, chatId)
   const api = client.agent(agent.id)
+  const [earlier, setEarlier] = useAtom(earlierAtom(chatKey(agent.id, chatId)))
+
+  const liveFirst = live.state.messages[0]
+  // The live transcript starts somewhere new after a summary or a fresh start. What was loaded
+  // led up to the old start and would now leave a gap, so it is dropped and can be loaded again.
+  useEffect(() => {
+    if (live.loaded && earlier.anchor !== undefined && earlier.anchor !== liveFirst?.id) {
+      setEarlier({ messages: [], before: undefined, loading: false })
+    }
+  }, [live.loaded, earlier.anchor, liveFirst?.id, setEarlier])
+
+  const hasEarlier =
+    earlier.before === undefined ? startsMidway(liveFirst) : earlier.before !== null
+  const loadEarlier = useCallback(async () => {
+    if (liveFirst === undefined) return
+    setEarlier((previous) => ({ ...previous, loading: true }))
+    try {
+      const page = await api.earlier(chatId, earlier.before ?? liveFirst.id)
+      setEarlier((previous) => ({
+        anchor: liveFirst.id,
+        messages: [...page.messages, ...previous.messages],
+        before: page.before,
+        loading: false,
+      }))
+    } catch {
+      setEarlier((previous) => ({ ...previous, loading: false }))
+    }
+  }, [api, chatId, earlier.before, liveFirst, setEarlier])
+  const startFresh = useCallback(() => void api.resetChat(chatId), [api, chatId])
+  const state = useMemo(
+    () =>
+      earlier.messages.length === 0
+        ? live.state
+        : { ...live.state, messages: [...earlier.messages, ...live.state.messages] },
+    [earlier.messages, live.state],
+  )
 
   const send = useCallback(
     (text: string) => {
@@ -49,11 +91,39 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           {live.status === "reconnecting" ? (
             <span className="text-xs text-muted-foreground">reconnecting…</span>
           ) : null}
+          {live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1)) ? (
+            <button
+              type="button"
+              aria-label="Start fresh"
+              title="Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
+              disabled={live.state.busy}
+              onClick={startFresh}
+              className="-mr-1.5 rounded-full p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              <ArrowsClockwiseIcon className="size-4" />
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="min-h-0 flex-1">
         <AgentIdContext value={agent.id}>
-          <Transcript state={live.state} empty={live.loaded ? <Welcome agent={agent} /> : null} />
+          <Transcript
+            state={state}
+            empty={live.loaded ? <Welcome agent={agent} /> : null}
+            before={
+              hasEarlier ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="self-center text-muted-foreground"
+                  disabled={earlier.loading}
+                  onClick={loadEarlier}
+                >
+                  {earlier.loading ? "Loading…" : "Show earlier messages"}
+                </Button>
+              ) : null
+            }
+          />
         </AgentIdContext>
       </div>
       <Composer

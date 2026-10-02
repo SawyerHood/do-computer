@@ -29,7 +29,7 @@ const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 /** Start a chat and wait until it is the one on screen, so typing lands in it. */
 async function newChat(page: Page) {
   const before = page.url()
-  await page.getByRole("button", { name: "New chat" }).click()
+  await page.getByRole("button", { name: "New chat", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
   await expect(composer(page)).toHaveValue("")
 }
@@ -80,7 +80,7 @@ test("assistant text is rendered as Markdown", async ({ page }) => {
 
 test("chats are separate, and an archived chat leaves the list", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "New chat" }).click()
+  await page.getByRole("button", { name: "New chat", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Say hello" })).toBeVisible()
   await composer(page).fill("second chat here")
   await page.keyboard.press("Enter")
@@ -458,6 +458,59 @@ test.describe("connectors", () => {
     // Nothing to finish: the user lands back in the app, not on a connector.
     await expect(page).toHaveURL(/\/a\/[^/]+\/c\/\d+/)
   })
+})
+
+test("search finds something said in another chat and opens that chat", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("The wifi password at the cabin is heron-lantern-42")
+  await composer(page).press("Enter")
+  // The whole answer, not its first words: a reply still being written is not in the history yet.
+  await expect(
+    page.getByRole("main").getByText(/You said: The wifi password[\s\S]*echo model\.\)/),
+  ).toBeVisible()
+  const cabin = page.url()
+  await newChat(page)
+
+  await page.getByRole("searchbox", { name: "Search chats" }).fill("heron-lantern")
+  const results = page.getByRole("region", { name: "Search results" })
+  // Both what the user said and the agent's answer match.
+  await expect(results.getByRole("link")).toHaveCount(2)
+  await expect(results.getByRole("link").first()).toContainText("heron-lantern-42")
+  await results.getByRole("link").first().click()
+  await expect(page).toHaveURL(cabin)
+
+  await page.getByRole("searchbox", { name: "Search chats" }).fill("no-such-thing-anywhere")
+  await expect(results).toContainText("Nothing matches.")
+  // Clearing the search brings the chat list back.
+  await page.getByRole("searchbox", { name: "Search chats" }).fill("")
+  await expect(page.getByRole("link", { name: /The wifi password/ })).toBeVisible()
+})
+
+test("starting fresh keeps the earlier messages within reach", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("The first thing I said")
+  await composer(page).press("Enter")
+  const transcript = page.getByRole("log")
+  await expect(transcript.getByText("You said: The first thing I said")).toBeVisible()
+
+  await page.getByRole("button", { name: "Start fresh" }).click()
+  await expect(transcript.getByText("New context")).toBeVisible()
+  await expect(transcript.getByText("The first thing I said")).toHaveCount(0)
+  await composer(page).fill("The second thing")
+  await composer(page).press("Enter")
+  await expect(transcript.getByText("You said: The second thing")).toBeVisible()
+
+  // What came before is not gone, here or after a reload.
+  await page.reload()
+  await page.getByRole("button", { name: "Show earlier messages" }).click()
+  await expect(transcript.getByText("The first thing I said", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
+  // In order: the old exchange, the marker, the new one.
+  const text = await transcript.innerText()
+  expect(text.indexOf("The first thing I said")).toBeLessThan(text.indexOf("New context"))
+  expect(text.indexOf("New context")).toBeLessThan(text.indexOf("The second thing"))
 })
 
 test("the settings page shows what the agent's thinking has cost", async ({ page }) => {

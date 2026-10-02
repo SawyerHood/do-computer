@@ -147,7 +147,16 @@ function MessageView({ message }: { message: ChatMessage }) {
 }
 
 /** The message list. Follows the newest message while the reader is at the end. */
-export function Transcript({ state, empty }: { state: ChatState; empty: React.ReactNode }) {
+export function Transcript({
+  state,
+  empty,
+  before,
+}: {
+  state: ChatState
+  empty: React.ReactNode
+  /** Shown above the first message, for reaching what came before it. */
+  before?: React.ReactNode
+}) {
   const last = state.messages.at(-1)
   // The agent is working but has not produced anything visible for this turn yet.
   const waiting = state.busy && (last === undefined || last.role === "user")
@@ -159,6 +168,7 @@ export function Transcript({ state, empty }: { state: ChatState; empty: React.Re
         <MessageScrollerViewport>
           <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-5 px-4 pt-20 pb-6">
             {state.messages.length === 0 && !state.busy ? empty : null}
+            {before}
             {state.messages.map((message) => (
               <MessageScrollerItem
                 key={message.id}

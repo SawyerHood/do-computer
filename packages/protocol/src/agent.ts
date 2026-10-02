@@ -172,3 +172,17 @@ export type AgentUsage = {
   /** How many chats and runs the total covers. */
   chats: number
 }
+
+/** A place in the agent's past chats where a search matched. */
+export type HistoryHit = {
+  chatId: string
+  chatTitle: string
+  chatKind: ChatKind
+  /** The matching message. */
+  messageId: string
+  role: "user" | "assistant"
+  /** When it was said, in milliseconds, when known. */
+  at: number | null
+  /** The match and some of what surrounds it. */
+  snippet: string
+}
