@@ -81,6 +81,14 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     [api, chatId],
   )
   const stop = useCallback(() => void api.abort(chatId), [api, chatId])
+  const attach = useCallback(
+    (file: File) =>
+      api.upload(
+        { name: file.name, type: file.type || "application/octet-stream", body: file },
+        chatId,
+      ),
+    [api, chatId],
+  )
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -135,6 +143,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         queued={live.state.queued}
         onSend={send}
         onStop={stop}
+        onAttach={attach}
       />
     </div>
   )

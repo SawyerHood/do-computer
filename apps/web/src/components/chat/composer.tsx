@@ -1,7 +1,14 @@
-import type { QueuedInput } from "@durable-computer/protocol"
-import { ArrowUpIcon, CircleNotchIcon, MicrophoneIcon, StopIcon } from "@phosphor-icons/react"
+import type { LibraryFile, QueuedInput } from "@durable-computer/protocol"
+import {
+  ArrowUpIcon,
+  CircleNotchIcon,
+  MicrophoneIcon,
+  PaperclipIcon,
+  StopIcon,
+  XIcon,
+} from "@phosphor-icons/react"
 import { useAtom } from "jotai"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { draftAtom } from "@/lib/atoms"
 import { useDictation } from "@/lib/use-dictation"
@@ -20,6 +27,7 @@ export function Composer({
   queued,
   onSend,
   onStop,
+  onAttach,
 }: {
   draftKey: string
   placeholder: string
@@ -27,9 +35,37 @@ export function Composer({
   queued: QueuedInput[]
   onSend: (text: string) => void
   onStop: () => void
+  /** Put a file in the library, where the agent can reach it. */
+  onAttach: (file: File) => Promise<LibraryFile>
 }) {
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
+  const [attached, setAttached] = useState<LibraryFile[]>([])
+  const [uploading, setUploading] = useState(0)
+  const [attachError, setAttachError] = useState<string>()
+  useEffect(() => {
+    setAttached([])
+    setAttachError(undefined)
+  }, [draftKey])
+
+  const attach = async (files: FileList | null) => {
+    setAttachError(undefined)
+    for (const file of files ?? []) {
+      setUploading((count) => count + 1)
+      try {
+        const stored = await onAttach(file)
+        setAttached((current) => [...current, stored])
+      } catch (error) {
+        setAttachError(
+          `${file.name} could not be attached: ${error instanceof Error ? error.message : "upload failed"}`,
+        )
+      } finally {
+        setUploading((count) => count - 1)
+      }
+    }
+    input.current?.focus()
+  }
   // Dictated text joins whatever is already typed, ready to be read over before sending.
   const dictation = useDictation((text) => {
     setDraft((current) => (current.trim() === "" ? text : `${current.trimEnd()} ${text}`))
@@ -47,11 +83,14 @@ export function Composer({
     input.current?.focus()
   }, [draftKey])
 
+  const ready = (draft.trim() !== "" || attached.length > 0) && uploading === 0
   const send = () => {
-    const text = draft.trim()
-    if (text === "") return
-    onSend(text)
+    if (!ready) return
+    // The files are in the library; naming them is how the agent knows to look there.
+    const names = attached.map((file) => file.name).join(", ")
+    onSend([draft.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n"))
     setDraft("")
+    setAttached([])
   }
 
   return (
@@ -69,13 +108,61 @@ export function Composer({
           ))}
         </div>
       ) : null}
+      {attached.length > 0 || uploading > 0 ? (
+        <ul aria-label="Attached files" className="flex flex-wrap gap-1.5 px-2">
+          {attached.map((file) => (
+            <li
+              key={file.id}
+              className="flex items-center gap-1 rounded-full border bg-surface py-1 pr-1 pl-3 text-xs"
+            >
+              <span className="max-w-48 truncate">{file.name}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${file.name}`}
+                className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setAttached((current) => current.filter((other) => other.id !== file.id))
+                }
+              >
+                <XIcon className="size-3" />
+              </button>
+            </li>
+          ))}
+          {uploading > 0 ? (
+            <li className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
+              <CircleNotchIcon className="size-3 animate-spin" /> Attaching…
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
       <form
-        className="flex items-end gap-2 rounded-[1.75rem] border bg-surface py-2 pr-2 pl-5 shadow-sm focus-within:border-input"
+        className="flex items-end gap-2 rounded-[1.75rem] border bg-surface py-2 pr-2 pl-2 shadow-sm focus-within:border-input"
         onSubmit={(event) => {
           event.preventDefault()
           send()
         }}
       >
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          aria-label="Choose files to attach"
+          onChange={(event) => {
+            void attach(event.target.files)
+            event.target.value = ""
+          }}
+        />
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="rounded-full text-muted-foreground"
+          onClick={() => picker.current?.click()}
+          aria-label="Attach a file"
+        >
+          <PaperclipIcon />
+        </Button>
         <textarea
           ref={input}
           rows={1}
@@ -114,7 +201,7 @@ export function Composer({
             )}
           </Button>
         ) : null}
-        {busy && draft.trim() === "" ? (
+        {busy && !ready && uploading === 0 ? (
           <Button
             type="button"
             size="icon"
@@ -130,16 +217,16 @@ export function Composer({
             type="submit"
             size="icon"
             className="rounded-full"
-            disabled={draft.trim() === ""}
+            disabled={!ready}
             aria-label="Send"
           >
             <ArrowUpIcon weight="bold" />
           </Button>
         )}
       </form>
-      {dictation.error ? (
+      {(dictation.error ?? attachError) ? (
         <p role="alert" className="px-5 text-xs text-destructive">
-          {dictation.error}
+          {dictation.error ?? attachError}
         </p>
       ) : null}
     </div>

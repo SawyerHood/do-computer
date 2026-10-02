@@ -72,6 +72,7 @@ const TOOL_SUBJECTS: Record<string, string> = {
 const OTHER_TOOLS: Record<string, string> = {
   read: "Read files",
   history: "Search your chats",
+  library: "Use your library",
   set_identity: "Change its name and look",
 }
 

@@ -259,6 +259,36 @@ test("a file the agent sends appears in the chat and in the library", async ({ p
   await expect(page.getByRole("listitem").filter({ hasText: "plan.md" })).toHaveCount(0)
 })
 
+test("a file attached to a message is one the agent can open", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await page.getByLabel("Choose files to attach").setInputFiles({
+    name: "shopping.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("oat milk\nrye bread\n"),
+  })
+  const attached = page.getByRole("list", { name: "Attached files" })
+  await expect(attached.getByText("shopping.txt")).toBeVisible()
+  await composer(page).fill("Here is my list")
+  await composer(page).press("Enter")
+  const transcript = page.getByRole("log")
+  // The message names the file, and the chip is gone once it is sent.
+  await expect(transcript.getByText("Attached: shopping.txt").first()).toBeVisible()
+  await expect(attached).toHaveCount(0)
+  await expect(transcript.getByText(/echo model\.\)/)).toBeVisible()
+
+  await composer(page).fill('/tool library {"action":"get","file":"shopping.txt"}')
+  await composer(page).press("Enter")
+  await expect(transcript.getByText(/Copied shopping\.txt \(19 bytes\) to/).first()).toBeVisible()
+  await composer(page).fill('/tool bash {"command":"cat uploads/shopping.txt"}')
+  await composer(page).press("Enter")
+  await expect(transcript.getByText("rye bread").first()).toBeVisible()
+
+  // It is also in the library, as something the user uploaded.
+  await page.getByRole("button", { name: "Library", exact: true }).click()
+  await expect(page.getByRole("main").getByText("shopping.txt")).toBeVisible()
+})
+
 test("dictation without a model key says what is missing", async ({ browser, baseURL }) => {
   // A browser with a fake microphone, so recording works without hardware or a prompt.
   const context = await browser.newContext({

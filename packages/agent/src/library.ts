@@ -8,6 +8,7 @@ import {
   defineTool,
   type Extension,
   type Harness,
+  section,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
 import { getOrThrow } from "@earendil-works/pi-durable/env"
@@ -76,6 +77,8 @@ const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/web
 export class Library {
   readonly extension: Extension
   readonly sendFileTool: ToolRegistration
+  /** Lets the agent see the library and bring a file from it onto a computer. */
+  readonly libraryTool: ToolRegistration
   readonly #blobs: BlobStore
   readonly #now: () => number
   #harness: Harness | undefined
@@ -130,7 +133,77 @@ export class Library {
         }
       },
     })
-    this.extension = defineExtension({ name: "dc.library", tools: [this.sendFileTool] })
+    this.libraryTool = defineTool({
+      name: "library",
+      description:
+        "The user's library: files they uploaded for you, and files you have sent them. `list` shows what is there, newest first. `get` copies one onto your computer so you can read it or work on it.",
+      parameters: Type.Object({
+        action: Type.Union([Type.Literal("list"), Type.Literal("get")]),
+        file: Type.Optional(
+          Type.String({ description: "For get: the file's name or id, as `list` shows it" }),
+        ),
+        path: Type.Optional(
+          Type.String({ description: "For get: where to put it. Default: uploads/<name>" }),
+        ),
+      }),
+      execute: async (args, api, context) => {
+        const fail = (text: string) => ({
+          isError: true,
+          content: [{ type: "text" as const, text }],
+        })
+        const files = await this.list(context)
+        if (args.action === "list") {
+          const lines = files.map(
+            (file) =>
+              `${file.name} (${file.size} bytes, ${
+                file.source === "user" ? "uploaded by the user" : "sent by you"
+              }, ${new Date(file.createdAt).toISOString().slice(0, 10)}, id ${file.id})`,
+          )
+          return {
+            content: [
+              {
+                type: "text",
+                text: lines.length === 0 ? "The library is empty." : lines.join("\n"),
+              },
+            ],
+          }
+        }
+        const wanted = args.file?.trim() ?? ""
+        if (wanted === "") return fail("`get` needs the file's name or id.")
+        // `list` is newest first, so a name used twice means the latest one.
+        const file = files.find(
+          (entry) => entry.id === wanted || entry.name.toLowerCase() === wanted.toLowerCase(),
+        )
+        if (file === undefined) {
+          return fail(`There is no "${wanted}" in the library. Use the list action to see it.`)
+        }
+        if (api.env === undefined) return fail("There is no computer to put the file on.")
+        const blob = await this.#blobs.get(blobKey(file.id))
+        if (blob === undefined) return fail(`The contents of ${file.name} are missing.`)
+        const target = getOrThrow(
+          await api.env.absolutePath(args.path?.trim() || `uploads/${file.name}`, context),
+        )
+        const written = await api.env.writeFile(target, await blob.bytes(), context)
+        if (!written.ok) return fail(`Could not write ${target}: ${written.error.message}`)
+        return {
+          content: [
+            { type: "text", text: `Copied ${file.name} (${file.size} bytes) to ${target}.` },
+          ],
+          details: { path: target, file },
+        }
+      },
+    })
+    this.extension = defineExtension({
+      name: "dc.library",
+      tools: [this.sendFileTool, this.libraryTool],
+      sections: [
+        section(
+          "library",
+          () =>
+            "The user can upload files to their library for you. When they mention a file they uploaded or attached, find it with the `library` tool and copy it onto your computer with its `get` action before answering; do not ask them to paste it.",
+        ),
+      ],
+    })
   }
 
   attach(harness: Harness): void {

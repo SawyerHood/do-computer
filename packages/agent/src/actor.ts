@@ -235,7 +235,10 @@ export class AgentActor implements Actor {
     this.#paired =
       options.computerLinks === undefined
         ? undefined
-        : new PairedComputers(options.computerLinks, [this.#library.sendFileTool])
+        : new PairedComputers(options.computerLinks, [
+            this.#library.sendFileTool,
+            this.#library.libraryTool,
+          ])
     const skillFetch = guardedFetch(
       (input, init) => (options.fetch ?? fetch)(String(input), init),
       options.allowPrivateHosts === true,

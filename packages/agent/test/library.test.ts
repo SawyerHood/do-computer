@@ -171,6 +171,63 @@ describe("library", () => {
     expect(back.every((byte, index) => byte === bytes[index])).toBe(true)
   })
 
+  it("lets the agent find an uploaded file and bring it onto its computer", async () => {
+    const report = "quarter,revenue\nQ1,120\nQ2,135\n"
+    await request("/library?name=revenue.csv", { method: "POST", body: report })
+
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("library", { action: "list" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("listed"),
+    ])
+    const listed = lastTool(await say(chat.id, "what did I upload?"))
+    expect(listed.output).toContain("revenue.csv (30 bytes, uploaded by the user,")
+    expect(listed.output).toContain("photo.png (70000 bytes, uploaded by the user,")
+
+    // By name, in whatever case the user said it, to the default place.
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("library", { action: "get", file: "Revenue.CSV" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage([fauxToolCall("bash", { command: "cat uploads/revenue.csv" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("read"),
+    ])
+    const state = await say(chat.id, "read the revenue file I uploaded")
+    const tools = state.messages.flatMap((m) => m.parts).filter((p) => p.type === "tool")
+    expect(tools.at(-2)).toMatchObject({ name: "library", status: "done" })
+    expect((tools.at(-2) as ToolPart).output).toMatch(
+      /^Copied revenue\.csv \(30 bytes\) to .*\/uploads\/revenue\.csv\.$/,
+    )
+    expect((tools.at(-1) as ToolPart).output).toBe(report)
+
+    // Binary files arrive whole, at a path the agent chose.
+    faux.setResponses([
+      fauxAssistantMessage(
+        [fauxToolCall("library", { action: "get", file: "photo.png", path: "pictures/p.png" })],
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage([fauxToolCall("bash", { command: "wc -c < pictures/p.png" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("counted"),
+    ])
+    expect(lastTool(await say(chat.id, "and the photo")).output?.trim()).toBe("70000")
+
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("library", { action: "get", file: "missing.pdf" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("no"),
+    ])
+    expect(lastTool(await say(chat.id, "the pdf"))).toMatchObject({
+      status: "error",
+      output: 'There is no "missing.pdf" in the library. Use the list action to see it.',
+    })
+  })
+
   it("explains what it cannot send", async () => {
     faux.setResponses([
       fauxAssistantMessage([fauxToolCall("send_file", { path: "nope.txt" })], {
