@@ -9,7 +9,8 @@ import type {
   ToolPart,
 } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import { justBashSandbox } from "@durable-computer/sandbox"
+import { justBashSandbox, type Sandbox } from "@durable-computer/sandbox"
+import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -142,7 +143,7 @@ type World = {
 }
 const worlds: World[] = []
 
-function open(directory: string): World {
+function open(directory: string, sandbox?: () => Sandbox): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -158,7 +159,7 @@ function open(directory: string): World {
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
         keepAliveMs: 100,
-        sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
+        sandbox: (host) => sandbox?.() ?? justBashSandbox({ id: host.name, database: host.sql }),
         fetch: async (url) =>
           url === "https://example.com/tea/SKILL.md"
             ? new Response(
@@ -218,6 +219,34 @@ async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
   return call<ChatSummary>(world, "/chats", "POST", {})
 }
+
+describe("the browsing skill", () => {
+  it("is given to an agent whose computer runs real programs, with its script", async () => {
+    const computer = createLocalProcessSandbox()
+    const world = open(temporary(), () => computer)
+    const chat = await setup(world)
+    expect((await skills(world)).map((skill) => skill.name)).toContain("browsing-the-web")
+
+    world.faux.setResponses(useTool("skill", { action: "view", name: "browsing-the-web" }))
+    const viewed = lastTool(await say(world, chat.id, "look something up on a website"))!
+    expect(viewed.status).toBe("done")
+    expect(viewed.output).toContain("node browse.mjs text <url>")
+    const folder = `${computer.home}/.agents/skills/browsing-the-web`
+    expect(viewed.output).toContain(`Its files are in ${folder} on your computer.`)
+
+    // The script is on the computer, whole, and is a program Node accepts.
+    const check = await computer.exec(`node --check ${folder}/browse.mjs && echo valid`)
+    expect(check.output.trim()).toBe("valid")
+    const usage = await computer.exec(`grep -c 'node browse.mjs' ${folder}/browse.mjs`)
+    expect(Number(usage.output.trim())).toBeGreaterThan(4)
+  })
+
+  it("is not given to an agent whose computer cannot run a browser", async () => {
+    const world = open(temporary())
+    await setup(world)
+    expect((await skills(world)).map((skill) => skill.name)).not.toContain("browsing-the-web")
+  })
+})
 
 describe("agent skills", () => {
   it("starts with the bundled skills, listed in the prompt", async () => {

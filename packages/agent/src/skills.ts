@@ -129,13 +129,19 @@ export class Skills {
     return this.#harness
   }
 
-  /** Add bundled skills the agent does not have yet. Removed ones stay removed. */
+  /**
+   * Add bundled skills the agent does not have yet. Removed ones stay removed, and one that needs
+   * real programs is held back from an agent whose computer has none.
+   */
   async seed(context: Context): Promise<void> {
     const harness = this.#require()
     const index = await harness.snapshot(SkillsDoc, context)
+    const realComputer = this.#options.sandbox?.capabilities.realBinaries === true
     const missing = BUNDLED_SKILLS.filter(
       (skill) =>
-        index?.skills[skill.name] === undefined && !index?.removedBundled.includes(skill.name),
+        (skill.needsRealComputer !== true || realComputer) &&
+        index?.skills[skill.name] === undefined &&
+        !index?.removedBundled.includes(skill.name),
     )
     if (index !== undefined && missing.length === 0) return
     const now = this.#options.now()
@@ -150,9 +156,12 @@ export class Skills {
           enabled: true,
           createdAt: now,
           updatedAt: now,
-          files: [SKILL_FILE],
+          files: [SKILL_FILE, ...Object.keys(skill.files ?? {})],
         }
-        ;(await tx.doc(SkillFilesDoc, skill.name, null)).files = { [SKILL_FILE]: content }
+        ;(await tx.doc(SkillFilesDoc, skill.name, null)).files = {
+          [SKILL_FILE]: content,
+          ...skill.files,
+        }
       }
     }, context)
   }
