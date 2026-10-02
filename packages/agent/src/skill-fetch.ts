@@ -1,3 +1,4 @@
+import { BodyTooLarge, declaredTooLarge, readLimited } from "@durable-computer/protocol"
 import { BlockedAddressError } from "./guarded-fetch.ts"
 import {
   MAX_SKILL_FILES,
@@ -19,6 +20,8 @@ type GithubEntry = {
 }
 
 const TEXT_LIMIT = MAX_SUPPORT_FILE_BYTES
+/** A directory listing from GitHub's API; a single file's listing carries its content. */
+const LISTING_LIMIT = 4 * 1024 * 1024
 
 /** A fetch whose network failures read as something the user can act on. */
 const reaching =
@@ -33,14 +36,22 @@ const reaching =
     }
   }
 
+/** A response's body, read no further than `limit`: its declared length is only a claim. */
+async function limited(response: Response, url: string, limit: number): Promise<Uint8Array> {
+  const tooLarge = () => new SkillError(`${url} is too large to be a skill file.`)
+  if (declaredTooLarge(response.headers, limit)) {
+    await response.body?.cancel().catch(() => {})
+    throw tooLarge()
+  }
+  return readLimited(response.body, limit).catch((error) => {
+    throw error instanceof BodyTooLarge ? tooLarge() : error
+  })
+}
+
 async function text(fetcher: Fetch, url: string): Promise<string> {
   const response = await fetcher(url, { headers: { "user-agent": "durable-computer" } })
   if (!response.ok) throw new SkillError(`Could not fetch ${url} (HTTP ${response.status}).`)
-  const length = Number(response.headers.get("content-length") ?? "0")
-  if (length > TEXT_LIMIT) throw new SkillError(`${url} is too large to be a skill file.`)
-  const body = await response.text()
-  if (body.length > TEXT_LIMIT) throw new SkillError(`${url} is too large to be a skill file.`)
-  return body
+  return new TextDecoder().decode(await limited(response, url, TEXT_LIMIT))
 }
 
 function nameFor(skillMd: string, fallback: string): string {
@@ -88,7 +99,9 @@ async function fetchGithub(
       throw new SkillError(
         `Could not read ${path || "the repository"} on GitHub (HTTP ${response.status}).`,
       )
-    const listed = (await response.json()) as GithubEntry[] | GithubEntry
+    const listed = JSON.parse(
+      new TextDecoder().decode(await limited(response, api, LISTING_LIMIT)),
+    ) as GithubEntry[] | GithubEntry
     const entries = Array.isArray(listed) ? listed : [listed]
     // Check before downloading anything: a directory without a SKILL.md is not a skill.
     const skillPath = root === "" ? SKILL_FILE : `${root}/${SKILL_FILE}`

@@ -22,6 +22,7 @@ import {
   validateSkillFile,
   validateSkillName,
 } from "./skill-format.ts"
+import { own } from "./own.ts"
 
 export { SkillError } from "./skill-format.ts"
 
@@ -175,7 +176,7 @@ export class Skills {
 
   async get(name: string, context: Context): Promise<SkillDetail> {
     const harness = this.#require()
-    const entry = (await harness.snapshot(SkillsDoc, context))?.skills[name]
+    const entry = own((await harness.snapshot(SkillsDoc, context))?.skills, name)
     const files = await harness.snapshot(SkillFilesDoc, name, context)
     if (entry === undefined || files === undefined)
       throw new SkillError(`There is no skill "${name}".`)
@@ -194,7 +195,7 @@ export class Skills {
     const now = this.#options.now()
     return this.#require().commit(async (tx) => {
       const doc = await tx.doc(SkillsDoc)
-      const existing = doc.skills[name]
+      const existing = own(doc.skills, name)
       if (existing === undefined && Object.keys(doc.skills).length >= MAX_SKILLS) {
         throw new SkillError(`There are already ${MAX_SKILLS} skills. Remove one first.`)
       }
@@ -216,7 +217,7 @@ export class Skills {
 
   async setEnabled(name: string, enabled: boolean, context: Context): Promise<SkillSummary> {
     return this.#require().commit(async (tx) => {
-      const entry = (await tx.doc(SkillsDoc)).skills[name]
+      const entry = own((await tx.doc(SkillsDoc)).skills, name)
       if (entry === undefined) throw new SkillError(`There is no skill "${name}".`)
       entry.enabled = enabled
       return summarize(name, { ...entry, files: [...entry.files] })
@@ -226,7 +227,7 @@ export class Skills {
   async remove(name: string, context: Context): Promise<void> {
     await this.#require().commit(async (tx) => {
       const doc = await tx.doc(SkillsDoc)
-      const entry = doc.skills[name]
+      const entry = own(doc.skills, name)
       if (entry === undefined) throw new SkillError(`There is no skill "${name}".`)
       if (entry.source === "bundled" && !doc.removedBundled.includes(name))
         doc.removedBundled.push(name)
@@ -317,7 +318,7 @@ export class Skills {
             case "view": {
               const skill = await this.get(need("name"), context)
               const path = args.path ?? SKILL_FILE
-              const content = skill.contents[path]
+              const content = own(skill.contents, path)
               if (content === undefined) {
                 return reply(
                   `"${skill.name}" has no file ${path}. Its files: ${skill.files.join(", ")}`,
@@ -337,7 +338,10 @@ export class Skills {
             case "create": {
               const name = need("name")
               validateSkillName(name)
-              const existing = (await this.#require().snapshot(SkillsDoc, context))?.skills[name]
+              const existing = own(
+                (await this.#require().snapshot(SkillsDoc, context))?.skills,
+                name,
+              )
               if (existing !== undefined) {
                 return reply(
                   `A skill named "${name}" already exists. Use write_file or patch to change it.`,
@@ -361,7 +365,7 @@ export class Skills {
                     `A skill cannot lose its ${SKILL_FILE}; delete the skill instead.`,
                     true,
                   )
-                if (files[path] === undefined)
+                if (own(files, path) === undefined)
                   return reply(`"${skill.name}" has no file ${path}.`, true)
                 delete files[path]
               } else if (args.action === "write_file") {
@@ -369,7 +373,7 @@ export class Skills {
                 validateSkillFile(path, content)
                 files[path] = content
               } else {
-                const current = files[path]
+                const current = own(files, path)
                 if (current === undefined)
                   return reply(`"${skill.name}" has no file ${path}.`, true)
                 const oldText = need("old_text")

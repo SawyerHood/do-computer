@@ -1,3 +1,4 @@
+import { isInherited } from "./own.ts"
 /**
  * The AgentSkills file format: a directory with a `SKILL.md` whose YAML frontmatter carries at
  * least `name` and `description`, optionally followed by support files.
@@ -28,6 +29,8 @@ export function validateSkillPath(path: string): void {
     path.length > 200 ||
     path.startsWith("/") ||
     path.includes("\\") ||
+    // A path is also a key in the skill's table of files, so it cannot be a name objects inherit.
+    isInherited(path) ||
     segments.some((segment) => segment === "" || segment === "." || segment === "..")
   if (bad) throw new SkillError(`"${path}" is not a valid file path inside a skill.`)
 }

@@ -625,6 +625,41 @@ test("a second agent can be made, and deleted without touching the first", async
   expect(agents.agents.length).toBe(1)
 })
 
+test("the API refuses bodies that are too large and routes that are not a client's", async ({
+  page,
+}) => {
+  await signIn(page)
+  const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
+  const chatId = page.url().match(/\/c\/(\d+)/)![1]!
+  const api = `/api/agents/${agentId}`
+
+  // A megabyte is the most any JSON route reads, whatever the request claims.
+  const big = await page.request.post(`${api}/chats/${chatId}/messages`, {
+    data: { text: "x".repeat(1_100_000), requestId: "too-big" },
+  })
+  expect(big.status()).toBe(413)
+  const upload = await page.request.post(`${api}/library?name=huge.bin`, {
+    headers: { "content-type": "application/octet-stream" },
+    data: Buffer.alloc(27 * 1024 * 1024),
+  })
+  expect(upload.status()).toBe(413)
+  // And the app is still there afterwards.
+  expect((await page.request.get(`${api}/library`)).ok()).toBe(true)
+
+  // What the gateway keeps for itself is not reachable through it.
+  for (const [method, path] of [
+    ["delete", "computers/anything"],
+    ["post", "init"],
+    ["post", "destroy"],
+    ["patch", "schedules/__proto__"],
+    ["patch", "skills/constructor"],
+  ] as const) {
+    const response = await page.request[method](`${api}/${path}`, { data: { enabled: false } })
+    expect(`${method} ${path} ${response.status()}`).toBe(`${method} ${path} 404`)
+  }
+  expect(({} as Record<string, unknown>).enabled).toBe(undefined)
+})
+
 test("signing out ends the session", async ({ page }) => {
   await signIn(page)
   await page.getByRole("button", { name: "Sign out" }).click()

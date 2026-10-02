@@ -1,4 +1,5 @@
 import { getPlatform } from "#platform"
+import { BodyTooLarge, declaredTooLarge, readLimited } from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 
 /** Dictation is a sentence or two; this is minutes of compressed audio. */
@@ -81,15 +82,20 @@ export async function transcribe(request: Request): Promise<Response> {
   if (config.openrouterApiKey === undefined) {
     return fail(503, "Dictation needs a model key, and this deployment has none configured.")
   }
-  if (Number(request.headers.get("content-length") ?? "0") > MAX_AUDIO_BYTES) {
-    return fail(413, "The recording is too long. Try a shorter one.")
+  const tooLong = () => fail(413, "The recording is too long. Try a shorter one.")
+  if (declaredTooLarge(request.headers, MAX_AUDIO_BYTES)) return tooLong()
+  let audio: Uint8Array
+  try {
+    audio = await readLimited(request.body, MAX_AUDIO_BYTES)
+  } catch (error) {
+    if (error instanceof BodyTooLarge) return tooLong()
+    return fail(400, "The recording was cut off before it arrived.")
   }
   try {
-    const text = await transcribeAudio(
-      new Uint8Array(await request.arrayBuffer()),
-      request.headers.get("content-type"),
-      { apiKey: config.openrouterApiKey, model: config.transcriptionModel },
-    )
+    const text = await transcribeAudio(audio, request.headers.get("content-type"), {
+      apiKey: config.openrouterApiKey,
+      model: config.transcriptionModel,
+    })
     return json({ text })
   } catch (error) {
     if (error instanceof TranscriptionError) return fail(error.status, error.message)

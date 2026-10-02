@@ -22,6 +22,8 @@ const hostname = process.env.HOST ?? "127.0.0.1"
 const server = serve({
   port,
   hostname,
+  // A backstop for every route: the app reads each body it accepts against a smaller limit.
+  maxRequestBodySize: 32 * 1024 * 1024,
   middleware: [
     staticMiddleware({ dir: fileURLToPath(new URL("./dist/node/client", import.meta.url)) }),
   ],

@@ -112,7 +112,8 @@ async function setup(world: World): Promise<ChatSummary> {
   return call<ChatSummary>(world, "/chats", "POST", { title: "Chores" })
 }
 
-const useTool = (name: string, args: Record<string, string | number>, then = "Done.") => [
+type ToolArguments = Record<string, string | number | { oldText: string; newText: string }[]>
+const useTool = (name: string, args: ToolArguments, then = "Done.") => [
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
   fauxAssistantMessage(then),
 ]
@@ -194,7 +195,7 @@ describe("approval rules", () => {
   it("lift the rule when the user says always", async () => {
     const world = open()
     const chat = await setup(world)
-    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask", "tool:write": "ask" })
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask", "tool:schedule": "ask" })
     world.faux.setResponses(useTool("bash", { command: "echo one" }, "May I?"))
     await say(world, chat.id, "go")
     const { pending } = await call<ApprovalsState>(world, "/approvals")
@@ -203,7 +204,9 @@ describe("approval rules", () => {
     await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "always" })
     await settled(world, chat.id)
     // Only the rule that asked is lifted.
-    expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual({ "tool:write": "ask" })
+    expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual({
+      "tool:schedule": "ask",
+    })
 
     world.faux.setResponses(useTool("bash", { command: "echo two" }))
     expect(tools(await say(world, chat.id, "more")).at(-1)).toMatchObject({
@@ -269,6 +272,89 @@ describe("approval rules", () => {
     // Tools that are not the connector's are untouched.
     world.faux.setResponses(useTool("bash", { command: "echo free" }))
     expect(tools(await say(world, chat.id, "shell")).at(-1)).toMatchObject({ status: "done" })
+  })
+
+  it("cover every tool that can do the same thing, not one tool by name", async () => {
+    const world = open()
+    const chat = await setup(world)
+    await call(world, "/library?name=notes.txt", "POST", "from the library")
+    await call(world, "/approvals/rules", "PATCH", { "tool:files": "deny" })
+
+    // Writing, editing, a shell redirect and a copy out of the library all change files.
+    for (const [tool, args] of [
+      ["write", { path: "a.txt", content: "x" }],
+      ["edit", { path: "a.txt", edits: [{ oldText: "x", newText: "y" }] }],
+      ["bash", { command: "echo sneaky > a.txt" }],
+      ["library", { action: "get", file: "notes.txt" }],
+    ] as [string, ToolArguments][]) {
+      world.faux.setResponses(useTool(tool, args, "I cannot."))
+      const refused = tools(await say(world, chat.id, `try ${tool}`)).at(-1)!
+      expect(`${tool}: ${refused.status}`).toBe(`${tool}: error`)
+      expect(refused.output).toContain("switched this off")
+    }
+    // Looking is not changing: listing the library and reading are untouched.
+    world.faux.setResponses(useTool("library", { action: "list" }))
+    expect(tools(await say(world, chat.id, "list")).at(-1)).toMatchObject({ status: "done" })
+    world.faux.setResponses(useTool("read", { path: "IDENTITY.md" }))
+    expect(tools(await say(world, chat.id, "read")).at(-1)).toMatchObject({ status: "done" })
+    // Nothing was written by any of them.
+    await call(world, "/approvals/rules", "PATCH", { "tool:files": "allow" })
+    world.faux.setResponses(
+      useTool("bash", { command: "ls a.txt uploads 2>&1 | grep -c 'No such file'" }),
+    )
+    // Both are missing: nothing was written by any of the four.
+    expect(
+      tools(await say(world, chat.id, "check"))
+        .at(-1)!
+        .output?.trim(),
+    ).toBe("2")
+  })
+
+  it("names a request by what would happen, and asks about a command under the files rule", async () => {
+    const world = open()
+    const chat = await setup(world)
+    await call(world, "/approvals/rules", "PATCH", { "tool:files": "ask" })
+    world.faux.setResponses(useTool("bash", { command: "touch made.txt" }, "May I?"))
+    await say(world, chat.id, "go")
+    const state = await call<ApprovalsState>(world, "/approvals")
+    expect(state.pending).toMatchObject([{ title: "Run commands", detail: "touch made.txt" }])
+    expect(state.subjects.find((subject) => subject.id === "tool:files")).toMatchObject({
+      label: "Create and change files",
+      hint: expect.stringContaining("running commands"),
+    })
+    // Always allowing it lifts the rule that asked, which was the one on files.
+    world.faux.setResponses(useTool("bash", { command: "touch made.txt" }))
+    await call(world, `/approvals/${state.pending[0]!.id}`, "POST", { decision: "always" })
+    await settled(world, chat.id)
+    expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual({})
+  })
+
+  it("keep memory and identity from being changed through their files", async () => {
+    const world = open()
+    const chat = await setup(world)
+    world.faux.setResponses(
+      useTool("bash", { command: "cat MEMORY.md; echo first note > MEMORY.md" }),
+    )
+    await say(world, chat.id, "note something")
+    expect((await call<{ memory: string }>(world, "/")).memory).toBe("first note")
+
+    await call(world, "/approvals/rules", "PATCH", { "tool:memory": "ask" })
+    // The tools ask...
+    world.faux.setResponses(
+      useTool("memory", { action: "add", target: "memory", content: "second note" }, "May I?"),
+    )
+    expect(tools(await say(world, chat.id, "remember more")).at(-1)!.status).toBe("error")
+    world.faux.setResponses(useTool("set_identity", { name: "Mallory" }, "May I?"))
+    expect(tools(await say(world, chat.id, "rename yourself")).at(-1)!.status).toBe("error")
+    // ...and the file, which is the same memory, cannot be used to go around them.
+    world.faux.setResponses(useTool("bash", { command: "echo injected > MEMORY.md" }))
+    const edited = tools(await say(world, chat.id, "edit the file")).at(-1)!
+    expect(JSON.stringify(edited)).toContain("put back as they were")
+    const after = await call<{ memory: string; agent: { name: string | null } }>(world, "/")
+    expect(after.memory).toBe("first note")
+    expect(after.agent.name).toBe(null)
+    world.faux.setResponses(useTool("bash", { command: "cat MEMORY.md" }))
+    expect(tools(await say(world, chat.id, "show it")).at(-1)!.output).toBe("first note\n")
   })
 
   it("reject rules for things that cannot have one", async () => {

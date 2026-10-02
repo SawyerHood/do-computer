@@ -34,9 +34,12 @@ function SubjectRow({
 }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-      <span id={`subject-${subject.id}`} className="text-sm">
-        {subject.label}
-      </span>
+      <div className="min-w-0 flex-1 basis-56">
+        <span id={`subject-${subject.id}`} className="text-sm">
+          {subject.label}
+        </span>
+        {subject.hint ? <p className="text-xs text-muted-foreground">{subject.hint}</p> : null}
+      </div>
       <div
         role="radiogroup"
         aria-labelledby={`subject-${subject.id}`}

@@ -56,6 +56,28 @@ for actor hosts, the app database and sandboxes passing on both.
 | A history index (section 7)                                        | Search reads the transcripts as stored, with a bound on how much one search reads. No index to keep in step on two runtimes.                                                                      |
 | The message stream as a TanStack DB collection (4.11)              | Agents and chats are collections; a chat's messages are reduced from its event stream into a jotai atom, which is what a token stream needs.                                                      |
 
+### Security review
+
+An independent read of the server surface found five problems, all fixed with tests:
+
+1. A URL segment such as `__proto__`, used as an id, was looked up in a plain object and written
+   through, which on Node changed every object in the process shared by all users. Ids and names
+   are now only ever found as an object's own entries, and such segments are refused outright.
+2. Request bodies were read whole before any limit applied. They are now counted as they arrive
+   and cut off at a limit, with a backstop on the Node server.
+3. The agent's record of its paired computers was reachable through the generic proxy. It is now
+   among the routes only the gateway may call.
+4. An approval rule on one tool did not cover another tool that could do the same thing. Rules are
+   now about what happens: commands answer to the rule on changing files, and the memory files
+   answer to the rule on changing memory.
+5. Fetched skill files and recordings were length-checked only after being read. Same fix as 2.
+
+The review found these sound: the address guard and its redirect handling, where connector
+credentials live, how library files are served, shell quoting, blob key encoding, ownership
+checks, the sign-in callback, sign-up gating, and the daemon's read-only mode. It could not rule
+out one thing from the code alone and judged it impractical: guessing a pairing code (40 bits,
+ten minutes) to bind someone else's daemon. A rate limit on confirming codes would close it.
+
 ### Not built
 
 - Mobile: managing connectors, permissions and paired computers, and deleting an agent. Those are

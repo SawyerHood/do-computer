@@ -1,5 +1,11 @@
 import { getPlatform } from "#platform"
-import type { AgentSummary, ApiError } from "@durable-computer/protocol"
+import {
+  type AgentSummary,
+  type ApiError,
+  BodyTooLarge,
+  declaredTooLarge,
+  readLimited,
+} from "@durable-computer/protocol"
 import { getAuth, getUser, type SessionUser } from "./auth.ts"
 
 const MAX_AGENTS_PER_USER = 20
@@ -39,8 +45,15 @@ export async function ownedAgent(
   )
 }
 
-/** Actor routes only the gateway may call. */
-const INTERNAL = ["init", "destroy"]
+/**
+ * Actor routes only the gateway may call. `computers` is the agent's record of what is paired to
+ * it, which must only ever say what the pairing table says.
+ */
+const INTERNAL = ["init", "destroy", "computers"]
+
+/** The largest body forwarded to an agent: a library upload, and everything else. */
+const MAX_UPLOAD_BYTES = 26 * 1024 * 1024
+const MAX_BODY_BYTES = 1024 * 1024
 
 export async function listAgents(user: SessionUser): Promise<Response> {
   const rows = await getPlatform().db.all<AgentRow>(
@@ -100,9 +113,13 @@ export async function proxyToAgent(
   const url = new URL(request.url)
   let body: ArrayBuffer | undefined
   if (request.method !== "GET" && request.method !== "HEAD") {
+    // Every user's requests share this process's memory, so a body is read only up to a limit.
+    const limit = path === "library" ? MAX_UPLOAD_BYTES : MAX_BODY_BYTES
+    if (declaredTooLarge(request.headers, limit)) return fail(413, "That is too large to send.")
     try {
-      body = await request.arrayBuffer()
-    } catch {
+      body = (await readLimited(request.body, limit)).slice().buffer
+    } catch (error) {
+      if (error instanceof BodyTooLarge) return fail(413, "That is too large to send.")
       // The client went away mid-upload. Nobody is left to answer; this only keeps it quiet.
       return fail(400, "The request was cut off before it was complete.")
     }

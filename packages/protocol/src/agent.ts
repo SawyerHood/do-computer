@@ -197,6 +197,8 @@ export type ApprovalSubject = {
   id: string
   /** What it lets the agent do, in a few words, such as "Run commands". */
   label: string
+  /** What else the rule reaches, when that is not obvious from the label. */
+  hint?: string
   kind: "tool" | "connector" | "computer"
 }
 

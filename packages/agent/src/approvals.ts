@@ -18,6 +18,7 @@ import {
 } from "@earendil-works/pi-durable"
 import { ChatsDoc } from "./docs.ts"
 import { ComputersDoc } from "./paired.ts"
+import { own } from "./own.ts"
 
 /** How long an "allow once" waits for the agent to use it. */
 const GRANT_TTL_MS = 15 * 60_000
@@ -56,24 +57,60 @@ export const ApprovalsDoc = defineDoc<State>({
 
 export class ApprovalError extends Error {}
 
-/** Tools worth a rule of their own: the ones that change something. */
-const TOOL_SUBJECTS: Record<string, string> = {
-  bash: "Run commands",
-  write: "Create and overwrite files",
-  edit: "Edit files",
-  send_file: "Send you files",
-  web_search: "Search the web",
-  schedule: "Create and change automations",
-  skill: "Save and change skills",
-  memory: "Change what it remembers",
-}
+/**
+ * What a rule can be set for among the agent's own abilities, and the tools each one is made of.
+ * A rule is about what happens, not which tool does it: tools that can do the same thing answer
+ * to the same rule, or the rule would only stop the agent that did not think of the other tool.
+ */
+const ABILITIES: readonly { id: string; label: string; hint?: string; tools: string[] }[] = [
+  { id: "tool:bash", label: "Run commands", tools: ["bash"] },
+  {
+    id: "tool:files",
+    label: "Create and change files",
+    hint: "Also applies to running commands and to copying a file from the library, since both can change files.",
+    tools: ["write", "edit"],
+  },
+  { id: "tool:send_file", label: "Send you files", tools: ["send_file"] },
+  { id: "tool:web_search", label: "Search the web", tools: ["web_search"] },
+  { id: "tool:schedule", label: "Create and change automations", tools: ["schedule"] },
+  { id: "tool:skill", label: "Save and change skills", tools: ["skill"] },
+  {
+    id: "tool:memory",
+    label: "Change its memory and identity",
+    hint: "Also stops it changing them by editing the memory and identity files on its computer.",
+    tools: ["memory", "set_identity"],
+  },
+]
+/** The subject for changing memory and identity, which editing their mirror files also answers to. */
+export const MEMORY_SUBJECT = "tool:memory"
 
-/** What the other built-in tools do, for naming a request that a computer's rule raised. */
-const OTHER_TOOLS: Record<string, string> = {
+/** What each built-in tool does, for naming a request. */
+const TOOL_TITLES: Record<string, string> = {
+  bash: "Run commands",
+  write: "Create or overwrite a file",
+  edit: "Edit a file",
   read: "Read files",
+  send_file: "Send you a file",
+  web_search: "Search the web",
+  schedule: "Create or change an automation",
+  skill: "Save or change a skill",
+  memory: "Change what it remembers",
+  set_identity: "Change its name and look",
   history: "Search your chats",
   library: "Use your library",
-  set_identity: "Change its name and look",
+}
+
+/** The abilities a call exercises: its own, and any it could stand in for. */
+function abilitiesOf(call: ToolCall): string[] {
+  const ids = ABILITIES.filter((ability) => ability.tools.includes(call.name)).map(
+    (ability) => ability.id,
+  )
+  const copiesFile =
+    call.name === "library" && (call.arguments as { action?: unknown }).action === "get"
+  // A command can write any file, and so can a copy out of the library.
+  if (call.name === "bash" || copiesFile) ids.push("tool:files")
+  // A tool with no ability of its own can still be given a rule by name.
+  return ids.length > 0 ? ids : [`tool:${call.name}`]
 }
 
 const RULES: readonly ApprovalRule[] = ["allow", "ask", "deny"]
@@ -148,7 +185,7 @@ export class Approvals {
     context: Context,
   ): Promise<{ subjects: ApprovalSubject[]; title: string }> {
     const subjects: ApprovalSubject[] = []
-    let title = TOOL_SUBJECTS[call.name] ?? OTHER_TOOLS[call.name] ?? `Use ${call.name}`
+    let title = TOOL_TITLES[call.name] ?? `Use ${call.name}`
     const connector = await this.#options.connectorOf(call.name, context)
     if (connector !== undefined) {
       subjects.push({
@@ -158,11 +195,10 @@ export class Approvals {
       })
       title = `Use ${connector.name}`
     } else {
-      subjects.push({
-        id: `tool:${call.name}`,
-        label: TOOL_SUBJECTS[call.name] ?? `Use ${call.name}`,
-        kind: "tool",
-      })
+      for (const id of abilitiesOf(call)) {
+        const ability = ABILITIES.find((entry) => entry.id === id)
+        subjects.push({ id, label: ability?.label ?? `Use ${call.name}`, kind: "tool" })
+      }
     }
     const target = (call.arguments as { computer?: unknown }).computer
     if (typeof target === "string" && target.trim() !== "") {
@@ -194,7 +230,9 @@ export class Approvals {
     // No rules: nothing to look up, which is every call on a default agent.
     if (state === undefined || Object.keys(state.rules).length === 0) return undefined
     const { subjects, title: what } = await this.#subjects(call, context)
-    const governed = subjects.filter((subject) => (state.rules[subject.id] ?? "allow") !== "allow")
+    const governed = subjects.filter(
+      (subject) => (own(state.rules, subject.id) ?? "allow") !== "allow",
+    )
     const decision = strictest(governed.map((subject) => state.rules[subject.id]!))
     if (decision === "allow") return undefined
     if (decision === "deny") {
@@ -249,6 +287,12 @@ export class Approvals {
     }
   }
 
+  /** The rule set for one subject. `allow` when there is none. */
+  async ruleFor(subject: string, context: Context): Promise<ApprovalRule> {
+    const state = await this.#require().snapshot(ApprovalsDoc, context)
+    return own(state?.rules, subject) ?? "allow"
+  }
+
   async pending(context: Context): Promise<ApprovalRequest[]> {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
@@ -258,8 +302,8 @@ export class Approvals {
       .map(([id, request]) => ({
         id,
         chatId: request.chatId,
-        chatTitle: chats[request.chatId]?.title ?? "A chat",
-        chatKind: chats[request.chatId]?.kind ?? "chat",
+        chatTitle: own(chats, request.chatId)?.title ?? "A chat",
+        chatKind: own(chats, request.chatId)?.kind ?? "chat",
         title: request.title,
         detail: request.detail,
         createdAt: request.createdAt,
@@ -273,9 +317,10 @@ export class Approvals {
     const state = await harness.snapshot(ApprovalsDoc, context)
     const computers = (await harness.snapshot(ComputersDoc, context))?.computers ?? {}
     const subjects: ApprovalSubject[] = [
-      ...Object.entries(TOOL_SUBJECTS).map(([name, label]): ApprovalSubject => ({
-        id: `tool:${name}`,
+      ...ABILITIES.map(({ id, label, hint }): ApprovalSubject => ({
+        id,
         label,
+        ...(hint === undefined ? {} : { hint }),
         kind: "tool",
       })),
       ...(await this.#options.connectors(context)).map((connector): ApprovalSubject => ({
@@ -324,7 +369,7 @@ export class Approvals {
     const now = this.#options.now()
     const request = await harness.commit(async (tx) => {
       const doc = await tx.doc(ApprovalsDoc)
-      const found = doc.requests[id]
+      const found = own(doc.requests, id)
       if (found === undefined || found.status !== "pending") return undefined
       found.status = decision === "deny" ? "denied" : "approved"
       found.resolvedAt = now

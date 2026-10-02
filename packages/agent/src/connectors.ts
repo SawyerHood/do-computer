@@ -28,6 +28,7 @@ import {
   type Harness,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
+import { own } from "./own.ts"
 
 export const MAX_CONNECTORS = 20
 /** Tools past this many per connector are not offered: every tool costs prompt space each turn. */
@@ -300,7 +301,7 @@ export class Connectors {
     }
     await this.#saveSecrets(id, (secrets) => ({ ...secrets, tools }))
     await this.#require().commit(async (tx) => {
-      const record = (await tx.doc(ConnectorsDoc)).connectors[id]
+      const record = own((await tx.doc(ConnectorsDoc)).connectors, id)
       if (record === undefined) return
       record.status = outcome.status
       record.error = outcome.error
@@ -343,7 +344,7 @@ export class Connectors {
 
   async setEnabled(id: string, enabled: boolean, context: Context): Promise<ConnectorSummary> {
     await this.#require().commit(async (tx) => {
-      const record = (await tx.doc(ConnectorsDoc)).connectors[id]
+      const record = own((await tx.doc(ConnectorsDoc)).connectors, id)
       if (record === undefined) throw new ConnectorError("There is no such connector.")
       record.enabled = enabled
     }, context)
@@ -354,7 +355,9 @@ export class Connectors {
   async remove(id: string, context: Context): Promise<void> {
     await this.#require().commit(async (tx) => {
       const { connectors } = await tx.doc(ConnectorsDoc)
-      if (connectors[id] === undefined) throw new ConnectorError("There is no such connector.")
+      if (own(connectors, id) === undefined) {
+        throw new ConnectorError("There is no such connector.")
+      }
       delete connectors[id]
     }, context)
     this.#drop(id)

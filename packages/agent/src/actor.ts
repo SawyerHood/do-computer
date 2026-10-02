@@ -5,7 +5,10 @@ import {
   type AgentUsage,
   type ApprovalDecision,
   type ChatSummary,
+  BodyTooLarge,
   type ChatUsage,
+  declaredTooLarge,
+  readLimited,
   type CreateChatRequest,
   diffChat,
   encodeSse,
@@ -41,7 +44,7 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
-import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
+import { ApprovalError, Approvals, ApprovalsDoc, MEMORY_SUBJECT } from "./approvals.ts"
 import { Computer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
@@ -55,6 +58,7 @@ import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
+import { isInherited, own } from "./own.ts"
 
 const context = BACKGROUND_CONTEXT
 
@@ -261,6 +265,10 @@ export class AgentActor implements Actor {
           chatId: request.chatKind === "chat" ? request.chatId : null,
         }),
     })
+    if (this.#computer !== undefined) {
+      this.#computer.identityEditable = async (c) =>
+        (await this.#approvals.ruleFor(MEMORY_SUBJECT, c)) === "allow"
+    }
     this.#scheduler = new Scheduler({
       now: () => host.now(),
       onReport: (report) =>
@@ -453,6 +461,8 @@ export class AgentActor implements Actor {
   async #route(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const segments = url.pathname.split("/").filter(Boolean)
+    // Segments become ids and names. One that every object inherits is never either of those.
+    if (segments.some(isInherited)) throw new HttpError(404, "Not found")
     const method = request.method
     const harness = await this.#open()
 
@@ -529,14 +539,18 @@ export class AgentActor implements Actor {
       }
       if (fileId === undefined && method === "POST") {
         // The body is the file; its name and the chat it belongs to are in the query.
-        const size = Number(request.headers.get("content-length") ?? "0")
-        if (size > MAX_LIBRARY_FILE_BYTES) throw new HttpError(413, "That file is too large.")
+        const tooLarge = () => new HttpError(413, "That file is too large.")
+        if (declaredTooLarge(request.headers, MAX_LIBRARY_FILE_BYTES)) throw tooLarge()
         const name = url.searchParams.get("name")
         if (name === null || name === "") throw new HttpError(400, "name is required")
+        // Counted as it arrives: the declared length is only what the sender says.
+        const bytes = await readLimited(request.body, MAX_LIBRARY_FILE_BYTES).catch((error) => {
+          throw error instanceof BodyTooLarge ? tooLarge() : error
+        })
         const file = await this.#library.add(
           {
             name,
-            bytes: new Uint8Array(await request.arrayBuffer()),
+            bytes,
             source: "user",
             chatId: url.searchParams.get("chat"),
             contentType: request.headers.get("content-type") ?? undefined,
@@ -866,7 +880,7 @@ export class AgentActor implements Actor {
 
   async #updateChat(harness: Harness, chatId: string, input: UpdateChatRequest): Promise<Response> {
     const record = await harness.commit(async (tx) => {
-      const chat = (await tx.doc(ChatsDoc)).chats[chatId]!
+      const chat = own((await tx.doc(ChatsDoc)).chats, chatId)!
       if (typeof input.title === "string" && input.title.trim() !== "") {
         chat.title = input.title.trim().slice(0, MAX_TITLE_CHARS)
       }
@@ -916,7 +930,7 @@ export class AgentActor implements Actor {
     const chatId = String(conversation.id)
     void this.#notifyWhenUnseen(harness, chatId, submission)
     await harness.commit(async (tx) => {
-      const chat = (await tx.doc(ChatsDoc)).chats[chatId]
+      const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
       if (chat === undefined) return
       chat.updatedAt = this.#host.now()
       if (chat.title === DEFAULT_CHAT_TITLE)

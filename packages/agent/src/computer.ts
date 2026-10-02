@@ -83,6 +83,13 @@ export class Computer {
     this.extensions = [CodingTools, sync]
   }
 
+  /**
+   * Whether an edit to the mirror files may change the agent's memory and identity right now.
+   * The files are another way to do what the memory and identity tools do, so they follow the
+   * same rule.
+   */
+  identityEditable: (context: Context) => Promise<boolean> = async () => true
+
   /** The harness whose identity document the files mirror. Set once it is open. */
   attach(harness: Harness): void {
     this.#harness = harness
@@ -119,6 +126,15 @@ export class Computer {
     if (identity === undefined) return []
     const { change, problems } = await readMirrorChanges(this.sandbox, identity)
     if (Object.keys(change).length > 0) {
+      if (!(await this.identityEditable(context))) {
+        // Editing the files would be a way around the rule on the tools that do the same thing.
+        this.#stale = true
+        await this.#refresh(context)
+        return [
+          ...problems,
+          "Your memory and identity files were put back as they were: the user has limited changes to them. Use the memory or set_identity tool, which asks them first.",
+        ]
+      }
       await harness.commit(async (tx) => {
         Object.assign(await tx.doc(IdentityDoc), change)
       }, context)

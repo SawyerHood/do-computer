@@ -18,6 +18,7 @@ import {
   createReadTool,
   createWriteTool,
 } from "@earendil-works/pi-durable/tools"
+import { isInherited } from "./own.ts"
 
 /** A computer of the user's that this agent may use. */
 export type PairedComputer = {
@@ -160,6 +161,7 @@ export class PairedComputers {
       for (let suffix = 2; taken.has(name.toLowerCase()); suffix++)
         name = `${computer.name}-${suffix}`
       const stored = { ...computer, name }
+      if (isInherited(id)) throw new Error(`"${id}" cannot be a computer's id`)
       computers[id] = stored
       return stored
     }, context)

@@ -144,6 +144,9 @@ paired computer. What limits the damage:
   choose Allow, Ask first or Never. With Ask first the agent stops, a request with the exact
   command or arguments appears above the composer and as a notification, and nothing happens until
   you answer. A rule on one of your computers covers everything done there, reading included.
+  A rule is about what happens, not which tool does it: "Create and change files" also governs
+  commands, which can change files, and "Change its memory and identity" also stops it editing
+  the files that mirror them.
 - **Its own computer is not yours.** The default computer has no network and no real programs. A
   remote one is a separate machine at a provider.
 - **Secrets stay on the server.** Connector tokens and sign-in grants are never in the model's

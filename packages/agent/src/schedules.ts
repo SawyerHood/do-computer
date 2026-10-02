@@ -13,6 +13,7 @@ import {
 import { ChatsDoc, IdentityDoc, type ScheduleRecord, SchedulesDoc } from "./docs.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, nextRunAt, parseSchedule } from "./schedule.ts"
+import { own } from "./own.ts"
 
 export const SILENT_MARKER = "[SILENT]"
 export const MAX_ENABLED_SCHEDULES = 20
@@ -172,7 +173,7 @@ export class Scheduler {
     const now = this.#options.now()
     return this.#require().commit(async (tx) => {
       const { schedules } = await tx.doc(SchedulesDoc)
-      const record = schedules[id]
+      const record = own(schedules, id)
       if (record === undefined) throw new ScheduleError(`There is no schedule "${id}".`)
       if (typeof change.title === "string" && change.title.trim() !== "") {
         record.title = change.title.trim().slice(0, MAX_TITLE_CHARS)
@@ -215,7 +216,9 @@ export class Scheduler {
   async remove(id: string, context: Context): Promise<void> {
     await this.#require().commit(async (tx) => {
       const { schedules } = await tx.doc(SchedulesDoc)
-      if (schedules[id] === undefined) throw new ScheduleError(`There is no schedule "${id}".`)
+      if (own(schedules, id) === undefined) {
+        throw new ScheduleError(`There is no schedule "${id}".`)
+      }
       delete schedules[id]
     }, context)
   }
@@ -223,7 +226,7 @@ export class Scheduler {
   /** Run a schedule now, without changing when it next runs on its own. */
   async runNow(id: string, context: Context): Promise<void> {
     const schedules = (await this.#require().snapshot(SchedulesDoc, context))?.schedules ?? {}
-    const record = schedules[id]
+    const record = own(schedules, id)
     if (record === undefined) throw new ScheduleError(`There is no schedule "${id}".`)
     if (record.pending !== null) throw new ScheduleError("That schedule is already running.")
     await this.#fire(id, { advance: false }, context)
@@ -276,11 +279,11 @@ export class Scheduler {
       if (next === null) record.enabled = false
     }
 
-    const current = (await harness.snapshot(SchedulesDoc, context))?.schedules[id]
+    const current = own((await harness.snapshot(SchedulesDoc, context))?.schedules, id)
     if (current === undefined) return
     if (current.pending !== null) {
       await harness.commit(async (tx) => {
-        const record = (await tx.doc(SchedulesDoc)).schedules[id]
+        const record = own((await tx.doc(SchedulesDoc)).schedules, id)
         if (record !== undefined) advance(record)
       }, context)
       return
@@ -290,7 +293,7 @@ export class Scheduler {
         ownership: { kind: "ownerless" },
         agent: { model: parseModel(identity.model) },
         init: async (tx, conversationId) => {
-          const record = (await tx.doc(SchedulesDoc)).schedules[id]
+          const record = own((await tx.doc(SchedulesDoc)).schedules, id)
           // Removed or already fired since the snapshot: the chat stays unlisted and empty.
           if (record === undefined || record.pending !== null) return
           const chatId = String(conversationId)
@@ -367,7 +370,7 @@ export class Scheduler {
         }
       }
       await harness.commit(async (tx) => {
-        const stored = (await tx.doc(SchedulesDoc)).schedules[id]
+        const stored = own((await tx.doc(SchedulesDoc)).schedules, id)
         if (stored === undefined || stored.pending?.firedAt !== pending.firedAt) return
         stored.pending = null
         stored.lastRun = { at: pending.firedAt, chatId: pending.chatId, outcome }
@@ -463,7 +466,7 @@ export class Scheduler {
         try {
           const chatId = String(api.conversationId)
           const chats = (await api.snapshot(ChatsDoc, context))?.chats ?? {}
-          if (args.action !== "list" && chats[chatId]?.kind === "schedule") {
+          if (args.action !== "list" && own(chats, chatId)?.kind === "schedule") {
             return reply("A scheduled run cannot change schedules.", true)
           }
           switch (args.action) {
@@ -484,7 +487,7 @@ export class Scheduler {
                   title: args.title,
                   timezone: args.timezone,
                 },
-                chats[chatId] === undefined ? null : chatId,
+                own(chats, chatId) === undefined ? null : chatId,
                 context,
               )
               return reply(`Scheduled. ${describe(created)}`)

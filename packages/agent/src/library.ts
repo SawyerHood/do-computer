@@ -12,6 +12,7 @@ import {
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
 import { getOrThrow } from "@earendil-works/pi-durable/env"
+import { own } from "./own.ts"
 
 /** A whole file is held in memory to store or serve it, so files stay well under a Worker's limit. */
 export const MAX_LIBRARY_FILE_BYTES = 25 * 1024 * 1024
@@ -263,7 +264,7 @@ export class Library {
 
   /** A response serving the file, or undefined when there is none. */
   async serve(id: string, context: Context): Promise<Response | undefined> {
-    const entry = (await this.#require().snapshot(LibraryDoc, context))?.files[id]
+    const entry = own((await this.#require().snapshot(LibraryDoc, context))?.files, id)
     const blob = entry === undefined ? undefined : await this.#blobs.get(blobKey(id))
     if (entry === undefined || blob === undefined) return undefined
     const inline = INLINE_TYPES.has(entry.contentType)
@@ -284,7 +285,7 @@ export class Library {
   async remove(id: string, context: Context): Promise<boolean> {
     const existed = await this.#require().commit(async (tx) => {
       const { files } = await tx.doc(LibraryDoc)
-      if (files[id] === undefined) return false
+      if (own(files, id) === undefined) return false
       delete files[id]
       return true
     }, context)
