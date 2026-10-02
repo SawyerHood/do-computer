@@ -48,6 +48,10 @@ export class Computer {
   /** The workspace files may not reflect the document; rewritten before the next tool runs. */
   #stale = true
   #harness: Harness | undefined
+  /** What the identity files held when they were last written or read. */
+  #written: Partial<Record<(typeof MIRROR_FILES)[number], string>> | undefined
+  /** The write of the identity files that is under way, if one is. */
+  #refreshing: Promise<void> | undefined
 
   constructor(sandbox: Sandbox) {
     this.sandbox = sandbox
@@ -60,8 +64,9 @@ export class Computer {
             if (elsewhere(call.arguments)) return undefined
             if (FILE_TOOLS.has(call.name) || call.name === "read") {
               // A computer that cannot be reached fails the tool itself, with the reason. Failing
-              // here instead would report the call as blocked, which it is not.
-              await this.#refresh(context).catch(() => {})
+              // here instead would report the call as blocked, which it is not. It is still a
+              // failure, though, and one nobody would see if it were only swallowed.
+              await this.#refresh(context).catch((error) => this.onProblem(error))
             }
             return undefined
           },
@@ -69,7 +74,10 @@ export class Computer {
             if (IDENTITY_TOOLS.has(call.name)) this.#stale = true
             if (!FILE_TOOLS.has(call.name) || elsewhere(call.arguments)) return undefined
             // If the computer cannot be read, the tool's own result already says so.
-            const problems = await this.#absorb(context).catch(() => [])
+            const problems = await this.#absorb(context).catch((error) => {
+              this.onProblem(error)
+              return []
+            })
             if (problems.length === 0) return undefined
             const diagnostics: ToolDiagnostic[] = [
               ...(result.diagnostics ?? []),
@@ -90,6 +98,9 @@ export class Computer {
    */
   identityEditable: (context: Context) => Promise<boolean> = async () => true
 
+  /** Told when the identity files could not be written to or read from the computer. */
+  onProblem: (error: unknown) => void = () => {}
+
   /** The harness whose identity document the files mirror. Set once it is open. */
   attach(harness: Harness): void {
     this.#harness = harness
@@ -106,16 +117,25 @@ export class Computer {
 
   /** Write the document's current content into the workspace files, if they may be out of date. */
   async #refresh(context: Context): Promise<void> {
+    // Tools of one round start together. They all wait for the one write, or the first would
+    // mark the files fresh and the rest would run before the files exist.
+    if (this.#refreshing !== undefined) return this.#refreshing
     if (!this.#stale || this.#harness === undefined) return
-    const identity = await this.#harness.snapshot(IdentityDoc, context)
-    if (identity === undefined) return
-    this.#stale = false
-    try {
-      await writeMirror(this.sandbox, identity)
-    } catch (error) {
-      this.#stale = true
-      throw error
-    }
+    const harness = this.#harness
+    this.#refreshing = (async () => {
+      const identity = await harness.snapshot(IdentityDoc, context)
+      if (identity === undefined) return
+      this.#stale = false
+      try {
+        this.#written = await writeMirror(this.sandbox, identity)
+      } catch (error) {
+        this.#stale = true
+        throw error
+      }
+    })().finally(() => {
+      this.#refreshing = undefined
+    })
+    return this.#refreshing
   }
 
   /** Take edits the agent made to the workspace files into the document. Returns refused edits. */
@@ -124,7 +144,13 @@ export class Computer {
     if (harness === undefined) return []
     const identity = await harness.snapshot(IdentityDoc, context)
     if (identity === undefined) return []
-    const { change, problems } = await readMirrorChanges(this.sandbox, identity)
+    const { change, problems, seen } = await readMirrorChanges(
+      this.sandbox,
+      identity,
+      this.#written,
+    )
+    // What is there now is what a later edit is measured against.
+    this.#written = { ...this.#written, ...seen }
     if (Object.keys(change).length > 0) {
       if (!(await this.identityEditable(context))) {
         // Editing the files would be a way around the rule on the tools that do the same thing.

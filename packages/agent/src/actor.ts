@@ -266,6 +266,15 @@ export class AgentActor implements Actor {
         }),
     })
     if (this.#computer !== undefined) {
+      this.#computer.onProblem = (error) =>
+        options.onReport?.(
+          new Error(
+            `The agent's identity files could not be kept in step with its computer: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            { cause: error },
+          ),
+        )
       this.#computer.identityEditable = async (c) =>
         (await this.#approvals.ruleFor(MEMORY_SUBJECT, c)) === "allow"
     }

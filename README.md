@@ -91,9 +91,12 @@ Things to know before choosing one:
 - Changing `DC_SANDBOX` gives every agent a different, empty computer. The old ones are not
   deleted and come back if you change it back.
 
-The three remote providers are tested against stand-ins that run real commands, and against the
-providers' real SDKs as far as an invalid key allows. None has yet been run with a real account
-from this repository: treat the first deployment on one as a trial.
+Daytona has been run for real, on Node and in the Workers runtime: creating the machine, the
+shell, file tools, stopping and coming back with its files, and deletion. To repeat that against
+your own account: `DAYTONA_API_KEY=... pnpm --filter @durable-computer/sandbox exec vitest run
+test/daytona.live.test.ts` (it creates one machine and deletes it). Modal and Cloudflare
+Containers are tested against stand-ins that run real commands, and have not yet been run with a
+real account: treat the first deployment on either as a trial.
 
 ## Limits worth knowing
 

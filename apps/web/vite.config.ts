@@ -16,6 +16,10 @@ export default defineConfig({
     alias: { "#platform": resolve(`./src/server/platform.${target}.ts`) },
   },
   build: { outDir: target === "cloudflare" ? "dist/cloudflare" : "dist/node" },
+  // On Node the sandbox providers' SDKs are loaded from node_modules as they are. Bundled, the
+  // Daytona SDK cannot find the modules it loads on demand to move files, and every file read
+  // and write fails while commands still work.
+  ...(target === "node" ? { ssr: { external: ["@daytona/sdk", "modal"] } } : {}),
   plugins: [
     ...(target === "cloudflare" ? [cloudflare({ viteEnvironment: { name: "ssr" } })] : []),
     tailwindcss(),

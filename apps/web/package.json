@@ -19,6 +19,7 @@
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@better-auth/expo": "^1.7.7",
+    "@daytona/sdk": "^0.218.0",
     "@durable-computer/agent": "workspace:*",
     "@durable-computer/client": "workspace:*",
     "@durable-computer/computers": "workspace:*",
@@ -39,6 +40,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jotai": "^3.0.1",
+    "modal": "^0.11.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",

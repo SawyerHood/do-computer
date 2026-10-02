@@ -85,20 +85,42 @@ ten minutes) to bind someone else's daemon. A rate limit on confirming codes wou
 - Archiving stale agent-written skills.
 - Usage limits. Usage is recorded and shown; nothing stops spending.
 
-### Not checked against the real thing
+### Checked against the real thing
 
-Stated plainly, because tests cannot stand in for these:
+Run on 2026-10-02 with real keys, on the Node build and inside the Workers runtime:
 
-- **Model calls, web search and transcription through OpenRouter.** No key was available while building. The
-  agent loop is tested with pi-ai's scripted provider and the app with a built-in echo model.
-- **Daytona, Modal, Cloudflare Containers.** Each passes the sandbox conformance suite against a
-  stand-in that runs real commands, and type-checks against the provider's SDK with no casts. With
-  the real SDKs, Daytona (on Node and in the Workers runtime) and Modal (on Node) were run as far
-  as an invalid key allows, and the Cloudflare sandbox object as far as a missing container.
-  No machine has been created on any of them.
+- **OpenRouter.** Chat with Claude Sonnet 5.5, tool use, onboarding (the agent named itself and
+  picked an avatar), memory, web search, a schedule firing on its own and reporting back, history
+  search across chats, state surviving a restart, and usage with real costs. Transcription of a
+  spoken sentence, as WAV and as the WebM a browser records.
+- **Daytona.** The sandbox conformance suite against a real machine; stopping it and coming back
+  with its files; the real model writing and running a script on it; file tools and the identity
+  files; deleting an agent deleting its machine. `packages/sandbox/test/daytona.live.test.ts`
+  repeats the first part for anyone with a key.
+
+Running for real found five bugs the tests had missed, all fixed with tests:
+
+1. A one-off reminder given as a duration ("1m") re-armed itself and repeated.
+2. In the built Node server the Daytona SDK could not load what it needs to move files, so every
+   file read and write failed while commands worked. The SDKs are now loaded unbundled on Node.
+3. That failure was hidden, because a failed write of the identity files was swallowed. It is
+   now reported.
+4. Tools started in one step could run before the identity files were written.
+5. An identity file waiting to be rewritten was read as an edit by the agent, and undid a rename
+   made in the same step.
+
+### Still not checked against the real thing
+
+- **Modal.** No Modal credentials were available. It passes the conformance suite against a
+  stand-in and was run with the real SDK as far as an invalid token allows.
+- **Cloudflare Containers.** Needs a deployed Worker on a paid plan; nothing has been deployed.
+  The sandbox object runs in workerd as far as the missing container.
+- **A deployed Worker.** The Cloudflare target runs in workerd locally, with real model and
+  Daytona calls, but has never been deployed.
 - **Native mobile.** The app's screens are tested through its web build. Secure storage, push
   registration, the microphone and the share sheet have not run on a device.
-- **A deployed Worker.** The Cloudflare target is tested in workerd locally, never deployed.
+- **Sign-in with Google and GitHub**, which need OAuth apps registered for a public address.
+- **A real MCP service.** Connectors are tested against a stand-in with its own sign-in page.
 
 ---
 

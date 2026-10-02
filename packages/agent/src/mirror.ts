@@ -47,12 +47,19 @@ async function readText(sandbox: Sandbox, path: string): Promise<string | undefi
   }
 }
 
-/** Bring the workspace files in line with the documents. Writes only files that differ. */
-export async function writeMirror(sandbox: Sandbox, identity: Mirrored): Promise<void> {
+/**
+ * Bring the workspace files in line with the documents. Writes only files that differ, and
+ * returns what the files now hold, which is what a later edit is recognized against.
+ */
+export async function writeMirror(
+  sandbox: Sandbox,
+  identity: Mirrored,
+): Promise<Record<MirrorFile, string>> {
   await sandbox.fs.mkdir(sandbox.home, { recursive: true })
+  const rendered = renderMirror(identity)
   // Side by side: on a remote computer each file is a round trip, and this runs before tools.
   await Promise.all(
-    Object.entries(renderMirror(identity)).map(async ([name, content]) => {
+    Object.entries(rendered).map(async ([name, content]) => {
       const path = `${sandbox.home}/${name}`
       if ((await readText(sandbox, path)) !== content) {
         await sandbox.fs.writeFile(path, encoder.encode(content))
@@ -60,6 +67,7 @@ export async function writeMirror(sandbox: Sandbox, identity: Mirrored): Promise
     }),
   )
   await sandbox.flush()
+  return rendered
 }
 
 export type MirrorChanges = {
@@ -67,6 +75,8 @@ export type MirrorChanges = {
   readonly change: Partial<Mirrored>
   /** Edits that were refused, in words the agent can act on. Their files are restored. */
   readonly problems: readonly string[]
+  /** What each file held when it was read, for the files that exist. */
+  readonly seen: Partial<Record<MirrorFile, string>>
 }
 
 function parseIdentity(text: string, current: Mirrored, problems: string[]): Partial<Mirrored> {
@@ -103,12 +113,17 @@ const sameAvatar = (a: Avatar, b: Avatar | null) =>
 /**
  * What the agent changed by editing the mirror files directly. An edit that breaks a limit is
  * reported as a problem and not applied; a deleted file counts as unchanged.
+ *
+ * A file is edited when it differs from `written`, what was last put there, and not when it
+ * differs from the documents: a document can change while its file waits to be rewritten, and
+ * reading that stale file as an edit would undo the change or report an error nobody made.
  */
 export async function readMirrorChanges(
   sandbox: Sandbox,
   identity: Mirrored,
+  written?: Partial<Record<MirrorFile, string>>,
 ): Promise<MirrorChanges> {
-  const expected = renderMirror(identity)
+  const expected: Partial<Record<MirrorFile, string>> = written ?? renderMirror(identity)
   const change: Partial<Mirrored> = {}
   const problems: string[] = []
   // Read side by side: this runs after every file tool, and each read may be a round trip.
@@ -139,5 +154,7 @@ export async function readMirrorChanges(
   const identityText = edited("IDENTITY.md")
   if (identityText !== undefined)
     Object.assign(change, parseIdentity(identityText, identity, problems))
-  return { change, problems }
+  const seen: Partial<Record<MirrorFile, string>> = {}
+  for (const [name, text] of texts) if (text !== undefined) seen[name] = text
+  return { change, problems, seen }
 }
