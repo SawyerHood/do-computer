@@ -35,7 +35,15 @@ export type AgentEvent =
   | { type: "ready" }
   | {
       type: "changed"
-      what: "identity" | "chats" | "schedules" | "skills" | "computers" | "library" | "memory"
+      what:
+        | "identity"
+        | "chats"
+        | "schedules"
+        | "skills"
+        | "computers"
+        | "connectors"
+        | "library"
+        | "memory"
     }
 
 export type ModelOption = {
@@ -64,6 +72,31 @@ export type SkillSummary = {
 }
 
 export type SkillDetail = SkillSummary & { contents: Record<string, string> }
+
+/** A remote MCP server the agent can use: its tools become the agent's tools. */
+export type ConnectorSummary = {
+  id: string
+  name: string
+  url: string
+  enabled: boolean
+  /** `needs_auth` means the user has to sign in to the service before it can be used. */
+  status: "connected" | "needs_auth" | "error"
+  /** Why it is not connected, when `status` is `error`. */
+  error: string | null
+  /** The tools it offers, as the agent sees them. */
+  tools: { name: string; description: string }[]
+  addedAt: number
+}
+
+export type AddConnectorRequest = {
+  name: string
+  url: string
+  /** A fixed access token, for services that issue one instead of asking the user to sign in. */
+  token?: string
+}
+
+/** The answer to adding or reconnecting a connector: where to send the user if they must sign in. */
+export type ConnectorResult = { connector: ConnectorSummary; authorizationUrl?: string }
 
 /** A file in the agent's library: something it delivered to the user, or the user gave it. */
 export type LibraryFile = {

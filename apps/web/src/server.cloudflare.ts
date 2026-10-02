@@ -24,6 +24,7 @@ export const AgentObject = createDurableActorClass<Env>({
       defaultModel: models.defaultModel,
       modelOptions: models.options,
       sandbox: sandboxFactory(config),
+      connectorsAllowPrivateHosts: config.connectorsAllowPrivate,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       onNotify: (notification) =>
         void notifyOwner(

@@ -26,20 +26,24 @@ import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiComputersIndexRouteImport } from './routes/api/computers/index'
 import { Route as ApiComputersComputerIdRouteImport } from './routes/api/computers/$computerId'
+import { Route as ApiConnectorsCallbackRouteImport } from './routes/api/connectors/callback'
 import { Route as ApiPushRegisterRouteImport } from './routes/api/push/register'
 import { Route as ApiPushUnregisterRouteImport } from './routes/api/push/unregister'
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
 import { Route as AppAAgentIdComputersRouteImport } from './routes/_app.a.$agentId.computers'
+import { Route as AppAAgentIdConnectorsRouteImport } from './routes/_app.a.$agentId.connectors'
 import { Route as AppAAgentIdLibraryRouteImport } from './routes/_app.a.$agentId.library'
 import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
 import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
+import { Route as ApiAgentsAgentIdConnectorsRouteImport } from './routes/api/agents/$agentId.connectors'
 import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
 import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers/pair.poll'
 import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
+import { Route as ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport } from './routes/api/agents/$agentId.connectors.$connectorId.connect'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -125,6 +129,11 @@ const ApiComputersComputerIdRoute = ApiComputersComputerIdRouteImport.update({
   path: '/api/computers/$computerId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConnectorsCallbackRoute = ApiConnectorsCallbackRouteImport.update({
+  id: '/api/connectors/callback',
+  path: '/api/connectors/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPushRegisterRoute = ApiPushRegisterRouteImport.update({
   id: '/api/push/register',
   path: '/api/push/register',
@@ -150,6 +159,11 @@ const AppAAgentIdComputersRoute = AppAAgentIdComputersRouteImport.update({
   path: '/computers',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const AppAAgentIdConnectorsRoute = AppAAgentIdConnectorsRouteImport.update({
+  id: '/connectors',
+  path: '/connectors',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
 const AppAAgentIdLibraryRoute = AppAAgentIdLibraryRouteImport.update({
   id: '/library',
   path: '/library',
@@ -170,6 +184,12 @@ const ApiAgentsAgentIdSplatRoute = ApiAgentsAgentIdSplatRouteImport.update({
   path: '/api/agents/$agentId/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentsAgentIdConnectorsRoute =
+  ApiAgentsAgentIdConnectorsRouteImport.update({
+    id: '/api/agents/$agentId/connectors',
+    path: '/api/agents/$agentId/connectors',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiComputersPairConfirmRoute = ApiComputersPairConfirmRouteImport.update({
   id: '/api/computers/pair/confirm',
   path: '/api/computers/pair/confirm',
@@ -196,6 +216,12 @@ const ApiComputersPairRequestCodeRoute =
     path: '/api/computers/pair/request/$code',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAgentsAgentIdConnectorsConnectorIdConnectRoute =
+  ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport.update({
+    id: '/$connectorId/connect',
+    path: '/$connectorId/connect',
+    getParentRoute: () => ApiAgentsAgentIdConnectorsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -212,22 +238,26 @@ export interface FileRoutesByFullPath {
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
   '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRoutesByTo {
   '/daemon.js': typeof DaemonDotjsRoute
@@ -243,22 +273,26 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/api/agents': typeof ApiAgentsIndexRoute
   '/api/computers': typeof ApiComputersIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
   '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -277,22 +311,26 @@ export interface FileRoutesById {
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
   '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/_app/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/_app/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
   '/_app/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -311,22 +349,26 @@ export interface FileRouteTypes {
     | '/a/$agentId'
     | '/api/auth/$'
     | '/api/computers/$computerId'
+    | '/api/connectors/callback'
     | '/api/push/register'
     | '/api/push/unregister'
     | '/api/agents/'
     | '/api/computers/'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
+    | '/a/$agentId/connectors'
     | '/a/$agentId/library'
     | '/a/$agentId/profile'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
+    | '/api/agents/$agentId/connectors'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
     | '/a/$agentId/'
     | '/a/$agentId/c/$chatId'
     | '/api/computers/pair/request/$code'
+    | '/api/agents/$agentId/connectors/$connectorId/connect'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/daemon.js'
@@ -342,22 +384,26 @@ export interface FileRouteTypes {
     | '/'
     | '/api/auth/$'
     | '/api/computers/$computerId'
+    | '/api/connectors/callback'
     | '/api/push/register'
     | '/api/push/unregister'
     | '/api/agents'
     | '/api/computers'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
+    | '/a/$agentId/connectors'
     | '/a/$agentId/library'
     | '/a/$agentId/profile'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
+    | '/api/agents/$agentId/connectors'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
     | '/a/$agentId'
     | '/a/$agentId/c/$chatId'
     | '/api/computers/pair/request/$code'
+    | '/api/agents/$agentId/connectors/$connectorId/connect'
   id:
     | '__root__'
     | '/_app'
@@ -375,22 +421,26 @@ export interface FileRouteTypes {
     | '/_app/a/$agentId'
     | '/api/auth/$'
     | '/api/computers/$computerId'
+    | '/api/connectors/callback'
     | '/api/push/register'
     | '/api/push/unregister'
     | '/api/agents/'
     | '/api/computers/'
     | '/_app/a/$agentId/automations'
     | '/_app/a/$agentId/computers'
+    | '/_app/a/$agentId/connectors'
     | '/_app/a/$agentId/library'
     | '/_app/a/$agentId/profile'
     | '/_app/a/$agentId/skills'
     | '/api/agents/$agentId/$'
+    | '/api/agents/$agentId/connectors'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
     | '/_app/a/$agentId/'
     | '/_app/a/$agentId/c/$chatId'
     | '/api/computers/pair/request/$code'
+    | '/api/agents/$agentId/connectors/$connectorId/connect'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -406,11 +456,13 @@ export interface RootRouteChildren {
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRoute
+  ApiConnectorsCallbackRoute: typeof ApiConnectorsCallbackRoute
   ApiPushRegisterRoute: typeof ApiPushRegisterRoute
   ApiPushUnregisterRoute: typeof ApiPushUnregisterRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
   ApiComputersIndexRoute: typeof ApiComputersIndexRoute
   ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
+  ApiAgentsAgentIdConnectorsRoute: typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   ApiComputersPairConfirmRoute: typeof ApiComputersPairConfirmRoute
   ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
   ApiComputersPairStartRoute: typeof ApiComputersPairStartRoute
@@ -538,6 +590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiComputersComputerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/connectors/callback': {
+      id: '/api/connectors/callback'
+      path: '/api/connectors/callback'
+      fullPath: '/api/connectors/callback'
+      preLoaderRoute: typeof ApiConnectorsCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/push/register': {
       id: '/api/push/register'
       path: '/api/push/register'
@@ -573,6 +632,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAAgentIdComputersRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
+    '/_app/a/$agentId/connectors': {
+      id: '/_app/a/$agentId/connectors'
+      path: '/connectors'
+      fullPath: '/a/$agentId/connectors'
+      preLoaderRoute: typeof AppAAgentIdConnectorsRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
     '/_app/a/$agentId/library': {
       id: '/_app/a/$agentId/library'
       path: '/library'
@@ -599,6 +665,13 @@ declare module '@tanstack/react-router' {
       path: '/api/agents/$agentId/$'
       fullPath: '/api/agents/$agentId/$'
       preLoaderRoute: typeof ApiAgentsAgentIdSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agents/$agentId/connectors': {
+      id: '/api/agents/$agentId/connectors'
+      path: '/api/agents/$agentId/connectors'
+      fullPath: '/api/agents/$agentId/connectors'
+      preLoaderRoute: typeof ApiAgentsAgentIdConnectorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/computers/pair/confirm': {
@@ -636,12 +709,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiComputersPairRequestCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agents/$agentId/connectors/$connectorId/connect': {
+      id: '/api/agents/$agentId/connectors/$connectorId/connect'
+      path: '/$connectorId/connect'
+      fullPath: '/api/agents/$agentId/connectors/$connectorId/connect'
+      preLoaderRoute: typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport
+      parentRoute: typeof ApiAgentsAgentIdConnectorsRoute
+    }
   }
 }
 
 interface AppAAgentIdRouteChildren {
   AppAAgentIdAutomationsRoute: typeof AppAAgentIdAutomationsRoute
   AppAAgentIdComputersRoute: typeof AppAAgentIdComputersRoute
+  AppAAgentIdConnectorsRoute: typeof AppAAgentIdConnectorsRoute
   AppAAgentIdLibraryRoute: typeof AppAAgentIdLibraryRoute
   AppAAgentIdProfileRoute: typeof AppAAgentIdProfileRoute
   AppAAgentIdSkillsRoute: typeof AppAAgentIdSkillsRoute
@@ -652,6 +733,7 @@ interface AppAAgentIdRouteChildren {
 const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
   AppAAgentIdAutomationsRoute: AppAAgentIdAutomationsRoute,
   AppAAgentIdComputersRoute: AppAAgentIdComputersRoute,
+  AppAAgentIdConnectorsRoute: AppAAgentIdConnectorsRoute,
   AppAAgentIdLibraryRoute: AppAAgentIdLibraryRoute,
   AppAAgentIdProfileRoute: AppAAgentIdProfileRoute,
   AppAAgentIdSkillsRoute: AppAAgentIdSkillsRoute,
@@ -677,6 +759,21 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiAgentsAgentIdConnectorsRouteChildren {
+  ApiAgentsAgentIdConnectorsConnectorIdConnectRoute: typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+}
+
+const ApiAgentsAgentIdConnectorsRouteChildren: ApiAgentsAgentIdConnectorsRouteChildren =
+  {
+    ApiAgentsAgentIdConnectorsConnectorIdConnectRoute:
+      ApiAgentsAgentIdConnectorsConnectorIdConnectRoute,
+  }
+
+const ApiAgentsAgentIdConnectorsRouteWithChildren =
+  ApiAgentsAgentIdConnectorsRoute._addFileChildren(
+    ApiAgentsAgentIdConnectorsRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   DaemonDotjsRoute: DaemonDotjsRoute,
@@ -690,11 +787,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRoute,
+  ApiConnectorsCallbackRoute: ApiConnectorsCallbackRoute,
   ApiPushRegisterRoute: ApiPushRegisterRoute,
   ApiPushUnregisterRoute: ApiPushUnregisterRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
   ApiComputersIndexRoute: ApiComputersIndexRoute,
   ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
+  ApiAgentsAgentIdConnectorsRoute: ApiAgentsAgentIdConnectorsRouteWithChildren,
   ApiComputersPairConfirmRoute: ApiComputersPairConfirmRoute,
   ApiComputersPairPollRoute: ApiComputersPairPollRoute,
   ApiComputersPairStartRoute: ApiComputersPairStartRoute,

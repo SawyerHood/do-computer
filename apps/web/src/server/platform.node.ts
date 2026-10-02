@@ -54,6 +54,7 @@ function create(): NodePlatform {
         defaultModel: models.defaultModel,
         modelOptions: models.options,
         sandbox: sandboxFactory(config),
+        connectorsAllowPrivateHosts: config.connectorsAllowPrivate,
         computerLinks: computers,
         onNotify: (notification) =>
           void notifyOwner(app, notification.agentId, notification.agentName, notification),

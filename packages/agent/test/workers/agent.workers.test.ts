@@ -3,6 +3,7 @@ import {
   type ChatEvent,
   type ChatState,
   type ChatSummary,
+  type ConnectorResult,
   EMPTY_CHAT,
   readSse,
   reduceChat,
@@ -10,7 +11,9 @@ import {
 import { durableObjectNamespace } from "@durable-computer/runtime/cloudflare"
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { describe, expect, it } from "vitest"
-import { type Env, scripted } from "./worker.ts"
+import { CONNECTOR_REDIRECT_HEADER } from "../../src/index.ts"
+import { GOOD_CODE } from "../fake-mcp.ts"
+import { type Env, mcp, scripted } from "./worker.ts"
 
 const bindings = env as unknown as Env
 const namespace = durableObjectNamespace(bindings.AGENT)
@@ -116,5 +119,68 @@ describe("agent computer in a Durable Object", () => {
     const read = await run("cat data/note.txt && wc -c < data/big.txt && cat IDENTITY.md")
     expect(read?.output).toContain("hello\n1500000")
     expect(read?.output).toContain("name:")
+  })
+})
+
+describe("connectors in a Durable Object", () => {
+  it("signs in to a service, keeps the grant in the object's storage, and calls its tools", async () => {
+    const agent = "agent-workers-connectors"
+    const scriptedCall = <T>(path: string, method = "GET", payload?: unknown) =>
+      call<T>(agent, path, method, payload, scriptedNamespace)
+    await scriptedCall("/init", "POST", { ownerId: "user-1" })
+
+    const added = await scriptedNamespace.get(agent).fetch(
+      new Request("http://actor/connectors", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          [CONNECTOR_REDIRECT_HEADER]: "https://app.example/api/connectors/callback",
+        },
+        body: JSON.stringify({ name: "Sums", url: mcp.url }),
+      }),
+    )
+    expect(added.status).toBe(200)
+    const pending = (await added.json()) as ConnectorResult & { state?: string }
+    expect(pending.connector.status).toBe("needs_auth")
+    expect(pending.state).toBeTruthy()
+    // PKCE, which needs Web Crypto, was set up inside the Workers runtime.
+    expect(new URL(pending.authorizationUrl!).searchParams.get("code_challenge_method")).toBe(
+      "S256",
+    )
+
+    const authorized = await scriptedCall<ConnectorResult>(
+      `/connectors/${pending.connector.id}/authorize`,
+      "POST",
+      { code: GOOD_CODE },
+    )
+    expect(authorized.connector.status).toBe("connected")
+    expect(authorized.connector.tools.map((tool) => tool.name)).toContain("add")
+
+    const chat = await scriptedCall<ChatSummary>("/chats", "POST", {})
+    scripted.setResponses([
+      fauxAssistantMessage([fauxToolCall("sums__add", { a: 20, b: 22 })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("done"),
+    ])
+    const response = await scriptedNamespace
+      .get(agent)
+      .fetch(new Request(`http://actor/chats/${chat.id}/events`))
+    await scriptedCall(`/chats/${chat.id}/messages`, "POST", {
+      text: "add them",
+      requestId: crypto.randomUUID(),
+    })
+    let state: ChatState = EMPTY_CHAT
+    let started = false
+    for await (const event of readSse<ChatEvent>(response.body!)) {
+      state = reduceChat(state, event)
+      started ||= state.busy
+      if (started && !state.busy) break
+    }
+    const tool = state.messages.flatMap((m) => m.parts).findLast((part) => part.type === "tool")
+    expect(tool?.type === "tool" && tool.status).toBe("done")
+    expect(tool?.type === "tool" && tool.output).toBe("42")
+    // The service saw the granted token, which the model never did.
+    expect(mcp.calls.at(-1)?.authorization).toMatch(/^Bearer /)
   })
 })

@@ -42,6 +42,8 @@ export default defineConfig({
       OPENROUTER_API_KEY: "",
       // The mobile app's tests sign up their own account on this invite-only deployment.
       DC_ALLOWED_EMAILS: "mobile@example.com",
+      // The connector tests run their MCP server on this machine.
+      DC_CONNECTORS_ALLOW_PRIVATE: "1",
     },
   },
 })

@@ -18,6 +18,7 @@
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
+    "@earendil-works/pi-mcp": "1.0.0",
     "croner": "^10.0.1"
   },
   "devDependencies": {

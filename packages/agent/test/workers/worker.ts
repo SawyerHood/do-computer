@@ -3,6 +3,7 @@ import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { createAgentActor, createAgentModels } from "../../src/index.ts"
+import { fakeMcp } from "../fake-mcp.ts"
 
 export type Env = {
   AGENT: DurableObjectNamespace
@@ -30,6 +31,8 @@ export const scripted = fauxProvider({
   models: [{ id: "model" }],
   tokensPerSecond: 5_000,
 })
+/** A remote MCP service that signs users in, standing in for the network. */
+export const mcp = fakeMcp({ oauth: true })
 const scriptedModels = createModels()
 scriptedModels.setProvider(scripted.provider)
 
@@ -43,6 +46,7 @@ export const ScriptedAgentObject = createDurableActorClass<Env>({
       ],
       keepAliveMs: 200,
       sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
+      connectorFetch: mcp.fetch,
     }),
   blobs: (env, name) => r2Blobs(env.BLOBS, `${encodeURIComponent(name)}/`),
 })

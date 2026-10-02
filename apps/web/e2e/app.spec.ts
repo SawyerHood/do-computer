@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { expect, type Page, test } from "@playwright/test"
+import { FIXED_TOKEN, startFakeMcp } from "./fake-mcp-server.ts"
 
 const owner = { name: "Sawyer", email: "owner@example.com", password: "correct horse battery" }
 
@@ -29,7 +30,7 @@ const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 async function newChat(page: Page) {
   const before = page.url()
   await page.getByRole("button", { name: "New chat" }).click()
-  await expect(page).not.toHaveURL(before)
+  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
   await expect(composer(page)).toHaveValue("")
 }
 
@@ -356,6 +357,106 @@ test.describe("pairing a computer", () => {
     await signIn(page)
     await page.goto("/pair?code=ZZZZ-ZZZZ")
     await expect(page.getByRole("heading", { name: "That code did not work" })).toBeVisible()
+  })
+})
+
+test.describe("connectors", () => {
+  let mcp: Awaited<ReturnType<typeof startFakeMcp>>
+  test.beforeAll(async () => {
+    mcp = await startFakeMcp()
+  })
+  test.afterAll(async () => {
+    await mcp.close()
+  })
+
+  async function openConnectors(page: Page) {
+    await signIn(page)
+    await page.getByRole("button", { name: "Connectors" }).click()
+    await expect(page.getByRole("heading", { name: "Connectors", exact: true })).toBeVisible()
+  }
+
+  test("a connector with a token gives the agent its tools", async ({ page }) => {
+    await openConnectors(page)
+    await page.getByLabel("Name", { exact: true }).fill("Sums")
+    await page.getByLabel("Server address").fill(`${mcp.origin}/token/mcp`)
+    await page.getByLabel("Access token (optional)").fill(FIXED_TOKEN)
+    await page.getByRole("button", { name: "Add connector" }).click()
+
+    const card = page.getByRole("listitem").filter({ hasText: "Sums" })
+    await expect(card.getByText("Connected", { exact: true })).toBeVisible()
+    await expect(card.getByText("2 tools: add, today")).toBeVisible()
+    // The form is ready for another, and the token is not left on screen.
+    await expect(page.getByLabel("Access token (optional)")).toHaveValue("")
+
+    await newChat(page)
+    await composer(page).fill('/tool sums__add {"a":19,"b":23}')
+    await composer(page).press("Enter")
+    await expect(page.getByRole("main").getByText("sum is 42").first()).toBeVisible()
+  })
+
+  test("a wrong token is reported, and the connector can be removed", async ({ page }) => {
+    await openConnectors(page)
+    await page.getByLabel("Name", { exact: true }).fill("Locked")
+    await page.getByLabel("Server address").fill(`${mcp.origin}/token/mcp`)
+    await page.getByLabel("Access token (optional)").fill("not-the-token")
+    await page.getByRole("button", { name: "Add connector" }).click()
+
+    const card = page.getByRole("listitem").filter({ hasText: "Locked" })
+    await expect(card.getByText("Not connected", { exact: true })).toBeVisible()
+    await card.getByRole("button", { name: "Remove Locked" }).click()
+    await expect(card).toHaveCount(0)
+  })
+
+  test("a connector that needs a sign-in sends the user to the service and back", async ({
+    page,
+  }) => {
+    await openConnectors(page)
+    await page.getByLabel("Name", { exact: true }).fill("Calendar")
+    await page.getByLabel("Server address").fill(`${mcp.origin}/oauth/mcp`)
+    await page.getByRole("button", { name: "Add connector" }).click()
+
+    // The service's own page, in the same tab.
+    await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
+    await page.getByRole("link", { name: "Deny" }).click()
+    await expect(page).toHaveURL(/\/a\/[^/]+\/connectors/)
+    await expect(page.getByRole("alert")).toContainText("You said no.")
+    const card = page.getByRole("listitem").filter({ hasText: "Calendar" })
+    await expect(card.getByText("Needs sign-in")).toBeVisible()
+
+    await card.getByRole("button", { name: "Sign in" }).click()
+    await page.getByRole("link", { name: "Allow" }).click()
+    await expect(page.getByRole("status")).toContainText("Calendar is connected.")
+    await expect(card.getByText("Connected", { exact: true })).toBeVisible()
+
+    await newChat(page)
+    await composer(page).fill("/tool calendar__today {}")
+    await composer(page).press("Enter")
+    await expect(page.getByRole("main").getByText("Dentist at 3pm").first()).toBeVisible()
+  })
+
+  test("a connector switched off is no longer offered to the agent", async ({ page }) => {
+    await openConnectors(page)
+    const card = page.getByRole("listitem").filter({ hasText: "Sums" })
+    await card.getByRole("checkbox", { name: "Use Sums" }).uncheck()
+    await page.reload()
+    await expect(card.getByRole("checkbox", { name: "Use Sums" })).not.toBeChecked()
+
+    await newChat(page)
+    await composer(page).fill('/tool sums__add {"a":1,"b":1}')
+    await composer(page).press("Enter")
+    await expect(
+      page
+        .getByRole("main")
+        .getByText(/sums__add is not available/)
+        .first(),
+    ).toBeVisible()
+  })
+
+  test("a sign-in link cannot be replayed", async ({ page }) => {
+    await signIn(page)
+    await page.goto("/api/connectors/callback?code=anything&state=made-up")
+    // Nothing to finish: the user lands back in the app, not on a connector.
+    await expect(page).toHaveURL(/\/a\/[^/]+\/c\/\d+/)
   })
 })
 

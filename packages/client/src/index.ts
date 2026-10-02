@@ -1,4 +1,5 @@
 import {
+  type AddConnectorRequest,
   type AgentEvent,
   type AgentSummary,
   type ApiError as ApiErrorBody,
@@ -7,6 +8,8 @@ import {
   type ChatState,
   type ChatSummary,
   type ComputerSummary,
+  type ConnectorResult,
+  type ConnectorSummary,
   type CreateChatRequest,
   EMPTY_CHAT,
   type LibraryFile,
@@ -231,6 +234,17 @@ export function createClient(options: ClientOptions) {
         removeSkill: (name: string) =>
           request<{ ok: true }>(`${base}/skills/${encodeURIComponent(name)}`, { method: "DELETE" }),
         installSkill: (url: string) => post<SkillSummary>(`${base}/skills/install`, { url }),
+        connectors: async () =>
+          (await request<{ connectors: ConnectorSummary[] }>(`${base}/connectors`)).connectors,
+        /** Add a connector. If `authorizationUrl` comes back, send the user there to sign in. */
+        addConnector: (input: AddConnectorRequest) =>
+          post<ConnectorResult>(`${base}/connectors`, input),
+        reconnectConnector: (connectorId: string) =>
+          post<ConnectorResult>(`${base}/connectors/${connectorId}/connect`),
+        setConnectorEnabled: (connectorId: string, enabled: boolean) =>
+          patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
+        removeConnector: (connectorId: string) =>
+          request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
         library: async () => (await request<{ files: LibraryFile[] }>(`${base}/library`)).files,
         /** Where a library file's bytes are served from; needs the same credentials as any call. */
         libraryFileUrl: (fileId: string) => `${options.baseUrl}${base}/library/${fileId}`,

@@ -335,6 +335,9 @@ importers:
       '@earendil-works/pi-durable':
         specifier: 'catalog:'
         version: 1.0.0(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(supports-color@10.2.2)(zod@4.6.5))(@smithy/signature-v4@5.7.4)(supports-color@10.2.2)(undici@7.29.1)(ws@8.22.0)(zod@4.6.5)
+      '@earendil-works/pi-mcp':
+        specifier: 1.0.0
+        version: 1.0.0
       croner:
         specifier: ^10.0.1
         version: 10.0.1
@@ -1207,6 +1210,10 @@ packages:
 
   '@earendil-works/pi-durable@1.0.0':
     resolution: {integrity: sha512-PvjCIdy5jRsBoJDRpCCI0RfwBax2ZPnMT5aw/tRQxcQOqbGGj2mq1z0WuVxoyimWWi+WYSYT2VySg3RO1qzySw==}
+    engines: {node: '>=22.19.0'}
+
+  '@earendil-works/pi-mcp@1.0.0':
+    resolution: {integrity: sha512-rYra0aF5iPmJd+fsB+VBuqxWNABGJ3Iiyhg0CqIc/91ta2n7IvQmCp0Cac/YkUTNnvRsVZnjgAiBkRi6+ouWuw==}
     engines: {node: '>=22.19.0'}
 
   '@earendil-works/pi-telemetry@1.0.0':
@@ -8102,6 +8109,10 @@ snapshots:
       - ws
       - zod
 
+  '@earendil-works/pi-mcp@1.0.0':
+    dependencies:
+      cross-spawn: 7.0.6
+
   '@earendil-works/pi-telemetry@1.0.0': {}
 
   '@emnapi/runtime@1.11.3':
@@ -10533,7 +10544,7 @@ snapshots:
 
   '@types/react-test-renderer@19.3.0':
     dependencies:
-      '@types/react': 19.3.0
+      '@types/react': 19.2.18
 
   '@types/react@19.2.18':
     dependencies:

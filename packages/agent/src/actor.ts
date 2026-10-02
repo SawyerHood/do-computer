@@ -10,6 +10,7 @@ import {
   type SendMessageRequest,
   SSE_HEADERS,
   SSE_HEARTBEAT,
+  type AddConnectorRequest,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
@@ -36,6 +37,7 @@ import {
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { Computer } from "./computer.ts"
+import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
@@ -75,6 +77,10 @@ export type AgentActorOptions = {
   readonly keepAliveMs?: number
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
   readonly computerLinks?: ActorNamespace
+  /** Used to reach connectors (remote MCP servers). Default: the global `fetch`. */
+  readonly connectorFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>
+  /** Let connectors reach this machine and private networks, and use plain http. */
+  readonly connectorsAllowPrivateHosts?: boolean
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -96,6 +102,9 @@ export type AgentNotification = {
   /** The chat to open; null when the chat a report was meant for is gone. */
   chatId: string | null
 }
+
+/** Header in which the gateway tells the actor where a connector's sign-in should return to. */
+export const CONNECTOR_REDIRECT_HEADER = "x-dc-connector-redirect"
 
 class HttpError extends Error {
   constructor(
@@ -196,6 +205,7 @@ export class AgentActor implements Actor {
   readonly #computer: Computer | undefined
   readonly #paired: PairedComputers | undefined
   readonly #library: Library
+  #connectors: Connectors | undefined
   /** How many clients are following each chat right now. */
   readonly #watchers = new Map<string, number>()
   readonly #scheduler: Scheduler
@@ -262,18 +272,29 @@ export class AgentActor implements Actor {
       this.#skills.attach(harness)
       this.#paired?.attach(harness)
       this.#library.attach(harness)
+      // Connector tools come and go while the agent runs, so they are installed after opening.
+      this.#connectors = new Connectors({
+        sql: this.#host.sql,
+        now: () => this.#host.now(),
+        install: (extension) => registry.install(extension),
+        fetch: this.#options.connectorFetch,
+        allowPrivateHosts: this.#options.connectorsAllowPrivateHosts,
+      })
+      await this.#connectors.attach(harness, context)
       await this.#skills.seed(context)
       // A schedule the agent creates or changes moves the next wake-up.
       if (
         (await harness.snapshot(SchedulesDoc, context)) === undefined ||
         (await harness.snapshot(ComputersDoc, context)) === undefined ||
-        (await harness.snapshot(LibraryDoc, context)) === undefined
+        (await harness.snapshot(LibraryDoc, context)) === undefined ||
+        (await harness.snapshot(ConnectorsDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
           await tx.doc(SchedulesDoc)
           await tx.doc(ComputersDoc)
           await tx.doc(LibraryDoc)
+          await tx.doc(ConnectorsDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -321,6 +342,7 @@ export class AgentActor implements Actor {
   async close(): Promise<void> {
     const harness = this.#harness
     this.#harness = undefined
+    await this.#connectors?.close()
     await (await harness)?.close(context)
   }
 
@@ -334,7 +356,8 @@ export class AgentActor implements Actor {
       if (
         error instanceof ScheduleError ||
         error instanceof SkillError ||
-        error instanceof LibraryError
+        error instanceof LibraryError ||
+        error instanceof ConnectorError
       ) {
         return json({ error: error.message }, 400)
       }
@@ -378,6 +401,45 @@ export class AgentActor implements Actor {
       }
       if (computerId !== undefined && method === "DELETE") {
         await this.#paired.remove(computerId, context)
+        return json({ ok: true })
+      }
+    }
+    if (segments[0] === "connectors" && this.#connectors !== undefined) {
+      const connectors = this.#connectors
+      const connectorId = segments[1]
+      const action = segments[2]
+      // Where a sign-in returns to. Only the gateway can say, so only it can add or reconnect.
+      const redirect = () => {
+        const url = request.headers.get(CONNECTOR_REDIRECT_HEADER)
+        if (url === null)
+          throw new HttpError(400, "A connector can only be connected from the app.")
+        return url
+      }
+      // The gateway also needs the value that will identify the returning user.
+      const withState = async (result: Awaited<ReturnType<Connectors["connect"]>>) =>
+        json({ ...result, state: await connectors.pendingState(result.connector.id) })
+      if (connectorId === undefined && method === "GET") {
+        return json({ connectors: await connectors.list(context) })
+      }
+      if (connectorId === undefined && method === "POST") {
+        const input = await body<AddConnectorRequest>(request)
+        return withState(await connectors.add(input, redirect(), context))
+      }
+      if (connectorId !== undefined && action === "connect" && method === "POST") {
+        return withState(await connectors.connect(connectorId, redirect(), context))
+      }
+      if (connectorId !== undefined && action === "authorize" && method === "POST") {
+        const { code } = await body<{ code?: string }>(request)
+        if (typeof code !== "string" || code === "") throw new HttpError(400, "code is required")
+        return json(await connectors.authorize(connectorId, code, context))
+      }
+      if (connectorId !== undefined && action === undefined && method === "PATCH") {
+        const { enabled } = await body<{ enabled?: boolean }>(request)
+        if (typeof enabled !== "boolean") throw new HttpError(400, "enabled must be true or false")
+        return json(await connectors.setEnabled(connectorId, enabled, context))
+      }
+      if (connectorId !== undefined && action === undefined && method === "DELETE") {
+        await connectors.remove(connectorId, context)
         return json({ ok: true })
       }
     }
@@ -770,6 +832,7 @@ export class AgentActor implements Actor {
       const skills = await harness.watchDoc(SkillsDoc, context)
       const computers = await harness.watchDoc(ComputersDoc, context)
       const library = await harness.watchDoc(LibraryDoc, context)
+      const connectors = await harness.watchDoc(ConnectorsDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -780,6 +843,7 @@ export class AgentActor implements Actor {
       skills?.start(changed("skills"))
       computers?.start(changed("computers"))
       library?.start(changed("library"))
+      connectors?.start(changed("connectors"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -788,6 +852,7 @@ export class AgentActor implements Actor {
         void skills?.stop()
         void computers?.stop()
         void library?.stop()
+        void connectors?.stop()
       }
     })
   }

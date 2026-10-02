@@ -2,8 +2,10 @@ export {
   AgentActor,
   type AgentActorOptions,
   type AgentNotification,
+  CONNECTOR_REDIRECT_HEADER,
   createAgentActor,
 } from "./actor.ts"
+export { ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
 export {
   ChatsDoc,
   type ChatRecord,

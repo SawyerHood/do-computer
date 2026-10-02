@@ -8,6 +8,7 @@ import {
   FolderIcon,
   LightningIcon,
   ListIcon,
+  PlugsIcon,
   MoonIcon,
   NotePencilIcon,
   PlusIcon,
@@ -207,7 +208,9 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
               ? "computers"
               : location.pathname.endsWith("/library")
                 ? "library"
-                : "chat",
+                : location.pathname.endsWith("/connectors")
+                  ? "connectors"
+                  : "chat",
   })
   const profile = page === "profile"
 
@@ -250,6 +253,15 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
             onClick={() => navigate({ to: "/a/$agentId/skills", params: { agentId: agent.id } })}
           >
             <LightningIcon />
+          </RailButton>
+          <RailButton
+            label="Connectors"
+            active={page === "connectors"}
+            onClick={() =>
+              navigate({ to: "/a/$agentId/connectors", params: { agentId: agent.id } })
+            }
+          >
+            <PlugsIcon />
           </RailButton>
           <RailButton
             label="Computers"
@@ -340,6 +352,14 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                 className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
               >
                 Computers
+              </Link>
+              <Link
+                to="/a/$agentId/connectors"
+                params={{ agentId: agent.id }}
+                onClick={() => setSheetOpen(false)}
+                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
+              >
+                Connectors
               </Link>
             </div>
           </div>

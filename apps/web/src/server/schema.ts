@@ -49,6 +49,17 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     "CREATE INDEX dc_push_tokens_by_user ON dc_push_tokens (user_id)",
   ],
+  [
+    // A connector sign-in in progress: which user, agent and connector the service's redirect,
+    // identified only by its `state`, belongs to.
+    `CREATE TABLE dc_oauth_states (
+      state TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      connector_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

@@ -19,6 +19,8 @@ export type Config = {
   readonly allowedEmails: readonly string[]
   /** What kind of computer agents get. Default `just-bash`. */
   readonly sandbox: "just-bash" | "none"
+  /** Connectors may reach this machine and private networks. */
+  readonly connectorsAllowPrivate: boolean
   /** OpenRouter speech-to-text model used for dictation. */
   readonly transcriptionModel: string
 }
@@ -54,6 +56,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
     sandbox: env.DC_SANDBOX === "none" ? "none" : "just-bash",
+    connectorsAllowPrivate: env.DC_CONNECTORS_ALLOW_PRIVATE === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
   }
 }
