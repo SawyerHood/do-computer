@@ -38,8 +38,8 @@ export type Config = {
     readonly image: string | undefined
     readonly instance: string | undefined
   }
-  /** Connectors may reach this machine and private networks. */
-  readonly connectorsAllowPrivate: boolean
+  /** Connectors and skill installs may reach this machine and private networks. */
+  readonly allowPrivateHosts: boolean
   /** OpenRouter speech-to-text model used for dictation. */
   readonly transcriptionModel: string
 }
@@ -110,7 +110,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       image: optional("DC_CLOUDFLARE_IMAGE"),
       instance: optional("DC_CLOUDFLARE_INSTANCE"),
     },
-    connectorsAllowPrivate: env.DC_CONNECTORS_ALLOW_PRIVATE === "1",
+    allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
   }
 }

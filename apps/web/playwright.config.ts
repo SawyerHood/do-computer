@@ -43,7 +43,7 @@ export default defineConfig({
       // The mobile app's tests sign up their own account on this invite-only deployment.
       DC_ALLOWED_EMAILS: "mobile@example.com",
       // The connector tests run their MCP server on this machine.
-      DC_CONNECTORS_ALLOW_PRIVATE: "1",
+      DC_ALLOW_PRIVATE_HOSTS: "1",
     },
   },
 })

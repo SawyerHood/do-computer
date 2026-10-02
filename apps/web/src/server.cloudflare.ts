@@ -27,7 +27,7 @@ export const AgentObject = createDurableActorClass<Env>({
       defaultModel: models.defaultModel,
       modelOptions: models.options,
       sandbox: sandboxFactory(config, "Cloudflare", cloudflareProviders(env)),
-      connectorsAllowPrivateHosts: config.connectorsAllowPrivate,
+      allowPrivateHosts: config.allowPrivateHosts,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       onNotify: (notification) =>
         void notifyOwner(

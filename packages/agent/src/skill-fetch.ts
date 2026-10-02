@@ -1,3 +1,4 @@
+import { BlockedAddressError } from "./guarded-fetch.ts"
 import {
   MAX_SKILL_FILES,
   MAX_SUPPORT_FILE_BYTES,
@@ -25,7 +26,9 @@ const reaching =
   async (url, init) => {
     try {
       return await fetcher(url, init)
-    } catch {
+    } catch (error) {
+      // An address the server will not call is the user's to fix; say which rule it broke.
+      if (error instanceof BlockedAddressError) throw new SkillError(error.message)
       throw new SkillError(`Could not reach ${new URL(url).host}.`)
     }
   }

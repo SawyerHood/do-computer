@@ -44,6 +44,7 @@ import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
 import { Computer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
+import { guardedFetch } from "./guarded-fetch.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
 import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
@@ -86,8 +87,11 @@ export type AgentActorOptions = {
   readonly computerLinks?: ActorNamespace
   /** Used to reach connectors (remote MCP servers). Default: the global `fetch`. */
   readonly connectorFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>
-  /** Let connectors reach this machine and private networks, and use plain http. */
-  readonly connectorsAllowPrivateHosts?: boolean
+  /**
+   * Let connectors and skill installs reach this machine and private networks, and use plain
+   * http. Off by default: the server makes those calls for whoever, or whatever, asks.
+   */
+  readonly allowPrivateHosts?: boolean
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -229,10 +233,15 @@ export class AgentActor implements Actor {
       options.computerLinks === undefined
         ? undefined
         : new PairedComputers(options.computerLinks, [this.#library.sendFileTool])
+    const skillFetch = guardedFetch(
+      (input, init) => (options.fetch ?? fetch)(String(input), init),
+      options.allowPrivateHosts === true,
+    )
     this.#skills = new Skills({
       now: () => host.now(),
       sandbox: this.#computer?.sandbox,
-      fetch: options.fetch,
+      // The agent can be talked into installing from any address, so this one is checked too.
+      fetch: (url, init) => skillFetch(url, init),
     })
     this.#approvals = new Approvals({
       now: () => host.now(),
@@ -310,7 +319,7 @@ export class AgentActor implements Actor {
         now: () => this.#host.now(),
         install: (extension) => registry.install(extension),
         fetch: this.#options.connectorFetch,
-        allowPrivateHosts: this.#options.connectorsAllowPrivateHosts,
+        allowPrivateHosts: this.#options.allowPrivateHosts,
       })
       await this.#connectors.attach(harness, context)
       await this.#skills.seed(context)

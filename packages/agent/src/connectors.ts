@@ -6,7 +6,7 @@ import type {
 import type { SqliteDatabase } from "@durable-computer/runtime"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
-import { BlockedAddressError, checkConnectorAddress, guardedFetch } from "./connector-fetch.ts"
+import { BlockedAddressError, checkAddress, guardedFetch } from "./guarded-fetch.ts"
 import {
   McpClient,
   type McpFetch,
@@ -233,7 +233,7 @@ export class Connectors {
       throw new ConnectorError("Give the connector a name of up to 60 characters.")
     let url: URL
     try {
-      url = checkConnectorAddress(input.url.trim(), this.#options.allowPrivateHosts === true)
+      url = checkAddress(input.url.trim(), this.#options.allowPrivateHosts === true)
     } catch (error) {
       throw new ConnectorError(
         error instanceof BlockedAddressError ? error.message : `"${input.url}" is not a URL.`,

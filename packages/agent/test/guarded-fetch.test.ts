@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 import {
   BlockedAddressError,
-  checkConnectorAddress,
+  checkAddress,
   guardedFetch,
   isPrivateHost,
-} from "../src/connector-fetch.ts"
+} from "../src/guarded-fetch.ts"
 
 describe("isPrivateHost", () => {
   it.each([
@@ -41,24 +41,18 @@ describe("isPrivateHost", () => {
   )
 })
 
-describe("checkConnectorAddress", () => {
+describe("checkAddress", () => {
   it("requires https and a public host", () => {
-    expect(checkConnectorAddress("https://mcp.example.com/mcp", false).hostname).toBe(
-      "mcp.example.com",
-    )
-    expect(() => checkConnectorAddress("http://mcp.example.com/mcp", false)).toThrow(
-      BlockedAddressError,
-    )
-    expect(() => checkConnectorAddress("https://169.254.169.254/latest", false)).toThrow(
-      /private network/,
-    )
+    expect(checkAddress("https://mcp.example.com/mcp", false).hostname).toBe("mcp.example.com")
+    expect(() => checkAddress("http://mcp.example.com/mcp", false)).toThrow(BlockedAddressError)
+    expect(() => checkAddress("https://169.254.169.254/latest", false)).toThrow(/private network/)
     // The form a URL parser normalises a decimal address to.
-    expect(() => checkConnectorAddress("https://2130706433/", false)).toThrow(/private network/)
+    expect(() => checkAddress("https://2130706433/", false)).toThrow(/private network/)
   })
 
   it("allows private hosts and http when the deployment says so, but nothing stranger", () => {
-    expect(checkConnectorAddress("http://127.0.0.1:9000/mcp", true).port).toBe("9000")
-    expect(() => checkConnectorAddress("file:///etc/passwd", true)).toThrow(BlockedAddressError)
+    expect(checkAddress("http://127.0.0.1:9000/mcp", true).port).toBe("9000")
+    expect(() => checkAddress("file:///etc/passwd", true)).toThrow(BlockedAddressError)
   })
 })
 

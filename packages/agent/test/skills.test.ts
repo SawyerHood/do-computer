@@ -405,4 +405,26 @@ describe("agent skills", () => {
     await expect(call(world, "/skills/nope")).rejects.toThrow('400: There is no skill "nope".')
     expect(world.errors).toEqual([])
   })
+
+  it("will not fetch a skill from inside the server's own network", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    for (const url of [
+      "https://169.254.169.254/latest/meta-data/SKILL.md",
+      "https://localhost/SKILL.md",
+      "https://10.0.0.8/skills/SKILL.md",
+    ]) {
+      await expect(call(world, "/skills/install", "POST", { url })).rejects.toThrow(
+        /400: .*private network/,
+      )
+    }
+    // The agent is refused the same way, however it was talked into trying.
+    world.faux.setResponses(
+      useTool("skill", { action: "install", url: "https://metadata.google.internal/SKILL.md" }),
+    )
+    const tried = lastTool(await say(world, chat.id, "install this skill"))!
+    expect(tried.status).toBe("error")
+    expect(tried.output).toContain("private network")
+    expect((await skills(world)).map((skill) => skill.source)).not.toContain("installed")
+  })
 })

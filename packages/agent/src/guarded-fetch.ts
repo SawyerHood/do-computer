@@ -2,7 +2,7 @@ import type { McpFetch } from "@earendil-works/pi-mcp"
 
 const MAX_REDIRECTS = 5
 
-/** Thrown for an address the server refuses to call on a user's behalf. */
+/** Thrown for an address the server refuses to call on a user's or an agent's word. */
 export class BlockedAddressError extends Error {}
 
 function privateIpv4(host: string): boolean {
@@ -50,8 +50,8 @@ export function isPrivateHost(hostname: string): boolean {
   )
 }
 
-/** Reject an address a connector may not use; returns it parsed otherwise. */
-export function checkConnectorAddress(input: string | URL, allowPrivate: boolean): URL {
+/** Reject an address the server may not call for someone; returns it parsed otherwise. */
+export function checkAddress(input: string | URL, allowPrivate: boolean): URL {
   const url = new URL(String(input))
   if (allowPrivate) {
     if (url.protocol !== "https:" && url.protocol !== "http:")
@@ -59,7 +59,7 @@ export function checkConnectorAddress(input: string | URL, allowPrivate: boolean
     return url
   }
   if (url.protocol !== "https:")
-    throw new BlockedAddressError("A connector's address must start with https://.")
+    throw new BlockedAddressError("The address must start with https://.")
   if (isPrivateHost(url.hostname))
     throw new BlockedAddressError(
       `${url.hostname} is on a private network, which this server does not connect to.`,
@@ -68,14 +68,15 @@ export function checkConnectorAddress(input: string | URL, allowPrivate: boolean
 }
 
 /**
- * `fetch` for connectors. A connector's address comes from a user and the server calls it, so
- * every request, including each redirect and every address the service's sign-in metadata points
- * to, is checked against the same rule instead of trusting the first address alone.
+ * `fetch` for addresses that come from a user or from the agent: connectors, and skills installed
+ * from a URL. The server makes these calls from inside its own network, so every request,
+ * including each redirect and every address a service's sign-in metadata points to, is checked
+ * against the same rule instead of trusting the first address alone.
  */
 export function guardedFetch(inner: McpFetch, allowPrivate: boolean): McpFetch {
   if (allowPrivate) return inner
   return async (input, init) => {
-    let url = checkConnectorAddress(input, false)
+    let url = checkAddress(input, false)
     let request: RequestInit = { ...init, redirect: "manual" }
     for (let hop = 0; ; hop++) {
       const response = await inner(url, request)
@@ -83,7 +84,7 @@ export function guardedFetch(inner: McpFetch, allowPrivate: boolean): McpFetch {
       if (response.status < 300 || response.status >= 400 || location === null) return response
       if (hop === MAX_REDIRECTS) throw new BlockedAddressError("Too many redirects.")
       await response.body?.cancel().catch(() => {})
-      url = checkConnectorAddress(new URL(location, url), false)
+      url = checkAddress(new URL(location, url), false)
       // 307 and 308 repeat the request; the others turn into a plain GET, as browsers do.
       if (response.status !== 307 && response.status !== 308) {
         const headers = new Headers(request.headers)
