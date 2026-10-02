@@ -465,6 +465,9 @@ importers:
       '@daytona/sdk':
         specifier: ^0.218.0
         version: 0.218.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)
+      '@durable-computer/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@durable-computer/runtime':
         specifier: workspace:*
         version: link:../runtime

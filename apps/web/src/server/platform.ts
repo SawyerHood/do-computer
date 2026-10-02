@@ -21,6 +21,8 @@ export type Config = {
   readonly allowedEmails: readonly string[]
   /** What kind of computer agents get. Default `just-bash`. */
   readonly sandbox: SandboxKind
+  /** Whether agents' computers can reach the internet. Default true. */
+  readonly sandboxNetwork: boolean
   readonly daytona: {
     readonly apiKey: string | undefined
     readonly apiUrl: string | undefined
@@ -95,6 +97,9 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
     sandbox: sandboxKind(optional("DC_SANDBOX")),
+    sandboxNetwork: !["off", "0", "false", "none"].includes(
+      (optional("DC_SANDBOX_NETWORK") ?? "on").toLowerCase(),
+    ),
     daytona: {
       apiKey: optional("DAYTONA_API_KEY"),
       apiUrl: optional("DAYTONA_API_URL"),

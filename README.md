@@ -63,7 +63,8 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                    |
 | `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                  |
 | `DC_SANDBOX`                               | What computer agents get: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
-| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors and skill installs reach this machine and private networks, and use plain http. Off by default.                  |
+| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                            |
+| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.           |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |
 
 ## Computers
@@ -72,13 +73,13 @@ Each agent has one computer. `DC_SANDBOX` chooses what it is, for every agent on
 A remote machine is created the first time an agent runs something, and stops by itself when the
 agent is not using it.
 
-| `DC_SANDBOX` | The computer                                                                              | Runs on          | What persists                                | Settings                                                                                                     |
-| ------------ | ----------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs, no network.              | Node, Cloudflare | The workspace, in the agent's own database   | none                                                                                                         |
-| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                      | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
-| `modal`      | A Linux machine on [Modal](https://modal.com)                                             | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
-| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/) | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
-| `none`       | No computer: no file or shell tools.                                                      | Node, Cloudflare |                                              | none                                                                                                         |
+| `DC_SANDBOX` | The computer                                                                                  | Runs on          | What persists                                | Settings                                                                                                     |
+| ------------ | --------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace, in the agent's own database   | none                                                                                                         |
+| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
+| `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
+| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
+| `none`       | No computer: no file or shell tools.                                                          | Node, Cloudflare |                                              | none                                                                                                         |
 
 Things to know before choosing one:
 
@@ -125,7 +126,7 @@ is why sign-up is by invitation unless you open it.
 - **Use its computer**: read, write and edit files and run shell commands in a workspace that
   persists. The default computer is [just-bash](https://github.com/vercel-labs/just-bash), a shell
   interpreter with a durable virtual filesystem that needs no machine; it has the usual text tools
-  but no real programs. For a real Linux machine, see [Computers](#computers); on one, the agent
+  and `curl` for the internet, but no real programs. For a real Linux machine, see [Computers](#computers); on one, the agent
   also starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and
   reports back to the chat you asked in; see and pause them under Automations.
@@ -165,7 +166,10 @@ paired computer. What limits the damage:
 - **Secrets stay on the server.** Connector tokens and sign-in grants are never in the model's
   context or on the agent's computer.
 - **The server will not be used to reach inside your network.** Connector addresses and skill
-  installs must be https on a public host, re-checked on every redirect. `DC_ALLOW_PRIVATE_HOSTS=1`
+  installs must be https on a public host, re-checked on every redirect. The built-in computer
+  runs inside the server, so what an agent fetches with `curl` there goes through the same check:
+  the public internet only, by http or https. On Node the host name is looked up as well, so a
+  public name pointing at a private address is refused too. `DC_ALLOW_PRIVATE_HOSTS=1`
   lifts this for a deployment that wants services on its own network. The check reads the address
   as written: a public name that resolves to a private address is not caught.
 - **Revocation.** Removing a computer cuts its daemon off at once. Removing a connector deletes its

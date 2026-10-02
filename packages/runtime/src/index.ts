@@ -1,3 +1,11 @@
+export {
+  BlockedAddressError,
+  checkAddress,
+  type Fetch,
+  type GuardOptions,
+  guardedFetch,
+  isPrivateHost,
+} from "./guarded-fetch.ts"
 import type { SqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite"
 
 export type {

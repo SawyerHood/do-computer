@@ -24,6 +24,8 @@ export type ContainerSandboxClientOptions = {
   /** Send a request to this agent's sandbox object. */
   readonly fetch: (request: Request) => Promise<Response>
   readonly home?: string
+  /** Whether the machine was given internet access, to describe it truthfully. Default true. */
+  readonly network?: boolean
 }
 
 /** The machine could not be reached or started; not a failure of one command or file. */
@@ -107,7 +109,7 @@ export function containerSandbox(options: ContainerSandboxClientOptions): Sandbo
   return {
     id: `cloudflare:${options.id}`,
     home,
-    capabilities: { realBinaries: true, network: true },
+    capabilities: { realBinaries: true, network: options.network !== false },
     exec,
     // The object saves the disk when the machine goes idle, and at intervals while it is in use.
     flush: async () => {},

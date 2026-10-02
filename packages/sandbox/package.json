@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@daytona/sdk": "^0.218.0",
+    "@durable-computer/protocol": "workspace:*",
     "@durable-computer/runtime": "workspace:*",
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-durable": "catalog:",

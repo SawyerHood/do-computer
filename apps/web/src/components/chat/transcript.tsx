@@ -7,12 +7,7 @@ import {
   isVisibleMessage,
   type MessagePart,
 } from "@durable-computer/protocol"
-import {
-  ArrowsClockwiseIcon,
-  CircleNotchIcon,
-  ClockIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react"
+import { ArrowsClockwiseIcon, ClockIcon, WarningCircleIcon } from "@phosphor-icons/react"
 import { useEffect } from "react"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
@@ -162,10 +157,8 @@ export function Transcript({
               </MessageScrollerItem>
             ))}
             {activity === null ? null : (
+              // The moving shine says it is working; a spinner beside it would say it twice.
               <Marker role="status" aria-live="polite" className="px-1">
-                <MarkerIcon>
-                  <CircleNotchIcon className="animate-spin" />
-                </MarkerIcon>
                 <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
               </Marker>
             )}

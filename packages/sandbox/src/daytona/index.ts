@@ -60,6 +60,8 @@ export type DaytonaSandboxOptions = {
   /** Or build from this image, such as `debian:13`. Ignored when `snapshot` is set. */
   readonly image?: string
   readonly home?: string
+  /** Whether the machine can reach the network. Default true. Applies when it is created. */
+  readonly network?: boolean
   /** For tests: the client to use instead of the SDK's. */
   readonly client?: () => Promise<DaytonaClientLike<DaytonaSandboxLike>>
   readonly sleep?: (ms: number) => Promise<void>
@@ -110,6 +112,7 @@ export function daytonaSandbox(options: DaytonaSandboxOptions): Sandbox {
           // Never deleted for being unused; archived instead, which a start brings back.
           autoDeleteInterval: -1,
           labels: { "durable-computer": options.id },
+          ...(options.network === false ? { networkBlockAll: true } : {}),
           ...(options.snapshot !== undefined
             ? { snapshot: options.snapshot }
             : options.image !== undefined
@@ -150,7 +153,7 @@ export function daytonaSandbox(options: DaytonaSandboxOptions): Sandbox {
   const real: Sandbox = {
     id: `daytona:${options.id}`,
     home,
-    capabilities: { realBinaries: true, network: true },
+    capabilities: { realBinaries: true, network: options.network !== false },
     exec,
     // Daytona's disk is the machine's own; there is nothing to copy anywhere.
     flush: async () => {},

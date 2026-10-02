@@ -31,7 +31,13 @@ function describe(sandbox: Sandbox): string {
       "This computer is a lightweight shell: the usual text tools work (ls, cat, grep, sed, awk, jq, find and so on), but there are no real programs such as git, package managers, compilers or a browser. If a task needs one of those, say so instead of working around it.",
     )
   }
-  if (!sandbox.capabilities.network) lines.push("It has no network access.")
+  lines.push(
+    sandbox.capabilities.network
+      ? sandbox.capabilities.realBinaries
+        ? "It has internet access."
+        : "It has internet access through curl, which is how to fetch a page, call an API or download a file from here."
+      : "It has no network access.",
+  )
   lines.push(
     `${MIRROR_FILES.join(", ")} in the workspace mirror who you are and what you remember. Editing them changes your identity and memory, and the same limits apply as for the memory tool.`,
   )

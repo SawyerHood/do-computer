@@ -1,5 +1,11 @@
-import type { SqliteDatabase } from "@durable-computer/runtime"
-import { Bash, type IFileSystem } from "just-bash/browser"
+import { BodyTooLarge, readLimited } from "@durable-computer/protocol"
+import { BlockedAddressError, type Fetch, type SqliteDatabase } from "@durable-computer/runtime"
+import {
+  Bash,
+  type BashOptions,
+  type IFileSystem,
+  NetworkAccessDeniedError,
+} from "just-bash/browser"
 import {
   type DirectoryEntry,
   type ExecOptions,
@@ -24,9 +30,57 @@ export type JustBashOptions = {
   readonly maxTotalBytes?: number
   /** Environment variables every command sees. */
   readonly env?: Readonly<Record<string, string>>
+  /**
+   * Gives the shell `curl`, making its requests through this. The shell runs inside the server,
+   * so its requests leave from the server's own network: pass a fetch that refuses private
+   * addresses. Absent, there is no network.
+   */
+  readonly fetch?: Fetch
 }
 
 const TIMEOUT_EXIT_CODE = 124
+/** The longest one request may take, and the most it may bring back. */
+const REQUEST_TIMEOUT_MS = 30_000
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+
+type ShellFetch = NonNullable<BashOptions["fetch"]>
+
+/** The shell's network hook over a plain `fetch`, with a deadline and a size limit. */
+function shellFetch(fetcher: Fetch): ShellFetch {
+  return async (url, request = {}) => {
+    const deadline = Math.min(request.timeoutMs ?? REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS)
+    const signals = [AbortSignal.timeout(deadline)]
+    if (request.signal) signals.push(request.signal)
+    try {
+      const response = await fetcher(url, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body,
+        redirect: request.followRedirects === false ? "manual" : "follow",
+        signal: AbortSignal.any(signals),
+      })
+      const headers: Record<string, string> = {}
+      response.headers.forEach((value, name) => {
+        headers[name] = value
+      })
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+        body: await readLimited(response.body, MAX_RESPONSE_BYTES),
+        url: response.url || url,
+      }
+    } catch (error) {
+      // In the words the shell's own curl uses for an address it may not reach.
+      if (error instanceof BlockedAddressError)
+        throw new NetworkAccessDeniedError(url, error.message)
+      if (error instanceof BodyTooLarge) {
+        throw new Error(`The response is larger than ${MAX_RESPONSE_BYTES / (1024 * 1024)} MB.`)
+      }
+      throw error
+    }
+  }
+}
 
 /** just-bash reports failures as errno-prefixed messages; map the prefix to a code. */
 function translate(error: unknown, path: string): SandboxError {
@@ -109,12 +163,13 @@ export async function createJustBashSandbox(options: JustBashOptions): Promise<S
     fs: durable.fs,
     cwd: home,
     env: { HOME: home, USER: "agent", ...options.env },
+    ...(options.fetch === undefined ? {} : { fetch: shellFetch(options.fetch) }),
   })
 
   return {
     id: `just-bash:${options.id}`,
     home,
-    capabilities: { realBinaries: false, network: false },
+    capabilities: { realBinaries: false, network: options.fetch !== undefined },
     fs: nativeFs(durable.fs),
     flush: () => durable.flush(),
     async exec(command: string, execOptions: ExecOptions = {}): Promise<ExecOutcome> {
@@ -143,7 +198,7 @@ export function justBashSandbox(options: JustBashOptions): Sandbox {
   return lazySandbox({
     id: `just-bash:${options.id}`,
     home: options.home ?? "/workspace",
-    capabilities: { realBinaries: false, network: false },
+    capabilities: { realBinaries: false, network: options.fetch !== undefined },
     acquire: () => createJustBashSandbox(options),
   })
 }

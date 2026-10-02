@@ -110,4 +110,74 @@ describe("guardedFetch", () => {
     const guarded = guardedFetch(async (input) => new Response(String(input)), true)
     expect(await (await guarded("http://127.0.0.1:1/x")).text()).toBe("http://127.0.0.1:1/x")
   })
+
+  it("allows plain http to a public host when asked to, and still nothing private", async () => {
+    const seen: string[] = []
+    const guarded = guardedFetch(
+      async (input) => {
+        seen.push(String(input))
+        return new Response("ok")
+      },
+      false,
+      { allowHttp: true },
+    )
+    expect(await (await guarded("http://example.com/page")).text()).toBe("ok")
+    await expect(guarded("http://127.0.0.1:3000/")).rejects.toThrow(BlockedAddressError)
+    await expect(guarded("ftp://example.com/file")).rejects.toThrow(/not supported/)
+    expect(seen).toEqual(["http://example.com/page"])
+    // Without the option, http stays refused: credentials do not travel in the clear.
+    await expect(
+      guardedFetch(async () => new Response("x"), false)("http://example.com/"),
+    ).rejects.toThrow(/must start with https/)
+  })
+
+  it("refuses a public name that points at a private address, where names can be looked up", async () => {
+    const seen: string[] = []
+    const lookups: string[] = []
+    const guarded = guardedFetch(
+      async (input) => {
+        seen.push(String(input))
+        return String(input).includes("hop")
+          ? new Response(null, {
+              status: 302,
+              headers: { location: "https://inside.example/secret" },
+            })
+          : new Response("ok")
+      },
+      false,
+      {
+        resolve: async (hostname) => {
+          lookups.push(hostname)
+          if (hostname === "inside.example") return ["100.115.166.39"]
+          if (hostname === "six.example") return ["93.184.215.14", "fd00::1"]
+          if (hostname === "gone.example") throw new Error("ENOTFOUND")
+          return ["93.184.215.14"]
+        },
+      },
+    )
+    expect(await (await guarded("https://public.example/")).text()).toBe("ok")
+    await expect(guarded("https://inside.example/")).rejects.toThrow(
+      /inside\.example points at a private network \(100\.115\.166\.39\)/,
+    )
+    // Any one private address among several is enough.
+    await expect(guarded("https://six.example/")).rejects.toThrow(/fd00::1/)
+    // A redirect is looked up too, before it is followed.
+    await expect(guarded("https://public.example/hop")).rejects.toThrow(/inside\.example/)
+    expect(seen).toEqual(["https://public.example/", "https://public.example/hop"])
+    // A name that cannot be looked up is left to fail in the request itself.
+    expect(await (await guarded("https://gone.example/")).text()).toBe("ok")
+    // An address written as numbers needs no lookup.
+    await guarded("https://93.184.215.14/")
+    expect(lookups).not.toContain("93.184.215.14")
+  })
+
+  it("hands a redirect back when the caller asked to follow them itself", async () => {
+    const guarded = guardedFetch(
+      async () => new Response(null, { status: 301, headers: { location: "https://b.example/" } }),
+      false,
+    )
+    const response = await guarded("https://a.example/", { redirect: "manual" })
+    expect(response.status).toBe(301)
+    expect(response.headers.get("location")).toBe("https://b.example/")
+  })
 })

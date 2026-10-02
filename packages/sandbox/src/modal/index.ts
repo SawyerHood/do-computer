@@ -69,6 +69,8 @@ export type ModalSandboxOptions = {
   readonly environment?: string
   /** Where the workspace volume is mounted. */
   readonly home?: string
+  /** Whether the machine can reach the network. Default true. Applies when it is created. */
+  readonly network?: boolean
   /** For tests: the session to use instead of the SDK's. */
   readonly session?: () => Promise<ModalSessionLike>
   readonly now?: () => number
@@ -103,6 +105,7 @@ async function sdkSession(options: ModalSandboxOptions): Promise<ModalSessionLik
         workdir: home,
         timeoutMs: MAX_LIFETIME_MS,
         idleTimeoutMs: IDLE_TIMEOUT_MS,
+        ...(options.network === false ? { blockNetwork: true } : {}),
       })
     },
     deleteVolume: (name) => client.volumes.delete(name, { allowMissing: true }),
@@ -184,7 +187,7 @@ export function modalSandbox(options: ModalSandboxOptions): Sandbox {
   const real: Sandbox = {
     id: `modal:${options.id}`,
     home,
-    capabilities: { realBinaries: true, network: true },
+    capabilities: { realBinaries: true, network: options.network !== false },
     exec,
     // A volume is written back in the background and when the machine stops. `sync` on the mount
     // asks for it now.
