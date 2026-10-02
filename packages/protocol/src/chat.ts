@@ -19,7 +19,8 @@ export type ToolPart = {
 export type ImagePart = { type: "image"; mimeType: string; data: string }
 export type NoticePart = {
   type: "notice"
-  kind: "reset" | "compaction" | "error"
+  /** `schedule` heads the report of a scheduled task; its text is the task's title. */
+  kind: "reset" | "compaction" | "error" | "schedule"
   text: string
 }
 

@@ -3,6 +3,7 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   type FauxProviderHandle,
+  fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
@@ -47,20 +48,42 @@ export function formatModel(ref: ModelRef): string {
   return `${ref.provider}/${ref.modelId}`
 }
 
-function lastUserText(context: {
-  messages: readonly { role: string; content: unknown }[]
-}): string {
-  for (let index = context.messages.length - 1; index >= 0; index--) {
-    const message = context.messages[index]!
-    if (message.role !== "user") continue
-    if (typeof message.content === "string") return message.content
-    if (Array.isArray(message.content)) {
-      return message.content
-        .map((block: { type: string; text?: string }) => (block.type === "text" ? block.text : ""))
-        .join("")
+type EchoContext = { messages: readonly { role: string; content: unknown }[] }
+
+const blockText = (content: unknown): string => {
+  if (typeof content === "string") return content
+  if (!Array.isArray(content)) return ""
+  return content
+    .map((block: { type: string; text?: string }) =>
+      block.type === "text" && !block.text?.startsWith("<meta ") ? (block.text ?? "") : "",
+    )
+    .join("")
+}
+
+/**
+ * What the echo model answers. It repeats the last user message, with one affordance for trying
+ * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
+ * that tool and then report the result.
+ */
+function echoAnswer(context: EchoContext) {
+  const last = context.messages.at(-1)
+  if (last?.role === "toolResult") {
+    return fauxAssistantMessage(`The tool returned:\n\n${blockText(last.content)}`)
+  }
+  const user = context.messages.findLast((message) => message.role === "user")
+  const text = blockText(user?.content)
+  const command = /^\/tool\s+(\w+)\s+(\{[\s\S]*\})\s*$/.exec(text)
+  if (command) {
+    try {
+      const args = JSON.parse(command[2]!)
+      return fauxAssistantMessage([fauxToolCall(command[1]!, args)], { stopReason: "toolUse" })
+    } catch {
+      return fauxAssistantMessage("Those tool arguments are not valid JSON.")
     }
   }
-  return ""
+  return fauxAssistantMessage(
+    `You said: ${text}\n\n(No OPENROUTER_API_KEY is configured, so this is the built-in echo model.)`,
+  )
 }
 
 /**
@@ -77,16 +100,12 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     const models = createModels()
     models.setProvider(faux.provider)
     // An endless script: each request is answered from the conversation it carries.
-    const echo = (context: Parameters<typeof lastUserText>[0]) =>
-      fauxAssistantMessage(
-        `You said: ${lastUserText(context)}\n\n(No OPENROUTER_API_KEY is configured, so this is the built-in echo model.)`,
-      )
     const refill = () => {
       if (faux.getPendingResponseCount() < 8) {
         faux.appendResponses(
-          Array.from({ length: 64 }, () => (context) => {
+          Array.from({ length: 64 }, () => (context: EchoContext) => {
             refill()
-            return echo(context)
+            return echoAnswer(context)
           }),
         )
       }

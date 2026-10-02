@@ -3,6 +3,7 @@ import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
 import {
   ArchiveIcon,
   ChatCircleIcon,
+  ClockIcon,
   ListIcon,
   MoonIcon,
   NotePencilIcon,
@@ -12,7 +13,7 @@ import {
   UserCircleIcon,
 } from "@phosphor-icons/react"
 import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router"
-import { eq, useLiveQuery } from "@tanstack/react-db"
+import { and, eq, useLiveQuery } from "@tanstack/react-db"
 import { useAtom } from "jotai"
 import { type ReactNode, useEffect, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
@@ -110,7 +111,8 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
     query: (q) =>
       q
         .from({ chat: collection })
-        .where(({ chat }) => eq(chat.archived, false))
+        // Scheduled runs have their own chats; those are reached from the automations page.
+        .where(({ chat }) => and(eq(chat.archived, false), eq(chat.kind, "chat")))
         .orderBy(({ chat }) => chat.updatedAt, "desc"),
   })
 
@@ -190,7 +192,15 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
   const navigate = useNavigate()
   const [listOpen, setListOpen] = useAtom(chatListOpenAtom)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const profile = useLocation({ select: (location) => location.pathname.endsWith("/profile") })
+  const page = useLocation({
+    select: (location) =>
+      location.pathname.endsWith("/profile")
+        ? "profile"
+        : location.pathname.endsWith("/automations")
+          ? "automations"
+          : "chat",
+  })
+  const profile = page === "profile"
 
   const signOut = async () => {
     await authClient.signOut()
@@ -204,10 +214,19 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
         <div className="mt-3 flex flex-col items-center gap-1">
           <RailButton
             label={listOpen ? "Hide chats" : "Show chats"}
-            active={listOpen && !profile}
+            active={listOpen && page === "chat"}
             onClick={() => setListOpen((open) => !open)}
           >
             <ChatCircleIcon />
+          </RailButton>
+          <RailButton
+            label="Automations"
+            active={page === "automations"}
+            onClick={() =>
+              navigate({ to: "/a/$agentId/automations", params: { agentId: agent.id } })
+            }
+          >
+            <ClockIcon />
           </RailButton>
           <RailButton
             label="Identity and memory"
@@ -259,6 +278,14 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                 className="text-xs text-muted-foreground underline underline-offset-3"
               >
                 Identity and memory
+              </Link>
+              <Link
+                to="/a/$agentId/automations"
+                params={{ agentId: agent.id }}
+                onClick={() => setSheetOpen(false)}
+                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
+              >
+                Automations
               </Link>
             </div>
           </div>

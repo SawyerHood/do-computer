@@ -20,6 +20,14 @@ async function signIn(page: Page) {
 
 const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 
+/** Start a chat and wait until it is the one on screen, so typing lands in it. */
+async function newChat(page: Page) {
+  const before = page.url()
+  await page.getByRole("button", { name: "New chat" }).click()
+  await expect(page).not.toHaveURL(before)
+  await expect(composer(page)).toHaveValue("")
+}
+
 // The tests share one server and run in order: the first creates the account the rest use.
 test.describe.configure({ mode: "serial" })
 
@@ -107,6 +115,75 @@ test("memory over its limit cannot be saved", async ({ page }) => {
   await page.locator("#user").fill("x".repeat(1400))
   await expect(page.getByText("1400 / 1375")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled()
+})
+
+test("the agent uses its computer, and the transcript shows what it ran", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool bash {"command":"echo from the shell > note.txt && cat note.txt && ls"}',
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText("The tool returned:")).toBeVisible()
+  const row = page.getByRole("main").getByRole("button", { name: /echo from the shell/ })
+  await row.click()
+  await expect(page.locator("pre").filter({ hasText: "from the shell" }).last()).toContainText(
+    "note.txt",
+  )
+  // The identity files are part of the workspace.
+  await expect(page.locator("pre").last()).toContainText("MEMORY.md")
+})
+
+test("a scheduled task runs on its own and reports back to the chat it was asked in", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  const soon = new Date(Date.now() + 2_500).toISOString()
+  await composer(page).fill(
+    `/tool schedule {"action":"create","schedule":"${soon}","prompt":"Say the magic words","title":"Magic words"}`,
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText(/Scheduled\. \w+: "Magic words"/)).toBeVisible()
+
+  // Nothing else is sent: the report arrives by itself, live.
+  await expect(page.getByText("Scheduled: Magic words")).toBeVisible({ timeout: 15_000 })
+  await expect(
+    page.getByText(/You said: \[You are running the scheduled task "Magic words"/),
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "Automations" }).click()
+  const card = page.getByRole("listitem").filter({ hasText: "Magic words" })
+  await expect(card.getByText("Done", { exact: true })).toBeVisible()
+  await expect(card.getByText(/reported back/)).toBeVisible()
+  await card.getByRole("link", { name: "View run" }).click()
+  await expect(page.getByText("Say the magic words").first()).toBeVisible()
+})
+
+test("automations can be paused, run on demand and deleted", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Stretch","title":"Stretch break"}',
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText(/Scheduled\./)).toBeVisible()
+
+  await page.getByRole("button", { name: "Automations" }).click()
+  const card = page.getByRole("listitem").filter({ hasText: "Stretch break" })
+  await expect(card.getByText("Active", { exact: true })).toBeVisible()
+  await card.getByRole("button", { name: "Pause" }).click()
+  await expect(card.getByText("Paused", { exact: true })).toBeVisible()
+  await card.getByRole("button", { name: "Run now" }).click()
+  await expect(card.getByText(/Last run/)).toBeVisible({ timeout: 15_000 })
+  await card.getByRole("button", { name: "Delete Stretch break" }).click()
+  await expect(page.getByRole("listitem").filter({ hasText: "Stretch break" })).toHaveCount(0)
+})
+
+test("scheduled runs do not clutter the chat list", async ({ page }) => {
+  await signIn(page)
+  await expect(page.getByRole("link", { name: "Magic words", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Stretch break", exact: true })).toHaveCount(0)
 })
 
 test("signing out ends the session", async ({ page }) => {

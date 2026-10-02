@@ -20,6 +20,8 @@ export type IdentityState = {
   /** Account that owns this agent. */
   ownerId: string
   createdAt: number
+  /** The user's IANA timezone, learned from their client. */
+  timezone: string | null
 }
 
 export const IdentityDoc = defineDoc<IdentityState>({
@@ -36,6 +38,7 @@ export const IdentityDoc = defineDoc<IdentityState>({
     model: "",
     ownerId: "",
     createdAt: 0,
+    timezone: null,
   }),
 })
 
@@ -60,3 +63,31 @@ export const ChatsDoc = defineDoc<ChatsState>({
 })
 
 export const DEFAULT_CHAT_TITLE = "New chat"
+
+export type ScheduleRecord = {
+  title: string
+  prompt: string
+  /** The schedule as written; parsed again whenever the next run is computed. */
+  schedule: string
+  timezone: string | null
+  enabled: boolean
+  nextRunAt: number | null
+  createdAt: number
+  /** The chat the schedule was created in, where its reports are delivered. */
+  originChatId: string | null
+  /** A run that has fired and not been reported yet. */
+  pending: { chatId: string; firedAt: number } | null
+  lastRun: { at: number; chatId: string; outcome: "delivered" | "silent" | "failed" } | null
+  runCount: number
+}
+
+export type SchedulesState = {
+  schedules: Record<string, ScheduleRecord>
+}
+
+export const SchedulesDoc = defineDoc<SchedulesState>({
+  kind: "dc.schedules",
+  version: 1,
+  scope: "session",
+  initial: () => ({ schedules: {} }),
+})

@@ -11,9 +11,11 @@ import {
   type ModelOption,
   readSse,
   reduceChat,
+  type ScheduleSummary,
   type SendMessageRequest,
   type SendMessageResponse,
   type UpdateChatRequest,
+  type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
 
 export class ApiError extends Error {
@@ -45,6 +47,8 @@ export type Me = {
 /** Everything about one agent that is not a chat transcript. */
 export type AgentState = {
   agent: AgentSummary
+  /** The user's IANA timezone as the agent knows it. */
+  timezone: string | null
   soul: string
   user: string
   memory: string
@@ -61,6 +65,7 @@ export type AgentPatch = {
   user?: string
   memory?: string
   model?: string
+  timezone?: string
 }
 
 export type StreamStatus = "connecting" | "open" | "reconnecting" | "closed"
@@ -165,6 +170,14 @@ export function createClient(options: ClientOptions) {
         send: (chatId: string, message: SendMessageRequest) =>
           post<SendMessageResponse>(`${base}/chats/${chatId}/messages`, message),
         abort: (chatId: string) => post<{ ok: true }>(`${base}/chats/${chatId}/abort`),
+        schedules: async () =>
+          (await request<{ schedules: ScheduleSummary[] }>(`${base}/schedules`)).schedules,
+        updateSchedule: (scheduleId: string, change: UpdateScheduleRequest) =>
+          patch<ScheduleSummary>(`${base}/schedules/${scheduleId}`, change),
+        removeSchedule: (scheduleId: string) =>
+          request<{ ok: true }>(`${base}/schedules/${scheduleId}`, { method: "DELETE" }),
+        runSchedule: (scheduleId: string) =>
+          post<{ ok: true }>(`${base}/schedules/${scheduleId}/run`),
         /** Calls `onState` with each new state of the chat, starting from its current one. */
         watchChat(
           chatId: string,

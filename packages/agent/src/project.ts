@@ -25,19 +25,22 @@ import type {
 
 type UserContent = UserMessage["content"]
 
+/** A text block the server adds for the model, such as the send time; never shown. */
+const isMeta = (text: string) => text.startsWith("<meta ")
+
 function contentParts(content: UserContent | (TextContent | ImageContent)[]): MessagePart[] {
   if (typeof content === "string") return content === "" ? [] : [{ type: "text", text: content }]
-  return content.map((block): MessagePart =>
-    block.type === "text"
-      ? { type: "text", text: block.text }
-      : { type: "image", mimeType: block.mimeType, data: block.data },
-  )
+  return content.flatMap((block): MessagePart[] => {
+    if (block.type === "image")
+      return [{ type: "image", mimeType: block.mimeType, data: block.data }]
+    return isMeta(block.text) ? [] : [{ type: "text", text: block.text }]
+  })
 }
 
 function contentText(content: UserContent | (TextContent | ImageContent)[]): string {
   if (typeof content === "string") return content
   return content
-    .filter((block): block is TextContent => block.type === "text")
+    .filter((block): block is TextContent => block.type === "text" && !isMeta(block.text))
     .map((block) => block.text)
     .join("")
 }
@@ -120,6 +123,20 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       return notice(id, "reset", first?.role === "user" ? contentText(first.content) : "")
     case "pi.compaction":
       return notice(id, "compaction", "Earlier messages were summarized to free up context.")
+    case "dc.scheduled": {
+      // A scheduled task's report, delivered into the chat the task was created in.
+      const report = entry.data as { title?: string; text?: string } | undefined
+      return {
+        id,
+        role: "assistant",
+        parts: [
+          { type: "notice", kind: "schedule", text: report?.title ?? "Scheduled task" },
+          { type: "text", text: report?.text ?? "" },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
     default:
       return undefined
   }

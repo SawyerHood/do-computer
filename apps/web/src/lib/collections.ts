@@ -7,6 +7,7 @@ import { queryClient } from "./query.ts"
 
 export const agentsKey = ["agents"] as const
 export const agentKey = (agentId: string) => ["agents", agentId, "state"] as const
+export const schedulesKey = (agentId: string) => ["agents", agentId, "schedules"] as const
 
 /** The signed-in user's agents. */
 export const agentsCollection = createCollection(
@@ -58,5 +59,9 @@ export function chatsCollection(agentId: string): ChatsCollection {
 /** Refetch what an agent event says changed. */
 export function refreshAgent(agentId: string, what: string): void {
   if (what === "identity") void queryClient.invalidateQueries({ queryKey: agentsKey })
+  if (what === "schedules") {
+    void queryClient.invalidateQueries({ queryKey: schedulesKey(agentId) })
+    return
+  }
   void queryClient.invalidateQueries({ queryKey: agentKey(agentId) })
 }

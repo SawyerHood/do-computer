@@ -48,12 +48,45 @@ export type ModelOption = {
   outputCost: number
 }
 
+/** A task the agent runs on its own, once or on a repeating schedule. */
+export type ScheduleSummary = {
+  id: string
+  title: string
+  /** What the agent is asked to do on each run. */
+  prompt: string
+  /** The schedule as written: "30m", "every 2h", a cron expression or a timestamp. */
+  schedule: string
+  timezone: string | null
+  enabled: boolean
+  /** When it next runs, or null when it is paused or spent. */
+  nextRunAt: number | null
+  createdAt: number
+  /** A run that is in progress. */
+  running: boolean
+  lastRun: {
+    at: number
+    /** The chat holding the run's full transcript. */
+    chatId: string
+    outcome: "delivered" | "silent" | "failed"
+  } | null
+  runCount: number
+}
+
+export type UpdateScheduleRequest = {
+  title?: string
+  prompt?: string
+  schedule?: string
+  enabled?: boolean
+}
+
 export type SendMessageRequest = {
   text: string
   /** Client-chosen id; resending the same one never submits twice. */
   requestId: string
   /** What to do when the agent is already working. Default `steer`. */
   whenBusy?: "steer" | "followUp"
+  /** The sender's IANA timezone, so the agent can reason about "tomorrow at 9". */
+  timezone?: string
 }
 
 export type SendMessageResponse = { submissionId: string }

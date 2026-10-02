@@ -28,7 +28,11 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
 
   const send = useCallback(
     (text: string) => {
-      void api.send(chatId, { text, requestId: crypto.randomUUID() })
+      void api.send(chatId, {
+        text,
+        requestId: crypto.randomUUID(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      })
     },
     [api, chatId],
   )

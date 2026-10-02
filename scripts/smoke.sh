@@ -29,5 +29,21 @@ done
 check "run finished" "$BUSY" "False"
 check "answered" "$(get "/api/agents/$AGENT/chats/$CHAT" | field "['messages'][-1]['role']")" "assistant"
 check "titled from first message" "$(get "/api/agents/$AGENT" | field "['chats'][0]['title']")" "smoke test ping"
+# The echo model calls a tool when asked to, which lets this check the computer and schedules.
+tool() { post "/api/agents/$AGENT/chats/$CHAT/messages" "{\"text\":$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"),\"requestId\":\"smoke-$RANDOM$RANDOM\"}" >/dev/null; }
+wait_for() { # wait_for <python expression over the chat state d> <description>
+  for _ in $(seq 1 40); do
+    if get "/api/agents/$AGENT/chats/$CHAT" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if ($1) else 1)"; then echo "ok   $2"; return; fi
+    sleep 0.5
+  done
+  echo "FAIL $2"; exit 1
+}
+TEXTS='" ".join(p.get("text","")+str(p.get("output","")) for m in d["messages"] for p in m["parts"])'
+tool '/tool bash {"command":"echo durable > proof.txt && cat proof.txt && ls"}'
+wait_for "not d['busy'] and 'durable' in $TEXTS and 'MEMORY.md' in $TEXTS" "agent ran a command on its computer"
+SOON=$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=3)).isoformat())')
+tool "/tool schedule {\"action\":\"create\",\"schedule\":\"$SOON\",\"prompt\":\"Report in\",\"title\":\"Smoke schedule\"}"
+wait_for "any(p.get('kind')=='schedule' for m in d['messages'] for p in m['parts'])" "scheduled task ran by itself and reported back"
+check "schedule recorded its run" "$(get "/api/agents/$AGENT/schedules" | field "['schedules'][0]['lastRun']['outcome']")" "delivered"
 check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' | field "['error']")" "Not found"
 echo "all checks passed against $BASE"

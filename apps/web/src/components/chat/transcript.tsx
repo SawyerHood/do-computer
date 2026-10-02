@@ -1,5 +1,10 @@
 import type { ChatMessage, ChatState, MessagePart } from "@durable-computer/protocol"
-import { ArrowsClockwiseIcon, LightbulbIcon, WarningCircleIcon } from "@phosphor-icons/react"
+import {
+  ArrowsClockwiseIcon,
+  ClockIcon,
+  LightbulbIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react"
 import { useState } from "react"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
@@ -55,6 +60,16 @@ function AssistantPart({ part, live }: { part: MessagePart; live: boolean }) {
       return <Thinking text={part.text} live={live} />
     case "tool":
       return <ToolRow part={part} />
+    case "notice":
+      // Heads the report of a scheduled task.
+      return (
+        <Marker className="px-1">
+          <MarkerIcon>
+            <ClockIcon />
+          </MarkerIcon>
+          <MarkerContent>Scheduled: {part.text}</MarkerContent>
+        </Marker>
+      )
     default:
       return null
   }
