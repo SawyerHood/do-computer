@@ -676,6 +676,48 @@ test("signing in works when it is tried before the page's script has loaded", as
   expect(page.url()).not.toContain("password")
 })
 
+test("chatting works over plain http, where the browser withholds some features", async ({
+  page,
+}) => {
+  // A page served over http from anything but localhost has no crypto.randomUUID and no
+  // clipboard. That is how a self-hosted install on a home network or a tailnet is often reached.
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { value: undefined })
+    Object.defineProperty(navigator, "clipboard", { value: undefined })
+  })
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("sent without the secure-context extras")
+  await composer(page).press("Enter")
+  await expect(
+    page.getByRole("log").getByText("You said: sent without the secure-context extras"),
+  ).toBeVisible()
+
+  // The command to pair a computer can still be copied, by selecting it.
+  await page.getByRole("button", { name: "Computers" }).click()
+  await page.getByRole("button", { name: "Copy command" }).first().click()
+  await expect(page.getByText(/Selected\. Press/)).toBeVisible()
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toContain("install.sh")
+})
+
+test("a message that cannot be sent says so and stays in the box", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await page.route(/\/chats\/\d+\/messages$/, (route) => route.abort())
+  await composer(page).fill("this one will not get through")
+  await composer(page).press("Enter")
+  await expect(page.getByRole("alert")).toContainText("That was not sent")
+  await expect(composer(page)).toHaveValue("this one will not get through")
+
+  // And goes once the way is clear.
+  await page.unroute(/\/chats\/\d+\/messages$/)
+  await composer(page).press("Enter")
+  await expect(
+    page.getByRole("log").getByText("You said: this one will not get through"),
+  ).toBeVisible()
+  await expect(page.getByRole("alert")).toHaveCount(0)
+})
+
 test("signing out ends the session", async ({ page }) => {
   await signIn(page)
   await page.getByRole("button", { name: "Sign out" }).click()

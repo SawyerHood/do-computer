@@ -2,7 +2,7 @@ import type { ComputerSummary } from "@durable-computer/protocol"
 import { ArrowLeftIcon, CopyIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { computersKey } from "@/lib/collections"
@@ -83,12 +83,16 @@ function ComputerCard({ computer, here }: { computer: ComputerSummary; here: boo
 }
 
 function Command({ label, command }: { label: string; command: string }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<string>()
+  const code = useRef<HTMLElement>(null)
   return (
     <div className="flex flex-col gap-1">
       <p className="text-sm text-muted-foreground">{label}</p>
       <div className="flex items-center gap-2 rounded-lg border bg-background py-1.5 pr-1.5 pl-3">
-        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs">
+        <code
+          ref={code}
+          className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-xs"
+        >
           {command}
         </code>
         <Button
@@ -96,15 +100,26 @@ function Command({ label, command }: { label: string; command: string }) {
           variant="ghost"
           aria-label="Copy command"
           onClick={async () => {
-            await navigator.clipboard.writeText(command)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
+            // The clipboard is only offered to pages on https or localhost. Elsewhere, select
+            // the command so that one key press copies it.
+            const copied = await navigator.clipboard
+              ?.writeText(command)
+              .then(() => true)
+              .catch(() => false)
+            if (copied) {
+              setCopied("Copied")
+            } else {
+              const selection = window.getSelection()
+              if (code.current && selection) selection.selectAllChildren(code.current)
+              setCopied("Selected. Press Ctrl+C or ⌘C to copy.")
+            }
+            setTimeout(() => setCopied(undefined), 2500)
           }}
         >
           <CopyIcon />
         </Button>
       </div>
-      {copied ? <p className="text-xs text-muted-foreground">Copied</p> : null}
+      {copied ? <p className="text-xs text-muted-foreground">{copied}</p> : null}
     </div>
   )
 }

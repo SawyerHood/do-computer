@@ -24,6 +24,13 @@ OPENROUTER_API_KEY=sk-or-... pnpm start     # http://127.0.0.1:3000
 Open the address, create an account, and say hello to your agent. Data lives in `.data/` under
 `apps/web` (set `DC_DATA_DIR` to move it): one SQLite file for accounts, and one per agent.
 
+To reach it from another device, set `HOST` to the address to listen on and `DC_BASE_URL` to the
+address you will open, for example `HOST=0.0.0.0 DC_BASE_URL=http://my-box.local:3000`. Sign-in
+is only accepted from that one address. Plain http is fine for everything except dictation: a
+browser only offers the microphone to pages on https or localhost. On a tailnet,
+`tailscale serve --bg --https=3000 http://127.0.0.1:3000` gives you https with a real
+certificate.
+
 Without `OPENROUTER_API_KEY` the app runs on a built-in echo model. It repeats what you say, and a
 message of the form `/tool <name> <json>` makes it call that tool, which is enough to try the
 computer, schedules and skills without spending anything.

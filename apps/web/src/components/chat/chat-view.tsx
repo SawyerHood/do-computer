@@ -1,7 +1,7 @@
-import type { AgentSummary, ChatMessage } from "@durable-computer/protocol"
+import { type AgentSummary, type ChatMessage, randomId } from "@durable-computer/protocol"
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import { chatKey, earlierAtom } from "@/lib/atoms"
@@ -70,13 +70,25 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     [earlier.messages, live.state],
   )
 
+  const [sendError, setSendError] = useState<string>()
+  useEffect(() => setSendError(undefined), [chatId])
   const send = useCallback(
-    (text: string) => {
-      void api.send(chatId, {
-        text,
-        requestId: crypto.randomUUID(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      })
+    async (text: string) => {
+      setSendError(undefined)
+      try {
+        await api.send(chatId, {
+          text,
+          requestId: randomId(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        })
+        return true
+      } catch (error) {
+        // A message that did not go must not just vanish: say so, and leave it in the box.
+        setSendError(
+          `That was not sent: ${error instanceof Error ? error.message : "something went wrong"}. Try again.`,
+        )
+        return false
+      }
     },
     [api, chatId],
   )
@@ -142,6 +154,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         busy={live.state.busy}
         queued={live.state.queued}
         onSend={send}
+        error={sendError}
         onStop={stop}
         onAttach={attach}
       />

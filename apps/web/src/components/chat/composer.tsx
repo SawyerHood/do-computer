@@ -26,6 +26,7 @@ export function Composer({
   busy,
   queued,
   onSend,
+  error,
   onStop,
   onAttach,
 }: {
@@ -33,7 +34,10 @@ export function Composer({
   placeholder: string
   busy: boolean
   queued: QueuedInput[]
-  onSend: (text: string) => void
+  /** Resolves false when the message did not go, so it stays in the box. */
+  onSend: (text: string) => Promise<boolean>
+  /** Why the last message was not sent, if it was not. */
+  error?: string
   onStop: () => void
   /** Put a file in the library, where the agent can reach it. */
   onAttach: (file: File) => Promise<LibraryFile>
@@ -88,9 +92,18 @@ export function Composer({
     if (!ready) return
     // The files are in the library; naming them is how the agent knows to look there.
     const names = attached.map((file) => file.name).join(", ")
-    onSend([draft.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n"))
+    const typed = draft
+    const files = attached
+    // Cleared at once, as a sent message should be, and put back if it turns out not to have gone.
     setDraft("")
     setAttached([])
+    void onSend(
+      [typed.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n"),
+    ).then((sent) => {
+      if (sent) return
+      setDraft((current) => (current === "" ? typed : current))
+      setAttached((current) => (current.length === 0 ? files : current))
+    })
   }
 
   return (
@@ -224,9 +237,9 @@ export function Composer({
           </Button>
         )}
       </form>
-      {(dictation.error ?? attachError) ? (
+      {(error ?? dictation.error ?? attachError) ? (
         <p role="alert" className="px-5 text-xs text-destructive">
-          {dictation.error ?? attachError}
+          {error ?? dictation.error ?? attachError}
         </p>
       ) : null}
     </div>
