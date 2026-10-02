@@ -95,7 +95,8 @@ Run on 2026-10-02 with real keys, on the Node build and inside the Workers runti
   spoken sentence, as WAV and as the WebM a browser records.
 - **Daytona.** The sandbox conformance suite against a real machine; stopping it and coming back
   with its files; the real model writing and running a script on it; file tools and the identity
-  files; deleting an agent deleting its machine. `packages/sandbox/test/daytona.live.test.ts`
+  files; deleting an agent deleting its machine. The browsing skill end to end: the model set
+  up Playwright's Chromium on the machine, read example.com, and sent back a screenshot. `packages/sandbox/test/daytona.live.test.ts`
   repeats the first part for anyone with a key.
 
 Running for real found five bugs the tests had missed, all fixed with tests:
