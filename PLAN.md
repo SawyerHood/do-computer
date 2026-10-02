@@ -35,6 +35,7 @@ for actor hosts, the app database and sandboxes passing on both.
 | Own computers       | macOS and Linux daemon over an outbound WebSocket; pairing by a code a signed-in user confirms; read-only mode; audit log; revocation                          |
 | Approvals           | Opt-in rules per tool, connector or paired computer: allow, ask, never                                                                                         |
 | Library             | Files the agent sends and the user uploads, in blob storage, served with headers that keep a browser from running them                                         |
+| Web search          | A tool that searches and answers with sources through OpenRouter's web plugin, on the deployment's one key (resolves risk 7)                                   |
 | Usage               | Tokens and cost per agent, by model, with scheduled runs called out                                                                                            |
 | Accounts            | Better Auth with email and password, Google, GitHub; invite-only sign-up by default; several agents per account; deleting an agent with everything it has      |
 | Web                 | Chat, chat list and search, library, automations, skills, connectors, computers, permissions, identity and memory, usage                                       |
@@ -57,8 +58,6 @@ for actor hosts, the app database and sandboxes passing on both.
 
 ### Not built
 
-- Web search as a tool. An agent on a real computer can use the browsing skill and `curl`; an agent
-  on just-bash has no network. A search tool needs a decision on a second provider key (risk 7).
 - Mobile: managing connectors, permissions and paired computers, and deleting an agent. Those are
   on the web only.
 - Archiving stale agent-written skills.
@@ -68,7 +67,7 @@ for actor hosts, the app database and sandboxes passing on both.
 
 Stated plainly, because tests cannot stand in for these:
 
-- **Model calls and transcription through OpenRouter.** No key was available while building. The
+- **Model calls, web search and transcription through OpenRouter.** No key was available while building. The
   agent loop is tested with pi-ai's scripted provider and the app with a built-in echo model.
 - **Daytona, Modal, Cloudflare Containers.** Each passes the sandbox conformance suite against a
   stand-in that runs real commands, and type-checks against the provider's SDK with no casts. With
