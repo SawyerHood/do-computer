@@ -1,0 +1,27 @@
+{
+  "name": "@durable-computer/computers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node-io.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@durable-computer/protocol": "workspace:*",
+    "@durable-computer/runtime": "workspace:*",
+    "@durable-computer/sandbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

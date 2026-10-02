@@ -47,6 +47,19 @@ export interface ActorHost {
   setAlarm(at: number | null): Promise<void>
   /** The pending wake-up, or null. Null inside `alarm()` unless a new one was set. */
   getAlarm(): Promise<number | null>
+  /** WebSockets attached to this actor that are still open. */
+  sockets(): ActorSocket[]
+}
+
+/**
+ * The actor's end of a WebSocket. A runtime may unload the actor while the socket stays open, so
+ * an actor identifies a socket by `id`, never by object identity, and keeps no state on it.
+ */
+export interface ActorSocket {
+  readonly id: string
+  /** False when the socket is no longer open and the message was not sent. */
+  send(data: string): boolean
+  close(code?: number, reason?: string): void
 }
 
 export interface Actor {
@@ -57,7 +70,17 @@ export interface Actor {
    * shuts down in order calls it; unfinished work must survive not being told.
    */
   close?(): Promise<void>
+  /** A WebSocket was attached; `request` is the request that upgraded. Text frames only. */
+  socketOpen?(socket: ActorSocket, request: Request): void | Promise<void>
+  socketMessage?(socket: ActorSocket, data: string): void | Promise<void>
+  socketClose?(socket: ActorSocket, code: number, reason: string): void | Promise<void>
 }
+
+/**
+ * A fixed reply the runtime sends for a fixed message without involving the actor, so keep-alive
+ * pings do not wake it.
+ */
+export type SocketAutoResponse = { readonly request: string; readonly response: string }
 
 export type ActorFactory = (host: ActorHost) => Actor
 

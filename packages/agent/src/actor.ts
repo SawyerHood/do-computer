@@ -13,7 +13,7 @@ import {
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
-import type { Actor, ActorHost } from "@durable-computer/runtime"
+import type { Actor, ActorHost, ActorNamespace } from "@durable-computer/runtime"
 import type { Sandbox } from "@durable-computer/sandbox"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai/models"
@@ -33,7 +33,9 @@ import {
   type IdentityState,
   SchedulesDoc,
 } from "./docs.ts"
+import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { Computer } from "./computer.ts"
+import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { type ScheduledReport, ScheduleError, Scheduler } from "./schedules.ts"
@@ -69,6 +71,8 @@ export type AgentActorOptions = {
   readonly onReport?: (error: unknown) => void
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
+  /** Where the links to the user's own paired computers live. Without it, none can be used. */
+  readonly computerLinks?: ActorNamespace
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /** Called when a scheduled task has a report for the user, for example to send a push. */
@@ -172,6 +176,7 @@ export class AgentActor implements Actor {
   readonly #host: ActorHost
   readonly #options: AgentActorOptions
   readonly #computer: Computer | undefined
+  readonly #paired: PairedComputers | undefined
   readonly #scheduler: Scheduler
   readonly #skills: Skills
   #harness: Promise<Harness> | undefined
@@ -180,6 +185,8 @@ export class AgentActor implements Actor {
     this.#host = host
     this.#options = options
     this.#computer = options.sandbox === undefined ? undefined : new Computer(options.sandbox(host))
+    this.#paired =
+      options.computerLinks === undefined ? undefined : new PairedComputers(options.computerLinks)
     this.#skills = new Skills({
       now: () => host.now(),
       sandbox: this.#computer?.sandbox,
@@ -198,6 +205,11 @@ export class AgentActor implements Actor {
       const computer = this.#computer
       registry.install(Persona)
       for (const extension of computer?.extensions ?? []) registry.install(extension)
+      if (this.#paired !== undefined) {
+        // The file and shell tools are needed for paired computers even without one of its own.
+        if (computer === undefined) registry.install(CodingTools)
+        registry.install(this.#paired.extension)
+      }
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
@@ -216,10 +228,18 @@ export class AgentActor implements Actor {
       computer?.attach(harness)
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
+      this.#paired?.attach(harness)
       await this.#skills.seed(context)
       // A schedule the agent creates or changes moves the next wake-up.
-      if ((await harness.snapshot(SchedulesDoc, context)) === undefined) {
-        await harness.commit(async (tx) => void (await tx.doc(SchedulesDoc)), context)
+      if (
+        (await harness.snapshot(SchedulesDoc, context)) === undefined ||
+        (await harness.snapshot(ComputersDoc, context)) === undefined
+      ) {
+        // Created up front so they can be watched before they have any content.
+        await harness.commit(async (tx) => {
+          await tx.doc(SchedulesDoc)
+          await tx.doc(ComputersDoc)
+        }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
       schedules?.start(async () => {
@@ -308,6 +328,20 @@ export class AgentActor implements Actor {
       }
     }
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
+    if (segments[0] === "computers" && this.#paired !== undefined) {
+      const computerId = segments[1]
+      if (computerId === undefined && method === "GET") {
+        return json({ computers: await this.#paired.list(context) })
+      }
+      if (computerId !== undefined && method === "PUT") {
+        const computer = await body<PairedComputer>(request)
+        return json(await this.#paired.put(computerId, computer, context))
+      }
+      if (computerId !== undefined && method === "DELETE") {
+        await this.#paired.remove(computerId, context)
+        return json({ ok: true })
+      }
+    }
     if (segments[0] === "skills") {
       const name = segments[1]
       if (name === undefined && method === "GET") {
@@ -621,6 +655,7 @@ export class AgentActor implements Actor {
       const chats = await harness.watchDoc(ChatsDoc, context)
       const schedules = await harness.watchDoc(SchedulesDoc, context)
       const skills = await harness.watchDoc(SkillsDoc, context)
+      const computers = await harness.watchDoc(ComputersDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -629,12 +664,14 @@ export class AgentActor implements Actor {
       chats?.start(changed("chats"))
       schedules?.start(changed("schedules"))
       skills?.start(changed("skills"))
+      computers?.start(changed("computers"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
         void chats?.stop()
         void schedules?.stop()
         void skills?.stop()
+        void computers?.stop()
       }
     })
   }

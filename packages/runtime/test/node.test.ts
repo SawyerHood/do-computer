@@ -5,10 +5,14 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { openNodeSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/node"
 import { afterAll, describe, expect, it } from "vitest"
 import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "../src/node/index.ts"
+import { type SocketLike } from "../src/node/index.ts"
 import {
+  CONFORMANCE_AUTO_RESPONSE,
   conformanceActor,
   registerAppDatabaseConformance,
   registerHostConformance,
+  registerSocketConformance,
+  type TestSocket,
 } from "../src/testing.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-runtime-"))
@@ -17,7 +21,57 @@ const open = () =>
     directory: join(directory, "actors"),
     factory: conformanceActor,
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
+    socketAutoResponse: CONFORMANCE_AUTO_RESPONSE,
   })
+
+/** An in-memory socket: the server end has the shape of a `ws` socket, the client end is the test's. */
+function socketPair(): { server: SocketLike; client: TestSocket } {
+  const listeners = {
+    message: [] as ((data: unknown, binary: boolean) => void)[],
+    close: [] as ((code: number, reason: unknown) => void)[],
+  }
+  const inbox: string[] = []
+  const waiting: ((message: string) => void)[] = []
+  const closed = Promise.withResolvers<number>()
+  let state = 1
+  const server: SocketLike = {
+    get readyState() {
+      return state
+    },
+    send: (data) => {
+      const next = waiting.shift()
+      if (next) next(data)
+      else inbox.push(data)
+    },
+    close: (code = 1000) => {
+      if (state !== 1) return
+      state = 3
+      closed.resolve(code)
+      for (const listener of listeners.close) listener(code, "")
+    },
+    on: (event: string, listener: never) => {
+      if (event === "message" || event === "close") listeners[event].push(listener)
+      return server
+    },
+  }
+  const client: TestSocket = {
+    send: (data) =>
+      queueMicrotask(() => listeners.message.forEach((listener) => listener(data, false))),
+    close: (code = 1000) => {
+      if (state !== 1) return
+      state = 3
+      queueMicrotask(() => listeners.close.forEach((listener) => listener(code, "")))
+    },
+    next: () => {
+      const ready = inbox.shift()
+      return ready === undefined
+        ? new Promise((resolve) => waiting.push(resolve))
+        : Promise.resolve(ready)
+    },
+    closed: closed.promise,
+  }
+  return { server, client }
+}
 
 let namespace = open()
 let counter = 0
@@ -26,6 +80,16 @@ afterAll(() => namespace.close())
 registerHostConformance({ describe, it, expect }, "Node", {
   namespace: () => namespace,
   uniqueName: () => `agent:${++counter}`,
+})
+
+registerSocketConformance({ describe, it, expect }, "Node", {
+  namespace: () => namespace,
+  uniqueName: () => `agent:${++counter}`,
+  connect: async (name, tag) => {
+    const { server, client } = socketPair()
+    await namespace.connect(name, server, new Request(`http://actor/connect?tag=${tag}`))
+    return client
+  },
 })
 
 registerAppDatabaseConformance({ describe, it, expect }, "Node", async () => {

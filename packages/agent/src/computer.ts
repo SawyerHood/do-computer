@@ -18,6 +18,10 @@ const FILE_TOOLS = new Set(["bash", "write", "edit"])
 /** Tools that change the identity document, after which the mirror files are out of date. */
 const IDENTITY_TOOLS = new Set(["set_identity", "memory"])
 
+/** The call runs on one of the user's computers, so it cannot have touched the workspace. */
+const elsewhere = (args: Record<string, unknown>) =>
+  typeof args.computer === "string" && args.computer !== ""
+
 function describe(sandbox: Sandbox): string {
   const lines = [
     `You have your own computer. Your workspace is ${sandbox.home}; files there persist between conversations. Use the read, write, edit and bash tools to work in it.`,
@@ -53,12 +57,13 @@ export class Computer {
       hooks: [
         hook(ToolTask, {
           beforeTool: async (call, _api, context) => {
+            if (elsewhere(call.arguments)) return undefined
             if (FILE_TOOLS.has(call.name) || call.name === "read") await this.#refresh(context)
             return undefined
           },
           afterTool: async (call, result, _api, context) => {
             if (IDENTITY_TOOLS.has(call.name)) this.#stale = true
-            if (!FILE_TOOLS.has(call.name)) return undefined
+            if (!FILE_TOOLS.has(call.name) || elsewhere(call.arguments)) return undefined
             const problems = await this.#absorb(context)
             if (problems.length === 0) return undefined
             const diagnostics: ToolDiagnostic[] = [

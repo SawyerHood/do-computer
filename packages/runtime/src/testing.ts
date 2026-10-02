@@ -1,4 +1,7 @@
-import type { Actor, ActorHost, ActorNamespace, AppDatabase } from "./index.ts"
+import type { Actor, ActorHost, ActorNamespace, AppDatabase, SocketAutoResponse } from "./index.ts"
+
+/** The auto-response conformance hosts must be configured with. */
+export const CONFORMANCE_AUTO_RESPONSE: SocketAutoResponse = { request: "ping", response: "pong" }
 
 /** The parts of a Vitest- or Jest-compatible runner the suites use. */
 export type TestRunner = {
@@ -24,6 +27,12 @@ export function conformanceActor(host: ActorHost): Actor {
       `CREATE TABLE IF NOT EXISTS conformance_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
        CREATE TABLE IF NOT EXISTS conformance_alarms (fired_at INTEGER NOT NULL, pending INTEGER) STRICT`,
     ))
+  const remember = (key: string, value: string) =>
+    host.sql.run(
+      "INSERT INTO conformance_kv (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      key,
+      value,
+    )
   const read = async (key: string) =>
     (await host.sql.get<{ value: string }>("SELECT value FROM conformance_kv WHERE key = ?", key))
       ?.value
@@ -133,6 +142,8 @@ export function conformanceActor(host: ActorHost): Actor {
         case "/blob/delete":
           await host.blobs.delete(key)
           return json({ ok: true })
+        case "/sockets":
+          return json({ count: host.sockets().length })
         case "/stream": {
           const encoder = new TextEncoder()
           let count = 0
@@ -159,7 +170,112 @@ export function conformanceActor(host: ActorHost): Actor {
         await host.getAlarm(),
       )
     },
+    async socketOpen(socket, request) {
+      const tag = new URL(request.url).searchParams.get("tag") ?? ""
+      socket.send(`open:${host.name}:${tag}:${host.sockets().length}`)
+    },
+    async socketMessage(socket, data) {
+      await prepare()
+      await remember("last-message", data)
+      if (data === "close-others") {
+        for (const other of host.sockets())
+          if (other.id !== socket.id) other.close(4002, "superseded")
+        socket.send("closed-others")
+      } else if (data.startsWith("broadcast:")) {
+        for (const each of host.sockets()) each.send(data.slice("broadcast:".length))
+      } else {
+        socket.send(`echo:${data}`)
+      }
+    },
+    async socketClose(_socket, code) {
+      await prepare()
+      await remember("last-close", String(code))
+    },
   }
+}
+
+/** A WebSocket as a test holds it: the client end of a connection to a conformance actor. */
+export type TestSocket = {
+  send(data: string): void
+  close(code?: number): void
+  /** The next message, in order. */
+  next(): Promise<string>
+  /** Resolves with the close code once the server closes the socket. */
+  closed: Promise<number>
+}
+
+export type SocketConformanceOptions = HostConformanceOptions & {
+  /** Open a socket to the actor named `name`; `tag` must reach it in the request URL. */
+  connect(name: string, tag: string): Promise<TestSocket>
+}
+
+/** Socket behavior every `ActorHost` must have. */
+export function registerSocketConformance(
+  runner: TestRunner,
+  label: string,
+  options: SocketConformanceOptions,
+): void {
+  const { describe, it, expect } = runner
+  describe(`${label}: actor sockets`, () => {
+    it("attaches a socket, with the request that opened it, and exchanges messages", async () => {
+      const name = options.uniqueName()
+      const socket = await options.connect(name, "first")
+      expect(await socket.next()).toBe(`open:${name}:first:1`)
+      socket.send("hello")
+      expect(await socket.next()).toBe("echo:hello")
+      expect(await call(options.namespace(), name, "/get?key=last-message")).toEqual({
+        value: "hello",
+      })
+      socket.close(1000)
+    })
+
+    it("answers the keep-alive message without involving the actor", async () => {
+      const name = options.uniqueName()
+      const socket = await options.connect(name, "")
+      await socket.next()
+      socket.send("before")
+      await socket.next()
+      socket.send("ping")
+      expect(await socket.next()).toBe("pong")
+      expect(await call(options.namespace(), name, "/get?key=last-message")).toEqual({
+        value: "before",
+      })
+      socket.close(1000)
+    })
+
+    it("lists open sockets, reaches each, and lets the actor close the others", async () => {
+      const name = options.uniqueName()
+      const first = await options.connect(name, "a")
+      await first.next()
+      const second = await options.connect(name, "b")
+      expect(await second.next()).toBe(`open:${name}:b:2`)
+      expect(await call(options.namespace(), name, "/sockets")).toEqual({ count: 2 })
+      second.send("broadcast:to-all")
+      expect(await first.next()).toBe("to-all")
+      expect(await second.next()).toBe("to-all")
+      second.send("close-others")
+      expect(await second.next()).toBe("closed-others")
+      expect(await first.closed).toBe(4002)
+      await until(
+        async () =>
+          (await call<{ count: number }>(options.namespace(), name, "/sockets")).count === 1,
+      )
+      second.close(1000)
+    })
+
+    it("tells the actor when a socket closes", async () => {
+      const name = options.uniqueName()
+      const socket = await options.connect(name, "")
+      await socket.next()
+      socket.close(4321)
+      await until(
+        async () =>
+          (await call<{ value: string | null }>(options.namespace(), name, "/get?key=last-close"))
+            .value === "4321",
+      )
+      expect(await call(options.namespace(), name, "/sockets")).toEqual({ count: 0 })
+    })
+  })
 }
 
 export type HostConformanceOptions = {

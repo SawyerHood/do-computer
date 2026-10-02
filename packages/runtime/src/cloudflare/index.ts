@@ -5,7 +5,9 @@ import {
   type ActorHost,
   type ActorNamespace,
   type AppDatabase,
+  type ActorSocket,
   type BlobStore,
+  type SocketAutoResponse,
   type SqlValue,
 } from "../index.ts"
 import { R2BlobStore } from "./blobs.ts"
@@ -21,6 +23,31 @@ export type DurableActorOptions<Env> = {
   create(host: ActorHost, env: Env): Actor
   /** Blob storage for the actor named `name`. */
   blobs(env: Env, name: string): BlobStore
+  /** Answered by the runtime while the object hibernates. */
+  socketAutoResponse?: SocketAutoResponse
+}
+
+/** Wrap a hibernatable WebSocket; its id lives in the attachment, which survives hibernation. */
+function actorSocket(socket: WebSocket): ActorSocket {
+  const attachment = socket.deserializeAttachment() as { id?: string } | null
+  return {
+    id: attachment?.id ?? "",
+    send: (data) => {
+      try {
+        socket.send(data)
+        return true
+      } catch {
+        return false
+      }
+    },
+    close: (code, reason) => {
+      try {
+        socket.close(code, reason)
+      } catch {
+        // Already closed.
+      }
+    },
+  }
 }
 
 /**
@@ -33,6 +60,14 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
   return class DurableActor extends DurableObject<Env> {
     #actor: Actor | undefined
     #database: DurableObjectSqliteDatabase | undefined
+
+    constructor(ctx: DurableObjectState, env: Env) {
+      super(ctx, env)
+      const auto = options.socketAutoResponse
+      if (auto !== undefined) {
+        ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(auto.request, auto.response))
+      }
+    }
 
     #host(name: string): ActorHost {
       const storage = this.ctx.storage
@@ -47,6 +82,11 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
           else await storage.setAlarm(at)
         },
         getAlarm: () => storage.getAlarm(),
+        sockets: () =>
+          this.ctx
+            .getWebSockets()
+            .filter((socket) => socket.readyState === WebSocket.OPEN)
+            .map(actorSocket),
       }
     }
 
@@ -63,7 +103,33 @@ export function createDurableActorClass<Env>(options: DurableActorOptions<Env>) 
     }
 
     override async fetch(request: Request): Promise<Response> {
-      return (await this.#load(request)).fetch(request)
+      const actor = await this.#load(request)
+      const upgrading = request.headers.get("upgrade")?.toLowerCase() === "websocket"
+      if (!upgrading || actor.socketOpen === undefined) return actor.fetch(request)
+      const pair = new WebSocketPair()
+      const client = pair[0]
+      const server = pair[1]
+      server.serializeAttachment({ id: crypto.randomUUID() })
+      // Hibernatable: the object can be unloaded while the socket stays connected.
+      this.ctx.acceptWebSocket(server)
+      await actor.socketOpen(actorSocket(server), request)
+      return new Response(null, { status: 101, webSocket: client })
+    }
+
+    override async webSocketMessage(
+      socket: WebSocket,
+      message: string | ArrayBuffer,
+    ): Promise<void> {
+      if (typeof message !== "string") return
+      await (await this.#load()).socketMessage?.(actorSocket(socket), message)
+    }
+
+    override async webSocketClose(socket: WebSocket, code: number, reason: string): Promise<void> {
+      await (await this.#load()).socketClose?.(actorSocket(socket), code, reason)
+    }
+
+    override async webSocketError(socket: WebSocket): Promise<void> {
+      await (await this.#load()).socketClose?.(actorSocket(socket), 1006, "socket error")
     }
 
     override async alarm(): Promise<void> {

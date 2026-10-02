@@ -10,9 +10,11 @@ import type {
   ActorFactory,
   ActorHost,
   ActorNamespace,
+  ActorSocket,
   ActorStub,
   AppDatabase,
   BlobStore,
+  SocketAutoResponse,
   SqlValue,
 } from "../index.ts"
 import { FileBlobStore } from "./blobs.ts"
@@ -33,7 +35,21 @@ export type NodeActorNamespaceOptions = {
   readonly now?: () => number
   /** Receives alarm failures; an alarm that fails is retried with backoff. */
   readonly onError?: (error: unknown, name: string) => void
+  /** Answered here without calling the actor, as a Durable Object does while hibernating. */
+  readonly socketAutoResponse?: SocketAutoResponse
 }
+
+/** The part of a `ws` WebSocket the namespace uses, so this package does not depend on `ws`. */
+export interface SocketLike {
+  readonly readyState: number
+  send(data: string): void
+  close(code?: number, reason?: string): void
+  on(event: "message", listener: (data: unknown, isBinary: boolean) => void): unknown
+  on(event: "close", listener: (code: number, reason: unknown) => void): unknown
+  on(event: "error", listener: (error: unknown) => void): unknown
+}
+
+const SOCKET_OPEN = 1
 
 type Instance = {
   readonly actor: Actor
@@ -59,6 +75,8 @@ export class NodeActorNamespace implements ActorNamespace {
   readonly #options: NodeActorNamespaceOptions
   readonly #instances = new Map<string, Promise<Instance>>()
   readonly #alarms = new Map<string, Alarm>()
+  readonly #sockets = new Map<string, Map<string, { like: SocketLike; socket: ActorSocket }>>()
+  #socketCounter = 0
   readonly #index: DatabaseSync
   #closed = false
 
@@ -80,6 +98,56 @@ export class NodeActorNamespace implements ActorNamespace {
     return { fetch: async (request) => (await this.#load(name)).actor.fetch(request) }
   }
 
+  /**
+   * Attach an accepted WebSocket to the actor named `name`. The caller has already authenticated
+   * `request`, the request that upgraded.
+   */
+  async connect(name: string, like: SocketLike, request: Request): Promise<void> {
+    const { actor } = await this.#load(name)
+    if (actor.socketOpen === undefined) {
+      like.close(1011, "This actor does not accept sockets")
+      return
+    }
+    const id = `s${++this.#socketCounter}`
+    const socket: ActorSocket = {
+      id,
+      send: (data) => {
+        if (like.readyState !== SOCKET_OPEN) return false
+        try {
+          like.send(data)
+          return true
+        } catch {
+          return false
+        }
+      },
+      close: (code, reason) => like.close(code, reason),
+    }
+    let sockets = this.#sockets.get(name)
+    if (sockets === undefined) this.#sockets.set(name, (sockets = new Map()))
+    sockets.set(id, { like, socket })
+    const report = (error: unknown) => this.#options.onError?.(error, name)
+    const auto = this.#options.socketAutoResponse
+    let closed = false
+    const close = (code: number, reason: string) => {
+      if (closed) return
+      closed = true
+      sockets.delete(id)
+      void Promise.resolve(actor.socketClose?.(socket, code, reason)).catch(report)
+    }
+    like.on("message", (data, isBinary) => {
+      if (isBinary) return
+      const text = typeof data === "string" ? data : String(data)
+      if (auto !== undefined && text === auto.request) {
+        socket.send(auto.response)
+        return
+      }
+      void Promise.resolve(actor.socketMessage?.(socket, text)).catch(report)
+    })
+    like.on("close", (code, reason) => close(code, String(reason ?? "")))
+    like.on("error", () => close(1006, "socket error"))
+    await actor.socketOpen(socket, request)
+  }
+
   /** Re-arm every recorded alarm. Call once after constructing the namespace. */
   start(): void {
     const rows = this.#index.prepare("SELECT name, at FROM alarms").all() as {
@@ -99,6 +167,9 @@ export class NodeActorNamespace implements ActorNamespace {
   async close(): Promise<void> {
     this.#closed = true
     for (const alarm of this.#alarms.values()) clearTimeout(alarm.timer)
+    for (const sockets of this.#sockets.values()) {
+      for (const { like } of sockets.values()) like.close(1001, "Server is shutting down")
+    }
     const instances = await Promise.allSettled(this.#instances.values())
     for (const instance of instances) {
       if (instance.status !== "fulfilled") continue
@@ -133,6 +204,10 @@ export class NodeActorNamespace implements ActorNamespace {
       now: () => this.#now(),
       setAlarm: async (at) => this.#setAlarm(name, at),
       getAlarm: async () => this.#alarm(name).at,
+      sockets: () =>
+        [...(this.#sockets.get(name)?.values() ?? [])]
+          .filter(({ like }) => like.readyState === SOCKET_OPEN)
+          .map(({ socket }) => socket),
     }
     return { actor: this.#options.factory(host), database }
   }
