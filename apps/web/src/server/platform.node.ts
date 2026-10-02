@@ -4,6 +4,7 @@ import { join, resolve } from "node:path"
 import { createAgentActor, createAgentModels } from "@durable-computer/agent"
 import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "@durable-computer/runtime/node"
 import { type Platform, readConfig } from "./platform.ts"
+import { sandboxFactory } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
 type Holder = { [KEY]?: Platform }
@@ -32,6 +33,7 @@ function create(): Platform {
         models: models.models,
         defaultModel: models.defaultModel,
         modelOptions: models.options,
+        sandbox: sandboxFactory(config),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       }),
     onError: (error, name) => console.error(`[agent ${name}] alarm failed`, error),

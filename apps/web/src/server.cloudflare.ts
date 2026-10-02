@@ -3,15 +3,18 @@ import { createDurableActorClass, r2Blobs } from "@durable-computer/runtime/clou
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import type { Env } from "./server/platform.cloudflare.ts"
 import { readConfig } from "./server/platform.ts"
+import { sandboxFactory } from "./server/sandbox.ts"
 
 /** One Durable Object per agent. */
 export const AgentObject = createDurableActorClass<Env>({
   create: (host, env) => {
-    const models = createAgentModels(readConfig(env))
+    const config = readConfig(env)
+    const models = createAgentModels(config)
     return createAgentActor(host, {
       models: models.models,
       defaultModel: models.defaultModel,
       modelOptions: models.options,
+      sandbox: sandboxFactory(config),
       onReport: (error) => console.error(`[agent ${host.name}]`, error),
     })
   },

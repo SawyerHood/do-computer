@@ -21,6 +21,7 @@
     "@durable-computer/client": "workspace:*",
     "@durable-computer/protocol": "workspace:*",
     "@durable-computer/runtime": "workspace:*",
+    "@durable-computer/sandbox": "workspace:*",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/inter": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",

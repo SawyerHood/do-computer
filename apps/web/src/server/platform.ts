@@ -17,6 +17,8 @@ export type Config = {
   readonly signup: "open" | "invite"
   /** Comma-separated emails allowed to sign up when `signup` is `invite`. */
   readonly allowedEmails: readonly string[]
+  /** What kind of computer agents get. Default `just-bash`. */
+  readonly sandbox: "just-bash" | "none"
 }
 
 /** Everything the server code needs from its runtime. One implementation per target. */
@@ -47,5 +49,6 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .split(",")
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
+    sandbox: env.DC_SANDBOX === "none" ? "none" : "just-bash",
   }
 }

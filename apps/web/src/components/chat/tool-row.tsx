@@ -4,7 +4,9 @@ import {
   CaretRightIcon,
   CheckIcon,
   CircleNotchIcon,
+  FileTextIcon,
   IdentificationBadgeIcon,
+  PencilSimpleIcon,
   TerminalWindowIcon,
   WarningIcon,
   WrenchIcon,
@@ -33,6 +35,21 @@ const TOOLS: Record<
         : args.target === "user"
           ? "Remembered something about you"
           : "Saved a note",
+  },
+  read: {
+    icon: FileTextIcon,
+    running: "Reading a file",
+    done: (args) => `Read ${typeof args.path === "string" ? args.path : "a file"}`,
+  },
+  write: {
+    icon: PencilSimpleIcon,
+    running: "Writing a file",
+    done: (args) => `Wrote ${typeof args.path === "string" ? args.path : "a file"}`,
+  },
+  edit: {
+    icon: PencilSimpleIcon,
+    running: "Editing a file",
+    done: (args) => `Edited ${typeof args.path === "string" ? args.path : "a file"}`,
   },
   bash: {
     icon: TerminalWindowIcon,

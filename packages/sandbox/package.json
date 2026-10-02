@@ -1,0 +1,26 @@
+{
+  "name": "@durable-computer/sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@durable-computer/runtime": "workspace:*",
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "just-bash": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

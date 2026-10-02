@@ -16,6 +16,7 @@ minimumReleaseAgeExclude:
   - wrangler@4.146.0
   - "@cloudflare/vite-plugin@1.62.4"
   - vite@8.3.2
+  - just-bash@3.6.0
 
 allowBuilds:
   esbuild: true
@@ -24,6 +25,8 @@ allowBuilds:
   sharp: false
   "@google/genai": false
   protobufjs: false
+  "@mongodb-js/zstd": false
+  node-liblzma: false
 
 catalog:
   typescript: npm:@typescript/typescript6@^6.0.2

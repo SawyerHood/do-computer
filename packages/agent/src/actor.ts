@@ -13,6 +13,7 @@ import {
   type UpdateChatRequest,
 } from "@durable-computer/protocol"
 import type { Actor, ActorHost } from "@durable-computer/runtime"
+import type { Sandbox } from "@durable-computer/sandbox"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Models } from "@earendil-works/pi-ai/models"
 import {
@@ -21,7 +22,6 @@ import {
   createRegistry,
   type Extension,
   Harness,
-  type HarnessOptions,
 } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import {
@@ -31,6 +31,7 @@ import {
   IdentityDoc,
   type IdentityState,
 } from "./docs.ts"
+import { Computer } from "./computer.ts"
 import { parseModel } from "./models.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { projectChat } from "./project.ts"
@@ -54,8 +55,11 @@ export type AgentActorOptions = {
   readonly modelOptions: readonly ModelOption[]
   /** Extensions installed after the built-in ones. */
   readonly extensions?: readonly Extension[]
-  /** Builds the execution environment (the agent's computer) for a conversation. */
-  readonly env?: HarnessOptions["env"]
+  /**
+   * The agent's computer. Should be cheap to call and start nothing until used, as `lazySandbox`
+   * does: it is built whenever the actor loads.
+   */
+  readonly sandbox?: (host: ActorHost) => Sandbox
   /** Receives failures that did not fail a request. */
   readonly onReport?: (error: unknown) => void
   /** How often the actor wakes itself while work is live. */
@@ -158,30 +162,35 @@ function summarize(id: string, record: ChatRecord): ChatSummary {
 export class AgentActor implements Actor {
   readonly #host: ActorHost
   readonly #options: AgentActorOptions
+  readonly #computer: Computer | undefined
   #harness: Promise<Harness> | undefined
 
   constructor(host: ActorHost, options: AgentActorOptions) {
     this.#host = host
     this.#options = options
+    this.#computer = options.sandbox === undefined ? undefined : new Computer(options.sandbox(host))
   }
 
   #open(): Promise<Harness> {
     this.#harness ??= (async () => {
       const registry = createRegistry()
+      const computer = this.#computer
       registry.install(Persona)
+      for (const extension of computer?.extensions ?? []) registry.install(extension)
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       const harness = await Harness.open(
         await SqliteStorage.open(this.#host.sql),
         {
           models: this.#options.models,
           registry,
-          env: this.#options.env,
+          env: computer === undefined ? undefined : ({ cwd }) => computer.env(cwd),
           now: () => this.#host.now(),
           onReport: (error) => this.#options.onReport?.(error),
           settings: { toolExecution: "parallel" },
         },
         context,
       )
+      computer?.attach(harness)
       // Pick up whatever a previous process left unfinished.
       harness.resume()
       return harness
@@ -384,6 +393,7 @@ export class AgentActor implements Actor {
       identity.model = model
       return Object.keys((await tx.doc(ChatsDoc)).chats)
     }, context)
+    this.#computer?.markStale()
     // A model change applies to existing chats from their next request.
     if (model !== undefined) {
       for (const id of chats) {
