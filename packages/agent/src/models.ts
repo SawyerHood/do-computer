@@ -66,7 +66,8 @@ const blockText = (content: unknown): string => {
  * that tool and then report the result.
  */
 function echoAnswer(context: EchoContext) {
-  const last = context.messages.at(-1)
+  // Prompt changes are recorded as system entries, which can follow a tool result.
+  const last = context.messages.findLast((message) => message.role !== "system")
   if (last?.role === "toolResult") {
     return fauxAssistantMessage(`The tool returned:\n\n${blockText(last.content)}`)
   }

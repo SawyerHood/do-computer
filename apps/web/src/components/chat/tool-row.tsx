@@ -5,7 +5,9 @@ import {
   CheckIcon,
   CircleNotchIcon,
   FileTextIcon,
+  ClockIcon,
   IdentificationBadgeIcon,
+  LightningIcon,
   PencilSimpleIcon,
   TerminalWindowIcon,
   WarningIcon,
@@ -35,6 +37,29 @@ const TOOLS: Record<
         : args.target === "user"
           ? "Remembered something about you"
           : "Saved a note",
+  },
+  schedule: {
+    icon: ClockIcon,
+    running: "Updating its schedule",
+    done: (args) =>
+      args.action === "create"
+        ? `Scheduled ${typeof args.title === "string" ? args.title : "a task"}`
+        : args.action === "list"
+          ? "Checked its schedule"
+          : "Updated its schedule",
+  },
+  skill: {
+    icon: LightningIcon,
+    running: "Using a skill",
+    done: (args) => {
+      const name = typeof args.name === "string" ? args.name : "a skill"
+      if (args.action === "view") return `Loaded the ${name} skill`
+      if (args.action === "create") return `Saved the ${name} skill`
+      if (args.action === "list") return "Looked through its skills"
+      if (args.action === "install") return "Installed a skill"
+      if (args.action === "delete") return `Deleted the ${name} skill`
+      return `Updated the ${name} skill`
+    },
   },
   read: {
     icon: FileTextIcon,

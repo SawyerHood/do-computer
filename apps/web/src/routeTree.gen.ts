@@ -22,6 +22,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
 import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
+import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
 
@@ -89,6 +90,11 @@ const AppAAgentIdProfileRoute = AppAAgentIdProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const AppAAgentIdSkillsRoute = AppAAgentIdSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
 const ApiAgentsAgentIdSplatRoute = ApiAgentsAgentIdSplatRouteImport.update({
   id: '/api/agents/$agentId/$',
   path: '/api/agents/$agentId/$',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/api/agents': typeof ApiAgentsIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/api/agents/'
     | '/a/$agentId/automations'
     | '/a/$agentId/profile'
+    | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/a/$agentId/'
     | '/a/$agentId/c/$chatId'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/api/agents'
     | '/a/$agentId/automations'
     | '/a/$agentId/profile'
+    | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/a/$agentId'
     | '/a/$agentId/c/$chatId'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/api/agents/'
     | '/_app/a/$agentId/automations'
     | '/_app/a/$agentId/profile'
+    | '/_app/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/_app/a/$agentId/'
     | '/_app/a/$agentId/c/$chatId'
@@ -305,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAAgentIdProfileRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
+    '/_app/a/$agentId/skills': {
+      id: '/_app/a/$agentId/skills'
+      path: '/skills'
+      fullPath: '/a/$agentId/skills'
+      preLoaderRoute: typeof AppAAgentIdSkillsRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
     '/api/agents/$agentId/$': {
       id: '/api/agents/$agentId/$'
       path: '/api/agents/$agentId/$'
@@ -325,6 +344,7 @@ declare module '@tanstack/react-router' {
 interface AppAAgentIdRouteChildren {
   AppAAgentIdAutomationsRoute: typeof AppAAgentIdAutomationsRoute
   AppAAgentIdProfileRoute: typeof AppAAgentIdProfileRoute
+  AppAAgentIdSkillsRoute: typeof AppAAgentIdSkillsRoute
   AppAAgentIdIndexRoute: typeof AppAAgentIdIndexRoute
   AppAAgentIdCChatIdRoute: typeof AppAAgentIdCChatIdRoute
 }
@@ -332,6 +352,7 @@ interface AppAAgentIdRouteChildren {
 const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
   AppAAgentIdAutomationsRoute: AppAAgentIdAutomationsRoute,
   AppAAgentIdProfileRoute: AppAAgentIdProfileRoute,
+  AppAAgentIdSkillsRoute: AppAAgentIdSkillsRoute,
   AppAAgentIdIndexRoute: AppAAgentIdIndexRoute,
   AppAAgentIdCChatIdRoute: AppAAgentIdCChatIdRoute,
 }

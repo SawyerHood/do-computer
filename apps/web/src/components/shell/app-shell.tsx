@@ -4,6 +4,7 @@ import {
   ArchiveIcon,
   ChatCircleIcon,
   ClockIcon,
+  LightningIcon,
   ListIcon,
   MoonIcon,
   NotePencilIcon,
@@ -198,7 +199,9 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
         ? "profile"
         : location.pathname.endsWith("/automations")
           ? "automations"
-          : "chat",
+          : location.pathname.endsWith("/skills")
+            ? "skills"
+            : "chat",
   })
   const profile = page === "profile"
 
@@ -227,6 +230,13 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
             }
           >
             <ClockIcon />
+          </RailButton>
+          <RailButton
+            label="Skills"
+            active={page === "skills"}
+            onClick={() => navigate({ to: "/a/$agentId/skills", params: { agentId: agent.id } })}
+          >
+            <LightningIcon />
           </RailButton>
           <RailButton
             label="Identity and memory"
@@ -286,6 +296,14 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                 className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
               >
                 Automations
+              </Link>
+              <Link
+                to="/a/$agentId/skills"
+                params={{ agentId: agent.id }}
+                onClick={() => setSheetOpen(false)}
+                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
+              >
+                Skills
               </Link>
             </div>
           </div>

@@ -37,6 +37,7 @@ import { Computer } from "./computer.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { type ScheduledReport, ScheduleError, Scheduler } from "./schedules.ts"
+import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { projectChat } from "./project.ts"
 
@@ -68,6 +69,8 @@ export type AgentActorOptions = {
   readonly onReport?: (error: unknown) => void
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
+  /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
+  readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /** Called when a scheduled task has a report for the user, for example to send a push. */
   readonly onScheduledReport?: (agentId: string, report: ScheduledReport) => void
 }
@@ -170,12 +173,18 @@ export class AgentActor implements Actor {
   readonly #options: AgentActorOptions
   readonly #computer: Computer | undefined
   readonly #scheduler: Scheduler
+  readonly #skills: Skills
   #harness: Promise<Harness> | undefined
 
   constructor(host: ActorHost, options: AgentActorOptions) {
     this.#host = host
     this.#options = options
     this.#computer = options.sandbox === undefined ? undefined : new Computer(options.sandbox(host))
+    this.#skills = new Skills({
+      now: () => host.now(),
+      sandbox: this.#computer?.sandbox,
+      fetch: options.fetch,
+    })
     this.#scheduler = new Scheduler({
       now: () => host.now(),
       onReport: (report) => options.onScheduledReport?.(host.name, report),
@@ -190,6 +199,7 @@ export class AgentActor implements Actor {
       registry.install(Persona)
       for (const extension of computer?.extensions ?? []) registry.install(extension)
       registry.install(this.#scheduler.extension)
+      registry.install(this.#skills.extension)
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       const harness = await Harness.open(
         await SqliteStorage.open(this.#host.sql),
@@ -205,6 +215,8 @@ export class AgentActor implements Actor {
       )
       computer?.attach(harness)
       this.#scheduler.attach(harness)
+      this.#skills.attach(harness)
+      await this.#skills.seed(context)
       // A schedule the agent creates or changes moves the next wake-up.
       if ((await harness.snapshot(SchedulesDoc, context)) === undefined) {
         await harness.commit(async (tx) => void (await tx.doc(SchedulesDoc)), context)
@@ -264,7 +276,9 @@ export class AgentActor implements Actor {
       if (error instanceof HttpError) {
         return json({ error: error.message, code: error.code }, error.status)
       }
-      if (error instanceof ScheduleError) return json({ error: error.message }, 400)
+      if (error instanceof ScheduleError || error instanceof SkillError) {
+        return json({ error: error.message }, 400)
+      }
       this.#options.onReport?.(error)
       return json({ error: error instanceof Error ? error.message : String(error) }, 500)
     } finally {
@@ -294,6 +308,31 @@ export class AgentActor implements Actor {
       }
     }
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
+    if (segments[0] === "skills") {
+      const name = segments[1]
+      if (name === undefined && method === "GET") {
+        return json({ skills: await this.#skills.list(context) })
+      }
+      if (name === "install" && method === "POST") {
+        const { url } = await body<{ url?: string }>(request)
+        if (typeof url !== "string" || url.trim() === "")
+          throw new HttpError(400, "url is required")
+        return json(await this.#skills.install(url, context), 201)
+      }
+      if (name !== undefined && segments[2] === undefined) {
+        if (method === "GET") return json(await this.#skills.get(name, context))
+        if (method === "PATCH") {
+          const { enabled } = await body<{ enabled?: boolean }>(request)
+          if (typeof enabled !== "boolean")
+            throw new HttpError(400, "enabled must be true or false")
+          return json(await this.#skills.setEnabled(name, enabled, context))
+        }
+        if (method === "DELETE") {
+          await this.#skills.remove(name, context)
+          return json({ ok: true })
+        }
+      }
+    }
     if (segments[0] === "schedules") {
       const scheduleId = segments[1]
       if (scheduleId === undefined && method === "GET") {
@@ -581,6 +620,7 @@ export class AgentActor implements Actor {
       const identity = await harness.watchDoc(IdentityDoc, context)
       const chats = await harness.watchDoc(ChatsDoc, context)
       const schedules = await harness.watchDoc(SchedulesDoc, context)
+      const skills = await harness.watchDoc(SkillsDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -588,11 +628,13 @@ export class AgentActor implements Actor {
       identity?.start(changed("identity"))
       chats?.start(changed("chats"))
       schedules?.start(changed("schedules"))
+      skills?.start(changed("skills"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
         void chats?.stop()
         void schedules?.stop()
+        void skills?.stop()
       }
     })
   }

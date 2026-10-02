@@ -14,6 +14,8 @@ import {
   type ScheduleSummary,
   type SendMessageRequest,
   type SendMessageResponse,
+  type SkillDetail,
+  type SkillSummary,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
@@ -178,6 +180,13 @@ export function createClient(options: ClientOptions) {
           request<{ ok: true }>(`${base}/schedules/${scheduleId}`, { method: "DELETE" }),
         runSchedule: (scheduleId: string) =>
           post<{ ok: true }>(`${base}/schedules/${scheduleId}/run`),
+        skills: async () => (await request<{ skills: SkillSummary[] }>(`${base}/skills`)).skills,
+        skill: (name: string) => request<SkillDetail>(`${base}/skills/${encodeURIComponent(name)}`),
+        setSkillEnabled: (name: string, enabled: boolean) =>
+          patch<SkillSummary>(`${base}/skills/${encodeURIComponent(name)}`, { enabled }),
+        removeSkill: (name: string) =>
+          request<{ ok: true }>(`${base}/skills/${encodeURIComponent(name)}`, { method: "DELETE" }),
+        installSkill: (url: string) => post<SkillSummary>(`${base}/skills/install`, { url }),
         /** Calls `onState` with each new state of the chat, starting from its current one. */
         watchChat(
           chatId: string,

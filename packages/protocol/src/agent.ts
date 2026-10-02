@@ -48,6 +48,23 @@ export type ModelOption = {
   outputCost: number
 }
 
+/** Where a skill came from: shipped with the app, written by the agent, or installed from a URL. */
+export type SkillSource = "bundled" | "agent" | "installed"
+
+export type SkillSummary = {
+  name: string
+  description: string
+  source: SkillSource
+  /** The URL an installed skill was fetched from. */
+  origin: string | null
+  enabled: boolean
+  updatedAt: number
+  /** Paths of the skill's files; `SKILL.md` is always among them. */
+  files: string[]
+}
+
+export type SkillDetail = SkillSummary & { contents: Record<string, string> }
+
 /** A task the agent runs on its own, once or on a repeating schedule. */
 export type ScheduleSummary = {
   id: string

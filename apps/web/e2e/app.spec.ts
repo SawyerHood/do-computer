@@ -186,6 +186,37 @@ test("scheduled runs do not clutter the chat list", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Stretch break", exact: true })).toHaveCount(0)
 })
 
+test("the agent saves a skill, and it can be read, switched off and deleted", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool skill {"action":"create","name":"morning-brief","description":"Put together the morning brief.","content":"1. Check the calendar"}',
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText('Saved skill "morning-brief".')).toBeVisible()
+
+  await page.getByRole("button", { name: "Skills" }).click()
+  const card = page.getByRole("listitem").filter({ hasText: "morning-brief" })
+  await expect(card.getByText("Written by the agent")).toBeVisible()
+  await expect(page.getByRole("listitem").filter({ hasText: "writing-skills" })).toContainText(
+    "Built in",
+  )
+  await card.getByRole("button", { name: "Read" }).click()
+  await expect(card.locator("pre")).toContainText("1. Check the calendar")
+  await card.getByRole("checkbox", { name: "Use morning-brief" }).uncheck()
+  await expect(card.getByRole("checkbox", { name: "Use morning-brief" })).not.toBeChecked()
+  await card.getByRole("button", { name: "Delete morning-brief" }).click()
+  await expect(page.getByRole("listitem").filter({ hasText: "morning-brief" })).toHaveCount(0)
+})
+
+test("installing a skill from a bad URL explains what went wrong", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole("button", { name: "Skills" }).click()
+  await page.getByLabel("Skill URL").fill("https://127.0.0.1:1/not-a-skill/SKILL.md")
+  await page.getByRole("button", { name: "Install" }).click()
+  await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 })
+})
+
 test("signing out ends the session", async ({ page }) => {
   await signIn(page)
   await page.getByRole("button", { name: "Sign out" }).click()
