@@ -45,5 +45,31 @@ SOON=$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezo
 tool "/tool schedule {\"action\":\"create\",\"schedule\":\"$SOON\",\"prompt\":\"Report in\",\"title\":\"Smoke schedule\"}"
 wait_for "any(p.get('kind')=='schedule' for m in d['messages'] for p in m['parts'])" "scheduled task ran by itself and reported back"
 check "schedule recorded its run" "$(get "/api/agents/$AGENT/schedules" | field "['schedules'][0]['lastRun']['outcome']")" "delivered"
+# Pair this machine as one of the user's computers, with the real daemon, if it has been built.
+DAEMON="$(dirname "$0")/../apps/daemon/dist/daemon.cjs"
+if [ -f "$DAEMON" ]; then
+  LAPTOP=$(mktemp -d)
+  echo "on the paired machine" > "$LAPTOP/proof.txt"
+  HOME="$LAPTOP" DC_DAEMON_DIR="$LAPTOP/.dc" DC_DAEMON_POLL_MS=300 node "$DAEMON" "$BASE" --name smoke-laptop > "$LAPTOP/daemon.log" 2>&1 &
+  DAEMON_PID=$!
+  trap 'rm -f "$JAR"; kill $DAEMON_PID 2>/dev/null || true' EXIT
+  for _ in $(seq 1 20); do grep -q "confirm the code" "$LAPTOP/daemon.log" && break; sleep 0.3; done
+  CODE=$(grep -o 'code [A-Z0-9]\{4\}-[A-Z0-9]\{4\}' "$LAPTOP/daemon.log" | head -1 | cut -d' ' -f2)
+  check "daemon is paired from its code" "$(post /api/computers/pair/confirm "{\"code\":\"$CODE\",\"agentId\":\"$AGENT\"}" | field "['name']")" "smoke-laptop"
+  for _ in $(seq 1 30); do
+    ONLINE=$(get /api/computers | field "['computers'][0]['online']")
+    [ "$ONLINE" = "True" ] && break
+    sleep 0.5
+  done
+  check "paired computer is online" "$ONLINE" "True"
+  tool '/tool bash {"command":"cat proof.txt","computer":"smoke-laptop"}'
+  wait_for "not d['busy'] and 'on the paired machine' in $TEXTS" "agent ran a command on the paired computer"
+  COMPUTER=$(get /api/computers | field "['computers'][0]['id']")
+  curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/computers/$COMPUTER" >/dev/null
+  for _ in $(seq 1 30); do kill -0 $DAEMON_PID 2>/dev/null || break; sleep 0.3; done
+  if kill -0 $DAEMON_PID 2>/dev/null; then echo "FAIL removed computer's daemon is still running"; exit 1; else echo "ok   removing the computer stopped its daemon"; fi
+else
+  echo "skip paired computer checks: build the daemon with pnpm --filter @durable-computer/daemon build"
+fi
 check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' | field "['error']")" "Not found"
 echo "all checks passed against $BASE"

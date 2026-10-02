@@ -9,6 +9,7 @@ export const agentsKey = ["agents"] as const
 export const agentKey = (agentId: string) => ["agents", agentId, "state"] as const
 export const schedulesKey = (agentId: string) => ["agents", agentId, "schedules"] as const
 export const skillsKey = (agentId: string) => ["agents", agentId, "skills"] as const
+export const computersKey = ["computers"] as const
 
 /** The signed-in user's agents. */
 export const agentsCollection = createCollection(
@@ -62,6 +63,10 @@ export function refreshAgent(agentId: string, what: string): void {
   if (what === "identity") void queryClient.invalidateQueries({ queryKey: agentsKey })
   if (what === "schedules") {
     void queryClient.invalidateQueries({ queryKey: schedulesKey(agentId) })
+    return
+  }
+  if (what === "computers") {
+    void queryClient.invalidateQueries({ queryKey: computersKey })
     return
   }
   if (what === "skills") {

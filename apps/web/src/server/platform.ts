@@ -31,6 +31,8 @@ export type Platform = {
   readonly authDatabase: unknown
   /** One actor per agent. */
   readonly agents: ActorNamespace
+  /** One actor per paired computer, holding its daemon's connection. */
+  readonly computers: ActorNamespace
 }
 
 export function readConfig(env: Record<string, string | undefined>): Config {

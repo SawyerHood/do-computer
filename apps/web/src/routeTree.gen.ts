@@ -10,24 +10,45 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as DaemonDotjsRouteImport } from './routes/daemon[.]js'
+import { Route as InstallDotshRouteImport } from './routes/install[.]sh'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppPairRouteImport } from './routes/_app.pair'
 import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
+import { Route as ApiDaemonVersionRouteImport } from './routes/api/daemon-version'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMeRouteImport } from './routes/api/me'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiComputersIndexRouteImport } from './routes/api/computers/index'
+import { Route as ApiComputersComputerIdRouteImport } from './routes/api/computers/$computerId'
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
+import { Route as AppAAgentIdComputersRouteImport } from './routes/_app.a.$agentId.computers'
 import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
 import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
+import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
+import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers/pair.poll'
+import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
+import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DaemonDotjsRoute = DaemonDotjsRouteImport.update({
+  id: '/daemon.js',
+  path: '/daemon.js',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstallDotshRoute = InstallDotshRouteImport.update({
+  id: '/install.sh',
+  path: '/install.sh',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -45,9 +66,19 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPairRoute = AppPairRouteImport.update({
+  id: '/pair',
+  path: '/pair',
+  getParentRoute: () => AppRoute,
+} as any)
 const ApiAuthMethodsRoute = ApiAuthMethodsRouteImport.update({
   id: '/api/auth-methods',
   path: '/api/auth-methods',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDaemonVersionRoute = ApiDaemonVersionRouteImport.update({
+  id: '/api/daemon-version',
+  path: '/api/daemon-version',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -75,6 +106,16 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiComputersIndexRoute = ApiComputersIndexRouteImport.update({
+  id: '/api/computers/',
+  path: '/api/computers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiComputersComputerIdRoute = ApiComputersComputerIdRouteImport.update({
+  id: '/api/computers/$computerId',
+  path: '/api/computers/$computerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAAgentIdIndexRoute = AppAAgentIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -83,6 +124,11 @@ const AppAAgentIdIndexRoute = AppAAgentIdIndexRouteImport.update({
 const AppAAgentIdAutomationsRoute = AppAAgentIdAutomationsRouteImport.update({
   id: '/automations',
   path: '/automations',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
+const AppAAgentIdComputersRoute = AppAAgentIdComputersRouteImport.update({
+  id: '/computers',
+  path: '/computers',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdProfileRoute = AppAAgentIdProfileRouteImport.update({
@@ -100,128 +146,224 @@ const ApiAgentsAgentIdSplatRoute = ApiAgentsAgentIdSplatRouteImport.update({
   path: '/api/agents/$agentId/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiComputersPairConfirmRoute = ApiComputersPairConfirmRouteImport.update({
+  id: '/api/computers/pair/confirm',
+  path: '/api/computers/pair/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiComputersPairPollRoute = ApiComputersPairPollRouteImport.update({
+  id: '/api/computers/pair/poll',
+  path: '/api/computers/pair/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiComputersPairStartRoute = ApiComputersPairStartRouteImport.update({
+  id: '/api/computers/pair/start',
+  path: '/api/computers/pair/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
   id: '/c/$chatId',
   path: '/c/$chatId',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const ApiComputersPairRequestCodeRoute =
+  ApiComputersPairRequestCodeRouteImport.update({
+    id: '/api/computers/pair/request/$code',
+    path: '/api/computers/pair/request/$code',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/daemon.js': typeof DaemonDotjsRoute
+  '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
+  '/api/computers/': typeof ApiComputersIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
+  '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
+  '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
+  '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
 }
 export interface FileRoutesByTo {
+  '/daemon.js': typeof DaemonDotjsRoute
+  '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
   '/api/agents': typeof ApiAgentsIndexRoute
+  '/api/computers': typeof ApiComputersIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
+  '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
+  '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
+  '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/daemon.js': typeof DaemonDotjsRoute
+  '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/_app/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
   '/_app/': typeof AppIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
+  '/api/computers/': typeof ApiComputersIndexRoute
   '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
+  '/_app/a/$agentId/computers': typeof AppAAgentIdComputersRoute
   '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
+  '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
+  '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/daemon.js'
+    | '/install.sh'
     | '/login'
     | '/signup'
+    | '/pair'
     | '/api/auth-methods'
+    | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
     | '/a/$agentId'
     | '/api/auth/$'
+    | '/api/computers/$computerId'
     | '/api/agents/'
+    | '/api/computers/'
     | '/a/$agentId/automations'
+    | '/a/$agentId/computers'
     | '/a/$agentId/profile'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
+    | '/api/computers/pair/confirm'
+    | '/api/computers/pair/poll'
+    | '/api/computers/pair/start'
     | '/a/$agentId/'
     | '/a/$agentId/c/$chatId'
+    | '/api/computers/pair/request/$code'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/daemon.js'
+    | '/install.sh'
     | '/login'
     | '/signup'
+    | '/pair'
     | '/api/auth-methods'
+    | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
     | '/'
     | '/api/auth/$'
+    | '/api/computers/$computerId'
     | '/api/agents'
+    | '/api/computers'
     | '/a/$agentId/automations'
+    | '/a/$agentId/computers'
     | '/a/$agentId/profile'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
+    | '/api/computers/pair/confirm'
+    | '/api/computers/pair/poll'
+    | '/api/computers/pair/start'
     | '/a/$agentId'
     | '/a/$agentId/c/$chatId'
+    | '/api/computers/pair/request/$code'
   id:
     | '__root__'
     | '/_app'
+    | '/daemon.js'
+    | '/install.sh'
     | '/login'
     | '/signup'
+    | '/_app/pair'
     | '/api/auth-methods'
+    | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
     | '/_app/'
     | '/_app/a/$agentId'
     | '/api/auth/$'
+    | '/api/computers/$computerId'
     | '/api/agents/'
+    | '/api/computers/'
     | '/_app/a/$agentId/automations'
+    | '/_app/a/$agentId/computers'
     | '/_app/a/$agentId/profile'
     | '/_app/a/$agentId/skills'
     | '/api/agents/$agentId/$'
+    | '/api/computers/pair/confirm'
+    | '/api/computers/pair/poll'
+    | '/api/computers/pair/start'
     | '/_app/a/$agentId/'
     | '/_app/a/$agentId/c/$chatId'
+    | '/api/computers/pair/request/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  DaemonDotjsRoute: typeof DaemonDotjsRoute
+  InstallDotshRoute: typeof InstallDotshRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   ApiAuthMethodsRoute: typeof ApiAuthMethodsRoute
+  ApiDaemonVersionRoute: typeof ApiDaemonVersionRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMeRoute: typeof ApiMeRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
+  ApiComputersIndexRoute: typeof ApiComputersIndexRoute
   ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
+  ApiComputersPairConfirmRoute: typeof ApiComputersPairConfirmRoute
+  ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
+  ApiComputersPairStartRoute: typeof ApiComputersPairStartRoute
+  ApiComputersPairRequestCodeRoute: typeof ApiComputersPairRequestCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -231,6 +373,20 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/daemon.js': {
+      id: '/daemon.js'
+      path: '/daemon.js'
+      fullPath: '/daemon.js'
+      preLoaderRoute: typeof DaemonDotjsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/install.sh': {
+      id: '/install.sh'
+      path: '/install.sh'
+      fullPath: '/install.sh'
+      preLoaderRoute: typeof InstallDotshRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -254,11 +410,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/pair': {
+      id: '/_app/pair'
+      path: '/pair'
+      fullPath: '/pair'
+      preLoaderRoute: typeof AppPairRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/api/auth-methods': {
       id: '/api/auth-methods'
       path: '/api/auth-methods'
       fullPath: '/api/auth-methods'
       preLoaderRoute: typeof ApiAuthMethodsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/daemon-version': {
+      id: '/api/daemon-version'
+      path: '/api/daemon-version'
+      fullPath: '/api/daemon-version'
+      preLoaderRoute: typeof ApiDaemonVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -296,6 +466,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/computers/': {
+      id: '/api/computers/'
+      path: '/api/computers'
+      fullPath: '/api/computers/'
+      preLoaderRoute: typeof ApiComputersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/computers/$computerId': {
+      id: '/api/computers/$computerId'
+      path: '/api/computers/$computerId'
+      fullPath: '/api/computers/$computerId'
+      preLoaderRoute: typeof ApiComputersComputerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/a/$agentId/': {
       id: '/_app/a/$agentId/'
       path: '/'
@@ -308,6 +492,13 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/a/$agentId/automations'
       preLoaderRoute: typeof AppAAgentIdAutomationsRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
+    '/_app/a/$agentId/computers': {
+      id: '/_app/a/$agentId/computers'
+      path: '/computers'
+      fullPath: '/a/$agentId/computers'
+      preLoaderRoute: typeof AppAAgentIdComputersRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
     '/_app/a/$agentId/profile': {
@@ -331,6 +522,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentsAgentIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/computers/pair/confirm': {
+      id: '/api/computers/pair/confirm'
+      path: '/api/computers/pair/confirm'
+      fullPath: '/api/computers/pair/confirm'
+      preLoaderRoute: typeof ApiComputersPairConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/computers/pair/poll': {
+      id: '/api/computers/pair/poll'
+      path: '/api/computers/pair/poll'
+      fullPath: '/api/computers/pair/poll'
+      preLoaderRoute: typeof ApiComputersPairPollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/computers/pair/start': {
+      id: '/api/computers/pair/start'
+      path: '/api/computers/pair/start'
+      fullPath: '/api/computers/pair/start'
+      preLoaderRoute: typeof ApiComputersPairStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/a/$agentId/c/$chatId': {
       id: '/_app/a/$agentId/c/$chatId'
       path: '/c/$chatId'
@@ -338,11 +550,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAAgentIdCChatIdRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
+    '/api/computers/pair/request/$code': {
+      id: '/api/computers/pair/request/$code'
+      path: '/api/computers/pair/request/$code'
+      fullPath: '/api/computers/pair/request/$code'
+      preLoaderRoute: typeof ApiComputersPairRequestCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AppAAgentIdRouteChildren {
   AppAAgentIdAutomationsRoute: typeof AppAAgentIdAutomationsRoute
+  AppAAgentIdComputersRoute: typeof AppAAgentIdComputersRoute
   AppAAgentIdProfileRoute: typeof AppAAgentIdProfileRoute
   AppAAgentIdSkillsRoute: typeof AppAAgentIdSkillsRoute
   AppAAgentIdIndexRoute: typeof AppAAgentIdIndexRoute
@@ -351,6 +571,7 @@ interface AppAAgentIdRouteChildren {
 
 const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
   AppAAgentIdAutomationsRoute: AppAAgentIdAutomationsRoute,
+  AppAAgentIdComputersRoute: AppAAgentIdComputersRoute,
   AppAAgentIdProfileRoute: AppAAgentIdProfileRoute,
   AppAAgentIdSkillsRoute: AppAAgentIdSkillsRoute,
   AppAAgentIdIndexRoute: AppAAgentIdIndexRoute,
@@ -362,11 +583,13 @@ const AppAAgentIdRouteWithChildren = AppAAgentIdRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
+  AppPairRoute: typeof AppPairRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAAgentIdRoute: typeof AppAAgentIdRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppPairRoute: AppPairRoute,
   AppIndexRoute: AppIndexRoute,
   AppAAgentIdRoute: AppAAgentIdRouteWithChildren,
 }
@@ -375,14 +598,23 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  DaemonDotjsRoute: DaemonDotjsRoute,
+  InstallDotshRoute: InstallDotshRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   ApiAuthMethodsRoute: ApiAuthMethodsRoute,
+  ApiDaemonVersionRoute: ApiDaemonVersionRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMeRoute: ApiMeRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiComputersComputerIdRoute: ApiComputersComputerIdRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
+  ApiComputersIndexRoute: ApiComputersIndexRoute,
   ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
+  ApiComputersPairConfirmRoute: ApiComputersPairConfirmRoute,
+  ApiComputersPairPollRoute: ApiComputersPairPollRoute,
+  ApiComputersPairStartRoute: ApiComputersPairStartRoute,
+  ApiComputersPairRequestCodeRoute: ApiComputersPairRequestCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -5,8 +5,16 @@
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  "durable_objects": { "bindings": [{ "name": "AGENT", "class_name": "AgentObject" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AgentObject"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "AGENT", "class_name": "AgentObject" },
+      { "name": "COMPUTER", "class_name": "ComputerObject" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AgentObject"] },
+    { "tag": "v2", "new_sqlite_classes": ["ComputerObject"] },
+  ],
   "d1_databases": [
     {
       "binding": "DB",

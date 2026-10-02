@@ -10,6 +10,35 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     "CREATE INDEX dc_agents_by_owner ON dc_agents (owner_id, created_at)",
   ],
+  [
+    // A computer of the user's, paired with one agent. Its daemon authenticates with a token
+    // whose hash is stored; the hash is null until the daemon has collected the token.
+    `CREATE TABLE dc_computers (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      hostname TEXT NOT NULL,
+      read_only INTEGER NOT NULL,
+      token_hash TEXT UNIQUE,
+      created_at INTEGER NOT NULL
+    )`,
+    "CREATE INDEX dc_computers_by_owner ON dc_computers (owner_id, created_at)",
+    // A daemon asking to be paired, until a signed-in user confirms its code or it expires.
+    `CREATE TABLE dc_pair_requests (
+      code TEXT PRIMARY KEY,
+      poll_hash TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      hostname TEXT NOT NULL,
+      home TEXT NOT NULL,
+      read_only INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      computer_id TEXT
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

@@ -5,6 +5,7 @@ import { type Platform, readConfig } from "./platform.ts"
 export type Env = {
   DB: D1Database
   AGENT: DurableObjectNamespace
+  COMPUTER: DurableObjectNamespace
   BLOBS: R2Bucket
 } & Record<string, string | undefined>
 
@@ -18,5 +19,6 @@ export function getPlatform(): Platform {
     db: d1Database(bindings.DB),
     authDatabase: bindings.DB,
     agents: durableObjectNamespace(bindings.AGENT),
+    computers: durableObjectNamespace(bindings.COMPUTER),
   })
 }

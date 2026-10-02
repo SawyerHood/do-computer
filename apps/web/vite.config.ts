@@ -19,7 +19,9 @@ export default defineConfig({
   plugins: [
     ...(target === "cloudflare" ? [cloudflare({ viteEnvironment: { name: "ssr" } })] : []),
     tailwindcss(),
-    tanstackStart({ server: { entry: `./src/server.${target}.ts` } }),
+    // The entry is resolved inside src/; a path that does not resolve falls back silently to
+    // the framework's default entry.
+    tanstackStart({ server: { entry: `server.${target}.ts` } }),
     viteReact(),
   ],
 })

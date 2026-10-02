@@ -6,6 +6,7 @@ import {
   type ChatEvent,
   type ChatState,
   type ChatSummary,
+  type ComputerSummary,
   type CreateChatRequest,
   EMPTY_CHAT,
   type ModelOption,
@@ -68,6 +69,16 @@ export type AgentPatch = {
   memory?: string
   model?: string
   timezone?: string
+}
+
+/** A computer waiting to be paired, as shown to the user before they agree. */
+export type PairingRequest = {
+  code: string
+  name: string
+  platform: string
+  hostname: string
+  home: string
+  readOnly: boolean
 }
 
 export type StreamStatus = "connecting" | "open" | "reconnecting" | "closed"
@@ -159,6 +170,16 @@ export function createClient(options: ClientOptions) {
     me: () => request<Me>("/api/me"),
     listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
     createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
+    listComputers: async () =>
+      (await request<{ computers: ComputerSummary[] }>("/api/computers")).computers,
+    removeComputer: (computerId: string) =>
+      request<{ ok: true }>(`/api/computers/${encodeURIComponent(computerId)}`, {
+        method: "DELETE",
+      }),
+    pairingRequest: (code: string) =>
+      request<PairingRequest>(`/api/computers/pair/request/${encodeURIComponent(code)}`),
+    confirmPairing: (code: string, agentId: string) =>
+      post<{ computerId: string; name: string }>("/api/computers/pair/confirm", { code, agentId }),
 
     agent(agentId: string) {
       const base = `/api/agents/${encodeURIComponent(agentId)}`

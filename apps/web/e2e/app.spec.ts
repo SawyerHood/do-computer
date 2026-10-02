@@ -1,3 +1,8 @@
+import { type ChildProcess, spawn } from "node:child_process"
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { expect, type Page, test } from "@playwright/test"
 
 const owner = { name: "Sawyer", email: "owner@example.com", password: "correct horse battery" }
@@ -215,6 +220,90 @@ test("installing a skill from a bad URL explains what went wrong", async ({ page
   await page.getByLabel("Skill URL").fill("https://127.0.0.1:1/not-a-skill/SKILL.md")
   await page.getByRole("button", { name: "Install" }).click()
   await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 })
+})
+
+test.describe("pairing a computer", () => {
+  const home = mkdtempSync(join(tmpdir(), "dc-e2e-laptop-"))
+  let daemon: ChildProcess | undefined
+  let output = ""
+
+  test.afterAll(() => void daemon?.kill())
+
+  test("a daemon on the user's machine is paired from the link it prints", async ({
+    page,
+    baseURL,
+  }) => {
+    writeFileSync(join(home, "hello.txt"), "a file on the user's laptop\n")
+    // The real daemon, as a user would run it, with its home pointed at a scratch directory.
+    daemon = spawn(
+      "node",
+      [
+        fileURLToPath(new URL("../../daemon/dist/daemon.cjs", import.meta.url)),
+        baseURL!,
+        "--name",
+        "test-laptop",
+      ],
+      {
+        env: {
+          ...process.env,
+          HOME: home,
+          DC_DAEMON_DIR: join(home, ".dc"),
+          DC_DAEMON_POLL_MS: "200",
+        },
+      },
+    )
+    daemon.stdout!.on("data", (chunk) => (output += String(chunk)))
+    await expect
+      .poll(() => /pair\?code=[A-Z0-9-]+/.exec(output)?.[0], { timeout: 10_000 })
+      .toBeTruthy()
+    const link = /http\S+\/pair\?code=[A-Z0-9-]+/.exec(output)![0]
+
+    await signIn(page)
+    await page.goto(link)
+    await expect(page.getByRole("heading", { name: "Connect this computer?" })).toBeVisible()
+    await expect(page.getByText("test-laptop")).toBeVisible()
+    await expect(page.getByText(/run any command/)).toBeVisible()
+    await page.getByRole("button", { name: "Connect this computer" }).click()
+    await expect(page.getByRole("heading", { name: "Connected" })).toBeVisible()
+
+    await page.getByRole("link", { name: "See your computers" }).click()
+    const card = page.getByRole("listitem").filter({ hasText: "test-laptop" })
+    await expect(card.getByText("Online", { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect.poll(() => output).toContain("Connected to")
+  })
+
+  test("the agent works on the paired computer when asked to", async ({ page }) => {
+    await signIn(page)
+    await newChat(page)
+    await composer(page).fill(
+      '/tool bash {"command":"cat hello.txt && echo agent was here > from-agent.txt","computer":"test-laptop"}',
+    )
+    await page.keyboard.press("Enter")
+    await expect(page.getByText("a file on the user's laptop")).toBeVisible()
+    // The command really ran on that machine, and the machine has a record of it.
+    expect(readFileSync(join(home, "from-agent.txt"), "utf8")).toBe("agent was here\n")
+    expect(readFileSync(join(home, ".dc/audit.log"), "utf8")).toContain("cat hello.txt")
+  })
+
+  test("removing the computer cuts the daemon off", async ({ page }) => {
+    await signIn(page)
+    await page.getByRole("button", { name: "Computers" }).click()
+    await page.getByRole("button", { name: "Remove test-laptop" }).click()
+    await expect(page.getByRole("listitem").filter({ hasText: "test-laptop" })).toHaveCount(0)
+    await expect.poll(() => output, { timeout: 10_000 }).toContain("was removed from your account")
+    await expect.poll(() => daemon!.exitCode, { timeout: 10_000 }).toBe(0)
+
+    await newChat(page)
+    await composer(page).fill('/tool bash {"command":"ls","computer":"test-laptop"}')
+    await page.keyboard.press("Enter")
+    await expect(page.getByText(/There is no computer named "test-laptop"/)).toBeVisible()
+  })
+
+  test("an expired or mistyped code is explained", async ({ page }) => {
+    await signIn(page)
+    await page.goto("/pair?code=ZZZZ-ZZZZ")
+    await expect(page.getByRole("heading", { name: "That code did not work" })).toBeVisible()
+  })
 })
 
 test("signing out ends the session", async ({ page }) => {

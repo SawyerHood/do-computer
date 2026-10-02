@@ -2,12 +2,24 @@ import { randomBytes } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { createAgentActor, createAgentModels } from "@durable-computer/agent"
-import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "@durable-computer/runtime/node"
+import { createComputerLinkActor } from "@durable-computer/computers"
+import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
+import {
+  fileBlobs,
+  NodeActorNamespace,
+  openNodeAppDatabase,
+  type SocketLike,
+} from "@durable-computer/runtime/node"
 import { type Platform, readConfig } from "./platform.ts"
 import { sandboxFactory } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
-type Holder = { [KEY]?: Platform }
+
+/** The Node platform also accepts daemon sockets, which only a long-lived process can hold. */
+export type NodePlatform = Platform & {
+  connectComputer(name: string, socket: SocketLike, request: Request): Promise<void>
+}
+type Holder = { [KEY]?: NodePlatform }
 
 /** A self-hosted install should start without setup: mint the session secret once and keep it. */
 function authSecret(directory: string): string {
@@ -18,13 +30,20 @@ function authSecret(directory: string): string {
   return secret
 }
 
-function create(): Platform {
+function create(): NodePlatform {
   const directory = resolve(process.env.DC_DATA_DIR ?? ".data")
   mkdirSync(directory, { recursive: true })
   const fromEnv = readConfig(process.env)
   const config = { ...fromEnv, authSecret: fromEnv.authSecret ?? authSecret(directory) }
   const { database, app } = openNodeAppDatabase(join(directory, "app.sqlite"))
   const models = createAgentModels(config)
+  const computers = new NodeActorNamespace({
+    directory: join(directory, "computers"),
+    blobs: () => fileBlobs(join(directory, "blobs", "computers")),
+    factory: (host) => createComputerLinkActor(host),
+    socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
+    onError: (error, name) => console.error(`[${name}]`, error),
+  })
   const agents = new NodeActorNamespace({
     directory: join(directory, "agents"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -34,17 +53,26 @@ function create(): Platform {
         defaultModel: models.defaultModel,
         modelOptions: models.options,
         sandbox: sandboxFactory(config),
+        computerLinks: computers,
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       }),
     onError: (error, name) => console.error(`[agent ${name}] alarm failed`, error),
   })
   // Wake agents whose work was interrupted by the last shutdown.
   agents.start()
-  return { target: "node", config, db: app, authDatabase: database, agents }
+  return {
+    target: "node",
+    config,
+    db: app,
+    authDatabase: database,
+    agents,
+    computers,
+    connectComputer: (name, socket, request) => computers.connect(name, socket, request),
+  }
 }
 
 /** One platform per process. Kept on `globalThis` so a dev-server module reload reuses it. */
-export function getPlatform(): Platform {
+export function getPlatform(): NodePlatform {
   const holder = globalThis as Holder
   return (holder[KEY] ??= create())
 }
