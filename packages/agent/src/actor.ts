@@ -35,6 +35,7 @@ import {
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { Computer } from "./computer.ts"
+import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
@@ -177,6 +178,7 @@ export class AgentActor implements Actor {
   readonly #options: AgentActorOptions
   readonly #computer: Computer | undefined
   readonly #paired: PairedComputers | undefined
+  readonly #library: Library
   readonly #scheduler: Scheduler
   readonly #skills: Skills
   #harness: Promise<Harness> | undefined
@@ -185,8 +187,11 @@ export class AgentActor implements Actor {
     this.#host = host
     this.#options = options
     this.#computer = options.sandbox === undefined ? undefined : new Computer(options.sandbox(host))
+    this.#library = new Library({ blobs: host.blobs, now: () => host.now() })
     this.#paired =
-      options.computerLinks === undefined ? undefined : new PairedComputers(options.computerLinks)
+      options.computerLinks === undefined
+        ? undefined
+        : new PairedComputers(options.computerLinks, [this.#library.sendFileTool])
     this.#skills = new Skills({
       now: () => host.now(),
       sandbox: this.#computer?.sandbox,
@@ -210,6 +215,8 @@ export class AgentActor implements Actor {
         if (computer === undefined) registry.install(CodingTools)
         registry.install(this.#paired.extension)
       }
+      // Before the paired-computer wraps, which also apply to sending a file.
+      registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
@@ -229,16 +236,19 @@ export class AgentActor implements Actor {
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
       this.#paired?.attach(harness)
+      this.#library.attach(harness)
       await this.#skills.seed(context)
       // A schedule the agent creates or changes moves the next wake-up.
       if (
         (await harness.snapshot(SchedulesDoc, context)) === undefined ||
-        (await harness.snapshot(ComputersDoc, context)) === undefined
+        (await harness.snapshot(ComputersDoc, context)) === undefined ||
+        (await harness.snapshot(LibraryDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
           await tx.doc(SchedulesDoc)
           await tx.doc(ComputersDoc)
+          await tx.doc(LibraryDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -296,7 +306,11 @@ export class AgentActor implements Actor {
       if (error instanceof HttpError) {
         return json({ error: error.message, code: error.code }, error.status)
       }
-      if (error instanceof ScheduleError || error instanceof SkillError) {
+      if (
+        error instanceof ScheduleError ||
+        error instanceof SkillError ||
+        error instanceof LibraryError
+      ) {
         return json({ error: error.message }, 400)
       }
       this.#options.onReport?.(error)
@@ -339,6 +353,40 @@ export class AgentActor implements Actor {
       }
       if (computerId !== undefined && method === "DELETE") {
         await this.#paired.remove(computerId, context)
+        return json({ ok: true })
+      }
+    }
+    if (segments[0] === "library") {
+      const fileId = segments[1]
+      if (fileId === undefined && method === "GET") {
+        return json({ files: await this.#library.list(context) })
+      }
+      if (fileId === undefined && method === "POST") {
+        // The body is the file; its name and the chat it belongs to are in the query.
+        const size = Number(request.headers.get("content-length") ?? "0")
+        if (size > MAX_LIBRARY_FILE_BYTES) throw new HttpError(413, "That file is too large.")
+        const name = url.searchParams.get("name")
+        if (name === null || name === "") throw new HttpError(400, "name is required")
+        const file = await this.#library.add(
+          {
+            name,
+            bytes: new Uint8Array(await request.arrayBuffer()),
+            source: "user",
+            chatId: url.searchParams.get("chat"),
+            contentType: request.headers.get("content-type") ?? undefined,
+          },
+          context,
+        )
+        return json(file, 201)
+      }
+      if (fileId !== undefined && method === "GET") {
+        const response = await this.#library.serve(fileId, context)
+        if (response === undefined) throw new HttpError(404, "File not found")
+        return response
+      }
+      if (fileId !== undefined && method === "DELETE") {
+        if (!(await this.#library.remove(fileId, context)))
+          throw new HttpError(404, "File not found")
         return json({ ok: true })
       }
     }
@@ -656,6 +704,7 @@ export class AgentActor implements Actor {
       const schedules = await harness.watchDoc(SchedulesDoc, context)
       const skills = await harness.watchDoc(SkillsDoc, context)
       const computers = await harness.watchDoc(ComputersDoc, context)
+      const library = await harness.watchDoc(LibraryDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -665,6 +714,7 @@ export class AgentActor implements Actor {
       schedules?.start(changed("schedules"))
       skills?.start(changed("skills"))
       computers?.start(changed("computers"))
+      library?.start(changed("library"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -672,6 +722,7 @@ export class AgentActor implements Actor {
         void schedules?.stop()
         void skills?.stop()
         void computers?.stop()
+        void library?.stop()
       }
     })
   }

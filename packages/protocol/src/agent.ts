@@ -65,6 +65,19 @@ export type SkillSummary = {
 
 export type SkillDetail = SkillSummary & { contents: Record<string, string> }
 
+/** A file in the agent's library: something it delivered to the user, or the user gave it. */
+export type LibraryFile = {
+  id: string
+  name: string
+  size: number
+  contentType: string
+  /** `agent` for a file the agent sent, `user` for one the user uploaded. */
+  source: "agent" | "user"
+  /** The chat it was sent or uploaded in. */
+  chatId: string | null
+  createdAt: number
+}
+
 /** A task the agent runs on its own, once or on a repeating schedule. */
 export type ScheduleSummary = {
   id: string

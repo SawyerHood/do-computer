@@ -60,7 +60,8 @@ export class PairedComputers {
   readonly #links: ActorNamespace
   #harness: Harness | undefined
 
-  constructor(links: ActorNamespace) {
+  /** @param extraTools Other tools that act on a computer and should take the same argument. */
+  constructor(links: ActorNamespace, extraTools: readonly ToolRegistration[] = []) {
     this.#links = links
     const target = <Tool extends ToolRegistration>(tool: Tool) =>
       wrapTool(tool as ToolRegistration, (inner) => ({
@@ -110,6 +111,7 @@ export class PairedComputers {
         target(createWriteTool()),
         target(createEditTool()),
         target(createBashTool()),
+        ...extraTools.map((tool) => target(tool)),
       ],
     })
   }

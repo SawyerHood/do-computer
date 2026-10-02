@@ -9,6 +9,7 @@ import {
   type ComputerSummary,
   type CreateChatRequest,
   EMPTY_CHAT,
+  type LibraryFile,
   type ModelOption,
   readSse,
   reduceChat,
@@ -208,6 +209,20 @@ export function createClient(options: ClientOptions) {
         removeSkill: (name: string) =>
           request<{ ok: true }>(`${base}/skills/${encodeURIComponent(name)}`, { method: "DELETE" }),
         installSkill: (url: string) => post<SkillSummary>(`${base}/skills/install`, { url }),
+        library: async () => (await request<{ files: LibraryFile[] }>(`${base}/library`)).files,
+        /** Where a library file's bytes are served from; needs the same credentials as any call. */
+        libraryFileUrl: (fileId: string) => `${options.baseUrl}${base}/library/${fileId}`,
+        removeLibraryFile: (fileId: string) =>
+          request<{ ok: true }>(`${base}/library/${fileId}`, { method: "DELETE" }),
+        upload: (file: { name: string; type: string; body: BodyInit }, chatId?: string) =>
+          request<LibraryFile>(
+            `${base}/library?name=${encodeURIComponent(file.name)}${chatId ? `&chat=${chatId}` : ""}`,
+            {
+              method: "POST",
+              body: file.body,
+              headers: { "content-type": file.type || "application/octet-stream" },
+            },
+          ),
         /** Calls `onState` with each new state of the chat, starting from its current one. */
         watchChat(
           chatId: string,

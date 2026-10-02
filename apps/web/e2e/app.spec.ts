@@ -222,6 +222,42 @@ test("installing a skill from a bad URL explains what went wrong", async ({ page
   await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 })
 })
 
+test("a file the agent sends appears in the chat and in the library", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool write {"path":"plan.md","content":"# The plan\\n\\nShip it.\\n"}',
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText("Successfully wrote to plan.md")).toBeVisible()
+  await composer(page).fill('/tool send_file {"path":"plan.md"}')
+  await page.keyboard.press("Enter")
+
+  const card = page.getByRole("main").getByRole("link", { name: /plan\.md/ })
+  await expect(card).toBeVisible()
+  const download = page.waitForEvent("download")
+  await card.click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe("plan.md")
+  expect(readFileSync(await file.path(), "utf8")).toBe("# The plan\n\nShip it.\n")
+
+  await page.getByRole("button", { name: "Library" }).click()
+  const row = page.getByRole("listitem").filter({ hasText: "plan.md" })
+  await expect(row).toContainText("from your agent")
+
+  // The user can add files too, and remove any of them.
+  await page.getByLabel("Choose a file to upload").setInputFiles({
+    name: "notes from me.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("remember the milk"),
+  })
+  await expect(page.getByRole("listitem").filter({ hasText: "notes from me.txt" })).toContainText(
+    "uploaded by you",
+  )
+  await row.getByRole("button", { name: "Delete plan.md" }).click()
+  await expect(page.getByRole("listitem").filter({ hasText: "plan.md" })).toHaveCount(0)
+})
+
 test.describe("pairing a computer", () => {
   const home = mkdtempSync(join(tmpdir(), "dc-e2e-laptop-"))
   let daemon: ChildProcess | undefined

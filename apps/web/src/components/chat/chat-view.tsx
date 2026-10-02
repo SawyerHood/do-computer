@@ -5,6 +5,7 @@ import { chatKey } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { useLiveChat } from "@/lib/use-live-chat"
 import { Composer } from "./composer.tsx"
+import { AgentIdContext } from "./tool-row.tsx"
 import { Transcript } from "./transcript.tsx"
 
 function Welcome({ agent }: { agent: AgentSummary }) {
@@ -51,7 +52,9 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         </div>
       </div>
       <div className="min-h-0 flex-1">
-        <Transcript state={live.state} empty={live.loaded ? <Welcome agent={agent} /> : null} />
+        <AgentIdContext value={agent.id}>
+          <Transcript state={live.state} empty={live.loaded ? <Welcome agent={agent} /> : null} />
+        </AgentIdContext>
       </div>
       <Composer
         draftKey={chatKey(agent.id, chatId)}

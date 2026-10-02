@@ -13,7 +13,9 @@ import {
   WarningIcon,
   WrenchIcon,
 } from "@phosphor-icons/react"
-import { useState } from "react"
+import type { LibraryFile } from "@durable-computer/protocol"
+import { createContext, useContext, useState } from "react"
+import { FileCard } from "@/components/file-card"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { cn } from "@/lib/utils"
 
@@ -61,6 +63,11 @@ const TOOLS: Record<
       return `Updated the ${name} skill`
     },
   },
+  send_file: {
+    icon: FileTextIcon,
+    running: "Sending a file",
+    done: (args) => `Sent ${typeof args.path === "string" ? args.path : "a file"}`,
+  },
   read: {
     icon: FileTextIcon,
     running: "Reading a file",
@@ -94,9 +101,17 @@ function describe(part: ToolPart): { Icon: typeof WrenchIcon; label: string } {
   return { Icon: known.icon, label: active ? known.running : known.done(args) }
 }
 
+/** The agent whose chat is on screen, for parts that link to its files. */
+export const AgentIdContext = createContext<string | undefined>(undefined)
+
 /** One tool call: a single quiet line that expands to its arguments and output. */
 export function ToolRow({ part }: { part: ToolPart }) {
   const [open, setOpen] = useState(false)
+  const agentId = useContext(AgentIdContext)
+  // A delivered file is the point of the call, so it is shown as the file, not as a tool line.
+  if (part.name === "send_file" && part.status === "done" && part.details && agentId) {
+    return <FileCard agentId={agentId} file={part.details as unknown as LibraryFile} />
+  }
   const { Icon, label } = describe(part)
   const active = part.status === "pending" || part.status === "running"
   const failed = part.status === "error"

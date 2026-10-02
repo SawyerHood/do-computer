@@ -28,6 +28,7 @@ import { Route as ApiComputersComputerIdRouteImport } from './routes/api/compute
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
 import { Route as AppAAgentIdComputersRouteImport } from './routes/_app.a.$agentId.computers'
+import { Route as AppAAgentIdLibraryRouteImport } from './routes/_app.a.$agentId.library'
 import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
 import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
@@ -131,6 +132,11 @@ const AppAAgentIdComputersRoute = AppAAgentIdComputersRouteImport.update({
   path: '/computers',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const AppAAgentIdLibraryRoute = AppAAgentIdLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
 const AppAAgentIdProfileRoute = AppAAgentIdProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/api/computers/': typeof ApiComputersIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/api/computers': typeof ApiComputersIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   '/api/computers/': typeof ApiComputersIndexRoute
   '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/_app/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/_app/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
   '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/api/computers/'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
+    | '/a/$agentId/library'
     | '/a/$agentId/profile'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
@@ -305,6 +315,7 @@ export interface FileRouteTypes {
     | '/api/computers'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
+    | '/a/$agentId/library'
     | '/a/$agentId/profile'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
@@ -334,6 +345,7 @@ export interface FileRouteTypes {
     | '/api/computers/'
     | '/_app/a/$agentId/automations'
     | '/_app/a/$agentId/computers'
+    | '/_app/a/$agentId/library'
     | '/_app/a/$agentId/profile'
     | '/_app/a/$agentId/skills'
     | '/api/agents/$agentId/$'
@@ -501,6 +513,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAAgentIdComputersRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
+    '/_app/a/$agentId/library': {
+      id: '/_app/a/$agentId/library'
+      path: '/library'
+      fullPath: '/a/$agentId/library'
+      preLoaderRoute: typeof AppAAgentIdLibraryRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
     '/_app/a/$agentId/profile': {
       id: '/_app/a/$agentId/profile'
       path: '/profile'
@@ -563,6 +582,7 @@ declare module '@tanstack/react-router' {
 interface AppAAgentIdRouteChildren {
   AppAAgentIdAutomationsRoute: typeof AppAAgentIdAutomationsRoute
   AppAAgentIdComputersRoute: typeof AppAAgentIdComputersRoute
+  AppAAgentIdLibraryRoute: typeof AppAAgentIdLibraryRoute
   AppAAgentIdProfileRoute: typeof AppAAgentIdProfileRoute
   AppAAgentIdSkillsRoute: typeof AppAAgentIdSkillsRoute
   AppAAgentIdIndexRoute: typeof AppAAgentIdIndexRoute
@@ -572,6 +592,7 @@ interface AppAAgentIdRouteChildren {
 const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
   AppAAgentIdAutomationsRoute: AppAAgentIdAutomationsRoute,
   AppAAgentIdComputersRoute: AppAAgentIdComputersRoute,
+  AppAAgentIdLibraryRoute: AppAAgentIdLibraryRoute,
   AppAAgentIdProfileRoute: AppAAgentIdProfileRoute,
   AppAAgentIdSkillsRoute: AppAAgentIdSkillsRoute,
   AppAAgentIdIndexRoute: AppAAgentIdIndexRoute,
