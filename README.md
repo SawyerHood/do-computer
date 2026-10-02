@@ -168,10 +168,10 @@ paired computer. What limits the damage:
 - **The server will not be used to reach inside your network.** Connector addresses and skill
   installs must be https on a public host, re-checked on every redirect. The built-in computer
   runs inside the server, so what an agent fetches with `curl` there goes through the same check:
-  the public internet only, by http or https. On Node the host name is looked up as well, so a
-  public name pointing at a private address is refused too. `DC_ALLOW_PRIVATE_HOSTS=1`
-  lifts this for a deployment that wants services on its own network. The check reads the address
-  as written: a public name that resolves to a private address is not caught.
+  the public internet only, by http or https. On Node every host name is also looked up, so a
+  public name pointing at a private address is refused too; a Worker cannot reach private
+  networks to begin with. `DC_ALLOW_PRIVATE_HOSTS=1` lifts all of this for a deployment that
+  wants services on its own network.
 - **Revocation.** Removing a computer cuts its daemon off at once. Removing a connector deletes its
   credentials. Deleting an agent deletes its computer and everything it stored.
 

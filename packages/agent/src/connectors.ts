@@ -82,6 +82,8 @@ export type ConnectorsOptions = {
    * default: the server makes these calls for whoever adds the connector.
    */
   readonly allowPrivateHosts?: boolean
+  /** Looks a host name up, where the runtime can, so a name pointing inside is refused too. */
+  readonly resolveHost?: (hostname: string) => Promise<readonly string[]>
 }
 
 /**
@@ -101,6 +103,7 @@ export class Connectors {
     this.#fetch = guardedFetch(
       options.fetch ?? ((input, init) => fetch(input, init)),
       options.allowPrivateHosts === true,
+      { resolve: options.resolveHost },
     )
   }
 

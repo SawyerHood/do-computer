@@ -97,6 +97,8 @@ export type AgentActorOptions = {
    * http. Off by default: the server makes those calls for whoever, or whatever, asks.
    */
   readonly allowPrivateHosts?: boolean
+  /** Looks a host name up, where the runtime can, so a name pointing inside is refused too. */
+  readonly resolveHost?: (hostname: string) => Promise<readonly string[]>
   /** Gives the agent a web search tool. Absent: it has none. */
   readonly webSearch?: WebSearchOptions
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
@@ -246,6 +248,7 @@ export class AgentActor implements Actor {
     const skillFetch = guardedFetch(
       (input, init) => (options.fetch ?? fetch)(String(input), init),
       options.allowPrivateHosts === true,
+      { resolve: options.resolveHost },
     )
     this.#skills = new Skills({
       now: () => host.now(),
@@ -346,6 +349,7 @@ export class AgentActor implements Actor {
         install: (extension) => registry.install(extension),
         fetch: this.#options.connectorFetch,
         allowPrivateHosts: this.#options.allowPrivateHosts,
+        resolveHost: this.#options.resolveHost,
       })
       await this.#connectors.attach(harness, context)
       await this.#skills.seed(context)

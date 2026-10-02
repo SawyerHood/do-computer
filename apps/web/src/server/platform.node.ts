@@ -59,6 +59,7 @@ function create(): NodePlatform {
         sandbox,
         webSearch: models.webSearch,
         allowPrivateHosts: config.allowPrivateHosts,
+        resolveHost: nodeProviders.resolveHost,
         computerLinks: computers,
         onNotify: (notification) =>
           void notifyOwner(app, notification.agentId, notification.agentName, notification),
