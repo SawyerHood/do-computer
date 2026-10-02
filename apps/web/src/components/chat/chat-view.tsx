@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { chatKey, earlierAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { useLiveChat } from "@/lib/use-live-chat"
+import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
 import { AgentIdContext } from "./tool-row.tsx"
 import { Transcript } from "./transcript.tsx"
@@ -126,6 +127,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           />
         </AgentIdContext>
       </div>
+      <PendingApprovals agentId={agent.id} agentName={agent.name ?? "Your agent"} chatId={chatId} />
       <Composer
         draftKey={chatKey(agent.id, chatId)}
         placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}

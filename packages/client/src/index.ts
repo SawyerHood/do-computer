@@ -3,6 +3,9 @@ import {
   type AgentEvent,
   type AgentSummary,
   type AgentUsage,
+  type ApprovalDecision,
+  type ApprovalRule,
+  type ApprovalsState,
   type ChatHistoryPage,
   type HistoryHit,
   type ApiError as ApiErrorBody,
@@ -266,6 +269,14 @@ export function createClient(options: ClientOptions) {
           patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
         removeConnector: (connectorId: string) =>
           request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
+        /** The agent's approval rules, what a rule can be set for, and what it is waiting on. */
+        approvals: () => request<ApprovalsState>(`${base}/approvals`),
+        /** Set rules by subject id. `allow` removes a rule. */
+        setApprovalRules: (rules: Record<string, ApprovalRule>) =>
+          patch<ApprovalsState>(`${base}/approvals/rules`, rules),
+        /** Answer something the agent asked to do. */
+        answerApproval: (requestId: string, decision: ApprovalDecision) =>
+          post<{ ok: true }>(`${base}/approvals/${requestId}`, { decision }),
         /** What the agent has spent on models so far. */
         usage: () => request<AgentUsage>(`${base}/usage`),
         library: async () => (await request<{ files: LibraryFile[] }>(`${base}/library`)).files,

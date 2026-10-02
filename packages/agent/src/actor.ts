@@ -3,6 +3,7 @@ import {
   type AgentEvent,
   type AgentSummary,
   type AgentUsage,
+  type ApprovalDecision,
   type ChatSummary,
   type ChatUsage,
   type CreateChatRequest,
@@ -40,6 +41,7 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
+import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
 import { Computer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
@@ -100,7 +102,7 @@ export type AgentNotification = {
   agentId: string
   /** Null while the agent has not named itself. */
   agentName: string | null
-  kind: "reply" | "scheduled"
+  kind: "reply" | "scheduled" | "approval"
   /** For a scheduled report, the task's title. */
   heading?: string
   text: string
@@ -215,6 +217,7 @@ export class AgentActor implements Actor {
   readonly #watchers = new Map<string, number>()
   readonly #scheduler: Scheduler
   readonly #skills: Skills
+  readonly #approvals: Approvals
   #harness: Promise<Harness> | undefined
 
   constructor(host: ActorHost, options: AgentActorOptions) {
@@ -230,6 +233,18 @@ export class AgentActor implements Actor {
       now: () => host.now(),
       sandbox: this.#computer?.sandbox,
       fetch: options.fetch,
+    })
+    this.#approvals = new Approvals({
+      now: () => host.now(),
+      connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
+      connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
+      onRequest: (request) =>
+        void this.#notify({
+          kind: "approval",
+          heading: "Needs your OK",
+          text: request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
+          chatId: request.chatKind === "chat" ? request.chatId : null,
+        }),
     })
     this.#scheduler = new Scheduler({
       now: () => host.now(),
@@ -251,6 +266,8 @@ export class AgentActor implements Actor {
       // For tools that read the harness they are installed in, once it exists.
       let opened: Harness | undefined
       registry.install(Persona)
+      // First among the tool hooks: a call that is not allowed should cause nothing at all.
+      registry.install(this.#approvals.extension)
       for (const extension of computer?.extensions ?? []) registry.install(extension)
       if (this.#paired !== undefined) {
         // The file and shell tools are needed for paired computers even without one of its own.
@@ -281,6 +298,7 @@ export class AgentActor implements Actor {
         context,
       )
       opened = harness
+      this.#approvals.attach(harness)
       computer?.attach(harness)
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
@@ -301,7 +319,8 @@ export class AgentActor implements Actor {
         (await harness.snapshot(SchedulesDoc, context)) === undefined ||
         (await harness.snapshot(ComputersDoc, context)) === undefined ||
         (await harness.snapshot(LibraryDoc, context)) === undefined ||
-        (await harness.snapshot(ConnectorsDoc, context)) === undefined
+        (await harness.snapshot(ConnectorsDoc, context)) === undefined ||
+        (await harness.snapshot(ApprovalsDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
@@ -309,6 +328,7 @@ export class AgentActor implements Actor {
           await tx.doc(ComputersDoc)
           await tx.doc(LibraryDoc)
           await tx.doc(ConnectorsDoc)
+          await tx.doc(ApprovalsDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -396,6 +416,7 @@ export class AgentActor implements Actor {
         error instanceof SkillError ||
         error instanceof LibraryError ||
         error instanceof HistoryError ||
+        error instanceof ApprovalError ||
         error instanceof ConnectorError
       ) {
         return json({ error: error.message }, 400)
@@ -540,6 +561,22 @@ export class AgentActor implements Actor {
           await this.#skills.remove(name, context)
           return json({ ok: true })
         }
+      }
+    }
+    if (segments[0] === "approvals") {
+      const requestId = segments[1]
+      if (requestId === undefined && method === "GET") {
+        return json(await this.#approvals.state(context))
+      }
+      if (requestId === "rules" && method === "PATCH") {
+        return json(
+          await this.#approvals.setRules(await body<Record<string, unknown>>(request), context),
+        )
+      }
+      if (requestId !== undefined && segments[2] === undefined && method === "POST") {
+        const { decision } = await body<{ decision: ApprovalDecision }>(request)
+        await this.#approvals.resolve(requestId, decision, context)
+        return json({ ok: true })
       }
     }
     if (segments[0] === "search" && segments[1] === undefined && method === "GET") {
@@ -937,6 +974,7 @@ export class AgentActor implements Actor {
       const computers = await harness.watchDoc(ComputersDoc, context)
       const library = await harness.watchDoc(LibraryDoc, context)
       const connectors = await harness.watchDoc(ConnectorsDoc, context)
+      const approvals = await harness.watchDoc(ApprovalsDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -948,6 +986,7 @@ export class AgentActor implements Actor {
       computers?.start(changed("computers"))
       library?.start(changed("library"))
       connectors?.start(changed("connectors"))
+      approvals?.start(changed("approvals"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -957,6 +996,7 @@ export class AgentActor implements Actor {
         void computers?.stop()
         void library?.stop()
         void connectors?.stop()
+        void approvals?.stop()
       }
     })
   }

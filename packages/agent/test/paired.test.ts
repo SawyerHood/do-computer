@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createComputerLinkActor, DaemonCore } from "@durable-computer/computers"
 import { nodeDaemonIO } from "@durable-computer/computers/node"
-import type { ChatState, ChatSummary, ToolPart } from "@durable-computer/protocol"
+import type { ApprovalsState, ChatState, ChatSummary, ToolPart } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@durable-computer/runtime/node"
 import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -191,6 +191,44 @@ describe("paired computers", () => {
 
     faux.setResponses(useTool("read", { path: "notes/from-agent.md", computer: "laptop" }))
     expect(lastTool(await say(chat.id, "read it back")).output).toContain("second draft")
+  })
+
+  it("can be put behind an approval, even for reading, without limiting the agent's own computer", async () => {
+    const approvals = await call<ApprovalsState>("/approvals")
+    expect(approvals.subjects).toContainEqual({
+      id: "computer:c1",
+      label: "Work on laptop",
+      kind: "computer",
+    })
+    await call("/approvals/rules", "PATCH", { "computer:c1": "ask" })
+
+    // Reading is asked about too: the rule is about the machine, not the tool.
+    faux.setResponses(useTool("read", { path: "notes/from-agent.md", computer: "laptop" }))
+    const held = lastTool(await say(chat.id, "read my notes"))
+    expect(held.status).toBe("error")
+    expect(held.output).toContain("needs the user's approval first (Read files on laptop)")
+    const { pending } = await call<ApprovalsState>("/approvals")
+    expect(pending).toMatchObject([
+      { title: "Read files on laptop", detail: "notes/from-agent.md" },
+    ])
+
+    // The same tool on the agent's own computer is not the laptop.
+    faux.setResponses(useTool("bash", { command: "echo mine" }))
+    expect(lastTool(await say(chat.id, "your own shell"))).toMatchObject({
+      status: "done",
+      output: "mine\n",
+    })
+
+    faux.setResponses(useTool("read", { path: "notes/from-agent.md", computer: "laptop" }))
+    const before = (await call<ChatState>(`/chats/${chat.id}`)).messages.length
+    await call(`/approvals/${pending[0]!.id}`, "POST", { decision: "always" })
+    for (;;) {
+      const state = await call<ChatState>(`/chats/${chat.id}`)
+      if (!state.busy && state.messages.length > before + 1) break
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    }
+    expect(lastTool(await call<ChatState>(`/chats/${chat.id}`)).output).toContain("second draft")
+    expect((await call<ApprovalsState>("/approvals")).rules).toEqual({})
   })
 
   it("explain an unknown, offline or removed computer instead of failing obscurely", async () => {

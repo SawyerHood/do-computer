@@ -11,6 +11,7 @@ export const schedulesKey = (agentId: string) => ["agents", agentId, "schedules"
 export const skillsKey = (agentId: string) => ["agents", agentId, "skills"] as const
 export const computersKey = ["computers"] as const
 export const usageKey = (agentId: string) => ["agents", agentId, "usage"] as const
+export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
 
@@ -68,8 +69,14 @@ export function refreshAgent(agentId: string, what: string): void {
     void queryClient.invalidateQueries({ queryKey: schedulesKey(agentId) })
     return
   }
+  if (what === "approvals") {
+    void queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
+    return
+  }
   if (what === "connectors") {
     void queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) })
+    // A rule can be set for each connector, so the list of those changes with it.
+    void queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
     return
   }
   if (what === "library") {
@@ -78,6 +85,7 @@ export function refreshAgent(agentId: string, what: string): void {
   }
   if (what === "computers") {
     void queryClient.invalidateQueries({ queryKey: computersKey })
+    void queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
     return
   }
   if (what === "skills") {

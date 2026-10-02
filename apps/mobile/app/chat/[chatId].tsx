@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { PendingApprovals } from "@/components/approvals"
 import { Avatar } from "@/components/avatar"
 import { Composer, Transcript } from "@/components/chat"
 import { Icon } from "@/components/icons"
@@ -90,6 +91,11 @@ function Chat({ agentId, chatId }: { agentId: string; chatId: string }) {
             }
           />
         </View>
+        <PendingApprovals
+          agentId={agentId}
+          agentName={agent.name ?? "Your agent"}
+          chatId={chatId}
+        />
         <Composer
           placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
           busy={live.state.busy}

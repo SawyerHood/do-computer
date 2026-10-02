@@ -10,6 +10,7 @@ export const keys = {
   schedules: (agentId: string) => ["agents", agentId, "schedules"] as const,
   skills: (agentId: string) => ["agents", agentId, "skills"] as const,
   library: (agentId: string) => ["agents", agentId, "library"] as const,
+  approvals: (agentId: string) => ["agents", agentId, "approvals"] as const,
 }
 
 /**
@@ -52,7 +53,9 @@ export function useAgent() {
             ? keys.skills(agentId)
             : event.what === "library"
               ? keys.library(agentId)
-              : keys.agent(agentId)
+              : event.what === "approvals"
+                ? keys.approvals(agentId)
+                : keys.agent(agentId)
       void queryClient.invalidateQueries({ queryKey: key })
     })
     return () => subscription.close()

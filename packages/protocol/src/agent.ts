@@ -44,6 +44,7 @@ export type AgentEvent =
         | "skills"
         | "computers"
         | "connectors"
+        | "approvals"
         | "library"
         | "memory"
     }
@@ -185,4 +186,38 @@ export type HistoryHit = {
   at: number | null
   /** The match and some of what surrounds it. */
   snippet: string
+}
+
+/** What the agent may do with something without asking: do it, ask first, or never. */
+export type ApprovalRule = "allow" | "ask" | "deny"
+
+/** Something a rule can be set for: a tool, a connector, or one of the user's computers. */
+export type ApprovalSubject = {
+  /** `tool:<name>`, `connector:<id>` or `computer:<id>`. */
+  id: string
+  /** What it lets the agent do, in a few words, such as "Run commands". */
+  label: string
+  kind: "tool" | "connector" | "computer"
+}
+
+/** Something the agent wants to do that a rule says to ask about first. */
+export type ApprovalRequest = {
+  id: string
+  chatId: string
+  chatTitle: string
+  chatKind: ChatKind
+  /** What it wants to do, such as "Run commands on studio-mac". */
+  title: string
+  /** The specifics: the command, the file, the arguments. */
+  detail: string
+  createdAt: number
+}
+
+export type ApprovalDecision = "once" | "always" | "deny"
+
+export type ApprovalsState = {
+  /** Rules that differ from the default, by subject id. Everything else is allowed. */
+  rules: Record<string, ApprovalRule>
+  subjects: ApprovalSubject[]
+  pending: ApprovalRequest[]
 }

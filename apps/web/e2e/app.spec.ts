@@ -513,6 +513,53 @@ test("starting fresh keeps the earlier messages within reach", async ({ page }) 
   expect(text.indexOf("New context")).toBeLessThan(text.indexOf("The second thing"))
 })
 
+test("an agent told to ask first waits for an answer before it acts", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole("button", { name: "Permissions" }).click()
+  const commands = page.getByRole("radiogroup", { name: "Run commands" })
+  await expect(commands.getByRole("radio", { name: "Allow" })).toBeChecked()
+  await commands.getByRole("radio", { name: "Ask first" }).click()
+  await expect(commands.getByRole("radio", { name: "Ask first" })).toBeChecked()
+  await page.reload()
+  await expect(commands.getByRole("radio", { name: "Ask first" })).toBeChecked()
+
+  await newChat(page)
+  const transcript = page.getByRole("log")
+  const waiting = page.getByRole("list", { name: "Waiting for your OK" })
+  const run = '/tool bash {"command":"echo ran-with-permission"}'
+  await composer(page).fill(run)
+  await composer(page).press("Enter")
+  // The command did not run; the request says exactly what would.
+  await expect(waiting.getByText("Juniper wants to: Run commands")).toBeVisible()
+  await expect(waiting.getByText("echo ran-with-permission")).toBeVisible()
+  await expect(transcript.getByText("ran-with-permission", { exact: true })).toHaveCount(0)
+
+  await waiting.getByRole("button", { name: "Allow once" }).click()
+  await expect(waiting).toHaveCount(0)
+  await expect(
+    transcript.getByText("Approved: Run commands: echo ran-with-permission", { exact: true }),
+  ).toBeVisible()
+  // The echo model does not act on being told; a real one would. Its next attempt is let through.
+  await expect(composer(page)).toBeEnabled()
+  await composer(page).fill(run)
+  await composer(page).press("Enter")
+  await expect(transcript.getByText("ran-with-permission", { exact: true }).first()).toBeVisible()
+
+  // Once was once. This time the answer is no.
+  await composer(page).fill('/tool bash {"command":"echo second-try"}')
+  await composer(page).press("Enter")
+  await waiting.getByRole("button", { name: "Don’t allow" }).click()
+  await expect(
+    transcript.getByText("Not allowed: Run commands: echo second-try", { exact: true }),
+  ).toBeVisible()
+  await expect(waiting).toHaveCount(0)
+
+  // Back to trusting it, as the other tests expect.
+  await page.getByRole("button", { name: "Permissions" }).click()
+  await commands.getByRole("radio", { name: "Allow" }).click()
+  await expect(commands.getByRole("radio", { name: "Allow" })).toBeChecked()
+})
+
 test("the settings page shows what the agent's thinking has cost", async ({ page }) => {
   await signIn(page)
   await page.getByRole("button", { name: "Identity and memory" }).click()

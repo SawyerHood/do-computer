@@ -204,6 +204,18 @@ export class Connectors {
       .sort((a, b) => a.addedAt - b.addedAt)
   }
 
+  /** The connector a tool the agent can call belongs to, if it is one of a connector's. */
+  async connectorOf(
+    toolName: string,
+    context: Context,
+  ): Promise<{ id: string; name: string } | undefined> {
+    for (const connector of await this.list(context)) {
+      if (connector.tools.some((tool) => connectorToolName(connector.name, tool.name) === toolName))
+        return { id: connector.id, name: connector.name }
+    }
+    return undefined
+  }
+
   async #get(id: string, context: Context): Promise<ConnectorSummary> {
     const found = (await this.list(context)).find((connector) => connector.id === id)
     if (found === undefined) throw new ConnectorError("There is no such connector.")

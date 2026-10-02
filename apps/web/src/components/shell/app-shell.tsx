@@ -10,6 +10,7 @@ import {
   ListIcon,
   PlugsIcon,
   MoonIcon,
+  ShieldCheckIcon,
   NotePencilIcon,
   PlusIcon,
   SignOutIcon,
@@ -294,7 +295,9 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                 ? "library"
                 : location.pathname.endsWith("/connectors")
                   ? "connectors"
-                  : "chat",
+                  : location.pathname.endsWith("/permissions")
+                    ? "permissions"
+                    : "chat",
   })
   const profile = page === "profile"
 
@@ -353,6 +356,15 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
             onClick={() => navigate({ to: "/a/$agentId/computers", params: { agentId: agent.id } })}
           >
             <DesktopIcon />
+          </RailButton>
+          <RailButton
+            label="Permissions"
+            active={page === "permissions"}
+            onClick={() =>
+              navigate({ to: "/a/$agentId/permissions", params: { agentId: agent.id } })
+            }
+          >
+            <ShieldCheckIcon />
           </RailButton>
           <RailButton
             label="Identity and memory"
@@ -444,6 +456,14 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                 className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
               >
                 Connectors
+              </Link>
+              <Link
+                to="/a/$agentId/permissions"
+                params={{ agentId: agent.id }}
+                onClick={() => setSheetOpen(false)}
+                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
+              >
+                Permissions
               </Link>
             </div>
           </div>

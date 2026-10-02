@@ -104,6 +104,30 @@ test("the agent's work shows as tool lines, and a sent file can be opened", asyn
   expect((await fetched).headers()["content-disposition"]).toContain("list.md")
 })
 
+test("a request for approval can be answered from the phone", async ({ page }) => {
+  await signIn(page)
+  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
+    agents: { id: string }[]
+  }
+  const rules = `/api/agents/${agents[0]!.id}/approvals/rules`
+  await page.request.patch(rules, { data: { "tool:bash": "ask" } })
+  try {
+    await page.getByRole("link", { name: "hello from the phone" }).click()
+    await composer(page).fill('/tool bash {"command":"echo from-the-phone"}')
+    await page.getByRole("button", { name: "Send" }).click()
+    await expect(page.getByText("Pip wants to: Run commands")).toBeVisible()
+    await expect(page.getByText("echo from-the-phone", { exact: true })).toBeVisible()
+
+    await page.getByRole("button", { name: "Allow once" }).click()
+    await expect(page.getByText("Pip wants to: Run commands")).toHaveCount(0)
+    await expect(
+      page.getByText("Approved: Run commands: echo from-the-phone", { exact: true }),
+    ).toBeVisible()
+  } finally {
+    await page.request.patch(rules, { data: { "tool:bash": "allow" } })
+  }
+})
+
 test("Markdown in a reply is rendered, not shown as markup", async ({ page }) => {
   await signIn(page)
   await page.getByRole("link", { name: "hello from the phone" }).click()
