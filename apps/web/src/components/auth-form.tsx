@@ -1,7 +1,7 @@
 import { GithubLogoIcon, GoogleLogoIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,19 +12,25 @@ type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
 /** Sign in or create an account, with email and password or a configured provider. */
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const navigate = useNavigate()
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [error, setError] = useState<string>()
   const [pending, setPending] = useState(false)
+  // The page arrives as HTML before its script runs. Until then a click on the button would be
+  // the browser's own form submission, which signs nobody in, so the button waits for the script.
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(true), [])
   const { data: methods } = useQuery({
     queryKey: ["auth-methods"],
     queryFn: async (): Promise<Methods> => (await fetch("/api/auth-methods")).json(),
   })
   const signingUp = mode === "sign-up"
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    // Read from the fields themselves, so what was typed before the script ran is not lost.
+    const fields = new FormData(event.currentTarget)
+    const name = String(fields.get("name") ?? "")
+    const email = String(fields.get("email") ?? "")
+    const password = String(fields.get("password") ?? "")
     setError(undefined)
     setPending(true)
     const result = signingUp
@@ -77,28 +83,16 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           </div>
         ) : null}
 
-        <form className="flex flex-col gap-4" onSubmit={submit}>
+        <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
           {signingUp ? (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                autoComplete="name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
+              <Input id="name" name="name" autoComplete="name" />
             </div>
           ) : null}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+            <Input id="email" name="email" type="email" required autoComplete="email" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="password">Password</Label>
@@ -107,9 +101,8 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               type="password"
               required
               minLength={8}
+              name="password"
               autoComplete={signingUp ? "new-password" : "current-password"}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
             />
           </div>
           {error ? (
@@ -117,7 +110,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               {error}
             </p>
           ) : null}
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={!ready || pending}>
             {pending ? "One moment…" : signingUp ? "Create account" : "Sign in"}
           </Button>
         </form>

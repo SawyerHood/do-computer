@@ -286,7 +286,8 @@ test("a file attached to a message is one the agent can open", async ({ page }) 
 
   // It is also in the library, as something the user uploaded.
   await page.getByRole("button", { name: "Library", exact: true }).click()
-  await expect(page.getByRole("main").getByText("shopping.txt")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
+  await expect(page.getByText("shopping.txt", { exact: true })).toBeVisible()
 })
 
 test("dictation without a model key says what is missing", async ({ browser, baseURL }) => {
@@ -658,6 +659,21 @@ test("the API refuses bodies that are too large and routes that are not a client
     expect(`${method} ${path} ${response.status()}`).toBe(`${method} ${path} 404`)
   }
   expect(({} as Record<string, unknown>).enabled).toBe(undefined)
+})
+
+test("signing in works when it is tried before the page's script has loaded", async ({ page }) => {
+  // Hold the scripts back, as a slow connection would, so the form is on screen but not yet live.
+  await page.route(/\.js(\?.*)?$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    await route.continue()
+  })
+  await page.goto("/login")
+  await page.getByLabel("Email").fill(owner.email)
+  await page.getByLabel("Password").fill(owner.password)
+  // What was typed early is still there once the script takes over, and the button waited for it.
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  expect(page.url()).not.toContain("password")
 })
 
 test("signing out ends the session", async ({ page }) => {
