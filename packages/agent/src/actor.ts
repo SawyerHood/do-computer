@@ -795,7 +795,6 @@ export class AgentActor implements Actor {
       chats: Object.entries(chats)
         .map(([id, record]) => summarize(id, record))
         .sort((a, b) => b.updatedAt - a.updatedAt),
-      models: this.#options.modelOptions,
     }
   }
 

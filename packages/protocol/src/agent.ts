@@ -57,6 +57,28 @@ export type ModelOption = {
   /** USD per million tokens. */
   inputCost: number
   outputCost: number
+  /** How many tokens of conversation it can hold. */
+  contextWindow?: number
+  /** Whether it can look at images. */
+  images?: boolean
+  /** One of the few suggested first, ahead of the full list. */
+  recommended?: boolean
+}
+
+/**
+ * The models whose name or id contains every word of `query`, in their given order. With no
+ * query, all of them. Shared so a picker filters the same way wherever it is drawn.
+ */
+export function filterModels<T extends Pick<ModelOption, "id" | "name">>(
+  models: readonly T[],
+  query: string,
+): T[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return [...models]
+  return models.filter((model) => {
+    const text = `${model.name} ${model.id}`.toLowerCase()
+    return words.every((word) => text.includes(word))
+  })
 }
 
 /** Where a skill came from: shipped with the app, written by the agent, or installed from a URL. */
@@ -222,4 +244,12 @@ export type ApprovalsState = {
   rules: Record<string, ApprovalRule>
   subjects: ApprovalSubject[]
   pending: ApprovalRequest[]
+}
+
+/** What a user has chosen for their account, as opposed to for one agent. */
+export type UserSettings = {
+  /** The model their new agents start on. Null: whatever the deployment starts agents on. */
+  defaultModel: string | null
+  /** The deployment's own default, which is what null means. */
+  deploymentDefaultModel: string
 }

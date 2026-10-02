@@ -29,6 +29,7 @@ import {
   type SkillSummary,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
+  type UserSettings,
 } from "@durable-computer/protocol"
 
 export class ApiError extends Error {
@@ -72,7 +73,6 @@ export type AgentState = {
   memory: string
   limits: { memory: number; user: number }
   chats: ChatSummary[]
-  models: ModelOption[]
 }
 
 export type AgentPatch = {
@@ -188,6 +188,13 @@ export function createClient(options: ClientOptions) {
   return {
     me: () => request<Me>("/api/me"),
     listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
+    /** Every model an agent can be set to, suggested ones first. */
+    models: async () => (await request<{ models: ModelOption[] }>("/api/models")).models,
+    /** The signed-in user's account settings. */
+    settings: () => request<UserSettings>("/api/settings"),
+    /** Change account settings. `defaultModel: null` goes back to the deployment's default. */
+    updateSettings: (change: { defaultModel: string | null }) =>
+      patch<UserSettings>("/api/settings", change),
     createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
     /** Delete an agent for good, with its memory, files, schedules and computer. */
     deleteAgent: (agentId: string) =>

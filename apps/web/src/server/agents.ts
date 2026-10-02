@@ -7,6 +7,7 @@ import {
   readLimited,
 } from "@durable-computer/protocol"
 import { getAuth, getUser, type SessionUser } from "./auth.ts"
+import { defaultModelFor } from "./models.ts"
 
 const MAX_AGENTS_PER_USER = 20
 
@@ -89,7 +90,8 @@ export async function createAgent(user: SessionUser): Promise<Response> {
   const response = await callAgent(id, "/init", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ownerId: user.id }),
+    // A new agent starts on the model its owner chose as their default.
+    body: JSON.stringify({ ownerId: user.id, model: await defaultModelFor(user.id) }),
   })
   if (!response.ok) {
     await db.run("DELETE FROM dc_agents WHERE id = ?", id)

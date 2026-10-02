@@ -6,6 +6,7 @@ import {
   ClockIcon,
   DesktopIcon,
   FolderIcon,
+  GearIcon,
   LightningIcon,
   ListIcon,
   PlugsIcon,
@@ -306,7 +307,9 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                   ? "connectors"
                   : location.pathname.endsWith("/permissions")
                     ? "permissions"
-                    : "chat",
+                    : location.pathname.endsWith("/settings")
+                      ? "settings"
+                      : "chat",
   })
   const profile = page === "profile"
 
@@ -384,6 +387,14 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
           </RailButton>
         </div>
         <div className="mt-auto flex flex-col items-center gap-1">
+          {/* For the account, so it sits with signing out, apart from the agent's own pages. */}
+          <RailButton
+            label="Settings"
+            active={page === "settings"}
+            onClick={() => navigate({ to: "/a/$agentId/settings", params: { agentId: agent.id } })}
+          >
+            <GearIcon />
+          </RailButton>
           <ThemeToggle />
           <RailButton label="Sign out" onClick={signOut}>
             <SignOutIcon />
@@ -473,6 +484,14 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
                 className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
               >
                 Permissions
+              </Link>
+              <Link
+                to="/a/$agentId/settings"
+                params={{ agentId: agent.id }}
+                onClick={() => setSheetOpen(false)}
+                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
+              >
+                Settings
               </Link>
             </div>
           </div>

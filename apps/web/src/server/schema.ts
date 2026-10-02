@@ -60,6 +60,13 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       created_at INTEGER NOT NULL
     )`,
   ],
+  [
+    // What a user has chosen for their account, as opposed to for one agent.
+    `CREATE TABLE dc_user_settings (
+      user_id TEXT PRIMARY KEY,
+      default_model TEXT
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

@@ -20,6 +20,8 @@ import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
 import { Route as ApiDaemonVersionRouteImport } from './routes/api/daemon-version'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMeRouteImport } from './routes/api/me'
+import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
@@ -36,6 +38,7 @@ import { Route as AppAAgentIdConnectorsRouteImport } from './routes/_app.a.$agen
 import { Route as AppAAgentIdLibraryRouteImport } from './routes/_app.a.$agentId.library'
 import { Route as AppAAgentIdPermissionsRouteImport } from './routes/_app.a.$agentId.permissions'
 import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
+import { Route as AppAAgentIdSettingsRouteImport } from './routes/_app.a.$agentId.settings'
 import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
 import { Route as ApiAgentsAgentIdConnectorsRouteImport } from './routes/api/agents/$agentId.connectors'
@@ -98,6 +101,16 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const ApiMeRoute = ApiMeRouteImport.update({
   id: '/api/me',
   path: '/api/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiModelsRoute = ApiModelsRouteImport.update({
+  id: '/api/models',
+  path: '/api/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsRoute = ApiSettingsRouteImport.update({
+  id: '/api/settings',
+  path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
@@ -180,6 +193,11 @@ const AppAAgentIdProfileRoute = AppAAgentIdProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const AppAAgentIdSettingsRoute = AppAAgentIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppAAgentIdRoute,
+} as any)
 const AppAAgentIdSkillsRoute = AppAAgentIdSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -240,6 +258,8 @@ export interface FileRoutesByFullPath {
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -255,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/a/$agentId/permissions': typeof AppAAgentIdPermissionsRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/a/$agentId/settings': typeof AppAAgentIdSettingsRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
@@ -276,6 +297,8 @@ export interface FileRoutesByTo {
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -291,6 +314,7 @@ export interface FileRoutesByTo {
   '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/a/$agentId/permissions': typeof AppAAgentIdPermissionsRoute
   '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/a/$agentId/settings': typeof AppAAgentIdSettingsRoute
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
@@ -314,6 +338,8 @@ export interface FileRoutesById {
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_app/': typeof AppIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
@@ -330,6 +356,7 @@ export interface FileRoutesById {
   '/_app/a/$agentId/library': typeof AppAAgentIdLibraryRoute
   '/_app/a/$agentId/permissions': typeof AppAAgentIdPermissionsRoute
   '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/_app/a/$agentId/settings': typeof AppAAgentIdSettingsRoute
   '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
@@ -354,6 +381,8 @@ export interface FileRouteTypes {
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
+    | '/api/models'
+    | '/api/settings'
     | '/api/transcribe'
     | '/a/$agentId'
     | '/api/auth/$'
@@ -369,6 +398,7 @@ export interface FileRouteTypes {
     | '/a/$agentId/library'
     | '/a/$agentId/permissions'
     | '/a/$agentId/profile'
+    | '/a/$agentId/settings'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
@@ -390,6 +420,8 @@ export interface FileRouteTypes {
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
+    | '/api/models'
+    | '/api/settings'
     | '/api/transcribe'
     | '/'
     | '/api/auth/$'
@@ -405,6 +437,7 @@ export interface FileRouteTypes {
     | '/a/$agentId/library'
     | '/a/$agentId/permissions'
     | '/a/$agentId/profile'
+    | '/a/$agentId/settings'
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
@@ -427,6 +460,8 @@ export interface FileRouteTypes {
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
+    | '/api/models'
+    | '/api/settings'
     | '/api/transcribe'
     | '/_app/'
     | '/_app/a/$agentId'
@@ -443,6 +478,7 @@ export interface FileRouteTypes {
     | '/_app/a/$agentId/library'
     | '/_app/a/$agentId/permissions'
     | '/_app/a/$agentId/profile'
+    | '/_app/a/$agentId/settings'
     | '/_app/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
@@ -465,6 +501,8 @@ export interface RootRouteChildren {
   ApiDaemonVersionRoute: typeof ApiDaemonVersionRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMeRoute: typeof ApiMeRoute
+  ApiModelsRoute: typeof ApiModelsRoute
+  ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRoute
@@ -558,6 +596,20 @@ declare module '@tanstack/react-router' {
       path: '/api/me'
       fullPath: '/api/me'
       preLoaderRoute: typeof ApiMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/models': {
+      id: '/api/models'
+      path: '/api/models'
+      fullPath: '/api/models'
+      preLoaderRoute: typeof ApiModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings': {
+      id: '/api/settings'
+      path: '/api/settings'
+      fullPath: '/api/settings'
+      preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/transcribe': {
@@ -672,6 +724,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAAgentIdProfileRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
+    '/_app/a/$agentId/settings': {
+      id: '/_app/a/$agentId/settings'
+      path: '/settings'
+      fullPath: '/a/$agentId/settings'
+      preLoaderRoute: typeof AppAAgentIdSettingsRouteImport
+      parentRoute: typeof AppAAgentIdRoute
+    }
     '/_app/a/$agentId/skills': {
       id: '/_app/a/$agentId/skills'
       path: '/skills'
@@ -745,6 +804,7 @@ interface AppAAgentIdRouteChildren {
   AppAAgentIdLibraryRoute: typeof AppAAgentIdLibraryRoute
   AppAAgentIdPermissionsRoute: typeof AppAAgentIdPermissionsRoute
   AppAAgentIdProfileRoute: typeof AppAAgentIdProfileRoute
+  AppAAgentIdSettingsRoute: typeof AppAAgentIdSettingsRoute
   AppAAgentIdSkillsRoute: typeof AppAAgentIdSkillsRoute
   AppAAgentIdIndexRoute: typeof AppAAgentIdIndexRoute
   AppAAgentIdCChatIdRoute: typeof AppAAgentIdCChatIdRoute
@@ -757,6 +817,7 @@ const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
   AppAAgentIdLibraryRoute: AppAAgentIdLibraryRoute,
   AppAAgentIdPermissionsRoute: AppAAgentIdPermissionsRoute,
   AppAAgentIdProfileRoute: AppAAgentIdProfileRoute,
+  AppAAgentIdSettingsRoute: AppAAgentIdSettingsRoute,
   AppAAgentIdSkillsRoute: AppAAgentIdSkillsRoute,
   AppAAgentIdIndexRoute: AppAAgentIdIndexRoute,
   AppAAgentIdCChatIdRoute: AppAAgentIdCChatIdRoute,
@@ -805,6 +866,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDaemonVersionRoute: ApiDaemonVersionRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMeRoute: ApiMeRoute,
+  ApiModelsRoute: ApiModelsRoute,
+  ApiSettingsRoute: ApiSettingsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRoute,

@@ -11,6 +11,8 @@ export const schedulesKey = (agentId: string) => ["agents", agentId, "schedules"
 export const skillsKey = (agentId: string) => ["agents", agentId, "skills"] as const
 export const computersKey = ["computers"] as const
 export const usageKey = (agentId: string) => ["agents", agentId, "usage"] as const
+export const modelsKey = ["models"] as const
+export const settingsKey = ["settings"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const

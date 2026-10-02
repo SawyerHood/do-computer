@@ -190,6 +190,43 @@ describe("web search", () => {
   })
 })
 
+describe("the models on offer", () => {
+  it("are every model in the catalog, with the suggested ones first", () => {
+    const { options, defaultModel } = createAgentModels({ openrouterApiKey: "sk-or-x" })
+    expect(options.length).toBeGreaterThan(100)
+    expect(options[0]!.id).toBe(defaultModel)
+    // The suggested few lead, then the rest by name.
+    const suggested = options.filter((option) => option.recommended)
+    expect(suggested.length).toBeGreaterThan(1)
+    expect(options.slice(0, suggested.length)).toEqual(suggested)
+    const rest = options.slice(suggested.length).map((option) => option.name)
+    expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b)))
+    // Each says what it costs and holds, and ids are unique.
+    expect(new Set(options.map((option) => option.id)).size).toBe(options.length)
+    for (const option of options) {
+      expect(option.id.startsWith("openrouter/")).toBe(true)
+      expect(typeof option.contextWindow).toBe("number")
+      expect(typeof option.images).toBe("boolean")
+    }
+    // More than one maker, and more than one kind of API behind them.
+    expect(options.some((option) => option.id.startsWith("openrouter/openai/"))).toBe(true)
+    expect(options.some((option) => option.id.startsWith("openrouter/google/"))).toBe(true)
+  })
+
+  it("puts a configured default first even when it is not one of the suggested", () => {
+    const { options, defaultModel } = createAgentModels({
+      openrouterApiKey: "sk-or-x",
+      defaultModel: "google/gemini-3.8-flash",
+    })
+    expect(defaultModel).toBe("openrouter/google/gemini-3.8-flash")
+    expect(options[0]).toMatchObject({ id: defaultModel, recommended: true })
+  })
+
+  it("is the one echo model when there is no key", () => {
+    expect(createAgentModels({}).options.map((option) => option.id)).toEqual(["echo/echo-1"])
+  })
+})
+
 describe("model configuration", () => {
   it("gives web search the deployment's key and model, and nothing without a key", () => {
     expect(createAgentModels({}).webSearch).toBe(undefined)

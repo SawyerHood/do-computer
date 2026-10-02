@@ -12,12 +12,13 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { ModelPicker } from "@/components/model-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { client } from "@/lib/client"
-import { agentKey, agentsCollection, agentsKey, usageKey } from "@/lib/collections"
+import { agentKey, agentsCollection, agentsKey, modelsKey, usageKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 
@@ -283,6 +284,12 @@ function ProfilePage() {
     queryKey: agentKey(agentId),
     queryFn: () => client.agent(agentId).state(),
   })
+  // The same list for every agent, and it only changes with the deployment.
+  const { data: models } = useQuery({
+    queryKey: modelsKey,
+    queryFn: () => client.models(),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
   const [form, setForm] = useState<Form>()
   const [dirty, setDirty] = useState(false)
 
@@ -452,20 +459,14 @@ function ProfilePage() {
 
         <Section
           title="Model"
-          hint="Which model the agent thinks with. Applies from its next reply."
+          hint="Which model this agent thinks with. Applies from its next reply. New agents start on your default, which is under Settings."
         >
-          <select
-            aria-label="Model"
+          <ModelPicker
+            label="Model"
+            models={models ?? []}
             value={form.model}
-            onChange={(event) => set("model", event.target.value)}
-            className="h-9 rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-          >
-            {state.models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
-          </select>
+            onChange={(model) => set("model", model)}
+          />
         </Section>
 
         <Usage agentId={agentId} />

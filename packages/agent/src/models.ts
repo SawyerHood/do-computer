@@ -10,7 +10,7 @@ import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
 import type { ModelRef } from "@earendil-works/pi-durable"
 import type { WebSearchOptions } from "./web-search.ts"
 
-/** OpenRouter models offered in the picker, best first. Ones the catalog lacks are dropped. */
+/** OpenRouter models suggested first in the picker. Ones the catalog lacks are dropped. */
 const CURATED = [
   "anthropic/claude-sonnet-5.5",
   "anthropic/claude-opus-5.5",
@@ -126,7 +126,16 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     return {
       models,
       defaultModel: "echo/echo-1",
-      options: [{ id: "echo/echo-1", name: "Echo", reasoning: false, inputCost: 0, outputCost: 0 }],
+      options: [
+        {
+          id: "echo/echo-1",
+          name: "Echo (no model key configured)",
+          reasoning: false,
+          inputCost: 0,
+          outputCost: 0,
+          recommended: true,
+        },
+      ],
       faux,
     }
   }
@@ -144,8 +153,13 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
 
   const catalog = new Map(provider.getModels().map((model) => [model.id, model]))
   const preferred = config.defaultModel ?? DEFAULT_OPENROUTER_MODEL
-  const ids = [...new Set([preferred, ...CURATED])].filter((id) => catalog.has(id))
-  const options = ids.map((id): ModelOption => {
+  // Every model in the catalog can be chosen: it is the set of OpenRouter models that can call
+  // tools, which an agent needs. A few are suggested first, and the rest follow by name.
+  const suggested = [...new Set([preferred, ...CURATED])].filter((id) => catalog.has(id))
+  const rest = [...catalog.keys()]
+    .filter((id) => !suggested.includes(id))
+    .sort((a, b) => catalog.get(a)!.name.localeCompare(catalog.get(b)!.name))
+  const options = [...suggested, ...rest].map((id): ModelOption => {
     const model = catalog.get(id)!
     return {
       id: `openrouter/${id}`,
@@ -153,6 +167,9 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
       reasoning: model.reasoning,
       inputCost: model.cost.input,
       outputCost: model.cost.output,
+      contextWindow: model.contextWindow,
+      images: model.input.includes("image"),
+      ...(suggested.includes(id) ? { recommended: true } : {}),
     }
   })
   if (options.length === 0) {

@@ -53,7 +53,7 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | Variable                                   | Meaning                                                                                                                              |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                         |
-| `DC_DEFAULT_MODEL`                         | OpenRouter model id for new agents. Default `anthropic/claude-sonnet-5.5`.                                                           |
+| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.     |
 | `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                 |
 | `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                     |
 | `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` can sign up. |
@@ -119,6 +119,9 @@ is why sign-up is by invitation unless you open it.
   personality, a profile of you and its own notes. They are capped, visible and editable under
   Identity and memory, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
   workspace.
+- **Think with the model you choose.** Each agent can be set to any OpenRouter model that can
+  call tools (about 400), from a searchable list on its page, and Settings holds the default your
+  new agents start on.
 - **Use its computer**: read, write and edit files and run shell commands in a workspace that
   persists. The default computer is [just-bash](https://github.com/vercel-labs/just-bash), a shell
   interpreter with a durable virtual filesystem that needs no machine; it has the usual text tools
