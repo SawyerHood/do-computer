@@ -1,4 +1,5 @@
 export * from "./agent.ts"
+export * from "./avatar-svg.ts"
 export * from "./avatars.ts"
 export * from "./chat.ts"
 export * from "./daemon.ts"

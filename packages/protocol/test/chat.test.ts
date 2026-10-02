@@ -233,3 +233,25 @@ describe("server-sent events", () => {
     }
   })
 })
+
+describe("avatar drawing", () => {
+  it("draws the chosen character, color and accessory", async () => {
+    const { avatarSvg } = await import("../src/index.ts")
+    const svg = avatarSvg({ character: "orbit", color: "tide", accessory: "hat" }, "seed")
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
+    expect(svg).toContain("#3f7f9c")
+    expect(svg).toContain('transform="rotate(-14 32 42)"')
+    expect(svg).toContain('<rect x="24" y="8" width="16" height="11" rx="3"/>')
+  })
+
+  it("gives an agent without one a default that does not change between renders", async () => {
+    const { avatarSvg } = await import("../src/index.ts")
+    expect(avatarSvg(null, "agent-1")).toBe(avatarSvg(undefined, "agent-1"))
+    expect(avatarSvg(null, "agent-1")).not.toBe(avatarSvg(null, "agent-2"))
+  })
+
+  it("falls back to a plain shape for a character it does not know", async () => {
+    const { avatarSvg } = await import("../src/index.ts")
+    expect(avatarSvg({ character: "dragon", color: "nope" }, "s")).toContain("<ellipse")
+  })
+})

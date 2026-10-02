@@ -39,6 +39,11 @@ export type ClientOptions = {
   readonly fetch?: typeof fetch
   /** Extra headers per request, for example a session cookie on platforms without a cookie jar. */
   readonly headers?: () => Record<string, string> | Promise<Record<string, string>>
+  /**
+   * Whether the platform's own cookie jar is used. Default `include`; pass `omit` when `headers`
+   * carries the session, so it is not sent twice.
+   */
+  readonly credentials?: RequestCredentials
 }
 
 export type Me = {
@@ -99,7 +104,11 @@ export function createClient(options: ClientOptions) {
     if (init.body !== undefined && !headers.has("content-type")) {
       headers.set("content-type", "application/json")
     }
-    return doFetch(`${options.baseUrl}${path}`, { credentials: "include", ...init, headers })
+    return doFetch(`${options.baseUrl}${path}`, {
+      credentials: options.credentials ?? "include",
+      ...init,
+      headers,
+    })
   }
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -171,6 +180,10 @@ export function createClient(options: ClientOptions) {
     me: () => request<Me>("/api/me"),
     listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
     createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
+    /** Register this device for push notifications, with the token its push service issued. */
+    registerPush: (token: string, platform: string) =>
+      post<{ ok: true }>("/api/push/register", { token, platform }),
+    unregisterPush: (token: string) => post<{ ok: true }>("/api/push/unregister", { token }),
     /** Turn a short recording into text. `type` is the recording's media type. */
     transcribe: async (audio: { type: string; body: BodyInit }) =>
       (

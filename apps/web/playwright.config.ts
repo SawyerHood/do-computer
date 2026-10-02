@@ -10,7 +10,8 @@ const baseURL = `http://127.0.0.1:${port}`
  * Browser tests against the built Node server, each run on a fresh data directory. Without a model
  * key the server answers with its built-in echo model, so the tests need no network.
  *
- * Build first: `pnpm build:node`. Set PLAYWRIGHT_CHROMIUM_PATH to use an already-installed Chromium
+ * Build first: `pnpm build:node`, and for the mobile app's tests
+ * `pnpm --filter @durable-computer/mobile export:web:test`. Set PLAYWRIGHT_CHROMIUM_PATH to use an already-installed Chromium
  * instead of the one `playwright install chromium` downloads.
  */
 export default defineConfig({
@@ -39,6 +40,8 @@ export default defineConfig({
       DC_BASE_URL: baseURL,
       DC_DATA_DIR: mkdtempSync(join(tmpdir(), "dc-e2e-")),
       OPENROUTER_API_KEY: "",
+      // The mobile app's tests sign up their own account on this invite-only deployment.
+      DC_ALLOWED_EMAILS: "mobile@example.com",
     },
   },
 })

@@ -90,11 +90,19 @@ export async function proxyToAgent(
   // Routes the actor keeps for the gateway itself.
   if (path === "init" || path.startsWith("init/")) return fail(404, "Not found")
   const url = new URL(request.url)
-  const hasBody = request.method !== "GET" && request.method !== "HEAD"
+  let body: ArrayBuffer | undefined
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    try {
+      body = await request.arrayBuffer()
+    } catch {
+      // The client went away mid-upload. Nobody is left to answer; this only keeps it quiet.
+      return fail(400, "The request was cut off before it was complete.")
+    }
+  }
   return callAgent(agentId, `/${path}${url.search}`, {
     method: request.method,
     headers: { "content-type": request.headers.get("content-type") ?? "application/json" },
-    body: hasBody ? await request.arrayBuffer() : undefined,
+    body,
     signal: request.signal,
   })
 }

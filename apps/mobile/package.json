@@ -1,0 +1,52 @@
+{
+  "name": "@durable-computer/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo start --ios",
+    "android": "expo start --android",
+    "web": "expo start --web",
+    "export": "expo export --platform ios --platform android",
+    "export:web": "expo export --platform web",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "export:web:test": "DC_MOBILE_BASE_URL=/__mobile expo export --platform web --output-dir dist-web-test"
+  },
+  "dependencies": {
+    "@better-auth/expo": "^1.7.7",
+    "@durable-computer/client": "workspace:*",
+    "@durable-computer/protocol": "workspace:*",
+    "@expo/metro-runtime": "~57.0.16",
+    "@tanstack/react-query": "^5.104.0",
+    "better-auth": "^1.7.7",
+    "expo": "~57.0.26",
+    "expo-audio": "~57.0.5",
+    "expo-constants": "~57.0.20",
+    "expo-crypto": "~57.0.3",
+    "expo-device": "~57.0.2",
+    "expo-document-picker": "~57.0.3",
+    "expo-file-system": "~57.0.7",
+    "expo-linking": "~57.0.11",
+    "expo-notifications": "~57.0.21",
+    "expo-router": "~57.0.24",
+    "expo-secure-store": "~57.0.4",
+    "expo-sharing": "~57.0.22",
+    "expo-status-bar": "~57.0.1",
+    "jotai": "^3.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.2",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.3"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.18",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
