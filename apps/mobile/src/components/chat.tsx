@@ -227,19 +227,24 @@ export function Transcript({
   state,
   agentId,
   empty,
+  header,
 }: {
   state: ChatState
   agentId: string
   empty: React.ReactNode
+  /** Shown above the first message, for reaching what came before it. */
+  header?: React.ReactElement | null
 }) {
   const list = useRef<FlatList<ChatMessage>>(null)
   const last = state.messages.at(-1)
   const waiting = state.busy && (last === undefined || last.role === "user")
-  // Follow new content. A reader who has scrolled up is not interrupted on web; on a device the
-  // list's own "maintain position" behavior applies.
+  // Follow new content at the end. Earlier messages arriving at the top change the first message
+  // and not the last, and must not pull the reader back down.
+  const firstId = state.messages[0]?.id
+  const seenFirst = useRef(firstId)
   useEffect(() => {
     list.current?.scrollToEnd({ animated: true })
-  }, [state.messages.length, last?.parts.length, last?.status])
+  }, [last?.id, last?.parts.length, last?.status])
   return (
     <FlatList
       ref={list}
@@ -250,6 +255,7 @@ export function Transcript({
       renderItem={({ item }) => <Message message={item} agentId={agentId} />}
       contentContainerStyle={{ padding: space(4), gap: space(4), flexGrow: 1 }}
       ListEmptyComponent={state.busy ? null : <>{empty}</>}
+      ListHeaderComponent={header}
       ListFooterComponent={
         waiting ? (
           <Text tone="muted" size={14}>
@@ -258,7 +264,11 @@ export function Transcript({
         ) : null
       }
       keyboardShouldPersistTaps="handled"
-      onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
+      onContentSizeChange={() => {
+        const prepended = seenFirst.current !== undefined && seenFirst.current !== firstId
+        seenFirst.current = firstId
+        if (!prepended) list.current?.scrollToEnd({ animated: false })
+      }}
     />
   )
 }

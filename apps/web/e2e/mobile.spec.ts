@@ -128,6 +128,23 @@ test("a request for approval can be answered from the phone", async ({ page }) =
   }
 })
 
+test("earlier messages can be brought back after a chat was started fresh", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole("link", { name: "hello from the phone" }).click()
+  await expect(page.getByText("You said: hello from the phone")).toBeVisible()
+  const chatId = new URL(page.url()).pathname.split("/").at(-1)!
+  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
+    agents: { id: string }[]
+  }
+  await page.request.post(`/api/agents/${agents[0]!.id}/chats/${chatId}/reset`, { data: {} })
+
+  // The transcript now starts at the fresh start, and offers what came before it.
+  await expect(page.getByText("You said: hello from the phone")).toHaveCount(0)
+  await page.getByRole("button", { name: "Show earlier messages" }).click()
+  await expect(page.getByText("You said: hello from the phone")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
+})
+
 test("Markdown in a reply is rendered, not shown as markup", async ({ page }) => {
   await signIn(page)
   await page.getByRole("link", { name: "hello from the phone" }).click()

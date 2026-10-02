@@ -1,14 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router"
+import { useMemo } from "react"
 import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { PendingApprovals } from "@/components/approvals"
 import { Avatar } from "@/components/avatar"
 import { Composer, Transcript } from "@/components/chat"
 import { Icon } from "@/components/icons"
-import { Text } from "@/components/ui"
+import { Button, Text } from "@/components/ui"
 import { space, useTheme } from "@/lib/theme"
 import { useAgent } from "@/lib/use-agent"
-import { useLiveChat } from "@/lib/use-live-chat"
+import { useEarlierMessages, useLiveChat } from "@/lib/use-live-chat"
 import { useSession } from "@/lib/use-session"
 
 export default function ChatScreen() {
@@ -24,6 +25,14 @@ function Chat({ agentId, chatId }: { agentId: string; chatId: string }) {
   const { client } = useSession()
   const { state } = useAgent()
   const live = useLiveChat(agentId, chatId)
+  const earlier = useEarlierMessages(agentId, chatId, live.state)
+  const transcript = useMemo(
+    () =>
+      earlier.messages.length === 0
+        ? live.state
+        : { ...live.state, messages: [...earlier.messages, ...live.state.messages] },
+    [earlier.messages, live.state],
+  )
   const agent = state!.agent
   const api = client.agent(agentId)
 
@@ -64,8 +73,18 @@ function Chat({ agentId, chatId }: { agentId: string; chatId: string }) {
         </View>
         <View style={{ flex: 1 }}>
           <Transcript
-            state={live.state}
+            state={transcript}
             agentId={agentId}
+            header={
+              earlier.hasEarlier ? (
+                <Button
+                  label="Show earlier messages"
+                  variant="ghost"
+                  busy={earlier.loading}
+                  onPress={() => void earlier.load()}
+                />
+              ) : null
+            }
             empty={
               live.loaded ? (
                 <View
