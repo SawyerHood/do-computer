@@ -19,8 +19,10 @@ export type Config = {
   readonly signup: "open" | "invite"
   /** Comma-separated emails allowed to sign up when `signup` is `invite`. */
   readonly allowedEmails: readonly string[]
-  /** What kind of computer agents get. Default `just-bash`. */
+  /** What kind of computer a new agent gets. Default `just-bash`. */
   readonly sandbox: SandboxKind
+  /** The kinds an agent can be given. Undefined: every kind that has what it needs. */
+  readonly sandboxKinds: readonly SandboxKind[] | undefined
   /** Whether agents' computers can reach the internet. Default true. */
   readonly sandboxNetwork: boolean
   readonly daytona: {
@@ -68,15 +70,23 @@ export type Platform = {
   readonly computers: ActorNamespace
 }
 
-function sandboxKind(value: string | undefined): SandboxKind {
+function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): SandboxKind {
   if (value === undefined) return "just-bash"
   // A typo here must not quietly give agents a different computer than the one asked for.
   if (!(SANDBOX_KINDS as readonly string[]).includes(value)) {
-    throw new ConfigError(
-      `DC_SANDBOX is "${value}". It must be one of: ${SANDBOX_KINDS.join(", ")}.`,
-    )
+    throw new ConfigError(`${saying} "${value}". It must be one of: ${SANDBOX_KINDS.join(", ")}.`)
   }
   return value as SandboxKind
+}
+
+function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undefined {
+  const names = (value ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean)
+  return names.length === 0
+    ? undefined
+    : names.map((name) => sandboxKind(name, "DC_SANDBOX_KINDS includes"))
 }
 
 export function readConfig(env: Record<string, string | undefined>): Config {
@@ -97,6 +107,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
     sandbox: sandboxKind(optional("DC_SANDBOX")),
+    sandboxKinds: sandboxKinds(optional("DC_SANDBOX_KINDS")),
     sandboxNetwork: !["off", "0", "false", "none"].includes(
       (optional("DC_SANDBOX_NETWORK") ?? "on").toLowerCase(),
     ),

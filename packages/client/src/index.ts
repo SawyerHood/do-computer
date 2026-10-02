@@ -13,6 +13,7 @@ import {
   type ChatEvent,
   type ChatState,
   type ChatSummary,
+  type ComputerKinds,
   type ComputerSummary,
   type ConnectorResult,
   type ConnectorSummary,
@@ -68,6 +69,8 @@ export type AgentState = {
   agent: AgentSummary
   /** The user's IANA timezone as the agent knows it. */
   timezone: string | null
+  /** The kind of computer it is on. Null where the deployment offers no choice of one. */
+  computer: string | null
   soul: string
   user: string
   memory: string
@@ -84,6 +87,11 @@ export type AgentPatch = {
   memory?: string
   model?: string
   timezone?: string
+  /**
+   * Move the agent to a computer of another kind. Refused while it is working. Its files stay
+   * on the computer it leaves, and are there again if it is moved back.
+   */
+  computer?: string
 }
 
 /** A computer waiting to be paired, as shown to the user before they agree. */
@@ -192,8 +200,10 @@ export function createClient(options: ClientOptions) {
     models: async () => (await request<{ models: ModelOption[] }>("/api/models")).models,
     /** The signed-in user's account settings. */
     settings: () => request<UserSettings>("/api/settings"),
-    /** Change account settings. `defaultModel: null` goes back to the deployment's default. */
-    updateSettings: (change: { defaultModel: string | null }) =>
+    /** The kinds of computer an agent can be given here, and the one new agents get. */
+    computerKinds: () => request<ComputerKinds>("/api/computer-kinds"),
+    /** Change account settings. Null for either default goes back to the deployment's. */
+    updateSettings: (change: { defaultModel?: string | null; defaultComputer?: string | null }) =>
       patch<UserSettings>("/api/settings", change),
     createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
     /** Delete an agent for good, with its memory, files, schedules and computer. */

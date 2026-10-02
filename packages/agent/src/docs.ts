@@ -22,6 +22,12 @@ export type IdentityState = {
   createdAt: number
   /** The user's IANA timezone, learned from their client. */
   timezone: string | null
+  /** The kind of computer it works on. Absent on an agent from before there was a choice. */
+  computer?: string
+  /** Every kind it has had a computer of, so that each can be deleted with the agent. */
+  computers?: string[]
+  /** When it was last moved to a different computer, if it ever was. */
+  computerChangedAt?: number
 }
 
 export const IdentityDoc = defineDoc<IdentityState>({

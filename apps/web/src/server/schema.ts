@@ -67,6 +67,8 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       default_model TEXT
     )`,
   ],
+  // The kind of computer a user's new agents get.
+  ["ALTER TABLE dc_user_settings ADD COLUMN default_computer TEXT"],
 ]
 
 const VERSION_KEY = "schema_version"

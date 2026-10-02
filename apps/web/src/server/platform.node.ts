@@ -13,7 +13,7 @@ import {
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyOwner } from "./push.ts"
 import { nodeProviders } from "./sandbox.node.ts"
-import { sandboxFactory } from "./sandbox.ts"
+import { computerChoices } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
 
@@ -40,8 +40,8 @@ function create(): NodePlatform {
   const { database, app } = openNodeAppDatabase(join(directory, "app.sqlite"))
   const models = createAgentModels(config)
   // Checked once, here, so a wrong setting stops the server instead of failing each agent.
-  const sandbox = sandboxFactory(config, "Node", nodeProviders)
-  const computers = new NodeActorNamespace({
+  const computers = computerChoices(config, "node", nodeProviders)
+  const links = new NodeActorNamespace({
     directory: join(directory, "computers"),
     blobs: () => fileBlobs(join(directory, "blobs", "computers")),
     factory: (host) => createComputerLinkActor(host),
@@ -56,11 +56,11 @@ function create(): NodePlatform {
         models: models.models,
         defaultModel: models.defaultModel,
         modelOptions: models.options,
-        sandbox,
+        computers,
         webSearch: models.webSearch,
         allowPrivateHosts: config.allowPrivateHosts,
         resolveHost: nodeProviders.resolveHost,
-        computerLinks: computers,
+        computerLinks: links,
         onNotify: (notification) =>
           void notifyOwner(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
@@ -75,8 +75,8 @@ function create(): NodePlatform {
     db: app,
     authDatabase: database,
     agents,
-    computers,
-    connectComputer: (name, socket, request) => computers.connect(name, socket, request),
+    computers: links,
+    connectComputer: (name, socket, request) => links.connect(name, socket, request),
   }
 }
 

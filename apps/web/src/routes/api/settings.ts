@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { withUser } from "@/server/agents"
-import { getSettings, updateSettings } from "@/server/models"
+import { getSettings, updateSettings } from "@/server/settings"
 
 export const Route = createFileRoute("/api/settings")({
   server: {

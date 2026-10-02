@@ -91,6 +91,17 @@ check "always allowing lifts the rule" "$(get "/api/agents/$AGENT/approvals" | f
 wait_for "not d['busy'] and 'Approved: Run commands: echo needs-an-ok' in $TEXTS" "the answer reached the chat"
 tool '/tool bash {"command":"echo needs-an-ok"}'
 wait_for "not d['busy'] and any(p.get('output')=='needs-an-ok\\n' for m in d['messages'] for p in m['parts'])" "the command ran once it was allowed"
+# The agent's computer is one of the kinds on offer, and it can be moved between them.
+DEFAULT_KIND=$(get /api/computer-kinds | field "['default']")
+check "the agent is on the default kind of computer" "$(get "/api/agents/$AGENT" | field "['computer']")" "$DEFAULT_KIND"
+check "no computer is on offer" "$(get /api/computer-kinds | field "['kinds'][-1]['id']")" "none"
+for _ in $(seq 1 20); do
+  MOVED=$(patch "/api/agents/$AGENT" '{"computer":"none"}')
+  case "$MOVED" in *'"code":"busy"'*) sleep 0.5;; *) break;; esac
+done
+check "the agent is moved to no computer" "$(echo "$MOVED" | field "['computer']")" "none"
+check "and back" "$(patch "/api/agents/$AGENT" "{\"computer\":\"$DEFAULT_KIND\"}" | field "['computer']")" "$DEFAULT_KIND"
+check "a kind that is not offered is refused" "$(patch "/api/agents/$AGENT" '{"computer":"mainframe"}' | field "['error']")" 'This server has no computer of the kind "mainframe".'
 # Deleting an agent removes it and leaves the others alone.
 SECOND=$(post /api/agents | field "['agent']['id']")
 curl -sS -m 30 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/agents/$SECOND" >/dev/null

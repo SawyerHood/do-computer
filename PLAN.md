@@ -51,7 +51,7 @@ for actor hosts, the app database and sandboxes passing on both.
 | An "ask" that pauses the task (4.10)                               | The call is refused with an explanation and the answer is sent to the chat, where approval lets the next attempt through. Nothing is held open while the user is away, on either runtime.         |
 | Cloudflare Containers saving the workspace directory to R2 (4.4)   | Container snapshots of the whole disk, restored on start and refreshed before they expire. The platform's API changed on 2026-09-30 and now offers this directly; installed packages persist too. |
 | Modal restoring a filesystem snapshot (4.4)                        | A Modal volume mounted as the workspace. Simpler, and the workspace survives any way the machine can end.                                                                                         |
-| A provider per agent, overriding the deployment's (4.4)            | One provider per deployment (`DC_SANDBOX`).                                                                                                                                                       |
+| A provider per agent, with its keys entered in the app (4.4)       | The kind of computer is chosen per agent in the app, with a default in Settings, among the kinds the server's environment has keys for. Keys stay in the environment.                             |
 | Drizzle for the app database (section 2)                           | Plain SQL behind a six-method interface. There are five tables besides Better Auth's.                                                                                                             |
 | A history index (section 7)                                        | Search reads the transcripts as stored, with a bound on how much one search reads. No index to keep in step on two runtimes.                                                                      |
 | The message stream as a TanStack DB collection (4.11)              | Agents and chats are collections; a chat's messages are reduced from its event stream into a jotai atom, which is what a token stream needs.                                                      |
@@ -98,6 +98,14 @@ Run on 2026-10-02 with real keys, on the Node build and inside the Workers runti
   files; deleting an agent deleting its machine. The browsing skill end to end: the model set
   up Playwright's Chromium on the machine, read example.com, and sent back a screenshot. `packages/sandbox/test/daytona.live.test.ts`
   repeats the first part for anyone with a key.
+
+- **Moving an agent between computers.** From the built-in shell to a Daytona machine and back,
+  twice, on both runtimes: each computer kept its own files, the identity files followed the
+  agent, the browsing skill arrived with the first real machine, and deleting the agent deleted
+  the Daytona machine whichever kind it was on at the time. With a real model, an agent asked
+  for a file it had made before the move at first recreated it and said it "didn't persist";
+  the reason is now given next to the failed read as well as in the prompt, and the same model
+  then said where the file was and offered to make it again.
 
 - **A real MCP server.** DeepWiki's public server (no sign-in) was added as a connector: it
   connected, listed its three tools, and a call through the agent returned its answer.

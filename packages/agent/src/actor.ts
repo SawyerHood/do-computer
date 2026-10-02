@@ -7,6 +7,7 @@ import {
   type ChatSummary,
   BodyTooLarge,
   type ChatUsage,
+  type ComputerKind,
   declaredTooLarge,
   readLimited,
   type CreateChatRequest,
@@ -30,6 +31,7 @@ import {
   type Conversation,
   type ConversationId,
   createRegistry,
+  defineExtension,
   type Extension,
   Harness,
   UsageDoc,
@@ -45,7 +47,7 @@ import {
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc, MEMORY_SUBJECT } from "./approvals.ts"
-import { Computer } from "./computer.ts"
+import { Computer, COMPUTER_EXTENSION, WithoutComputer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
@@ -80,10 +82,12 @@ export type AgentActorOptions = {
   /** Extensions installed after the built-in ones. */
   readonly extensions?: readonly Extension[]
   /**
-   * The agent's computer. Should be cheap to call and start nothing until used, as `lazySandbox`
-   * does: it is built whenever the actor loads.
+   * The agent's computer, where every agent gets the same kind. Should be cheap to call and start
+   * nothing until used, as `lazySandbox` does: it is built whenever the actor loads.
    */
   readonly sandbox?: (host: ActorHost) => Sandbox
+  /** The kinds of computer an agent can be given and moved between. Takes the place of `sandbox`. */
+  readonly computers?: ComputerChoices
   /** Receives failures that did not fail a request. */
   readonly onReport?: (error: unknown) => void
   /** How often the actor wakes itself while work is live. */
@@ -109,6 +113,19 @@ export type AgentActorOptions = {
    * notification. Best effort: a reply that finishes after a restart is not announced.
    */
   readonly onNotify?: (notification: AgentNotification) => void
+}
+
+export type ComputerChoices = {
+  /** What can be chosen, in the order to offer it. */
+  readonly kinds: readonly ComputerKind[]
+  /** The kind an agent gets when none is asked for. One of `kinds`. */
+  readonly default: string
+  /**
+   * The computer of one kind for the agent behind `host`, or undefined for a kind that means
+   * having none. Should be cheap and start nothing until used, as for `sandbox`. The same kind
+   * and host must always lead to the same machine: that is how an agent finds its files again.
+   */
+  readonly create: (kind: string, host: ActorHost) => Sandbox | undefined
 }
 
 export type AgentNotification = {
@@ -211,6 +228,9 @@ function eventStream(
   return new Response(stream, { headers: SSE_HEADERS })
 }
 
+/** Holds an extension's place in the registry while there is nothing to put there. */
+const absent = (name: string) => defineExtension({ name })
+
 function summarize(id: string, record: ChatRecord): ChatSummary {
   return { id, ...record }
 }
@@ -222,7 +242,11 @@ function summarize(id: string, record: ChatRecord): ChatSummary {
 export class AgentActor implements Actor {
   readonly #host: ActorHost
   readonly #options: AgentActorOptions
-  readonly #computer: Computer | undefined
+  readonly #choices: ComputerChoices
+  /** The agent's computer and its kind. Settled when the store opens; the owner can change it. */
+  #computer: Computer | undefined
+  #kind = ""
+  #registry: ReturnType<typeof createRegistry> | undefined
   readonly #paired: PairedComputers | undefined
   readonly #library: Library
   #connectors: Connectors | undefined
@@ -236,7 +260,12 @@ export class AgentActor implements Actor {
   constructor(host: ActorHost, options: AgentActorOptions) {
     this.#host = host
     this.#options = options
-    this.#computer = options.sandbox === undefined ? undefined : new Computer(options.sandbox(host))
+    // One kind without a name, when the deployment gives no choice.
+    this.#choices = options.computers ?? {
+      kinds: [],
+      default: "",
+      create: (_kind, host) => options.sandbox?.(host),
+    }
     this.#library = new Library({ blobs: host.blobs, now: () => host.now() })
     this.#paired =
       options.computerLinks === undefined
@@ -252,7 +281,7 @@ export class AgentActor implements Actor {
     )
     this.#skills = new Skills({
       now: () => host.now(),
-      sandbox: this.#computer?.sandbox,
+      sandbox: () => this.#computer?.sandbox,
       // The agent can be talked into installing from any address, so this one is checked too.
       fetch: (url, init) => skillFetch(url, init),
     })
@@ -268,19 +297,6 @@ export class AgentActor implements Actor {
           chatId: request.chatKind === "chat" ? request.chatId : null,
         }),
     })
-    if (this.#computer !== undefined) {
-      this.#computer.onProblem = (error) =>
-        options.onReport?.(
-          new Error(
-            `The agent's identity files could not be kept in step with its computer: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            { cause: error },
-          ),
-        )
-      this.#computer.identityEditable = async (c) =>
-        (await this.#approvals.ruleFor(MEMORY_SUBJECT, c)) === "allow"
-    }
     this.#scheduler = new Scheduler({
       now: () => host.now(),
       onReport: (report) =>
@@ -294,21 +310,78 @@ export class AgentActor implements Actor {
     })
   }
 
+  #offers(kind: string): boolean {
+    return this.#choices.kinds.some((offered) => offered.id === kind)
+  }
+
+  /**
+   * Put the agent on its computer of one kind. Nothing is started by this: a machine is created or
+   * woken the first time the agent uses it.
+   */
+  #useComputer(harness: Harness, kind: string, movedAt: number | undefined): void {
+    const sandbox = this.#choices.create(kind, this.#host)
+    let computer: Computer | undefined
+    if (sandbox !== undefined) {
+      computer = new Computer(sandbox)
+      computer.movedAt = movedAt
+      computer.onProblem = (error) =>
+        this.#options.onReport?.(
+          new Error(
+            `The agent's identity files could not be kept in step with its computer: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            { cause: error },
+          ),
+        )
+      computer.identityEditable = async (c) =>
+        (await this.#approvals.ruleFor(MEMORY_SUBJECT, c)) === "allow"
+      computer.attach(harness)
+    }
+    this.#computer = computer
+    this.#kind = kind
+    // Installing under a name that is taken replaces what is there, where it stands.
+    // The file and shell tools are needed for paired computers even without one of its own.
+    this.#registry?.install(
+      computer !== undefined || this.#paired !== undefined ? CodingTools : absent(CodingTools.name),
+    )
+    this.#registry?.install(
+      computer?.extension ??
+        (this.#paired === undefined ? absent(COMPUTER_EXTENSION) : WithoutComputer),
+    )
+  }
+
+  /** Settle which computer the agent is on, from what is stored and what is offered now. */
+  async #settleComputer(harness: Harness): Promise<void> {
+    const identity = await harness.snapshot(IdentityDoc, context)
+    const chosen = identity?.computer
+    // A kind that is no longer offered cannot be built. The choice is kept for when it is again.
+    const kind = chosen !== undefined && this.#offers(chosen) ? chosen : this.#choices.default
+    this.#useComputer(harness, kind, identity?.computerChangedAt)
+    if (identity === undefined || identity.ownerId === "" || this.#choices.kinds.length === 0) {
+      return
+    }
+    if (chosen !== undefined && identity.computers?.includes(kind) === true) return
+    // An agent from before there was a choice stays on what it has, whatever the default becomes.
+    await harness.commit(async (tx) => {
+      const doc = await tx.doc(IdentityDoc)
+      doc.computer ??= kind
+      if (doc.computers?.includes(kind) !== true) doc.computers = [...(doc.computers ?? []), kind]
+    }, context)
+  }
+
   #open(): Promise<Harness> {
     this.#harness ??= (async () => {
       const registry = createRegistry()
-      const computer = this.#computer
+      this.#registry = registry
       // For tools that read the harness they are installed in, once it exists.
       let opened: Harness | undefined
       registry.install(Persona)
       // First among the tool hooks: a call that is not allowed should cause nothing at all.
       registry.install(this.#approvals.extension)
-      for (const extension of computer?.extensions ?? []) registry.install(extension)
-      if (this.#paired !== undefined) {
-        // The file and shell tools are needed for paired computers even without one of its own.
-        if (computer === undefined) registry.install(CodingTools)
-        registry.install(this.#paired.extension)
-      }
+      // The agent's computer goes here. Which one is known once the store is open.
+      registry.install(absent(CodingTools.name))
+      registry.install(absent(COMPUTER_EXTENSION))
+      if (this.#paired !== undefined) registry.install(this.#paired.extension)
       // Before the paired-computer wraps, which also apply to sending a file.
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
@@ -328,7 +401,7 @@ export class AgentActor implements Actor {
         {
           models: this.#options.models,
           registry,
-          env: computer === undefined ? undefined : ({ cwd }) => computer.env(cwd),
+          env: ({ cwd }) => this.#computer?.env(cwd),
           now: () => this.#host.now(),
           onReport: (error) => this.#options.onReport?.(error),
           settings: { toolExecution: "parallel" },
@@ -337,7 +410,7 @@ export class AgentActor implements Actor {
       )
       opened = harness
       this.#approvals.attach(harness)
-      computer?.attach(harness)
+      await this.#settleComputer(harness)
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
       this.#paired?.attach(harness)
@@ -352,7 +425,10 @@ export class AgentActor implements Actor {
         resolveHost: this.#options.resolveHost,
       })
       await this.#connectors.attach(harness, context)
-      await this.#skills.seed(context)
+      // An agent that is still to be set up gets its skills then, once its computer is known.
+      if (((await harness.snapshot(IdentityDoc, context))?.ownerId ?? "") !== "") {
+        await this.#skills.seed(context)
+      }
       // A schedule the agent creates or changes moves the next wake-up.
       if (
         (await harness.snapshot(SchedulesDoc, context)) === undefined ||
@@ -420,15 +496,29 @@ export class AgentActor implements Actor {
   }
 
   /**
-   * Delete the agent: its computer, then everything it has stored. For the gateway, after the
+   * Delete the agent: its computers, then everything it has stored. For the gateway, after the
    * owner asked for it.
    */
-  async #destroy(): Promise<Response> {
-    // The computer first, while nothing else is lost yet. If its provider cannot be reached the
+  async #destroy(harness: Harness): Promise<Response> {
+    // An agent that was moved left a computer behind each time, and those go too.
+    const had = (await harness.snapshot(IdentityDoc, context))?.computers ?? []
+    // The computers first, while nothing else is lost yet. If a provider cannot be reached the
     // agent is left whole, so the owner can try again instead of paying for a machine nobody
     // can find.
     try {
       await this.#computer?.sandbox.destroy?.()
+      for (const kind of had) {
+        if (kind === this.#kind) continue
+        if (this.#offers(kind)) await this.#choices.create(kind, this.#host)?.destroy?.()
+        else {
+          // Nothing here can reach it any more. Deleting the rest is still what was asked for.
+          this.#options.onReport?.(
+            new Error(
+              `An agent that was deleted had a computer of kind "${kind}", which this server no longer offers, so that computer was left where it is.`,
+            ),
+          )
+        }
+      }
     } catch (error) {
       throw new HttpError(
         502,
@@ -480,9 +570,12 @@ export class AgentActor implements Actor {
     const harness = await this.#open()
 
     if (segments[0] === "init" && method === "POST") {
-      return this.#init(harness, await body<{ ownerId: string; model?: string }>(request))
+      return this.#init(
+        harness,
+        await body<{ ownerId: string; model?: string; computer?: string }>(request),
+      )
     }
-    if (segments[0] === "destroy" && method === "POST") return this.#destroy()
+    if (segments[0] === "destroy" && method === "POST") return this.#destroy(harness)
     const identity = await this.#identity(harness)
 
     if (segments.length === 0) {
@@ -716,26 +809,43 @@ export class AgentActor implements Actor {
     return identity
   }
 
-  async #init(harness: Harness, input: { ownerId: string; model?: string }): Promise<Response> {
+  async #init(
+    harness: Harness,
+    input: { ownerId: string; model?: string; computer?: string },
+  ): Promise<Response> {
     if (typeof input.ownerId !== "string" || input.ownerId === "") {
       throw new HttpError(400, "ownerId is required")
     }
     const model = input.model ?? this.#options.defaultModel
     this.#requireModel(model)
+    if (input.computer !== undefined) this.#requireKind(input.computer)
+    const computer = input.computer ?? this.#choices.default
     const outcome = await harness.commit(async (tx) => {
       const identity = await tx.doc(IdentityDoc)
       if (identity.ownerId !== "" && identity.ownerId !== input.ownerId) return "taken"
-      if (identity.ownerId === "") {
-        identity.ownerId = input.ownerId
-        identity.model = model
-        identity.createdAt = this.#host.now()
-      }
       // Create the chat index too, so it can be watched before the first chat exists.
       await tx.doc(ChatsDoc)
-      return "ok"
+      if (identity.ownerId !== "") return "ok"
+      identity.ownerId = input.ownerId
+      identity.model = model
+      identity.createdAt = this.#host.now()
+      if (this.#choices.kinds.length > 0) {
+        identity.computer = computer
+        identity.computers = [computer]
+      }
+      return "new"
     }, context)
     if (outcome === "taken") throw new HttpError(409, "Agent belongs to another account")
+    if (outcome === "new" && computer !== this.#kind)
+      this.#useComputer(harness, computer, undefined)
+    await this.#skills.seed(context)
     return json(await this.#state(harness, await this.#identity(harness)))
+  }
+
+  #requireKind(kind: string): void {
+    if (!this.#offers(kind)) {
+      throw new HttpError(400, `This server has no computer of the kind "${kind}".`)
+    }
   }
 
   #requireModel(model: string): void {
@@ -791,6 +901,8 @@ export class AgentActor implements Actor {
     return {
       agent,
       timezone: identity.timezone ?? null,
+      // The kind it is on now. Null where the deployment gives no choice of one.
+      computer: this.#choices.kinds.length === 0 ? null : this.#kind,
       ownerId: identity.ownerId,
       soul: identity.soul,
       user: identity.user,
@@ -824,6 +936,21 @@ export class AgentActor implements Actor {
     if (timezone !== undefined && !isValidTimezone(timezone)) {
       throw new HttpError(400, `"${timezone}" is not an IANA timezone`)
     }
+    const computer = text("computer", 40)
+    if (computer !== undefined) this.#requireKind(computer)
+    const moving = computer !== undefined && computer !== this.#kind
+    if (moving) {
+      // A command that is running would finish on one computer and report to the other.
+      const { tasks, submissions } = await harness.inspect(context)
+      if (tasks.length > 0 || submissions.length > 0) {
+        throw new HttpError(
+          409,
+          "The agent is in the middle of something. Wait for it to finish, or stop it, and then change its computer.",
+          "busy",
+        )
+      }
+    }
+    const now = this.#host.now()
     let avatar: IdentityState["avatar"] | undefined
     if (input.avatar !== undefined) {
       const parsed = parseAvatar(input.avatar as { character: string; color: string })
@@ -840,10 +967,22 @@ export class AgentActor implements Actor {
       if (memory !== undefined) identity.memory = memory
       if (avatar !== undefined) identity.avatar = avatar
       if (timezone !== undefined) identity.timezone = timezone
+      if (computer !== undefined) identity.computer = computer
+      if (moving) {
+        identity.computerChangedAt = now
+        if (identity.computers?.includes(computer) !== true) {
+          identity.computers = [...(identity.computers ?? []), computer]
+        }
+      }
       if (model === undefined || model === identity.model) return []
       identity.model = model
       return Object.keys((await tx.doc(ChatsDoc)).chats)
     }, context)
+    if (moving) {
+      this.#useComputer(harness, computer, now)
+      // A skill that needs real programs arrives with the first computer that has them.
+      await this.#skills.seed(context)
+    }
     this.#computer?.markStale()
     // A model change applies to existing chats from their next request.
     if (model !== undefined) {

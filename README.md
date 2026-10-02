@@ -62,24 +62,38 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                          |
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                    |
 | `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                  |
-| `DC_SANDBOX`                               | What computer agents get: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
+| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).       |
+| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                        |
 | `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                            |
 | `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.           |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |
 
 ## Computers
 
-Each agent has one computer. `DC_SANDBOX` chooses what it is, for every agent on the deployment.
-A remote machine is created the first time an agent runs something, and stops by itself when the
-agent is not using it.
+Each agent has one computer, of one of the kinds below. A remote machine is created the first
+time an agent runs something, and stops by itself when the agent is not using it.
 
-| `DC_SANDBOX` | The computer                                                                                  | Runs on          | What persists                                | Settings                                                                                                     |
+Which kind an agent has is chosen in the app. Its own page has a **Computer** section, and
+**Settings** has the kind your new agents get. The server's environment decides what is on
+offer: the built-in shell and no computer always, Daytona once `DAYTONA_API_KEY` is set, Modal
+once its two tokens are, and a Cloudflare container when `DC_SANDBOX` is `cloudflare`. The keys
+stay in the environment and are never shown or entered in the app. `DC_SANDBOX` is the kind an
+agent gets when its owner has not chosen, and `DC_SANDBOX_KINDS` narrows what is offered, for
+example `just-bash,daytona`.
+
+Moving an agent does not copy its files. What it made stays on the computer it leaves, and is
+there again if it is moved back; its memory, chats, skills and automations are with the agent
+and are not affected. The agent is told it was moved, so it does not treat a file from the
+other computer as lost. It cannot be moved while it is in the middle of a reply. Deleting an
+agent deletes every computer it has had.
+
+| Kind         | The computer                                                                                  | Runs on          | What persists                                | Settings                                                                                                     |
 | ------------ | --------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace, in the agent's own database   | none                                                                                                         |
 | `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
 | `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
 | `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
-| `none`       | No computer: no file or shell tools.                                                          | Node, Cloudflare |                                              | none                                                                                                         |
+| `none`       | No computer of its own. It can still work on computers of yours that are paired with it.      | Node, Cloudflare |                                              | none                                                                                                         |
 
 Things to know before choosing one:
 
@@ -90,17 +104,23 @@ Things to know before choosing one:
   machine is gone, so the next command gets a new one with the same workspace. Packages installed
   outside `/workspace` last until then.
 - **Cloudflare** needs the Workers Paid plan. Uncomment the `containers` line in
-  `apps/web/wrangler.jsonc` and set `DC_SANDBOX` to `cloudflare`. Machines start from Cloudflare's
+  `apps/web/wrangler.jsonc` and set `DC_SANDBOX` to `cloudflare`, or add `cloudflare` to
+  `DC_SANDBOX_KINDS` to offer it without making it the default. Machines start from Cloudflare's
   managed Debian image, so there is nothing to build. A machine is saved as a snapshot after ten
   minutes without use, and every fifteen while in use, then started from that snapshot.
   Snapshots are in public beta and expire after 30 days, so a stopped machine is restored and
   saved again every 20 days; an agent can be left alone for months and keep its disk.
 - On every remote machine, running processes do not survive a stop. Files do, as described above.
-- Changing `DC_SANDBOX` gives every agent a different, empty computer. The old ones are not
-  deleted and come back if you change it back.
+- Changing `DC_SANDBOX` changes what new agents get. Agents that exist stay on the kind they
+  have until they are moved in the app.
+- If a kind stops being offered, because its key was removed or `DC_SANDBOX_KINDS` changed, the
+  agents on it use the default until it is offered again, and then go back to it. Their machines
+  are not deleted meanwhile, and cannot be: delete such an agent while its kind is offered, or
+  remove the machine at the provider.
 
 Daytona has been run for real, on Node and in the Workers runtime: creating the machine, the
-shell, file tools, stopping and coming back with its files, and deletion. To repeat that against
+shell, file tools, stopping and coming back with its files, moving an agent to it from the
+built-in shell and back, and deletion. To repeat that against
 your own account: `DAYTONA_API_KEY=... pnpm --filter @durable-computer/sandbox exec vitest run
 test/daytona.live.test.ts` (it creates one machine and deletes it). Modal and Cloudflare
 Containers are tested against stand-ins that run real commands, and have not yet been run with a

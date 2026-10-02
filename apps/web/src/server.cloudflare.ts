@@ -13,7 +13,7 @@ import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { readConfig } from "./server/platform.ts"
 import { notifyOwner } from "./server/push.ts"
 import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
-import { sandboxFactory } from "./server/sandbox.ts"
+import { computerChoices } from "./server/sandbox.ts"
 
 export { SandboxObject } from "./server/sandbox.cloudflare.ts"
 
@@ -26,7 +26,7 @@ export const AgentObject = createDurableActorClass<Env>({
       models: models.models,
       defaultModel: models.defaultModel,
       modelOptions: models.options,
-      sandbox: sandboxFactory(config, "Cloudflare", cloudflareProviders(env)),
+      computers: computerChoices(config, "cloudflare", cloudflareProviders(env)),
       webSearch: models.webSearch,
       allowPrivateHosts: config.allowPrivateHosts,
       computerLinks: durableObjectNamespace(env.COMPUTER),

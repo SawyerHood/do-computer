@@ -12,13 +12,21 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { ComputerPicker } from "@/components/computer-picker"
 import { ModelPicker } from "@/components/model-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { client } from "@/lib/client"
-import { agentKey, agentsCollection, agentsKey, modelsKey, usageKey } from "@/lib/collections"
+import {
+  agentKey,
+  agentsCollection,
+  agentsKey,
+  computerKindsKey,
+  modelsKey,
+  usageKey,
+} from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +40,8 @@ type Form = {
   user: string
   memory: string
   model: string
+  /** The kind of computer. Null where the deployment offers no choice of one. */
+  computer: string | null
 }
 
 function toForm(state: AgentState): Form {
@@ -43,6 +53,7 @@ function toForm(state: AgentState): Form {
     user: state.user,
     memory: state.memory,
     model: state.agent.model,
+    computer: state.computer,
   }
 }
 
@@ -290,6 +301,11 @@ function ProfilePage() {
     queryFn: () => client.models(),
     staleTime: Number.POSITIVE_INFINITY,
   })
+  const { data: computers } = useQuery({
+    queryKey: computerKindsKey,
+    queryFn: () => client.computerKinds(),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
   const [form, setForm] = useState<Form>()
   const [dirty, setDirty] = useState(false)
 
@@ -313,6 +329,7 @@ function ProfilePage() {
     setDirty(true)
   }
   const over = form.user.length > state.limits.user || form.memory.length > state.limits.memory
+  const moving = form.computer !== state.computer
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -324,6 +341,7 @@ function ProfilePage() {
       user: form.user,
       memory: form.memory,
       model: form.model,
+      ...(moving && form.computer !== null ? { computer: form.computer } : {}),
     })
   }
 
@@ -468,6 +486,27 @@ function ProfilePage() {
             onChange={(model) => set("model", model)}
           />
         </Section>
+
+        {form.computer !== null && computers !== undefined && computers.kinds.length > 1 ? (
+          <Section
+            title="Computer"
+            hint="Where this agent keeps files and runs commands. New agents get your default, which is under Settings."
+          >
+            <ComputerPicker
+              label="Computer"
+              kinds={computers.kinds}
+              value={form.computer}
+              onChange={(computer) => set("computer", computer)}
+            />
+            {moving ? (
+              <p role="note" className="rounded-xl bg-muted px-3 py-2 text-sm">
+                Saving moves {state.agent.name ?? "this agent"} to a different computer. Files are
+                not copied: what it has made stays on the computer it has now, and is there again if
+                you move it back. Its memory, chats, skills and automations are not affected.
+              </p>
+            ) : null}
+          </Section>
+        ) : null}
 
         <Usage agentId={agentId} />
         <DeleteAgent agentId={agentId} name={state.agent.name} />

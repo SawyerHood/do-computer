@@ -17,6 +17,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppPairRouteImport } from './routes/_app.pair'
 import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
+import { Route as ApiComputerKindsRouteImport } from './routes/api/computer-kinds'
 import { Route as ApiDaemonVersionRouteImport } from './routes/api/daemon-version'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMeRouteImport } from './routes/api/me'
@@ -86,6 +87,11 @@ const AppPairRoute = AppPairRouteImport.update({
 const ApiAuthMethodsRoute = ApiAuthMethodsRouteImport.update({
   id: '/api/auth-methods',
   path: '/api/auth-methods',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiComputerKindsRoute = ApiComputerKindsRouteImport.update({
+  id: '/api/computer-kinds',
+  path: '/api/computer-kinds',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDaemonVersionRoute = ApiDaemonVersionRouteImport.update({
@@ -255,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/computer-kinds': typeof ApiComputerKindsRoute
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
@@ -294,6 +301,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/computer-kinds': typeof ApiComputerKindsRoute
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
@@ -335,6 +343,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_app/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/computer-kinds': typeof ApiComputerKindsRoute
   '/api/daemon-version': typeof ApiDaemonVersionRoute
   '/api/health': typeof ApiHealthRoute
   '/api/me': typeof ApiMeRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/pair'
     | '/api/auth-methods'
+    | '/api/computer-kinds'
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/pair'
     | '/api/auth-methods'
+    | '/api/computer-kinds'
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_app/pair'
     | '/api/auth-methods'
+    | '/api/computer-kinds'
     | '/api/daemon-version'
     | '/api/health'
     | '/api/me'
@@ -498,6 +510,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   ApiAuthMethodsRoute: typeof ApiAuthMethodsRoute
+  ApiComputerKindsRoute: typeof ApiComputerKindsRoute
   ApiDaemonVersionRoute: typeof ApiDaemonVersionRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMeRoute: typeof ApiMeRoute
@@ -575,6 +588,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth-methods'
       fullPath: '/api/auth-methods'
       preLoaderRoute: typeof ApiAuthMethodsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/computer-kinds': {
+      id: '/api/computer-kinds'
+      path: '/api/computer-kinds'
+      fullPath: '/api/computer-kinds'
+      preLoaderRoute: typeof ApiComputerKindsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/daemon-version': {
@@ -863,6 +883,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   ApiAuthMethodsRoute: ApiAuthMethodsRoute,
+  ApiComputerKindsRoute: ApiComputerKindsRoute,
   ApiDaemonVersionRoute: ApiDaemonVersionRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMeRoute: ApiMeRoute,

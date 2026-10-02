@@ -79,8 +79,11 @@ const INTRO = `You have skills: saved instructions for particular kinds of task.
 
 export type SkillsOptions = {
   readonly now: () => number
-  /** Where a loaded skill's files are copied so its scripts can be run. */
-  readonly sandbox?: Sandbox
+  /**
+   * The agent's computer at the moment, where a loaded skill's files are copied so its scripts
+   * can be run. Asked each time: an agent can be moved to another one.
+   */
+  readonly sandbox?: () => Sandbox | undefined
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
 }
 
@@ -137,7 +140,7 @@ export class Skills {
   async seed(context: Context): Promise<void> {
     const harness = this.#require()
     const index = await harness.snapshot(SkillsDoc, context)
-    const realComputer = this.#options.sandbox?.capabilities.realBinaries === true
+    const realComputer = this.#options.sandbox?.()?.capabilities.realBinaries === true
     const missing = BUNDLED_SKILLS.filter(
       (skill) =>
         (skill.needsRealComputer !== true || realComputer) &&
@@ -245,7 +248,7 @@ export class Skills {
 
   /** Copy a skill's files into the workspace, so scripts it refers to can be run. */
   async #materialize(skill: SkillDetail): Promise<string | undefined> {
-    const sandbox = this.#options.sandbox
+    const sandbox = this.#options.sandbox?.()
     if (sandbox === undefined) return undefined
     const directory = `${sandbox.home}/.agents/skills/${skill.name}`
     const encoder = new TextEncoder()

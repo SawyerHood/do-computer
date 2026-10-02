@@ -2,6 +2,7 @@ export {
   AgentActor,
   type AgentActorOptions,
   type AgentNotification,
+  type ComputerChoices,
   CONNECTOR_REDIRECT_HEADER,
   createAgentActor,
 } from "./actor.ts"

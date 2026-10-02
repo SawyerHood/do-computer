@@ -9,7 +9,6 @@ import {
   type ToolDiagnostic,
   ToolTask,
 } from "@earendil-works/pi-durable"
-import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { IdentityDoc } from "./docs.ts"
 import { MIRROR_FILES, readMirrorChanges, writeMirror } from "./mirror.ts"
 
@@ -22,10 +21,41 @@ const IDENTITY_TOOLS = new Set(["set_identity", "memory"])
 const elsewhere = (args: Record<string, unknown>) =>
   typeof args.computer === "string" && args.computer !== ""
 
-function describe(sandbox: Sandbox): string {
+/** Tools whose failure can be a file that is not there. */
+const LOOKUP_TOOLS = new Set(["read", "edit", "bash"])
+const NOT_THERE = /no such file|not found|ENOENT/i
+
+/** Whether a call failed because something it expected on the computer is not there. */
+function missingFile(
+  tool: string,
+  result: { content?: unknown; isError?: boolean; diagnostics?: readonly ToolDiagnostic[] },
+): boolean {
+  if (!LOOKUP_TOOLS.has(tool)) return false
+  const errors = (result.diagnostics ?? []).filter((entry) => entry.severity === "error")
+  if (result.isError !== true && errors.length === 0) return false
+  const said = Array.isArray(result.content)
+    ? result.content.flatMap((block: { type?: string; text?: string }) =>
+        block.type === "text" && typeof block.text === "string" ? [block.text] : [],
+      )
+    : []
+  return [...said, ...errors.map((entry) => entry.message)].some((text) => NOT_THERE.test(text))
+}
+
+const day = (at: number) => new Date(at).toISOString().slice(0, 10)
+
+/** The name both of these extensions are installed under, whichever computer they are for. */
+export const COMPUTER_EXTENSION = "dc.computer"
+
+function describe(sandbox: Sandbox, movedAt: number | undefined): string {
   const lines = [
     `You have your own computer. Your workspace is ${sandbox.home}; files there persist between conversations. Use the read, write, edit and bash tools to work in it.`,
   ]
+  if (movedAt !== undefined) {
+    // Otherwise it would go looking for files it remembers making, on a machine that never had them.
+    lines.push(
+      `The user moved you to this computer on ${day(movedAt)}. What you made on a different computer before then stayed there and is not here. When a file you remember is missing, that is the reason: tell the user it is on the computer you had before, and offer to make it again, instead of treating it as lost.`,
+    )
+  }
   if (!sandbox.capabilities.realBinaries) {
     lines.push(
       "This computer is a lightweight shell: the usual text tools work (ls, cat, grep, sed, awk, jq, find and so on), but there are no real programs such as git, package managers, compilers or a browser. If a task needs one of those, say so instead of working around it.",
@@ -45,12 +75,30 @@ function describe(sandbox: Sandbox): string {
 }
 
 /**
+ * Stands where the computer would, for an agent that has none but still has the file and shell
+ * tools, for the user's own computers. Without it the agent would learn that from a failed call.
+ */
+export const WithoutComputer: Extension = defineExtension({
+  name: COMPUTER_EXTENSION,
+  sections: [
+    section(
+      "computer",
+      () =>
+        "You have no computer of your own. The read, write, edit and bash tools work only on a computer the user has connected, named in `computer`, and fail without one. If none is listed here, you cannot keep files or run commands: say so when a task needs that, and that the user can give you a computer on your page in the app.",
+    ),
+  ],
+})
+
+/**
  * The agent's computer as a pi-durable extension: its description in the prompt, and hooks that
  * keep the identity files in the workspace and the identity document in step.
  */
 export class Computer {
   readonly sandbox: Sandbox
-  readonly extensions: readonly Extension[]
+  /** Installed next to the file and shell tools, which it expects to be there. */
+  readonly extension: Extension
+  /** When the agent was moved here from another computer, if it was. It is told, in its prompt. */
+  movedAt: number | undefined
   /** The workspace files may not reflect the document; rewritten before the next tool runs. */
   #stale = true
   #harness: Harness | undefined
@@ -61,9 +109,9 @@ export class Computer {
 
   constructor(sandbox: Sandbox) {
     this.sandbox = sandbox
-    const sync = defineExtension({
-      name: "dc.computer",
-      sections: [section("computer", () => describe(sandbox))],
+    this.extension = defineExtension({
+      name: COMPUTER_EXTENSION,
+      sections: [section("computer", () => describe(sandbox, this.movedAt))],
       hooks: [
         hook(ToolTask, {
           beforeTool: async (call, _api, context) => {
@@ -78,23 +126,29 @@ export class Computer {
           },
           afterTool: async (call, result, _api, context) => {
             if (IDENTITY_TOOLS.has(call.name)) this.#stale = true
-            if (!FILE_TOOLS.has(call.name) || elsewhere(call.arguments)) return undefined
-            // If the computer cannot be read, the tool's own result already says so.
-            const problems = await this.#absorb(context).catch((error) => {
-              this.onProblem(error)
-              return []
-            })
-            if (problems.length === 0) return undefined
-            const diagnostics: ToolDiagnostic[] = [
-              ...(result.diagnostics ?? []),
-              ...problems.map((message) => ({ severity: "error" as const, message })),
-            ]
-            return { ...result, diagnostics }
+            if (elsewhere(call.arguments)) return undefined
+            const added: ToolDiagnostic[] = []
+            if (this.movedAt !== undefined && missingFile(call.name, result)) {
+              // Said here as well as in the prompt: next to the failure is where it is heeded.
+              added.push({
+                severity: "info",
+                message: `The user moved you to this computer on ${day(this.movedAt)}, and what you had made before then stayed on the one you left. If that is why this is missing, tell the user so and offer to make it again here; it was not lost.`,
+              })
+            }
+            if (FILE_TOOLS.has(call.name)) {
+              // If the computer cannot be read, the tool's own result already says so.
+              const problems = await this.#absorb(context).catch((error) => {
+                this.onProblem(error)
+                return []
+              })
+              added.push(...problems.map((message) => ({ severity: "error" as const, message })))
+            }
+            if (added.length === 0) return undefined
+            return { ...result, diagnostics: [...(result.diagnostics ?? []), ...added] }
           },
         }),
       ],
     })
-    this.extensions = [CodingTools, sync]
   }
 
   /**

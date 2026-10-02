@@ -246,10 +246,27 @@ export type ApprovalsState = {
   pending: ApprovalRequest[]
 }
 
+/** One kind of computer an agent can work on, as a deployment offers it. */
+export type ComputerKind = {
+  id: string
+  label: string
+  /** A sentence on what it is, for whoever is choosing. */
+  description: string
+}
+
+/** The kinds of computer a deployment offers, and the one it gives new agents. */
+export type ComputerKinds = {
+  kinds: ComputerKind[]
+  default: string
+}
+
 /** What a user has chosen for their account, as opposed to for one agent. */
 export type UserSettings = {
   /** The model their new agents start on. Null: whatever the deployment starts agents on. */
   defaultModel: string | null
   /** The deployment's own default, which is what null means. */
   deploymentDefaultModel: string
+  /** The kind of computer their new agents get. Null: whatever the deployment gives them. */
+  defaultComputer: string | null
+  deploymentDefaultComputer: string
 }
