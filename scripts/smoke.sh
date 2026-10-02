@@ -71,5 +71,31 @@ if [ -f "$DAEMON" ]; then
 else
   echo "skip paired computer checks: build the daemon with pnpm --filter @durable-computer/daemon build"
 fi
+# History: what was said can be found, and a chat's past can be read back.
+check "search finds what was said" "$(get "/api/agents/$AGENT/search?q=smoke%20test%20ping" | field "['hits'][0]['chatId']")" "$CHAT"
+check "a chat's earlier messages can be read" "$(get "/api/agents/$AGENT/chats/$CHAT/history" | field "['messages'][0]['parts'][0]['text']")" "smoke test ping"
+check "usage is counted" "$(get "/api/agents/$AGENT/usage" | field "['chats'] >= 1")" "True"
+# Approvals: a tool set to ask first does not run until the user says so.
+patch() { curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PATCH "$BASE$1" -d "$2"; }
+check "a rule is set" "$(patch "/api/agents/$AGENT/approvals/rules" '{"tool:bash":"ask"}' | field "['rules']['tool:bash']")" "ask"
+tool '/tool bash {"command":"echo needs-an-ok"}'
+for _ in $(seq 1 40); do
+  PENDING=$(get "/api/agents/$AGENT/approvals" | field "['pending'][0]['detail'] if d['pending'] else ''" 2>/dev/null || true)
+  [ "$PENDING" = "echo needs-an-ok" ] && break
+  sleep 0.5
+done
+check "the agent asked before running the command" "$PENDING" "echo needs-an-ok"
+REQUEST=$(get "/api/agents/$AGENT/approvals" | field "['pending'][0]['id']")
+post "/api/agents/$AGENT/approvals/$REQUEST" '{"decision":"always"}' >/dev/null
+check "always allowing lifts the rule" "$(get "/api/agents/$AGENT/approvals" | field "['rules']")" "{}"
+wait_for "not d['busy'] and 'Approved: Run commands: echo needs-an-ok' in $TEXTS" "the answer reached the chat"
+tool '/tool bash {"command":"echo needs-an-ok"}'
+wait_for "not d['busy'] and any(p.get('output')=='needs-an-ok\\n' for m in d['messages'] for p in m['parts'])" "the command ran once it was allowed"
+# Deleting an agent removes it and leaves the others alone.
+SECOND=$(post /api/agents | field "['agent']['id']")
+curl -sS -m 30 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/agents/$SECOND" >/dev/null
+check "a deleted agent is gone" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/api/agents/$SECOND")" "404"
+check "the first agent is untouched" "$(get /api/agents | field "['agents'][0]['id']")" "$AGENT"
 check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' | field "['error']")" "Not found"
+check "destroy is not exposed" "$(post "/api/agents/$AGENT/destroy" | field "['error']")" "Not found"
 echo "all checks passed against $BASE"
