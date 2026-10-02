@@ -8,6 +8,7 @@ import {
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
 import type { ModelRef } from "@earendil-works/pi-durable"
+import type { WebSearchOptions } from "./web-search.ts"
 
 /** OpenRouter models offered in the picker, best first. Ones the catalog lacks are dropped. */
 const CURATED = [
@@ -28,6 +29,8 @@ export type AgentModels = {
   readonly options: readonly ModelOption[]
   /** Present only for the built-in echo model, so tests can script its answers. */
   readonly faux?: FauxProviderHandle
+  /** What web search needs. Absent without a model key: there is nothing to search with. */
+  readonly webSearch?: WebSearchOptions
 }
 
 export type AgentModelsConfig = {
@@ -35,6 +38,8 @@ export type AgentModelsConfig = {
   readonly openrouterApiKey?: string
   /** OpenRouter model id, for example `anthropic/claude-sonnet-5.5`. */
   readonly defaultModel?: string
+  /** OpenRouter model id that reads web search results. Default: the default model. */
+  readonly searchModel?: string
 }
 
 /** `provider/modelId` to a pi-durable model reference. The provider is the first path segment. */
@@ -148,5 +153,13 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     throw new Error(`None of the configured OpenRouter models exist in the model catalog`)
   }
   const defaultModel = catalog.has(preferred) ? `openrouter/${preferred}` : options[0]!.id
-  return { models, defaultModel, options }
+  return {
+    models,
+    defaultModel,
+    options,
+    webSearch: {
+      apiKey: key,
+      model: config.searchModel ?? defaultModel.slice("openrouter/".length),
+    },
+  }
 }

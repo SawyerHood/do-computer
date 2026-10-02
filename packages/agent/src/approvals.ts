@@ -62,6 +62,7 @@ const TOOL_SUBJECTS: Record<string, string> = {
   write: "Create and overwrite files",
   edit: "Edit files",
   send_file: "Send you files",
+  web_search: "Search the web",
   schedule: "Create and change automations",
   skill: "Save and change skills",
   memory: "Change what it remembers",

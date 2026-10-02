@@ -54,6 +54,7 @@ Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                          |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                          |
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                    |
+| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default: the default model. A cheaper one works well.                  |
 | `DC_SANDBOX`                               | What computer agents get: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
 | `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors and skill installs reach this machine and private networks, and use plain http. Off by default.                  |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |
@@ -117,6 +118,9 @@ is why sign-up is by invitation unless you open it.
   reports back to the chat you asked in; see and pause them under Automations.
 - **Learn skills**: saved instructions it loads when a task calls for them, writes for itself, and
   can install from a GitHub folder or a `SKILL.md` URL.
+- **Search the web**, when the deployment has a model key: one request to OpenRouter searches,
+  reads the results and answers with sources. It works on any computer, including the default one
+  with no network, and its cost shows up under Usage with everything else.
 - **Use your services.** Under Connectors, add a remote [MCP](https://modelcontextprotocol.io)
   server by its address, with an access token or by signing in to the service. Its tools become
   the agent's. Tokens stay on the server; the agent never sees them.

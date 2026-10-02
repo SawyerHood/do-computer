@@ -54,6 +54,7 @@ import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
+import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 
 const context = BACKGROUND_CONTEXT
 
@@ -92,6 +93,8 @@ export type AgentActorOptions = {
    * http. Off by default: the server makes those calls for whoever, or whatever, asks.
    */
   readonly allowPrivateHosts?: boolean
+  /** Gives the agent a web search tool. Absent: it has none. */
+  readonly webSearch?: WebSearchOptions
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -287,6 +290,9 @@ export class AgentActor implements Actor {
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
+      if (this.#options.webSearch !== undefined) {
+        registry.install(webSearchExtension(this.#options.webSearch))
+      }
       registry.install(
         historyExtension(() => {
           if (opened === undefined) throw new Error("The agent is not open yet")

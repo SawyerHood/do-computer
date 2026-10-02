@@ -57,6 +57,7 @@ function create(): NodePlatform {
         defaultModel: models.defaultModel,
         modelOptions: models.options,
         sandbox,
+        webSearch: models.webSearch,
         allowPrivateHosts: config.allowPrivateHosts,
         computerLinks: computers,
         onNotify: (notification) =>
