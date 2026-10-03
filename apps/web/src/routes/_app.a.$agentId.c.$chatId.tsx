@@ -15,6 +15,7 @@ function ChatPage() {
     queryFn: () => client.agent(agentId).state(),
   })
   if (data === undefined) return null
-  // Keyed by chat so switching chats starts a fresh stream and scroll position.
-  return <ChatView key={chatId} agent={data.agent} chatId={chatId} />
+  // Keyed by chat so switching chats starts a fresh stream and scroll position. Two agents can
+  // both have a chat 1, so the agent is part of the key.
+  return <ChatView key={`${agentId}/${chatId}`} agent={data.agent} chatId={chatId} />
 }

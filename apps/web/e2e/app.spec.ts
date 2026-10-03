@@ -34,6 +34,16 @@ async function newChat(page: Page) {
   await expect(composer(page)).toHaveValue("")
 }
 
+// On a wide screen the chat list starts closed and the panel about the agent starts open. Most
+// of these tests work in the chat list and read the transcript, so they have the list open and
+// the panel put away, the way someone might have left them. The tests of those two say so.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("dc-chat-list", "open")
+    localStorage.setItem("dc-agent-panel", "closed")
+  })
+})
+
 // The tests share one server and run in order: the first creates the account the rest use.
 test.describe.configure({ mode: "serial" })
 
@@ -157,9 +167,26 @@ test("the agent uses its computer: one line says what it is doing, and only its 
 
   // Once it has answered, the line is gone and the call itself was never put in the transcript.
   await expect(page.getByRole("status")).toHaveCount(0)
-  await expect(
-    page.getByRole("main").getByRole("button", { name: /echo from the shell/ }),
-  ).toHaveCount(0)
+  await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
+  await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
+
+  // The work behind the answer is kept in the panel about the agent, which opens from its name.
+  // There it can be opened and read.
+  const panel = page.getByRole("complementary", { name: "About Juniper" })
+  await expect(panel).toHaveCount(0)
+  await page.getByRole("button", { name: "Juniper", exact: true }).click()
+  await expect(panel.getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
+    "data-mood",
+    /idle|done/,
+  )
+  const did = panel.getByText("Ran: sleep 1; echo from the shell", { exact: false })
+  await expect(did).toBeVisible()
+  await expect(panel.getByText("MEMORY.md")).toBeHidden()
+  await did.click()
+  await expect(panel.getByText("MEMORY.md")).toBeVisible()
+  // With the creature in the panel, it is not also in the middle of the chat.
+  await panel.getByRole("button", { name: "Hide this panel" }).click()
+  await expect(panel).toHaveCount(0)
   await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
 })
 
@@ -649,10 +676,7 @@ test("a new agent is met as an egg, and hatches once", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
   await expect(welcome).toHaveAttribute("data-mood", "idle")
   await page.reload()
-  await expect(page.getByRole("log").getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
-    "data-mood",
-    "idle",
-  )
+  await expect(welcome).toHaveAttribute("data-mood", "idle")
   await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
   await page.request.delete(`/api/agents/${agentId}`)
 })
@@ -1065,6 +1089,39 @@ test.describe("choosing a computer", () => {
     })
     expect(refused.status()).toBe(400)
   })
+})
+
+test("the chat list is put away until it is asked for, and stays how it was left", async ({
+  browser,
+  baseURL,
+}) => {
+  // A browser that has never said how it wants things laid out.
+  const context = await browser.newContext({ baseURL, colorScheme: "dark" })
+  const page = await context.newPage()
+  await signIn(page)
+  await expect(page.getByRole("searchbox", { name: "Search chats" })).toHaveCount(0)
+  // The agent has the room instead: its panel is open beside the chat, and stays shut once hidden.
+  const panel = page.getByRole("complementary", { name: "About Juniper" })
+  await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  await panel.getByRole("button", { name: "Hide this panel" }).click()
+  await page.reload()
+  await expect(composer(page)).toBeVisible()
+  await expect(panel).toHaveCount(0)
+
+  // A chat can be started without it.
+  const before = page.url()
+  await page.getByRole("button", { name: "New chat", exact: true }).click()
+  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
+
+  // Asked for, it is beside the chat, and still there after a reload.
+  await page.getByRole("button", { name: "Chats", exact: true }).click()
+  await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Chats", exact: true })).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
+  await page.getByRole("button", { name: "Hide chats" }).click()
+  await expect(page.getByRole("searchbox", { name: "Search chats" })).toHaveCount(0)
+  await context.close()
 })
 
 test("signing out ends the session", async ({ page }) => {

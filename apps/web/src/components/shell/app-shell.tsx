@@ -183,6 +183,19 @@ function SearchResults({
   )
 }
 
+const CHAT_LIST_KEY = "dc-chat-list"
+
+/** Starts a chat with the agent and opens it. */
+function useNewChat(agentId: string, onNavigate?: () => void) {
+  const navigate = useNavigate()
+  return async () => {
+    const chat = await client.agent(agentId).createChat()
+    await chatsCollection(agentId).utils.refetch()
+    onNavigate?.()
+    await navigate({ to: "/a/$agentId/c/$chatId", params: { agentId, chatId: chat.id } })
+  }
+}
+
 function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () => void }) {
   const navigate = useNavigate()
   const { chatId: activeChatId } = useParams({ strict: false })
@@ -199,12 +212,7 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
   const [query, setQuery] = useState("")
   const searching = query.trim().length >= 2
 
-  const create = async () => {
-    const chat = await client.agent(agentId).createChat()
-    await collection.utils.refetch()
-    onNavigate?.()
-    await navigate({ to: "/a/$agentId/c/$chatId", params: { agentId, chatId: chat.id } })
-  }
+  const create = useNewChat(agentId, onNavigate)
   const archive = async (chat: ChatSummary) => {
     collection.update(chat.id, (draft) => {
       draft.archived = true
@@ -290,6 +298,24 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
   const { agent } = state
   const navigate = useNavigate()
   const [listOpen, setListOpen] = useAtom(chatListOpenAtom)
+  // The chat list stays the way it was left.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(CHAT_LIST_KEY) === "open") setListOpen(true)
+    } catch {
+      // Storage can be unavailable; the list then starts closed.
+    }
+  }, [setListOpen])
+  const toggleList = () =>
+    setListOpen((open) => {
+      try {
+        localStorage.setItem(CHAT_LIST_KEY, open ? "closed" : "open")
+      } catch {
+        // The choice then lasts for this page only.
+      }
+      return !open
+    })
+  const newChat = useNewChat(agent.id)
   const [sheetOpen, setSheetOpen] = useState(false)
   const page = useLocation({
     select: (location) =>
@@ -326,7 +352,7 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
           <RailButton
             label={listOpen ? "Hide chats" : "Show chats"}
             active={listOpen && page === "chat"}
-            onClick={() => setListOpen((open) => !open)}
+            onClick={toggleList}
           >
             <ChatCircleIcon />
           </RailButton>
@@ -419,6 +445,24 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
             <ListIcon /> Chats
           </Button>
         </div>
+        {/* On a wide screen the list is beside the chat when it is open, and behind this when not. */}
+        {listOpen || page !== "chat" ? null : (
+          <div className="absolute top-3 left-3 z-20 hidden items-center gap-1.5 md:flex">
+            <Button variant="secondary" size="sm" className="rounded-full" onClick={toggleList}>
+              <ListIcon /> Chats
+            </Button>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              className="rounded-full"
+              aria-label="New chat"
+              title="New chat"
+              onClick={() => void newChat()}
+            >
+              <NotePencilIcon />
+            </Button>
+          </div>
+        )}
         {children}
       </main>
 

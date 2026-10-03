@@ -80,6 +80,36 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
   }
 }
 
+/** How each activity reads once it is over. */
+const PAST: Record<string, string> = {
+  Running: "Ran",
+  Reading: "Read",
+  Writing: "Wrote",
+  Editing: "Edited",
+  Searching: "Searched",
+  Sending: "Sent",
+  Scheduling: "Scheduled",
+  Checking: "Checked",
+  Updating: "Updated",
+  Looking: "Looked",
+  Installing: "Installed",
+  Removing: "Removed",
+  Saving: "Saved",
+  Getting: "Got",
+  Using: "Used",
+}
+
+/**
+ * What a tool call did, for a list of things done: `toolActivity` in the past tense. "Ran: git
+ * status", "Read notes.txt", "Searched the web: node lts".
+ */
+export function toolSummary(part: Pick<ToolPart, "name" | "args">): string {
+  const doing = toolActivity(part)
+  const verb = doing.slice(0, doing.search(/[ :]|$/))
+  const done = PAST[verb]
+  return done === undefined ? doing : done + doing.slice(verb.length)
+}
+
 /**
  * What the agent is doing right now, as one line, or null when there is nothing to say: it is
  * idle, or its answer is being written on screen, which says so itself.

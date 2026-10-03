@@ -39,7 +39,10 @@ export const earlierAtom = atomFamily(() =>
 /** What the user has typed but not sent, per chat. */
 export const draftAtom = atomFamily(() => atom(""))
 
-/** Whether the chat list is shown (wide screens) or open as a sheet (narrow ones). */
-export const chatListOpenAtom = atom(true)
+/**
+ * Whether the chat list is shown beside the chat on wide screens. Closed until asked for, so the
+ * chat and the agent have the room; the choice is remembered by the shell.
+ */
+export const chatListOpenAtom = atom(false)
 
 export const chatKey = (agentId: string, chatId: string) => `${agentId}/${chatId}`

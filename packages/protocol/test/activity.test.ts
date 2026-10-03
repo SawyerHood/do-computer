@@ -9,6 +9,7 @@ import {
   toolActivity,
   toolKind,
   type ToolPart,
+  toolSummary,
 } from "../src/index.ts"
 
 const tool = (
@@ -52,6 +53,25 @@ describe("toolActivity", () => {
     expect(long.endsWith("…")).toBe(true)
     expect(toolActivity({ name: "bash", args: null })).toBe("Running a command")
     expect(toolActivity({ name: "web_search", args: "partial" })).toBe("Searching the web")
+  })
+})
+
+describe("toolSummary", () => {
+  it.each([
+    [tool("bash", { command: "git status" }), "Ran: git status"],
+    [tool("bash", {}), "Ran a command"],
+    [tool("read", { path: "notes/todo.md" }), "Read todo.md"],
+    [tool("write", { path: "plan.md" }), "Wrote plan.md"],
+    [tool("edit", { path: "plan.md", computer: "studio" }), "Edited plan.md on studio"],
+    [tool("web_search", { query: "node lts" }), "Searched the web: node lts"],
+    [tool("send_file", { path: "out/report.pdf" }), "Sent you report.pdf"],
+    [tool("memory", { action: "add" }), "Updated its memory"],
+    [tool("schedule", { action: "list" }), "Checked its schedule"],
+    [tool("skill", { action: "list" }), "Looked through its skills"],
+    [tool("library", { action: "get", file: "a.csv" }), "Got a file from your library: a.csv"],
+    [tool("deepwiki__ask_question", {}), "Used deepwiki: ask question"],
+  ])("says what %j did", (part, expected) => {
+    expect(toolSummary(part)).toBe(expected)
   })
 })
 
