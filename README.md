@@ -225,6 +225,8 @@ pnpm mobile              # Expo dev server; open in a development build
 
 Push notifications and the microphone need a development build, not Expo Go. The app's screens
 are tested through its web build; they have not yet been run on a device from this repository.
+That includes the agent's creature, which is drawn with `expo-gl`: on a device that cannot run
+it, a still picture is shown instead.
 
 ## Development
 

@@ -35,7 +35,16 @@ export default function Chats() {
         state?.agent.tagline ??
         (state && !state.agent.name ? "Brand new, and not named yet. Say hello." : undefined)
       }
-      action={state ? <Avatar avatar={state.agent.avatar} seed={state.agent.id} size={48} /> : null}
+      action={
+        state ? (
+          <Avatar
+            avatar={state.agent.avatar}
+            seed={state.agent.id}
+            size={48}
+            hatched={state.agent.hatched}
+          />
+        ) : null
+      }
     >
       <ErrorText>{error?.message}</ErrorText>
       <Pressable

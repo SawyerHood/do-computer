@@ -57,6 +57,20 @@ test("a new user signs up on the phone and meets a brand-new agent", async ({ pa
   await expect(page.getByRole("heading", { name: "Your agent" })).toBeVisible()
   await expect(page.getByText("Brand new, and not named yet")).toBeVisible()
   await expect(page.getByText("No chats yet.")).toBeVisible()
+
+  // The agent is met as an egg, which hatches in its first chat, once.
+  await expect(page.getByTestId("avatar-egg")).toBeVisible()
+  await page.getByRole("button", { name: "New chat" }).click()
+  await expect(page.getByText("It has no name yet")).toBeVisible()
+  const hatched = async () =>
+    (
+      (await (await page.request.get("/api/agents")).json()) as {
+        agents: { hatched: boolean }[]
+      }
+    ).agents[0]!.hatched
+  await expect.poll(hatched, { timeout: 15_000 }).toBe(true)
+  await expect(page.getByTestId("avatar-egg")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
 })
 
 test("wrong credentials are explained", async ({ page }) => {
