@@ -1,7 +1,7 @@
 import { type AgentSummary, type ChatMessage, randomId } from "@durable-computer/protocol"
-import { ArrowsClockwiseIcon, SidebarSimpleIcon } from "@phosphor-icons/react"
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,6 @@ import { client } from "@/lib/client"
 import { agentKey, agentsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
-import { cn } from "@/lib/utils"
 import { useLiveChat } from "@/lib/use-live-chat"
 import { useMascotMood } from "@/lib/use-mascot-mood"
 import { AgentPanel } from "./agent-panel.tsx"
@@ -104,6 +103,22 @@ function Welcome({ agent, face }: { agent: AgentSummary; face: React.ReactNode }
   )
 }
 
+/** The width from which the agent's panel fits beside the chat. */
+const WIDE = "(min-width: 80rem)"
+
+function useWide(): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      const query = matchMedia(WIDE)
+      query.addEventListener("change", changed)
+      return () => query.removeEventListener("change", changed)
+    },
+    () => matchMedia(WIDE).matches,
+    // Not known on the server. The page is first drawn as for a narrow screen.
+    () => false,
+  )
+}
+
 const PANEL_KEY = "dc-agent-panel"
 
 /** Whether the panel beside the chat is wanted. Remembered, and open until it is closed. */
@@ -139,6 +154,9 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   useMascotMood(agent.id, chatKey(agent.id, chatId), live.state)
   const hatch = useHatch(agent)
   const [panel, setPanel] = usePanel()
+  const wide = useWide()
+  // The panel is beside the chat only where there is room for both.
+  const beside = panel && wide
   // Someone who starts talking before the egg has opened has met their agent all the same.
   const talked = live.loaded && live.state.messages.length > 0
   useEffect(() => {
@@ -212,83 +230,75 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     [api, chatId],
   )
 
+  const name = agent.name ?? "New agent"
+  const canStartFresh = live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
+  const startFreshTitle =
+    "Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
+  // An empty chat has the creature in its middle, so the one in the header holds still: there is
+  // only ever one of it moving.
+  const welcoming = live.loaded && state.messages.length === 0 && !state.busy
+  const identity = (
+    <>
+      <AgentFace agent={agent} className="size-11" still={welcoming} />
+      <span className="text-sm font-medium">{name}</span>
+    </>
+  )
+
   return (
     <div className="flex h-full min-h-0">
       <div className="relative flex min-w-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
-        {/* Where the panel's own close button is when it is open, so it is found again. */}
-        {panel ? null : (
-          <Button
-            variant="secondary"
-            size="icon-sm"
-            className="absolute top-3 right-3 z-20 hidden rounded-full xl:inline-flex"
-            aria-label="Show the panel"
-            title={`Show ${agent.name ?? "the agent"} beside the chat`}
-            onClick={() => setPanel(true)}
-          >
-            <SidebarSimpleIcon mirrored />
-          </Button>
-        )}
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-          <div
-            className={cn(
-              "pointer-events-auto flex items-center gap-2.5 rounded-full border bg-background/85 py-1 pr-4 pl-1.5 shadow-sm backdrop-blur",
-              // With the panel beside the chat, the creature is there and this is only a name.
-              panel && "xl:py-2 xl:pl-4",
-            )}
-          >
-            <span className={cn("contents", panel && "xl:hidden")}>
-              <AgentFace agent={agent} className="size-11" />
-            </span>
-            {panel ? null : (
-              <button
-                type="button"
-                className="hidden text-sm font-medium outline-none hover:underline focus-visible:underline xl:inline"
-                title="Show the panel beside the chat"
-                onClick={() => setPanel(true)}
-              >
-                {agent.name ?? "New agent"}
-              </button>
-            )}
-            <span className={cn("text-sm font-medium", !panel && "xl:hidden")}>
-              {agent.name ?? "New agent"}
-            </span>
-            {live.status === "reconnecting" ? (
-              <span className="text-xs text-muted-foreground">reconnecting…</span>
-            ) : null}
-            {live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1)) ? (
-              <button
-                type="button"
-                aria-label="Start fresh"
-                title="Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
-                disabled={live.state.busy}
-                onClick={startFresh}
-                className="-mr-1.5 rounded-full p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
-              >
-                <ArrowsClockwiseIcon className="size-4" />
-              </button>
-            ) : null}
+        {/* With the panel beside the chat the agent is there, and needs no header here as well. */}
+        {beside ? null : (
+          <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
+              {wide ? (
+                // Pressing the header brings the panel back.
+                <button
+                  type="button"
+                  aria-label={`Show ${name} beside the chat`}
+                  title={`Show ${name} beside the chat`}
+                  className="flex items-center gap-2.5 rounded-full pr-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+                  onClick={() => setPanel(true)}
+                >
+                  {identity}
+                </button>
+              ) : (
+                <span className="flex items-center gap-2.5 pr-1.5">{identity}</span>
+              )}
+              {live.status === "reconnecting" ? (
+                <span className="pr-1 text-xs text-muted-foreground">reconnecting…</span>
+              ) : null}
+              {canStartFresh ? (
+                <button
+                  type="button"
+                  aria-label="Start fresh"
+                  title={startFreshTitle}
+                  disabled={live.state.busy}
+                  onClick={startFresh}
+                  className="rounded-full p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                >
+                  <ArrowsClockwiseIcon className="size-4" />
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
         <div className="min-h-0 flex-1">
           <AgentIdContext value={agent.id}>
             <Transcript
               state={state}
-              face={
-                // Where the panel is beside the chat, the creature is in it and not here too.
-                <span className={cn("contents", panel && "xl:hidden")}>
-                  <AgentFace agent={agent} className="size-12" />
-                </span>
-              }
               empty={
                 live.loaded ? (
                   <Welcome
                     agent={agent}
                     face={
                       // Where the panel is beside the chat, the creature is in it and not here too.
-                      <span className={cn("mb-6", panel && "xl:hidden")}>
-                        <Hatchling agent={agent} hatch={hatch} className="size-72" />
-                      </span>
+                      beside ? null : (
+                        <span className="mb-6">
+                          <Hatchling agent={agent} hatch={hatch} className="size-72" />
+                        </span>
+                      )
                     }
                   />
                 ) : null
@@ -325,11 +335,17 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           onAttach={attach}
         />
       </div>
-      {panel ? (
+      {beside ? (
         <AgentPanel
           agent={agent}
           state={state}
           face={<Hatchling agent={agent} hatch={hatch} className="size-52" />}
+          reconnecting={live.status === "reconnecting"}
+          startFresh={
+            canStartFresh
+              ? { title: startFreshTitle, disabled: live.state.busy, run: startFresh }
+              : undefined
+          }
           onClose={() => setPanel(false)}
         />
       ) : null}

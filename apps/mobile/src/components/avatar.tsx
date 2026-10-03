@@ -20,6 +20,8 @@ const IDLE: Mood = { state: "idle" }
 const SPILL = 1.24
 /** It is drawn at a console's frame rate, like the web one. */
 const FRAME_MS = 1000 / 30
+/** How many frames a picture of it is given to take up its pose before it is held there. */
+const POSE_FRAMES = 12
 
 let core: MascotCore | null | undefined
 
@@ -73,6 +75,7 @@ export function Avatar({
   hatched = true,
   hatching = false,
   onHatched,
+  still = false,
 }: {
   avatar: AvatarSpec | null | undefined
   /** The agent's id: what the creature grows from unless it was given a seed of its own. */
@@ -85,6 +88,8 @@ export function Avatar({
   hatching?: boolean
   /** Called once the hatch is over, skipped, or could not be drawn at all. */
   onHatched?: () => void
+  /** A picture of it, holding still: drawn once, and again only when its look changes. */
+  still?: boolean
 }) {
   const look = useMemo(() => avatarLook(avatar, seed), [avatar, seed])
   const xml = useMemo(() => avatarSvg(avatar, seed), [avatar, seed])
@@ -93,6 +98,10 @@ export function Avatar({
   const [orb, setOrb] = useState<Orb | null>()
   const [drawn, setDrawn] = useState(false)
   const stop = useRef<() => void>(undefined)
+  // Starts it drawing again, for a picture whose look changed.
+  const wake = useRef<() => void>(undefined)
+  const holding = useRef(still)
+  holding.current = still
   const done = useRef(onHatched)
   done.current = onHatched
   const first = useRef({ look, hatched, dark, size })
@@ -148,6 +157,9 @@ export function Avatar({
         let owed = 0
         let live = true
         let seen = false
+        // A picture is drawn for a few frames and then left as it is.
+        let posing = POSE_FRAMES
+        let resting = false
         const fail = () => {
           live = false
           cancelAnimationFrame(frame)
@@ -155,6 +167,11 @@ export function Avatar({
         }
         const draw = (time: number) => {
           if (!live) return
+          if (holding.current && posing <= 0) {
+            resting = true
+            last = undefined
+            return
+          }
           frame = requestAnimationFrame(draw)
           owed += last === undefined ? FRAME_MS : time - last
           last = time
@@ -162,6 +179,7 @@ export function Avatar({
           try {
             created.update(Math.min(owed, 250) / 1000)
             owed = 0
+            posing--
             renderer.setRenderTarget(target)
             renderer.clear()
             lib.Stage.drawAt(created, renderer, 0, 0)
@@ -181,6 +199,12 @@ export function Avatar({
           }
         }
         frame = requestAnimationFrame(draw)
+        wake.current = () => {
+          posing = POSE_FRAMES
+          if (!live || !resting) return
+          resting = false
+          frame = requestAnimationFrame(draw)
+        }
 
         const orbs = shown.get(seed) ?? new Set()
         shown.set(seed, orbs)
@@ -227,16 +251,21 @@ export function Avatar({
 
   useEffect(() => {
     if (orb === undefined || orb === null || hatching || orb.getState() === "hatching") return
-    if (hatched) orb.setState(mood.state, mood.variant)
-    else orb.setState("egg")
-  }, [orb, hatched, hatching, mood.state, mood.variant])
+    if (!hatched) orb.setState("egg")
+    else if (still) orb.setState("idle")
+    else orb.setState(mood.state, mood.variant)
+  }, [orb, hatched, hatching, still, mood.state, mood.variant])
+
+  // A picture of it is drawn again when what it shows has changed, or when it may move again.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these are what a picture shows
+  useEffect(() => wake.current?.(), [orb, still, look, hatched, dark])
 
   const spill = (size * (SPILL - 1)) / 2
   return (
     <View
       accessibilityRole="image"
       accessibilityLabel="Agent avatar"
-      testID={`avatar-${hatched ? mood.state : "egg"}`}
+      testID={`avatar-${!hatched ? "egg" : still ? "idle" : mood.state}`}
       style={{ width: size, height: size }}
     >
       {orb && drawn ? null : <SvgXml xml={xml} width={size} height={size} />}

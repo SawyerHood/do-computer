@@ -6,7 +6,13 @@ import {
   type ToolPart,
   toolSummary,
 } from "@durable-computer/protocol"
-import { CheckCircleIcon, CircleNotchIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react"
+import {
+  ArrowsClockwiseIcon,
+  CheckCircleIcon,
+  CircleNotchIcon,
+  WarningCircleIcon,
+  XIcon,
+} from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
@@ -81,12 +87,18 @@ export function AgentPanel({
   agent,
   state,
   face,
+  reconnecting,
+  startFresh,
   onClose,
 }: {
   agent: AgentSummary
   state: ChatState
   /** Its creature, large. Given from outside because a new agent hatches in it. */
   face: React.ReactNode
+  /** The chat's stream dropped and is being picked up again. */
+  reconnecting: boolean
+  /** Starts the chat's context over, where there is something to start over from. */
+  startFresh: { title: string; disabled: boolean; run: () => void } | undefined
   onClose: () => void
 }) {
   const mood = useAtomValue(mascotMoodAtom(agent.id))
@@ -112,7 +124,7 @@ export function AgentPanel({
   return (
     <aside
       aria-label={`About ${name}`}
-      className="relative hidden w-80 shrink-0 flex-col border-l bg-rail/40 xl:flex"
+      className="relative flex w-80 shrink-0 flex-col border-l bg-rail/40"
     >
       <button
         type="button"
@@ -133,6 +145,19 @@ export function AgentPanel({
         {agent.tagline ? (
           <p className="mt-1 text-xs text-muted-foreground">{agent.tagline}</p>
         ) : null}
+        {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
+        {startFresh === undefined ? null : (
+          <button
+            type="button"
+            aria-label="Start fresh"
+            title={startFresh.title}
+            disabled={startFresh.disabled}
+            onClick={startFresh.run}
+            className="mt-2 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40"
+          >
+            <ArrowsClockwiseIcon className="size-3.5" /> Start fresh
+          </button>
+        )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col border-t">
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">

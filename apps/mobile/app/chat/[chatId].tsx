@@ -150,12 +150,15 @@ function Chat({ agentId, chatId }: { agentId: string; chatId: string }) {
           >
             <Icon.back color={theme.ink} />
           </Pressable>
+          {/* An empty chat has the creature in its middle, so this one holds still: there is
+              only ever one of it moving. */}
           <Avatar
             avatar={agent.avatar}
             seed={agent.id}
-            size={30}
+            size={36}
             mood={mood}
             hatched={agent.hatched}
+            still={live.loaded && live.state.messages.length === 0 && !live.state.busy}
           />
           <Text weight="500" style={{ flex: 1 }} numberOfLines={1}>
             {agent.name ?? "New agent"}
@@ -170,15 +173,6 @@ function Chat({ agentId, chatId }: { agentId: string; chatId: string }) {
           <Transcript
             state={transcript}
             agentId={agentId}
-            face={
-              <Avatar
-                avatar={agent.avatar}
-                seed={agent.id}
-                size={28}
-                mood={mood}
-                hatched={agent.hatched}
-              />
-            }
             header={
               earlier.hasEarlier ? (
                 <Button

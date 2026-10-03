@@ -53,7 +53,7 @@ export default function Settings() {
               borderColor: agent.id === agentId ? theme.primary : "transparent",
             }}
           >
-            <Avatar avatar={agent.avatar} seed={agent.id} size={40} hatched={agent.hatched} />
+            <Avatar avatar={agent.avatar} seed={agent.id} size={40} hatched={agent.hatched} still />
             <View style={{ flex: 1 }}>
               <Text weight="500">{agent.name ?? "New agent"}</Text>
               {agent.tagline ? (

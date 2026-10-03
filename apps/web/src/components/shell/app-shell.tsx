@@ -469,76 +469,45 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="left" className="flex w-80 flex-col p-0">
           <SheetTitle className="sr-only">Chats</SheetTitle>
-          <div className="flex items-center gap-3 border-b p-4">
+          <div className="flex items-center gap-3 border-b p-4 pr-12">
             <AgentSwitcher agent={agent} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{agent.name ?? "New agent"}</p>
-              <Link
-                to="/a/$agentId/profile"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Identity and memory
-              </Link>
-              <Link
-                to="/a/$agentId/automations"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Automations
-              </Link>
-              <Link
-                to="/a/$agentId/library"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Library
-              </Link>
-              <Link
-                to="/a/$agentId/skills"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Skills
-              </Link>
-              <Link
-                to="/a/$agentId/computers"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Computers
-              </Link>
-              <Link
-                to="/a/$agentId/connectors"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Connectors
-              </Link>
-              <Link
-                to="/a/$agentId/permissions"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Permissions
-              </Link>
-              <Link
-                to="/a/$agentId/settings"
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className="ml-3 text-xs text-muted-foreground underline underline-offset-3"
-              >
-                Settings
-              </Link>
+              {agent.tagline ? (
+                <p className="truncate text-xs text-muted-foreground">{agent.tagline}</p>
+              ) : null}
             </div>
           </div>
+          {/* The agent's pages, two to a row so the chats below keep most of the sheet. */}
+          <nav aria-label="Pages" className="grid grid-cols-2 gap-1 border-b p-2">
+            {(
+              [
+                // Short enough for half a sheet. Its page is still titled in full.
+                ["profile", "Identity", <UserCircleIcon key="i" />],
+                ["library", "Library", <FolderIcon key="i" />],
+                ["automations", "Automations", <ClockIcon key="i" />],
+                ["skills", "Skills", <LightningIcon key="i" />],
+                ["connectors", "Connectors", <PlugsIcon key="i" />],
+                ["computers", "Computers", <DesktopIcon key="i" />],
+                ["permissions", "Permissions", <ShieldCheckIcon key="i" />],
+                ["settings", "Settings", <GearIcon key="i" />],
+              ] as const
+            ).map(([path, label, icon]) => (
+              <Link
+                key={path}
+                to={`/a/$agentId/${path}`}
+                params={{ agentId: agent.id }}
+                onClick={() => setSheetOpen(false)}
+                className={cn(
+                  "flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&_svg]:size-4 [&_svg]:shrink-0",
+                  page === path && "bg-accent text-foreground",
+                )}
+              >
+                {icon}
+                <span className="truncate">{label}</span>
+              </Link>
+            ))}
+          </nav>
           <div className="min-h-0 flex-1">
             <ChatList agentId={agent.id} onNavigate={() => setSheetOpen(false)} />
           </div>

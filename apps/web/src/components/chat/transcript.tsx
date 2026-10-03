@@ -133,12 +133,9 @@ export function Transcript({
   state,
   empty,
   before,
-  face,
 }: {
   state: ChatState
   empty: React.ReactNode
-  /** The agent's creature, shown beside the line that says what it is doing. */
-  face?: React.ReactNode
   /** Shown above the first message, for reaching what came before it. */
   before?: React.ReactNode
 }) {
@@ -161,8 +158,7 @@ export function Transcript({
             ))}
             {activity === null ? null : (
               // The moving shine says it is working; a spinner beside it would say it twice.
-              <Marker role="status" aria-live="polite" className="items-center gap-2.5 px-1">
-                {face}
+              <Marker role="status" aria-live="polite" className="px-1">
                 <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
               </Marker>
             )}

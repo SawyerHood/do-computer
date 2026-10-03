@@ -141,13 +141,10 @@ export function Transcript({
   agentId,
   empty,
   header,
-  face,
 }: {
   state: ChatState
   agentId: string
   empty: React.ReactNode
-  /** The agent's creature, shown beside the line that says what it is doing. */
-  face?: React.ReactNode
   /** Shown above the first message, for reaching what came before it. */
   header?: React.ReactElement | null
 }) {
@@ -189,7 +186,7 @@ export function Transcript({
             accessibilityLiveRegion="polite"
             style={{ flexDirection: "row", alignItems: "center", gap: space(2) }}
           >
-            {face ?? <ActivityIndicator size="small" color={theme.muted} />}
+            <ActivityIndicator size="small" color={theme.muted} />
             <Text tone="muted" size={14} numberOfLines={1} style={{ flexShrink: 1 }}>
               {activity}…
             </Text>

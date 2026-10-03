@@ -153,11 +153,10 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await page.keyboard.press("Enter")
   // While it works, a single line says what it is doing, with the command it is running.
   await expect(page.getByRole("status")).toContainText("Running: sleep 1; echo from the shell")
-  // Its creature is beside the line, at work.
-  await expect(page.getByRole("status").getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
-    "data-mood",
-    "working",
-  )
+  // Its creature, above the chat, is at work. It is the only one of it that moves: the one in
+  // the sidebar is a picture, and there is none beside the line.
+  await expect(page.locator("main [data-mood]")).toHaveAttribute("data-mood", "working")
+  await expect(page.locator("[data-mood]")).toHaveCount(2)
 
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("The tool returned:")).toBeVisible()
@@ -170,11 +169,13 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
   await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
 
-  // The work behind the answer is kept in the panel about the agent, which opens from its name.
-  // There it can be opened and read.
+  // The work behind the answer is kept in the panel about the agent, which opens from the header
+  // above the chat and takes its place. There it can be opened and read.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
+  const header = page.getByRole("button", { name: "Show Juniper beside the chat" })
   await expect(panel).toHaveCount(0)
-  await page.getByRole("button", { name: "Juniper", exact: true }).click()
+  await header.click()
+  await expect(header).toHaveCount(0)
   await expect(panel.getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
     "data-mood",
     /idle|done/,
@@ -184,9 +185,10 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(panel.getByText("MEMORY.md")).toBeHidden()
   await did.click()
   await expect(panel.getByText("MEMORY.md")).toBeVisible()
-  // With the creature in the panel, it is not also in the middle of the chat.
+  // Put away, the header is back.
   await panel.getByRole("button", { name: "Hide this panel" }).click()
   await expect(panel).toHaveCount(0)
+  await expect(header).toBeVisible()
   await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
 })
 
@@ -1107,10 +1109,9 @@ test("the chat list is put away until it is asked for, and stays how it was left
   await page.reload()
   await expect(composer(page)).toBeVisible()
   await expect(panel).toHaveCount(0)
-  // A button where its close button was brings it back.
-  await page.getByRole("button", { name: "Show the panel" }).click()
+  // Pressing the header above the chat brings it back.
+  await page.getByRole("button", { name: "Show Juniper beside the chat" }).click()
   await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Show the panel" })).toHaveCount(0)
 
   // A chat can be started without it.
   const before = page.url()
@@ -1140,6 +1141,18 @@ test("the layout works at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 800 })
   await signIn(page)
   await page.getByRole("button", { name: "Chats" }).click()
+  // The agent's pages are a menu that fits the sheet.
+  const pages = page.getByRole("navigation", { name: "Pages" })
+  await expect(pages.getByRole("link")).toHaveCount(8)
+  // Measured once the sheet has finished sliding in.
+  await expect(async () => {
+    const sheet = (await page.getByRole("dialog").boundingBox())!
+    expect(sheet.x).toBe(0)
+    for (const link of await pages.getByRole("link").all()) {
+      const box = (await link.boundingBox())!
+      expect(box.x + box.width).toBeLessThanOrEqual(sheet.x + sheet.width)
+    }
+  }).toPass()
   await expect(page.getByRole("link", { name: "What can you do?" })).toBeVisible()
   await page.getByRole("link", { name: "What can you do?" }).click()
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
