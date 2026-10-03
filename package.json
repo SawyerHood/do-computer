@@ -1,0 +1,26 @@
+{
+  "name": "durable-computer",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @durable-computer/web dev",
+    "dev:cloudflare": "pnpm --filter @durable-computer/web dev:cloudflare",
+    "build": "pnpm --filter @durable-computer/web build",
+    "start": "pnpm --filter @durable-computer/web start",
+    "deploy": "pnpm --filter @durable-computer/web run deploy",
+    "check": "pnpm -r run check",
+    "test": "pnpm -r run test",
+    "test:e2e": "pnpm --filter @durable-computer/web test:e2e",
+    "format": "prettier --write .",
+    "mobile": "pnpm --filter @durable-computer/mobile start"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "typescript": "catalog:",
+    "@typescript/native": "catalog:"
+  }
+}

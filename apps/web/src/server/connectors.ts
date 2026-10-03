@@ -1,0 +1,118 @@
+import { getPlatform } from "#platform"
+import { CONNECTOR_REDIRECT_HEADER } from "@durable-computer/agent"
+import type { ConnectorResult } from "@durable-computer/protocol"
+import { fail, json } from "./agents.ts"
+import { getUser, type SessionUser } from "./auth.ts"
+
+/** How long a user has to finish signing in to a service. */
+const STATE_TTL_MS = 15 * 60_000
+const CALLBACK_PATH = "/api/connectors/callback"
+
+const origin = (request: Request) => getPlatform().config.baseUrl ?? new URL(request.url).origin
+
+async function owns(user: SessionUser, agentId: string): Promise<boolean> {
+  const row = await getPlatform().db.get<{ id: string }>(
+    "SELECT id FROM dc_agents WHERE id = ? AND owner_id = ?",
+    agentId,
+    user.id,
+  )
+  return row !== undefined
+}
+
+/**
+ * Add a connector, or reconnect one. Done here and not by the generic proxy because only the
+ * gateway may say where a sign-in returns to, and it has to remember who is signing in.
+ */
+export async function connectConnector(
+  user: SessionUser,
+  request: Request,
+  agentId: string,
+  connectorId?: string,
+): Promise<Response> {
+  if (!(await owns(user, agentId))) return fail(404, "Agent not found")
+  const { db, agents } = getPlatform()
+  const path = connectorId === undefined ? "/connectors" : `/connectors/${connectorId}/connect`
+  const response = await agents.get(agentId).fetch(
+    new Request(`http://agent${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [CONNECTOR_REDIRECT_HEADER]: `${origin(request)}${CALLBACK_PATH}`,
+      },
+      body: connectorId === undefined ? await request.text() : "{}",
+    }),
+  )
+  if (!response.ok) return response
+  const { state, ...result } = (await response.json()) as ConnectorResult & { state?: string }
+  if (result.authorizationUrl !== undefined && state !== undefined) {
+    const now = Date.now()
+    await db.batch([
+      { sql: "DELETE FROM dc_oauth_states WHERE created_at < ?", params: [now - STATE_TTL_MS] },
+      {
+        sql: `INSERT INTO dc_oauth_states (state, user_id, agent_id, connector_id, created_at)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT (state) DO UPDATE SET user_id = excluded.user_id,
+                agent_id = excluded.agent_id, connector_id = excluded.connector_id,
+                created_at = excluded.created_at`,
+        params: [state, user.id, agentId, result.connector.id, now],
+      },
+    ])
+  }
+  return json(result, connectorId === undefined ? 201 : 200)
+}
+
+/**
+ * Where a service sends the user back after they sign in. The `state` it echoes says which
+ * connector this is for; the signed-in user must be the one who started it.
+ */
+export async function connectorCallback(request: Request): Promise<Response> {
+  const url = new URL(request.url)
+  const back = (agentId: string | undefined, outcome: Record<string, string>) => {
+    const target = new URL(agentId ? `/a/${agentId}/connectors` : "/", origin(request))
+    for (const [key, value] of Object.entries(outcome)) target.searchParams.set(key, value)
+    return Response.redirect(target.toString(), 302)
+  }
+  const user = await getUser(request)
+  if (user === undefined) return Response.redirect(`${origin(request)}/login`, 302)
+
+  const { db, agents } = getPlatform()
+  const state = url.searchParams.get("state") ?? ""
+  const row = await db.get<{
+    user_id: string
+    agent_id: string
+    connector_id: string
+    created_at: number
+  }>(
+    "SELECT user_id, agent_id, connector_id, created_at FROM dc_oauth_states WHERE state = ?",
+    state,
+  )
+  if (row === undefined || row.user_id !== user.id || row.created_at < Date.now() - STATE_TTL_MS) {
+    return back(undefined, {
+      connector_error: "That sign-in link has expired. Try connecting again.",
+    })
+  }
+  // One use: whatever happens next, this state is spent.
+  await db.run("DELETE FROM dc_oauth_states WHERE state = ?", state)
+
+  const denied = url.searchParams.get("error")
+  const code = url.searchParams.get("code")
+  if (denied !== null || code === null) {
+    return back(row.agent_id, {
+      connector_error: url.searchParams.get("error_description") ?? "The sign-in was cancelled.",
+    })
+  }
+  const response = await agents.get(row.agent_id).fetch(
+    new Request(`http://agent/connectors/${row.connector_id}/authorize`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    }),
+  )
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => ({}))) as { error?: string }
+    return back(row.agent_id, {
+      connector_error: failure.error ?? "The sign-in could not be completed.",
+    })
+  }
+  return back(row.agent_id, { connected: row.connector_id })
+}

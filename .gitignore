@@ -15,3 +15,9 @@ dist/
 *.log
 .DS_Store
 coverage/
+
+test-results/
+playwright-report/
+
+# Built from apps/daemon by its build script
+apps/web/src/server/daemon-bundle.generated.ts

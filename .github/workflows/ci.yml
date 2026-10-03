@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Run from the Actions tab to deploy again without a new commit.
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      # Unit and integration tests, on Node and inside the Workers runtime.
+      - run: pnpm test
+      # Browser tests against the built Node server, with a real daemon.
+      - run: pnpm --filter @durable-computer/web exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+  # Deploys to Cloudflare once the tests pass on main. It only runs where the repository says
+  # which deployment is its own: the variable DC_D1_DATABASE_ID, with the secrets
+  # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID. The rest of the deployment's settings are
+  # variables too, read by apps/web/scripts/deploy-settings.mjs; none of them is in the code.
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DC_D1_DATABASE_ID != ''
+    runs-on: ubuntu-latest
+    # One deploy at a time, and never one cut off halfway.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @durable-computer/web run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DC_D1_DATABASE_ID: ${{ vars.DC_D1_DATABASE_ID }}
+          DC_ROUTE: ${{ vars.DC_ROUTE }}
+          DC_ROUTE_ZONE: ${{ vars.DC_ROUTE_ZONE }}
+          DC_CUSTOM_DOMAIN: ${{ vars.DC_CUSTOM_DOMAIN }}
+          DC_BASE_URL: ${{ vars.DC_BASE_URL }}
+          DC_SIGNUP: ${{ vars.DC_SIGNUP }}
+          DC_ALLOWED_EMAILS: ${{ vars.DC_ALLOWED_EMAILS }}
+          DC_DEFAULT_MODEL: ${{ vars.DC_DEFAULT_MODEL }}
+          DC_SANDBOX: ${{ vars.DC_SANDBOX }}
+          DC_SANDBOX_KINDS: ${{ vars.DC_SANDBOX_KINDS }}

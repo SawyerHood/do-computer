@@ -1,0 +1,4 @@
+# Local settings for `pnpm dev:cloudflare`. Copy to .dev.vars (which is not committed).
+DC_AUTH_SECRET=replace-with-output-of-openssl-rand-base64-32
+DC_BASE_URL=http://localhost:3000
+# OPENROUTER_API_KEY=

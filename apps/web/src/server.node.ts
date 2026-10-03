@@ -1,0 +1,31 @@
+import { getPlatform } from "#platform"
+import type { SocketLike } from "@durable-computer/runtime/node"
+import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
+import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
+
+export default createServerEntry({
+  fetch: (request) => handler.fetch(request),
+})
+
+export { CONNECT_PATH }
+
+/**
+ * Open the data directory and wake the agents. Called once when the server starts, not on the
+ * first request: schedules have to fire on a server nobody has visited since it restarted, and a
+ * wrong setting should stop the server instead of failing every request.
+ */
+export function start(): void {
+  getPlatform()
+}
+
+/**
+ * A daemon's WebSocket request, for the HTTP server that owns the socket. Resolves with a
+ * function that attaches the accepted socket, or undefined when the token is not valid.
+ */
+export async function acceptDaemon(
+  request: Request,
+): Promise<((socket: SocketLike) => Promise<void>) | undefined> {
+  const computerId = await authenticateDaemon(request)
+  if (computerId === undefined) return undefined
+  return (socket) => getPlatform().connectComputer(computerActorName(computerId), socket, request)
+}

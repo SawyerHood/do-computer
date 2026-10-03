@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node", "@cloudflare/workers-types"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "#platform": ["./src/server/platform.cloudflare.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/server.node.ts", "src/server/*.node.ts"]
+}

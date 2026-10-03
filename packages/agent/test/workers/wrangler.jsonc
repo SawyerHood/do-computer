@@ -1,0 +1,14 @@
+{
+  "name": "dc-agent-test",
+  "main": "./worker.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "AGENT", "class_name": "AgentObject" },
+      { "name": "SCRIPTED", "class_name": "ScriptedAgentObject" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AgentObject", "ScriptedAgentObject"] }],
+  "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "dc-agent-test" }],
+}

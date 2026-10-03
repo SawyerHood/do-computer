@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+dist
+.output
+routeTree.gen.ts
+*.generated.ts

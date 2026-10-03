@@ -1,0 +1,39 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pi 1.0.0 was published on 2026-10-01; let it through the release-age gate.
+minimumReleaseAgeExclude:
+  - "@earendil-works/*"
+  - "@cloudflare/workerd-darwin-64@1.20261001.1"
+  - "@cloudflare/workerd-darwin-arm64@1.20261001.1"
+  - "@cloudflare/workerd-linux-64@1.20261001.1"
+  - "@cloudflare/workerd-linux-arm64@1.20261001.1"
+  - "@cloudflare/workerd-windows-64@1.20261001.1"
+  - "@cloudflare/workers-types@5.20261001.1"
+  - miniflare@5.20261001.0-alpha
+  - workerd@1.20261001.1
+  - wrangler@4.146.0
+  - "@cloudflare/vite-plugin@1.62.4"
+  - vite@8.3.2
+  - just-bash@3.6.0
+
+allowBuilds:
+  esbuild: true
+  workerd: true
+  lightningcss: true
+  sharp: false
+  "@google/genai": false
+  protobufjs: false
+  "@mongodb-js/zstd": false
+  node-liblzma: false
+  cbor-extract: false
+
+catalog:
+  typescript: npm:@typescript/typescript6@^6.0.2
+  "@typescript/native": npm:typescript@^7.0.2
+  vitest: ^4.1.11
+  "@types/node": ^24
+  "@earendil-works/pi-durable": 1.0.0
+  "@earendil-works/pi-ai": 1.0.0
+  "@earendil-works/chord": 1.0.0

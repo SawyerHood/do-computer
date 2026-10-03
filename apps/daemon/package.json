@@ -1,0 +1,27 @@
+{
+  "name": "@durable-computer/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "durable-computer-daemon": "./dist/daemon.cjs"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@durable-computer/computers": "workspace:*",
+    "@durable-computer/protocol": "workspace:*",
+    "ws": "^8"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "^8",
+    "@typescript/native": "catalog:",
+    "esbuild": "^0.28.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

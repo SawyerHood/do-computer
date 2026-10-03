@@ -1,0 +1,29 @@
+{
+  "name": "@durable-computer/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cloudflare": "./src/cloudflare/index.ts",
+    "./node": "./src/node/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run && vitest run --config vitest.workers.config.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-durable": "catalog:",
+    "@earendil-works/chord": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20261001.1",
+    "@types/node": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "^4.146.0",
+    "typescript": "catalog:",
+    "@typescript/native": "catalog:"
+  }
+}

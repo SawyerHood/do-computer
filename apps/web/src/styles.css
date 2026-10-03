@@ -1,0 +1,195 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-rail: var(--rail);
+  --color-surface: var(--surface);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * A cool neutral ramp: every surface is the canvas with some ink mixed in, so light and dark stay
+ * in step. The one accent is teal, used for the user's own messages and primary actions.
+ */
+:root {
+  --canvas: oklch(0.985 0.003 212);
+  --ink: oklch(0.27 0.008 212);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --card-foreground: var(--ink);
+  --popover: var(--canvas);
+  --popover-foreground: var(--ink);
+  --primary: oklch(0.5 0.08 195);
+  --primary-foreground: oklch(0.985 0.01 195);
+  --secondary: color-mix(in oklch, var(--ink) 7%, var(--canvas));
+  --secondary-foreground: var(--ink);
+  --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.5 0.19 26);
+  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
+  --ring: var(--primary);
+  --rail: color-mix(in oklch, var(--ink) 3%, var(--canvas));
+  --surface: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  --radius: 0.75rem;
+}
+
+.dark {
+  --canvas: oklch(0.19 0.004 212);
+  --ink: oklch(0.9 0.006 212);
+  --popover: color-mix(in oklch, var(--ink) 5%, var(--canvas));
+  --primary: oklch(0.52 0.08 195);
+  --primary-foreground: oklch(0.97 0.012 195);
+  --secondary: color-mix(in oklch, var(--ink) 9%, var(--canvas));
+  --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
+  --destructive: oklch(0.7 0.17 24);
+  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
+  --rail: color-mix(in oklch, black 22%, var(--canvas));
+  --surface: color-mix(in oklch, var(--ink) 5%, var(--canvas));
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Assistant prose: Markdown inside a bubble. */
+@layer components {
+  .prose-chat {
+    @apply text-[0.9375rem] leading-relaxed;
+  }
+  .prose-chat > * + * {
+    @apply mt-3;
+  }
+  .prose-chat h1,
+  .prose-chat h2,
+  .prose-chat h3 {
+    @apply mt-4 font-semibold;
+  }
+  .prose-chat h1 {
+    @apply text-lg;
+  }
+  .prose-chat h2 {
+    @apply text-base;
+  }
+  .prose-chat ul {
+    @apply list-disc space-y-1 pl-5;
+  }
+  .prose-chat ol {
+    @apply list-decimal space-y-1 pl-5;
+  }
+  .prose-chat a {
+    @apply underline underline-offset-3;
+  }
+  .prose-chat blockquote {
+    @apply border-l-2 border-border pl-3 text-muted-foreground;
+  }
+  .prose-chat code {
+    @apply rounded-sm bg-foreground/8 px-1 py-0.5 font-mono text-[0.85em];
+  }
+  .prose-chat pre {
+    @apply overflow-x-auto rounded-lg bg-foreground/8 p-3 font-mono text-[0.8125rem] leading-normal;
+  }
+  .prose-chat pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-chat table {
+    @apply block w-full overflow-x-auto text-sm;
+  }
+  .prose-chat th,
+  .prose-chat td {
+    @apply border border-border px-2 py-1 text-left;
+  }
+  .prose-chat hr {
+    @apply border-border;
+  }
+}
+
+@layer utilities {
+  /* A light band sweeping across text, for work in progress. */
+  .animate-shine {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, currentColor 55%, transparent) 0%,
+      currentColor 50%,
+      color-mix(in srgb, currentColor 55%, transparent) 100%
+    );
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shine 2s linear infinite;
+  }
+}
+
+@keyframes shine {
+  from {
+    background-position: 200% 0%;
+  }
+  to {
+    background-position: -200% 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shine {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    animation: none;
+  }
+}
