@@ -40,20 +40,20 @@
 }
 
 /*
- * A warm neutral ramp: every surface is the canvas with some ink mixed in, so light and dark stay
- * in step. The one accent is clay, used for the user's own messages and primary actions.
+ * A cool neutral ramp: every surface is the canvas with some ink mixed in, so light and dark stay
+ * in step. The one accent is teal, used for the user's own messages and primary actions.
  */
 :root {
-  --canvas: oklch(0.985 0.004 80);
-  --ink: oklch(0.27 0.012 60);
+  --canvas: oklch(0.985 0.003 212);
+  --ink: oklch(0.27 0.008 212);
   --background: var(--canvas);
   --foreground: var(--ink);
   --card: var(--canvas);
   --card-foreground: var(--ink);
   --popover: var(--canvas);
   --popover-foreground: var(--ink);
-  --primary: oklch(0.5 0.085 47);
-  --primary-foreground: oklch(0.985 0.01 80);
+  --primary: oklch(0.5 0.08 195);
+  --primary-foreground: oklch(0.985 0.01 195);
   --secondary: color-mix(in oklch, var(--ink) 7%, var(--canvas));
   --secondary-foreground: var(--ink);
   --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
@@ -70,11 +70,11 @@
 }
 
 .dark {
-  --canvas: oklch(0.19 0.004 60);
-  --ink: oklch(0.9 0.008 80);
+  --canvas: oklch(0.19 0.004 212);
+  --ink: oklch(0.9 0.006 212);
   --popover: color-mix(in oklch, var(--ink) 5%, var(--canvas));
-  --primary: oklch(0.5 0.075 50);
-  --primary-foreground: oklch(0.97 0.012 80);
+  --primary: oklch(0.52 0.08 195);
+  --primary-foreground: oklch(0.97 0.012 195);
   --secondary: color-mix(in oklch, var(--ink) 9%, var(--canvas));
   --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
   --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
