@@ -27,6 +27,7 @@ export function AgentAvatar({
   hatching = false,
   onHatched,
   quiet = false,
+  still = false,
 }: {
   avatar: Avatar | null | undefined
   /** The agent's id: what the creature grows from unless it was given a seed of its own. */
@@ -42,9 +43,11 @@ export function AgentAvatar({
   onHatched?: () => void
   /** One among many: drawn at a lower frame rate, and it does not follow the pointer. */
   quiet?: boolean
+  /** A picture of it, holding still: drawn once, and again only when its look changes. */
+  still?: boolean
 }) {
   const look = useMemo(() => avatarLook(avatar, seed), [avatar, seed])
-  const still = useMemo(
+  const standIn = useMemo(
     () => `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(avatar, seed))}`,
     [avatar, seed],
   )
@@ -53,7 +56,7 @@ export function AgentAvatar({
   const done = useRef(onHatched)
   done.current = onHatched
   // What it starts as. Later changes go through the effects below, not through a new creature.
-  const first = useRef({ look, hatched, quiet })
+  const first = useRef({ look, hatched, quiet: quiet || still })
 
   useEffect(() => {
     let created: Orb | undefined
@@ -100,18 +103,31 @@ export function AgentAvatar({
 
   useEffect(() => {
     if (orb === undefined || orb === null || hatching || orb.getState() === "hatching") return
-    if (hatched) orb.setState(mood.state, mood.variant)
-    else orb.setState("egg")
-  }, [orb, hatched, hatching, mood.state, mood.variant])
+    if (!hatched) orb.setState("egg")
+    else if (still) orb.setState("idle")
+    else orb.setState(mood.state, mood.variant)
+  }, [orb, hatched, hatching, still, mood.state, mood.variant])
+
+  // A picture of it: it is let move for a moment, to take up its pose, and then held there.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new look or a hatch is drawn again
+  useEffect(() => {
+    if (orb === undefined || orb === null) return
+    orb.paused = false
+    if (!still) return
+    const timer = setTimeout(() => {
+      orb.paused = true
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [orb, still, look, hatched])
 
   return (
     <span
       role="img"
       aria-label="Agent avatar"
-      data-mood={hatched ? mood.state : "egg"}
+      data-mood={!hatched ? "egg" : still ? "idle" : mood.state}
       className={cn("relative inline-block size-8 shrink-0", className)}
     >
-      {orb ? null : <img src={still} alt="" className="absolute inset-0 size-full" />}
+      {orb ? null : <img src={standIn} alt="" className="absolute inset-0 size-full" />}
       {/* Drawn a little past its box: the creature keeps room around itself for hops and rings. */}
       <canvas
         ref={canvas}
@@ -130,10 +146,12 @@ export function AgentFace({
   agent,
   className,
   quiet,
+  still,
 }: {
   agent: Pick<AgentSummary, "id" | "avatar" | "hatched">
   className?: string
   quiet?: boolean
+  still?: boolean
 }) {
   const mood = useAtomValue(mascotMoodAtom(agent.id))
   return (
@@ -144,6 +162,7 @@ export function AgentFace({
       mood={mood}
       hatched={agent.hatched}
       quiet={quiet}
+      still={still}
     />
   )
 }

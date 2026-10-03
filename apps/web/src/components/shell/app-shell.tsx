@@ -87,7 +87,7 @@ function AgentSwitcher({ agent }: { agent: AgentSummary }) {
         aria-label="Switch agent"
         className="rounded-full outline-none ring-ring/40 focus-visible:ring-3"
       >
-        <AgentFace agent={agent} className="size-10" />
+        <AgentFace agent={agent} className="size-10" still />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="start" className="w-60">
         <DropdownMenuGroup>
@@ -97,7 +97,7 @@ function AgentSwitcher({ agent }: { agent: AgentSummary }) {
               key={other.id}
               onClick={() => navigate({ to: "/a/$agentId", params: { agentId: other.id } })}
             >
-              <AgentFace agent={other} className="size-6" quiet />
+              <AgentFace agent={other} className="size-6" still />
               <span className="truncate">{other.name ?? "New agent"}</span>
             </DropdownMenuItem>
           ))}

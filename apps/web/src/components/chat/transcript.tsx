@@ -151,7 +151,7 @@ export function Transcript({
       <MessageScroller>
         <MessageScrollerViewport>
           {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
-          <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-20 pb-6">
+          <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-24 pb-6">
             {state.messages.length === 0 && !state.busy ? empty : null}
             {before}
             {state.messages.filter(isVisibleMessage).map((message) => (

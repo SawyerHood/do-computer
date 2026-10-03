@@ -108,7 +108,7 @@ function PairPage() {
                     checked={agentId === agent.id}
                     onChange={() => setAgentId(agent.id)}
                   />
-                  <AgentFace agent={agent} className="size-7" quiet />
+                  <AgentFace agent={agent} className="size-7" still />
                   {agent.name ?? "New agent"}
                 </label>
               ))}

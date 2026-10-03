@@ -43,7 +43,7 @@ function Welcome({ agent }: { agent: AgentSummary }) {
     <AgentAvatar
       avatar={agent.avatar}
       seed={agent.id}
-      className="size-56"
+      className="size-72"
       hatched={phase === "out"}
       hatching={phase === "hatching"}
       onHatched={hatched}
@@ -160,10 +160,10 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-linear-to-b from-background via-background/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background/85 py-1 pr-3.5 pl-1 shadow-sm backdrop-blur">
-          <AgentFace agent={agent} className="size-7" />
+        <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border bg-background/85 py-1 pr-4 pl-1.5 shadow-sm backdrop-blur">
+          <AgentFace agent={agent} className="size-11" />
           <span className="text-sm font-medium">{agent.name ?? "New agent"}</span>
           {live.status === "reconnecting" ? (
             <span className="text-xs text-muted-foreground">reconnecting…</span>
@@ -186,7 +186,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         <AgentIdContext value={agent.id}>
           <Transcript
             state={state}
-            face={<AgentFace agent={agent} className="size-9" />}
+            face={<AgentFace agent={agent} className="size-12" />}
             empty={live.loaded ? <Welcome agent={agent} /> : null}
             before={
               hasEarlier ? (
