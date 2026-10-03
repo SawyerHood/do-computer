@@ -28,8 +28,7 @@ export const AgentObject = createDurableActorClass<Env>({
       modelOptions: models.options,
       computers: computerChoices(config, "cloudflare", cloudflareProviders(env)),
       webSearch: models.webSearch,
-      // The same small model that reads search results writes up what the agent did.
-      summaries: models.webSearch,
+      summaries: models.summaries,
       allowPrivateHosts: config.allowPrivateHosts,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       onNotify: (notification) =>

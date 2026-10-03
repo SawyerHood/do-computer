@@ -238,4 +238,19 @@ describe("model configuration", () => {
         ?.model,
     ).toBe("vendor/cheap")
   })
+
+  it("gives the summaries a cheaper model of their own, which can be set apart from search", () => {
+    expect(createAgentModels({}).summaries).toBe(undefined)
+    expect(createAgentModels({ openrouterApiKey: "sk-or-x" }).summaries).toEqual({
+      apiKey: "sk-or-x",
+      model: "openai/gpt-4.1-nano",
+    })
+    const set = createAgentModels({
+      openrouterApiKey: "sk-or-x",
+      searchModel: "vendor/reader",
+      summaryModel: "vendor/tiny",
+    })
+    expect(set.summaries?.model).toBe("vendor/tiny")
+    expect(set.webSearch?.model).toBe("vendor/reader")
+  })
 })

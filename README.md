@@ -73,7 +73,8 @@ runs the tests and nothing else.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                               |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                               |
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                         |
-| `DC_SEARCH_MODEL`                          | OpenRouter model for the small jobs: reading web search results, and summing up what the agent did. Default `anthropic/claude-haiku-4.5`. |
+| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                       |
+| `DC_SUMMARY_MODEL`                         | OpenRouter model that sums up what the agent did, after every run. Default `openai/gpt-4.1-nano`: it only needs to be cheap and reliable. |
 | `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
 | `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                             |
 | `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                 |

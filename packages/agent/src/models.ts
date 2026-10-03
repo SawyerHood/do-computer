@@ -8,6 +8,7 @@ import {
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
 import type { ModelRef } from "@earendil-works/pi-durable"
+import type { SummaryOptions } from "./activity.ts"
 import type { WebSearchOptions } from "./web-search.ts"
 
 /** OpenRouter models suggested first in the picker. Ones the catalog lacks are dropped. */
@@ -28,6 +29,14 @@ export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5.5"
  */
 const DEFAULT_SEARCH_MODEL = "anthropic/claude-haiku-4.5"
 
+/**
+ * The model that sums up what the agent did. The job is a title and a sentence from a list of
+ * steps, done after every run, so it wants the cheapest model that does it reliably. Tried on
+ * 2026-10-03 against a dozen low-priced models: this one gave usable, accurate entries every
+ * time in about a second, at roughly a thirteenth of the search model's price.
+ */
+export const DEFAULT_SUMMARY_MODEL = "openai/gpt-4.1-nano"
+
 export type AgentModels = {
   readonly models: Models
   /** `provider/modelId` used when an agent has not chosen one. */
@@ -37,6 +46,8 @@ export type AgentModels = {
   readonly faux?: FauxProviderHandle
   /** What web search needs. Absent without a model key: there is nothing to search with. */
   readonly webSearch?: WebSearchOptions
+  /** What summing up the agent's work needs. Absent without a model key. */
+  readonly summaries?: SummaryOptions
 }
 
 export type AgentModelsConfig = {
@@ -46,6 +57,8 @@ export type AgentModelsConfig = {
   readonly defaultModel?: string
   /** OpenRouter model id that reads web search results. Default: a small, fast model. */
   readonly searchModel?: string
+  /** OpenRouter model id that sums up what the agent did. Default: a smaller, cheaper one. */
+  readonly summaryModel?: string
 }
 
 /** `provider/modelId` to a pi-durable model reference. The provider is the first path segment. */
@@ -188,5 +201,7 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
           ? DEFAULT_SEARCH_MODEL
           : defaultModel.slice("openrouter/".length)),
     },
+    // Asked for by its OpenRouter id, so it need not be a model an agent could run on.
+    summaries: { apiKey: key, model: config.summaryModel ?? DEFAULT_SUMMARY_MODEL },
   }
 }
