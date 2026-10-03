@@ -62,23 +62,23 @@ runs the tests and nothing else.
 
 ## Configuration
 
-| Variable                                   | Meaning                                                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                         |
-| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.     |
-| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                 |
-| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                     |
-| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` can sign up. |
-| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                           |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                          |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                          |
-| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                    |
-| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                  |
-| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).       |
-| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                        |
-| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                            |
-| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.           |
-| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                           |
+| Variable                                   | Meaning                                                                                                                                   |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                              |
+| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.          |
+| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                      |
+| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                          |
+| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` can sign up.      |
+| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                               |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                               |
+| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                         |
+| `DC_SEARCH_MODEL`                          | OpenRouter model for the small jobs: reading web search results, and summing up what the agent did. Default `anthropic/claude-haiku-4.5`. |
+| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
+| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                             |
+| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                 |
+| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                |
+| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                |
 
 ## Computers
 
@@ -152,6 +152,11 @@ is why sign-up is by invitation unless you open it.
   personality, a profile of you and its own notes. They are capped, visible and editable under
   Identity and memory, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
   workspace.
+- **Show its work, briefly.** Beside a chat, on a wide screen, each thing you asked for is one
+  entry: a short title and a sentence on what came of it, with the commands, files and searches
+  behind it inside for whoever wants them. A small model writes these in the background when a
+  run ends and every few steps while one is going, so the agent spends no attention on it.
+  Without a model key they are worked out from the run itself.
 - **Be a creature.** You see your agent as a small creature that hatches from an egg when you
   first meet it. Its shape and face are grown from a roll of the dice, so no two agents look
   alike, and it acts out what the agent is doing: listening while you type, thinking, working

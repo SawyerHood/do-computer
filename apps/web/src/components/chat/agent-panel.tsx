@@ -1,11 +1,17 @@
 import {
   type AgentSummary,
-  type ChatState,
+  type ChatActivity,
+  type ChatRun,
   chatActivity,
+  chatRuns,
+  type ChatState,
+  type RunSummary,
+  runSummary,
   toolActivity,
   type ToolPart,
   toolSummary,
 } from "@durable-computer/protocol"
+import { useQuery } from "@tanstack/react-query"
 import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
@@ -15,10 +21,13 @@ import {
 } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
+import { client } from "@/lib/client"
+import { activityKey } from "@/lib/collections"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
+import { cn } from "@/lib/utils"
 
-/** How many of the latest things it did are listed. */
-const SHOWN = 40
+/** How many of the latest pieces of work are listed. */
+const SHOWN = 30
 
 /** What its creature is doing, in a word or two, when the chat has no fuller line for it. */
 function moodWords(mood: MascotMood, hatched: boolean): string {
@@ -47,32 +56,63 @@ function moodWords(mood: MascotMood, hatched: boolean): string {
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 
-function Did({ part, at }: { part: ToolPart; at: number | undefined }) {
+/** One step of a piece of work, which opens to show what came back. */
+function Step({ part }: { part: ToolPart }) {
   const going = part.status === "pending" || part.status === "running"
   const output = part.output?.trim() ?? ""
   return (
     <li>
+      <details className="group/step">
+        <summary className="flex cursor-default list-none items-start gap-2 rounded-lg px-2 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+          <span
+            aria-hidden
+            className={cn(
+              "mt-1.5 size-1.5 shrink-0 rounded-full bg-current",
+              part.status === "error" && "bg-destructive",
+              going && "animate-pulse",
+            )}
+          />
+          <span className="line-clamp-1 min-w-0 flex-1 break-all group-open/step:line-clamp-none">
+            {going ? toolActivity(part) : toolSummary(part)}
+          </span>
+        </summary>
+        <pre className="mt-1 mb-1.5 ml-5 max-h-56 overflow-auto rounded-lg bg-background p-2 text-xs whitespace-pre-wrap break-words text-muted-foreground">
+          {output === "" ? (going ? "Still going." : "It returned nothing.") : output}
+        </pre>
+      </details>
+    </li>
+  )
+}
+
+/** One piece of work: what it was, what came of it, and its steps for whoever wants them. */
+function Work({ run, summary }: { run: ChatRun; summary: RunSummary }) {
+  return (
+    <li>
       <details className="group rounded-xl open:bg-surface">
-        <summary className="flex cursor-default list-none items-start gap-2.5 rounded-xl px-2.5 py-2 text-sm outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
-          {going ? (
+        <summary className="flex cursor-default list-none items-start gap-2.5 rounded-xl px-2.5 py-2.5 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+          {run.status === "working" ? (
             <CircleNotchIcon className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" />
-          ) : part.status === "error" ? (
+          ) : run.status === "failed" ? (
             <WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
           ) : (
             <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           )}
           <span className="min-w-0 flex-1">
-            <span className="line-clamp-2 break-words group-open:line-clamp-none">
-              {going ? toolActivity(part) : toolSummary(part)}
+            <span className="block text-sm font-medium break-words">{summary.title}</span>
+            <span className="block text-sm break-words text-muted-foreground">
+              {summary.outcome}
             </span>
-            {at === undefined ? null : (
-              <span className="block text-xs text-muted-foreground">{clock.format(at)}</span>
-            )}
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {run.at === undefined ? "" : `${clock.format(run.at)} · `}
+              {run.steps.length} {run.steps.length === 1 ? "step" : "steps"}
+            </span>
           </span>
         </summary>
-        <pre className="mx-2.5 mb-2.5 max-h-64 overflow-auto rounded-lg bg-background p-2.5 text-xs whitespace-pre-wrap break-words text-muted-foreground">
-          {output === "" ? (going ? "Still going." : "It returned nothing.") : output}
-        </pre>
+        <ol aria-label="Steps" className="flex flex-col px-2.5 pb-2.5">
+          {run.steps.map((part) => (
+            <Step key={part.toolCallId} part={part} />
+          ))}
+        </ol>
       </details>
     </li>
   )
@@ -85,6 +125,7 @@ function Did({ part, at }: { part: ToolPart; at: number | undefined }) {
  */
 export function AgentPanel({
   agent,
+  chatId,
   state,
   face,
   reconnecting,
@@ -92,6 +133,7 @@ export function AgentPanel({
   onClose,
 }: {
   agent: AgentSummary
+  chatId: string
   state: ChatState
   /** Its creature, large. Given from outside because a new agent hatches in it. */
   face: React.ReactNode
@@ -102,24 +144,14 @@ export function AgentPanel({
   onClose: () => void
 }) {
   const mood = useAtomValue(mascotMoodAtom(agent.id))
-  const did = useMemo(
-    () =>
-      state.messages
-        .flatMap((message) =>
-          message.role === "assistant"
-            ? message.parts
-                .filter((part): part is ToolPart => part.type === "tool")
-                .map((part) => ({
-                  part,
-                  at: message.createdAt,
-                  key: `${message.id}/${part.toolCallId}`,
-                }))
-            : [],
-        )
-        .slice(-SHOWN)
-        .reverse(),
-    [state.messages],
-  )
+  // Newest first. Each is one thing that was asked for, however many steps it took.
+  const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
+  // What a small model wrote about them, where the deployment has one. Until it has, and where
+  // it has none, each is described from the run itself.
+  const { data: written } = useQuery<ChatActivity>({
+    queryKey: activityKey(agent.id, chatId),
+    queryFn: () => client.agent(agent.id).activity(chatId),
+  })
   const name = agent.name ?? "New agent"
   return (
     <aside
@@ -163,15 +195,15 @@ export function AgentPanel({
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           What it did here
         </h3>
-        {did.length === 0 ? (
+        {runs.length === 0 ? (
           <p className="px-5 text-sm text-muted-foreground">
-            Nothing yet. When {name} runs a command, reads a file or looks something up for this
-            chat, it is listed here, and can be opened to see what came back.
+            Nothing yet. When {name} runs commands, works on files or looks things up for this chat,
+            what it did is summed up here, with its steps inside.
           </p>
         ) : (
           <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-4">
-            {did.map(({ part, at, key }) => (
-              <Did key={key} part={part} at={at} />
+            {runs.map((run) => (
+              <Work key={run.id} run={run} summary={written?.runs[run.id] ?? runSummary(run)} />
             ))}
           </ul>
         )}

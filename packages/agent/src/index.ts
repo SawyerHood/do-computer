@@ -6,6 +6,7 @@ export {
   CONNECTOR_REDIRECT_HEADER,
   createAgentActor,
 } from "./actor.ts"
+export type { SummaryOptions } from "./activity.ts"
 export { ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
 export {
   ChatsDoc,

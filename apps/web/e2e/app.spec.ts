@@ -180,11 +180,19 @@ test("the agent uses its computer: one line says what it is doing, and only its 
     "data-mood",
     /idle|done/,
   )
-  const did = panel.getByText("Ran: sleep 1; echo from the shell", { exact: false })
-  await expect(did).toBeVisible()
-  await expect(panel.getByText("MEMORY.md")).toBeHidden()
-  await did.click()
-  await expect(panel.getByText("MEMORY.md")).toBeVisible()
+  // It is one entry for what was asked, saying what came of it and how many steps it took.
+  const work = panel.getByRole("listitem").filter({ hasText: "1 step" })
+  await expect(work).toHaveCount(1)
+  await expect(work).toContainText('/tool bash {"command":"sleep 1; echo from the shell')
+  await expect(work).toContainText("The tool returned")
+  // The step is inside, and what it returned is inside that.
+  const step = work.getByText("Ran: sleep 1; echo from the shell", { exact: false })
+  await expect(step).toBeHidden()
+  await work.getByText("The tool returned").click()
+  await expect(step).toBeVisible()
+  await expect(work.getByText("MEMORY.md")).toBeHidden()
+  await step.click()
+  await expect(work.getByText("MEMORY.md")).toBeVisible()
   // Put away, the header is back.
   await panel.getByRole("button", { name: "Hide this panel" }).click()
   await expect(panel).toHaveCount(0)

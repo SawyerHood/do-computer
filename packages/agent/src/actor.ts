@@ -46,6 +46,7 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
+import { Activity, type SummaryOptions } from "./activity.ts"
 import { ApprovalError, Approvals, ApprovalsDoc, MEMORY_SUBJECT } from "./approvals.ts"
 import { Computer, COMPUTER_EXTENSION, WithoutComputer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
@@ -105,6 +106,11 @@ export type AgentActorOptions = {
   readonly resolveHost?: (hostname: string) => Promise<readonly string[]>
   /** Gives the agent a web search tool. Absent: it has none. */
   readonly webSearch?: WebSearchOptions
+  /**
+   * Has a small model write short summaries of what the agent did in each chat, in the
+   * background. Absent: none are written, and clients show what they can work out themselves.
+   */
+  readonly summaries?: SummaryOptions
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -255,6 +261,9 @@ export class AgentActor implements Actor {
   readonly #scheduler: Scheduler
   readonly #skills: Skills
   readonly #approvals: Approvals
+  readonly #activity: Activity
+  /** Told, with the chat's id, when the summaries of what was done in a chat changed. */
+  readonly #activityListeners = new Set<(chatId: string) => void>()
   #harness: Promise<Harness> | undefined
 
   constructor(host: ActorHost, options: AgentActorOptions) {
@@ -296,6 +305,26 @@ export class AgentActor implements Actor {
           text: request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
           chatId: request.chatKind === "chat" ? request.chatId : null,
         }),
+    })
+    this.#activity = new Activity({
+      summaries: options.summaries,
+      now: () => host.now(),
+      context,
+      chat: async (chatId) => {
+        const harness = await this.#harness
+        const conversation = await harness?.conversation(Number(chatId) as ConversationId, context)
+        if (conversation === undefined) return undefined
+        const view = await conversation.viewState(context)
+        try {
+          return projectChat(view.value)
+        } finally {
+          view.dispose()
+        }
+      },
+      onChanged: (chatId) => {
+        for (const listener of this.#activityListeners) listener(chatId)
+      },
+      onError: (error) => options.onReport?.(error),
     })
     this.#scheduler = new Scheduler({
       now: () => host.now(),
@@ -386,6 +415,7 @@ export class AgentActor implements Actor {
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
+      registry.install(this.#activity.extension)
       if (this.#options.webSearch !== undefined) {
         registry.install(webSearchExtension(this.#options.webSearch))
       }
@@ -410,6 +440,7 @@ export class AgentActor implements Actor {
       )
       opened = harness
       this.#approvals.attach(harness)
+      this.#activity.attach(harness)
       await this.#settleComputer(harness)
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
@@ -782,6 +813,14 @@ export class AgentActor implements Actor {
             ),
           )
         }
+        if (rest === "activity" && method === "GET") {
+          const view = await conversation.viewState(context)
+          try {
+            return json(await this.#activity.read(chatId, projectChat(view.value), context))
+          } finally {
+            view.dispose()
+          }
+        }
         if (rest === "events" && method === "GET") return this.#chatEvents(conversation)
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request))
@@ -878,6 +917,21 @@ export class AgentActor implements Actor {
       for (const [model, spent] of Object.entries(ledger.models)) count(spent as Usage, model)
       // A tool that calls a model of its own reports what that cost, without naming the model.
       for (const spent of Object.values(ledger.tools)) count(spent as Usage)
+    }
+    // What the summaries of its work cost is its cost too, though it made none of those calls.
+    const summarizer = this.#options.summaries
+    if (summarizer !== undefined) {
+      const key = `openrouter/${summarizer.model}`
+      for (const chatId of Object.keys(chats)) {
+        const spent = await this.#activity.spent(chatId, context)
+        if (spent === undefined || spent.inputTokens + spent.outputTokens === 0) continue
+        if (!models.has(key)) models.set(key, zero())
+        for (const total of [usage.total, models.get(key)!]) {
+          total.inputTokens += spent.inputTokens
+          total.outputTokens += spent.outputTokens
+          total.cost += spent.cost
+        }
+      }
     }
     usage.models = [...models]
       .map(([model, total]) => ({ model, ...total }))
@@ -1174,8 +1228,12 @@ export class AgentActor implements Actor {
       library?.start(changed("library"))
       connectors?.start(changed("connectors"))
       approvals?.start(changed("approvals"))
+      const activity = changed("activity")
+      const written = () => void activity()
+      this.#activityListeners.add(written)
       void (identity ?? chats)?.closed.then(close)
       return () => {
+        this.#activityListeners.delete(written)
         void identity?.stop()
         void chats?.stop()
         void schedules?.stop()

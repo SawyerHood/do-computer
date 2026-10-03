@@ -58,6 +58,8 @@ function create(): NodePlatform {
         modelOptions: models.options,
         computers,
         webSearch: models.webSearch,
+        // The same small model that reads search results writes up what the agent did.
+        summaries: models.webSearch,
         allowPrivateHosts: config.allowPrivateHosts,
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,

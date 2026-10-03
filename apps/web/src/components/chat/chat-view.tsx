@@ -338,6 +338,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
       {beside ? (
         <AgentPanel
           agent={agent}
+          chatId={chatId}
           state={state}
           face={<Hatchling agent={agent} hatch={hatch} className="size-52" />}
           reconnecting={live.status === "reconnecting"}

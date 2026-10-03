@@ -15,6 +15,11 @@ export const modelsKey = ["models"] as const
 export const settingsKey = ["settings"] as const
 export const computerKindsKey = ["computer-kinds"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const
+/** Summaries of what the agent did, for every chat of an agent or for one. */
+export const activityKey = (agentId: string, chatId?: string) =>
+  chatId === undefined
+    ? (["agents", agentId, "activity"] as const)
+    : (["agents", agentId, "activity", chatId] as const)
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
 
@@ -74,6 +79,10 @@ export function refreshAgent(agentId: string, what: string): void {
   }
   if (what === "approvals") {
     void queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
+    return
+  }
+  if (what === "activity") {
+    void queryClient.invalidateQueries({ queryKey: activityKey(agentId) })
     return
   }
   if (what === "connectors") {
