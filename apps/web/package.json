@@ -10,7 +10,7 @@
     "build:node": "pnpm generate && vite build",
     "build:cloudflare": "pnpm generate && DC_TARGET=cloudflare vite build",
     "start": "node server.node.mjs",
-    "deploy": "pnpm build:cloudflare && wrangler deploy",
+    "deploy": "pnpm build:cloudflare && node scripts/deploy-settings.mjs && wrangler deploy",
     "check": "pnpm generate && tsc --noEmit && tsc --noEmit -p tsconfig.cloudflare.json",
     "test": "vitest run",
     "test:e2e": "pnpm build:node && pnpm --filter @durable-computer/mobile export:web:test && playwright test",

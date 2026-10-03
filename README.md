@@ -48,6 +48,18 @@ pnpm run deploy
 
 Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
 
+Instead of editing `wrangler.jsonc`, a deployment's own values can come from the environment,
+which keeps them out of the repository. `pnpm run deploy` applies them to the build before it
+uploads: `DC_D1_DATABASE_ID`, the address as `DC_ROUTE` (for example `agent.example.com/*`,
+with `DC_ROUTE_ZONE` if needed) or `DC_CUSTOM_DOMAIN`, and any of the plain settings below such
+as `DC_BASE_URL` and `DC_SANDBOX`. Keys stay Worker secrets, which a deploy leaves alone.
+
+To deploy from GitHub on every push to `main`, after the tests pass, give the repository the
+secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and the variable
+`DC_D1_DATABASE_ID`, plus variables for the address and settings above. The token needs to edit
+Workers scripts and routes and D1. Without that variable the deploy job is skipped, so a fork
+runs the tests and nothing else.
+
 ## Configuration
 
 | Variable                                   | Meaning                                                                                                                              |
