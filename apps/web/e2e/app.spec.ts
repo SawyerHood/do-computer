@@ -1107,6 +1107,10 @@ test("the chat list is put away until it is asked for, and stays how it was left
   await page.reload()
   await expect(composer(page)).toBeVisible()
   await expect(panel).toHaveCount(0)
+  // A button where its close button was brings it back.
+  await page.getByRole("button", { name: "Show the panel" }).click()
+  await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show the panel" })).toHaveCount(0)
 
   // A chat can be started without it.
   const before = page.url()

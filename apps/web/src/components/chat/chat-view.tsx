@@ -1,5 +1,5 @@
 import { type AgentSummary, type ChatMessage, randomId } from "@durable-computer/protocol"
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
+import { ArrowsClockwiseIcon, SidebarSimpleIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
@@ -216,6 +216,19 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     <div className="flex h-full min-h-0">
       <div className="relative flex min-w-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
+        {/* Where the panel's own close button is when it is open, so it is found again. */}
+        {panel ? null : (
+          <Button
+            variant="secondary"
+            size="icon-sm"
+            className="absolute top-3 right-3 z-20 hidden rounded-full xl:inline-flex"
+            aria-label="Show the panel"
+            title={`Show ${agent.name ?? "the agent"} beside the chat`}
+            onClick={() => setPanel(true)}
+          >
+            <SidebarSimpleIcon mirrored />
+          </Button>
+        )}
         <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
           <div
             className={cn(
