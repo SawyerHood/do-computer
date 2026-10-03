@@ -21,6 +21,7 @@ import {
   SUPERSEDED_CLOSE_CODE,
 } from "@durable-computer/protocol"
 import WebSocket from "ws"
+import { parseArguments } from "./args.ts"
 import { serviceFile } from "./service.ts"
 
 declare const DAEMON_VERSION: string
@@ -246,28 +247,24 @@ const USAGE = `Usage: durable-computer-daemon <server-url> [options]
 `
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  if (args.includes("--version")) return void console.log(VERSION)
-  if (args.includes("--help") || args.includes("-h")) return void console.log(USAGE)
-  if (args.includes("--unpair")) {
+  const asked = parseArguments(process.argv.slice(2))
+  if (asked.version) return void console.log(VERSION)
+  if (asked.help) return void console.log(USAGE)
+  if (asked.unpair) {
     rmSync(CONFIG_PATH, { force: true })
     return log("Forgot this computer's credentials. Remove it in the app to finish.")
   }
-  const nameIndex = args.indexOf("--name")
-  const name = nameIndex === -1 ? undefined : args[nameIndex + 1]
-  const readOnly = args.includes("--read-only")
-  const server = args.find((arg, index) => /^https?:\/\//.test(arg) && index !== nameIndex + 1)
 
   let config = loadConfig()
   if (config === undefined) {
-    if (server === undefined) return void console.log(USAGE)
-    config = await pair(server.replace(/\/+$/, ""), readOnly, name)
-  } else if (readOnly !== config.readOnly && args.includes("--read-only")) {
+    if (asked.server === undefined) return void console.log(USAGE)
+    config = await pair(asked.server, asked.readOnly, asked.name)
+  } else if (asked.readOnly && !config.readOnly) {
     // The owner tightened access since pairing; honor it from now on.
     config = { ...config, readOnly: true }
     saveConfig(config)
   }
-  if (args.includes("--install-service")) return installService([config.server])
+  if (asked.installService) return installService([config.server])
   await run(config)
 }
 
