@@ -2,7 +2,7 @@ import { DesktopIcon, WarningIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
-import { AgentAvatar } from "@/components/agent-avatar"
+import { AgentFace } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { agentsKey, computersKey } from "@/lib/collections"
@@ -108,7 +108,7 @@ function PairPage() {
                     checked={agentId === agent.id}
                     onChange={() => setAgentId(agent.id)}
                   />
-                  <AgentAvatar avatar={agent.avatar} seed={agent.id} className="size-7" />
+                  <AgentFace agent={agent} className="size-7" quiet />
                   {agent.name ?? "New agent"}
                 </label>
               ))}

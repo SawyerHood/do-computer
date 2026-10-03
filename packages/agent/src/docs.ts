@@ -28,6 +28,8 @@ export type IdentityState = {
   computers?: string[]
   /** When it was last moved to a different computer, if it ever was. */
   computerChangedAt?: number
+  /** When its owner watched it hatch. Until then it is shown as an egg. */
+  hatchedAt?: number
 }
 
 export const IdentityDoc = defineDoc<IdentityState>({

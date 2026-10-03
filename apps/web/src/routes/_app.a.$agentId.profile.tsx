@@ -2,10 +2,9 @@ import type { AgentPatch, AgentState } from "@durable-computer/client"
 import {
   type AgentUsage,
   type Avatar,
-  AVATAR_ACCESSORIES,
-  AVATAR_CHARACTERS,
   AVATAR_COLORS,
   defaultAvatar,
+  randomId,
 } from "@durable-computer/protocol"
 import { ArrowLeftIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -360,7 +359,12 @@ function ProfilePage() {
         </Link>
 
         <div className="flex items-center gap-5">
-          <AgentAvatar avatar={form.avatar} seed={agentId} className="size-24" />
+          <AgentAvatar
+            avatar={form.avatar}
+            seed={agentId}
+            className="size-24"
+            hatched={state.agent.hatched}
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Name</Label>
@@ -384,23 +388,10 @@ function ProfilePage() {
           </div>
         </div>
 
-        <Section title="Look" hint="Pick a character, a color and, if you like, an accessory.">
-          <div className="flex flex-wrap gap-1.5">
-            {AVATAR_CHARACTERS.map((character) => (
-              <Choice
-                key={character.id}
-                label={character.label}
-                selected={form.avatar.character === character.id}
-                onClick={() => set("avatar", { ...form.avatar, character: character.id })}
-              >
-                <AgentAvatar
-                  avatar={{ character: character.id, color: form.avatar.color }}
-                  seed={agentId}
-                  className="size-11"
-                />
-              </Choice>
-            ))}
-          </div>
+        <Section
+          title="Look"
+          hint="Its shape and face were not chosen: they grew from a roll of the dice. Pick its color, or roll again for a different creature."
+        >
           <div className="flex flex-wrap gap-1.5">
             {AVATAR_COLORS.map((color) => (
               <Choice
@@ -416,23 +407,16 @@ function ProfilePage() {
               </Choice>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {[{ id: undefined, label: "None" }, ...AVATAR_ACCESSORIES].map((accessory) => (
-              <Button
-                key={accessory.label}
-                type="button"
-                size="sm"
-                variant={form.avatar.accessory === accessory.id ? "default" : "outline"}
-                className="rounded-full"
-                onClick={() => {
-                  const { accessory: _previous, ...rest } = form.avatar
-                  set("avatar", accessory.id ? { ...rest, accessory: accessory.id } : rest)
-                }}
-              >
-                {accessory.label}
-              </Button>
-            ))}
-          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="self-start rounded-full"
+            // Shown at once, above. It is only kept once the changes are saved.
+            onClick={() => set("avatar", { ...form.avatar, seed: randomId().slice(0, 12) })}
+          >
+            Roll a new look
+          </Button>
         </Section>
 
         <Section

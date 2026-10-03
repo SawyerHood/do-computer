@@ -148,10 +148,16 @@ is why sign-up is by invitation unless you open it.
 - **Chat**, in as many separate chats as you like, all sharing its memory. A reply keeps being
   written when you close the tab, and is there when you come back. It can search what was said in
   its other chats, and so can you, from the chat list.
-- **Be someone.** It names itself in its first conversation, picks an avatar, and keeps a
+- **Be someone.** It names itself in its first conversation, picks its color, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable under
   Identity and memory, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
   workspace.
+- **Be a creature.** You see your agent as a small creature that hatches from an egg when you
+  first meet it. Its shape and face are grown from a roll of the dice, so no two agents look
+  alike, and it acts out what the agent is doing: listening while you type, thinking, working
+  at a command or a file or a search, speaking as its answer arrives, and dozing when nothing
+  has happened for a while. `pnpm --filter @durable-computer/mascot demo` builds a page for
+  trying every state and look.
 - **Think with the model you choose.** Each agent can be set to any OpenRouter model that can
   call tools (about 400), from a searchable list on its page, and Settings holds the default your
   new agents start on.

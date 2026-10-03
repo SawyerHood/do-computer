@@ -275,7 +275,7 @@ describe("agent computer", () => {
         [
           fauxToolCall("bash", {
             command:
-              "echo 'Likes tea' >> USER.md && printf 'name: Wren\\ntagline: Small and sharp\\navatar: comet tide scarf\\n' > IDENTITY.md",
+              "echo 'Likes tea' >> USER.md && printf 'name: Wren\\ntagline: Small and sharp\\ncolor: tide\\n' > IDENTITY.md",
           }),
         ],
         { stopReason: "toolUse" },
@@ -288,7 +288,7 @@ describe("agent computer", () => {
     expect(state.agent).toMatchObject({
       name: "Wren",
       tagline: "Small and sharp",
-      avatar: { character: "comet", color: "tide", accessory: "scarf" },
+      avatar: { color: "tide" },
     })
   })
 

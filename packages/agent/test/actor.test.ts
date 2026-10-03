@@ -169,7 +169,7 @@ describe("agent actor", () => {
             name: "Juniper",
             tagline: "Calm and curious",
             personality: "You are warm and brief.",
-            avatar: { character: "sprout", color: "moss", accessory: "glasses" },
+            color: "moss",
           }),
           fauxToolCall("memory", { action: "add", target: "user", content: "Name is Sawyer" }),
         ],
@@ -214,11 +214,70 @@ describe("agent actor", () => {
     expect(full.agent).toMatchObject({
       name: "Juniper",
       tagline: "Calm and curious",
-      avatar: { character: "sprout", color: "moss", accessory: "glasses" },
+      avatar: { color: "moss" },
     })
     expect(full.soul).toBe("You are warm and brief.")
     expect(full.user).toBe("Name is Sawyer")
     expect(seen[0]).toEqual({ type: "ready" })
+  })
+
+  it("is an egg until its owner has watched it hatch, and only hatches once", async () => {
+    const world = open(temporary())
+    await setup(world)
+    type State = { agent: { hatched: boolean; avatar: unknown } }
+    expect((await call<State>(world, "/")).agent.hatched).toBe(false)
+    expect((await call<State>(world, "/", "PATCH", { hatched: true })).agent.hatched).toBe(true)
+    // Nothing a client sends puts it back.
+    expect((await call<State>(world, "/", "PATCH", { hatched: false })).agent.hatched).toBe(true)
+  })
+
+  it("counts an agent that already has a name as hatched", async () => {
+    const world = open(temporary())
+    await setup(world)
+    const named = await call<{ agent: { hatched: boolean } }>(world, "/", "PATCH", {
+      name: "Wren",
+    })
+    expect(named.agent.hatched).toBe(true)
+  })
+
+  it("keeps the look it grew when only its color changes", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    type State = { agent: { avatar: unknown } }
+    // The owner rolls a new look: a seed, with a color.
+    const rolled = await call<State>(world, "/", "PATCH", {
+      avatar: { color: "plum", seed: "k3-roll" },
+    })
+    expect(rolled.agent.avatar).toEqual({ color: "plum", seed: "k3-roll" })
+    await expect(call(world, "/", "PATCH", { avatar: { color: "neon" } })).rejects.toThrow(
+      'Unknown color "neon"',
+    )
+
+    // The agent picks a color for itself. The seed is not its to change.
+    world.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("set_identity", { color: "honey" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("Honey it is."),
+    ])
+    await send(world, chat.id, "be yellow")
+    await follow(world, chat.id, answered(2))
+    expect((await call<State>(world, "/")).agent.avatar).toEqual({
+      color: "honey",
+      seed: "k3-roll",
+    })
+
+    world.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("set_identity", { color: "neon" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("That is not one I can be."),
+    ])
+    await send(world, chat.id, "be neon")
+    const { state } = await follow(world, chat.id, answered(4))
+    const refused = state.messages.flatMap((m) => m.parts).findLast((part) => part.type === "tool")
+    expect(refused).toMatchObject({ status: "error" })
+    expect(JSON.stringify(refused)).toContain("Colors: clay, moss")
   })
 
   it("rejects a memory write over the limit, so the agent has to consolidate", async () => {

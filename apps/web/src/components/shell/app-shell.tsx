@@ -23,7 +23,7 @@ import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-route
 import { and, eq, useLiveQuery } from "@tanstack/react-db"
 import { useAtom } from "jotai"
 import { type ReactNode, useEffect, useState } from "react"
-import { AgentAvatar } from "@/components/agent-avatar"
+import { AgentFace } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -87,7 +87,7 @@ function AgentSwitcher({ agent }: { agent: AgentSummary }) {
         aria-label="Switch agent"
         className="rounded-full outline-none ring-ring/40 focus-visible:ring-3"
       >
-        <AgentAvatar avatar={agent.avatar} seed={agent.id} className="size-10" />
+        <AgentFace agent={agent} className="size-10" />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="start" className="w-60">
         <DropdownMenuGroup>
@@ -97,7 +97,7 @@ function AgentSwitcher({ agent }: { agent: AgentSummary }) {
               key={other.id}
               onClick={() => navigate({ to: "/a/$agentId", params: { agentId: other.id } })}
             >
-              <AgentAvatar avatar={other.avatar} seed={other.id} className="size-6" />
+              <AgentFace agent={other} className="size-6" quiet />
               <span className="truncate">{other.name ?? "New agent"}</span>
             </DropdownMenuItem>
           ))}

@@ -3,9 +3,11 @@ import {
   type ChatMessage,
   type ChatState,
   chatActivity,
+  chatMood,
   EMPTY_CHAT,
   type MessagePart,
   toolActivity,
+  toolKind,
   type ToolPart,
 } from "../src/index.ts"
 
@@ -110,5 +112,67 @@ describe("chatActivity", () => {
     expect(
       chatActivity(chat([user, assistant([tool("bash", { command: "ls" }, "done")], "done")])),
     ).toBe("Working")
+  })
+})
+
+describe("chatMood", () => {
+  const user: ChatMessage = {
+    id: "1",
+    role: "user",
+    parts: [{ type: "text", text: "hi" }],
+    status: "done",
+  }
+  const assistant = (
+    parts: MessagePart[],
+    status: ChatMessage["status"] = "streaming",
+  ): ChatMessage => ({ id: "live:1", role: "assistant", parts, status })
+  const chat = (messages: ChatMessage[], busy = true): ChatState => ({
+    ...EMPTY_CHAT,
+    messages,
+    busy,
+  })
+
+  it("is idle when nothing is running, and troubled when the last answer failed", () => {
+    expect(chatMood(EMPTY_CHAT)).toEqual({ state: "idle" })
+    expect(
+      chatMood(chat([user, assistant([{ type: "text", text: "hello" }], "done")], false)),
+    ).toEqual({ state: "idle" })
+    expect(chatMood(chat([user, assistant([], "error")], false))).toEqual({ state: "error" })
+  })
+
+  it("thinks until something comes back, and speaks while its answer is written", () => {
+    expect(chatMood(chat([user]))).toEqual({ state: "thinking" })
+    expect(chatMood(chat([user, assistant([{ type: "thinking", text: "hmm" }])]))).toEqual({
+      state: "thinking",
+    })
+    expect(chatMood(chat([user, assistant([{ type: "text", text: "Here is" }])]))).toEqual({
+      state: "speaking",
+    })
+  })
+
+  it("works at the kind of thing its tool does, and stays at it between steps", () => {
+    const working = (part: ToolPart) => chatMood(chat([user, assistant([part])]))
+    expect(working(tool("bash", { command: "ls" }))).toEqual({
+      state: "working",
+      variant: "command",
+    })
+    expect(working(tool("edit", { path: "a.md" }))).toEqual({ state: "working", variant: "file" })
+    expect(working(tool("web_search", { query: "x" }, "pending"))).toEqual({
+      state: "working",
+      variant: "search",
+    })
+    expect(working(tool("memory", { action: "add" }, "done"))).toEqual({
+      state: "working",
+      variant: "memory",
+    })
+  })
+
+  it("sorts every tool into a kind of work", () => {
+    expect(["read", "write", "send_file", "library", "skill"].map(toolKind)).toEqual(
+      Array(5).fill("file"),
+    )
+    expect(["history", "deepwiki__ask_question"].map(toolKind)).toEqual(["search", "search"])
+    expect(["set_identity", "schedule"].map(toolKind)).toEqual(["memory", "memory"])
+    expect(toolKind("something_new")).toBe("command")
   })
 })

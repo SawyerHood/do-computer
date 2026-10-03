@@ -87,6 +87,8 @@ export type AgentPatch = {
   memory?: string
   model?: string
   timezone?: string
+  /** Its owner has watched it hatch. There is no putting it back in its egg. */
+  hatched?: true
   /**
    * Move the agent to a computer of another kind. Refused while it is working. Its files stay
    * on the computer it leaves, and are there again if it is moved back.

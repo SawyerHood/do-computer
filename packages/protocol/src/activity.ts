@@ -100,6 +100,65 @@ export function chatActivity(state: ChatState): string | null {
   return tail.type === "tool" ? "Working" : "Thinking"
 }
 
+/** The kinds of work an agent's creature is shown doing, each with a look of its own. */
+export type WorkKind = "command" | "file" | "search" | "memory"
+
+/** What the agent is doing, as its creature shows it. */
+export type Mood = {
+  state: "idle" | "thinking" | "working" | "speaking" | "error"
+  /** For `working`: what kind of work. */
+  variant?: WorkKind
+}
+
+/** Which kind of work a tool is: at a shell, among files, looking something up, or remembering. */
+export function toolKind(name: string): WorkKind {
+  switch (name) {
+    case "bash":
+      return "command"
+    case "read":
+    case "write":
+    case "edit":
+    case "send_file":
+    case "library":
+    case "skill":
+      return "file"
+    case "web_search":
+    case "history":
+      return "search"
+    case "memory":
+    case "set_identity":
+    case "schedule":
+      return "memory"
+    default:
+      // A connector's tool, named `<connector>__<tool>`, reaches out to another service.
+      return name.includes("__") ? "search" : "command"
+  }
+}
+
+/**
+ * What the agent is doing right now, for its creature to act out. The same reading of a chat as
+ * `chatActivity`, which puts it in words.
+ */
+export function chatMood(state: ChatState): Mood {
+  const last = state.messages.at(-1)
+  if (!state.busy) {
+    return { state: last?.role === "assistant" && last.status === "error" ? "error" : "idle" }
+  }
+  if (last === undefined || last.role !== "assistant") return { state: "thinking" }
+  const active = last.parts.findLast(
+    (part): part is ToolPart =>
+      part.type === "tool" && (part.status === "pending" || part.status === "running"),
+  )
+  if (active !== undefined) return { state: "working", variant: toolKind(active.name) }
+  const tail = last.parts.at(-1)
+  if (tail === undefined || tail.type === "thinking") return { state: "thinking" }
+  if (tail.type === "text" && last.status === "streaming") return { state: "speaking" }
+  // Between steps it is still at the work it just did.
+  return tail.type === "tool"
+    ? { state: "working", variant: toolKind(tail.name) }
+    : { state: "thinking" }
+}
+
 /**
  * Whether a part is a file the agent delivered. Tool calls are not shown in a transcript: what
  * the agent is doing is one line while it does it. A delivered file is the exception, because it

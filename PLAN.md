@@ -151,7 +151,7 @@ Running for real found five bugs the tests had missed, all fixed with tests:
 | Connectors              | MCP servers plus agent-written skills                                                                 |
 | Memory and identity     | Canonical in the harness store, mirrored into the workspace as files                                  |
 | Onboarding              | Conversation only: the agent works out its name, look and personality in chat                         |
-| Avatar                  | Bundled preset characters with customization                                                          |
+| Avatar                  | As decided: bundled preset characters. As built since: a creature grown from a seed (see the README)  |
 | Computer shape          | Headless Linux with a headless browser; live take-over designed for, built later                      |
 | Proactivity             | Schedules only: no heartbeat, no ideas feed, no nightly memory job                                    |
 | Skill sources           | Bundled, agent-written, and git or URL installs; no public hub                                        |

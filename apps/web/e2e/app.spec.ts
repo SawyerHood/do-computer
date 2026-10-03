@@ -98,8 +98,9 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
   await page.getByRole("button", { name: "Identity and memory" }).click()
   await page.getByLabel("Name").fill("Juniper")
   await page.getByLabel("Tagline").fill("Calm and curious")
-  await page.getByRole("button", { name: "Ember" }).click()
-  await page.getByRole("button", { name: "Glasses" }).click()
+  // Its color is a choice; what it looks like is a roll of the dice.
+  await page.getByRole("button", { name: "Tide" }).click()
+  await page.getByRole("button", { name: "Roll a new look" }).click()
   await page.locator("#user").fill("Prefers short answers")
   await page.getByRole("button", { name: "Save changes" }).click()
   await expect(page.getByText("Saved", { exact: true })).toBeVisible()
@@ -112,7 +113,15 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
   await page.getByRole("button", { name: "Identity and memory" }).click()
   await expect(page.getByLabel("Name")).toHaveValue("Juniper")
   await expect(page.locator("#user")).toHaveValue("Prefers short answers")
-  await expect(page.getByRole("button", { name: "Ember" })).toHaveAttribute("aria-pressed", "true")
+  await expect(page.getByRole("button", { name: "Tide" })).toHaveAttribute("aria-pressed", "true")
+  const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
+  const saved = (await (await page.request.get(`/api/agents/${agentId}`)).json()) as {
+    agent: { avatar: { color: string; seed?: string }; hatched: boolean }
+  }
+  expect(saved.agent.avatar.color).toBe("tide")
+  expect(saved.agent.avatar.seed).toMatch(/^.{6,}$/)
+  // It has a name now, so it is out of its egg whether or not anyone watched.
+  expect(saved.agent.hatched).toBe(true)
 })
 
 test("memory over its limit cannot be saved", async ({ page }) => {
@@ -134,6 +143,11 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await page.keyboard.press("Enter")
   // While it works, a single line says what it is doing, with the command it is running.
   await expect(page.getByRole("status")).toContainText("Running: sleep 1; echo from the shell")
+  // Its creature is beside the line, at work.
+  await expect(page.getByRole("status").getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
+    "data-mood",
+    "working",
+  )
 
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("The tool returned:")).toBeVisible()
@@ -607,6 +621,40 @@ test("the settings page shows what the agent's thinking has cost", async ({ page
   await expect(usage.getByRole("table", { name: "Usage by model" })).toBeVisible()
   // The built-in echo model is free, and says so.
   await expect(usage.getByRole("row").nth(1)).toContainText("$0")
+})
+
+test("a new agent is met as an egg, and hatches once", async ({ page }) => {
+  await signIn(page)
+  const first = page.url().match(/\/a\/([^/]+)/)![1]!
+  await page.getByRole("button", { name: "Switch agent" }).click()
+  await page.getByRole("menuitem", { name: "New agent" }).click()
+  await expect(page).not.toHaveURL(new RegExp(`/a/${first}`))
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
+  const hatched = async () =>
+    (
+      (await (await page.request.get(`/api/agents/${agentId}`)).json()) as {
+        agent: { hatched: boolean }
+      }
+    ).agent.hatched
+
+  // It starts in its egg, wherever it is shown, and the wait can be skipped.
+  expect(await hatched()).toBe(false)
+  const welcome = page.getByRole("log").getByRole("img", { name: "Agent avatar" })
+  await expect(welcome).toHaveAttribute("data-mood", "egg")
+  await expect(page.getByRole("button", { name: "Skip the hatching" })).toBeVisible()
+
+  // Then it is out, here and for good: a reload does not put it back.
+  await expect.poll(hatched, { timeout: 15_000 }).toBe(true)
+  await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
+  await expect(welcome).toHaveAttribute("data-mood", "idle")
+  await page.reload()
+  await expect(page.getByRole("log").getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
+    "data-mood",
+    "idle",
+  )
+  await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
+  await page.request.delete(`/api/agents/${agentId}`)
 })
 
 test("a second agent can be made, and deleted without touching the first", async ({ page }) => {

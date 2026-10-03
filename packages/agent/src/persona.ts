@@ -1,9 +1,4 @@
-import {
-  AVATAR_ACCESSORIES,
-  AVATAR_CHARACTERS,
-  AVATAR_COLORS,
-  parseAvatar,
-} from "@durable-computer/protocol"
+import { AVATAR_COLORS, parseAvatar } from "@durable-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {
@@ -12,7 +7,7 @@ import {
   type DocumentReader,
   section,
 } from "@earendil-works/pi-durable"
-import { IdentityDoc, type IdentityState } from "./docs.ts"
+import { IdentityDoc } from "./docs.ts"
 
 /** Hard caps on the always-injected notes. A write over the cap fails, so the agent must consolidate. */
 export const MEMORY_LIMIT = 2200
@@ -30,22 +25,17 @@ How to work:
 - You have long-term memory. Conversations start fresh, but the "user" and "memory" sections below carry over. When you learn something durable about the person or how they like things done, save it with the memory tool right away. Do not save things that only matter to the current conversation.
 - If you do not know something, say so. Never invent the result of an action you did not take.`
 
-const BOOTSTRAP = `You have just come into being. You do not have a name, a look or a personality yet, and this is your first conversation with the person you will be working with.
+const BOOTSTRAP = `You have just hatched. The person you will be working with sees you as a small creature, with a shape and a face that are your own and were not chosen. You do not have a name or a personality yet, and this is your first conversation with them.
 
 Work these out together, naturally, a question or two at a time:
 - what they would like to call you (offer a few suggestions if they want),
 - what kind of personality they want from you,
-- what you look like: one of the bundled avatars below,
+- what color you are: one of the colors below,
 - who they are and what they want help with.
 
-As soon as something is settled, save it: call set_identity for your name, tagline, personality and avatar, and the memory tool (target "user") for what you learn about them. You can call set_identity again whenever something changes. Do not drag this out; once you have a name and a sense of the person, get on with being useful.`
+As soon as something is settled, save it: call set_identity for your name, tagline, personality and color, and the memory tool (target "user") for what you learn about them. You can call set_identity again whenever something changes. Do not drag this out; once you have a name and a sense of the person, get on with being useful.`
 
-function avatarCatalog(): string {
-  const characters = AVATAR_CHARACTERS.map((c) => `${c.id} (${c.description})`).join(", ")
-  const colors = AVATAR_COLORS.map((c) => c.id).join(", ")
-  const accessories = AVATAR_ACCESSORIES.map((a) => a.id).join(", ")
-  return `Avatar characters: ${characters}.\nColors: ${colors}.\nOptional accessories: ${accessories}.`
-}
+const colorCatalog = () => `Colors: ${AVATAR_COLORS.map((color) => color.id).join(", ")}.`
 
 const readIdentity = (read: DocumentReader, context: Context) => read.snapshot(IdentityDoc, context)
 
@@ -56,7 +46,7 @@ function entries(text: string): string[] {
 const setIdentity = defineTool({
   name: "set_identity",
   description:
-    "Set or change who you are: your name, a short tagline, your personality in your own words, and your avatar. Pass only what you are changing.",
+    "Set or change who you are: your name, a short tagline, your personality in your own words, and your color. Pass only what you are changing.",
   parameters: Type.Object({
     name: Type.Optional(Type.String({ description: "Your name", maxLength: 40 })),
     tagline: Type.Optional(
@@ -69,25 +59,19 @@ const setIdentity = defineTool({
         maxLength: 4000,
       }),
     ),
-    avatar: Type.Optional(
-      Type.Object({
-        character: Type.String(),
-        color: Type.String(),
-        accessory: Type.Optional(Type.String()),
-      }),
+    color: Type.Optional(
+      Type.String({ description: `The color of the creature you appear as. ${colorCatalog()}` }),
     ),
   }),
   execute: async (args, api, context) => {
-    let avatar: IdentityState["avatar"] | undefined
-    if (args.avatar !== undefined) {
-      const parsed = parseAvatar(args.avatar)
+    if (args.color !== undefined) {
+      const parsed = parseAvatar({ color: args.color })
       if ("error" in parsed) {
         return {
           isError: true,
-          content: [{ type: "text", text: `${parsed.error}. ${avatarCatalog()}` }],
+          content: [{ type: "text", text: `${parsed.error}. ${colorCatalog()}` }],
         }
       }
-      avatar = parsed.avatar
     }
     const name = args.name?.trim()
     if (name === "") {
@@ -98,9 +82,13 @@ const setIdentity = defineTool({
       if (name !== undefined) doc.name = name
       if (args.tagline !== undefined) doc.tagline = args.tagline.trim() || null
       if (args.personality !== undefined) doc.soul = args.personality.trim()
-      if (avatar !== undefined) doc.avatar = avatar
+      // Its features grow from its seed, which a change of color leaves alone.
+      if (args.color !== undefined) {
+        const seed = doc.avatar?.seed
+        doc.avatar = seed === undefined ? { color: args.color } : { color: args.color, seed }
+      }
       // Copy out of the draft: it cannot be read once the commit settles.
-      return { name: doc.name, tagline: doc.tagline, avatar: doc.avatar && { ...doc.avatar } }
+      return { name: doc.name, tagline: doc.tagline, color: doc.avatar?.color ?? null }
     }, context)
     return {
       content: [{ type: "text", text: `Saved. You are now: ${JSON.stringify(saved)}` }],
@@ -170,7 +158,7 @@ export const Persona = defineExtension({
     section("preamble", () => PREAMBLE, { tag: false }),
     section("identity", async (input, context) => {
       const doc = await readIdentity(input.read, context)
-      if (doc === undefined || doc.name === null) return `${BOOTSTRAP}\n\n${avatarCatalog()}`
+      if (doc === undefined || doc.name === null) return `${BOOTSTRAP}\n\n${colorCatalog()}`
       const lines = [`Your name is ${doc.name}.`]
       if (doc.tagline) lines.push(doc.tagline)
       if (doc.soul) lines.push("", doc.soul)

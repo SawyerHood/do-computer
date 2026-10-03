@@ -1,4 +1,4 @@
-import { type Avatar, parseAvatar } from "@durable-computer/protocol"
+import { parseAvatar } from "@durable-computer/protocol"
 import { type Sandbox, SandboxError } from "@durable-computer/sandbox"
 import type { IdentityState } from "./docs.ts"
 import { MEMORY_LIMIT, USER_LIMIT } from "./persona.ts"
@@ -20,11 +20,10 @@ const withNewline = (text: string) => (text === "" || text.endsWith("\n") ? text
 const withoutNewline = (text: string) => text.replace(/\n+$/, "")
 
 function renderIdentity(identity: Mirrored): string {
-  const avatar = identity.avatar
   return [
     `name: ${identity.name ?? ""}`,
     `tagline: ${identity.tagline ?? ""}`,
-    `avatar: ${avatar ? [avatar.character, avatar.color, avatar.accessory].filter(Boolean).join(" ") : ""}`,
+    `color: ${identity.avatar?.color ?? ""}`,
     "",
   ].join("\n")
 }
@@ -97,18 +96,15 @@ function parseIdentity(text: string, current: Mirrored, problems: string[]): Par
     if (tagline.length > 120) problems.push("IDENTITY.md: tagline can be at most 120 characters.")
     else change.tagline = tagline || null
   }
-  const avatar = fields.get("avatar")
-  if (avatar !== undefined && avatar !== "") {
-    const [character = "", color = "", accessory] = avatar.split(/\s+/)
-    const parsed = parseAvatar({ character, color, ...(accessory ? { accessory } : {}) })
+  const color = fields.get("color")
+  if (color !== undefined && color !== "" && color !== current.avatar?.color) {
+    // Only the color is a choice. What the creature looks like grows from its seed, which stays.
+    const parsed = parseAvatar({ color, seed: current.avatar?.seed })
     if ("error" in parsed) problems.push(`IDENTITY.md: ${parsed.error}.`)
-    else if (!sameAvatar(parsed.avatar, current.avatar)) change.avatar = parsed.avatar
+    else change.avatar = parsed.avatar
   }
   return change
 }
-
-const sameAvatar = (a: Avatar, b: Avatar | null) =>
-  b !== null && a.character === b.character && a.color === b.color && a.accessory === b.accessory
 
 /**
  * What the agent changed by editing the mirror files directly. An edit that breaks a limit is

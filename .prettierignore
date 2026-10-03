@@ -3,3 +3,5 @@ dist
 .output
 routeTree.gen.ts
 *.generated.ts
+packages/mascot/src/orb-core.js
+packages/mascot/demo

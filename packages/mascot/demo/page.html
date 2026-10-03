@@ -1,0 +1,404 @@
+<title>Agent Orb Study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: stage on the left (orb, status, avatar sizes), a flat ruled control column on the right, agent strips underneath. The orb is the only saturated thing on the page. */
+:root {
+  --bg: #f2f4f3;
+  --panel: #fafbfa;
+  --ink: #17201e;
+  --ink-2: #485653;
+  --ink-3: #6f7d7a;
+  --rule: #d5dbd9;
+  --rule-soft: #e3e7e6;
+  --accent: #12706f;
+  --accent-ink: #ffffff;
+  --accent-wash: #dbeae8;
+  --orb-dark: 0;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #101514;
+    --panel: #171d1c;
+    --ink: #e6ecea;
+    --ink-2: #aab6b3;
+    --ink-3: #7d8a87;
+    --rule: #2a3331;
+    --rule-soft: #1f2726;
+    --accent: #62c3bb;
+    --accent-ink: #062120;
+    --accent-wash: #17302e;
+    --orb-dark: 1;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #101514;
+  --panel: #171d1c;
+  --ink: #e6ecea;
+  --ink-2: #aab6b3;
+  --ink-3: #7d8a87;
+  --rule: #2a3331;
+  --rule-soft: #1f2726;
+  --accent: #62c3bb;
+  --accent-ink: #062120;
+  --accent-wash: #17302e;
+  --orb-dark: 1;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+*, *::before, *::after { box-sizing: border-box; }
+h1, h2, h3, p, figure { margin: 0; }
+canvas { display: block; }
+
+.page {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 40px);
+  padding-block: 28px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.mast { display: flex; flex-direction: column; gap: 6px; max-width: 62ch; }
+.mast h1 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.mast p { color: var(--ink-2); }
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.bench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 344px);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+
+/* ---------- stage ---------- */
+.stage { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.orb-wrap { display: flex; justify-content: center; }
+.orb { width: 100%; aspect-ratio: 1; height: auto; }
+#orb-main { width: min(100%, 400px); touch-action: pan-y; }
+
+.caption { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.agent {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.status {
+  min-height: 1.5em;
+  color: var(--ink-2);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.status code, .talk code { font-family: var(--mono); font-size: 0.9em; font-weight: 400; color: var(--ink); }
+.status.is-hidden { visibility: hidden; }
+
+.talk {
+  width: min(100%, 52ch);
+  min-height: 7.6em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  text-align: left;
+}
+.talk.is-hidden { visibility: hidden; }
+.line { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 10px; font-size: 14px; }
+.line .who { color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line .txt { color: var(--ink); overflow-wrap: anywhere; }
+.line.you .txt { color: var(--ink-2); }
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 1px; height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: caret 1s steps(2, start) infinite;
+}
+@keyframes caret { to { visibility: hidden; } }
+.approve { display: flex; gap: 8px; padding-left: calc(4.6em + 10px); }
+
+.sizes {
+  border-top: 1px solid var(--rule);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.size-row { display: flex; align-items: flex-end; gap: clamp(18px, 5vw, 40px); flex-wrap: wrap; }
+.size-row figure { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.size-row figcaption, .mono-note {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.size-row canvas { flex: none; }
+.in-list {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--panel);
+  min-width: 0;
+}
+.in-list .who-name { font-weight: 600; font-size: 14px; line-height: 1.2; }
+.in-list .who-state { font-size: 13px; color: var(--ink-3); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16ch; }
+
+/* ---------- controls ---------- */
+.controls { display: flex; flex-direction: column; min-width: 0; }
+.group {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-block: 16px;
+  border-top: 1px solid var(--rule);
+}
+.group:first-child { border-top: 0; padding-top: 0; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.group-head .value { font-size: 13px; color: var(--ink-2); }
+
+.btn {
+  appearance: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 120ms, border-color 120ms, color 120ms;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.primary { background: var(--accent-wash); border-color: transparent; color: var(--accent); font-weight: 600; padding: 10px 12px; }
+.btn.primary[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.btn:focus-visible, .swatch:focus-visible, .field:focus-visible, .check input:focus-visible, .agent-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.sub { font-size: 13px; color: var(--ink-3); }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch {
+  appearance: none;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: var(--sw);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink); }
+
+.seed-row { display: flex; gap: 6px; }
+.field {
+  flex: 1 1 auto; min-width: 0;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.traits {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 14px;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.traits dt { color: var(--ink-3); }
+.traits dd { margin: 0; color: var(--ink-2); }
+
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+
+/* ---------- agent strips ---------- */
+.agents { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--rule); padding-top: 18px; }
+.agents-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.agents-head p { color: var(--ink-3); font-size: 13.5px; }
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+.agent-card {
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 6px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+.agent-card:hover { border-color: var(--rule); background: var(--panel); }
+.agent-card canvas { width: 88px; height: 88px; max-width: 100%; }
+.agent-card .n { font-weight: 600; font-size: 14px; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-card .c { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); line-height: 1.15; }
+
+.foot { color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 14px; display: flex; flex-direction: column; gap: 4px; }
+.fallback { padding: 16px; border: 1px solid var(--rule); border-radius: 8px; color: var(--ink-2); }
+
+@media (max-width: 860px) {
+  .bench { grid-template-columns: minmax(0, 1fr); }
+  #orb-main { width: min(100%, 320px); }
+}
+@media (max-width: 520px) {
+  .agent-grid { gap: 4px; }
+  #gallery-a { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #gallery-b { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #gallery-a .agent-card { padding-inline: 2px; }
+  #gallery-a .agent-card canvas { width: 72px; height: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caret::after { animation: none; }
+  .btn { transition: none; }
+}
+</style>
+
+<main class="page">
+  <header class="mast">
+    <h1>Agent orb</h1>
+    <p>Each agent gets a little blob grown from its id and its color, eyes included, drawn like a late-90s console mascot. It idles on its own, and its face and body show what the agent is doing.</p>
+  </header>
+
+  <div class="bench">
+    <section class="stage" aria-label="Orb preview">
+      <div class="orb-wrap">
+        <canvas id="orb-main" class="orb" role="img" aria-label="The agent's orb"></canvas>
+      </div>
+      <div class="caption">
+        <h2 class="agent" id="agent-name">Juniper</h2>
+        <p class="status" id="status-line" role="status"></p>
+        <div class="talk" id="talk">
+          <p class="line you" id="line-you" hidden><span class="who">You</span><span class="txt" id="you-text"></span></p>
+          <p class="line bot" id="line-bot" hidden><span class="who" id="bot-who">Juniper</span><span class="txt" id="bot-text"></span></p>
+          <div class="approve" id="approve-row" hidden>
+            <button class="btn" type="button" id="approve-btn">Approve</button>
+            <button class="btn" type="button" id="deny-btn">Deny</button>
+          </div>
+        </div>
+      </div>
+      <div class="sizes">
+        <span class="label">At avatar sizes</span>
+        <div class="size-row">
+          <figure><canvas id="orb-24" width="24" height="24" style="width:24px;height:24px"></canvas><figcaption>24</figcaption></figure>
+          <figure><canvas id="orb-32" width="32" height="32" style="width:32px;height:32px"></canvas><figcaption>32</figcaption></figure>
+          <figure><canvas id="orb-48" width="48" height="48" style="width:48px;height:48px"></canvas><figcaption>48</figcaption></figure>
+          <figure><canvas id="orb-96" width="96" height="96" style="width:96px;height:96px"></canvas><figcaption>96 px</figcaption></figure>
+          <figure>
+            <div class="in-list">
+              <canvas id="orb-list" width="32" height="32" style="width:32px;height:32px"></canvas>
+              <div><div class="who-name" id="list-name">Juniper</div><div class="who-state" id="list-state">Idle</div></div>
+            </div>
+            <figcaption>in a list</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="Controls">
+      <div class="group">
+        <button class="btn primary" type="button" id="autoplay-toggle" aria-pressed="true">Stop the conversation</button>
+        <p class="sub" id="autoplay-note">Playing a sample conversation on a loop.</p>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="label" id="state-label">State</span></div>
+        <div class="grid-3" role="group" aria-labelledby="state-label" id="state-buttons"></div>
+        <span class="sub" id="work-label">Working on</span>
+        <div class="grid-2" role="group" aria-labelledby="work-label" id="work-buttons"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="label" id="first-label">First run</span></div>
+        <div class="grid-2" role="group" aria-labelledby="first-label">
+          <button class="btn" type="button" id="hatch-btn">Hatch from an egg</button>
+          <button class="btn" type="button" id="egg-btn" aria-pressed="false">Show the egg</button>
+        </div>
+        <p class="sub" id="hatch-note" hidden>The egg belongs to the console mascot look.</p>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="label" id="style-label">Look</span></div>
+        <div class="grid-2" role="group" aria-labelledby="style-label" id="style-buttons"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><span class="label" id="color-label">Color</span><span class="value" id="color-name">moss</span></div>
+        <div class="swatches" role="group" aria-labelledby="color-label" id="color-buttons"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-head"><label class="label" for="seed-input">Seed</label><span class="value">agent name or id</span></div>
+        <div class="seed-row">
+          <input class="field" id="seed-input" type="text" value="Juniper" autocomplete="off" spellcheck="false" maxlength="48">
+          <button class="btn" type="button" id="seed-new">New seed</button>
+        </div>
+        <dl class="traits" id="traits"></dl>
+      </div>
+
+      <div class="group">
+        <label class="check" for="opt-pointer"><input type="checkbox" id="opt-pointer" checked>Notice the pointer</label>
+        <label class="check" for="opt-motion"><input type="checkbox" id="opt-motion">Reduce motion</label>
+        <label class="check" for="opt-status"><input type="checkbox" id="opt-status">Hide the status text</label>
+      </div>
+    </section>
+  </div>
+
+  <section class="agents" aria-labelledby="agents-a">
+    <div class="agents-head"><h3 class="label" id="agents-a">Eight agents, idle</h3><p>One per palette color. Pick one to load it above.</p></div>
+    <div class="agent-grid" id="gallery-a"></div>
+  </section>
+
+  <section class="agents" aria-labelledby="agents-b">
+    <div class="agents-head"><h3 class="label" id="agents-b">Same color, different ids</h3><p>The id decides everything except the color.</p></div>
+    <div class="agent-grid" id="gallery-b"></div>
+  </section>
+
+  <div class="foot">
+    <p class="mono-note" id="stats">&nbsp;</p>
+  </div>
+</main>
+

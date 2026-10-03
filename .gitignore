@@ -21,3 +21,6 @@ playwright-report/
 
 # Built from apps/daemon by its build script
 apps/web/src/server/daemon-bundle.generated.ts
+
+# The mascot playground, built from packages/mascot/demo
+packages/mascot/demo/mascot.html

@@ -1,21 +1,70 @@
 import { type AgentSummary, type ChatMessage, randomId } from "@durable-computer/protocol"
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { AgentAvatar } from "@/components/agent-avatar"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import { chatKey, earlierAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
+import { agentKey, agentsKey } from "@/lib/collections"
+import { queryClient } from "@/lib/query"
 import { useLiveChat } from "@/lib/use-live-chat"
+import { useMascotMood } from "@/lib/use-mascot-mood"
 import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
 import { Transcript } from "./transcript.tsx"
 
+/** Record that the agent's owner has seen it out of its egg, so it is shown hatched from now on. */
+async function markHatched(agentId: string): Promise<void> {
+  queryClient.setQueryData(agentKey(agentId), await client.agent(agentId).update({ hatched: true }))
+  await queryClient.invalidateQueries({ queryKey: agentsKey })
+}
+
+/** How long a new agent sits in its egg before it starts to hatch. */
+const EGG_MS = 1_600
+
 function Welcome({ agent }: { agent: AgentSummary }) {
+  // A new agent is met as an egg, which hatches while its owner watches. Once.
+  const [phase, setPhase] = useState<"egg" | "hatching" | "out">(agent.hatched ? "out" : "egg")
+  useEffect(() => {
+    if (phase !== "egg") return
+    const timer = setTimeout(() => setPhase("hatching"), EGG_MS)
+    return () => clearTimeout(timer)
+  }, [phase])
+  const told = useRef(agent.hatched)
+  const hatched = useCallback(() => {
+    setPhase("out")
+    if (told.current) return
+    told.current = true
+    void markHatched(agent.id)
+  }, [agent.id])
+  const face = (
+    <AgentAvatar
+      avatar={agent.avatar}
+      seed={agent.id}
+      className="size-56"
+      hatched={phase === "out"}
+      hatching={phase === "hatching"}
+      onHatched={hatched}
+    />
+  )
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-      <AgentAvatar avatar={agent.avatar} seed={agent.id} className="size-20" />
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center [&>:first-child]:mb-6">
+      {phase === "out" ? (
+        face
+      ) : (
+        <button
+          type="button"
+          aria-label="Skip the hatching"
+          title="Skip"
+          className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+          // Leaving the hatch while it plays jumps to its end.
+          onClick={() => (phase === "hatching" ? setPhase("out") : hatched())}
+        >
+          {face}
+        </button>
+      )}
       <h1 className="text-xl font-medium">{agent.name ?? "Say hello"}</h1>
       <p className="max-w-sm text-sm text-muted-foreground">
         {agent.name
@@ -34,6 +83,13 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const live = useLiveChat(agent.id, chatId)
   const api = client.agent(agent.id)
   const [earlier, setEarlier] = useAtom(earlierAtom(chatKey(agent.id, chatId)))
+
+  useMascotMood(agent.id, chatKey(agent.id, chatId), live.state)
+  // Someone who starts talking before the egg has opened has met their agent all the same.
+  const talked = live.loaded && live.state.messages.length > 0
+  useEffect(() => {
+    if (talked && !agent.hatched) void markHatched(agent.id)
+  }, [talked, agent.hatched, agent.id])
 
   const liveFirst = live.state.messages[0]
   // The live transcript starts somewhere new after a summary or a fresh start. What was loaded
@@ -107,7 +163,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-linear-to-b from-background via-background/80 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background/85 py-1 pr-3.5 pl-1 shadow-sm backdrop-blur">
-          <AgentAvatar avatar={agent.avatar} seed={agent.id} className="size-7" />
+          <AgentFace agent={agent} className="size-7" />
           <span className="text-sm font-medium">{agent.name ?? "New agent"}</span>
           {live.status === "reconnecting" ? (
             <span className="text-xs text-muted-foreground">reconnecting…</span>
@@ -130,6 +186,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         <AgentIdContext value={agent.id}>
           <Transcript
             state={state}
+            face={<AgentFace agent={agent} className="size-9" />}
             empty={live.loaded ? <Welcome agent={agent} /> : null}
             before={
               hasEarlier ? (

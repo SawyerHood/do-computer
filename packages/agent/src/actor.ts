@@ -897,6 +897,8 @@ export class AgentActor implements Actor {
       tagline: identity.tagline,
       createdAt: identity.createdAt,
       model: identity.model,
+      // An agent from before there were eggs has a name, and is not sent back into one.
+      hatched: identity.hatchedAt !== undefined || identity.name !== null,
     }
     return {
       agent,
@@ -953,7 +955,7 @@ export class AgentActor implements Actor {
     const now = this.#host.now()
     let avatar: IdentityState["avatar"] | undefined
     if (input.avatar !== undefined) {
-      const parsed = parseAvatar(input.avatar as { character: string; color: string })
+      const parsed = parseAvatar(input.avatar as { color?: unknown; seed?: unknown })
       if ("error" in parsed) throw new HttpError(400, parsed.error)
       avatar = parsed.avatar
     }
@@ -966,6 +968,8 @@ export class AgentActor implements Actor {
       if (user !== undefined) identity.user = user
       if (memory !== undefined) identity.memory = memory
       if (avatar !== undefined) identity.avatar = avatar
+      // Hatching happens once. There is no putting it back in the egg.
+      if (input.hatched === true) identity.hatchedAt ??= now
       if (timezone !== undefined) identity.timezone = timezone
       if (computer !== undefined) identity.computer = computer
       if (moving) {

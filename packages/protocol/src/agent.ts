@@ -1,10 +1,13 @@
 import type { ChatUsage } from "./chat.ts"
 
-/** A bundled character plus the options the user (or the agent) picked for it. */
+/**
+ * How an agent looks: a small creature whose features are grown from a seed, in a color that
+ * the user or the agent picked.
+ */
 export type Avatar = {
-  character: string
   color: string
-  accessory?: string
+  /** What its features grow from. Absent: the agent's id. */
+  seed?: string
 }
 
 export type AgentIdentity = {
@@ -19,6 +22,8 @@ export type AgentSummary = AgentIdentity & {
   createdAt: number
   /** `provider/model` the agent runs on. */
   model: string
+  /** Whether its owner has watched it hatch. Until then it is shown as an egg. */
+  hatched: boolean
 }
 
 export type ChatKind = "chat" | "schedule"

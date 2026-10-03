@@ -234,24 +234,42 @@ describe("server-sent events", () => {
   })
 })
 
-describe("avatar drawing", () => {
-  it("draws the chosen character, color and accessory", async () => {
-    const { avatarSvg } = await import("../src/index.ts")
-    const svg = avatarSvg({ character: "orbit", color: "tide", accessory: "hat" }, "seed")
+describe("an agent's look", () => {
+  it("is a color it picked and a seed its features grow from", async () => {
+    const { avatarLook, parseAvatar } = await import("../src/index.ts")
+    expect(parseAvatar({ color: "tide" })).toEqual({ avatar: { color: "tide" } })
+    expect(parseAvatar({ color: "tide", seed: "k3" })).toEqual({
+      avatar: { color: "tide", seed: "k3" },
+    })
+    expect(avatarLook({ color: "tide", seed: "k3" }, "agent-1")).toEqual({
+      seed: "k3",
+      color: "#3f7f9c",
+    })
+    // Without a seed of its own it grows from its id, which is random.
+    expect(avatarLook({ color: "tide" }, "agent-1").seed).toBe("agent-1")
+  })
+
+  it("refuses a color that is not bundled, and a seed that is not a short string", async () => {
+    const { parseAvatar } = await import("../src/index.ts")
+    expect(parseAvatar({ color: "neon" })).toEqual({ error: 'Unknown color "neon"' })
+    expect(parseAvatar({ color: "tide", seed: "" })).toHaveProperty("error")
+    expect(parseAvatar({ color: "tide", seed: "x".repeat(65) })).toHaveProperty("error")
+    expect(parseAvatar({ color: "tide", seed: 7 })).toHaveProperty("error")
+  })
+
+  it("gives an agent that has not picked a color one that does not change", async () => {
+    const { avatarLook } = await import("../src/index.ts")
+    expect(avatarLook(null, "agent-1")).toEqual(avatarLook(undefined, "agent-1"))
+    expect(avatarLook(null, "agent-1").color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it("still draws an avatar saved before looks were grown, in its color", async () => {
+    const { avatarLook, avatarSvg } = await import("../src/index.ts")
+    const old = { character: "orbit", color: "tide", accessory: "hat" } as never
+    expect(avatarLook(old, "agent-1")).toEqual({ seed: "agent-1", color: "#3f7f9c" })
+    expect(avatarLook({ color: "gone" }, "agent-1").color).toMatch(/^#[0-9a-f]{6}$/)
+    const svg = avatarSvg(old, "agent-1")
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
     expect(svg).toContain("#3f7f9c")
-    expect(svg).toContain('transform="rotate(-14 32 42)"')
-    expect(svg).toContain('<rect x="24" y="8" width="16" height="11" rx="3"/>')
-  })
-
-  it("gives an agent without one a default that does not change between renders", async () => {
-    const { avatarSvg } = await import("../src/index.ts")
-    expect(avatarSvg(null, "agent-1")).toBe(avatarSvg(undefined, "agent-1"))
-    expect(avatarSvg(null, "agent-1")).not.toBe(avatarSvg(null, "agent-2"))
-  })
-
-  it("falls back to a plain shape for a character it does not know", async () => {
-    const { avatarSvg } = await import("../src/index.ts")
-    expect(avatarSvg({ character: "dragon", color: "nope" }, "s")).toContain("<ellipse")
   })
 })
