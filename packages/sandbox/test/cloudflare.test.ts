@@ -88,8 +88,9 @@ describe("cloudflare containers: the machine's life", () => {
   it("saves an idle machine and stops it, and the next command gets its files back", async () => {
     const { fake, sandbox, advance, storage } = world()
     await sandbox.exec("echo kept > note.txt && mkdir -p deep/dir && echo two > deep/dir/b.txt")
-    // A background process, which a snapshot cannot carry.
-    await sandbox.exec("nohup sleep 300 > /dev/null 2>&1 &")
+    // A background process, which a snapshot cannot carry. Its odd length tells it apart from
+    // anything else on the machine the tests run on.
+    await sandbox.exec("nohup sleep 30917 > /dev/null 2>&1 &")
 
     for (let minute = 0; minute < 10; minute++) await advance(MINUTE)
     expect(fake.state.running).toBe(true)
@@ -98,7 +99,7 @@ describe("cloudflare containers: the machine's life", () => {
     expect(fake.state.destroyed).toEqual(["idle"])
     expect(storage.values.get("snapshotId")).toBe("snap-1")
 
-    const read = await sandbox.exec("cat note.txt deep/dir/b.txt; pgrep -f '[s]leep 300' | wc -l")
+    const read = await sandbox.exec("cat note.txt deep/dir/b.txt; pgrep -f '[s]leep 30917' | wc -l")
     expect(read.output).toBe("kept\ntwo\n0\n")
     expect(fake.state.starts.at(-1)).toEqual({
       containerSnapshot: { id: "snap-1" },
