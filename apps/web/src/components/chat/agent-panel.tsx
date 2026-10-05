@@ -2,7 +2,6 @@ import {
   type AgentSummary,
   type ChatActivity,
   type ChatRun,
-  chatActivity,
   chatRuns,
   type ChatState,
   type RunSummary,
@@ -29,7 +28,7 @@ import { cn } from "@/lib/utils"
 /** How many of the latest pieces of work are listed. */
 const SHOWN = 30
 
-/** What its creature is doing, in a word or two, when the chat has no fuller line for it. */
+/** What it is doing, in a few words. The transcript's own line has the particulars. */
 function moodWords(mood: MascotMood, hatched: boolean): string {
   if (!hatched) return "About to hatch"
   switch (mood.state) {
@@ -38,7 +37,13 @@ function moodWords(mood: MascotMood, hatched: boolean): string {
     case "thinking":
       return "Thinking"
     case "working":
-      return "Working"
+      return mood.variant === "file"
+        ? "Working with files"
+        : mood.variant === "search"
+          ? "Looking something up"
+          : mood.variant === "memory"
+            ? "Making a note"
+            : "Running a command"
     case "speaking":
       return "Answering"
     case "waiting":
@@ -89,30 +94,31 @@ function Work({ run, summary }: { run: ChatRun; summary: RunSummary }) {
   return (
     <li>
       <details className="group rounded-xl open:bg-surface">
-        <summary className="flex cursor-default list-none items-start gap-2.5 rounded-xl px-2.5 py-2.5 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+        {/* Only the title, so the list can be taken in at a glance. The rest is inside. */}
+        <summary className="flex cursor-default list-none items-center gap-2.5 rounded-xl px-2.5 py-2 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
           {run.status === "working" ? (
-            <CircleNotchIcon className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" />
+            <CircleNotchIcon className="size-4 shrink-0 animate-spin text-muted-foreground" />
           ) : run.status === "failed" ? (
-            <WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <WarningCircleIcon className="size-4 shrink-0 text-destructive" />
           ) : (
-            <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <CheckCircleIcon className="size-4 shrink-0 text-muted-foreground" />
           )}
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium break-words">{summary.title}</span>
-            <span className="block text-sm break-words text-muted-foreground">
-              {summary.outcome}
-            </span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              {run.at === undefined ? "" : `${clock.format(run.at)} · `}
-              {run.steps.length} {run.steps.length === 1 ? "step" : "steps"}
-            </span>
+          <span className="min-w-0 flex-1 truncate text-sm group-open:font-medium group-open:whitespace-normal">
+            {summary.title}
           </span>
         </summary>
-        <ol aria-label="Steps" className="flex flex-col px-2.5 pb-2.5">
-          {run.steps.map((part) => (
-            <Step key={part.toolCallId} part={part} />
-          ))}
-        </ol>
+        <div className="flex flex-col gap-1.5 px-2.5 pb-2.5 pl-9">
+          <p className="text-sm break-words text-muted-foreground">{summary.outcome}</p>
+          <p className="text-xs text-muted-foreground">
+            {run.at === undefined ? "" : `${clock.format(run.at)} · `}
+            {run.steps.length} {run.steps.length === 1 ? "step" : "steps"}
+          </p>
+          <ol aria-label="Steps" className="-ml-2 flex flex-col">
+            {run.steps.map((part) => (
+              <Step key={part.toolCallId} part={part} />
+            ))}
+          </ol>
+        </div>
       </details>
     </li>
   )
@@ -171,9 +177,7 @@ export function AgentPanel({
         {face}
         <h2 className="mt-3 text-lg font-medium">{name}</h2>
         {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
-        <p className="text-sm text-muted-foreground">
-          {chatActivity(state) ?? moodWords(mood, agent.hatched)}
-        </p>
+        <p className="text-sm text-muted-foreground">{moodWords(mood, agent.hatched)}</p>
         {agent.tagline ? (
           <p className="mt-1 text-xs text-muted-foreground">{agent.tagline}</p>
         ) : null}

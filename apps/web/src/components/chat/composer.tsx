@@ -17,6 +17,18 @@ import { cn } from "@/lib/utils"
 const MAX_HEIGHT_PX = 200
 
 /**
+ * A pasted picture arrives named "image.png" every time. It is given the moment it was pasted,
+ * so that several of them can be told apart in the library and by the agent.
+ */
+function pasted(file: File): File {
+  if (!/^image\.[a-z0-9]+$/i.test(file.name)) return file
+  const stamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-").replace("T", "_")
+  return new File([file], `pasted-${stamp}${file.name.slice(file.name.lastIndexOf("."))}`, {
+    type: file.type,
+  })
+}
+
+/**
  * The message box. Enter sends, Shift+Enter adds a line. While the agent is working, sending
  * steers the run and the stop button aborts it.
  */
@@ -53,7 +65,7 @@ export function Composer({
     setAttachError(undefined)
   }, [draftKey])
 
-  const attach = async (files: FileList | null) => {
+  const attach = async (files: Iterable<File> | null) => {
     setAttachError(undefined)
     for (const file of files ?? []) {
       setUploading((count) => count + 1)
@@ -184,6 +196,14 @@ export function Composer({
           aria-label="Message"
           className="max-h-[200px] flex-1 resize-none self-center bg-transparent py-1.5 text-[0.9375rem] outline-none placeholder:text-muted-foreground"
           onChange={(event) => setDraft(event.target.value)}
+          onPaste={(event) => {
+            // A picture or a file on the clipboard is attached, as if it had been chosen. Text
+            // that came with it is still pasted as text.
+            const files = [...event.clipboardData.files]
+            if (files.length === 0) return
+            if (!event.clipboardData.types.includes("text/plain")) event.preventDefault()
+            void attach(files.map(pasted))
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()

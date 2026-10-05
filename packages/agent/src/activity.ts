@@ -59,7 +59,7 @@ export const ActivityDoc = defineDocFamily<ActivityState, null>({
 const INSTRUCTIONS = `You write one entry in a short list of things an AI agent did for its user. You are given what the user asked, the steps the agent took with its tools, and what it said back. Reply with JSON only, in this shape: {"title": "...", "outcome": "..."}
 
 title: two to six words naming the task, the way a to-do item would: "Set up SSH key access", "Find flights to Lisbon". No period at the end and no quotation marks.
-outcome: one plain sentence of at most sixteen words on what came of it, in the past tense: what was found, made or changed, or why it did not work. If the work is still going, say what has been done so far and what is being done now. Do not begin with "The agent" or "I".`
+outcome: one plain sentence of at most ten words on what came of it, in the past tense: what was found, made or changed, or why it did not work. If the work is still going, say what is being done now. Do not begin with "The agent" or "I".`
 
 const clip = (text: string, limit: number) =>
   text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text

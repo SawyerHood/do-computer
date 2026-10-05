@@ -180,19 +180,21 @@ test("the agent uses its computer: one line says what it is doing, and only its 
     "data-mood",
     /idle|done/,
   )
-  // It is one entry for what was asked, saying what came of it and how many steps it took.
-  const work = panel.getByRole("listitem").filter({ hasText: "1 step" })
-  await expect(work).toHaveCount(1)
-  await expect(work).toContainText('/tool bash {"command":"sleep 1; echo from the shell')
-  await expect(work).toContainText("The tool returned")
-  // The step is inside, and what it returned is inside that.
+  // It is one entry for what was asked: a few words, so the list can be taken in at a glance.
+  const work = panel.getByRole("listitem").filter({ hasText: "/tool bash" }).first()
+  await expect(work).toContainText('/tool bash {"command":"sleep 1; echo from…')
+  // What came of it and its steps are inside, and what a step returned is inside that.
   const step = work.getByText("Ran: sleep 1; echo from the shell", { exact: false })
+  await expect(work.getByText("The tool returned")).toBeHidden()
   await expect(step).toBeHidden()
-  await work.getByText("The tool returned").click()
-  await expect(step).toBeVisible()
+  await work.getByText("/tool bash").click()
+  await expect(work.getByText("The tool returned")).toBeVisible()
+  await expect(work.getByText("1 step")).toBeVisible()
   await expect(work.getByText("MEMORY.md")).toBeHidden()
   await step.click()
   await expect(work.getByText("MEMORY.md")).toBeVisible()
+  // Beside its name it says what it is doing in a word or two, not the whole command.
+  await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
   // Put away, the header is back.
   await panel.getByRole("button", { name: "Hide this panel" }).click()
   await expect(panel).toHaveCount(0)
@@ -348,6 +350,51 @@ test("a file attached to a message is one the agent can open", async ({ page }) 
   await page.getByRole("button", { name: "Library", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
   await expect(page.getByText("shopping.txt", { exact: true })).toBeVisible()
+})
+
+test("a picture pasted into the message box is attached, under a name of its own", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("Look at this: ")
+  const paste = (name: string, text?: string) =>
+    page.evaluate(
+      ([name, text]) => {
+        const png = Uint8Array.from(
+          atob(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+          ),
+          (character) => character.charCodeAt(0),
+        )
+        const data = new DataTransfer()
+        data.items.add(new File([png], name!, { type: "image/png" }))
+        if (text) data.setData("text/plain", text)
+        document
+          .querySelector('textarea[aria-label="Message"]')!
+          .dispatchEvent(
+            new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+          )
+      },
+      [name, text] as const,
+    )
+  // A screenshot on the clipboard is called image.png every time, so it is named for the moment.
+  await paste("image.png")
+  const attached = page.getByRole("list", { name: "Attached files" })
+  await expect(attached.getByText(/^pasted-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.png$/)).toBeVisible()
+  // A copied file keeps its own name. What was typed is left as it was.
+  await paste("receipt.png")
+  await expect(attached.getByText("receipt.png")).toBeVisible()
+  await expect(composer(page)).toHaveValue("Look at this: ")
+
+  await composer(page).press("Enter")
+  await expect(
+    page
+      .getByRole("log")
+      .getByText(/Attached: pasted-[\d_-]+\.png, receipt\.png/)
+      .first(),
+  ).toBeVisible()
+  await expect(attached).toHaveCount(0)
 })
 
 test("dictation without a model key says what is missing", async ({ browser, baseURL }) => {

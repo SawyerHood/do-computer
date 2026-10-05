@@ -72,6 +72,16 @@ const clip = (text: string, limit: number) => {
   return line.length > limit ? `${line.slice(0, limit - 1).trimEnd()}…` : line
 }
 
+/** How many words a title made from what was asked may run to. */
+const TITLE_WORDS = 6
+
+/** The first few words of what was asked, as a title. */
+function headline(asked: string): string {
+  const words = asked.trim().split("\n")[0]!.trim().split(/\s+/).filter(Boolean)
+  const kept = words.slice(0, TITLE_WORDS).join(" ")
+  return clip(words.length > TITLE_WORDS ? `${kept}…` : kept, 56)
+}
+
 /** The first sentence of some prose, without its Markdown marks. */
 function opening(text: string): string {
   const plain = text.replaceAll(/[*_`#>]+/g, "").trim()
@@ -91,5 +101,5 @@ export function runSummary(run: ChatRun): RunSummary {
   else if (run.status === "failed") outcome = `Did not finish, after ${steps}.`
   else if (run.status === "stopped") outcome = `Stopped after ${steps}.`
   else outcome = run.answer === "" ? `Done in ${steps}.` : opening(run.answer)
-  return { title: clip(run.asked, 56) || "A piece of work", outcome }
+  return { title: headline(run.asked) || "A piece of work", outcome }
 }

@@ -105,7 +105,7 @@ describe("runSummary", () => {
 
   it("is titled by what was asked, cut to a line, and says how the answer opens", () => {
     expect(runSummary(run({}))).toEqual({
-      title: "Find out why the build is failing and fix it, then tell…",
+      title: "Find out why the build is…",
       outcome: "Fixed.",
     })
     expect(runSummary(run({ answer: "" })).outcome).toBe("Done in 2 steps.")
