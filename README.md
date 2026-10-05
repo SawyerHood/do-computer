@@ -153,6 +153,9 @@ is why sign-up is by invitation unless you open it.
   personality, a profile of you and its own notes. They are capped, visible and editable under
   Identity and memory, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
   workspace.
+- **Look at pictures.** A picture attached or pasted into the message box is shown to the agent
+  along with your words, if its model takes pictures; the box says so when it does not. The
+  browser scales a copy down for that, and the original goes to the library as a file.
 - **Show its work, briefly.** Beside a chat, on a wide screen, each thing you asked for is one
   entry: a short title and a sentence on what came of it, with the commands, files and searches
   behind it inside for whoever wants them. A small model writes these in the background when a

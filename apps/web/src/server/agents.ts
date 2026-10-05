@@ -55,6 +55,8 @@ const INTERNAL = ["init", "destroy", "computers"]
 /** The largest body forwarded to an agent: a library upload, and everything else. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024
 const MAX_BODY_BYTES = 1024 * 1024
+/** A message can carry a few scaled-down pictures with its words. */
+const MAX_MESSAGE_BYTES = 3 * 1024 * 1024
 
 export async function listAgents(user: SessionUser): Promise<Response> {
   const rows = await getPlatform().db.all<AgentRow>(
@@ -116,7 +118,12 @@ export async function proxyToAgent(
   let body: ArrayBuffer | undefined
   if (request.method !== "GET" && request.method !== "HEAD") {
     // Every user's requests share this process's memory, so a body is read only up to a limit.
-    const limit = path === "library" ? MAX_UPLOAD_BYTES : MAX_BODY_BYTES
+    const limit =
+      path === "library"
+        ? MAX_UPLOAD_BYTES
+        : /^chats\/[^/]+\/messages$/.test(path)
+          ? MAX_MESSAGE_BYTES
+          : MAX_BODY_BYTES
     if (declaredTooLarge(request.headers, limit)) return fail(413, "That is too large to send.")
     try {
       body = (await readLimited(request.body, limit)).slice().buffer

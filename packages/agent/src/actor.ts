@@ -13,6 +13,10 @@ import {
   type CreateChatRequest,
   diffChat,
   encodeSse,
+  MAX_MESSAGE_IMAGE_CHARS,
+  MAX_MESSAGE_IMAGES,
+  MESSAGE_IMAGE_TYPES,
+  type MessageImage,
   type ModelOption,
   parseAvatar,
   type SendMessageRequest,
@@ -1124,11 +1128,14 @@ export class AgentActor implements Actor {
     const identity = await this.#identity(harness)
     const zone = timezone ?? identity.timezone
     const meta = `<meta sent_at="${formatTime(this.#host.now(), zone)}"/>`
+    // Pictures go to the model with the words, where the agent's model can take them.
+    const images = this.#images(input.images, identity.model)
     const submission = await conversation.submit(
       {
         type: "input",
         content: [
           { type: "text", text: input.text },
+          ...images.map((image) => ({ type: "image" as const, ...image })),
           { type: "text", text: meta },
         ],
         requestId: input.requestId,
@@ -1149,6 +1156,37 @@ export class AgentActor implements Actor {
       }
     }, context)
     return json({ submissionId: String(submission.id) }, 202)
+  }
+
+  /**
+   * The pictures of a message that can be shown to the model: none if the agent's model does not
+   * take pictures. What is sent must be a few small pictures of a kind a model reads.
+   */
+  #images(sent: unknown, model: string): MessageImage[] {
+    if (sent === undefined) return []
+    if (!Array.isArray(sent) || sent.length > MAX_MESSAGE_IMAGES) {
+      throw new HttpError(400, `A message can carry up to ${MAX_MESSAGE_IMAGES} pictures`)
+    }
+    let total = 0
+    const images = sent.map((image: Partial<MessageImage> | null): MessageImage => {
+      const { mimeType, data } = image ?? {}
+      if (
+        typeof mimeType !== "string" ||
+        !(MESSAGE_IMAGE_TYPES as readonly string[]).includes(mimeType) ||
+        typeof data !== "string" ||
+        data === "" ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(data)
+      ) {
+        throw new HttpError(400, "A picture must be a PNG, JPEG, WebP or GIF, as base64")
+      }
+      total += data.length
+      return { mimeType, data }
+    })
+    if (total > MAX_MESSAGE_IMAGE_CHARS) {
+      throw new HttpError(413, "Those pictures are too large to send with a message")
+    }
+    const sees = this.#options.modelOptions.find((option) => option.id === model)?.images === true
+    return sees ? images : []
   }
 
   /** Tell the host when a run ends with an answer and no client is following the chat. */

@@ -1,4 +1,10 @@
-import type { LibraryFile, QueuedInput } from "@durable-computer/protocol"
+import {
+  type LibraryFile,
+  MAX_MESSAGE_IMAGES,
+  type MessageImage,
+  type QueuedInput,
+  randomId,
+} from "@durable-computer/protocol"
 import {
   ArrowUpIcon,
   CircleNotchIcon,
@@ -11,10 +17,20 @@ import { useAtom } from "jotai"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { draftAtom } from "@/lib/atoms"
+import { pictureFor } from "@/lib/pictures"
 import { useDictation } from "@/lib/use-dictation"
 import { cn } from "@/lib/utils"
 
 const MAX_HEIGHT_PX = 200
+
+/** Something attached to a message: a file in the library, a picture for the agent to look at, or both. */
+type Attachment = {
+  id: string
+  name: string
+  /** Whether it is in the library, and so can be named to the agent as a file. */
+  stored: boolean
+  image?: MessageImage
+}
 
 /**
  * A pasted picture arrives named "image.png" every time. It is given the moment it was pasted,
@@ -41,13 +57,18 @@ export function Composer({
   error,
   onStop,
   onAttach,
+  sees,
+  agentName,
 }: {
   draftKey: string
   placeholder: string
   busy: boolean
   queued: QueuedInput[]
   /** Resolves false when the message did not go, so it stays in the box. */
-  onSend: (text: string) => Promise<boolean>
+  onSend: (text: string, images: MessageImage[]) => Promise<boolean>
+  /** Whether the agent's model can look at pictures. If not, they only reach it as files. */
+  sees: boolean
+  agentName: string
   /** Why the last message was not sent, if it was not. */
   error?: string
   onStop: () => void
@@ -57,7 +78,7 @@ export function Composer({
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
-  const [attached, setAttached] = useState<LibraryFile[]>([])
+  const [attached, setAttached] = useState<Attachment[]>([])
   const [uploading, setUploading] = useState(0)
   const [attachError, setAttachError] = useState<string>()
   useEffect(() => {
@@ -69,16 +90,30 @@ export function Composer({
     setAttachError(undefined)
     for (const file of files ?? []) {
       setUploading((count) => count + 1)
-      try {
-        const stored = await onAttach(file)
-        setAttached((current) => [...current, stored])
-      } catch (error) {
-        setAttachError(
-          `${file.name} could not be attached: ${error instanceof Error ? error.message : "upload failed"}`,
-        )
-      } finally {
-        setUploading((count) => count - 1)
+      // A picture is made ready for the agent to look at while the file itself goes to the
+      // library. Either is enough to attach it: a picture that could not be saved is still seen.
+      const [picture, stored] = await Promise.allSettled([pictureFor(file), onAttach(file)])
+      const image = picture.status === "fulfilled" ? picture.value : undefined
+      if (stored.status === "fulfilled" || image !== undefined) {
+        setAttached((current) => [
+          ...current,
+          {
+            id: stored.status === "fulfilled" ? stored.value.id : randomId(),
+            name: stored.status === "fulfilled" ? stored.value.name : file.name,
+            stored: stored.status === "fulfilled",
+            image,
+          },
+        ])
       }
+      if (stored.status === "rejected") {
+        const why = stored.reason instanceof Error ? stored.reason.message : "upload failed"
+        setAttachError(
+          image === undefined
+            ? `${file.name} could not be attached: ${why}`
+            : `${file.name} could not be saved to the library (${why}). It is still attached as a picture.`,
+        )
+      }
+      setUploading((count) => count - 1)
     }
     input.current?.focus()
   }
@@ -103,14 +138,23 @@ export function Composer({
   const send = () => {
     if (!ready) return
     // The files are in the library; naming them is how the agent knows to look there.
-    const names = attached.map((file) => file.name).join(", ")
+    const names = attached
+      .filter((file) => file.stored)
+      .map((file) => file.name)
+      .join(", ")
+    const images = sees
+      ? attached.flatMap((file) => (file.image ? [file.image] : [])).slice(0, MAX_MESSAGE_IMAGES)
+      : []
     const typed = draft
     const files = attached
     // Cleared at once, as a sent message should be, and put back if it turns out not to have gone.
     setDraft("")
     setAttached([])
     void onSend(
-      [typed.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n"),
+      [typed.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n") ||
+        // A picture alone, which could not be saved as a file, still needs words to go with.
+        "Look at this.",
+      images,
     ).then((sent) => {
       if (sent) return
       setDraft((current) => (current === "" ? typed : current))
@@ -156,6 +200,12 @@ export function Composer({
           {uploading > 0 ? (
             <li className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
               <CircleNotchIcon className="size-3 animate-spin" /> Attaching…
+            </li>
+          ) : null}
+          {!sees && attached.some((file) => file.image !== undefined) ? (
+            <li role="note" className="basis-full px-1 text-xs text-muted-foreground">
+              {agentName}’s model cannot look at pictures, so it gets these as files. Pick a model
+              that can on its page.
             </li>
           ) : null}
         </ul>

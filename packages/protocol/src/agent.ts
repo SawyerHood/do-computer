@@ -174,8 +174,26 @@ export type UpdateScheduleRequest = {
   enabled?: boolean
 }
 
+/** A picture sent with a message for the agent to look at, as base64. */
+export type MessageImage = { mimeType: string; data: string }
+
+/** The kinds of picture a model can be shown. */
+export const MESSAGE_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const
+/** How many pictures a message can carry. */
+export const MAX_MESSAGE_IMAGES = 4
+/**
+ * How large they can be together, in base64 characters. A message is one row of the agent's
+ * store, and a row has a size limit on some runtimes, so a client scales pictures down to fit.
+ */
+export const MAX_MESSAGE_IMAGE_CHARS = 1_400_000
+
 export type SendMessageRequest = {
   text: string
+  /**
+   * Pictures for the agent to look at, already scaled down. An agent whose model cannot take
+   * pictures is sent the message without them.
+   */
+  images?: MessageImage[]
   /** Client-chosen id; resending the same one never submits twice. */
   requestId: string
   /** What to do when the agent is already working. Default `steer`. */

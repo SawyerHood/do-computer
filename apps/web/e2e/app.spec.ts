@@ -386,6 +386,8 @@ test("a picture pasted into the message box is attached, under a name of its own
   await paste("receipt.png")
   await expect(attached.getByText("receipt.png")).toBeVisible()
   await expect(composer(page)).toHaveValue("Look at this: ")
+  // The built-in echo model cannot look at pictures, and the box says what that means.
+  await expect(attached.getByRole("note")).toContainText("cannot look at pictures")
 
   await composer(page).press("Enter")
   await expect(

@@ -1,4 +1,10 @@
-import { type AgentSummary, type ChatMessage, randomId } from "@durable-computer/protocol"
+import {
+  type AgentSummary,
+  type ChatMessage,
+  type MessageImage,
+  randomId,
+} from "@durable-computer/protocol"
+import { useQuery } from "@tanstack/react-query"
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
@@ -7,7 +13,7 @@ import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import { chatKey, earlierAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
-import { agentKey, agentsKey } from "@/lib/collections"
+import { agentKey, agentsKey, modelsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useLiveChat } from "@/lib/use-live-chat"
@@ -152,6 +158,12 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const [earlier, setEarlier] = useAtom(earlierAtom(chatKey(agent.id, chatId)))
 
   useMascotMood(agent.id, chatKey(agent.id, chatId), live.state)
+  // What the agent's model can take decides whether a picture is sent for it to look at.
+  const { data: models } = useQuery({
+    queryKey: modelsKey,
+    queryFn: () => client.models(),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
   const hatch = useHatch(agent)
   const [panel, setPanel] = usePanel()
   const wide = useWide()
@@ -201,11 +213,12 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const [sendError, setSendError] = useState<string>()
   useEffect(() => setSendError(undefined), [chatId])
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, images: MessageImage[] = []) => {
       setSendError(undefined)
       try {
         await api.send(chatId, {
           text,
+          ...(images.length > 0 ? { images } : {}),
           requestId: randomId(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         })
@@ -332,6 +345,8 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           onSend={send}
           error={sendError}
           onStop={stop}
+          sees={models?.find((model) => model.id === agent.model)?.images === true}
+          agentName={name}
           onAttach={attach}
         />
       </div>
