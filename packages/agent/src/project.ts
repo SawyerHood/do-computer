@@ -45,6 +45,40 @@ function contentText(content: UserContent | (TextContent | ImageContent)[]): str
     .join("")
 }
 
+/**
+ * The tool an agent tells its user how the work is going with. A call to it is something the
+ * agent said, so it is shown as words of its own and not as a step it took.
+ */
+export const PROGRESS_TOOL = "progress"
+
+/** What a call to the progress tool says. Empty while its words are still on their way. */
+function progressText(block: { name: string; arguments?: unknown }): string | undefined {
+  if (block.name !== PROGRESS_TOOL) return undefined
+  const message = (block.arguments as { message?: unknown } | undefined)?.message
+  return typeof message === "string" ? message : ""
+}
+
+const plain = (text: string) => text.replace(/\s+/g, " ").trim()
+
+/**
+ * Adds what a progress call says. Some models write the same words as text in the same reply;
+ * said twice, they are shown once, in whichever form says more.
+ */
+function addSaid(parts: MessagePart[], text: string): void {
+  const said = plain(text)
+  if (said === "") return
+  for (const part of parts) {
+    if (part.type !== "text") continue
+    const written = plain(part.text)
+    if (written.includes(said)) return
+    if (said.includes(written)) {
+      part.text = text
+      return
+    }
+  }
+  parts.push({ type: "text", text })
+}
+
 function assistantParts(message: AssistantMessage): MessagePart[] {
   const parts: MessagePart[] = []
   for (const block of message.content) {
@@ -55,6 +89,8 @@ function assistantParts(message: AssistantMessage): MessagePart[] {
       if (!block.redacted && block.thinking !== "") {
         parts.push({ type: "thinking", text: block.thinking })
       }
+    } else if (progressText(block) !== undefined) {
+      addSaid(parts, progressText(block)!)
     } else {
       parts.push({
         type: "tool",
@@ -193,8 +229,14 @@ export function entryText(
     case "pi.assistant": {
       if (first?.role !== "assistant") return undefined
       const text = first.content
-        .filter((block): block is TextContent => block.type === "text")
-        .map((block) => block.text)
+        .flatMap((block) =>
+          block.type === "text"
+            ? [block.text]
+            : block.type === "toolCall"
+              ? [progressText(block) ?? ""]
+              : [],
+        )
+        .filter((said) => said !== "")
         .join("\n")
       return { role: "assistant", text, at: first.timestamp }
     }

@@ -233,6 +233,69 @@ describe("an agent that stops on a progress update", () => {
   })
 })
 
+describe("an agent that says how the work is going with the progress tool", () => {
+  it("is heard in the chat and carries on, with nothing judging it", async () => {
+    // No small model at all: the tool alone keeps the turn going.
+    const world = open(temporary(), false)
+    const chat = await setup(world)
+    let told = ""
+    world.faux.setResponses([
+      step("echo a > a.txt"),
+      fauxAssistantMessage(
+        [fauxToolCall("progress", { message: "a.txt is done, making b.txt next." })],
+        { stopReason: "toolUse" },
+      ),
+      (context) => {
+        told = JSON.stringify(context.messages.at(-1))
+        // A word and a step in one reply.
+        return fauxAssistantMessage(
+          [
+            fauxToolCall("progress", { message: "Writing b.txt now." }),
+            fauxToolCall("bash", { command: "echo b > b.txt" }),
+          ],
+          { stopReason: "toolUse" },
+        )
+      },
+      fauxAssistantMessage("Both files are made."),
+    ])
+    const state = await converse(world, chat.id, "Make a.txt and b.txt, one at a time.")
+
+    // What it said is among its words, not among its steps.
+    const expected = [
+      ["user", "Make a.txt and b.txt, one at a time."],
+      ["assistant", "tool"],
+      ["assistant", "a.txt is done, making b.txt next."],
+      ["assistant", "Writing b.txt now. + tool"],
+      ["assistant", "Both files are made."],
+    ]
+    expect(shape(state)).toEqual(expected)
+    expect(told).toContain("Shown to them")
+    // It reads the same to someone who opens the chat afterwards.
+    expect(shape(await call<ChatState>(world, `/chats/${chat.id}`))).toEqual(expected)
+    expect(world.reports).toEqual([])
+  })
+
+  it("is heard once when it also writes the same words in that reply", async () => {
+    const world = open(temporary(), false)
+    const chat = await setup(world)
+    world.faux.setResponses([
+      fauxAssistantMessage(
+        [
+          { type: "text", text: "a.txt is done." },
+          fauxToolCall("progress", { message: "a.txt is done. Pausing before b.txt." }),
+        ],
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage("All made."),
+    ])
+    const state = await converse(world, chat.id, "Make a.txt and b.txt.")
+    expect(shape(state).slice(1)).toEqual([
+      ["assistant", "a.txt is done. Pausing before b.txt."],
+      ["assistant", "All made."],
+    ])
+  })
+})
+
 describe("which final messages are worth asking about", () => {
   it("asks about a short message after some work, or one that says what comes next", () => {
     expect(mightBeMidway("b.txt done, waiting 3s then making c.txt next.", 2)).toBe(true)

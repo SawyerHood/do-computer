@@ -164,11 +164,16 @@ Since then, newest last:
     message, so a model that takes pictures sees it. The original goes to the library as before.
 12. **Keeping an agent going** (`packages/agent/src/keep-going.ts`). A turn ends when the model
     replies without calling a tool, and some models (Muse Spark, in the owner's chat) send a
-    progress update that way mid-task, which ended the work. The prompt now says how turns end.
-    When a run still ends on a short message that could be such an update, a small model is
+    progress update that way mid-task, which ended the work. The owner asked for progress to be
+    a tool call, so there is a `progress` tool: a call to it cannot end the turn, and
+    `project.ts` shows it in the chat as the agent's words, not as a step. The prompt says how
+    turns end and points at the tool. Nothing makes a model use it, so there is a backstop:
+    when a run still ends on a short message that could be such an update, a small model is
     asked whether the agent meant to go on, and if so the run is continued with a note the chat
     does not show, three times in a row at most. `openai/gpt-4.1-nano` was tried for this and
     was wrong too often, including on "I'll check with you first"; Mistral Small was not.
+    pi-durable has no such tool: continuing from `onYield`, as its `28-reviewer.ts` example
+    does, is the way it offers.
 
 ## 6. What the owner has said they want
 

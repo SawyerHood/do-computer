@@ -158,10 +158,11 @@ is why sign-up is by invitation unless you open it.
   along with your words, if its model takes pictures; the box says so when it does not. The
   browser scales a copy down for that, and the original goes to the library as a file.
 - **Keep going.** An agent's turn ends when it replies without using a tool, and some models
-  send a progress update that way in the middle of a task, which would end the work there. The
-  agent is told how turns end, and when a run still ends on what could be such an update, a
-  small model is asked whether the agent meant to go on. If so, it is set going again, a few
-  times in a row at most. A question to you is never treated that way.
+  send a progress update that way in the middle of a task, which would end the work there. So
+  the agent has a `progress` tool to say such things with: you read them in the chat as its
+  words, and it carries on. When a run still ends on what could be such an update, a small
+  model is asked whether the agent meant to go on. If so, it is set going again, a few times in
+  a row at most. A question to you is never treated that way.
 - **Show its work, briefly.** Beside a chat, on a wide screen, each thing you asked for is one
   entry: a short title and a sentence on what came of it, with the commands, files and searches
   behind it inside for whoever wants them. A small model writes these in the background when a

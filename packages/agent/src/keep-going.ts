@@ -5,8 +5,16 @@ import {
   type ToolPart,
 } from "@durable-computer/protocol"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
-import { defineExtension, type Extension, GenerationTask, hook } from "@earendil-works/pi-durable"
+import {
+  defineExtension,
+  defineTool,
+  type Extension,
+  GenerationTask,
+  hook,
+} from "@earendil-works/pi-durable"
+import { Type } from "@earendil-works/pi-ai"
 import type { SummaryOptions } from "./activity.ts"
+import { PROGRESS_TOOL } from "./project.ts"
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 /** How many times in a row a run is set going again. After that, it stops where the agent stops. */
@@ -21,7 +29,22 @@ const INTENT =
   /\b(i['’]ll|i will|let me|going to|about to|next|now|then|working on|on it|one moment|one sec|hold on|give me|starting|continuing|carrying on|waiting|checking|looking|searching|making|writing|running|creating|setting up)\b/i
 
 /** What a run is told when it is set going again. Not shown in the chat. */
-const NUDGE = `<meta kind="continue">Your turn ended there, because you replied without calling a tool, and your last message says there is more to do. Carry on now from where you left off. To tell the user something while you work, say it in the same reply as your next tool call. Reply on its own only when the work is finished or you need something from them.</meta>`
+const NUDGE = `<meta kind="continue">Your turn ended there, because you replied without calling a tool, and your last message says there is more to do. Carry on now from where you left off. To tell the user something while you work, use the ${PROGRESS_TOOL} tool. Reply on its own only when the work is finished or you need something from them.</meta>`
+
+/**
+ * How an agent says something while it works. A reply would end its turn; a call to this does
+ * not. The chat shows what it says as the agent's own words.
+ */
+const progress = defineTool({
+  name: PROGRESS_TOOL,
+  description: `Tell the person how the work is going, without ending your turn: what you just finished, what you found, or what you are about to do. They see the message in the chat right away, and you carry on. Use it whenever there is more to do after what you have to say. You can call it in the same reply as other tools. Put the words in the message only: do not also write them as text in that reply. It is not for your final answer, for a question, or for anything you need them to answer: reply normally for those.`,
+  parameters: Type.Object({
+    message: Type.String({ description: "What to tell them, in a sentence or two" }),
+  }),
+  execute: async () => ({
+    content: [{ type: "text" as const, text: "Shown to them. Carry on with the work." }],
+  }),
+})
 
 const INSTRUCTIONS = `You check whether an AI agent stopped in the middle of its work. An agent's turn ends when it sends a message without calling a tool. You are given what the user asked, the steps the agent has taken so far, and the message it just sent, after which it stopped.
 
@@ -63,7 +86,8 @@ export type KeepGoingOptions = {
  * calling a tool. Some models send a progress update that way, in the middle of a task ("b is
  * done, making c next"), and the work ends there with nobody having decided it should.
  *
- * When a run ends on a short message that could be such an update, a small model is asked
+ * The agent is given a tool to say such things with, which does not end its turn. Nothing makes
+ * a model use it, though. So when a run ends on a short message that could be such an update, a small model is asked
  * whether the agent meant to go on. If so, the run is continued with a note to the agent, which
  * is not shown in the chat. It happens a few times in a row at most, so an agent that keeps
  * announcing and never acting does stop.
@@ -78,6 +102,7 @@ export class KeepGoing {
     this.#options = options
     this.extension = defineExtension({
       name: "dc.keep-going",
+      tools: [progress],
       hooks: [
         hook(GenerationTask, {
           onYield: async (answer, api, context) => {
