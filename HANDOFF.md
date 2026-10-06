@@ -1,0 +1,270 @@
+# Handoff
+
+Written 2026-10-06 for whoever picks this project up next. It covers what exists, how it is run
+and shipped, what the owner has asked for and decided, what is unfinished, and what has and has
+not been checked. `README.md` describes the product for someone hosting it; `PLAN.md` is the
+original plan with a status section. Where they disagree with this file, this file is newer.
+
+This file is specific to the owner's own deployment and working habits. Trim or remove it before
+the repository is made public.
+
+## 1. What this is
+
+durable computer is an open-source, self-hostable personal agent: a version of Meta's Muse built
+on the pi-durable harness, with OpenRouter for models. Each user has persistent agents with a
+name, a personality, memory, a computer of their own, scheduled automations, skills, connectors
+(remote MCP servers) and the user's own paired computers. It runs on Cloudflare Workers (one
+Durable Object per agent) and on plain Node, from the same code. There is a web app (TanStack
+Start, shadcn, jotai, TanStack DB and Query, Better Auth) and an Expo mobile app.
+
+The owner is Sawyer. The repository is private: `SawyerHood/durable-computer`.
+
+## 2. Where it runs
+
+- **Live:** https://do.computer, the Cloudflare Worker `durable-computer`, on the owner's
+  Cloudflare account. It replaced an older app ("do-computer", from the `do-browser` repository),
+  which was torn down on 2026-10-03.
+- **Signing in:** GitHub sign-in is on, and so is email and password. The deployment is
+  invite-only; the owner has the first account.
+- **New agents** get a Daytona machine by default there (`DC_SANDBOX=daytona`). The built-in
+  shell and "no computer" are also offered, per agent.
+- **Models:** agents run on any OpenRouter model, chosen per agent with a default in Settings.
+  Web search results are read by `anthropic/claude-haiku-4.5` (`DC_SEARCH_MODEL`). Summaries of
+  what an agent did are written by `openai/gpt-4.1-nano` (`DC_SUMMARY_MODEL`).
+
+## 3. How work is shipped
+
+The owner's standing instructions, in their words:
+
+- "please go ahead and be commiting and pushing to main and using gh to deploy from now on"
+- "I give you permission from here out to commit and push to main because we have no production
+  users"
+
+So: commit to `main` and push. `.github/workflows/ci.yml` runs type checks, unit tests and
+browser tests, then its `deploy` job deploys to do.computer. Watch it with
+`gh run watch <id> --exit-status`. A run takes about eight minutes. If production users appear,
+that permission's reason is gone: ask again. It never covered force pushes or rewriting history.
+
+Nothing specific to the do.computer deployment is written into tracked files. The owner said of
+deploying: "I don't want to make changes to this project". The deployment's values are:
+
+- **GitHub repository variables:** `DC_D1_DATABASE_ID`, `DC_ROUTE`, `DC_ROUTE_ZONE`,
+  `DC_BASE_URL`, `DC_SANDBOX`. Others the workflow passes through if set: `DC_CUSTOM_DOMAIN`,
+  `DC_SIGNUP`, `DC_ALLOWED_EMAILS`, `DC_DEFAULT_MODEL`, `DC_SEARCH_MODEL`, `DC_SUMMARY_MODEL`,
+  `DC_SANDBOX_KINDS`.
+- **GitHub repository secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+- **Worker secrets** (kept by Cloudflare across deploys): `DC_AUTH_SECRET`, `OPENROUTER_API_KEY`,
+  `DAYTONA_API_KEY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`.
+
+`apps/web/scripts/deploy-settings.mjs` applies those values to the built config before
+`wrangler deploy` uploads it; `pnpm --filter @durable-computer/web run deploy` is what CI runs.
+On the owner's Linux machine there is also `~/.config/durable-computer/deploy-do-computer.sh`,
+outside the repository, which does the same from that machine. Wrangler is signed in there.
+
+The address is a zone route (`do.computer/*`), not a custom domain, because the apex already has
+a proxied DNS record.
+
+## 4. Working on it
+
+```sh
+pnpm install
+pnpm check                      # type checks, every package
+pnpm test                       # unit and integration tests, on Node and in the Workers runtime
+pnpm test:e2e                   # builds, then browser tests of the web app and the mobile web build
+pnpm dev                        # Node target on http://localhost:3000
+pnpm dev:cloudflare             # the same on the local Workers runtime
+scripts/smoke.sh <base-url>     # end-to-end check of a running deployment (fresh, open sign-up)
+pnpm --filter @durable-computer/mascot demo    # the creature's playground page
+```
+
+Without `OPENROUTER_API_KEY` the app answers with a built-in echo model. A message of the form
+`/tool <name> <json>` makes it call a tool, which is how the tests exercise tools without a model.
+
+Layout, briefly (`README.md` has the full table):
+
+| Path                 | What                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `packages/protocol`  | Types and pure functions shared by server and clients                                |
+| `packages/runtime`   | The actor host over Durable Objects and Node; the address guard for outgoing fetches |
+| `packages/sandbox`   | Agent computers: just-bash, Daytona, Modal, Cloudflare Containers                    |
+| `packages/agent`     | The agent actor and everything it can do                                             |
+| `packages/computers` | The link to a user's paired computer                                                 |
+| `packages/mascot`    | The creature: one plain JavaScript file, typings, and a playground                   |
+| `packages/client`    | The HTTP and event-stream client used by web and mobile                              |
+| `apps/web`           | The web app and the gateway in front of the agents                                   |
+| `apps/mobile`        | The Expo app                                                                         |
+| `apps/daemon`        | The daemon a user runs to pair a computer                                            |
+| `prototypes/`        | Design explorations that are not part of the app                                     |
+
+The code has a consistent voice: comments explain why in plain sentences, tests are named as
+statements of behaviour, and commit messages say what changed and why. Keep to it.
+
+### On the owner's Linux machine
+
+These are facts about that one machine (`bee`), where most of this was built:
+
+- Browser tests use an already-downloaded Chromium:
+  `PLAYWRIGHT_CHROMIUM_PATH=$HOME/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome pnpm exec playwright test`
+  from `apps/web`, after `pnpm build:node` and
+  `pnpm --filter @durable-computer/mobile export:web:test`.
+- For a headless browser to draw the creature, launch Chromium with
+  `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist`.
+- The local Workers runtime needs port 3112, because `apps/web/.dev.vars` sets the base URL to
+  it, and `DC_SIGNUP=open` added to that file to sign up. Restore the file afterwards.
+- There is no Docker, so Cloudflare Containers cannot run locally.
+- Keys for real-service tests are in another project's file,
+  `~/projects/do-browser/apps/do-computer/.env` (OpenRouter, Daytona, and others). The owner
+  allowed their use for testing this project and for the do.computer deployment. Pass them to a
+  child process without printing them, never write them into this repository, and delete any
+  Daytona machines a test creates. That Cloudflare account holds other projects too: touch only
+  `durable-computer` resources.
+- The project is registered in the owner's `bb` tool as `proj_qbksnufyhz`. `bb` is not on the
+  PATH there; it runs as `node ~/projects/bb/packages/bb-app/dist/bb.js`.
+
+## 5. What was built, in order
+
+The first milestone (2026-10-01 and 02) built the product described in `README.md`: the two
+runtimes, the agent, memory and identity, chats with streaming, schedules, skills, the library,
+paired computers, connectors with OAuth, approvals, history search, usage, agent deletion, the
+four kinds of computer, web search, a bundled browsing skill, the mobile app, and a security
+review with its fixes. `PLAN.md` section 0 records that, including what was run for real.
+
+Since then, newest last:
+
+1. **Chat fixes.** Chat works over plain http. The transcript rests at the newest message. Tool
+   calls are not shown in the transcript: one status line says what the agent is doing.
+2. **Any OpenRouter model**, per agent, from a searchable picker, with a default in Settings.
+3. **Internet on agents' computers**, including `curl` in the built-in shell through a guarded
+   fetch that refuses private addresses.
+4. **The kind of computer is chosen per agent**, with a default in Settings, among the kinds the
+   server's environment has keys for. Moving an agent does not copy files; each computer keeps
+   its own, and the agent is told it was moved. Deleting an agent deletes every computer it had.
+5. **Teal accent** with cool neutrals, replacing a brown one the owner disliked.
+6. **Deploy from the environment and from GitHub Actions** (section 3).
+7. **The creature** (`packages/mascot`). Every agent appears as a small low-poly creature with
+   eyes, grown from a seed, drawn with three.js in a late-90s console style. It acts out what
+   the agent is doing and hatches from an egg the first time its owner meets it. An avatar is
+   now a color and an optional seed; the agent picks only its color. On web it is
+   `apps/web/src/components/agent-avatar.tsx`, driven by `apps/web/src/lib/use-mascot-mood.ts`.
+   On mobile it is `apps/mobile/src/components/avatar.tsx`, through `expo-gl`.
+8. **The layout the owner asked for, after Muse.** On a wide screen (1280 px and up) a panel on
+   the right of the chat holds the creature, the agent's name, a few words on what it is doing,
+   and what it did in this chat. The chat list starts closed behind a "Chats" button. The header
+   above the chat exists only when the panel is closed, and pressing it reopens the panel. Only
+   one copy of the creature is ever animated; elsewhere it is a still picture.
+9. **The daemon starts with only the server's address.** It used to ignore the address unless
+   `--name` was also given, so the install command the app shows did nothing.
+10. **Summaries of what the agent did** (`packages/agent/src/activity.ts`). One entry for each
+    thing asked: a short title, with the outcome, time and steps inside. A small model writes
+    them in the background when a run ends, every three steps during a long one, and when a chat
+    is opened whose runs have none. Without a model key they are worked out from the run
+    (`packages/protocol/src/runs.ts`). Their cost is counted in the agent's usage.
+11. **Pictures.** A picture pasted or attached is scaled down in the browser and sent with the
+    message, so a model that takes pictures sees it. The original goes to the library as before.
+
+## 6. What the owner has said they want
+
+Design, in their words where quoted:
+
+- The creature: "Really kinda love the ps1 / dreamcast aesthetic", "It is like your little blob
+  mascot", "I would love for the orbs to have eyes and for those to have expressions". They want
+  it big on desktop.
+- "should be only one animated copy of him on screen at a time", and never one beside the
+  status line in the transcript.
+- The side panel must be terse: "This should be maybe < 7 words for each one", "Maybe only show
+  the titles for the activity log".
+- "I also like keeping the chats hidden by default."
+- No brown. Teal is the accent now.
+- Muse is the reference for layout and for a living character.
+
+Cost: they found Claude Haiku too expensive for the summaries, which is why those have their own
+cheaper model. Web search still uses Haiku; they were told and have not asked to change it.
+
+## 7. Open questions and unfinished work
+
+### Waiting on the owner
+
+- **The console-mascot UI.** `prototypes/console-ui` is a click-through exploration of the whole
+  UI in that style, with a ranked list of ideas in its README. The owner has looked at it and has
+  not said which to build. Ask before building any of it.
+- **Old leftovers from the app this replaced**, which they were told about and have not asked to
+  have removed: about a dozen Daytona machines named `do-computer-*` (one was running), a
+  Telegram webhook pointing at an address that no longer exists, an R2 access token used for
+  backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
+  database and files that was taken before they were deleted. The old daemon is gone from that machine.
+- **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
+  dashboard; the API token at hand cannot edit zone rules.
+- **Two credentials were pasted into a chat transcript**: the GitHub OAuth app's client secret
+  and the Cloudflare API token used by CI. The owner was told they can be rotated. If they are,
+  the Worker secret and the repository secret need setting again.
+
+### Bugs that were reported and not reproduced
+
+- **Attaching a file failed with "could not be attached: HTTPError"** on do.computer, once, on
+  2026-10-05. That text is the server framework's message for an unhandled exception in the
+  request. Uploads then succeeded everywhere it was tried: the local Workers runtime, a
+  temporary copy of the app on the same Cloudflare account set up like the live one, by curl and
+  by browser, from 20 KB to 24 MB, idle and mid-run; and the owner's own next upload on the live
+  site succeeded. The cause is unknown. If it recurs, follow the live logs while they retry,
+  which will show the exception: `wrangler tail durable-computer --format json`. Since then, a
+  picture whose upload fails is still attached and shown to the agent.
+- **A chat failed with OpenRouter's `model_not_found` from provider "Meta"**, once, the same
+  day. Every Meta-served model in the picker then worked through the app, including with tools,
+  web search and pictures. Probably a failure on Meta's or OpenRouter's side. Which model the
+  agent was on is not known. The raw provider error is what the user saw; a friendlier message
+  and a retry would be an improvement.
+
+### Known gaps
+
+- **Mobile** has no model picker, computer picker, connectors, permissions or file attaching, and
+  no agent panel. Its creature is checked only through the app's web build.
+- **Never run for real:** the mobile app on a device, Modal, Cloudflare Containers, sign-in with
+  Google, and a connector that needs a sign-in against a real service. Sign-in with GitHub is
+  configured on the live site; nobody has reported how it went.
+- **Not built:** usage limits, a rate limit on pairing codes, a reason and retry for provider
+  errors.
+- **The creature** was only ever seen through software rendering and screenshots by whoever
+  built it. Its author's own list of rough edges: at 24 px the command and file variants are
+  hard to tell apart; flat-shaded bodies can show a large white highlight; the error state greys
+  the eye whites; the alternative "glass" look is less finished and unused by the app.
+- **An activity entry shows a tick** when the agent answered, even if a step inside it failed.
+- **Thinking and full tool output** are not in the transcript by design. Tool output is in the
+  panel's entries, on wide screens only; thinking is not shown anywhere.
+- **`PLAN.md` section 0** stops at 2026-10-03 and does not mention the creature, the panel, the
+  summaries or pictures. This file does.
+
+## 8. What has been checked, and how
+
+- Unit and integration tests pass on Node and inside the Workers runtime, and browser tests pass
+  for the web app and the mobile web build. CI was green on the last commit before this file.
+- **Run against real services:** OpenRouter chat with tools, web search, transcription and
+  schedules; Daytona machines, including moving an agent to one and back and deleting it; a
+  public MCP server as a connector; the bundled browsing skill; the summaries, against real
+  models; a vision model describing an attached picture; deploys to Cloudflare from this
+  machine and from GitHub Actions.
+- **On the live site**, without the owner's session, only this could be checked: it answers, its
+  pages and assets load, the GitHub sign-in button leads to GitHub with the right callback, and
+  the daemon downloaded from it starts pairing. The owner has since paired a computer, pasted
+  pictures and chatted on it.
+- Everything visual was judged from screenshots taken in headless Chromium.
+
+## 9. Things that were learned the hard way
+
+- **A Durable Object's SQLite row has a size limit** (about 2 MB) that Node's does not. A message
+  is one row. That is why pictures are scaled down in the browser to fit a message, and why
+  anything large belongs in blob storage, not in a document.
+- **The harness cannot be closed and reopened on the same database on Node**, because closing it
+  closes the database. A change that seems to need a reopen (such as switching an agent's
+  computer) has to swap extensions in the registry while it stays open. Installing an extension
+  under a name that is taken replaces it where it stands, which keeps hook order.
+- **Tests must not count things machine-wide.** One counted every `sleep 300` process on the
+  host and failed when something unrelated ran one.
+- **Tests that always pass an option hide the default path.** The daemon bug in section 5 lived
+  because every test passed `--name`.
+- **Small models that reason spend a short token allowance on thinking and return nothing.**
+  Three of the cheapest candidates for the summaries failed that way.
+- **Real services find what stand-ins do not.** Each time the app was first run against a real
+  provider it turned up bugs the tests had missed. Treat the first run of anything on Modal,
+  Cloudflare Containers or a phone as a trial.
+- **A fresh deployment belongs to whoever signs up first.** The first account needs no
+  invitation, so on a public address, sign up at once.

@@ -24,3 +24,6 @@ apps/web/src/server/daemon-bundle.generated.ts
 
 # The mascot playground, built from packages/mascot/demo
 packages/mascot/demo/mascot.html
+
+# The console-mascot UI prototype, built from prototypes/console-ui/src
+prototypes/console-ui/index.html
