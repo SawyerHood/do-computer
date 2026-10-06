@@ -45,6 +45,8 @@ type ActivityState = {
   runs: Record<string, Written>
   /** What writing them has cost, which the agent's own usage does not include. */
   spent: ChatUsage
+  /** What asking whether the agent meant to stop has cost in this chat. Another model's work. */
+  judged?: ChatUsage
 }
 
 /** The summaries of one chat's runs, keyed by chat. */
@@ -195,9 +197,26 @@ export class Activity {
     })().catch((error) => this.#options.onError(error))
   }
 
-  /** What writing a chat's summaries has cost. */
-  async spent(chatId: string, context: Context): Promise<ChatUsage | undefined> {
-    return (await this.#harness?.snapshot(ActivityDoc, chatId, context))?.spent
+  /** Count what it cost to ask, in a chat, whether the agent meant to stop. */
+  async charge(chatId: string, spent: ChatUsage, context: Context): Promise<void> {
+    await this.#harness?.commit(async (tx) => {
+      const doc = await tx.doc(ActivityDoc, chatId, null)
+      // Assigned whole: a document keeps a copy of what it is given, not the object itself.
+      doc.judged = {
+        inputTokens: (doc.judged?.inputTokens ?? 0) + spent.inputTokens,
+        outputTokens: (doc.judged?.outputTokens ?? 0) + spent.outputTokens,
+        cost: (doc.judged?.cost ?? 0) + spent.cost,
+      }
+    }, context)
+  }
+
+  /** What the small models' work for a chat has cost: its summaries, and its judgments. */
+  async spent(
+    chatId: string,
+    context: Context,
+  ): Promise<{ summaries: ChatUsage; judged: ChatUsage | undefined } | undefined> {
+    const doc = await this.#harness?.snapshot(ActivityDoc, chatId, context)
+    return doc === undefined ? undefined : { summaries: doc.spent, judged: doc.judged }
   }
 
   async #write(chatId: string, state: ChatState): Promise<void> {

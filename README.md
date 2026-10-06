@@ -62,24 +62,25 @@ runs the tests and nothing else.
 
 ## Configuration
 
-| Variable                                   | Meaning                                                                                                                                   |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                              |
-| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.          |
-| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                      |
-| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                          |
-| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` can sign up.      |
-| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                               |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                               |
-| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                         |
-| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                       |
-| `DC_SUMMARY_MODEL`                         | OpenRouter model that sums up what the agent did, after every run. Default `openai/gpt-4.1-nano`: it only needs to be cheap and reliable. |
-| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).            |
-| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                             |
-| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                 |
-| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                |
-| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                |
+| Variable                                   | Meaning                                                                                                                                       |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                                  |
+| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.              |
+| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                          |
+| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                              |
+| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` can sign up.          |
+| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                    |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                                   |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                                   |
+| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                             |
+| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                           |
+| `DC_SUMMARY_MODEL`                         | OpenRouter model that sums up what the agent did, after every run. Default `openai/gpt-4.1-nano`: it only needs to be cheap and reliable.     |
+| `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`. |
+| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                |
+| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                                 |
+| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                     |
+| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                    |
+| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                    |
 
 ## Computers
 
@@ -156,6 +157,11 @@ is why sign-up is by invitation unless you open it.
 - **Look at pictures.** A picture attached or pasted into the message box is shown to the agent
   along with your words, if its model takes pictures; the box says so when it does not. The
   browser scales a copy down for that, and the original goes to the library as a file.
+- **Keep going.** An agent's turn ends when it replies without using a tool, and some models
+  send a progress update that way in the middle of a task, which would end the work there. The
+  agent is told how turns end, and when a run still ends on what could be such an update, a
+  small model is asked whether the agent meant to go on. If so, it is set going again, a few
+  times in a row at most. A question to you is never treated that way.
 - **Show its work, briefly.** Beside a chat, on a wide screen, each thing you asked for is one
   entry: a short title and a sentence on what came of it, with the commands, files and searches
   behind it inside for whoever wants them. A small model writes these in the background when a

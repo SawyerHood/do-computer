@@ -13,6 +13,8 @@ export type Config = {
   readonly searchModel: string | undefined
   /** OpenRouter model id that sums up what an agent did. Default: a small, cheap one. */
   readonly summaryModel: string | undefined
+  /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
+  readonly judgeModel: string | undefined
   readonly googleClientId: string | undefined
   readonly googleClientSecret: string | undefined
   readonly githubClientId: string | undefined
@@ -100,6 +102,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     defaultModel: optional("DC_DEFAULT_MODEL"),
     searchModel: optional("DC_SEARCH_MODEL"),
     summaryModel: optional("DC_SUMMARY_MODEL"),
+    judgeModel: optional("DC_JUDGE_MODEL"),
     googleClientId: optional("GOOGLE_CLIENT_ID"),
     googleClientSecret: optional("GOOGLE_CLIENT_SECRET"),
     githubClientId: optional("GITHUB_CLIENT_ID"),

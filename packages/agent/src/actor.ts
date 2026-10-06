@@ -4,6 +4,7 @@ import {
   type AgentSummary,
   type AgentUsage,
   type ApprovalDecision,
+  type ChatState,
   type ChatSummary,
   BodyTooLarge,
   type ChatUsage,
@@ -56,6 +57,7 @@ import { Computer, COMPUTER_EXTENSION, WithoutComputer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
+import { KeepGoing } from "./keep-going.ts"
 import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
@@ -115,6 +117,11 @@ export type AgentActorOptions = {
    * background. Absent: none are written, and clients show what they can work out themselves.
    */
   readonly summaries?: SummaryOptions
+  /**
+   * Has a small model judge, when a run ends on what could be a progress update, whether the
+   * agent meant to go on, and sets it going again if so. Absent: a run ends where the agent stops.
+   */
+  readonly judge?: SummaryOptions
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -266,6 +273,7 @@ export class AgentActor implements Actor {
   readonly #skills: Skills
   readonly #approvals: Approvals
   readonly #activity: Activity
+  readonly #keepGoing: KeepGoing
   /** Told, with the chat's id, when the summaries of what was done in a chat changed. */
   readonly #activityListeners = new Set<(chatId: string) => void>()
   #harness: Promise<Harness> | undefined
@@ -314,20 +322,19 @@ export class AgentActor implements Actor {
       summaries: options.summaries,
       now: () => host.now(),
       context,
-      chat: async (chatId) => {
-        const harness = await this.#harness
-        const conversation = await harness?.conversation(Number(chatId) as ConversationId, context)
-        if (conversation === undefined) return undefined
-        const view = await conversation.viewState(context)
-        try {
-          return projectChat(view.value)
-        } finally {
-          view.dispose()
-        }
-      },
+      chat: (chatId) => this.#chatState(chatId),
       onChanged: (chatId) => {
         for (const listener of this.#activityListeners) listener(chatId)
       },
+      onError: (error) => options.onReport?.(error),
+    })
+    this.#keepGoing = new KeepGoing({
+      judge: options.judge,
+      chat: (chatId) => this.#chatState(chatId),
+      onSpent: (chatId, spent) =>
+        void this.#activity
+          .charge(chatId, spent, context)
+          .catch((error) => options.onReport?.(error)),
       onError: (error) => options.onReport?.(error),
     })
     this.#scheduler = new Scheduler({
@@ -341,6 +348,19 @@ export class AgentActor implements Actor {
         }),
       onError: (error) => options.onReport?.(error),
     })
+  }
+
+  /** A chat as a client would see it, or undefined if there is no such chat or nothing is open. */
+  async #chatState(chatId: string): Promise<ChatState | undefined> {
+    const harness = await this.#harness
+    const conversation = await harness?.conversation(Number(chatId) as ConversationId, context)
+    if (conversation === undefined) return undefined
+    const view = await conversation.viewState(context)
+    try {
+      return projectChat(view.value)
+    } finally {
+      view.dispose()
+    }
   }
 
   #offers(kind: string): boolean {
@@ -420,6 +440,7 @@ export class AgentActor implements Actor {
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
       registry.install(this.#activity.extension)
+      registry.install(this.#keepGoing.extension)
       if (this.#options.webSearch !== undefined) {
         registry.install(webSearchExtension(this.#options.webSearch))
       }
@@ -922,18 +943,24 @@ export class AgentActor implements Actor {
       // A tool that calls a model of its own reports what that cost, without naming the model.
       for (const spent of Object.values(ledger.tools)) count(spent as Usage)
     }
-    // What the summaries of its work cost is its cost too, though it made none of those calls.
-    const summarizer = this.#options.summaries
-    if (summarizer !== undefined) {
-      const key = `openrouter/${summarizer.model}`
-      for (const chatId of Object.keys(chats)) {
-        const spent = await this.#activity.spent(chatId, context)
-        if (spent === undefined || spent.inputTokens + spent.outputTokens === 0) continue
+    // What the small models did for it is its cost too, though it made none of those calls.
+    const small: [string | undefined, "summaries" | "judged"][] = [
+      [this.#options.summaries?.model, "summaries"],
+      [this.#options.judge?.model, "judged"],
+    ]
+    for (const chatId of Object.keys(chats)) {
+      const spent = await this.#activity.spent(chatId, context)
+      if (spent === undefined) continue
+      for (const [model, kind] of small) {
+        const used = spent[kind]
+        if (model === undefined || used === undefined) continue
+        if (used.inputTokens + used.outputTokens === 0) continue
+        const key = `openrouter/${model}`
         if (!models.has(key)) models.set(key, zero())
         for (const total of [usage.total, models.get(key)!]) {
-          total.inputTokens += spent.inputTokens
-          total.outputTokens += spent.outputTokens
-          total.cost += spent.cost
+          total.inputTokens += used.inputTokens
+          total.outputTokens += used.outputTokens
+          total.cost += used.cost
         }
       }
     }

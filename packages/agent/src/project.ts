@@ -105,13 +105,10 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
   switch (entry.kind) {
     case "pi.user": {
       if (first?.role !== "user") return undefined
-      return {
-        id,
-        role: "user",
-        parts: contentParts(first.content),
-        status: "done",
-        createdAt: first.timestamp,
-      }
+      const parts = contentParts(first.content)
+      // A note to the model alone, such as being set going again, is not something anyone said.
+      if (parts.length === 0) return undefined
+      return { id, role: "user", parts, status: "done", createdAt: first.timestamp }
     }
     case "pi.assistant": {
       if (first?.role !== "assistant") return undefined

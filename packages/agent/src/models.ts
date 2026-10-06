@@ -37,6 +37,15 @@ const DEFAULT_SEARCH_MODEL = "anthropic/claude-haiku-4.5"
  */
 export const DEFAULT_SUMMARY_MODEL = "openai/gpt-4.1-nano"
 
+/**
+ * The model that is asked whether an agent meant to stop. It reads one message against what was
+ * asked and answers with a word, but a wrong "carry on" would push an agent past a question it
+ * had put to its user, so it has to judge well. Tried on 2026-10-06 on twelve endings: this one
+ * was right on all of them, four times over, at the summary model's price; the summary model
+ * itself got a third of them wrong.
+ */
+export const DEFAULT_JUDGE_MODEL = "mistralai/mistral-small-3.2-24b-instruct"
+
 export type AgentModels = {
   readonly models: Models
   /** `provider/modelId` used when an agent has not chosen one. */
@@ -48,6 +57,8 @@ export type AgentModels = {
   readonly webSearch?: WebSearchOptions
   /** What summing up the agent's work needs. Absent without a model key. */
   readonly summaries?: SummaryOptions
+  /** What judging whether an agent meant to stop needs. Absent without a model key. */
+  readonly judge?: SummaryOptions
 }
 
 export type AgentModelsConfig = {
@@ -59,6 +70,8 @@ export type AgentModelsConfig = {
   readonly searchModel?: string
   /** OpenRouter model id that sums up what the agent did. Default: a smaller, cheaper one. */
   readonly summaryModel?: string
+  /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
+  readonly judgeModel?: string
 }
 
 /** `provider/modelId` to a pi-durable model reference. The provider is the first path segment. */
@@ -203,5 +216,6 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     },
     // Asked for by its OpenRouter id, so it need not be a model an agent could run on.
     summaries: { apiKey: key, model: config.summaryModel ?? DEFAULT_SUMMARY_MODEL },
+    judge: { apiKey: key, model: config.judgeModel ?? DEFAULT_JUDGE_MODEL },
   }
 }

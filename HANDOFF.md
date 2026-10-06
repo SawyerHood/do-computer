@@ -30,7 +30,8 @@ The owner is Sawyer. The repository is private: `SawyerHood/durable-computer`.
   shell and "no computer" are also offered, per agent.
 - **Models:** agents run on any OpenRouter model, chosen per agent with a default in Settings.
   Web search results are read by `anthropic/claude-haiku-4.5` (`DC_SEARCH_MODEL`). Summaries of
-  what an agent did are written by `openai/gpt-4.1-nano` (`DC_SUMMARY_MODEL`).
+  what an agent did are written by `openai/gpt-4.1-nano` (`DC_SUMMARY_MODEL`). Whether an agent
+  stopped by accident is judged by `mistralai/mistral-small-3.2-24b-instruct` (`DC_JUDGE_MODEL`).
 
 ## 3. How work is shipped
 
@@ -51,7 +52,7 @@ deploying: "I don't want to make changes to this project". The deployment's valu
 - **GitHub repository variables:** `DC_D1_DATABASE_ID`, `DC_ROUTE`, `DC_ROUTE_ZONE`,
   `DC_BASE_URL`, `DC_SANDBOX`. Others the workflow passes through if set: `DC_CUSTOM_DOMAIN`,
   `DC_SIGNUP`, `DC_ALLOWED_EMAILS`, `DC_DEFAULT_MODEL`, `DC_SEARCH_MODEL`, `DC_SUMMARY_MODEL`,
-  `DC_SANDBOX_KINDS`.
+  `DC_JUDGE_MODEL`, `DC_SANDBOX_KINDS`.
 - **GitHub repository secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - **Worker secrets** (kept by Cloudflare across deploys): `DC_AUTH_SECRET`, `OPENROUTER_API_KEY`,
   `DAYTONA_API_KEY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`.
@@ -161,6 +162,13 @@ Since then, newest last:
     (`packages/protocol/src/runs.ts`). Their cost is counted in the agent's usage.
 11. **Pictures.** A picture pasted or attached is scaled down in the browser and sent with the
     message, so a model that takes pictures sees it. The original goes to the library as before.
+12. **Keeping an agent going** (`packages/agent/src/keep-going.ts`). A turn ends when the model
+    replies without calling a tool, and some models (Muse Spark, in the owner's chat) send a
+    progress update that way mid-task, which ended the work. The prompt now says how turns end.
+    When a run still ends on a short message that could be such an update, a small model is
+    asked whether the agent meant to go on, and if so the run is continued with a note the chat
+    does not show, three times in a row at most. `openai/gpt-4.1-nano` was tried for this and
+    was wrong too often, including on "I'll check with you first"; Mistral Small was not.
 
 ## 6. What the owner has said they want
 

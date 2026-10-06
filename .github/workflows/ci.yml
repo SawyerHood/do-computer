@@ -59,5 +59,6 @@ jobs:
           DC_DEFAULT_MODEL: ${{ vars.DC_DEFAULT_MODEL }}
           DC_SEARCH_MODEL: ${{ vars.DC_SEARCH_MODEL }}
           DC_SUMMARY_MODEL: ${{ vars.DC_SUMMARY_MODEL }}
+          DC_JUDGE_MODEL: ${{ vars.DC_JUDGE_MODEL }}
           DC_SANDBOX: ${{ vars.DC_SANDBOX }}
           DC_SANDBOX_KINDS: ${{ vars.DC_SANDBOX_KINDS }}

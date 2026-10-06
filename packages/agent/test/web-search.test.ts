@@ -252,5 +252,12 @@ describe("model configuration", () => {
     })
     expect(set.summaries?.model).toBe("vendor/tiny")
     expect(set.webSearch?.model).toBe("vendor/reader")
+    // Judging whether an agent meant to stop is a third small job, with a model picked for it.
+    expect(createAgentModels({ openrouterApiKey: "sk-or-x" }).judge?.model).toBe(
+      "mistralai/mistral-small-3.2-24b-instruct",
+    )
+    expect(
+      createAgentModels({ openrouterApiKey: "sk-or-x", judgeModel: "vendor/judge" }).judge?.model,
+    ).toBe("vendor/judge")
   })
 })
