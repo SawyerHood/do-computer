@@ -41,9 +41,12 @@
 
 /*
  * A cool neutral ramp: every surface is the canvas with some ink mixed in, so light and dark stay
- * in step. The one accent is teal, used for the user's own messages and primary actions.
+ * in step. The one accent is used for the user's own messages and primary actions. It takes its
+ * hue from --agent-color, which is teal until an agent is open and that agent's color after: only
+ * the hue and how vivid it is are taken, so the accent is as readable for a pale agent as a dark one.
  */
 :root {
+  --agent-color: oklch(0.5 0.08 195);
   --canvas: oklch(0.985 0.003 212);
   --ink: oklch(0.27 0.008 212);
   --background: var(--canvas);
@@ -52,8 +55,8 @@
   --card-foreground: var(--ink);
   --popover: var(--canvas);
   --popover-foreground: var(--ink);
-  --primary: oklch(0.5 0.08 195);
-  --primary-foreground: oklch(0.985 0.01 195);
+  --primary: oklch(from var(--agent-color) 0.5 c h);
+  --primary-foreground: oklch(from var(--agent-color) 0.985 0.01 h);
   --secondary: color-mix(in oklch, var(--ink) 7%, var(--canvas));
   --secondary-foreground: var(--ink);
   --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
@@ -66,15 +69,15 @@
   --ring: var(--primary);
   --rail: color-mix(in oklch, var(--ink) 3%, var(--canvas));
   --surface: color-mix(in oklch, var(--ink) 4%, var(--canvas));
-  --radius: 0.75rem;
+  --radius: 0.5rem;
 }
 
 .dark {
   --canvas: oklch(0.19 0.004 212);
   --ink: oklch(0.9 0.006 212);
   --popover: color-mix(in oklch, var(--ink) 5%, var(--canvas));
-  --primary: oklch(0.52 0.08 195);
-  --primary-foreground: oklch(0.97 0.012 195);
+  --primary: oklch(from var(--agent-color) 0.52 c h);
+  --primary-foreground: oklch(from var(--agent-color) 0.97 0.012 h);
   --secondary: color-mix(in oklch, var(--ink) 9%, var(--canvas));
   --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
   --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
@@ -196,7 +199,7 @@
     @apply mr-2 translate-y-px accent-primary;
   }
   .prose-doc a {
-    @apply text-primary underline underline-offset-3 dark:text-[oklch(0.78_0.09_195)];
+    @apply text-primary underline underline-offset-3 dark:text-[oklch(from_var(--agent-color)_0.78_c_h)];
   }
   .prose-doc blockquote {
     @apply border-l-2 border-border pl-4 text-muted-foreground;

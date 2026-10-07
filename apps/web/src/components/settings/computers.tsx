@@ -36,7 +36,7 @@ function ComputerCard({ computer, here }: { computer: ComputerSummary; here: boo
         </div>
         <span
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+            "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium",
             computer.online
               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
               : "bg-muted text-muted-foreground",

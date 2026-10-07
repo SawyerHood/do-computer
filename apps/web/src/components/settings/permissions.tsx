@@ -37,7 +37,7 @@ function SubjectRow({
       <div
         role="radiogroup"
         aria-labelledby={`subject-${subject.id}`}
-        className="flex rounded-full border p-0.5"
+        className="flex rounded-lg border p-0.5"
       >
         {CHOICES.map((choice) => (
           <button
@@ -47,7 +47,7 @@ function SubjectRow({
             aria-checked={rule === choice.rule}
             onClick={() => onChange(choice.rule)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
+              "rounded-md px-3 py-1 text-xs text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
               rule === choice.rule && "bg-accent font-medium text-foreground",
             )}
           >

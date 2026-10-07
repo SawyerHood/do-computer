@@ -199,7 +199,7 @@ export function AgentPanel({
             title={startFresh.title}
             disabled={startFresh.disabled}
             onClick={startFresh.run}
-            className="mt-2 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40"
+            className="mt-2 flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40"
           >
             <ArrowsClockwiseIcon className="size-3.5" /> Start fresh
           </button>

@@ -40,7 +40,7 @@ export function SettingsDialog<Id extends string>({
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent className="flex h-dvh max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(42rem,calc(100dvh-3rem))] sm:max-w-4xl sm:flex-row sm:rounded-3xl">
+      <DialogContent className="flex h-dvh max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(42rem,calc(100dvh-3rem))] sm:max-w-4xl sm:flex-row sm:rounded-2xl">
         <nav
           aria-label={kind}
           className="flex shrink-0 flex-col gap-0.5 border-b bg-rail/50 p-2.5 sm:w-56 sm:border-r sm:border-b-0"

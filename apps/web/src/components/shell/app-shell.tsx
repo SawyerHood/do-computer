@@ -1,5 +1,6 @@
 import {
   type AgentSummary,
+  avatarLook,
   personalWorkspaceId,
   type WorkspaceSummary,
 } from "@durable-computer/protocol"
@@ -120,6 +121,10 @@ export function AppShell({
 
   return (
     <div className="flex h-dvh min-h-0">
+      {/* The accent follows the open agent. Set on the root, so windows and menus have it too. */}
+      {agent === undefined ? null : (
+        <style>{`:root{--agent-color:${avatarLook(agent.avatar, agent.id).color}}`}</style>
+      )}
       {sidebarOpen ? (
         <aside className="hidden w-72 shrink-0 border-r bg-rail/60 md:block">
           <Sidebar

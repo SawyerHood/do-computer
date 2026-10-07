@@ -55,7 +55,7 @@ export function WhoInput({
       {who.map((entry) => (
         <span
           key={entry}
-          className="flex h-7 items-center gap-1.5 rounded-full bg-accent pr-1 pl-2 text-sm"
+          className="flex h-7 items-center gap-1.5 rounded-md bg-accent pr-1 pl-2 text-sm"
         >
           {isEmail(entry) ? (
             <EnvelopeSimpleIcon className="size-3.5 text-muted-foreground" />
@@ -69,7 +69,7 @@ export function WhoInput({
             type="button"
             aria-label={`Remove ${entry}`}
             onClick={() => onChange(who.filter((other) => other !== entry))}
-            className="rounded-full p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+            className="rounded-sm p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <XIcon className="size-3" />
           </button>

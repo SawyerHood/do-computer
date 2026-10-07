@@ -33,7 +33,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { chatKey, liveChatAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentKey, agentsCollection, chatsCollection } from "@/lib/collections"
@@ -52,76 +51,6 @@ export function ago(at: number, now: number): string {
   if (minutes < 24 * 60) return `${Math.floor(minutes / 60)}h`
   if (minutes < 7 * 24 * 60) return weekday.format(at)
   return day.format(at)
-}
-
-/** Matches for a search across everything said in the agent's chats. */
-function SearchResults({
-  agentId,
-  query,
-  onNavigate,
-}: {
-  agentId: string
-  query: string
-  onNavigate?: (() => void) | undefined
-}) {
-  // Wait for a pause in typing: each search reads the transcripts.
-  const [settled, setSettled] = useState(query)
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(query), 250)
-    return () => clearTimeout(timer)
-  }, [query])
-  const { data, isError } = useQuery({
-    queryKey: ["agents", agentId, "search", settled],
-    queryFn: () => client.agent(agentId).search(settled),
-    staleTime: 10_000,
-  })
-  return (
-    <div
-      role="region"
-      aria-label="Search results"
-      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
-    >
-      {isError ? (
-        <p className="px-3 py-2 text-sm text-destructive">The search did not work. Try again.</p>
-      ) : data === undefined || settled !== query ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">Searching…</p>
-      ) : data.hits.length === 0 ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">Nothing matches.</p>
-      ) : (
-        <>
-          {data.partial ? (
-            <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
-              Nothing has all of those words. These come closest.
-            </p>
-          ) : null}
-          {data.hits.map((hit) => (
-            <Link
-              key={`${hit.chatId}/${hit.messageId}`}
-              to="/a/$agentId/c/$chatId"
-              params={{ agentId, chatId: hit.chatId }}
-              onClick={onNavigate}
-              className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-sm hover:bg-accent"
-            >
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="truncate font-medium">{hit.chatTitle}</span>
-                {hit.at === null ? null : (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {day.format(hit.at)}
-                  </span>
-                )}
-              </span>
-              <span className="line-clamp-3 text-xs text-muted-foreground">{hit.snippet}</span>
-            </Link>
-          ))}
-        </>
-      )}
-      {data !== undefined && !data.complete && data.hits.length > 0 ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          There may be more. Add a word to narrow it down.
-        </p>
-      ) : null}
-    </div>
-  )
 }
 
 /** Starts a chat with the agent and opens it. */
@@ -303,7 +232,7 @@ function AgentChats({
   }
 
   return (
-    <nav aria-label="Chats" className="mt-px mb-2 ml-[1.6rem] flex flex-col gap-px border-l pl-1.5">
+    <nav aria-label="Chats" className="mt-1 mb-2 ml-[1.6rem] flex flex-col gap-px border-l pl-1.5">
       {shown.map((chat) => (
         <ChatRow
           key={chat.id}
@@ -488,8 +417,6 @@ export function AgentList({
   const here = useHere(workspace.id)
   const people = usePeople(workspace)
   const folds = useFolds(activeAgentId)
-  const [query, setQuery] = useState("")
-  const searching = query.trim().length >= 2 && activeAgentId !== undefined
   const newChat = useNewChat(activeAgentId, onNavigate)
   const newAgent = useNewAgent(workspace.id, onNavigate)
   const list = agents ?? []
@@ -509,22 +436,7 @@ export function AgentList({
           <PlusIcon />
         </Button>
       </div>
-      {activeAgentId === undefined ? null : (
-        <div className="px-3 pb-2">
-          <Input
-            type="search"
-            aria-label="Search chats"
-            placeholder="Search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="h-8 text-sm"
-          />
-        </div>
-      )}
-      {searching ? (
-        <SearchResults agentId={activeAgentId} query={query.trim()} onNavigate={onNavigate} />
-      ) : null}
-      <div hidden={searching} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-3">
         {list.map((agent) => {
           const open = folds.isOpen(agent.id)
           const with_ = whoIs(

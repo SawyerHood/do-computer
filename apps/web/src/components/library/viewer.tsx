@@ -260,12 +260,12 @@ function PageView({
         >
           <ArrowClockwiseIcon />
         </Button>
-        <p className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full bg-accent px-3 text-xs text-muted-foreground">
+        <p className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-accent px-2.5 text-xs text-muted-foreground">
           <LockIcon className="size-3.5 shrink-0" />
           <span className="truncate">{file.path}</span>
         </p>
         <span
-          className="hidden shrink-0 rounded-full border px-2 py-0.5 text-[0.6875rem] text-muted-foreground sm:inline"
+          className="hidden shrink-0 rounded-md border px-2 py-0.5 text-[0.6875rem] text-muted-foreground sm:inline"
           title="A page runs on its own, apart from the app and your account. It can load what is in the library beside it."
         >
           sandboxed

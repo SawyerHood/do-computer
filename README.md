@@ -152,7 +152,7 @@ too.
 
 - **Chat**, in as many separate chats as you like, all sharing its memory. A reply keeps being
   written when you close the tab, and is there when you come back. It can search what was said in
-  its other chats, and so can you, from the chat list.
+  its other chats.
 - **Be someone.** It names itself in its first conversation, picks its color, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable in
   its settings, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its

@@ -305,12 +305,12 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         {sub !== undefined ? (
           // A sub-agent's chat always says whose it is, and leads back to where it was started.
           <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
-            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
                 aria-label={`Back to ${parent?.title ?? name}`}
-                className="flex min-w-0 items-center gap-1 rounded-full py-1 pr-1.5 pl-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                className="flex min-w-0 items-center gap-1 rounded-lg py-1 pr-1.5 pl-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
               >
                 <ArrowLeftIcon className="size-4 shrink-0" />
                 <span className="max-w-40 truncate">{parent?.title ?? name}</span>
@@ -330,7 +330,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                 <button
                   type="button"
                   onClick={stop}
-                  className="flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
+                  className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
                 >
                   <StopIcon className="size-3" />
                   Stop
@@ -341,14 +341,14 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         ) : beside ? null : (
           // With the panel beside the chat the agent is there, and needs no header here as well.
           <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-            <div className="pointer-events-auto relative flex items-center gap-1 rounded-full border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
+            <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
               {wide ? (
                 // Pressing the header brings the panel back.
                 <button
                   type="button"
                   aria-label={`Show ${name} beside the chat`}
                   title={`Show ${name} beside the chat`}
-                  className="flex items-center gap-2.5 rounded-full pr-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+                  className="flex items-center gap-2.5 rounded-lg pr-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
                   onClick={() => setPanel(true)}
                 >
                   {identity}
@@ -366,7 +366,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                   title={startFreshTitle}
                   disabled={live.state.busy}
                   onClick={startFresh}
-                  className="rounded-full p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  className="rounded-md p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
                 >
                   <ArrowsClockwiseIcon className="size-4" />
                 </button>
@@ -378,7 +378,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                     type="button"
                     aria-expanded={subagentsOpen}
                     onClick={() => setSubagentsOpen(!subagentsOpen)}
-                    className="rounded-full border px-2.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                    className="rounded-md border px-2.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
                   >
                     {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
                     {subagents.some((entry) => isAtWork(entry.status))

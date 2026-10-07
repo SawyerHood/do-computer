@@ -64,9 +64,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
           <h2 className="truncate font-medium">{connector.name}</h2>
           <p className="truncate text-sm text-muted-foreground">{new URL(connector.url).host}</p>
         </div>
-        <span
-          className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium", status.tone)}
-        >
+        <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-xs font-medium", status.tone)}>
           {status.label}
         </span>
       </div>

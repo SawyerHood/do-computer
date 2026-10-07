@@ -147,7 +147,7 @@ function MemberRow({
           <option value="owner">Owner</option>
         </select>
       ) : (
-        <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs text-muted-foreground">
+        <span className="rounded-md bg-accent px-2 py-0.5 text-xs text-muted-foreground">
           {ROLE_WORDS[member.role]}
         </span>
       )}

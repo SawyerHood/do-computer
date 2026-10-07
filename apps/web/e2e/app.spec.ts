@@ -913,33 +913,6 @@ test.describe("connectors", () => {
   })
 })
 
-test("search finds something said in another chat and opens that chat", async ({ page }) => {
-  await signIn(page)
-  await newChat(page)
-  await composer(page).fill("The wifi password at the cabin is heron-lantern-42")
-  await composer(page).press("Enter")
-  // The whole answer, not its first words: a reply still being written is not in the history yet.
-  await expect(
-    page.getByRole("main").getByText(/You said: The wifi password[\s\S]*echo model\.\)/),
-  ).toBeVisible()
-  const cabin = page.url()
-  await newChat(page)
-
-  await page.getByRole("searchbox", { name: "Search chats" }).fill("heron-lantern")
-  const results = page.getByRole("region", { name: "Search results" })
-  // Both what the user said and the agent's answer match.
-  await expect(results.getByRole("link")).toHaveCount(2)
-  await expect(results.getByRole("link").first()).toContainText("heron-lantern-42")
-  await results.getByRole("link").first().click()
-  await expect(page).toHaveURL(cabin)
-
-  await page.getByRole("searchbox", { name: "Search chats" }).fill("no-such-thing-anywhere")
-  await expect(results).toContainText("Nothing matches.")
-  // Clearing the search brings the chat list back.
-  await page.getByRole("searchbox", { name: "Search chats" }).fill("")
-  await expect(page.getByRole("link", { name: /The wifi password/ })).toBeVisible()
-})
-
 test("starting fresh keeps the earlier messages within reach", async ({ page }) => {
   await signIn(page)
   await newChat(page)
@@ -1508,7 +1481,7 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   const context = await browser.newContext({ baseURL, colorScheme: "dark" })
   const page = await context.newPage()
   await signIn(page)
-  await expect(page.getByRole("searchbox", { name: "Search chats" })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Agents" })).toHaveCount(0)
   // The agent has the room instead: its panel is open beside the chat, and stays shut once hidden.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
@@ -1527,12 +1500,12 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
 
   // Asked for, it is beside the chat, and still there after a reload.
   await page.getByRole("button", { name: "Show the sidebar" }).click()
-  await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Show the sidebar" })).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible()
   await page.getByRole("button", { name: "Hide the sidebar" }).click()
-  await expect(page.getByRole("searchbox", { name: "Search chats" })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Agents" })).toHaveCount(0)
   await context.close()
 })
 

@@ -186,13 +186,13 @@ export function Composer({
           {attached.map((file) => (
             <li
               key={file.id}
-              className="flex items-center gap-1 rounded-full border bg-surface py-1 pr-1 pl-3 text-xs"
+              className="flex items-center gap-1 rounded-md border bg-surface py-1 pr-1 pl-2.5 text-xs"
             >
               <span className="max-w-48 truncate">{file.name}</span>
               <button
                 type="button"
                 aria-label={`Remove ${file.name}`}
-                className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
                 onClick={() =>
                   setAttached((current) => current.filter((other) => other.id !== file.id))
                 }
@@ -215,7 +215,7 @@ export function Composer({
         </ul>
       ) : null}
       <form
-        className="flex items-end gap-2 rounded-[1.75rem] border bg-surface py-2 pr-2 pl-2 shadow-sm focus-within:border-input"
+        className="flex items-end gap-2 rounded-2xl border bg-surface py-2 pr-2 pl-2 shadow-sm focus-within:border-input"
         onSubmit={(event) => {
           event.preventDefault()
           send()
@@ -236,7 +236,7 @@ export function Composer({
           type="button"
           size="icon"
           variant="ghost"
-          className="rounded-full text-muted-foreground"
+          className="text-muted-foreground"
           onClick={() => picker.current?.click()}
           aria-label="Attach a file"
         >
@@ -274,7 +274,7 @@ export function Composer({
             size="icon"
             variant="ghost"
             className={cn(
-              "rounded-full text-muted-foreground",
+              "text-muted-foreground",
               dictation.state === "recording" && "bg-destructive/15 text-destructive",
             )}
             disabled={dictation.state === "transcribing"}
@@ -292,24 +292,11 @@ export function Composer({
           </Button>
         ) : null}
         {busy && !ready && uploading === 0 ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="secondary"
-            className="rounded-full"
-            onClick={onStop}
-            aria-label="Stop"
-          >
+          <Button type="button" size="icon" variant="secondary" onClick={onStop} aria-label="Stop">
             <StopIcon weight="fill" />
           </Button>
         ) : (
-          <Button
-            type="submit"
-            size="icon"
-            className="rounded-full"
-            disabled={!ready}
-            aria-label="Send"
-          >
+          <Button type="submit" size="icon" disabled={!ready} aria-label="Send">
             <ArrowUpIcon weight="bold" />
           </Button>
         )}

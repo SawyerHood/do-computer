@@ -558,7 +558,7 @@ export function ProfileSettings({
             type="button"
             size="sm"
             variant="outline"
-            className="self-start rounded-full"
+            className="self-start"
             // Shown at once, above. It is only kept once the changes are saved.
             onClick={() => set("avatar", { ...form.avatar, seed: randomId().slice(0, 12) })}
           >

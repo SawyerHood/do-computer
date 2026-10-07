@@ -73,7 +73,7 @@ function InvitationPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-rail p-6">
-      <div className="flex w-full max-w-md flex-col items-center rounded-3xl border bg-background px-8 pt-9 pb-7 text-center">
+      <div className="flex w-full max-w-md flex-col items-center rounded-2xl border bg-background px-8 pt-9 pb-7 text-center">
         <WorkspaceTile workspace={invitation.workspace} className="size-14" />
         <h1 className="mt-4 text-xl font-semibold tracking-tight">
           {invitation.invitedBy.name} invited you to {team}
