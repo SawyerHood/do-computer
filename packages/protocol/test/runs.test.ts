@@ -5,7 +5,6 @@ import {
   type ChatState,
   EMPTY_CHAT,
   type MessagePart,
-  runSummary,
   type ToolPart,
 } from "../src/index.ts"
 
@@ -29,8 +28,11 @@ const chat = (messages: ChatMessage[], busy = false): ChatState => ({
   busy,
 })
 
+const log = (title: string, outcome: string, status: ToolPart["status"] = "done") =>
+  tool("log", { title, outcome }, status)
+
 describe("chatRuns", () => {
-  it("is one run for each thing asked, with the steps taken and what was said back", () => {
+  it("is one run for each thing asked that the agent wrote an entry for, with its other steps", () => {
     const runs = chatRuns(
       chat([
         user("1", "What changed in the repo?", 1_000),
@@ -39,45 +41,82 @@ describe("chatRuns", () => {
           tool("read", { path: "CHANGELOG.md" }),
           { type: "text", text: "Two fixes landed." },
         ]),
-        user("4", "Thanks, now tidy the notes"),
-        assistant("5", [tool("edit", { path: "notes.md" }), { type: "text", text: "Tidied." }]),
+        user("4", "Thanks, now tidy the notes", 2_000),
+        assistant("5", [
+          tool("edit", { path: "notes.md" }),
+          log("Tidy the notes.", "Sorted the notes into three folders."),
+        ]),
+        assistant("6", [{ type: "text", text: "Tidied." }]),
       ]),
     )
-    expect(
-      runs.map((run) => [run.id, run.asked, run.steps.length, run.answer, run.status]),
-    ).toEqual([
-      ["1", "What changed in the repo?", 2, "Two fixes landed.", "done"],
-      ["4", "Thanks, now tidy the notes", 1, "Tidied.", "done"],
+    expect(runs).toEqual([
+      {
+        id: "4",
+        entry: { title: "Tidy the notes", outcome: "Sorted the notes into three folders." },
+        steps: [tool("edit", { path: "notes.md" })],
+        status: "done",
+        at: 2_000,
+      },
     ])
-    expect(runs[0]!.at).toBe(1_000)
   })
 
-  it("leaves out a reply that was only words", () => {
+  it("leaves out work with no entry, and a reply that was only words", () => {
     expect(
-      chatRuns(chat([user("1", "hi"), assistant("2", [{ type: "text", text: "Hello." }])])),
+      chatRuns(
+        chat([
+          user("1", "hi"),
+          assistant("2", [{ type: "text", text: "Hello." }]),
+          user("3", "what time is it?"),
+          assistant("4", [tool("bash", { command: "date" }), { type: "text", text: "Noon." }]),
+        ]),
+      ),
     ).toEqual([])
     expect(chatRuns(EMPTY_CHAT)).toEqual([])
   })
 
+  it("takes the last entry written, and none from a call that failed or is still arriving", () => {
+    const twice = chatRuns(
+      chat([
+        user("1", "set it up"),
+        assistant("2", [log("Set up backups", "Started on the script.")]),
+        assistant("3", [log("Set up backups", "Backups now run nightly.")]),
+      ]),
+    )
+    expect(twice.map((run) => run.entry.outcome)).toEqual(["Backups now run nightly."])
+    expect(twice[0]!.steps).toEqual([])
+    expect(
+      chatRuns(
+        chat([
+          user("1", "set it up"),
+          assistant("2", [log("Set up backups", "", "error"), log("Set up", "Half", "running")]),
+        ]),
+      ),
+    ).toEqual([])
+  })
+
   it("knows a run that is still going, one that failed and one that was stopped", () => {
+    const entry = log("Build it", "Built the site.")
     const working = chatRuns(
       chat(
-        [user("1", "build it"), assistant("live:1", [tool("bash", {}, "running")], "streaming")],
+        [
+          user("1", "build it"),
+          assistant("live:1", [entry, tool("bash", {}, "running")], "streaming"),
+        ],
         true,
       ),
     )
     expect(working[0]!.status).toBe("working")
     const failed = chatRuns(
-      chat([user("1", "build it"), assistant("2", [tool("bash", {}, "error")], "error")]),
+      chat([user("1", "build it"), assistant("2", [entry, tool("bash", {}, "error")], "error")]),
     )
     expect(failed[0]!.status).toBe("failed")
     const stopped = chatRuns(
-      chat([user("1", "build it"), assistant("2", [tool("bash", {})], "aborted")]),
+      chat([user("1", "build it"), assistant("2", [entry, tool("bash", {})], "aborted")]),
     )
     expect(stopped[0]!.status).toBe("stopped")
   })
 
-  it("starts a run at a scheduled task's heading, named by the task", () => {
+  it("starts a run at a scheduled task's heading", () => {
     const runs = chatRuns(
       chat([
         {
@@ -86,36 +125,13 @@ describe("chatRuns", () => {
           parts: [{ type: "notice", kind: "schedule", text: "Morning digest" }],
           status: "done",
         },
-        assistant("2", [tool("web_search", { query: "news" }), { type: "text", text: "Here." }]),
+        assistant("2", [
+          tool("web_search", { query: "news" }),
+          log("Write the morning digest", "Sent five stories."),
+          { type: "text", text: "Here." },
+        ]),
       ]),
     )
-    expect(runs).toMatchObject([{ id: "1", asked: "Morning digest", status: "done" }])
-  })
-})
-
-describe("runSummary", () => {
-  const run = (over: Partial<ReturnType<typeof chatRuns>[number]>) => ({
-    id: "1",
-    asked: "Find out why the build is failing and fix it, then tell me what it was in detail",
-    steps: [tool("bash", { command: "pnpm build" }), tool("edit", { path: "tsconfig.json" })],
-    answer: "**Fixed.** The config pointed at a folder that had moved. It builds now.",
-    status: "done" as const,
-    ...over,
-  })
-
-  it("is titled by what was asked, cut to a line, and says how the answer opens", () => {
-    expect(runSummary(run({}))).toEqual({
-      title: "Find out why the build is…",
-      outcome: "Fixed.",
-    })
-    expect(runSummary(run({ answer: "" })).outcome).toBe("Done in 2 steps.")
-  })
-
-  it("says what it is doing while it works, and how it ended when it did not finish", () => {
-    expect(runSummary(run({ status: "working" })).outcome).toBe("Editing tsconfig.json")
-    expect(runSummary(run({ status: "failed" })).outcome).toBe("Did not finish, after 2 steps.")
-    expect(runSummary(run({ status: "stopped", steps: [tool("bash", {})] })).outcome).toBe(
-      "Stopped after 1 step.",
-    )
+    expect(runs).toMatchObject([{ id: "1", status: "done", steps: [{ name: "web_search" }] }])
   })
 })

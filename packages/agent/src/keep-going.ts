@@ -4,17 +4,48 @@ import {
   toolSummary,
   type ToolPart,
 } from "@durable-computer/protocol"
+import type { Context } from "@earendil-works/chord"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import {
+  defineDocFamily,
   defineExtension,
   defineTool,
   type Extension,
   GenerationTask,
+  type Harness,
   hook,
 } from "@earendil-works/pi-durable"
 import { Type } from "@earendil-works/pi-ai"
-import type { SummaryOptions } from "./activity.ts"
 import { PROGRESS_TOOL } from "./project.ts"
+
+export type JudgeOptions = {
+  /** The deployment's OpenRouter key. Judgments are billed to it like everything else. */
+  readonly apiKey: string
+  /** OpenRouter model id that judges. A small one that judges well is right for this. */
+  readonly model: string
+  readonly fetch?: (url: string, init: RequestInit) => Promise<Response>
+}
+
+type SmallCost = {
+  /** Summaries a small model once wrote of each run. Nothing reads them now. */
+  runs: Record<string, { title: string; outcome: string }>
+  /** What writing those cost, which is still part of what the agent has cost. */
+  spent: ChatUsage
+  /** What asking whether the agent meant to stop has cost in this chat. */
+  judged?: ChatUsage
+}
+
+/**
+ * What small models' work for one chat has cost, keyed by chat. The agent's own usage does not
+ * include it. Its kind is from when it also held the summaries.
+ */
+const SmallCostDoc = defineDocFamily<SmallCost, null>({
+  kind: "dc.activity",
+  version: 1,
+  scope: "session",
+  family: true,
+  initial: () => ({ runs: {}, spent: { inputTokens: 0, outputTokens: 0, cost: 0 } }),
+})
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 /** How many times in a row a run is set going again. After that, it stops where the agent stops. */
@@ -73,11 +104,11 @@ export function mightBeMidway(message: string, steps: number): boolean {
 
 export type KeepGoingOptions = {
   /** The small model that judges whether the agent meant to stop. Absent: it always may. */
-  readonly judge?: SummaryOptions
+  readonly judge?: JudgeOptions
   /** The chat as a client would see it. */
   readonly chat: (chatId: string) => Promise<ChatState | undefined>
-  /** Told what a judgment cost, so it can be counted as the agent's. */
-  readonly onSpent?: (chatId: string, spent: ChatUsage) => void
+  /** What writing down a judgment's cost runs under: it outlives the run that set it off. */
+  readonly context: Context
   readonly onError: (error: unknown) => void
 }
 
@@ -97,6 +128,7 @@ export class KeepGoing {
   readonly #options: KeepGoingOptions
   /** How often each chat has been set going again since the message it is working on. */
   readonly #nudged = new Map<string, { since: string; count: number }>()
+  #harness: Harness | undefined
 
   constructor(options: KeepGoingOptions) {
     this.#options = options
@@ -129,6 +161,32 @@ export class KeepGoing {
         }),
       ],
     })
+  }
+
+  attach(harness: Harness): void {
+    this.#harness = harness
+  }
+
+  /** What small models' work for a chat has cost: its judgments, and the summaries of old. */
+  async spent(
+    chatId: string,
+    context: Context,
+  ): Promise<{ summaries: ChatUsage; judged: ChatUsage | undefined } | undefined> {
+    const doc = await this.#harness?.snapshot(SmallCostDoc, chatId, context)
+    return doc === undefined ? undefined : { summaries: doc.spent, judged: doc.judged }
+  }
+
+  /** Count what a judgment cost as the agent's. */
+  async #charge(chatId: string, spent: ChatUsage): Promise<void> {
+    await this.#harness?.commit(async (tx) => {
+      const doc = await tx.doc(SmallCostDoc, chatId, null)
+      // Assigned whole: a document keeps a copy of what it is given, not the object itself.
+      doc.judged = {
+        inputTokens: (doc.judged?.inputTokens ?? 0) + spent.inputTokens,
+        outputTokens: (doc.judged?.outputTokens ?? 0) + spent.outputTokens,
+        cost: (doc.judged?.cost ?? 0) + spent.cost,
+      }
+    }, this.#options.context)
   }
 
   async #shouldContinue(
@@ -200,11 +258,11 @@ export class KeepGoing {
     if (!response.ok || body.error !== undefined) {
       throw new Error(body.error?.message ?? `HTTP ${response.status}`)
     }
-    this.#options.onSpent?.(chatId, {
+    void this.#charge(chatId, {
       inputTokens: body.usage?.prompt_tokens ?? 0,
       outputTokens: body.usage?.completion_tokens ?? 0,
       cost: body.usage?.cost ?? 0,
-    })
+    }).catch((error) => this.#options.onError(error))
     const verdict = (body.choices?.[0]?.message?.content ?? "").trim().toUpperCase()
     if (!verdict.startsWith("CONTINUE")) return false
     this.#nudged.set(chatId, { since: asked.id, count: count + 1 })

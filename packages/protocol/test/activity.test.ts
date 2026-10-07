@@ -66,6 +66,7 @@ describe("toolSummary", () => {
     [tool("web_search", { query: "node lts" }), "Searched the web: node lts"],
     [tool("send_file", { path: "out/report.pdf" }), "Sent you report.pdf"],
     [tool("memory", { action: "add" }), "Updated its memory"],
+    [tool("log", { title: "Fix the build" }), "Noted what it did"],
     [tool("schedule", { action: "list" }), "Checked its schedule"],
     [tool("skill", { action: "list" }), "Looked through its skills"],
     [tool("library", { action: "get", file: "a.csv" }), "Got a file from your library: a.csv"],
