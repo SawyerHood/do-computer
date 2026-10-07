@@ -248,7 +248,8 @@ export function Composer({
           value={draft}
           placeholder={placeholder}
           aria-label="Message"
-          className="max-h-[200px] flex-1 resize-none self-center bg-transparent py-1.5 text-[0.9375rem] outline-none placeholder:text-muted-foreground"
+          // Under a finger it is 16px, below which Safari on a phone zooms the page in on focus.
+          className="max-h-[200px] flex-1 resize-none self-center bg-transparent py-1.5 text-[0.9375rem] outline-none placeholder:text-muted-foreground pointer-coarse:text-base"
           onChange={(event) => {
             setDraft(event.target.value)
             onTyping?.(event.target.value.trim() !== "")

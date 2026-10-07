@@ -231,6 +231,41 @@ test("the layout works at phone width", async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(0)
 })
 
+test("under a finger the message box is written in at a size a phone does not zoom in on", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const size = (on: typeof page) =>
+    composer(on).evaluate((box) => Number.parseFloat(getComputedStyle(box).fontSize))
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  // With a mouse it is the size of the chat around it.
+  expect(await size(page)).toBe(15)
+
+  // Safari on a phone zooms the page in on a box whose text is under 16px, and leaves it so.
+  const context = await browser.newContext({
+    baseURL,
+    colorScheme: "dark",
+    viewport: { width: 400, height: 800 },
+    hasTouch: true,
+    storageState: await page.context().storageState(),
+  })
+  const phone = await context.newPage()
+  await phone.goto("/")
+  await expect(composer(phone)).toBeVisible()
+  expect(await size(phone)).toBeGreaterThanOrEqual(16)
+  // It is still a line tall beside its buttons, and no wider than the screen.
+  const box = (await composer(phone).boundingBox())!
+  expect(box.height).toBeLessThanOrEqual(40)
+  expect(
+    await phone.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0)
+  await context.close()
+})
+
 test("at phone width a finger draws the sidebar out from the left, and pushes it back", async ({
   browser,
   baseURL,
