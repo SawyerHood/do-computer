@@ -40,17 +40,35 @@ export const earlierAtom = atomFamily(() =>
 export const draftAtom = atomFamily(() => atom(""))
 
 /**
+ * Whether something that is open or shut was left open. What was kept is read when the page
+ * loads rather than after it is drawn, so it is not seen one way and then the other.
+ */
+function kept(key: string, start: boolean): boolean {
+  if (typeof window === "undefined") return start
+  try {
+    const found = localStorage.getItem(key)
+    return found === "open" ? true : found === "closed" ? false : start
+  } catch {
+    // Storage can be unavailable; it is then as it starts.
+    return start
+  }
+}
+
+export const SIDEBAR_OPEN_KEY = "dc-chat-list"
+export const AGENT_PANEL_OPEN_KEY = "dc-agent-panel"
+
+/**
  * Whether the sidebar is shown on wide screens: the workspace and its agents.
  * Closed until asked for, so the chat and the agent have the room; the choice is remembered by
  * the shell.
  */
-export const sidebarOpenAtom = atom(false)
+export const sidebarOpenAtom = atom(kept(SIDEBAR_OPEN_KEY, false))
 
 /**
  * Whether the agent's panel is wanted beside its pages, where there is room for it. One choice
  * for every tab, so that changing tab does not move anything. Remembered by the shell.
  */
-export const agentPanelOpenAtom = atom(true)
+export const agentPanelOpenAtom = atom(kept(AGENT_PANEL_OPEN_KEY, true))
 
 /**
  * The place in the sidebar where the library puts its list of files while the Library tab is

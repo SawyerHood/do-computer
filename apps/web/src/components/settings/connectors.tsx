@@ -1,10 +1,12 @@
 import type { ConnectorResult, ConnectorSummary } from "@durable-computer/protocol"
 import { TrashIcon } from "@phosphor-icons/react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Loads } from "@/components/loads"
+import { CardsPlaceholder } from "@/components/placeholders"
 import { client } from "@/lib/client"
 import { connectorsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -209,12 +211,6 @@ export function ConnectorsSettings({
   /** What the address says after coming back from a service: which was connected, or why not. */
   search: ConnectorsSearch
 }) {
-  const { data: connectors } = useQuery({
-    queryKey: connectorsKey(agentId),
-    queryFn: () => client.agent(agentId).connectors(),
-  })
-  const justConnected = connectors?.find((connector) => connector.id === search.connected)
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -231,7 +227,28 @@ export function ConnectorsSettings({
         >
           {search.connector_error}
         </p>
-      ) : justConnected ? (
+      ) : null}
+      <Loads key={agentId} fallback={<CardsPlaceholder cards={1} />}>
+        <Connected
+          agentId={agentId}
+          connected={search.connector_error ? undefined : search.connected}
+        />
+      </Loads>
+      <AddForm agentId={agentId} />
+    </div>
+  )
+}
+
+/** The agent's connectors, which wait for it to list them, and word of one just connected. */
+function Connected({ agentId, connected }: { agentId: string; connected: string | undefined }) {
+  const { data: connectors } = useSuspenseQuery({
+    queryKey: connectorsKey(agentId),
+    queryFn: () => client.agent(agentId).connectors(),
+  })
+  const justConnected = connectors.find((connector) => connector.id === connected)
+  return (
+    <>
+      {justConnected ? (
         <p
           role="status"
           className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm"
@@ -239,14 +256,13 @@ export function ConnectorsSettings({
           {justConnected.name} is connected.
         </p>
       ) : null}
-      {connectors !== undefined && connectors.length > 0 ? (
+      {connectors.length > 0 ? (
         <ul className="flex flex-col gap-3">
           {connectors.map((connector) => (
             <ConnectorCard key={connector.id} agentId={agentId} connector={connector} />
           ))}
         </ul>
       ) : null}
-      <AddForm agentId={agentId} />
-    </div>
+    </>
   )
 }

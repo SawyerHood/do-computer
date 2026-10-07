@@ -1,4 +1,3 @@
-import type { AgentState } from "@durable-computer/client"
 import type { AgentSummary, WorkspaceSummary } from "@durable-computer/protocol"
 import {
   CaretDownIcon,
@@ -24,8 +23,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { agentPanelOpenAtom } from "@/lib/atoms"
-import { client } from "@/lib/client"
-import { agentKey, agentsCollection } from "@/lib/collections"
+import { Skeleton } from "@/components/ui/skeleton"
+import { agentQuery, agentsCollection } from "@/lib/collections"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
@@ -98,6 +97,7 @@ function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: W
  * tab, so that changing tab changes only what is under it.
  */
 export function AgentStrip({
+  agentId,
   agent,
   workspace,
   page,
@@ -105,7 +105,10 @@ export function AgentStrip({
   onShowSidebar,
   onOpenSheet,
 }: {
-  agent: AgentSummary
+  /** The agent whose pages these are. The address says so before the agent itself is here. */
+  agentId: string
+  /** That agent. Until it is here its name holds its place, and the tabs already work. */
+  agent: AgentSummary | undefined
   workspace: WorkspaceSummary
   page: AgentTab
   /** Whether the sidebar is beside this on a wide screen. */
@@ -122,14 +125,11 @@ export function AgentStrip({
   // A side chat beside the main chat is where the panel would be.
   const panel = wanted && side === undefined
   // Shares the layout's query, so this never fetches on its own.
-  const { data: state } = useQuery<AgentState>({
-    queryKey: agentKey(agent.id),
-    queryFn: () => client.agent(agent.id).state(),
-  })
+  const { data: state } = useQuery(agentQuery(agentId))
   useEffect(() => {
-    if (chatId !== undefined) lastChat.set(agent.id, chatId)
-  }, [agent.id, chatId])
-  const back = lastChat.get(agent.id)
+    if (chatId !== undefined) lastChat.set(agentId, chatId)
+  }, [agentId, chatId])
+  const back = lastChat.get(agentId)
 
   const team = workspace.kind === "team"
   const here = useHere(team ? workspace.id : undefined)
@@ -137,10 +137,10 @@ export function AgentStrip({
   const present =
     chatId === undefined
       ? []
-      : whoIs(here, (place) => place.agentId === agent.id && place.chatId === chatId).flatMap(
+      : whoIs(here, (place) => place.agentId === agentId && place.chatId === chatId).flatMap(
           (id) => people.get(id) ?? [],
         )
-  const name = agent.name ?? "New agent"
+  const name = agent?.name ?? "New agent"
 
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-x-1.5 border-b px-2.5 md:h-13 md:flex-nowrap md:px-3">
@@ -167,16 +167,23 @@ export function AgentStrip({
         </Button>
       )}
       <div className="flex h-12 min-w-0 items-center gap-1.5 md:h-full">
-        <AgentSwitcher agent={agent} workspace={workspace} />
+        {agent === undefined ? (
+          <div data-loading aria-busy="true" className="flex items-center gap-2 py-1 pr-2 pl-1">
+            <Skeleton className="size-7 rounded-full" />
+            <Skeleton className="h-3 w-20 rounded-full" />
+          </div>
+        ) : (
+          <AgentSwitcher agent={agent} workspace={workspace} />
+        )}
       </div>
       <nav
-        aria-label={`${name}'s pages`}
+        aria-label={agent === undefined ? "Pages" : `${name}'s pages`}
         className="order-last -mx-1 flex h-10 w-full items-stretch border-t md:order-none md:mx-0 md:ml-1.5 md:h-full md:w-auto md:border-t-0"
       >
         {back === undefined ? (
           <Link
             to="/a/$agentId"
-            params={{ agentId: agent.id }}
+            params={{ agentId }}
             aria-current={page === "chat" ? "page" : undefined}
             className={tab}
           >
@@ -185,7 +192,7 @@ export function AgentStrip({
         ) : (
           <Link
             to="/a/$agentId/c/$chatId"
-            params={{ agentId: agent.id, chatId: back }}
+            params={{ agentId, chatId: back }}
             aria-current={page === "chat" ? "page" : undefined}
             className={tab}
           >
@@ -194,7 +201,7 @@ export function AgentStrip({
         )}
         <Link
           to="/a/$agentId/library"
-          params={{ agentId: agent.id }}
+          params={{ agentId }}
           search={{}}
           aria-current={page === "library" ? "page" : undefined}
           className={tab}
@@ -203,7 +210,7 @@ export function AgentStrip({
         </Link>
         <Link
           to="/a/$agentId/automations"
-          params={{ agentId: agent.id }}
+          params={{ agentId }}
           aria-current={page === "automations" ? "page" : undefined}
           className={tab}
         >
@@ -216,17 +223,21 @@ export function AgentStrip({
             <FaceStack people={present} className="size-6.5" max={4} />
           </span>
         ) : null}
-        <SideChats agent={agent} workspace={workspace} state={state} />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`${name}'s settings`}
-          title={`${name}'s settings`}
-          className="text-muted-foreground"
-          onClick={() => openAgent("identity")}
-        >
-          <SlidersHorizontalIcon />
-        </Button>
+        {agent === undefined ? null : (
+          <>
+            <SideChats agent={agent} workspace={workspace} state={state} />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`${name}'s settings`}
+              title={`${name}'s settings`}
+              className="text-muted-foreground"
+              onClick={() => openAgent("identity")}
+            >
+              <SlidersHorizontalIcon />
+            </Button>
+          </>
+        )}
         {/* The panel is only ever beside a page where there is room for both. */}
         <Button
           variant="ghost"
@@ -244,7 +255,7 @@ export function AgentStrip({
             if (side !== undefined && chatId !== undefined) {
               void navigate({
                 to: "/a/$agentId/c/$chatId",
-                params: { agentId: agent.id, chatId },
+                params: { agentId, chatId },
               })
             }
           }}

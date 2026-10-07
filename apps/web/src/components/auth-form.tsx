@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
+import { meKey } from "@/lib/collections"
+import { queryClient } from "@/lib/query"
 
 type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
 
@@ -55,6 +57,10 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       setError(result.error.message ?? "That did not work. Check your details and try again.")
       return
     }
+    // Whatever an earlier session left in this page is asked for again, starting with who
+    // is signed in.
+    queryClient.removeQueries({ queryKey: meKey })
+    void queryClient.invalidateQueries()
     await navigate({ href: destination() })
   }
 

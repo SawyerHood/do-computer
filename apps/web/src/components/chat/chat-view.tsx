@@ -1,5 +1,4 @@
 import type { AgentSummary } from "@durable-computer/protocol"
-import type { AgentState } from "@durable-computer/client"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
@@ -8,11 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { FaceStack, names, PersonFace } from "@/components/people"
+import { TranscriptPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
 import { agentPanelOpenAtom, chatKey } from "@/lib/atoms"
 import { isSideChat, mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
-import { agentKey, agentsKey, modelsKey } from "@/lib/collections"
+import { agentKey, agentQuery, agentsKey, modelsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useSettings } from "@/lib/settings"
@@ -154,10 +154,7 @@ export function ChatView({
   const navigate = useNavigate()
 
   // What kind of chat this is. A sub-agent's is read here and not written in.
-  const { data: agentState } = useQuery<AgentState>({
-    queryKey: agentKey(agent.id),
-    queryFn: () => client.agent(agent.id).state(),
-  })
+  const { data: agentState } = useQuery(agentQuery(agent.id))
   const chat = agentState?.chats.find((entry) => entry.id === chatId)
   const main = mainChatOf(agentState?.chats)
   // A side chat has the middle to itself here. Until the agent has a main chat there are none.
@@ -235,6 +232,8 @@ export function ChatView({
   // An empty chat has the creature in its middle, so the one in the header, right above it, holds
   // still.
   const welcoming = live.loaded && state.messages.length === 0 && !state.busy
+  // The stream was turned away, which it will be again: there is no such chat to show.
+  const refused = live.status === "closed" && !live.loaded
   // What the header above the chat has to say on a narrow screen, where the strip names the agent.
   const floats =
     sub !== undefined ||
@@ -407,7 +406,14 @@ export function ChatView({
                     onRetry={own ? retry : undefined}
                     asker={sub === undefined ? undefined : name}
                     empty={
-                      !live.loaded || !own ? null : aside !== undefined ? (
+                      refused ? (
+                        <p role="alert" className="py-16 text-center text-sm text-muted-foreground">
+                          This chat could not be opened. It may have been deleted.
+                        </p>
+                      ) : !live.loaded ? (
+                        // What it holds is on its way. Not the hello of an empty chat.
+                        <TranscriptPlaceholder />
+                      ) : !own ? null : aside !== undefined ? (
                         <SideChatWelcome agent={agent} />
                       ) : (
                         <Welcome
@@ -526,6 +532,7 @@ export function ChatView({
         <AgentPanel
           agent={agent}
           state={state}
+          loading={!live.loaded && !refused}
           face={
             sub === undefined ? (
               <Hatchling agent={agent} hatch={hatch} className="size-52" />

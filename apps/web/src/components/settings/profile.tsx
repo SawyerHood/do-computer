@@ -9,11 +9,13 @@ import {
   randomId,
   type ThinkingLevel,
 } from "@durable-computer/protocol"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { Loads } from "@/components/loads"
 import { ModelPicker } from "@/components/model-picker"
+import { FormPlaceholder, RowsPlaceholder } from "@/components/placeholders"
 import { ThinkingPicker } from "@/components/thinking-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -149,17 +151,27 @@ const dollars = (cost: number) =>
 
 /** What the agent has spent on models. Read-only: it is a record, not a setting. */
 function Usage({ agentId }: { agentId: string }) {
-  const { data: usage } = useQuery<AgentUsage>({
-    queryKey: usageKey(agentId),
-    queryFn: () => client.agent(agentId).usage(),
-  })
-  if (usage === undefined) return null
-  const used = usage.total.inputTokens + usage.total.outputTokens
   return (
     <Section
       title="Usage"
       hint="What this agent's thinking has cost so far, across its chats and scheduled runs."
     >
+      <Loads key={agentId} fallback={<RowsPlaceholder />}>
+        <UsageNumbers agentId={agentId} />
+      </Loads>
+    </Section>
+  )
+}
+
+/** The numbers themselves, which wait for the agent to add them up. */
+function UsageNumbers({ agentId }: { agentId: string }) {
+  const { data: usage } = useSuspenseQuery<AgentUsage>({
+    queryKey: usageKey(agentId),
+    queryFn: () => client.agent(agentId).usage(),
+  })
+  const used = usage.total.inputTokens + usage.total.outputTokens
+  return (
+    <>
       {used === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing yet.</p>
       ) : (
@@ -212,7 +224,7 @@ function Usage({ agentId }: { agentId: string }) {
           ) : null}
         </>
       )}
-    </Section>
+    </>
   )
 }
 
@@ -485,7 +497,9 @@ function Computers({ agentId }: { agentId: string }) {
       title="Computers"
       hint="Where this agent can keep files and run commands. Computers belong to the workspace, and an agent has a folder of its own on each machine it has worked on."
     >
-      {computers === undefined ? null : usable.length === 0 ? (
+      {computers === undefined ? (
+        <RowsPlaceholder rows={1} />
+      ) : usable.length === 0 ? (
         <p className="text-sm text-muted-foreground">It has no computer to work on.</p>
       ) : (
         <ul aria-label="Computers this agent can use" className="flex flex-col gap-2">
@@ -571,7 +585,10 @@ export function ProfileSettings({
     },
   })
 
-  if (state === undefined || form === undefined) return null
+  // With no section of it showing there is nothing to hold a place for.
+  if (state === undefined || form === undefined) {
+    return section === undefined ? null : <FormPlaceholder />
+  }
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     setForm({ ...form, [key]: value })
     setDirty(true)

@@ -12,6 +12,7 @@ import { Link, useRouteContext } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
 import { AgentFace } from "@/components/agent-avatar"
+import { TranscriptPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
 import { chatKey } from "@/lib/atoms"
@@ -184,7 +185,7 @@ export function SideChat({
             <Transcript
               state={state}
               onRetry={retry}
-              empty={live.loaded ? <SideChatWelcome agent={agent} /> : null}
+              empty={live.loaded ? <SideChatWelcome agent={agent} /> : <TranscriptPlaceholder />}
               before={
                 earlier.has ? (
                   <Button

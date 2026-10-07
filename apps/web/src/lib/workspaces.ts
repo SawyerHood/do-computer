@@ -7,7 +7,7 @@ import {
   type WorkspacesState,
   type WorkspaceSummary,
 } from "@durable-computer/protocol"
-import { useQuery } from "@tanstack/react-query"
+import { queryOptions, useQuery } from "@tanstack/react-query"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { createContext, useEffect, useMemo } from "react"
@@ -19,23 +19,35 @@ export const workspacesKey = ["workspaces"] as const
 export const invitationsKey = (workspaceId: string) =>
   ["workspaces", workspaceId, "invitations"] as const
 
+export const workspacesQuery = queryOptions({
+  queryKey: workspacesKey,
+  queryFn: () => client.workspaces(),
+})
+
 /** The user's workspaces and the invitations waiting for them. */
 export function useWorkspaces(): WorkspacesState | undefined {
-  return useQuery({ queryKey: workspacesKey, queryFn: () => client.workspaces() }).data
+  return useQuery(workspacesQuery).data
 }
 
 export function useWorkspace(workspaceId: string | undefined): WorkspaceSummary | undefined {
   return useWorkspaces()?.workspaces.find((workspace) => workspace.id === workspaceId)
 }
 
-/** The workspace an agent is in, once the lists of agents and workspaces have arrived. */
-export function useWorkspaceOfAgent(agentId: string): WorkspaceSummary | undefined {
+/**
+ * An agent as the list of agents has it. That list is here before any one agent's own state is,
+ * so the agent's name, creature and color can be drawn from it while the rest is on its way.
+ */
+export function useListedAgent(agentId: string | undefined): AgentSummary | undefined {
   const { data } = useLiveQuery(
-    (q) => q.from({ agent: agentsCollection }).where(({ agent }) => eq(agent.id, agentId)),
+    (q) => q.from({ agent: agentsCollection }).where(({ agent }) => eq(agent.id, agentId ?? "")),
     [agentId],
   )
-  const found: AgentSummary | undefined = data?.[0]
-  return useWorkspace(found?.workspaceId)
+  return data?.[0]
+}
+
+/** The workspace an agent is in, once the lists of agents and workspaces have arrived. */
+export function useWorkspaceOfAgent(agentId: string): WorkspaceSummary | undefined {
+  return useWorkspace(useListedAgent(agentId)?.workspaceId)
 }
 
 /**

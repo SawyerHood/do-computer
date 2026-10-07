@@ -1,6 +1,6 @@
 import type { LibraryFile } from "@durable-computer/protocol"
 import { NotePencilIcon, UploadSimpleIcon } from "@phosphor-icons/react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
@@ -8,14 +8,18 @@ import { useAtomValue } from "jotai"
 import { AgentAside } from "@/components/chat/agent-aside"
 import { DocMarkdown } from "@/components/library/doc-markdown"
 import { KindIcon, LibraryTree } from "@/components/library/tree"
+import { Loads } from "@/components/loads"
+import { DocPlaceholder, Placeholder, TreePlaceholder } from "@/components/placeholders"
 import { type ViewMode, Viewer } from "@/components/library/viewer"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { sidebarSlotAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
-import { agentKey, libraryKey, libraryTextKey } from "@/lib/collections"
+import { agentQuery, libraryKey, libraryQuery, libraryTextKey } from "@/lib/collections"
 import { dirOf, formatWhen, kindOf } from "@/lib/library"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
+import { useListedAgent } from "@/lib/workspaces"
 
 type LibrarySearch = {
   /** The file that is open, by where it is in the library. */
@@ -35,6 +39,11 @@ export const Route = createFileRoute("/_app/a/$agentId/library")({
       ? { mode: search.mode as LibrarySearch["mode"] }
       : {}),
   }),
+  // Started and not waited for: the page is drawn at once, and its files when they are here.
+  // Pointing at the tab runs this too.
+  loader: ({ params }) => {
+    void queryClient.prefetchQuery(libraryQuery(params.agentId))
+  },
   component: LibraryPage,
 })
 
@@ -120,20 +129,88 @@ function useDesktop(): boolean {
   )
 }
 
+/** What the library is, at the top of its front page. */
+function LibraryHeading() {
+  return (
+    <div className="max-w-xl">
+      <h1 className="text-xl font-semibold tracking-tight">Library</h1>
+      <p className="text-sm text-muted-foreground">
+        Documents and files made by the agents of this workspace, and ones you have given them.
+        Every agent in the workspace shares this library, and what is in it is kept here whatever
+        happens to a computer.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The library's place until its list of files is here: the list where the list goes, and beside
+ * it the file that was asked for, or the front page with nothing on it yet.
+ */
+function LibraryPlaceholder({ opening }: { opening: boolean }) {
+  const desktop = useDesktop()
+  const slot = useAtomValue(sidebarSlotAtom)
+  return (
+    <>
+      {desktop ? (
+        slot === null ? null : (
+          createPortal(<TreePlaceholder />, slot)
+        )
+      ) : opening ? null : (
+        <aside className="w-full shrink-0">
+          <TreePlaceholder />
+        </aside>
+      )}
+      <section className={cn("min-w-0 flex-1", !desktop && !opening && "hidden")}>
+        {opening ? (
+          <DocPlaceholder />
+        ) : (
+          <div className="mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-10 pb-24">
+            <LibraryHeading />
+            <Placeholder className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3.5">
+              {[0, 1, 2].map((card) => (
+                <Skeleton key={card} className="h-45 rounded-2xl" />
+              ))}
+            </Placeholder>
+          </div>
+        )}
+      </section>
+    </>
+  )
+}
+
 function LibraryPage() {
   const { agentId } = Route.useParams()
+  const search = Route.useSearch()
+  // Shares the layout's query, so this never fetches on its own.
+  const { data: state } = useQuery(agentQuery(agentId))
+  const listed = useListedAgent(agentId)
+  const agent = state?.agent ?? listed
+  return (
+    <div className="flex h-full min-h-0">
+      <Loads
+        key={agentId}
+        className="p-8"
+        fallback={
+          <LibraryPlaceholder opening={search.path !== undefined || search.file !== undefined} />
+        }
+      >
+        <Library agentId={agentId} agentName={agent?.name ?? "Your agent"} />
+      </Loads>
+      {agent === undefined ? null : <AgentAside agent={agent} />}
+    </div>
+  )
+}
+
+/** The list of files and whichever one is open. It waits for the list. */
+function Library({ agentId, agentName }: { agentId: string; agentName: string }) {
   const desktop = useDesktop()
   const slot = useAtomValue(sidebarSlotAtom)
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const api = client.agent(agentId)
-  const { data: listing } = useQuery({
-    queryKey: libraryKey(agentId),
-    queryFn: () => api.libraryListing(),
-  })
-  const { data: state } = useQuery({ queryKey: agentKey(agentId), queryFn: () => api.state() })
-  const agentName = state?.agent.name ?? "Your agent"
-  const files = useMemo(() => listing?.files ?? [], [listing])
+  const { data: listing } = useSuspenseQuery(libraryQuery(agentId))
+  const files = listing.files
   const paths = useMemo(() => new Set(files.map((file) => file.path)), [files])
   const selected =
     files.find((file) => file.path === search.path) ??
@@ -192,7 +269,7 @@ function LibraryPage() {
     <LibraryTree
       agentId={agentId}
       files={files}
-      deleted={listing?.deleted ?? []}
+      deleted={listing.deleted}
       selected={selected?.path}
       dir={dir}
       onDir={setChosenDir}
@@ -204,7 +281,7 @@ function LibraryPage() {
   )
 
   return (
-    <div className="flex h-full min-h-0">
+    <>
       {/* On a wide screen the list is in the sidebar, in place of the agents and their chats,
           and with the sidebar hidden it is hidden too. On a narrow one it is here, until a file
           is opened. */}
@@ -218,7 +295,7 @@ function LibraryPage() {
         </aside>
       )}
       <section className={cn("min-w-0 flex-1", !desktop && selected === undefined && "hidden")}>
-        {listing === undefined ? null : selected !== undefined ? (
+        {selected !== undefined ? (
           <Viewer
             // Another file starts afresh: nothing of the last one's editing carries over.
             key={selected.id}
@@ -240,14 +317,7 @@ function LibraryPage() {
           <div className="h-full overflow-y-auto">
             <div className="mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-10 pb-24">
               <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="max-w-xl">
-                  <h1 className="text-xl font-semibold tracking-tight">Library</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Documents and files made by the agents of this workspace, and ones you have
-                    given them. Every agent in the workspace shares this library, and what is in it
-                    is kept here whatever happens to a computer.
-                  </p>
-                </div>
+                <LibraryHeading />
                 <Button disabled={create.isPending} onClick={() => create.mutate()}>
                   <NotePencilIcon /> New document
                 </Button>
@@ -292,7 +362,6 @@ function LibraryPage() {
           </div>
         )}
       </section>
-      {state === undefined ? null : <AgentAside agent={state.agent} />}
-    </div>
+    </>
   )
 }

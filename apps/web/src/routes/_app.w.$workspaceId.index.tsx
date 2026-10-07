@@ -5,7 +5,8 @@ import { WorkspaceTile } from "@/components/people"
 import { useNewAgent } from "@/components/shell/agent-list"
 import { InviteDialog } from "@/components/team/invite"
 import { Button } from "@/components/ui/button"
-import { client } from "@/lib/client"
+import { agentsQuery } from "@/lib/collections"
+import { queryClient } from "@/lib/query"
 import { useWorkspace } from "@/lib/workspaces"
 
 /**
@@ -14,7 +15,8 @@ import { useWorkspace } from "@/lib/workspaces"
  */
 export const Route = createFileRoute("/_app/w/$workspaceId/")({
   beforeLoad: async ({ params, search }) => {
-    const agents = await client.listAgents()
+    // The list the sidebar shows, asked for again only if it is no longer good.
+    const agents = await queryClient.fetchQuery(agentsQuery)
     const first = agents
       .filter((agent) => agent.workspaceId === params.workspaceId)
       .sort((a, b) => a.createdAt - b.createdAt)[0]

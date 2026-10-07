@@ -1,5 +1,7 @@
 import type { ApprovalRule, ApprovalsState, ApprovalSubject } from "@durable-computer/protocol"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import { Loads } from "@/components/loads"
+import { RowsPlaceholder } from "@/components/placeholders"
 import { client } from "@/lib/client"
 import { approvalsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -61,7 +63,26 @@ function SubjectRow({
 
 /** What the agent may do without asking. Everything is allowed until a rule here says otherwise. */
 export function PermissionsSettings({ agentId }: { agentId: string }) {
-  const { data: state } = useQuery<ApprovalsState>({
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight">Permissions</h2>
+        <p className="text-sm text-muted-foreground">
+          Your agent acts without asking unless you say otherwise here. With “Ask first” it stops,
+          tells you what it wants to do, and waits for your answer in the chat. Scheduled runs
+          follow the same rules, and wait the same way.
+        </p>
+      </div>
+      <Loads key={agentId} fallback={<RowsPlaceholder rows={4} />}>
+        <Rules agentId={agentId} />
+      </Loads>
+    </div>
+  )
+}
+
+/** The rules themselves, which wait for the agent to say what there is to rule on. */
+function Rules({ agentId }: { agentId: string }) {
+  const { data: state } = useSuspenseQuery<ApprovalsState>({
     queryKey: approvalsKey(agentId),
     queryFn: () => client.agent(agentId).approvals(),
   })
@@ -79,44 +100,34 @@ export function PermissionsSettings({ agentId }: { agentId: string }) {
   })
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Permissions</h2>
-        <p className="text-sm text-muted-foreground">
-          Your agent acts without asking unless you say otherwise here. With “Ask first” it stops,
-          tells you what it wants to do, and waits for your answer in the chat. Scheduled runs
-          follow the same rules, and wait the same way.
-        </p>
-      </div>
+    <>
       {change.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {change.error.message}
         </p>
       ) : null}
-      {state === undefined
-        ? null
-        : GROUPS.map((group) => {
-            const subjects = state.subjects.filter((subject) => subject.kind === group.kind)
-            return (
-              <section key={group.kind} className="flex flex-col gap-1">
-                <h2 className="text-sm font-medium">{group.title}</h2>
-                {subjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{group.empty}</p>
-                ) : (
-                  <ul className="divide-y">
-                    {subjects.map((subject) => (
-                      <SubjectRow
-                        key={subject.id}
-                        subject={subject}
-                        rule={state.rules[subject.id] ?? "allow"}
-                        onChange={(rule) => change.mutate({ [subject.id]: rule })}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )
-          })}
-    </div>
+      {GROUPS.map((group) => {
+        const subjects = state.subjects.filter((subject) => subject.kind === group.kind)
+        return (
+          <section key={group.kind} className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium">{group.title}</h2>
+            {subjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{group.empty}</p>
+            ) : (
+              <ul className="divide-y">
+                {subjects.map((subject) => (
+                  <SubjectRow
+                    key={subject.id}
+                    subject={subject}
+                    rule={state.rules[subject.id] ?? "allow"}
+                    onChange={(rule) => change.mutate({ [subject.id]: rule })}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        )
+      })}
+    </>
   )
 }

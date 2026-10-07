@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { AppShell } from "@/components/shell/app-shell"
+import { AppSkeleton } from "@/components/shell/app-skeleton"
 import { useWorkspaces } from "@/lib/workspaces"
 
 export const Route = createFileRoute("/_app/w/$workspaceId")({ component: TeamLayout })
@@ -8,7 +9,8 @@ export const Route = createFileRoute("/_app/w/$workspaceId")({ component: TeamLa
 function TeamLayout() {
   const { workspaceId } = Route.useParams()
   const state = useWorkspaces()
-  if (state === undefined) return null
+  // Which teams there are is not here yet: the frame holds its place.
+  if (state === undefined) return <AppSkeleton />
   const workspace = state.workspaces.find((entry) => entry.id === workspaceId)
   if (workspace === undefined || workspace.kind !== "team") {
     return (

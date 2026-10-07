@@ -456,6 +456,46 @@ Since then, newest last:
       machine, not the agents. There is no mock-up in `prototypes/`. The mobile app was not
       changed: its library and settings work through the same calls.
 
+20. **Nothing waits for the server before it moves** (2026-10-07; `prototypes/loading-states` is
+    the mock-up, with what was measured). The owner noticed "a long pause when switching between
+    agents". With 150 ms added to every request, a click on an agent changed nothing for 555 ms
+    and showed the chat at 785 ms: four trips in a row (who is signed in, the agent, a redirect
+    that asked who is signed in again, the chat's stream). It is now one trip, with the frame
+    changed on the click.
+    - **Who is signed in is asked once** (`routes/_app.tsx`, `meQuery`). `beforeLoad` runs on
+      every move between pages and used to fetch `/api/me` each time. A session that ends is
+      found out by the next thing asked for: a 401 from any query or mutation loads the page
+      again at the sign-in. Signing out loads the page again too, and signing in clears what
+      the query client kept.
+    - **The frame is drawn from the list of agents**, which has an agent's name, creature and
+      color before the agent's own state has arrived (`useListedAgent`). The agent's layout no
+      longer draws nothing until that state is here.
+    - **Choosing an agent goes straight to its main chat.** `/a/<agent>` redirects without
+      asking when the main chat is known, from the agent's cached state or from
+      `dc-main-chats` in the browser's storage, where it is kept once seen. Otherwise the page
+      holds the chat's place, asks, and goes on. A remembered chat the agent turns out not to
+      have is forgotten and asked for again.
+    - **Routes start what they need and do not wait for it.** A route's `loader` calls
+      `prefetchQuery` without `await`, so pointing at a link (`defaultPreload: "intent"`) starts
+      the fetch and choosing it never blocks. Pointing at a chat also follows its stream until
+      its state arrives (`warmChat` in `lib/use-live-chat.ts`); a chat is followed by one stream
+      however many hold it, so opening it carries on with that one.
+    - **Placeholders** (`components/placeholders.tsx`) stand in for what has not arrived, each
+      in the shape of what it stands for, and show only after 100 ms. Where a part of a page is
+      nothing but something fetched, it is a `useSuspenseQuery` inside `Loads`
+      (`components/loads.tsx`), which is a Suspense boundary with a line and a "Try again" for
+      when it fails: automations, the library, and the lists in settings. A chat is a stream and
+      not a promise, so its placeholder is chosen by `live.loaded`. Nothing says "empty", and the
+      panel does not say "Ready", until it is known.
+    - **The first paint is the frame.** `_app` is drawn in the browser only, and its
+      `pendingComponent` (`components/shell/app-skeleton.tsx`) is sent in the page's HTML. A
+      script in the head says on `<html>` how the sidebar and panel were left, so the frame is
+      laid out as the app will lay it out. On the first load, who is signed in, the lists, the
+      agent and the open chat are all asked for at once.
+    - **Not done.** The gateway still does not know an agent's main chat, so an agent that has
+      never been open in this browser takes two trips (its state, then its chat). The native
+      mobile app was not changed.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -612,6 +652,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   the daemon downloaded from it starts pairing. The owner has since paired a computer, pasted
   pictures and chatted on it.
 - Everything visual was judged from screenshots taken in headless Chromium.
+- **How long a page takes to move** was measured on the built Node server with 150 ms added to
+  every request by the browser test tool, before and after item 20. It has not been measured on
+  the live site, where an agent's Durable Object may also have to wake.
 
 ## 9. Things that were learned the hard way
 
@@ -636,5 +679,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 - **Real services find what stand-ins do not.** Each time the app was first run against a real
   provider it turned up bugs the tests had missed. Treat the first run of anything on Modal,
   Cloudflare Containers or a phone as a trial.
+- **A route's `beforeLoad` runs on every navigation, for every route above the page**, and
+  nothing on screen changes until all of them have returned. One fetch in the top one made
+  every click in the app wait a round trip. Keep what it needs in the query client, and start
+  a page's fetches in `loader` without awaiting them.
 - **A fresh deployment belongs to whoever signs up first.** The first account needs no
   invitation, so on a public address, sign up at once.

@@ -19,6 +19,7 @@ import { ComputerPicker } from "@/components/computer-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { CardsPlaceholder } from "@/components/placeholders"
 import { client } from "@/lib/client"
 import { computerKindsKey, computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -559,7 +560,9 @@ export function ComputersSettings({
         </ul>
       ) : null}
 
-      {computers !== undefined && computers.length > 0 ? (
+      {computers === undefined ? (
+        <CardsPlaceholder />
+      ) : computers.length > 0 ? (
         <ul className="flex flex-col gap-3">
           {computers.map((computer) => (
             <ComputerCard

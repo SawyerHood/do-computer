@@ -1,5 +1,7 @@
 import type { UserSettings } from "@durable-computer/protocol"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
+import { Loads } from "@/components/loads"
+import { FormPlaceholder } from "@/components/placeholders"
 import { useState } from "react"
 import { ComputerPicker } from "@/components/computer-picker"
 import { ModelPicker } from "@/components/model-picker"
@@ -121,11 +123,6 @@ function DefaultComputer({ settings }: { settings: UserSettings }) {
 
 /** Settings for the account, as opposed to for the agent on screen. */
 export function DefaultsSettings() {
-  const { data: settings } = useQuery<UserSettings>({
-    queryKey: settingsKey,
-    queryFn: () => client.settings(),
-  })
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -134,12 +131,23 @@ export function DefaultsSettings() {
           For your account. What one agent is like is set on that agent, under Identity and memory.
         </p>
       </div>
-      {settings === undefined ? null : (
-        <>
-          <DefaultModel settings={settings} />
-          <DefaultComputer settings={settings} />
-        </>
-      )}
+      <Loads fallback={<FormPlaceholder fields={2} />}>
+        <Defaults />
+      </Loads>
     </div>
+  )
+}
+
+/** The settings themselves, which wait for what the account has set. */
+function Defaults() {
+  const { data: settings } = useSuspenseQuery<UserSettings>({
+    queryKey: settingsKey,
+    queryFn: () => client.settings(),
+  })
+  return (
+    <>
+      <DefaultModel settings={settings} />
+      <DefaultComputer settings={settings} />
+    </>
   )
 }

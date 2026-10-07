@@ -13,7 +13,12 @@ import { AgentSettings } from "@/components/settings/agent-settings"
 import { WorkspaceSettings } from "@/components/settings/workspace-settings"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
-import { agentPanelOpenAtom, sidebarOpenAtom } from "@/lib/atoms"
+import {
+  AGENT_PANEL_OPEN_KEY,
+  agentPanelOpenAtom,
+  SIDEBAR_OPEN_KEY,
+  sidebarOpenAtom,
+} from "@/lib/atoms"
 import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
 import { useSwipe } from "@/lib/use-swipe"
@@ -26,25 +31,16 @@ import { Sidebar } from "./sidebar.tsx"
 const SIDEBAR_BESIDE = "(min-width: 48rem)"
 
 /**
- * Something that is open or shut and stays the way it was left: read from storage once, and
- * written back when it changes. Until it has been set either way it is as its atom starts.
+ * Something that is open or shut and stays the way it was left. Its atom starts as it was kept,
+ * and it is written back when it changes.
  */
 function useRemembered(atom: PrimitiveAtom<boolean>, key: string): [boolean, () => void] {
   const [open, setOpen] = useAtom(atom)
-  const read = useRef(false)
+  const first = useRef(true)
   useEffect(() => {
-    try {
-      const kept = localStorage.getItem(key)
-      if (kept === "open") setOpen(true)
-      if (kept === "closed") setOpen(false)
-    } catch {
-      // Storage can be unavailable; it is then as it starts.
-    }
-  }, [key, setOpen])
-  useEffect(() => {
-    // Not on the first pass, which would write the starting value over what was kept.
-    if (!read.current) {
-      read.current = true
+    // Not on the first pass, when nothing has changed.
+    if (first.current) {
+      first.current = false
       return
     }
     try {
@@ -61,15 +57,15 @@ function useCurrentWorkspace(
   me: { id: string; name: string; email: string; image?: string | null },
   agentId: string | undefined,
   workspaceId: string | undefined,
-): WorkspaceSummary {
+): { workspace: WorkspaceSummary; settled: boolean } {
   const state = useWorkspaces()
-  const { data: found } = useLiveQuery(
+  const { data: found, isLoading } = useLiveQuery(
     (q) => q.from({ agent: agentsCollection }).where(({ agent }) => eq(agent.id, agentId ?? "")),
     [agentId],
   )
   const id = workspaceId ?? found?.[0]?.workspaceId ?? personalWorkspaceId(me.id)
-  return useMemo(
-    () =>
+  const workspace = useMemo(
+    (): WorkspaceSummary =>
       state?.workspaces.find((workspace) => workspace.id === id) ?? {
         // Until the list has arrived, and for a team it does not have: the user's own.
         id: personalWorkspaceId(me.id),
@@ -91,6 +87,11 @@ function useCurrentWorkspace(
       },
     [state, id, me],
   )
+  // Which workspace an agent is in is only known once both lists are here. Until then the
+  // sidebar holds its place, and does not name one workspace and then another.
+  const settled =
+    state !== undefined && (workspaceId !== undefined || agentId === undefined || !isLoading)
+  return { workspace, settled }
 }
 
 /**
@@ -100,24 +101,31 @@ function useCurrentWorkspace(
  * the strip and nothing else.
  */
 export function AppShell({
+  agentId,
   agent,
   workspaceId,
   children,
 }: {
-  agent?: AgentSummary
+  /** The agent whose page this is. It is known from the address, before the agent itself is. */
+  agentId?: string
+  /** That agent, once the list of agents or its own state has it. */
+  agent?: AgentSummary | undefined
   /** The team whose page this is, where the page is not an agent's. */
   workspaceId?: string
   children: ReactNode
 }) {
   const { me } = useRouteContext({ from: "/_app" })
   const { chatId } = useParams({ strict: false })
-  const workspace = useCurrentWorkspace(me.user, agent?.id, workspaceId)
-  usePresence(workspace.id, { agentId: agent?.id ?? null, chatId: chatId ?? null })
+  const { workspace, settled } = useCurrentWorkspace(me.user, agentId, workspaceId)
+  usePresence(settled ? workspace.id : undefined, {
+    agentId: agentId ?? null,
+    chatId: chatId ?? null,
+  })
 
-  const [sidebarOpen, toggleSidebar] = useRemembered(sidebarOpenAtom, "dc-chat-list")
+  const [sidebarOpen, toggleSidebar] = useRemembered(sidebarOpenAtom, SIDEBAR_OPEN_KEY)
   const sidebarWidth = useAtomValue(sidebarColumn.width)
   // The panel's switch is in the strip, so what it was left as is kept from here.
-  useRemembered(agentPanelOpenAtom, "dc-agent-panel")
+  useRemembered(agentPanelOpenAtom, AGENT_PANEL_OPEN_KEY)
   const [sheetOpen, setSheetOpen] = useState(false)
   // On a narrow screen a finger also draws the sidebar out from the left, and pushes it back.
   const [shell, setShell] = useState<HTMLElement | null>(null)
@@ -146,9 +154,11 @@ export function AppShell({
         >
           <Sidebar
             workspace={workspace}
+            settled={settled}
             me={me.user}
+            agentId={agentId}
             agent={agent}
-            library={agent !== undefined && page === "library"}
+            library={agentId !== undefined && page === "library"}
             onCollapse={toggleSidebar}
           />
           <ResizeHandle column={sidebarColumn} edge="right" label="Resize the sidebar" />
@@ -156,7 +166,7 @@ export function AppShell({
       ) : null}
 
       <main className="flex min-w-0 flex-1 flex-col">
-        {agent === undefined ? (
+        {agentId === undefined ? (
           // A workspace with no agent open has nothing for a strip to say but its name.
           <header className="flex h-13 shrink-0 items-center gap-1.5 border-b px-2.5 md:px-3">
             <Button
@@ -180,10 +190,13 @@ export function AppShell({
                 <SidebarSimpleIcon />
               </Button>
             )}
-            <span className="truncate px-1 text-[0.9375rem] font-semibold">{workspace.name}</span>
+            <span className="truncate px-1 text-[0.9375rem] font-semibold">
+              {settled ? workspace.name : null}
+            </span>
           </header>
         ) : (
           <AgentStrip
+            agentId={agentId}
             agent={agent}
             workspace={workspace}
             page={page}
@@ -200,7 +213,9 @@ export function AppShell({
           <SheetTitle className="sr-only">Agents</SheetTitle>
           <Sidebar
             workspace={workspace}
+            settled={settled}
             me={me.user}
+            agentId={agentId}
             agent={agent}
             onNavigate={() => setSheetOpen(false)}
           />
@@ -208,7 +223,7 @@ export function AppShell({
       </Sheet>
 
       {agent === undefined ? null : <AgentSettings agent={agent} />}
-      <WorkspaceSettings workspace={workspace} me={me.user} agentId={agent?.id} />
+      <WorkspaceSettings workspace={workspace} me={me.user} agentId={agentId} />
     </div>
   )
 }

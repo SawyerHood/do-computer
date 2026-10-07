@@ -20,6 +20,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { DocPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -335,7 +336,7 @@ function TextBody({
     return <PageView agentId={agentId} file={file} view={view} stamp={stamp} onOpen={onOpen} />
   }
   if (document.failed) return <Notice>This file could not be read. Try again.</Notice>
-  if (document.text === undefined) return <Notice>Loading…</Notice>
+  if (document.text === undefined) return <DocPlaceholder />
   const { text } = document
 
   const rendered = (
