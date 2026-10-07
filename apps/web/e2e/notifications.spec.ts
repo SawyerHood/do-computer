@@ -77,7 +77,7 @@ test("the app can be put on a phone's home screen", async ({ page, request }) =>
   )
   const manifest = await (await request.get("/manifest.webmanifest")).json()
   expect(manifest).toMatchObject({
-    name: "durable computer",
+    name: "Do Computer",
     start_url: "/",
     display: "standalone",
   })
@@ -109,7 +109,7 @@ test("notifications are turned on, tried and turned off again", async ({ page })
   const key = await page.evaluate(() => fetch("/api/push/key").then((response) => response.json()))
   expect(await readVapid(service.pushed[0]!.authorization)).toMatchObject({ valid: true, ...key })
   expect(JSON.parse(await browser.read(service.pushed[0]!.body))).toMatchObject({
-    title: "durable computer",
+    title: "Do Computer",
     url: "/",
   })
 

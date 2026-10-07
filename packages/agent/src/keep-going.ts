@@ -224,7 +224,7 @@ export class KeepGoing {
       headers: {
         authorization: `Bearer ${judge.apiKey}`,
         "content-type": "application/json",
-        "x-title": "durable computer",
+        "x-title": "Do Computer",
       },
       body: JSON.stringify({
         model: judge.model,

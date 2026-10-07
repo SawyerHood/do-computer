@@ -86,7 +86,7 @@ export async function startFakeMcp() {
       return send(
         response,
         200,
-        `<!doctype html><title>Fake service</title><h1>Let durable computer use your account?</h1>
+        `<!doctype html><title>Fake service</title><h1>Let Do Computer use your account?</h1>
          <a href="${back({ code: CODE })}">Allow</a>
          <a href="${back({ error: "access_denied", error_description: "You said no." })}">Deny</a>`,
       )

@@ -24,7 +24,7 @@ export function serviceFile(options: {
     return {
       path: unit,
       content: `[Unit]
-Description=durable computer daemon
+Description=Do Computer daemon
 After=network-online.target
 
 [Service]

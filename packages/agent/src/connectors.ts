@@ -148,7 +148,7 @@ export class Connectors {
     return new McpOAuthProvider({
       serverUrl: url,
       redirectUrl,
-      clientMetadata: { client_name: "durable computer" },
+      clientMetadata: { client_name: "Do Computer" },
       store: {
         load: async () => (await this.#secrets(id)).oauth,
         save: (state) => this.#saveSecrets(id, (secrets) => ({ ...secrets, oauth: state })),

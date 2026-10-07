@@ -211,7 +211,7 @@ export async function sendTestPush(
     userId,
   )
   const notice = {
-    title: "durable computer",
+    title: "Do Computer",
     body: "Notifications are on. This is what one looks like.",
     url: "/",
   }

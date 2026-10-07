@@ -42,7 +42,7 @@ function InvitationPage() {
               : error.message}
           </p>
           <a href="/" className="mt-2 text-sm underline underline-offset-3">
-            Go to durable computer
+            Go to Do Computer
           </a>
         </div>
       </main>

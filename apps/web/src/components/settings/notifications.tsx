@@ -7,7 +7,7 @@ const SAYS: Record<NotificationsState, string> = {
   blocked:
     "This browser was told not to allow notifications from here. Allow them in its settings for this site, then come back.",
   install:
-    "An iPhone or iPad delivers notifications to apps on the Home Screen. Tap Share, then Add to Home Screen. Open durable computer from there and turn notifications on.",
+    "An iPhone or iPad delivers notifications to apps on the Home Screen. Tap Share, then Add to Home Screen. Open Do Computer from there and turn notifications on.",
   unsupported: "This browser cannot show notifications from a website.",
 }
 
@@ -69,7 +69,7 @@ export function NotificationsSettings() {
         ) : null}
       </section>
       <p className="border-t pt-6 text-sm text-muted-foreground">
-        Each browser and phone is turned on by itself. On a phone, add durable computer to the Home
+        Each browser and phone is turned on by itself. On a phone, add Do Computer to the Home
         Screen first: it then opens as an app of its own and notifies you like one.
       </p>
     </div>

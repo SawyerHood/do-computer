@@ -12,7 +12,7 @@ self.addEventListener("push", (event) => {
     // Not what the server sends. Something is shown all the same: a browser that is woken for
     // a push and shows nothing stops delivering them.
   }
-  const title = typeof message.title === "string" ? message.title : "durable computer"
+  const title = typeof message.title === "string" ? message.title : "Do Computer"
   event.waitUntil(
     self.registration.showNotification(title, {
       body: typeof message.body === "string" ? message.body : "",

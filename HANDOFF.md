@@ -10,7 +10,7 @@ the repository is made public.
 
 ## 1. What this is
 
-durable computer is an open-source, self-hostable personal agent: a version of Meta's Muse built
+Do Computer is an open-source, self-hostable personal agent: a version of Meta's Muse built
 on the pi-durable harness, with OpenRouter for models. Each user has persistent agents with a
 name, a personality, memory, scheduled automations, skills, connectors (remote MCP servers) and
 the user's own paired computers. An agent has no computer of its own: it works on the machines
@@ -526,6 +526,11 @@ Since then, newest last:
       `routes/__root.tsx`. An iPhone only delivers notifications to a site added to the Home
       Screen, and the settings say so there. Opened that way the page ends above the phone's
       home bar (`styles.css`), which is why the frame is `h-full` of the body and not `h-dvh`.
+    - **The app is called Do Computer.** The owner said so when they saw "durable" under the
+      home screen icon. That is the name wherever a person reads one: the page's title, the
+      manifest, notifications, invitations, sign-in, the name given to connectors and to
+      OpenRouter, the mobile app and the daemon's service. The repository and its packages keep
+      `durable-computer`.
     - **Checked:** the encryption against the example in the RFC; a real push service
       (Mozilla's) taking a message signed this way and delivering it, and refusing a stranger's
       key; and on the Workers dev server, an agent's answer in a chat nobody had open arriving

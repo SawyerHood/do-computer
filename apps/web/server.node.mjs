@@ -12,7 +12,7 @@ try {
   app.start()
 } catch (error) {
   // A setting the owner has to fix. Say what, without a stack trace to read past.
-  console.error(`durable computer cannot start: ${error instanceof Error ? error.message : error}`)
+  console.error(`Do Computer cannot start: ${error instanceof Error ? error.message : error}`)
   process.exit(1)
 }
 
@@ -60,7 +60,7 @@ server.node.server.on("upgrade", async (incoming, socket, head) => {
   }
 })
 
-console.log(`durable computer listening on ${server.url}`)
+console.log(`Do Computer listening on ${server.url}`)
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.once(signal, async () => {

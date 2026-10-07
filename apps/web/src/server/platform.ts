@@ -54,7 +54,7 @@ export type Config = {
   /** For sending invitations by email, through Resend. Without both, invitations are links only. */
   readonly email: {
     readonly resendApiKey: string | undefined
-    /** The address mail is sent from, for example `durable computer <hello@example.com>`. */
+    /** The address mail is sent from, for example `Do Computer <hello@example.com>`. */
     readonly from: string | undefined
   }
 }

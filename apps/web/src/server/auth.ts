@@ -22,7 +22,7 @@ function authOptions(platform: Platform) {
     throw new Error("DC_AUTH_SECRET is not set. Generate one with: openssl rand -base64 32")
   }
   return {
-    appName: "durable computer",
+    appName: "Do Computer",
     baseURL: config.baseUrl,
     secret: config.authSecret,
     // A D1 binding on Cloudflare, a node:sqlite database on Node; both are SQLite dialects.
