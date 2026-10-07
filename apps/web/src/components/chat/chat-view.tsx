@@ -198,6 +198,8 @@ export function ChatView({
     chatKey(agent.id, chatId),
     live.state,
     sub === undefined ? undefined : subagentSeed(agent.id, chatId),
+    // What was just sent is shown as being answered before the chat says that it is.
+    state.busy && !live.state.busy,
   )
   // What the agent's model can take decides whether a picture is sent for it to look at.
   const { data: models } = useQuery({
@@ -506,7 +508,7 @@ export function ChatView({
                       : "Say hello"
                 }
                 busy={live.state.busy}
-                queued={live.state.queued}
+                queued={state.queued}
                 onSend={send}
                 error={sendError}
                 onStop={stop}

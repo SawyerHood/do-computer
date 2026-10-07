@@ -107,3 +107,32 @@ test("a session that has ended is found out by the next thing asked for", async 
   await page.waitForURL(/\/login$/)
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
 })
+
+test("a message is in the chat the moment it is sent", async ({ page }) => {
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  const server = await holdRequests(page)
+  await composer(page).fill("Shown as soon as it is sent")
+  await page.keyboard.press("Enter")
+  // The request to send it has not come back. It is where it will be, and being thought about.
+  const mine = page.getByText("Shown as soon as it is sent", { exact: true })
+  await expect(mine).toBeVisible()
+  await expect(page.getByText("Thinking…")).toBeVisible()
+  await expect(composer(page)).toHaveValue("")
+  expect(server.asked.some((path) => path.endsWith("/messages"))).toBe(true)
+  server.release()
+  await expect(page.getByText("You said: Shown as soon as it is sent")).toBeVisible()
+  // Once: the chat's own copy has taken the place of the one shown ahead of it.
+  await expect(mine).toHaveCount(1)
+
+  // One that does not go is taken back out, and is in the box again to be sent again.
+  await page.route("**/chats/*/messages", (route) => route.abort())
+  await composer(page).fill("This one does not go")
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("alert")).toContainText("That was not sent")
+  await expect(composer(page)).toHaveValue("This one does not go")
+  await expect(
+    page.locator("[data-slot=bubble-content]").filter({ hasText: "This one does not go" }),
+  ).toHaveCount(0)
+  await expect(page.getByText("Thinking…")).toHaveCount(0)
+})

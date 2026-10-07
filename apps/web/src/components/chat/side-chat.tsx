@@ -208,7 +208,7 @@ export function SideChat({
         draftKey={chatKey(agent.id, chat.id)}
         placeholder={`Message ${name} in this side chat`}
         busy={live.state.busy}
-        queued={live.state.queued}
+        queued={state.queued}
         onSend={send}
         error={sendError}
         onStop={stop}

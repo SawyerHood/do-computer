@@ -492,6 +492,13 @@ Since then, newest last:
       script in the head says on `<html>` how the sidebar and panel were left, so the frame is
       laid out as the app will lay it out. On the first load, who is signed in, the lists, the
       agent and the open chat are all asked for at once.
+    - **A message is in the chat the moment it is sent** (`lib/sending.ts`, used by
+      `lib/use-chat.ts`). The owner asked for it while this was being built. It is shown after
+      the chat's own messages with the agent already "Thinking", or, sent while the agent is at
+      work, among what is waiting for it. The chat's copy has an id of the chat's own and does
+      not carry the request's, so it is known to have arrived by its words: the first message
+      of the user's with those words that was not there when it was sent. One that does not go
+      is taken back out and put back in the box, as before.
     - **Not done.** The gateway still does not know an agent's main chat, so an agent that has
       never been open in this browser takes two trips (its state, then its chat). The native
       mobile app was not changed.
