@@ -1,7 +1,8 @@
 import { existsSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { expect, type Page, test } from "@playwright/test"
+import type { Page } from "@playwright/test"
+import { expect, test } from "./fixtures.ts"
 
 /**
  * The mobile app, running in a browser. Its web build is the same screens and logic as on a
@@ -14,7 +15,8 @@ import { expect, type Page, test } from "@playwright/test"
 const dist = fileURLToPath(new URL("../../mobile/dist-web-test/", import.meta.url))
 
 test.skip(!existsSync(join(dist, "index.html")), "the mobile web build has not been exported")
-test.use({ viewport: { width: 400, height: 860 } })
+// The app draws the agent's creature with expo-gl, which on the web needs WebGL to be there.
+test.use({ viewport: { width: 400, height: 860 }, creature: true })
 test.describe.configure({ mode: "serial" })
 
 async function open(page: Page, path = "/__mobile/") {

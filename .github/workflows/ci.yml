@@ -7,30 +7,107 @@ on:
   # Run from the Actions tab to deploy again without a new commit.
   workflow_dispatch:
 
+# A pull request's newer push replaces the run of its older one. Runs on main are each left to
+# finish, since they deploy.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# The checks run side by side, each on a machine of its own, so a push waits for the slowest of
+# them and not for their sum.
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm check
-      # Unit and integration tests, on Node and inside the Workers runtime.
-      - run: pnpm test
-      # Browser tests against the built Node server, with a real daemon.
-      - run: pnpm --filter @durable-computer/web exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+
+  # Unit and integration tests, on Node and inside the Workers runtime. The agent's take as long
+  # as all the others together, so they have a machine of their own.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: agent
+            filter: "@durable-computer/agent"
+          - name: the rest
+            filter: "!@durable-computer/agent"
+    name: test (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm --filter '${{ matrix.filter }}' run test
+
+  # Browser tests against the built Node server, with a real daemon. Each file of them has a
+  # server to itself, so the files are dealt out over several machines, two to a machine: one for
+  # each of its cores. With more files than that, add to `share`.
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        share: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build the server, fetching the browser meanwhile
+        run: |
+          pnpm --filter @durable-computer/web exec playwright install --only-shell chromium &
+          pnpm --filter @durable-computer/web build:node
+          wait $!
+      - name: Run this machine's share of the files
+        working-directory: apps/web
+        run: |
+          files=$(ls e2e/*.spec.ts | grep -v mobile.spec.ts | awk 'NR % ${{ strategy.job-total }} == ${{ strategy.job-index }}')
+          echo "$files"
+          # Asked for no files, Playwright runs them all.
+          [ -n "$files" ] || exit 0
+          pnpm exec playwright test --project=web $files
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-${{ matrix.share }}
+          path: apps/web/test-results
+          retention-days: 7
+
+  # The mobile app's screens, through its web build. Making that build takes longer than the
+  # tests do, so it is kept from one run to the next for as long as nothing it is made of changes.
+  e2e-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/cache@v4
+        id: mobile-build
+        with:
+          path: apps/mobile/dist-web-test
+          key: mobile-web-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app/**', 'apps/mobile/src/**', 'apps/mobile/*.js', 'apps/mobile/*.ts', 'apps/mobile/*.json', 'packages/client/src/**', 'packages/client/package.json', 'packages/mascot/src/**', 'packages/mascot/package.json', 'packages/protocol/src/**', 'packages/protocol/package.json') }}
+      - name: Build the server, fetching the browser meanwhile
+        run: |
+          pnpm --filter @durable-computer/web exec playwright install --only-shell chromium &
+          pnpm --filter @durable-computer/web build:node
+          wait $!
+      - if: steps.mobile-build.outputs.cache-hit != 'true'
+        run: pnpm --filter @durable-computer/mobile export:web:test
+      # Without the build these tests skip themselves, which here would pass for nothing.
+      - run: test -f apps/mobile/dist-web-test/index.html
+      - run: pnpm --filter @durable-computer/web exec playwright test --project=mobile
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-mobile
+          path: apps/web/test-results
+          retention-days: 7
 
   # Deploys to Cloudflare once the tests pass on main. It only runs where the repository says
   # which deployment is its own: the variable DC_D1_DATABASE_ID, with the secrets
   # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID. The rest of the deployment's settings are
   # variables too, read by apps/web/scripts/deploy-settings.mjs; none of them is in the code.
   deploy:
-    needs: test
+    needs: [check, test, e2e, e2e-mobile]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DC_D1_DATABASE_ID != ''
     runs-on: ubuntu-latest
     # One deploy at a time, and never one cut off halfway.
@@ -39,12 +116,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm --filter @durable-computer/web run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
