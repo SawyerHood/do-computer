@@ -177,33 +177,32 @@ export function AgentPanel({
       aria-label={`About ${name}`}
       className="relative flex w-80 shrink-0 flex-col border-l bg-rail/40"
     >
+      {/* Rarely wanted, so it is out of the way in the corner. */}
+      {startFresh === undefined ? null : (
+        <button
+          type="button"
+          aria-label="Start fresh"
+          title={startFresh.title}
+          disabled={startFresh.disabled}
+          onClick={startFresh.run}
+          className="absolute top-2.5 right-2.5 rounded-md p-1.5 text-muted-foreground/60 outline-none hover:bg-surface hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40"
+        >
+          <ArrowsClockwiseIcon className="size-4" />
+        </button>
+      )}
       <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
         {face}
         {subagent === undefined ? <SubagentBrood agentId={agent.id} subagents={subagents} /> : null}
         <h2 className="mt-3 text-lg font-medium">{name}</h2>
         {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
         <p className="text-sm text-muted-foreground">{doing}</p>
-        {subagent !== undefined ? (
+        {subagent === undefined ? null : (
           <p className="mt-1 text-xs text-muted-foreground">
             A sub-agent of {agentName}
             {subagent.parentTitle === undefined ? "" : `, for “${subagent.parentTitle}”`}
           </p>
-        ) : agent.tagline ? (
-          <p className="mt-1 text-xs text-muted-foreground">{agent.tagline}</p>
-        ) : null}
-        {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
-        {startFresh === undefined ? null : (
-          <button
-            type="button"
-            aria-label="Start fresh"
-            title={startFresh.title}
-            disabled={startFresh.disabled}
-            onClick={startFresh.run}
-            className="mt-2 flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40"
-          >
-            <ArrowsClockwiseIcon className="size-3.5" /> Start fresh
-          </button>
         )}
+        {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
       </div>
       {subagent !== undefined || subagents.length === 0 ? null : (
         <div className="flex max-h-[40%] shrink-0 flex-col border-t">
