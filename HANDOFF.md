@@ -55,7 +55,8 @@ deploying: "I don't want to make changes to this project". The deployment's valu
   `DC_JUDGE_MODEL`, `DC_SANDBOX_KINDS`.
 - **GitHub repository secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - **Worker secrets** (kept by Cloudflare across deploys): `DC_AUTH_SECRET`, `OPENROUTER_API_KEY`,
-  `DAYTONA_API_KEY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`.
+  `DAYTONA_API_KEY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. `RESEND_API_KEY` would go here,
+  with `DC_EMAIL_FROM` as a repository variable, to send invitations by email; neither is set.
 
 `apps/web/scripts/deploy-settings.mjs` applies those values to the built config before
 `wrangler deploy` uploads it; `pnpm --filter @durable-computer/web run deploy` is what CI runs.
@@ -232,9 +233,40 @@ Since then, newest last:
       ends with the call: waiting on a sub-agent under it failed as soon as the agent had
       answered. The tests keep the wake-up interval long so that this path is the one tested.
     - **The web app** shows a chip where one was started, a marker with the report folded
-      inside where one reported, small creatures beside the agent's and a list in its panel,
-      and the sub-agents of the open chat under it in the chat list. A sub-agent's creature
+      inside where one reported, and small creatures beside the agent's and a list in its
+      panel. They are not listed in the side column, which says only how many of a chat's are
+      at work: the owner found a third level there too much nesting. A sub-agent's creature
       grows from its chat's id. `prototypes/subagents` is the mock-up it was built from.
+
+15. **Teams** (2026-10-07; `apps/web/src/server/teams.ts`, `prototypes/teams`). Everyone has a
+    personal workspace, and a team is a workspace several people share.
+    - **Where an agent lives is one column**, `dc_agents.workspace_id`. A personal workspace has
+      no row: its id is `personal:<user id>`, and every agent from before teams was put in its
+      owner's. `agentAccess` in `teams.ts` is the one place that decides who may reach an
+      agent; the gateway, connectors, pairing and deletion all go through it. `teams.ts` knows
+      nothing of requests or the platform, so its tests run against a database alone.
+    - **Invitations** are by email address or GitHub username. Only the hash of a link's token
+      is kept, so a link is shown once, when it is made, and "send again" makes a new one. An
+      invitation finds a signed-in user by their GitHub account id, or by their address once it
+      is verified: anyone can sign up with an address they do not hold. Being invited lets
+      someone sign up on an invite-only deployment (`validateUserInfo` in `auth.ts`). Mail goes
+      through Resend when `RESEND_API_KEY` and `DC_EMAIL_FROM` are set, and otherwise the
+      sender is given the link.
+    - **The agent is told who is speaking.** The gateway names the caller in a header it builds
+      itself (`packages/agent/src/caller.ts`). In a team the note that travels with a message
+      carries the sender, which is where a message's author comes from when the chat is drawn,
+      and the system prompt says the agent is shared and its memory is the team's. A personal
+      agent's prompt is word for word what it was.
+    - **Who is where** is one actor per team (`presence-actor.ts`) holding a WebSocket per open
+      tab, hibernating on Cloudflare. Where each socket is lives in the actor's database, not
+      in memory. The same socket tells open tabs when the team changes. It is reached at
+      `/api/presence/<team>`, which the server entries route before the framework, as they do
+      for daemons; the gateway checks the session, the membership and the page's origin.
+    - **The web app** has a workspace menu at the top of the rail and no agent switcher: the
+      side column lists the workspace's agents, each with its chats folded under it on one line
+      each. The end of a chat's row is a spinner while there is work going on in it, else when
+      it was last used. A team has a home (`/w/<id>`), a page for its people, and an
+      invitation page (`/invite/<token>`) that can be read before signing in.
 
 ## 6. What the owner has said they want
 
@@ -250,6 +282,13 @@ Design, in their words where quoted:
 - "I also like keeping the chats hidden by default."
 - No brown. Teal is the accent now.
 - Muse is the reference for layout and for a living character.
+
+Teams, decided on 2026-10-07: what an agent knows is the team's, not each person's ("I want the
+agent to have team wide knowledge instead of personal knowledge"); connectors and paired
+computers shared with the team are fine; whether a message sent while the agent is busy steers
+it or waits is a setting; teammates spending on the one key is fine. The side column lists
+agents, collapsible, with single-line chats; sub-agents are not listed in it ("too much
+nesting"); and the row's last slot is a spinner or the time, "never ... together".
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
 each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only
@@ -290,6 +329,13 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   and a retry would be an improvement.
 
 ### Known gaps
+
+- **Teams:** there are no private chats in a team, though the mock-up had an "Only you" one;
+  no invite link that anyone can ask to join by; and no teams in the mobile app, which lists
+  every agent the user can reach and shows no authors or presence. A chat's spinner in the side
+  column knows about sub-agents everywhere but about the agent itself only in the chat on
+  screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
+  it does on the built server and on Workers. Invitation email has never been sent for real.
 
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.

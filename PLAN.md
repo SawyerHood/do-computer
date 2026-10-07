@@ -38,6 +38,7 @@ for actor hosts, the app database and sandboxes passing on both.
 | Web search          | A tool that searches and answers with sources through OpenRouter's web plugin, on the deployment's one key (resolves risk 7)                                   |
 | Usage               | Tokens and cost per agent, by model, with scheduled runs called out                                                                                            |
 | Accounts            | Better Auth with email and password, Google, GitHub; invite-only sign-up by default; several agents per account; deleting an agent with everything it has      |
+| Teams               | Workspaces: one's own, and teams with owner, admin and member; invitations by email or GitHub username; shared agents and chats with authors; who is where     |
 | Web                 | Chat, chat list and search, library, automations, skills, connectors, computers, permissions, identity and memory, usage                                       |
 | Mobile              | Expo app: sign-in, streaming chat, dictation, library, automations, skills, push registration, approval requests                                               |
 | Dictation and push  | Transcription through OpenRouter with the deployment key; notifications through Expo's push service                                                            |

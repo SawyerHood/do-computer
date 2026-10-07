@@ -77,6 +77,7 @@ function Home({ workspace }: { workspace: WorkspaceSummary }) {
           <FaceStack people={workspace.members} className="size-7" max={5} />
           <Button
             variant="outline"
+            nativeButton={false}
             render={<Link to="/w/$workspaceId/people" params={{ workspaceId: workspace.id }} />}
           >
             <GearIcon /> People
@@ -155,6 +156,7 @@ function Home({ workspace }: { workspace: WorkspaceSummary }) {
                         <Button
                           variant="outline"
                           size="sm"
+                          nativeButton={false}
                           render={
                             <Link
                               to="/a/$agentId/c/$chatId"

@@ -34,5 +34,6 @@
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "durable-computer" }],
   "vars": { "DC_SIGNUP": "invite" },
   // Secrets (wrangler secret put): DC_AUTH_SECRET, OPENROUTER_API_KEY, and optionally
-  // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET.
+  // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and
+  // RESEND_API_KEY to send team invitations by email (with DC_EMAIL_FROM in `vars`).
 }

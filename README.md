@@ -2,7 +2,8 @@
 
 An open-source, self-hostable, always-on personal agent. Each agent has a name, an avatar, a
 personality, memory and its own computer. It keeps working when the client is closed, runs
-schedules, learns skills, and can work on your own machines.
+schedules, learns skills, and can work on your own machines. An agent can be yours alone or
+shared by a [team](#teams).
 
 One codebase deploys to Cloudflare Workers and to plain Node. Models are called through
 [OpenRouter](https://openrouter.ai). The agent loop is
@@ -46,7 +47,8 @@ pnpm exec wrangler secret put OPENROUTER_API_KEY
 pnpm run deploy
 ```
 
-Each agent is a Durable Object with its own SQLite storage; accounts are in D1.
+Each agent is a Durable Object with its own SQLite storage; accounts and teams are in D1. Each
+team has one more Durable Object, which holds its members' connections for who is where.
 
 Instead of editing `wrangler.jsonc`, a deployment's own values can come from the environment,
 which keeps them out of the repository. `pnpm run deploy` applies them to the build before it
@@ -62,24 +64,25 @@ runs the tests and nothing else.
 
 ## Configuration
 
-| Variable                                   | Meaning                                                                                                                                       |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                                  |
-| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.              |
-| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                          |
-| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                              |
-| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` can sign up.          |
-| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                    |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                                   |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                                   |
-| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                             |
-| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                           |
-| `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`. |
-| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                |
-| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                                 |
-| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                     |
-| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                    |
-| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                    |
+| Variable                                   | Meaning                                                                                                                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                                                      |
+| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.                                  |
+| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                              |
+| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                  |
+| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` and people invited to a team can sign up. |
+| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                                        |
+| `RESEND_API_KEY`, `DC_EMAIL_FROM`          | Send team invitations by email through [Resend](https://resend.com), from that address. Without both, an invitation is a link to pass on.                         |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                                                       |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                                                       |
+| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                                                 |
+| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                                               |
+| `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`.                     |
+| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                                    |
+| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                                                     |
+| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                                         |
+| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                                        |
+| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                                        |
 
 ## Computers
 
@@ -142,7 +145,8 @@ real account: treat the first deployment on either as a trial.
 ## Limits worth knowing
 
 Every model call is paid from the one deployment key and there are no per-user limits yet, which
-is why sign-up is by invitation unless you open it.
+is why sign-up is by invitation unless you open it. Everyone invited to a team spends on that key
+too.
 
 ## What an agent can do
 
@@ -213,6 +217,33 @@ is why sign-up is by invitation unless you open it.
 You can talk instead of typing: the microphone button records, and the server transcribes with
 the same OpenRouter key (`DC_TRANSCRIPTION_MODEL`, default `openai/whisper-large-v3`).
 
+## Teams
+
+Everyone has a personal workspace, which only they can see. A team is a workspace several people
+share: start one from the workspace menu at the top of the rail.
+
+- **Inviting.** Ask people by email address or GitHub username. Each gets a link that works once,
+  for seven days. An email address is written to where the deployment can send mail; otherwise
+  the link is shown to whoever sent it, to pass on. An invitation to a GitHub username is waiting
+  for that account when it signs in. On a deployment where sign-up is by invitation, being
+  invited to a team is enough to sign up.
+- **Sharing.** Every member can use every agent in the team, read all of its chats, write in
+  them, and make new agents there. An agent of your own can be moved into a team, and back.
+- **One chat, several people.** A message from someone else has their face and name on it, and
+  the agent is told who is speaking. By default a message that arrives while the agent is
+  working waits its turn; that is a setting on each agent.
+- **Who is where.** The list of agents shows who has which chat open, a chat shows who is in it
+  and who is writing, and the team's page lists everyone who is here.
+- **Roles.** Members do all of the above. Admins also invite and remove people, rename the team,
+  and move or delete its agents. The owner also decides who is an admin, and can hand the team
+  on or delete it.
+
+What a team shares is everything about its agents: what an agent remembers is the team's, a
+connector someone signed in to acts as them for whoever is using the agent, and a computer
+someone paired with a team's agent runs commands for all of them. Anyone in the team can answer
+what the agent asks leave for, and the others see who did. Removing someone ends their access at
+once and unpairs their computers from the team's agents.
+
 ## Trust
 
 Agents act without asking first. That is the default on purpose, and it means a prompt injection
@@ -237,6 +268,8 @@ paired computer. What limits the damage:
   public name pointing at a private address is refused too; a Worker cannot reach private
   networks to begin with. `DC_ALLOW_PRIVATE_HOSTS=1` lifts all of this for a deployment that
   wants services on its own network.
+- **A team's agent is reachable by its members and nobody else.** Who is in a team is checked
+  on every request, from the session and the database, never from what the client says.
 - **Revocation.** Removing a computer cuts its daemon off at once. Removing a connector deletes its
   credentials. Deleting an agent deletes its computer and everything it stored.
 

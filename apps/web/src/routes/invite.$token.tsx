@@ -121,6 +121,7 @@ function InvitationPage() {
           <>
             <Button
               className="mt-6 h-11 w-full"
+              nativeButton={false}
               render={<a href={`/login?next=${encodeURIComponent(here)}`} />}
             >
               Sign in to join
@@ -128,6 +129,7 @@ function InvitationPage() {
             <Button
               variant="ghost"
               className="mt-1 w-full"
+              nativeButton={false}
               render={<a href={`/signup?next=${encodeURIComponent(here)}`} />}
             >
               Create an account
