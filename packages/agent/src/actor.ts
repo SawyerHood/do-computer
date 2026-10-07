@@ -13,7 +13,9 @@ import {
   readLimited,
   type CreateChatRequest,
   diffChat,
+  DEFAULT_THINKING,
   encodeSse,
+  isThinkingLevel,
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
   MESSAGE_IMAGE_TYPES,
@@ -23,6 +25,7 @@ import {
   type SendMessageRequest,
   SSE_HEADERS,
   SSE_HEARTBEAT,
+  THINKING_LEVELS,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
@@ -67,7 +70,7 @@ import {
   MAX_LIBRARY_FILE_BYTES,
 } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
-import { parseModel, THINKING_LEVEL } from "./models.ts"
+import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
@@ -1070,6 +1073,7 @@ export class AgentActor implements Actor {
       tagline: identity.tagline,
       createdAt: identity.createdAt,
       model: identity.model,
+      thinking: identity.thinking ?? DEFAULT_THINKING,
       // An agent from before there were eggs has a name, and is not sent back into one.
       hatched: identity.hatchedAt !== undefined || identity.name !== null,
     }
@@ -1107,6 +1111,10 @@ export class AgentActor implements Actor {
     const memory = text("memory", MEMORY_LIMIT)
     const model = text("model", 200)
     if (model !== undefined) this.#requireModel(model)
+    const thinking = text("thinking", 20)
+    if (thinking !== undefined && !isThinkingLevel(thinking)) {
+      throw new HttpError(400, `thinking must be one of ${THINKING_LEVELS.join(", ")}`)
+    }
     const timezone = text("timezone", 64)
     if (timezone !== undefined && !isValidTimezone(timezone)) {
       throw new HttpError(400, `"${timezone}" is not an IANA timezone`)
@@ -1151,6 +1159,8 @@ export class AgentActor implements Actor {
           identity.computers = [...(identity.computers ?? []), computer]
         }
       }
+      // Chats pick this up on their next message.
+      if (thinking !== undefined) identity.thinking = thinking
       if (model === undefined || model === identity.model) return []
       identity.model = model
       return Object.keys((await tx.doc(ChatsDoc)).chats)
@@ -1196,7 +1206,10 @@ export class AgentActor implements Actor {
     const conversation = await harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model: parseModel(identity.model), thinkingLevel: THINKING_LEVEL },
+        agent: {
+          model: parseModel(identity.model),
+          thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
+        },
         init: async (tx, id) => {
           ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
         },
@@ -1240,11 +1253,12 @@ export class AgentActor implements Actor {
     // would change on every request and defeat the provider's prompt cache.
     const timezone =
       typeof input.timezone === "string" && isValidTimezone(input.timezone) ? input.timezone : null
-    // A chat from before agents thought, or from when they thought differently, catches up here.
-    if ((await conversation.agent(context)).thinkingLevel !== THINKING_LEVEL) {
-      await conversation.configure({ thinkingLevel: THINKING_LEVEL }, context)
-    }
     const identity = await this.#identity(harness)
+    // A chat from before agents thought, or from when this one thought differently, catches up here.
+    const thinking = identity.thinking ?? DEFAULT_THINKING
+    if ((await conversation.agent(context)).thinkingLevel !== thinking) {
+      await conversation.configure({ thinkingLevel: thinking }, context)
+    }
     const zone = timezone ?? identity.timezone
     const meta = `<meta sent_at="${formatTime(this.#host.now(), zone)}"/>`
     // Pictures go to the model with the words, where the agent's model can take them.

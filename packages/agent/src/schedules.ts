@@ -1,4 +1,8 @@
-import type { ScheduleSummary, UpdateScheduleRequest } from "@durable-computer/protocol"
+import {
+  DEFAULT_THINKING,
+  type ScheduleSummary,
+  type UpdateScheduleRequest,
+} from "@durable-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {
@@ -11,7 +15,7 @@ import {
   type Harness,
 } from "@earendil-works/pi-durable"
 import { ChatsDoc, IdentityDoc, type ScheduleRecord, SchedulesDoc } from "./docs.ts"
-import { parseModel, THINKING_LEVEL } from "./models.ts"
+import { parseModel } from "./models.ts"
 import { formatTime, nextRunAt, parseSchedule } from "./schedule.ts"
 import { own } from "./own.ts"
 
@@ -294,7 +298,10 @@ export class Scheduler {
     await harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model: parseModel(identity.model), thinkingLevel: THINKING_LEVEL },
+        agent: {
+          model: parseModel(identity.model),
+          thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
+        },
         init: async (tx, conversationId) => {
           const record = own((await tx.doc(SchedulesDoc)).schedules, id)
           // Removed or already fired since the snapshot: the chat stays unlisted and empty.

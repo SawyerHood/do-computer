@@ -1,4 +1,4 @@
-import type { Avatar, ChatKind } from "@durable-computer/protocol"
+import type { Avatar, ChatKind, ThinkingLevel } from "@durable-computer/protocol"
 import { defineDoc } from "@earendil-works/pi-durable"
 
 /**
@@ -17,6 +17,8 @@ export type IdentityState = {
   memory: string
   /** `provider/modelId` new chats run on. */
   model: string
+  /** How hard it thinks before it answers. Absent on an agent that was never told. */
+  thinking?: ThinkingLevel
   /** Account that owns this agent. */
   ownerId: string
   createdAt: number

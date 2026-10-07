@@ -5,6 +5,7 @@ import {
   AVATAR_COLORS,
   defaultAvatar,
   randomId,
+  type ThinkingLevel,
 } from "@durable-computer/protocol"
 import { ArrowLeftIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -13,6 +14,7 @@ import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { ComputerPicker } from "@/components/computer-picker"
 import { ModelPicker } from "@/components/model-picker"
+import { ThinkingPicker } from "@/components/thinking-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,6 +41,7 @@ type Form = {
   user: string
   memory: string
   model: string
+  thinking: ThinkingLevel
   /** The kind of computer. Null where the deployment offers no choice of one. */
   computer: string | null
 }
@@ -52,6 +55,7 @@ function toForm(state: AgentState): Form {
     user: state.user,
     memory: state.memory,
     model: state.agent.model,
+    thinking: state.agent.thinking,
     computer: state.computer,
   }
 }
@@ -340,6 +344,7 @@ function ProfilePage() {
       user: form.user,
       memory: form.memory,
       model: form.model,
+      thinking: form.thinking,
       ...(moving && form.computer !== null ? { computer: form.computer } : {}),
     })
   }
@@ -468,6 +473,13 @@ function ProfilePage() {
             models={models ?? []}
             value={form.model}
             onChange={(model) => set("model", model)}
+          />
+          <ThinkingPicker
+            label="Thinking"
+            value={form.thinking}
+            // Until the list of models arrives, nothing says this one cannot reason.
+            disabled={models?.find((model) => model.id === form.model)?.reasoning === false}
+            onChange={(thinking) => set("thinking", thinking)}
           />
         </Section>
 

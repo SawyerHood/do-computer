@@ -17,11 +17,21 @@ export type AgentIdentity = {
   tagline: string | null
 }
 
+/** How hard an agent thinks before it answers, from not at all to a lot. */
+export const THINKING_LEVELS = ["off", "low", "medium", "high"] as const
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
+/** What an agent that has not been told otherwise uses. */
+export const DEFAULT_THINKING: ThinkingLevel = "medium"
+export const isThinkingLevel = (value: string): value is ThinkingLevel =>
+  (THINKING_LEVELS as readonly string[]).includes(value)
+
 export type AgentSummary = AgentIdentity & {
   id: string
   createdAt: number
   /** `provider/model` the agent runs on. */
   model: string
+  /** How hard it thinks before it answers. A model that cannot reason ignores it. */
+  thinking: ThinkingLevel
   /** Whether its owner has watched it hatch. Until then it is shown as an egg. */
   hatched: boolean
 }

@@ -7,7 +7,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
-import type { Agent, ModelRef } from "@earendil-works/pi-durable"
+import type { ModelRef } from "@earendil-works/pi-durable"
 import type { SummaryOptions } from "./activity.ts"
 import type { WebSearchOptions } from "./web-search.ts"
 
@@ -22,11 +22,6 @@ const CURATED = [
 ]
 
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5.5"
-/**
- * How hard an agent thinks before it answers. A model that cannot reason ignores it, and one that
- * lacks this level takes the nearest it has.
- */
-export const THINKING_LEVEL: Agent["thinkingLevel"] = "medium"
 /**
  * Reads web search results when no search model is configured. Reading a handful of pages and
  * reporting what they say does not need the agent's own model, and one search with it cost
