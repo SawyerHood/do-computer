@@ -1,5 +1,14 @@
 import { expect, test } from "./fixtures.ts"
-import { composer, inOrder, openSettings, owner, signIn, signUp, tab } from "./helpers.ts"
+import {
+  composer,
+  inOrder,
+  openSettings,
+  owner,
+  sideChats,
+  signIn,
+  signUp,
+  tab,
+} from "./helpers.ts"
 
 inOrder()
 
@@ -22,15 +31,16 @@ test("a second account is refused on an invite-only deployment", async ({ page }
   await expect(page).toHaveURL(/\/signup$/)
 })
 
-test("a message is answered, streamed into the transcript, and titles the chat", async ({
-  page,
-}) => {
+test("a message is answered and streamed into the transcript", async ({ page }) => {
   await signIn(page)
   await composer(page).fill("What can you do?")
   await page.keyboard.press("Enter")
   await expect(composer(page)).toHaveValue("")
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
-  await expect(page.getByRole("link", { name: "What can you do?" })).toBeVisible()
+  // The agent's row in the sidebar is the way to this chat: it has no chats listed under it.
+  const agents = page.getByRole("navigation", { name: "Agents" })
+  await expect(agents.getByRole("link")).toHaveCount(1)
+  await expect(agents.getByRole("link")).toHaveAttribute("aria-current", "page")
 
   // The transcript is the agent's, not the tab's: it is still there after a reload.
   await page.reload()
@@ -44,18 +54,51 @@ test("assistant text is rendered as Markdown", async ({ page }) => {
   await expect(page.locator(".prose-chat li")).toHaveText(["one", "two"])
 })
 
-test("chats are separate, and an archived chat leaves the list", async ({ page }) => {
+test("a side chat opens beside the main chat, is separate from it, and can be put away", async ({
+  page,
+}) => {
   await signIn(page)
-  await page.getByRole("button", { name: "New chat", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Say hello" })).toBeVisible()
-  await composer(page).fill("second chat here")
+  const main = page.url()
+  await sideChats(page).click()
+  await expect(page.getByText(/^None yet\./)).toBeVisible()
+  await page.getByRole("menuitem", { name: "New side chat" }).click()
+
+  // The main chat stays where it is, and the side chat is in a column of its own beside it.
+  const beside = page.getByRole("complementary", { name: /^Side chat:/ })
+  await expect(beside.getByText(/A side chat keeps its own conversation/)).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`${new URL(main).pathname}\\?side=\\d+$`))
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  await beside.getByRole("textbox", { name: "Message" }).fill("second chat here")
   await page.keyboard.press("Enter")
+  await expect(beside.getByText("You said: second chat here")).toBeVisible()
+  await expect(beside.getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(beside.getByRole("heading", { name: "second chat here" })).toBeVisible()
+
+  // It is still beside the main chat after a reload, and it is listed in the agent's side chats.
+  await page.reload()
+  await expect(beside.getByText("You said: second chat here")).toBeVisible()
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  // Given the whole chat, a line under the strip says what it is and leads back.
+  await beside.getByRole("link", { name: "Give it the whole chat" }).click()
+  await expect(beside).toHaveCount(0)
   await expect(page.getByText("You said: second chat here")).toBeVisible()
   await expect(page.getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(composer(page)).toHaveAttribute("placeholder", /in this side chat$/)
+  await page.getByRole("link", { name: "Main chat", exact: true }).click()
+  await expect(page).toHaveURL(main)
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
 
-  await page.getByRole("link", { name: "second chat here" }).hover()
-  await page.getByRole("button", { name: "Archive second chat here" }).click()
-  await expect(page.getByRole("link", { name: "second chat here" })).toHaveCount(0)
+  // From the menu it opens beside the main chat again, and is put away from there.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^second chat here/ }).click()
+  await beside.getByRole("button", { name: "Archive second chat here" }).click()
+  await expect(beside).toHaveCount(0)
+  await expect(page).toHaveURL(main)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toHaveCount(0)
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
 })
 

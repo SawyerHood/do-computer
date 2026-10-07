@@ -52,7 +52,14 @@ export async function closeSettings(page: Page) {
 export const tab = (page: Page, name: "Chat" | "Library" | "Automations") =>
   page.getByRole("link", { name, exact: true })
 
-/** Start a chat and wait until it is the one on screen, so typing lands in it. */
+/** The way to the agent's side chats, at the end of its strip. */
+export const sideChats = (page: Page) => page.getByRole("button", { name: /'s side chats$/ })
+
+/**
+ * Start a side chat and give it the middle of the page, so that it is the only chat on screen
+ * and typing lands in it. Started from the main chat on a wide screen it opens beside it, where
+ * there would be two boxes to write in.
+ */
 export async function newChat(page: Page) {
   // A settings window is over the page, and in the way, until it is closed.
   if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
@@ -66,9 +73,17 @@ export async function newChat(page: Page) {
       !before.endsWith(path.replace(/^.*\/chats\/(\d+)\/events$/, "/c/$1"))
     )
   })
-  await page.getByRole("button", { name: "New chat", exact: true }).click()
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: "New side chat" }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
   await listening
+  if (new URL(page.url()).searchParams.has("side")) {
+    await page.getByRole("link", { name: "Give it the whole chat" }).click()
+    await page.waitForURL((url) => !url.searchParams.has("side"))
+  }
+  // Here too the address changes before the page does: wait until the one chat is all there is.
+  await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
   await expect(composer(page)).toHaveValue("")
 }
 

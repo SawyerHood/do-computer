@@ -4,13 +4,12 @@ import {
   CaretDownIcon,
   CheckIcon,
   ListIcon,
-  NotePencilIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { eq, useLiveQuery } from "@tanstack/react-db"
-import { Link, useNavigate, useParams } from "@tanstack/react-router"
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { useAtom } from "jotai"
 import { useEffect } from "react"
 import { AgentFace } from "@/components/agent-avatar"
@@ -22,7 +21,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { agentPanelOpenAtom } from "@/lib/atoms"
@@ -31,34 +29,23 @@ import { agentKey, agentsCollection } from "@/lib/collections"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
-import { ago, useNewChat } from "./agent-list.tsx"
+import { SideChats } from "./side-chats.tsx"
 
 /** The pages of an agent that are tabs: the things it is used for, as against how it is set up. */
 export type AgentTab = "chat" | "library" | "automations"
 
-/** The chat each agent was last on, so that its Chat tab goes back to it from another tab. */
+/**
+ * The chat each agent was last on, so that its Chat tab goes back to it from another tab. With
+ * none to go back to, the tab opens the main chat.
+ */
 const lastChat = new Map<string, string>()
 
 const tab =
   "relative flex h-full shrink-0 items-center px-2.5 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 aria-[current=page]:text-foreground aria-[current=page]:after:absolute aria-[current=page]:after:inset-x-2 aria-[current=page]:after:bottom-0 aria-[current=page]:after:h-0.5 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-primary"
 
-/**
- * The agent's name, which is also the way to another agent or another of its chats without
- * opening the sidebar.
- */
-function AgentSwitcher({
-  agent,
-  workspace,
-  state,
-  chatId,
-}: {
-  agent: AgentSummary
-  workspace: WorkspaceSummary
-  state: AgentState | undefined
-  chatId: string | undefined
-}) {
+/** The agent's name, which is also the way to another agent without opening the sidebar. */
+function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: WorkspaceSummary }) {
   const navigate = useNavigate()
-  const newChat = useNewChat(agent.id)
   const { data: agents } = useLiveQuery(
     (q) =>
       q
@@ -68,16 +55,11 @@ function AgentSwitcher({
     [workspace.id],
   )
   const name = agent.name ?? "New agent"
-  const recent = (state?.chats ?? [])
-    .filter((chat) => chat.kind === "chat" && !chat.archived)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, 5)
-  const now = Date.now()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`${name}: another agent or chat`}
-        title="Another agent or chat"
+        aria-label={`${name}: another agent`}
+        title="Another agent"
         className="flex min-w-0 items-center gap-2 rounded-xl py-1 pr-2 pl-1 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
       >
         <AgentFace agent={agent} className="size-7" still />
@@ -105,38 +87,6 @@ function AgentSwitcher({
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
-        {recent.length === 0 ? null : (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Recent chats with {name}</DropdownMenuLabel>
-              {recent.map((chat) => (
-                <DropdownMenuItem
-                  key={chat.id}
-                  onClick={() =>
-                    navigate({
-                      to: "/a/$agentId/c/$chatId",
-                      params: { agentId: agent.id, chatId: chat.id },
-                    })
-                  }
-                >
-                  <span
-                    className={cn("min-w-0 flex-1 truncate", chat.id === chatId && "font-medium")}
-                  >
-                    {chat.title}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {ago(chat.updatedAt, now)}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void newChat()}>
-          <NotePencilIcon /> New chat
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -144,7 +94,7 @@ function AgentSwitcher({
 
 /**
  * The strip across the top of an agent's pages: which agent this is, its tabs, and at its end
- * who is here, the way into its settings, and the switch for its panel. It is the same on every
+ * who is here, its side chats, the way into its settings, and the switch for its panel. It is the same on every
  * tab, so that changing tab changes only what is under it.
  */
 export function AgentStrip({
@@ -165,9 +115,12 @@ export function AgentStrip({
   onOpenSheet: () => void
 }) {
   const { chatId } = useParams({ strict: false })
+  const { side } = useSearch({ strict: false })
+  const navigate = useNavigate()
   const { openAgent } = useSettings()
-  const newChat = useNewChat(agent.id)
-  const [panel, setPanel] = useAtom(agentPanelOpenAtom)
+  const [wanted, setPanel] = useAtom(agentPanelOpenAtom)
+  // A side chat beside the main chat is where the panel would be.
+  const panel = wanted && side === undefined
   // Shares the layout's query, so this never fetches on its own.
   const { data: state } = useQuery<AgentState>({
     queryKey: agentKey(agent.id),
@@ -176,7 +129,6 @@ export function AgentStrip({
   useEffect(() => {
     if (chatId !== undefined) lastChat.set(agent.id, chatId)
   }, [agent.id, chatId])
-  const chat = state?.chats.find((entry) => entry.id === chatId)
   const back = lastChat.get(agent.id)
 
   const team = workspace.kind === "team"
@@ -195,8 +147,8 @@ export function AgentStrip({
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="Agents and chats"
-        title="Agents and chats"
+        aria-label="Agents"
+        title="Agents"
         className="text-muted-foreground md:hidden"
         onClick={onOpenSheet}
       >
@@ -215,29 +167,7 @@ export function AgentStrip({
         </Button>
       )}
       <div className="flex h-12 min-w-0 items-center gap-1.5 md:h-full">
-        <AgentSwitcher agent={agent} workspace={workspace} state={state} chatId={chatId} />
-        {/* With the sidebar away, nothing else says which chat this is. */}
-        {!sidebarOpen && page === "chat" && chat !== undefined ? (
-          <>
-            <span aria-hidden className="hidden text-muted-foreground md:inline">
-              /
-            </span>
-            <span className="hidden max-w-60 min-w-0 truncate pr-1.5 text-sm md:inline">
-              {chat.title}
-            </span>
-          </>
-        ) : null}
-        {/* The sidebar has this button too, so it is here only while the sidebar is away. */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="New chat"
-          title="New chat"
-          className={cn("shrink-0 text-muted-foreground", sidebarOpen && "md:hidden")}
-          onClick={() => void newChat()}
-        >
-          <NotePencilIcon />
-        </Button>
+        <AgentSwitcher agent={agent} workspace={workspace} />
       </div>
       <nav
         aria-label={`${name}'s pages`}
@@ -286,6 +216,7 @@ export function AgentStrip({
             <FaceStack people={present} className="size-6.5" max={4} />
           </span>
         ) : null}
+        <SideChats agent={agent} workspace={workspace} state={state} />
         <Button
           variant="ghost"
           size="icon-sm"
@@ -307,7 +238,16 @@ export function AgentStrip({
             "hidden xl:inline-flex",
             panel ? "text-foreground" : "text-muted-foreground",
           )}
-          onClick={() => setPanel(!panel)}
+          onClick={() => {
+            setPanel(!panel)
+            // The side chat makes way for the panel.
+            if (side !== undefined && chatId !== undefined) {
+              void navigate({
+                to: "/a/$agentId/c/$chatId",
+                params: { agentId: agent.id, chatId },
+              })
+            }
+          }}
         >
           <SidebarSimpleIcon className="-scale-x-100" />
         </Button>

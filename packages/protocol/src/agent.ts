@@ -75,6 +75,12 @@ export type ChatSummary = {
   createdAt: number
   updatedAt: number
   archived: boolean
+  /**
+   * The agent's main chat: the one conversation that opens when the agent is chosen, and carries
+   * on from day to day. At most one of an agent's chats is. The others someone talks in are its
+   * side chats.
+   */
+  main?: boolean
   /** The id of the user who started it, where that is known. */
   createdBy?: string
   /** For a sub-agent: the chat it was started in, where its reports go. */

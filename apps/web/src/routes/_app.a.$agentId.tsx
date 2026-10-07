@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppShell } from "@/components/shell/app-shell"
+import { mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentKey, refreshAgent } from "@/lib/collections"
 import { useAgentFavicon } from "@/lib/favicon"
@@ -23,6 +24,19 @@ function AgentLayout() {
     })
     return () => subscription.close()
   }, [agentId])
+
+  // An agent that was opened at one of its pages, and not by being chosen, may not have been
+  // given its main chat yet. Its pages tell the main chat from the side chats, so it is given now.
+  const mainless = state !== undefined && mainChatOf(state.chats) === undefined
+  useEffect(() => {
+    if (!mainless) return
+    void client
+      .agent(agentId)
+      .mainChat()
+      .then(() => refreshAgent(agentId, "chats"))
+      // It is asked for again the next time the agent is opened.
+      .catch(() => {})
+  }, [agentId, mainless])
 
   if (error) {
     return (

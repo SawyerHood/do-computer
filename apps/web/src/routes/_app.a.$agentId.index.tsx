@@ -1,11 +1,13 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
+import { mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 
 /**
- * Open the agent's most recent chat, or start its first one. A scheduled run has a chat of its own,
- * which is reached from the automations page and is not where a visit begins.
+ * Choosing an agent is talking to it: this opens its main chat. The agent is given one the first
+ * time it is opened, which for an agent that already had chats is the one it was last talked to
+ * in.
  */
 export const Route = createFileRoute("/_app/a/$agentId/")({
   beforeLoad: async ({ params, search }) => {
@@ -15,9 +17,9 @@ export const Route = createFileRoute("/_app/a/$agentId/")({
       queryFn: () => api.state(),
       staleTime: 0,
     })
-    let chat = state.chats.find((candidate) => candidate.kind === "chat" && !candidate.archived)
+    let chat = mainChatOf(state.chats)
     if (chat === undefined) {
-      chat = await api.createChat()
+      chat = await api.mainChat()
       await queryClient.invalidateQueries({ queryKey: agentKey(params.agentId) })
     }
     throw redirect({

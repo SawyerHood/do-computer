@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, newChat, signIn, tab, tool } from "./helpers.ts"
+import { asOwner, composer, newChat, sideChats, signIn, tab, tool } from "./helpers.ts"
 
 asOwner()
 
@@ -23,10 +23,10 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   await page.getByRole("button", { name: "Show Juniper beside the chat" }).click()
   await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
 
-  // A chat can be started without it.
-  const before = page.url()
-  await page.getByRole("button", { name: "New chat", exact: true }).click()
-  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
+  // The agent's side chats are reached without it.
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await page.keyboard.press("Escape")
 
   // Asked for, it is beside the chat, and still there after a reload.
   await page.getByRole("button", { name: "Show the sidebar" }).click()
@@ -174,7 +174,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   // It is as wide when a document is next opened, from its card as well, after a reload.
   await page.reload()
   await page
-    .getByRole("main")
+    .getByRole("log")
     .getByRole("button", { name: /notes\.md/ })
     .first()
     .click()
@@ -186,15 +186,13 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
 
 test("the layout works at phone width", async ({ page }) => {
   await signIn(page)
-  await newChat(page)
   await composer(page).fill("What can you do?")
   await composer(page).press("Enter")
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
-  // More chats than the list shows at once, so that one is among the older ones.
-  const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
-  for (let made = 0; made < 9; made++) {
-    expect((await page.request.post(`/api/agents/${agentId}/chats`, { data: {} })).ok()).toBe(true)
-  }
+  await newChat(page)
+  await composer(page).fill("Something aside")
+  await composer(page).press("Enter")
+  await expect(page.getByText("You said: Something aside")).toBeVisible()
   await page.setViewportSize({ width: 400, height: 800 })
   await page.reload()
   // The agent's pages are tabs across the top, and fit the screen.
@@ -205,15 +203,24 @@ test("the layout works at phone width", async ({ page }) => {
     expect(box.x + box.width).toBeLessThanOrEqual(400)
   }
   // The sidebar is a sheet from the side. Measured once it has finished sliding in.
-  await page.getByRole("button", { name: "Agents and chats" }).click()
+  await page.getByRole("button", { name: "Agents", exact: true }).click()
   await expect(async () => {
     const sheet = (await page.getByRole("dialog").boundingBox())!
     expect(sheet.x).toBe(0)
   }).toPass()
-  // Only an agent's latest chats are listed until the rest are asked for.
-  await page.getByRole("button", { name: /older chats?$/ }).click()
-  await expect(page.getByRole("link", { name: "What can you do?" })).toBeVisible()
-  await page.getByRole("link", { name: "What can you do?" }).click()
+  // Choosing the agent there is talking to it: its main chat.
+  await page
+    .getByRole("dialog")
+    .getByRole("link", { name: /Juniper/ })
+    .click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  // With no room for two chats, a side chat takes the place of the main one, and leads back.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^Something aside/ }).click()
+  await expect(page.getByText("You said: Something aside")).toBeVisible()
+  await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
+  await page.getByRole("link", { name: "Main chat", exact: true }).click()
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
   // Nothing is wider than the screen.
   const overflow = await page.evaluate(

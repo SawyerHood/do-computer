@@ -278,11 +278,12 @@ const absent = (name: string) => defineExtension({ name })
 const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
   identity.whenBusy ?? (identity.team ? "queue" : "steer")
 
-function summarize(id: string, record: ChatRecord): ChatSummary {
+function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
   const { subagent, peer, ...chat } = record
   return {
     id,
     ...chat,
+    ...(id === main ? { main: true } : {}),
     ...(subagent === undefined ? {} : { parentId: subagent.parentId, status: subagent.status }),
     ...(peer === undefined
       ? {}
@@ -1015,6 +1016,9 @@ export class AgentActor implements Actor {
       if (segments.length === 1 && method === "POST") {
         return this.#createChat(harness, identity, await body<CreateChatRequest>(request), caller)
       }
+      if (segments[1] === "main" && segments.length === 2 && method === "POST") {
+        return this.#mainChat(harness, identity, caller)
+      }
       const chatId = segments[1]
       if (chatId !== undefined) {
         const conversation = await this.#chat(harness, chatId)
@@ -1186,7 +1190,7 @@ export class AgentActor implements Actor {
   }
 
   async #state(harness: Harness, identity: Readonly<IdentityState>) {
-    const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
+    const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
     const agent: AgentSummary = {
       id: this.#host.name,
       name: identity.name,
@@ -1212,7 +1216,7 @@ export class AgentActor implements Actor {
       memory: identity.memory,
       limits: { memory: MEMORY_LIMIT, user: USER_LIMIT },
       chats: Object.entries(chats)
-        .map(([id, record]) => summarize(id, record))
+        .map(([id, record]) => summarize(id, record, main))
         .sort((a, b) => b.updatedAt - a.updatedAt),
     }
   }
@@ -1319,15 +1323,17 @@ export class AgentActor implements Actor {
     return conversation
   }
 
-  async #createChat(
+  /** A chat someone talks in. As the main chat, it takes that place from whichever had it. */
+  async #newChat(
     harness: Harness,
     identity: Readonly<IdentityState>,
-    input: CreateChatRequest,
+    title: string | undefined,
     caller: Caller | undefined,
-  ): Promise<Response> {
+    main: boolean,
+  ): Promise<ChatSummary> {
     const now = this.#host.now()
     const record: ChatRecord = {
-      title: input.title?.trim().slice(0, MAX_TITLE_CHARS) || DEFAULT_CHAT_TITLE,
+      title: title?.trim().slice(0, MAX_TITLE_CHARS) || DEFAULT_CHAT_TITLE,
       kind: "chat",
       createdAt: now,
       updatedAt: now,
@@ -1342,24 +1348,68 @@ export class AgentActor implements Actor {
           thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
         },
         init: async (tx, id) => {
-          ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
+          const doc = await tx.doc(ChatsDoc)
+          doc.chats[String(id)] = record
+          if (main) doc.main = String(id)
         },
       },
       context,
     )
-    return json(summarize(String(conversation.id), record), 201)
+    const id = String(conversation.id)
+    return summarize(id, record, main ? id : undefined)
+  }
+
+  /** A chat beside the main one: a side chat. */
+  async #createChat(
+    harness: Harness,
+    identity: Readonly<IdentityState>,
+    input: CreateChatRequest,
+    caller: Caller | undefined,
+  ): Promise<Response> {
+    return json(await this.#newChat(harness, identity, input.title, caller, false), 201)
+  }
+
+  /**
+   * The agent's main chat, settled on if it has none. An agent from before there was such a
+   * thing gets the chat it was last talked to in, and its other chats are side chats from then
+   * on. One that has never been talked to gets a new chat.
+   */
+  async #mainChat(
+    harness: Harness,
+    identity: Readonly<IdentityState>,
+    caller: Caller | undefined,
+  ): Promise<Response> {
+    const found = await harness.commit(async (tx) => {
+      const doc = await tx.doc(ChatsDoc)
+      const kept = doc.main === undefined ? undefined : own(doc.chats, doc.main)
+      if (doc.main !== undefined && kept !== undefined) return summarize(doc.main, kept, doc.main)
+      const latest = Object.entries(doc.chats)
+        .filter(([, chat]) => chat.kind === "chat" && !chat.archived)
+        .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)[0]
+      if (latest === undefined) return undefined
+      doc.main = latest[0]
+      return summarize(latest[0], latest[1], latest[0])
+    }, context)
+    return json(found ?? (await this.#newChat(harness, identity, undefined, caller, true)))
   }
 
   async #updateChat(harness: Harness, chatId: string, input: UpdateChatRequest): Promise<Response> {
-    const record = await harness.commit(async (tx) => {
-      const chat = own((await tx.doc(ChatsDoc)).chats, chatId)!
+    const summary = await harness.commit(async (tx) => {
+      const doc = await tx.doc(ChatsDoc)
+      const chat = own(doc.chats, chatId)!
+      // The main chat is where the agent is talked to, so it is always there. Starting it fresh
+      // is how it is cleared.
+      if (input.archived === true && chatId === doc.main) return undefined
       if (typeof input.title === "string" && input.title.trim() !== "") {
         chat.title = input.title.trim().slice(0, MAX_TITLE_CHARS)
       }
       if (typeof input.archived === "boolean") chat.archived = input.archived
-      return { ...chat }
+      return summarize(chatId, chat, doc.main)
     }, context)
-    return json(summarize(chatId, record))
+    if (summary === undefined) {
+      throw new HttpError(409, "The main chat cannot be archived.", "main_chat")
+    }
+    return json(summary)
   }
 
   async #send(

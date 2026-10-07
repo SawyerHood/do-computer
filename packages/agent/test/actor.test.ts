@@ -395,6 +395,44 @@ describe("agent actor", () => {
       title: "Renamed",
     })
   })
+
+  it("has one main chat, which a new agent is given and which cannot be put away", async () => {
+    const world = open(temporary())
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    const main = await call<ChatSummary>(world, "/chats/main", "POST")
+    expect(main).toMatchObject({ kind: "chat", main: true, archived: false })
+    // Asked for again it is the same chat, and a chat started beside it is not it.
+    expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(main.id)
+    const side = await call<ChatSummary>(world, "/chats", "POST", { title: "Aside" })
+    expect(side.main).toBeUndefined()
+    const { chats } = await call<{ chats: ChatSummary[] }>(world, "/")
+    expect(chats.filter((chat) => chat.main).map((chat) => chat.id)).toEqual([main.id])
+
+    await expect(call(world, `/chats/${main.id}`, "PATCH", { archived: true })).rejects.toThrow(
+      "409",
+    )
+    expect(
+      (await call<ChatSummary>(world, `/chats/${main.id}`, "PATCH", { title: "Renamed" })).main,
+    ).toBe(true)
+  })
+
+  it("makes the chat last talked in the main one, for an agent from before there was one", async () => {
+    const world = open(temporary())
+    const first = await setup(world)
+    const second = await call<ChatSummary>(world, "/chats", "POST", {})
+    const put = await call<ChatSummary>(world, "/chats", "POST", {})
+    await call(world, `/chats/${put.id}`, "PATCH", { archived: true })
+    world.faux.setResponses([fauxAssistantMessage("hello")])
+    await send(world, first.id, "the one in use")
+    await follow(world, first.id, answered(1))
+
+    expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(first.id)
+    // It stays the main chat whichever is talked in after.
+    world.faux.setResponses([fauxAssistantMessage("hello")])
+    await send(world, second.id, "an aside")
+    await follow(world, second.id, answered(1))
+    expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(first.id)
+  })
 })
 
 describe("deleting an agent", () => {

@@ -1,5 +1,14 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, newChat, openSettings, signIn, tab, tool } from "./helpers.ts"
+import {
+  asOwner,
+  composer,
+  newChat,
+  openSettings,
+  sideChats,
+  signIn,
+  tab,
+  tool,
+} from "./helpers.ts"
 
 asOwner()
 
@@ -49,21 +58,20 @@ test("automations can be paused, run on demand and deleted", async ({ page }) =>
   await expect(page.getByRole("listitem").filter({ hasText: "Stretch break" })).toHaveCount(0)
 })
 
-test("scheduled runs do not clutter the chat list", async ({ page }) => {
+test("scheduled runs are not among the side chats", async ({ page }) => {
   await signIn(page)
-  await expect(page.getByRole("link", { name: "Magic words", exact: true })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Stretch break", exact: true })).toHaveCount(0)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: /Magic words/ })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: /Stretch break/ })).toHaveCount(0)
 })
 
-test("opening the agent lands on a chat of yours, not on a scheduled run", async ({ page }) => {
+test("opening the agent lands on its main chat, whatever was used last", async ({ page }) => {
   await signIn(page)
-  await newChat(page)
-  await composer(page).fill("Chat to come back to")
-  await page.keyboard.press("Enter")
-  await expect(page.getByText("You said: Chat to come back to")).toBeVisible()
-  const mine = page.url()
+  await page.waitForURL(/\/c\/\d+$/)
+  const main = page.url()
 
-  // A run of a schedule whose chat is then put away is the newest chat the agent has.
+  // A side chat and a run of a schedule are both newer than anything said in the main chat.
   await newChat(page)
   await composer(page).fill("Chat to put away")
   await page.keyboard.press("Enter")
@@ -78,13 +86,24 @@ test("opening the agent lands on a chat of yours, not on a scheduled run", async
   await card.getByRole("button", { name: "Run now" }).click()
   await expect(card.getByText(/Last run/)).toBeVisible({ timeout: 15_000 })
   await card.getByRole("button", { name: "Delete Night watch" }).click()
-  await page.getByRole("link", { name: "Chat to put away" }).hover()
-  await page.getByRole("button", { name: "Archive Chat to put away" }).click()
-  await expect(page.getByRole("link", { name: "Chat to put away" })).toHaveCount(0)
 
   await page.goto("/")
   await page.waitForURL(/\/c\/\d+$/)
-  expect(page.url()).toBe(mine)
+  expect(page.url()).toBe(main)
+  // Choosing the agent in the sidebar leads there too, from one of its side chats.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^Chat to put away/ }).click()
+  await page.getByRole("link", { name: "Give it the whole chat" }).click()
+  await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
+  await page.getByRole("navigation", { name: "Agents" }).getByRole("link").first().click()
+  await expect(page).toHaveURL(main)
+
+  // The main chat is always there: it is not one that can be put away.
+  const [, agentId, chatId] = /\/a\/([^/]+)\/c\/(\d+)$/.exec(main)!
+  const refused = await page.request.patch(`/api/agents/${agentId}/chats/${chatId}`, {
+    data: { archived: true },
+  })
+  expect(refused.status()).toBe(409)
 })
 
 test("the agent hands work to a sub-agent, whose chat is read and not written in", async ({
@@ -123,12 +142,12 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   )
   expect(sent.status()).toBe(409)
 
-  // It is not a chat of the user's: it is not listed as one, and opening the agent does not land in it.
+  // It is not a chat of the user's: it is not among the agent's side chats.
   await page.getByRole("link", { name: "Back to Juniper" }).click()
   await page.waitForURL(mine)
-  await page.goto("/")
-  await page.waitForURL(/\/c\/\d+$/)
-  expect(page.url()).toBe(mine)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: /^Flights/ })).toHaveCount(0)
 })
 
 test("a sub-agent at work can be stopped from its chat, and the agent is told", async ({

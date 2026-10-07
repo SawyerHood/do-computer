@@ -1,0 +1,73 @@
+/* ---------- main and side chats mock-up: added to the agent pages mock-up's styles ---------- */
+#app{height:calc(100vh - 78px)}
+#strip{height:78px;flex-wrap:wrap;align-content:center;row-gap:2px;overflow:hidden}
+#strip .note{flex-basis:100%;font-size:12.5px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:2px}
+#strip .note b{color:var(--foreground);font-weight:600;margin-right:4px}
+#strip i{width:1px;height:16px;background:var(--border);margin:0 4px}
+#strip .rec{font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--teal-text);margin-left:5px}
+#strip button.on .rec{color:inherit;opacity:.7}
+
+/* An agent in the sidebar, when a row is the agent and nothing folds: pick it and you are in its
+   main chat. */
+.arow{flex:none;display:flex;align-items:center;gap:12px;padding:8px 10px 8px 11px;border-radius:14px;width:100%;cursor:pointer}
+.arow:hover{background:var(--accent)}
+.arow.sel{background:var(--accent)}
+.arow.cur .t{color:var(--foreground)}
+.arow .t{font-size:14.5px;font-weight:500;display:flex;align-items:center;gap:6px}
+.arow .s{font-size:12.5px;color:var(--muted-foreground);display:flex;align-items:center;gap:6px;margin-top:1px;white-space:nowrap;overflow:hidden}
+.arow .end{font-size:11.5px;font-weight:400;color:var(--muted-foreground);flex:none;display:inline-flex;align-items:center;gap:5px}
+.arow .new{width:8px;height:8px;border-radius:99px;background:var(--primary);flex:none}
+.chats.flat{gap:3px}
+
+/* Under the open agent only (direction B): its side chats, with no arrow to fold them. */
+.under{display:flex;flex-direction:column;gap:1px;margin:2px 0 8px 30px;padding-left:10px;border-left:1px solid var(--border)}
+.under .lb,.sec .lb{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);padding:6px 10px 3px}
+.addrow{display:flex;align-items:center;gap:7px;height:30px;padding:0 10px;border-radius:8px;font-size:13px;color:var(--muted-foreground);width:100%}
+.addrow:hover{background:var(--accent);color:var(--foreground)}
+
+/* The way to side chats from the agent's strip (direction A). */
+.scb{height:30px;padding:0 10px 0 9px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--muted-foreground);white-space:nowrap;margin-left:8px}
+.scb:hover,.scb.on{background:var(--accent);color:var(--foreground)}
+.scb .n{font-size:11.5px;font-weight:600;min-width:18px;height:18px;border-radius:99px;background:var(--secondary);display:inline-grid;place-items:center;padding:0 5px}
+.scb.on .n{background:color-mix(in oklch,var(--ink) 18%,var(--canvas))}
+.menu .mi .end{font-size:11.5px;color:var(--muted-foreground);flex:none;display:inline-flex;align-items:center;gap:5px}
+.menu .mi.new{color:var(--teal-text);font-weight:500}
+
+/* A side chat, beside the main chat: in the place the agent's panel has, and as wide as it is
+   dragged. */
+.sidechat{width:440px;flex:none;border-left:1px solid var(--border);background:color-mix(in oklch,var(--rail) 40%,var(--background));--bg:color-mix(in oklch,var(--rail) 40%,var(--background));display:flex;flex-direction:column;min-height:0;position:relative}
+.sidechat::before{content:"";position:absolute;left:-3px;top:calc(50% - 18px);width:5px;height:36px;border-radius:9px;background:var(--input);cursor:col-resize}
+.sc-h{height:52px;flex:none;display:flex;align-items:center;gap:9px;padding:0 8px 0 14px;border-bottom:1px solid var(--border)}
+.sc-h .k{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);line-height:1.2}
+.sc-h .n{font-size:14px;font-weight:500;line-height:1.25}
+.sidechat .msgs{padding:18px 14px 14px;gap:14px}
+.sidechat .bub,.sidechat .prose{font-size:14px;line-height:1.55}
+.sidechat .m .line{max-width:90%}
+.sidechat .foot{padding:0 12px 14px}
+.sidechat .comp{background:var(--background)}
+
+/* A side chat in the middle: a line under the agent's strip says so, and leads back. */
+.subbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 0 10px;border-bottom:1px solid var(--border);background:color-mix(in oklch,var(--rail) 30%,var(--background));font-size:13.5px}
+.back{white-space:nowrap;flex:none;height:28px;padding:0 10px 0 6px;border-radius:8px;display:inline-flex;align-items:center;gap:4px;color:var(--muted-foreground);font-weight:500;font-size:13px}
+.back:hover{background:var(--accent);color:var(--foreground)}
+.subbar .k{color:var(--muted-foreground);white-space:nowrap}
+.subbar b{font-weight:500}
+
+/* The main chat is one long conversation: days, not titles, divide it. */
+.dayd{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted-foreground);margin:2px 0}
+.dayd::before,.dayd::after{content:"";flex:1;border-top:1px solid var(--border)}
+.aside-ref{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:12px;padding:7px 12px 7px 10px;font-size:13.5px;color:var(--muted-foreground)}
+.aside-ref:hover{background:var(--surface)}
+.aside-ref b{color:var(--foreground);font-weight:500}
+
+/* Side chats in the agent's panel (direction C). */
+.panel .crow.one{height:32px}
+.sec h3 .ib{width:22px;height:22px;margin:-4px 0}
+
+.note-card{position:absolute;z-index:6;left:50%;top:64px;transform:translateX(-50%);background:color-mix(in oklch,oklch(0.75 0.15 75) 16%,var(--background));border:1px solid oklch(0.75 0.15 75);border-radius:12px;padding:8px 14px;font-size:13px;max-width:470px;text-align:center}
+.m-sheet{position:absolute;left:0;right:0;bottom:0;background:var(--popover);--bg:var(--popover);border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:8px 8px 14px;display:flex;flex-direction:column;gap:1px}
+.m-sheet::before{content:"";width:36px;height:4px;border-radius:9px;background:var(--input);align-self:center;margin:2px 0 8px}
+.m-sheet .mi{font-size:13.5px}
+.m-sheet .lb{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);padding:4px 10px}
+.phone .arow{cursor:default;padding:7px 8px}
+.phone .subbar{height:36px;font-size:13px}

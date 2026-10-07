@@ -131,8 +131,8 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
 }
 
 /**
- * The one column of navigation: the workspace at its top, then its agents with their chats, and
- * the user's own menu at its foot. While the Library tab is showing, the list in the middle is
+ * The one column of navigation: the workspace at its top, then its agents, and the user's own
+ * menu at its foot. While the Library tab is showing, the list in the middle is
  * that agent's files, which the library page puts there; everything around it stays.
  */
 export function Sidebar({
@@ -199,7 +199,7 @@ export function Sidebar({
             >
               <CaretLeftIcon className="size-3.5 shrink-0" />
               <AgentFace agent={agent} className="size-5" quiet />
-              <span className="min-w-0 truncate">Agents and chats</span>
+              <span className="min-w-0 truncate">Agents</span>
             </Link>
             <div ref={setSlot} className="min-h-0 flex-1" />
           </>

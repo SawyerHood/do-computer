@@ -90,8 +90,8 @@ function useCurrentWorkspace(
 }
 
 /**
- * The frame around everything behind sign-in. One sidebar holds the workspace, its agents and
- * their chats. An agent's own pages are tabs in a strip above them, and its settings and the
+ * The frame around everything behind sign-in. One sidebar holds the workspace and its agents;
+ * choosing one opens its main chat. An agent's own pages are tabs in a strip above them, and its settings and the
  * workspace's are windows over whichever page is showing. Changing tab changes what is under
  * the strip and nothing else.
  */
@@ -151,7 +151,7 @@ export function AppShell({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="Agents and chats"
+              aria-label="Agents"
               className="text-muted-foreground md:hidden"
               onClick={() => setSheetOpen(true)}
             >
@@ -186,7 +186,7 @@ export function AppShell({
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="left" className="w-80 p-0" showCloseButton={false}>
-          <SheetTitle className="sr-only">Agents and chats</SheetTitle>
+          <SheetTitle className="sr-only">Agents</SheetTitle>
           <Sidebar
             workspace={workspace}
             me={me.user}

@@ -118,6 +118,8 @@ export type ChatRecord = {
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */
 export type ChatsState = {
   chats: Record<string, ChatRecord>
+  /** The id of the main chat. Absent until the agent is first opened after there were such. */
+  main?: string
 }
 
 export const ChatsDoc = defineDoc<ChatsState>({
