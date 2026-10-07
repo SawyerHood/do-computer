@@ -4,6 +4,7 @@ import { linkStatus } from "@durable-computer/computers"
 import type { ComputerSummary } from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
+import { agentAccess } from "./teams.ts"
 
 const PAIRING_TTL_MS = 10 * 60_000
 const MAX_PENDING_PAIRINGS = 200
@@ -178,11 +179,8 @@ export async function confirmPairing(user: SessionUser, request: Request): Promi
     Date.now(),
   )
   if (row === undefined) return fail(404, "That code is not valid or has expired.")
-  const agent = await db.get<{ id: string }>(
-    "SELECT id FROM dc_agents WHERE id = ? AND owner_id = ?",
-    input.agentId,
-    user.id,
-  )
+  // Anyone who can use an agent can give it a computer of theirs, a team's agent included.
+  const agent = await agentAccess(db, user.id, input.agentId)
   if (agent === undefined) return fail(404, "Agent not found")
   const owned = await db.get<{ n: number }>(
     "SELECT COUNT(*) AS n FROM dc_computers WHERE owner_id = ?",
@@ -251,15 +249,40 @@ export async function listComputers(user: SessionUser): Promise<Response> {
   return json({ computers: summaries })
 }
 
-/** Remove a computer: its token stops working, its daemon is disconnected, the agent forgets it. */
+/** Remove a computer of the user's. */
 export async function removeComputer(user: SessionUser, computerId: string): Promise<Response> {
-  const { db, agents, computers } = getPlatform()
-  const row = await db.get<ComputerRow>(
+  const row = await getPlatform().db.get<ComputerRow>(
     "SELECT * FROM dc_computers WHERE id = ? AND owner_id = ?",
     computerId,
     user.id,
   )
   if (row === undefined) return fail(404, "Computer not found")
+  return revokeComputer(row)
+}
+
+/** Every computer paired with an agent, whoever paired it, for when the agent is deleted. */
+export async function removeComputersOf(agentId: string): Promise<void> {
+  const rows = await getPlatform().db.all<ComputerRow>(
+    "SELECT * FROM dc_computers WHERE agent_id = ?",
+    agentId,
+  )
+  for (const row of rows) await revokeComputer(row)
+}
+
+/** The computers someone paired with a team's agents, for when they are no longer in the team. */
+export async function removeComputersOfMember(userId: string, workspaceId: string): Promise<void> {
+  const rows = await getPlatform().db.all<ComputerRow>(
+    `SELECT c.* FROM dc_computers c JOIN dc_agents a ON a.id = c.agent_id
+      WHERE c.owner_id = ? AND a.workspace_id = ?`,
+    userId,
+    workspaceId,
+  )
+  for (const row of rows) await revokeComputer(row)
+}
+
+/** Its token stops working, its daemon is disconnected, the agent forgets it. */
+async function revokeComputer(row: ComputerRow): Promise<Response> {
+  const { db, agents, computers } = getPlatform()
   // Access ends with this delete; the rest is tidying up.
   await db.run("DELETE FROM dc_computers WHERE id = ?", row.id)
   await computers

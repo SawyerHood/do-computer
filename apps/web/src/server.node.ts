@@ -2,12 +2,13 @@ import { getPlatform } from "#platform"
 import type { SocketLike } from "@durable-computer/runtime/node"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
+import { admitToPresence, PRESENCE_PATH, presenceWorkspace } from "./server/presence.ts"
 
 export default createServerEntry({
   fetch: (request) => handler.fetch(request),
 })
 
-export { CONNECT_PATH }
+export { CONNECT_PATH, PRESENCE_PATH }
 
 /**
  * Open the data directory and wake the agents. Called once when the server starts, not on the
@@ -28,4 +29,18 @@ export async function acceptDaemon(
   const computerId = await authenticateDaemon(request)
   if (computerId === undefined) return undefined
   return (socket) => getPlatform().connectComputer(computerActorName(computerId), socket, request)
+}
+
+/**
+ * A member's presence WebSocket, for the HTTP server that owns the socket. Resolves with a
+ * function that attaches the accepted socket, or undefined when the request is not a member's.
+ */
+export async function acceptPresence(
+  request: Request,
+): Promise<((socket: SocketLike) => Promise<void>) | undefined> {
+  const workspaceId = presenceWorkspace(new URL(request.url).pathname)
+  if (workspaceId === undefined) return undefined
+  const admitted = await admitToPresence(request, workspaceId)
+  if (admitted === undefined) return undefined
+  return (socket) => getPlatform().connectPresence(workspaceId, socket, admitted)
 }

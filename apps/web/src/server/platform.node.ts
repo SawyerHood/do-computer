@@ -11,15 +11,17 @@ import {
   type SocketLike,
 } from "@durable-computer/runtime/node"
 import { type Platform, readConfig } from "./platform.ts"
-import { notifyOwner } from "./push.ts"
+import { notifyPeople } from "./push.ts"
+import { createPresenceActor } from "./presence-actor.ts"
 import { nodeProviders } from "./sandbox.node.ts"
 import { computerChoices } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
 
-/** The Node platform also accepts daemon sockets, which only a long-lived process can hold. */
+/** The Node platform also accepts sockets, which only a long-lived process can hold. */
 export type NodePlatform = Platform & {
   connectComputer(name: string, socket: SocketLike, request: Request): Promise<void>
+  connectPresence(name: string, socket: SocketLike, request: Request): Promise<void>
 }
 type Holder = { [KEY]?: NodePlatform }
 
@@ -63,10 +65,17 @@ function create(): NodePlatform {
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
         onNotify: (notification) =>
-          void notifyOwner(app, notification.agentId, notification.agentName, notification),
+          void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       }),
     onError: (error, name) => console.error(`[agent ${name}] alarm failed`, error),
+  })
+  const presence = new NodeActorNamespace({
+    directory: join(directory, "presence"),
+    blobs: () => fileBlobs(join(directory, "blobs", "presence")),
+    factory: (host) => createPresenceActor(host),
+    socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
+    onError: (error, name) => console.error(`[presence ${name}]`, error),
   })
   // Wake agents whose work was interrupted by the last shutdown.
   agents.start()
@@ -77,7 +86,9 @@ function create(): NodePlatform {
     authDatabase: database,
     agents,
     computers: links,
+    presence,
     connectComputer: (name, socket, request) => links.connect(name, socket, request),
+    connectPresence: (name, socket, request) => presence.connect(name, socket, request),
   }
 }
 

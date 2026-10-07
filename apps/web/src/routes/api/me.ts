@@ -8,7 +8,10 @@ export const Route = createFileRoute("/api/me")({
       GET: async ({ request }) => {
         const user = await getUser(request)
         if (user === undefined) return fail(401, "Sign in first", "unauthenticated")
-        return json({ user: { id: user.id, email: user.email, name: user.name }, ...authMethods() })
+        return json({
+          user: { id: user.id, email: user.email, name: user.name, image: user.image ?? null },
+          ...authMethods(),
+        })
       },
     },
   },

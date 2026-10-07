@@ -22,11 +22,23 @@ import type {
   LiveState,
   UsageState,
 } from "@earendil-works/pi-durable"
+import { type Caller, senderOf } from "./caller.ts"
 
 type UserContent = UserMessage["content"]
 
 /** A text block the server adds for the model, such as the send time; never shown. */
 const isMeta = (text: string) => text.startsWith("<meta ")
+
+/** Who sent a message, from the note that travelled with it. */
+function contentAuthor(content: UserContent): Caller | undefined {
+  if (typeof content === "string") return undefined
+  for (const block of content) {
+    if (block.type !== "text" || !isMeta(block.text)) continue
+    const sender = senderOf(block.text)
+    if (sender !== undefined) return sender
+  }
+  return undefined
+}
 
 function contentParts(content: UserContent | (TextContent | ImageContent)[]): MessagePart[] {
   if (typeof content === "string") return content === "" ? [] : [{ type: "text", text: content }]
@@ -144,7 +156,15 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       const parts = contentParts(first.content)
       // A note to the model alone, such as being set going again, is not something anyone said.
       if (parts.length === 0) return undefined
-      return { id, role: "user", parts, status: "done", createdAt: first.timestamp }
+      const author = contentAuthor(first.content)
+      return {
+        id,
+        role: "user",
+        parts,
+        status: "done",
+        createdAt: first.timestamp,
+        ...(author === undefined ? {} : { author }),
+      }
     }
     case "pi.assistant": {
       if (first?.role !== "assistant") return undefined

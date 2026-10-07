@@ -32,6 +32,7 @@ import { Route as ApiComputersComputerIdRouteImport } from './routes/api/compute
 import { Route as ApiConnectorsCallbackRouteImport } from './routes/api/connectors/callback'
 import { Route as ApiPushRegisterRouteImport } from './routes/api/push/register'
 import { Route as ApiPushUnregisterRouteImport } from './routes/api/push/unregister'
+import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
 import { Route as DAgentIdSplatRouteImport } from './routes/d.$agentId.$'
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
@@ -44,11 +45,18 @@ import { Route as AppAAgentIdSettingsRouteImport } from './routes/_app.a.$agentI
 import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
 import { Route as ApiAgentsAgentIdConnectorsRouteImport } from './routes/api/agents/$agentId.connectors'
+import { Route as ApiAgentsAgentIdMoveRouteImport } from './routes/api/agents/$agentId.move'
 import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
 import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers/pair.poll'
 import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
+import { Route as ApiInvitationsKeyIndexRouteImport } from './routes/api/invitations/$key.index'
+import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invitations/$key.accept'
+import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
+import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
+import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId.invitations.$invitationId'
+import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId.members.$userId'
 import { Route as ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport } from './routes/api/agents/$agentId.connectors.$connectorId.connect'
 
 const AppRoute = AppRouteImport.update({
@@ -165,6 +173,11 @@ const ApiPushUnregisterRoute = ApiPushUnregisterRouteImport.update({
   path: '/api/push/unregister',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkspacesIndexRoute = ApiWorkspacesIndexRouteImport.update({
+  id: '/api/workspaces/',
+  path: '/api/workspaces/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DAgentIdSplatRoute = DAgentIdSplatRouteImport.update({
   id: '/d/$agentId/$',
   path: '/d/$agentId/$',
@@ -226,6 +239,11 @@ const ApiAgentsAgentIdConnectorsRoute =
     path: '/api/agents/$agentId/connectors',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAgentsAgentIdMoveRoute = ApiAgentsAgentIdMoveRouteImport.update({
+  id: '/api/agents/$agentId/move',
+  path: '/api/agents/$agentId/move',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiComputersPairConfirmRoute = ApiComputersPairConfirmRouteImport.update({
   id: '/api/computers/pair/confirm',
   path: '/api/computers/pair/confirm',
@@ -241,6 +259,22 @@ const ApiComputersPairStartRoute = ApiComputersPairStartRouteImport.update({
   path: '/api/computers/pair/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInvitationsKeyIndexRoute = ApiInvitationsKeyIndexRouteImport.update({
+  id: '/api/invitations/$key/',
+  path: '/api/invitations/$key/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInvitationsKeyAcceptRoute = ApiInvitationsKeyAcceptRouteImport.update({
+  id: '/api/invitations/$key/accept',
+  path: '/api/invitations/$key/accept',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkspacesWorkspaceIdIndexRoute =
+  ApiWorkspacesWorkspaceIdIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/',
+    path: '/api/workspaces/$workspaceId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
   id: '/c/$chatId',
   path: '/c/$chatId',
@@ -250,6 +284,24 @@ const ApiComputersPairRequestCodeRoute =
   ApiComputersPairRequestCodeRouteImport.update({
     id: '/api/computers/pair/request/$code',
     path: '/api/computers/pair/request/$code',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdInvitationsIndexRoute =
+  ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/invitations/',
+    path: '/api/workspaces/$workspaceId/invitations/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute =
+  ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport.update({
+    id: '/api/workspaces/$workspaceId/invitations/$invitationId',
+    path: '/api/workspaces/$workspaceId/invitations/$invitationId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdMembersUserIdRoute =
+  ApiWorkspacesWorkspaceIdMembersUserIdRouteImport.update({
+    id: '/api/workspaces/$workspaceId/members/$userId',
+    path: '/api/workspaces/$workspaceId/members/$userId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiAgentsAgentIdConnectorsConnectorIdConnectRoute =
@@ -283,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
+  '/api/workspaces/': typeof ApiWorkspacesIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
   '/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
@@ -293,12 +346,19 @@ export interface FileRoutesByFullPath {
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
+  '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
+  '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRoutesByTo {
@@ -324,6 +384,7 @@ export interface FileRoutesByTo {
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/api/agents': typeof ApiAgentsIndexRoute
   '/api/computers': typeof ApiComputersIndexRoute
+  '/api/workspaces': typeof ApiWorkspacesIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
   '/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
@@ -334,12 +395,19 @@ export interface FileRoutesByTo {
   '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
+  '/api/invitations/$key': typeof ApiInvitationsKeyIndexRoute
+  '/api/workspaces/$workspaceId': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRoutesById {
@@ -368,6 +436,7 @@ export interface FileRoutesById {
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
+  '/api/workspaces/': typeof ApiWorkspacesIndexRoute
   '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/_app/a/$agentId/computers': typeof AppAAgentIdComputersRoute
   '/_app/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
@@ -378,12 +447,19 @@ export interface FileRoutesById {
   '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
+  '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
+  '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRouteTypes {
@@ -412,6 +488,7 @@ export interface FileRouteTypes {
     | '/d/$agentId/$'
     | '/api/agents/'
     | '/api/computers/'
+    | '/api/workspaces/'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
     | '/a/$agentId/connectors'
@@ -422,12 +499,19 @@ export interface FileRouteTypes {
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
+    | '/api/agents/$agentId/move'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
+    | '/api/invitations/$key/accept'
     | '/a/$agentId/'
+    | '/api/invitations/$key/'
+    | '/api/workspaces/$workspaceId/'
     | '/a/$agentId/c/$chatId'
     | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/invitations/'
     | '/api/agents/$agentId/connectors/$connectorId/connect'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -453,6 +537,7 @@ export interface FileRouteTypes {
     | '/d/$agentId/$'
     | '/api/agents'
     | '/api/computers'
+    | '/api/workspaces'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
     | '/a/$agentId/connectors'
@@ -463,12 +548,19 @@ export interface FileRouteTypes {
     | '/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
+    | '/api/agents/$agentId/move'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
+    | '/api/invitations/$key/accept'
     | '/a/$agentId'
+    | '/api/invitations/$key'
+    | '/api/workspaces/$workspaceId'
     | '/a/$agentId/c/$chatId'
     | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/invitations'
     | '/api/agents/$agentId/connectors/$connectorId/connect'
   id:
     | '__root__'
@@ -496,6 +588,7 @@ export interface FileRouteTypes {
     | '/d/$agentId/$'
     | '/api/agents/'
     | '/api/computers/'
+    | '/api/workspaces/'
     | '/_app/a/$agentId/automations'
     | '/_app/a/$agentId/computers'
     | '/_app/a/$agentId/connectors'
@@ -506,12 +599,19 @@ export interface FileRouteTypes {
     | '/_app/a/$agentId/skills'
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
+    | '/api/agents/$agentId/move'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
+    | '/api/invitations/$key/accept'
     | '/_app/a/$agentId/'
+    | '/api/invitations/$key/'
+    | '/api/workspaces/$workspaceId/'
     | '/_app/a/$agentId/c/$chatId'
     | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/invitations/'
     | '/api/agents/$agentId/connectors/$connectorId/connect'
   fileRoutesById: FileRoutesById
 }
@@ -537,12 +637,20 @@ export interface RootRouteChildren {
   DAgentIdSplatRoute: typeof DAgentIdSplatRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
   ApiComputersIndexRoute: typeof ApiComputersIndexRoute
+  ApiWorkspacesIndexRoute: typeof ApiWorkspacesIndexRoute
   ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
   ApiAgentsAgentIdConnectorsRoute: typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  ApiAgentsAgentIdMoveRoute: typeof ApiAgentsAgentIdMoveRoute
   ApiComputersPairConfirmRoute: typeof ApiComputersPairConfirmRoute
   ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
   ApiComputersPairStartRoute: typeof ApiComputersPairStartRoute
+  ApiInvitationsKeyAcceptRoute: typeof ApiInvitationsKeyAcceptRoute
+  ApiInvitationsKeyIndexRoute: typeof ApiInvitationsKeyIndexRoute
+  ApiWorkspacesWorkspaceIdIndexRoute: typeof ApiWorkspacesWorkspaceIdIndexRoute
   ApiComputersPairRequestCodeRoute: typeof ApiComputersPairRequestCodeRoute
+  ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute: typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  ApiWorkspacesWorkspaceIdMembersUserIdRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  ApiWorkspacesWorkspaceIdInvitationsIndexRoute: typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -708,6 +816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushUnregisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/': {
+      id: '/api/workspaces/'
+      path: '/api/workspaces'
+      fullPath: '/api/workspaces/'
+      preLoaderRoute: typeof ApiWorkspacesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/d/$agentId/$': {
       id: '/d/$agentId/$'
       path: '/d/$agentId/$'
@@ -792,6 +907,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentsAgentIdConnectorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agents/$agentId/move': {
+      id: '/api/agents/$agentId/move'
+      path: '/api/agents/$agentId/move'
+      fullPath: '/api/agents/$agentId/move'
+      preLoaderRoute: typeof ApiAgentsAgentIdMoveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/computers/pair/confirm': {
       id: '/api/computers/pair/confirm'
       path: '/api/computers/pair/confirm'
@@ -813,6 +935,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiComputersPairStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/invitations/$key/': {
+      id: '/api/invitations/$key/'
+      path: '/api/invitations/$key'
+      fullPath: '/api/invitations/$key/'
+      preLoaderRoute: typeof ApiInvitationsKeyIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/invitations/$key/accept': {
+      id: '/api/invitations/$key/accept'
+      path: '/api/invitations/$key/accept'
+      fullPath: '/api/invitations/$key/accept'
+      preLoaderRoute: typeof ApiInvitationsKeyAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/': {
+      id: '/api/workspaces/$workspaceId/'
+      path: '/api/workspaces/$workspaceId'
+      fullPath: '/api/workspaces/$workspaceId/'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/a/$agentId/c/$chatId': {
       id: '/_app/a/$agentId/c/$chatId'
       path: '/c/$chatId'
@@ -825,6 +968,27 @@ declare module '@tanstack/react-router' {
       path: '/api/computers/pair/request/$code'
       fullPath: '/api/computers/pair/request/$code'
       preLoaderRoute: typeof ApiComputersPairRequestCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/invitations/': {
+      id: '/api/workspaces/$workspaceId/invitations/'
+      path: '/api/workspaces/$workspaceId/invitations'
+      fullPath: '/api/workspaces/$workspaceId/invitations/'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/invitations/$invitationId': {
+      id: '/api/workspaces/$workspaceId/invitations/$invitationId'
+      path: '/api/workspaces/$workspaceId/invitations/$invitationId'
+      fullPath: '/api/workspaces/$workspaceId/invitations/$invitationId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/members/$userId': {
+      id: '/api/workspaces/$workspaceId/members/$userId'
+      path: '/api/workspaces/$workspaceId/members/$userId'
+      fullPath: '/api/workspaces/$workspaceId/members/$userId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/agents/$agentId/connectors/$connectorId/connect': {
@@ -918,12 +1082,23 @@ const rootRouteChildren: RootRouteChildren = {
   DAgentIdSplatRoute: DAgentIdSplatRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
   ApiComputersIndexRoute: ApiComputersIndexRoute,
+  ApiWorkspacesIndexRoute: ApiWorkspacesIndexRoute,
   ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
   ApiAgentsAgentIdConnectorsRoute: ApiAgentsAgentIdConnectorsRouteWithChildren,
+  ApiAgentsAgentIdMoveRoute: ApiAgentsAgentIdMoveRoute,
   ApiComputersPairConfirmRoute: ApiComputersPairConfirmRoute,
   ApiComputersPairPollRoute: ApiComputersPairPollRoute,
   ApiComputersPairStartRoute: ApiComputersPairStartRoute,
+  ApiInvitationsKeyAcceptRoute: ApiInvitationsKeyAcceptRoute,
+  ApiInvitationsKeyIndexRoute: ApiInvitationsKeyIndexRoute,
+  ApiWorkspacesWorkspaceIdIndexRoute: ApiWorkspacesWorkspaceIdIndexRoute,
   ApiComputersPairRequestCodeRoute: ApiComputersPairRequestCodeRoute,
+  ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute:
+    ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute,
+  ApiWorkspacesWorkspaceIdMembersUserIdRoute:
+    ApiWorkspacesWorkspaceIdMembersUserIdRoute,
+  ApiWorkspacesWorkspaceIdInvitationsIndexRoute:
+    ApiWorkspacesWorkspaceIdInvitationsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

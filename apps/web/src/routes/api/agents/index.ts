@@ -5,7 +5,7 @@ export const Route = createFileRoute("/api/agents/")({
   server: {
     handlers: {
       GET: ({ request }) => withUser(request, listAgents),
-      POST: ({ request }) => withUser(request, createAgent),
+      POST: ({ request }) => withUser(request, (user) => createAgent(user, request)),
     },
   },
 })

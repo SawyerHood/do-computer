@@ -5,7 +5,7 @@ import { openNodeAppDatabase } from "@durable-computer/runtime/node"
 import { describe, expect, it } from "vitest"
 import {
   isExpoPushToken,
-  notifyOwner,
+  notifyPeople,
   preview,
   registerPushToken,
   sendPush,
@@ -103,7 +103,7 @@ describe("push notifications", () => {
       sent = JSON.parse(String(init?.body))
       return Response.json({ data: [{ status: "ok" }] })
     }
-    await notifyOwner(
+    await notifyPeople(
       db,
       "a1",
       "Juniper",
@@ -112,7 +112,7 @@ describe("push notifications", () => {
     )
     expect(sent).toMatchObject([{ title: "Juniper", body: "Morning brief: Two meetings." }])
     sent = []
-    await notifyOwner(
+    await notifyPeople(
       db,
       "unknown-agent",
       null,
@@ -120,5 +120,47 @@ describe("push notifications", () => {
       capture as typeof fetch,
     )
     expect(sent).toEqual([])
+  })
+
+  it("tells a team's members, or only the one an answer is for", async () => {
+    const db = await database()
+    await db.run(
+      "INSERT INTO dc_agents (id, owner_id, workspace_id, created_at) VALUES ('a1', 'user-1', 'team-1', 1)",
+    )
+    for (const user of ["user-1", "user-2"]) {
+      await db.run(
+        "INSERT INTO dc_members (workspace_id, user_id, role, created_at) VALUES ('team-1', ?, 'member', 1)",
+        user,
+      )
+      await registerPushToken(db, user, `ExpoPushToken[${user}]`, "ios")
+    }
+    await registerPushToken(db, "user-3", "ExpoPushToken[user-3]", "ios")
+    const sent: string[] = []
+    const capture = async (_url: unknown, init?: RequestInit) => {
+      const batch = JSON.parse(String(init?.body)) as { to: string }[]
+      sent.push(...batch.map((entry) => entry.to))
+      return Response.json({ data: batch.map(() => ({ status: "ok" })) })
+    }
+    await notifyPeople(db, "a1", "Pip", { text: "Done.", chatId: "1" }, capture as typeof fetch)
+    expect(sent.sort()).toEqual(["ExpoPushToken[user-1]", "ExpoPushToken[user-2]"])
+    sent.length = 0
+    await notifyPeople(
+      db,
+      "a1",
+      "Pip",
+      { text: "Done.", chatId: "1", userId: "user-2" },
+      capture as typeof fetch,
+    )
+    expect(sent).toEqual(["ExpoPushToken[user-2]"])
+    // Someone who has left the team is not told, even if the answer was for them.
+    sent.length = 0
+    await notifyPeople(
+      db,
+      "a1",
+      "Pip",
+      { text: "Done.", chatId: "1", userId: "user-3" },
+      capture as typeof fetch,
+    )
+    expect(sent.sort()).toEqual(["ExpoPushToken[user-1]", "ExpoPushToken[user-2]"])
   })
 })

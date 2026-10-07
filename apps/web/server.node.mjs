@@ -32,7 +32,8 @@ const server = serve({
 
 await server.ready()
 
-// Daemons dial in here. The app decides who may connect; this only moves the socket across.
+// Daemons and members' browsers dial in here. The app decides who may connect; this only moves
+// the socket across.
 const sockets = new WebSocketServer({ noServer: true })
 server.node.server.on("upgrade", async (incoming, socket, head) => {
   const refuse = (status) => {
@@ -41,12 +42,15 @@ server.node.server.on("upgrade", async (incoming, socket, head) => {
   }
   try {
     const url = new URL(incoming.url ?? "/", `http://${incoming.headers.host ?? "localhost"}`)
-    if (url.pathname !== app.CONNECT_PATH) return refuse("404 Not Found")
+    const presence = url.pathname.startsWith(app.PRESENCE_PATH)
+    if (url.pathname !== app.CONNECT_PATH && !presence) return refuse("404 Not Found")
     const headers = new Headers()
     for (const [name, value] of Object.entries(incoming.headers)) {
       if (typeof value === "string") headers.set(name, value)
     }
-    const attach = await app.acceptDaemon(new Request(url, { headers }))
+    const request = new Request(url, { headers })
+    // A member's browser saying where it is, or a paired computer's daemon.
+    const attach = await (presence ? app.acceptPresence(request) : app.acceptDaemon(request))
     if (attach === undefined) return refuse("401 Unauthorized")
     sockets.handleUpgrade(incoming, socket, head, (accepted) => {
       attach(accepted).catch(() => accepted.close(1011, "Could not attach"))
