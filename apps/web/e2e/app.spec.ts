@@ -1512,14 +1512,18 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
 test("a reply that fails is said plainly, with the provider's answer behind Details", async ({
   page,
 }) => {
+  test.setTimeout(60_000)
   await signIn(page)
   await newChat(page)
   await composer(page).fill(
     '/fail 503: {"message":"Provider returned error","code":503,"metadata":{"raw":"{\\"error\\":{\\"code\\":\\"service_overloaded\\",\\"message\\":\\"The backend is temporarily overloaded. Please retry.\\"}}","provider_name":"Meta","retry_after_seconds":60}}',
   )
   await composer(page).press("Enter")
+  // A failure like this one is tried again a few times first, and none of that is shown.
   const failure = page.getByRole("alert").filter({ hasText: "The model is overloaded right now." })
-  await expect(failure).toBeVisible()
+  await expect(failure).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole("alert")).toHaveCount(1)
+  await expect(failure).toContainText("Tried 4 times.")
   await expect(failure).not.toContainText("Provider returned error")
 
   await failure.getByRole("button", { name: "Details" }).click()
