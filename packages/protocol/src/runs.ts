@@ -27,9 +27,18 @@ export type RunSummary = {
   outcome: string
 }
 
-/** The summaries a deployment has written for a chat's runs, by run id. */
+/**
+ * The summaries a deployment has written for a chat's runs, by run id. Only substantial work is
+ * written up, so most runs have none.
+ */
 export type ChatActivity = {
   runs: Record<string, RunSummary>
+  /**
+   * Whether the deployment has a model that picks out the substantial runs. With one, the runs
+   * to list are those in `runs`. Without one nothing can tell them apart, and every run is
+   * listed, described by `runSummary`.
+   */
+  judged: boolean
 }
 
 /**

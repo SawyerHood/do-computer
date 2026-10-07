@@ -156,10 +156,12 @@ Since then, newest last:
 9. **The daemon starts with only the server's address.** It used to ignore the address unless
    `--name` was also given, so the install command the app shows did nothing.
 10. **Summaries of what the agent did** (`packages/agent/src/activity.ts`). One entry for each
-    thing asked: a short title, with the outcome, time and steps inside. A small model writes
-    them in the background when a run ends, every three steps during a long one, and when a chat
-    is opened whose runs have none. Without a model key they are worked out from the run
-    (`packages/protocol/src/runs.ts`). Their cost is counted in the agent's usage.
+    substantial thing asked: a short title, with the outcome, time and steps inside. A small
+    model writes them in the background when a run ends, every three steps during a long one,
+    and when a chat is opened whose runs have none. The same model says whether the run was big
+    enough to list; a quick lookup or check is not, and gets no entry. Without a model key every
+    run is listed, worked out from the run (`packages/protocol/src/runs.ts`). Their cost is
+    counted in the agent's usage.
 11. **Pictures.** A picture pasted or attached is scaled down in the browser and sent with the
     message, so a model that takes pictures sees it. The original goes to the library as before.
 12. **Keeping an agent going** (`packages/agent/src/keep-going.ts`). A turn ends when the model
@@ -285,7 +287,8 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
   break those pages.
 - **An activity entry shows a tick** when the agent answered, even if a step inside it failed.
 - **Thinking and full tool output** are not in the transcript by design. Tool output is in the
-  panel's entries, on wide screens only; thinking is not shown anywhere.
+  panel's entries, on wide screens only, and so only for work big enough to have an entry;
+  thinking is not shown anywhere.
 - **`PLAN.md` section 0** stops at 2026-10-03 and does not mention the creature, the panel, the
   summaries or pictures. This file does.
 

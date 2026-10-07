@@ -38,8 +38,19 @@ export type SummaryOptions = {
   readonly fetch?: (url: string, init: RequestInit) => Promise<Response>
 }
 
-/** A written summary, with what the run looked like when it was written. */
-type Written = RunSummary & { status: ChatRun["status"]; steps: number }
+/** What the small model made of a run: its summary, and whether it is worth an entry. */
+export type Judged = RunSummary & { big: boolean }
+
+/**
+ * A written summary, with what the run looked like when it was written. `big` is absent on one
+ * written before runs were judged, which is listed until it is judged.
+ */
+type Written = RunSummary & { big?: boolean; status: ChatRun["status"]; steps: number }
+
+/** Whether what is written for a run is an entry in the list. */
+const listed = (written: Written | undefined): boolean =>
+  // An attempt that came back unusable is kept, empty, so it is not made over and over.
+  written !== undefined && written.title !== "" && written.big !== false
 
 type ActivityState = {
   runs: Record<string, Written>
@@ -58,10 +69,11 @@ export const ActivityDoc = defineDocFamily<ActivityState, null>({
   initial: () => ({ runs: {}, spent: { inputTokens: 0, outputTokens: 0, cost: 0 } }),
 })
 
-const INSTRUCTIONS = `You write one entry in a short list of things an AI agent did for its user. You are given what the user asked, the steps the agent took with its tools, and what it said back. Reply with JSON only, in this shape: {"title": "...", "outcome": "..."}
+const INSTRUCTIONS = `You write one entry in a short list of things an AI agent did for its user. You are given what the user asked, the steps the agent took with its tools, and what it said back. Only substantial work gets an entry, so you also say whether this was. Reply with JSON only, in this shape: {"title": "...", "outcome": "...", "big": true}
 
 title: two to six words naming the task, the way a to-do item would: "Set up SSH key access", "Find flights to Lisbon". No period at the end and no quotation marks.
-outcome: one plain sentence of at most ten words on what came of it, in the past tense: what was found, made or changed, or why it did not work. If the work is still going, say what is being done now. Do not begin with "The agent" or "I".`
+outcome: one plain sentence of at most ten words on what came of it, in the past tense: what was found, made or changed, or why it did not work. If the work is still going, say what is being done now. Do not begin with "The agent" or "I".
+big: true if this was a substantial piece of work, false if it was not. Substantial: something was made, changed, set up, fixed or sent, or it took real effort over many steps, such as a long investigation. Not substantial: a quick lookup or check, reading a file or two, a single search, saving a note, answering a question. If the work is still going, judge it by what has been done so far. If you cannot tell, answer false.`
 
 const clip = (text: string, limit: number) =>
   text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text
@@ -92,17 +104,27 @@ export function describeRun(run: ChatRun): string {
   ].join("\n")
 }
 
-/** The title and outcome in a model's reply, however it wrapped them, or undefined. */
-export function readSummary(reply: string): RunSummary | undefined {
+/**
+ * The title, outcome and verdict in a model's reply, however it wrapped them, or undefined. A
+ * reply that leaves the verdict out is taken as work worth an entry: better one too many than
+ * a list that stays empty.
+ */
+export function readSummary(reply: string): Judged | undefined {
   const start = reply.indexOf("{")
   const end = reply.lastIndexOf("}")
   if (start === -1 || end <= start) return undefined
   try {
-    const parsed = JSON.parse(reply.slice(start, end + 1)) as { title?: unknown; outcome?: unknown }
+    const parsed = JSON.parse(reply.slice(start, end + 1)) as {
+      title?: unknown
+      outcome?: unknown
+      big?: unknown
+    }
     if (typeof parsed.title !== "string" || typeof parsed.outcome !== "string") return undefined
     const title = clip(parsed.title.trim().replace(/[."]+$/, ""), 80)
     const outcome = clip(parsed.outcome.trim(), 240)
-    return title === "" || outcome === "" ? undefined : { title, outcome }
+    return title === "" || outcome === ""
+      ? undefined
+      : { title, outcome, big: parsed.big !== false }
   } catch {
     return undefined
   }
@@ -118,7 +140,11 @@ function stale(run: ChatRun, written: Written | undefined): boolean {
     return run.steps.length - (written?.steps ?? 0) >= REFRESH_STEPS
   }
   return (
-    written === undefined || written.status !== run.status || written.steps !== run.steps.length
+    written === undefined ||
+    written.status !== run.status ||
+    written.steps !== run.steps.length ||
+    // Written before runs were judged.
+    (written.big === undefined && written.title !== "")
   )
 }
 
@@ -136,9 +162,10 @@ export type ActivityOptions = {
 }
 
 /**
- * Short summaries of what the agent did, one for each piece of work in a chat: a title and a
- * sentence on what came of it. A small model writes them in the background, when a run ends, every
- * few steps while one is going, and when someone looks at a chat whose runs have none yet. The
+ * Short summaries of what the agent did, one for each substantial piece of work in a chat: a
+ * title and a sentence on what came of it. A small model writes them in the background, when a
+ * run ends, every few steps while one is going, and when someone looks at a chat whose runs have
+ * none yet. It also says whether the run was big enough to list: a quick lookup is not. The
  * agent takes no part in it, so it costs the agent no attention and the answer no time.
  */
 export class Activity {
@@ -179,10 +206,10 @@ export class Activity {
     const written = (await this.#harness?.snapshot(ActivityDoc, chatId, context))?.runs ?? {}
     void this.#write(chatId, state)
     return {
+      judged: this.#options.summaries !== undefined,
       runs: Object.fromEntries(
         Object.entries(written)
-          // An attempt that came back unusable is kept, empty, so it is not made over and over.
-          .filter(([, { title }]) => title !== "")
+          .filter(([, entry]) => listed(entry))
           .map(([id, { title, outcome }]) => [id, { title, outcome }]),
       ),
     }
@@ -235,20 +262,26 @@ export class Activity {
       let changed = false
       for (const run of due) {
         const result = await this.#summarize(run, summaries, context)
+        let shown = false
         await harness.commit(async (tx) => {
           const doc = await tx.doc(ActivityDoc, chatId, null)
           doc.spent.inputTokens += result.usage.inputTokens
           doc.spent.outputTokens += result.usage.outputTokens
           doc.spent.cost += result.usage.cost
-          doc.runs[run.id] = {
+          const before = own(doc.runs, run.id)
+          const entry: Written = {
             ...(result.summary ?? { title: "", outcome: "" }),
             status: run.status,
             steps: run.steps.length,
           }
+          // Once a run is in the list it stays there, so an entry does not vanish as it ends.
+          if (result.summary !== undefined && before?.big === true) entry.big = true
+          doc.runs[run.id] = entry
+          shown = listed(before) || listed(entry)
           const ids = Object.keys(doc.runs)
           for (const id of ids.slice(0, Math.max(0, ids.length - KEPT))) delete doc.runs[id]
         }, context)
-        changed ||= result.summary !== undefined
+        changed ||= shown
       }
       this.#failedAt.delete(chatId)
       if (changed) this.#options.onChanged(chatId)
@@ -273,7 +306,7 @@ export class Activity {
     run: ChatRun,
     options: SummaryOptions,
     context: Context,
-  ): Promise<{ summary: RunSummary | undefined; usage: ChatUsage }> {
+  ): Promise<{ summary: Judged | undefined; usage: ChatUsage }> {
     const send = options.fetch ?? ((url, init) => fetch(url, init))
     const response = await send(ENDPOINT, {
       method: "POST",

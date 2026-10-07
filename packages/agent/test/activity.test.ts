@@ -227,7 +227,7 @@ describe("summaries of what the agent did", () => {
     talk.faux.setResponses([fauxAssistantMessage("Hello.")])
     await converse(talk, chat.id, "hi")
     await new Promise((resolve) => setTimeout(resolve, 1_800))
-    expect(await activity(talk, chat.id)).toEqual({ runs: {} })
+    expect(await activity(talk, chat.id)).toEqual({ runs: {}, judged: true })
     expect(talk.asked).toEqual([])
 
     const none = open(temporary(), false)
@@ -235,7 +235,67 @@ describe("summaries of what the agent did", () => {
     none.faux.setResponses(work("ls", "Listed."))
     await converse(none, other.id, "list it")
     await new Promise((resolve) => setTimeout(resolve, 1_800))
-    expect(await activity(none, other.id)).toEqual({ runs: {} })
+    expect(await activity(none, other.id)).toEqual({ runs: {}, judged: false })
+  })
+
+  it("are kept out of the list for work the small model does not call big", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.replies = [
+      reply('{"title": "Check the time", "outcome": "It was noon.", "big": false}'),
+      reply('{"title": "Set up the backup", "outcome": "Backups now run nightly.", "big": true}'),
+    ]
+    const events = await world.namespace.get("agent-1").fetch(new Request("http://actor/events"))
+    let announced = 0
+    void (async () => {
+      for await (const event of readSse<AgentEvent>(events.body!)) {
+        if (event.type === "changed" && event.what === "activity") announced += 1
+      }
+    })()
+
+    world.faux.setResponses(work("date", "It is noon."))
+    await converse(world, chat.id, "what time is it?")
+    await expect.poll(() => world.asked.length, { timeout: 10_000 }).toBe(1)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(await activity(world, chat.id)).toEqual({ runs: {}, judged: true })
+    // Nothing in the list changed, and it is not asked about again.
+    expect(announced).toBe(0)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(world.asked.length).toBe(1)
+
+    world.faux.setResponses(work("crontab backup.cron", "Backups are set up."))
+    const state = await converse(world, chat.id, "set up a nightly backup")
+    const asked = state.messages.findLast((message) => message.role === "user")!
+    await expect
+      .poll(async () => (await activity(world, chat.id)).runs, { timeout: 10_000 })
+      .toEqual({ [asked.id]: { title: "Set up the backup", outcome: "Backups now run nightly." } })
+    expect(announced).toBe(1)
+  })
+
+  it("stay in the list once there, whatever is made of the run when it ends", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.replies = [
+      reply('{"title": "Tidy the notes", "outcome": "Sorting the files.", "big": true}'),
+      reply('{"title": "Tidy the notes", "outcome": "Nothing needed sorting.", "big": false}'),
+    ]
+    const step = (command: string) =>
+      fauxAssistantMessage([fauxToolCall("bash", { command })], { stopReason: "toolUse" })
+    world.faux.setResponses([
+      step("echo one"),
+      step("echo two"),
+      step("echo three"),
+      step("sleep 1; echo four"),
+      fauxAssistantMessage("All tidy."),
+    ])
+    const state = await converse(world, chat.id, "tidy my notes")
+    const asked = state.messages.find((message) => message.role === "user")!
+    await expect.poll(() => world.asked.length, { timeout: 10_000 }).toBe(2)
+    await expect
+      .poll(async () => (await activity(world, chat.id)).runs[asked.id]?.outcome, {
+        timeout: 10_000,
+      })
+      .toBe("Nothing needed sorting.")
   })
 
   it("show nothing for a reply that cannot be used, and do not ask for it again", async () => {
@@ -246,7 +306,7 @@ describe("summaries of what the agent did", () => {
     await converse(world, chat.id, "list it")
     await expect.poll(() => world.asked.length, { timeout: 10_000 }).toBe(1)
     await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(await activity(world, chat.id)).toEqual({ runs: {} })
+    expect(await activity(world, chat.id)).toEqual({ runs: {}, judged: true })
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(world.asked.length).toBe(1)
   })
@@ -260,7 +320,7 @@ describe("summaries of what the agent did", () => {
     await expect.poll(() => world.reports.length, { timeout: 10_000 }).toBe(1)
     expect(String(world.reports[0])).toContain("could not be written: overloaded")
     const calls = world.asked.length
-    expect(await activity(world, chat.id)).toEqual({ runs: {} })
+    expect(await activity(world, chat.id)).toEqual({ runs: {}, judged: true })
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(world.asked.length).toBe(calls)
   })
@@ -285,14 +345,19 @@ describe("what the summarizing model is given, and what is taken from it", () =>
     expect(text).toContain("Said back: (nothing yet)")
   })
 
-  it("reads the title and outcome out of a reply, however it is wrapped", () => {
-    expect(readSummary('{"title":"Fix the build.","outcome":"Repaired the config."}')).toEqual({
-      title: "Fix the build",
-      outcome: "Repaired the config.",
-    })
+  it("reads the title, outcome and verdict out of a reply, however it is wrapped", () => {
     expect(
-      readSummary('```json\n{"title": "Fix the build", "outcome": "Repaired it."}\n```'),
-    ).toEqual({ title: "Fix the build", outcome: "Repaired it." })
+      readSummary('{"title":"Fix the build.","outcome":"Repaired the config.","big":true}'),
+    ).toEqual({ title: "Fix the build", outcome: "Repaired the config.", big: true })
+    expect(
+      readSummary('```json\n{"title": "Check it", "outcome": "It was fine.", "big": false}\n```'),
+    ).toEqual({ title: "Check it", outcome: "It was fine.", big: false })
+    // A reply without a verdict is taken as worth an entry.
+    expect(readSummary('{"title": "Fix the build", "outcome": "Repaired it."}')).toEqual({
+      title: "Fix the build",
+      outcome: "Repaired it.",
+      big: true,
+    })
     expect(readSummary("no json here")).toBeUndefined()
     expect(readSummary('{"title": "", "outcome": "x"}')).toBeUndefined()
     expect(readSummary('{"title": 3, "outcome": "x"}')).toBeUndefined()

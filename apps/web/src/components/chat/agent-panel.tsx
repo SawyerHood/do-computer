@@ -150,14 +150,20 @@ export function AgentPanel({
   onClose: () => void
 }) {
   const mood = useAtomValue(mascotMoodAtom(agent.id))
-  // Newest first. Each is one thing that was asked for, however many steps it took.
-  const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
-  // What a small model wrote about them, where the deployment has one. Until it has, and where
-  // it has none, each is described from the run itself.
+  // What a small model wrote about the chat's work, where the deployment has one. It writes up
+  // only the substantial pieces, and those are the ones listed. Where there is no such model,
+  // every piece is listed, described from the run itself.
   const { data: written } = useQuery<ChatActivity>({
     queryKey: activityKey(agent.id, chatId),
     queryFn: () => client.agent(agent.id).activity(chatId),
   })
+  // Newest first. Each is one thing that was asked for, however many steps it took.
+  const runs = useMemo(() => {
+    if (written === undefined) return []
+    const all = chatRuns(state)
+    const kept = written.judged ? all.filter((run) => Object.hasOwn(written.runs, run.id)) : all
+    return kept.slice(-SHOWN).reverse()
+  }, [state, written])
   const name = agent.name ?? "New agent"
   return (
     <aside
@@ -201,8 +207,8 @@ export function AgentPanel({
         </h3>
         {runs.length === 0 ? (
           <p className="px-5 text-sm text-muted-foreground">
-            Nothing yet. When {name} runs commands, works on files or looks things up for this chat,
-            what it did is summed up here, with its steps inside.
+            Nothing yet. When {name} gets something substantial done in this chat, it is summed up
+            here, with its steps inside.
           </p>
         ) : (
           <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-4">
