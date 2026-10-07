@@ -215,6 +215,8 @@ test("the layout works at phone width", async ({ page }) => {
     .click()
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  // The strip says whose chat this is, so nothing is over the transcript saying it again.
+  await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(0)
   // With no room for two chats, a side chat takes the place of the main one, and leads back.
   await sideChats(page).click()
   await page.getByRole("menuitem", { name: /^Something aside/ }).click()
