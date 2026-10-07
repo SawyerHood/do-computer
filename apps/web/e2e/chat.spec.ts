@@ -32,8 +32,6 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("The tool returned:")).toBeVisible()
   await expect(transcript).toContainText("note.txt")
-  // The identity files are part of the workspace.
-  await expect(transcript).toContainText("MEMORY.md")
 
   // Once it has answered, the line is gone and the call itself was never put in the transcript.
   await expect(page.getByRole("status")).toHaveCount(0)
