@@ -159,7 +159,7 @@ Since then, newest last:
    On mobile it is `apps/mobile/src/components/avatar.tsx`, through `expo-gl`.
 8. **The layout the owner asked for, after Muse.** On a wide screen (1280 px and up) a panel on
    the right of the chat holds the creature, the agent's name, a few words on what it is doing,
-   and what it did in this chat. The sidebar starts closed, behind a button at the start of the agent's strip. The header
+   the files it sent in this chat, and what it did in this chat. The sidebar starts closed, behind a button at the start of the agent's strip. The header
    above the chat exists only when the panel is closed, and pressing it reopens the panel. The
    creature moves in the panel, where it can also be petted, and beside each agent in the
    sidebar; elsewhere it is a still picture.
@@ -218,7 +218,9 @@ Since then, newest last:
       revision they were made from, so one the agent made meanwhile becomes a choice between
       the two and is never overwritten silently. On a wide screen a file card in a chat opens
       the file beside the chat, in the place of the agent's panel, with the same viewer; on a
-      narrow one it opens in the library. `prototypes/library-docs` is the mock-up it was built
+      narrow one it opens in the library. The panel lists the files sent in the chat, which
+      open the same way, and the document's edge can be dragged as the panel's and the
+      sidebar's can. `prototypes/library-docs` is the mock-up it was built
       from.
 14. **Sub-agents** (2026-10-07; `packages/agent/src/subagents.ts`). The agent has a `subagent`
     tool: start, message, stop, list. A sub-agent is a conversation of its own with the

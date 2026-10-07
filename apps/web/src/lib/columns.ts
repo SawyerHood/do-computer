@@ -51,3 +51,11 @@ export const sidebarColumn = column("dc-sidebar-width", { min: 208, max: 448, st
 
 /** The agent's panel, beside its pages. One width for every tab, so changing tab moves nothing. */
 export const agentPanelColumn = column("dc-agent-panel-width", { min: 256, max: 512, start: 320 })
+
+/**
+ * A document open beside a chat, in the panel's place. On a wide screen it can be most of it, so
+ * its upper bound is generous, and what keeps the chat its room is `DOC_PANEL_LEAVES`: however
+ * wide it was left, the document is shown no wider than leaves the chat that much.
+ */
+export const docPanelColumn = column("dc-doc-panel-width", { min: 352, max: 1280, start: 640 })
+export const DOC_PANEL_LEAVES = "20rem"

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, signIn, tab } from "./helpers.ts"
+import { asOwner, composer, newChat, signIn, tab, tool } from "./helpers.ts"
 
 asOwner()
 
@@ -48,8 +48,10 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
     .filter({ has: page.getByRole("heading", { name: "Agents" }) })
   const edge = page.getByRole("separator", { name: "Resize the sidebar" })
   const width = async (of: typeof sidebar) => {
-    await of.waitFor()
-    return Math.round((await of.boundingBox())!.width)
+    // The panel is taken down and put up again as the tab changes, so it is asked until it is there.
+    let box: Awaited<ReturnType<typeof of.boundingBox>> = null
+    await expect.poll(async () => (box = await of.boundingBox())).not.toBeNull()
+    return Math.round(box!.width)
   }
   /** Take hold of an edge and move it sideways by so many pixels. */
   const drag = async (handle: typeof edge, by: number) => {
@@ -104,6 +106,84 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   expect(await width(sidebar)).toBe(288)
   await panelEdge.dblclick()
   expect(await width(panel)).toBe(320)
+})
+
+test("what the agent shared is listed in its panel, and a document's edge is dragged too", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await tool(
+    page,
+    "write",
+    { path: "library/handout/notes.md", content: "# Handout notes\n" },
+    "Successfully wrote to library/handout/notes.md",
+  )
+  await tool(
+    page,
+    "write",
+    { path: "library/handout/index.html", content: "<h1>Handout page</h1>" },
+    "Successfully wrote to library/handout/index.html",
+  )
+  for (const name of ["notes.md", "index.html"]) {
+    await composer(page).fill(`/tool send_file {"path":"library/handout/${name}"}`)
+    await page.keyboard.press("Enter")
+    await expect(page.getByRole("link", { name: `Download ${name}` })).toBeVisible()
+  }
+
+  // The panel lists both, the newest first, under who is here and above what it did.
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  const panel = page.getByRole("complementary", { name: "About Juniper" })
+  const shared = panel.getByRole("region", { name: "Shared here" })
+  await expect(shared.getByRole("listitem")).toHaveText([/index\.html/, /notes\.md/])
+  await page.screenshot({ path: "test-results/panel-shared.png" })
+
+  // One opens beside the chat from there, in the panel's place, which is back when it is closed.
+  await shared.getByRole("button", { name: /notes\.md/ }).click()
+  const beside = page.getByRole("complementary", { name: "Document" })
+  await expect(beside.getByRole("heading", { name: "Handout notes", level: 1 })).toBeVisible()
+  await expect(panel).toHaveCount(0)
+  await beside.getByRole("button", { name: "Close the document" }).click()
+  await shared.getByRole("button", { name: /index\.html/ }).click()
+  await expect(
+    beside
+      .frameLocator('iframe[title="index.html"]')
+      .getByRole("heading", { name: "Handout page" }),
+  ).toBeVisible()
+
+  const edge = page.getByRole("separator", { name: "Resize the document" })
+  const width = async () => Math.round((await beside.boundingBox())!.width)
+  const drag = async (by: number) => {
+    const box = (await edge.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + by, y, { steps: 4 })
+    await page.mouse.up()
+  }
+  expect(await width()).toBe(640)
+  // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288.
+  await drag(-600)
+  expect(await width()).toBe(1280 - 288 - 320)
+  // It comes back from where it is, with the pointer over the page it shows.
+  await drag(72)
+  expect(await width()).toBe(600)
+  await edge.focus()
+  await page.keyboard.press("ArrowLeft")
+  expect(await width()).toBe(616)
+
+  // It is as wide when a document is next opened, from its card as well, after a reload.
+  await page.reload()
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: /notes\.md/ })
+    .first()
+    .click()
+  await expect(beside.getByRole("heading", { name: "Handout notes", level: 1 })).toBeVisible()
+  expect(await width()).toBe(616)
+  await edge.dblclick()
+  expect(await width()).toBe(640)
 })
 
 test("the layout works at phone width", async ({ page }) => {
