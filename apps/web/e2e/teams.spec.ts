@@ -115,6 +115,18 @@ test("an agent made in the team is everyone's, and an agent of one's own is not"
   const personal = agents.find((agent) => agent.workspaceId.startsWith("personal:"))!
   expect((await her.request.get(`/api/agents/${personal.id}`)).status()).toBe(404)
   expect((await her.request.get(`/api/agents/${personal.id}/chats/1`)).status()).toBe(404)
+
+  // Moved to his own workspace the team's agent is his alone; moved back, it is everyone's again.
+  const move = (page: Page, workspaceId: string) =>
+    page.request.post(`/api/agents/${agentId}/move`, { data: { workspaceId } })
+  expect((await move(sawyer, personal.workspaceId)).status()).toBe(200)
+  expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(404)
+  expect((await move(sawyer, team)).status()).toBe(200)
+  expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(200)
+  // A member cannot take a team's agent for herself.
+  const { user } = (await (await her.request.get("/api/me")).json()) as { user: { id: string } }
+  expect((await move(her, `personal:${user.id}`)).status()).toBe(403)
+  expect((await sawyer.request.get(`/api/agents/${agentId}`)).status()).toBe(200)
 })
 
 test("two people talk to the agent in one chat, and each sees who said what", async () => {

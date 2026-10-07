@@ -4,7 +4,7 @@ import { linkStatus } from "@durable-computer/computers"
 import type { ComputerSummary } from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
-import { agentAccess } from "./teams.ts"
+import { agentAccess, roleIn } from "./teams.ts"
 
 const PAIRING_TTL_MS = 10 * 60_000
 const MAX_PENDING_PAIRINGS = 200
@@ -278,6 +278,21 @@ export async function removeComputersOfMember(userId: string, workspaceId: strin
     workspaceId,
   )
   for (const row of rows) await revokeComputer(row)
+}
+
+/**
+ * The computers paired with an agent by people who are not in the workspace it is in now, for
+ * when it has been moved: they agreed to serve the people it was shared with then.
+ */
+export async function removeComputersOfOutsiders(
+  agentId: string,
+  workspaceId: string,
+): Promise<void> {
+  const { db } = getPlatform()
+  const rows = await db.all<ComputerRow>("SELECT * FROM dc_computers WHERE agent_id = ?", agentId)
+  for (const row of rows) {
+    if ((await roleIn(db, row.owner_id, workspaceId)) === undefined) await revokeComputer(row)
+  }
 }
 
 /** Its token stops working, its daemon is disconnected, the agent forgets it. */

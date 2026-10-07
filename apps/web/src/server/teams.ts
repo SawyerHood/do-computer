@@ -24,6 +24,8 @@ const MAX_MEMBERS = 50
 const MAX_PENDING_INVITATIONS = 50
 const MAX_NAME_CHARS = 60
 const MAX_NOTE_CHARS = 500
+/** How many people one request may invite. Each GitHub username is looked up at GitHub. */
+const MAX_INVITED_AT_ONCE = 20
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60_000
 
 /** Something the caller may not do, or asked for wrongly. Answered with its status and words. */
@@ -530,6 +532,9 @@ export async function invite(
   const members = (await membersOf(db, [workspaceId])).get(workspaceId) ?? []
   const result: InviteResult = { invitations: [], problems: [] }
   const entries = [...new Set(input.who.map((entry) => entry.trim()).filter(Boolean))]
+  if (entries.length > MAX_INVITED_AT_ONCE) {
+    throw new Refusal(400, `Invite at most ${MAX_INVITED_AT_ONCE} people at a time.`)
+  }
 
   for (const entry of entries) {
     const problem = (error: string) => result.problems.push({ who: entry, error })

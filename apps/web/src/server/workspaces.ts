@@ -7,7 +7,8 @@ import {
   type InviteResult,
   type WorkspacesState,
 } from "@durable-computer/protocol"
-import { callAgent, fail, json, moveAgent, tellAgentItsTeam } from "./agents.ts"
+import { moveAgent } from "./agent-move.ts"
+import { callAgent, fail, json, tellAgentItsTeam } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { removeComputersOfMember } from "./computers.ts"
 import { sendEmail } from "./email.ts"
