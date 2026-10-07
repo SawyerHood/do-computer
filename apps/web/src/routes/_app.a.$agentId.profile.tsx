@@ -4,6 +4,7 @@ import {
   type Avatar,
   AVATAR_COLORS,
   defaultAvatar,
+  nearestThinking,
   randomId,
   type ThinkingLevel,
 } from "@durable-computer/protocol"
@@ -331,6 +332,8 @@ function ProfilePage() {
     setForm({ ...form, [key]: value })
     setDirty(true)
   }
+  // Which levels there are to choose from depends on the model, so it waits for the list of them.
+  const chosen = models?.find((model) => model.id === form.model)
   const over = form.user.length > state.limits.user || form.memory.length > state.limits.memory
   const moving = form.computer !== state.computer
 
@@ -344,7 +347,8 @@ function ProfilePage() {
       user: form.user,
       memory: form.memory,
       model: form.model,
-      thinking: form.thinking,
+      // What is saved is what the picker showed as chosen, which is what the model will do.
+      thinking: nearestThinking(chosen?.thinking ?? [], form.thinking) ?? form.thinking,
       ...(moving && form.computer !== null ? { computer: form.computer } : {}),
     })
   }
@@ -474,13 +478,14 @@ function ProfilePage() {
             value={form.model}
             onChange={(model) => set("model", model)}
           />
-          <ThinkingPicker
-            label="Thinking"
-            value={form.thinking}
-            // Until the list of models arrives, nothing says this one cannot reason.
-            disabled={models?.find((model) => model.id === form.model)?.reasoning === false}
-            onChange={(thinking) => set("thinking", thinking)}
-          />
+          {chosen ? (
+            <ThinkingPicker
+              label="Thinking"
+              levels={chosen.thinking ?? []}
+              value={form.thinking}
+              onChange={(thinking) => set("thinking", thinking)}
+            />
+          ) : null}
         </Section>
 
         {form.computer !== null && computers !== undefined && computers.kinds.length > 1 ? (

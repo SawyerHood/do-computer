@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { filterModels } from "../src/index.ts"
+import { filterModels, nearestThinking } from "../src/index.ts"
 
 const models = [
   { id: "openrouter/anthropic/claude-sonnet-5.5", name: "Anthropic: Claude Sonnet 5.5" },
@@ -25,5 +25,21 @@ describe("filterModels", () => {
     expect(names("claude 5.5")).toEqual(["Anthropic: Claude Sonnet 5.5"])
     expect(names("5.5 sonnet anthropic")).toEqual(["Anthropic: Claude Sonnet 5.5"])
     expect(names("claude gemini")).toEqual([])
+  })
+})
+
+describe("nearestThinking", () => {
+  it("keeps a level the model offers", () => {
+    expect(nearestThinking(["off", "low", "medium", "high"], "medium")).toBe("medium")
+  })
+
+  it("goes up to the next level the model offers, and down only when there is none above", () => {
+    expect(nearestThinking(["off", "low", "high", "max"], "medium")).toBe("high")
+    expect(nearestThinking(["low", "medium", "high"], "off")).toBe("low")
+    expect(nearestThinking(["off", "low", "medium"], "max")).toBe("medium")
+  })
+
+  it("has nothing for a model that does not reason", () => {
+    expect(nearestThinking([], "medium")).toBeUndefined()
   })
 })

@@ -1197,10 +1197,10 @@ test.describe("choosing a model", () => {
     await page.getByRole("button", { name: "Identity and memory" }).click()
     const thinking = page.getByRole("group", { name: "Thinking" })
     // The echo model does not reason, so there is nothing to choose.
-    await expect(thinking.getByRole("radio", { name: "Medium" })).toBeChecked()
-    await expect(thinking.getByRole("radio", { name: "High" })).toBeDisabled()
+    await expect(thinking).toContainText("does not think")
+    await expect(thinking.getByRole("radio")).toHaveCount(0)
 
-    // Say that it can, and the choice is offered and kept.
+    // Say that it can, with levels of its own, and those are what is offered.
     await page.route("**/api/models", (route) =>
       route.fulfill({
         json: {
@@ -1209,6 +1209,7 @@ test.describe("choosing a model", () => {
               id: "echo/echo-1",
               name: "Echo (no model key configured)",
               reasoning: true,
+              thinking: ["low", "high", "max"],
               inputCost: 0,
               outputCost: 0,
             },
@@ -1217,11 +1218,14 @@ test.describe("choosing a model", () => {
       }),
     )
     await page.reload()
-    await thinking.getByText("High").click()
+    await expect(thinking.getByRole("radio")).toHaveCount(3)
+    // The agent is on medium, which this model lacks; it would use the next one up.
+    await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
+    await thinking.getByText("Max").click()
     await page.getByRole("button", { name: "Save changes" }).click()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible()
     await page.reload()
-    await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
+    await expect(thinking.getByRole("radio", { name: "Max" })).toBeChecked()
   })
 
   test("the default for new agents is set once, under Settings", async ({ page }) => {

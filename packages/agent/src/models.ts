@@ -5,7 +5,7 @@ import {
   type FauxProviderHandle,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
-import { createModels, type Models } from "@earendil-works/pi-ai/models"
+import { createModels, getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models"
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
 import type { ModelRef } from "@earendil-works/pi-durable"
 import type { SummaryOptions } from "./activity.ts"
@@ -196,6 +196,7 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
       id: `openrouter/${id}`,
       name: model.name,
       reasoning: model.reasoning,
+      ...(model.reasoning ? { thinking: getSupportedThinkingLevels(model) } : {}),
       inputCost: model.cost.input,
       outputCost: model.cost.output,
       contextWindow: model.contextWindow,
