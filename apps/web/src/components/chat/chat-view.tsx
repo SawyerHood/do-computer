@@ -237,6 +237,8 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     },
     [api, chatId],
   )
+  // There is no running a reply again as such: asking again is what works, so the button asks.
+  const retry = useCallback(() => void send("Try again"), [send])
   const stop = useCallback(() => void api.abort(chatId), [api, chatId])
   const attach = useCallback(
     (file: File) =>
@@ -306,6 +308,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
             <OpenFileContext value={wide ? setOpenDoc : undefined}>
               <Transcript
                 state={state}
+                onRetry={retry}
                 empty={
                   live.loaded ? (
                     <Welcome
