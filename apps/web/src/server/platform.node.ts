@@ -10,6 +10,7 @@ import {
   openNodeAppDatabase,
   type SocketLike,
 } from "@durable-computer/runtime/node"
+import { agentDirectory } from "./agent-directory.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
@@ -51,7 +52,7 @@ function create(): NodePlatform {
     socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
     onError: (error, name) => console.error(`[${name}]`, error),
   })
-  const agents = new NodeActorNamespace({
+  const agents: NodeActorNamespace = new NodeActorNamespace({
     directory: join(directory, "agents"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
     factory: (host) =>
@@ -66,6 +67,8 @@ function create(): NodePlatform {
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
         computerDirectory: computerDirectory(app, links),
+        // The agents reach each other through the namespace they are all in.
+        agentDirectory: agentDirectory(app, () => agents),
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),

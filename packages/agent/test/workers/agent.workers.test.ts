@@ -13,7 +13,7 @@ import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/provid
 import { describe, expect, it } from "vitest"
 import { CONNECTOR_REDIRECT_HEADER } from "../../src/index.ts"
 import { GOOD_CODE } from "../fake-mcp.ts"
-import { type Env, mcp, scripted } from "./worker.ts"
+import { type Env, mcp, PEERS, scripted } from "./worker.ts"
 
 const bindings = env as unknown as Env
 const namespace = durableObjectNamespace(bindings.AGENT)
@@ -110,6 +110,47 @@ describe("sub-agents in a Durable Object", () => {
     // Its chat is the agent's to write in.
     await expect(
       call(agent, `/chats/${subagent!.id}/messages`, "POST", { text: "hi", requestId: "direct" }),
+    ).rejects.toThrow("409")
+  })
+})
+
+describe("messages between agents in Durable Objects", () => {
+  it("reach another agent's object, whose answer comes back to the one that asked", async () => {
+    const [ada, bo] = PEERS as [string, string]
+    for (const agent of PEERS) await call(agent, "/init", "POST", { ownerId: "user-1" })
+    const chat = await call<ChatSummary>(ada, "/chats", "POST", {})
+    await call(ada, `/chats/${chat.id}/messages`, "POST", {
+      text: `/tool agents {"action":"message","to":"${bo}","message":"When is the launch?"}`,
+      requestId: "request-1",
+    })
+
+    // The reply arrives by itself, and the agent that asked is given a turn over it.
+    const said = (state: ChatState) =>
+      state.messages
+        .flatMap((message) => message.parts)
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    let state: ChatState = EMPTY_CHAT
+    for (let attempt = 0; attempt < 150; attempt++) {
+      state = await call<ChatState>(ada, `/chats/${chat.id}`)
+      if (!state.busy && said(state).some((text) => text.includes("has replied"))) break
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    const { chats } = await call<{ chats: ChatSummary[] }>(bo, "/")
+    const thread = chats.find((entry) => entry.kind === "agent")
+    expect(thread).toMatchObject({
+      title: "When is the launch?",
+      status: "done",
+      peer: { agentId: ada, chatId: chat.id },
+    })
+    const word = state.messages
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === "notice" && part.kind === "agent")
+    expect(word).toMatchObject({ agentId: bo, chatId: thread!.id, outcome: "reported" })
+    expect(word).toMatchObject({ detail: expect.stringContaining("When is the launch?") })
+    expect(said(state).at(-1)).toContain("the agent you sent a message to")
+    // The conversation is the two agents' to write in.
+    await expect(
+      call(bo, `/chats/${thread!.id}/messages`, "POST", { text: "hi", requestId: "direct" }),
     ).rejects.toThrow("409")
   })
 })

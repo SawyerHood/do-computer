@@ -22,19 +22,22 @@ export type NoticePart = {
   /**
    * `schedule` heads the report of a scheduled task; its text is the task's title. `subagent` is
    * word from a sub-agent; its text is the sub-agent's title. `computer` is the answer to the
-   * agent's asking to use a computer; its text is the computer's name.
+   * agent's asking to use a computer; its text is the computer's name. `agent` is another
+   * agent's reply to a message; its text is that agent's name.
    */
-  kind: "reset" | "compaction" | "error" | "schedule" | "subagent" | "computer"
+  kind: "reset" | "compaction" | "error" | "schedule" | "subagent" | "computer" | "agent"
   text: string
   /** For `computer`: whether the agent was let in. */
   approved?: boolean
   /** For `computer`: who answered. */
   by?: string
-  /** For `subagent`: the sub-agent's own chat. */
+  /** For `subagent`: the sub-agent's own chat. For `agent`: the conversation on the other agent. */
   chatId?: string
-  /** For `subagent`: what the word is. */
+  /** For `agent`: the agent that replied. */
+  agentId?: string
+  /** For `subagent` and `agent`: what the word is. */
   outcome?: "reported" | "failed" | "stopped"
-  /** For `subagent`: what it reported, or why it failed. */
+  /** For `subagent` and `agent`: what it reported, or why it failed. */
   detail?: string
 }
 
@@ -52,6 +55,8 @@ export type ChatMessage = {
   model?: string
   /** Who sent a user message, where the agent is shared by a team. */
   author?: { id: string; name: string }
+  /** The agent that sent a user message, where it came from another agent and not a person. */
+  agent?: { id: string; name: string }
 }
 
 export type QueuedInput = {

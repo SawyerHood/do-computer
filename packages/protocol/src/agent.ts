@@ -56,13 +56,15 @@ export type AgentSummary = AgentIdentity & {
 
 /**
  * `chat` is one the user talks in. A scheduled run and a sub-agent each have a chat of their own,
- * which can be read and not written in.
+ * and so does each conversation another agent has with this one (`agent`). Those can be read and
+ * not written in.
  */
-export type ChatKind = "chat" | "schedule" | "subagent"
+export type ChatKind = "chat" | "schedule" | "subagent" | "agent"
 
 /**
  * How a sub-agent is getting on. `waiting` is for the user's OK; `done` is once it has reported
- * back, until it is given more to do.
+ * back, until it is given more to do. A conversation with another agent is told of the same way,
+ * where `done` is once it has replied.
  */
 export type SubagentStatus = "working" | "waiting" | "done" | "stopped" | "failed"
 
@@ -77,8 +79,13 @@ export type ChatSummary = {
   createdBy?: string
   /** For a sub-agent: the chat it was started in, where its reports go. */
   parentId?: string
-  /** For a sub-agent. */
+  /** For a sub-agent, and for a conversation with another agent. */
   status?: SubagentStatus
+  /**
+   * For a conversation with another agent: the agent whose messages these are, and the chat of
+   * its own that it writes them from.
+   */
+  peer?: { agentId: string; name: string; chatId: string }
 }
 
 /** What changed on an agent, sent on its event stream so clients know what to refetch. */

@@ -22,7 +22,7 @@ import type {
   LiveState,
   UsageState,
 } from "@earendil-works/pi-durable"
-import { type Caller, senderOf } from "./caller.ts"
+import { agentSenderOf, type Caller, senderOf } from "./caller.ts"
 
 type UserContent = UserMessage["content"]
 
@@ -35,6 +35,17 @@ function contentAuthor(content: UserContent): Caller | undefined {
   for (const block of content) {
     if (block.type !== "text" || !isMeta(block.text)) continue
     const sender = senderOf(block.text)
+    if (sender !== undefined) return sender
+  }
+  return undefined
+}
+
+/** Which agent sent a message, where it came from another agent. */
+function contentAgent(content: UserContent): Caller | undefined {
+  if (typeof content === "string") return undefined
+  for (const block of content) {
+    if (block.type !== "text" || !isMeta(block.text)) continue
+    const sender = agentSenderOf(block.text)
     if (sender !== undefined) return sender
   }
   return undefined
@@ -157,6 +168,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       // A note to the model alone, such as being set going again, is not something anyone said.
       if (parts.length === 0) return undefined
       const author = contentAuthor(first.content)
+      const agent = contentAgent(first.content)
       return {
         id,
         role: "user",
@@ -164,6 +176,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         status: "done",
         createdAt: first.timestamp,
         ...(author === undefined ? {} : { author }),
+        ...(agent === undefined ? {} : { agent }),
       }
     }
     case "pi.assistant": {
@@ -208,6 +221,35 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
             type: "notice",
             kind: "subagent",
             text: word?.title ?? "Sub-agent",
+            ...(word?.chatId === undefined ? {} : { chatId: word.chatId }),
+            outcome: word?.outcome ?? "reported",
+            ...(word?.text ? { detail: word.text } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.agent": {
+      // Another agent's reply to a message, in the chat the message was sent from.
+      const word = entry.data as
+        | {
+            agentId?: string
+            name?: string
+            chatId?: string
+            outcome?: "reported" | "failed" | "stopped"
+            text?: string
+          }
+        | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "agent",
+            text: word?.name ?? "Another agent",
+            ...(word?.agentId === undefined ? {} : { agentId: word.agentId }),
             ...(word?.chatId === undefined ? {} : { chatId: word.chatId }),
             outcome: word?.outcome ?? "reported",
             ...(word?.text ? { detail: word.text } : {}),
@@ -319,6 +361,14 @@ export function entryText(
       return {
         role: "assistant",
         text: [word?.title, word?.text].filter(Boolean).join("\n"),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.agent": {
+      const word = entry.data as { name?: string; text?: string } | undefined
+      return {
+        role: "assistant",
+        text: [word?.name, word?.text].filter(Boolean).join("\n"),
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }

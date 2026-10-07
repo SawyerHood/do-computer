@@ -41,7 +41,9 @@ function RequestCard({
                 ? "In the scheduled run "
                 : request.chatKind === "subagent"
                   ? "From the sub-agent "
-                  : "In the chat "}
+                  : request.chatKind === "agent"
+                    ? "In a conversation with another agent "
+                    : "In the chat "}
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId, chatId: request.chatId }}
