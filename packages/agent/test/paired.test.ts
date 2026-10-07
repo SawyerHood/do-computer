@@ -162,7 +162,7 @@ describe("paired computers", () => {
     expect(prompt).toContain(`- laptop: linux, home ${laptopHome}`)
     expect(prompt).toContain("- laptop-2: darwin, home /Users/x, read-only")
     // The tools advertise the argument that selects a computer.
-    expect(prompt).toContain("Name of one of the user's own computers")
+    expect(prompt).toContain("Name of the computer to do this on")
   })
 
   it("run a command there when asked to, and on the agent's own computer otherwise", async () => {
@@ -252,7 +252,8 @@ describe("paired computers", () => {
     faux.setResponses(useTool("bash", { command: "ls", computer: "desktop" }))
     expect(lastTool(await say(chat.id, "try the desktop"))).toMatchObject({
       status: "error",
-      output: 'There is no computer named "desktop". Connected computers: laptop, laptop-2.',
+      output:
+        'There is no computer named "desktop". The computers you can use: computer, laptop, laptop-2.',
     })
 
     // laptop-2 was registered but its daemon never connected.
@@ -264,7 +265,7 @@ describe("paired computers", () => {
     await call("/computers/c2", "DELETE")
     expect(
       (await call<{ computers: { name: string }[] }>("/computers")).computers.map((c) => c.name),
-    ).toEqual(["laptop"])
+    ).toEqual(["computer", "laptop"])
   })
 })
 
@@ -445,7 +446,7 @@ describe("computers the agent was not given", () => {
     // It knows now, and its own computers are untouched.
     expect(
       (await call<{ computers: { name: string }[] }>("/computers")).computers.map((c) => c.name),
-    ).toEqual(["laptop"])
+    ).toEqual(["computer", "laptop"])
     faux.setResponses(useTool("bash", { command: "echo mine" }))
     expect(lastTool(await say(chat.id, "your own shell")).output).toBe("mine\n")
     takenAway.delete("c8")

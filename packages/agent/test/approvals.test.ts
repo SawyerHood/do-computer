@@ -278,6 +278,8 @@ describe("approval rules", () => {
     const world = open()
     const chat = await setup(world)
     await call(world, "/library?name=notes.txt", "POST", "from the library")
+    world.faux.setResponses(useTool("write", { path: "seen.txt", content: "there to be read" }))
+    await say(world, chat.id, "leave something to read")
     await call(world, "/approvals/rules", "PATCH", { "tool:files": "deny" })
 
     // Writing, editing, a shell redirect and a copy out of the library all change files.
@@ -295,7 +297,7 @@ describe("approval rules", () => {
     // Looking is not changing: listing the library and reading are untouched.
     world.faux.setResponses(useTool("library", { action: "list" }))
     expect(tools(await say(world, chat.id, "list")).at(-1)).toMatchObject({ status: "done" })
-    world.faux.setResponses(useTool("read", { path: "IDENTITY.md" }))
+    world.faux.setResponses(useTool("read", { path: "seen.txt" }))
     expect(tools(await say(world, chat.id, "read")).at(-1)).toMatchObject({ status: "done" })
     // Nothing was written by any of them.
     await call(world, "/approvals/rules", "PATCH", { "tool:files": "allow" })
@@ -327,34 +329,6 @@ describe("approval rules", () => {
     await call(world, `/approvals/${state.pending[0]!.id}`, "POST", { decision: "always" })
     await settled(world, chat.id)
     expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual({})
-  })
-
-  it("keep memory and identity from being changed through their files", async () => {
-    const world = open()
-    const chat = await setup(world)
-    world.faux.setResponses(
-      useTool("bash", { command: "cat MEMORY.md; echo first note > MEMORY.md" }),
-    )
-    await say(world, chat.id, "note something")
-    expect((await call<{ memory: string }>(world, "/")).memory).toBe("first note")
-
-    await call(world, "/approvals/rules", "PATCH", { "tool:memory": "ask" })
-    // The tools ask...
-    world.faux.setResponses(
-      useTool("memory", { action: "add", target: "memory", content: "second note" }, "May I?"),
-    )
-    expect(tools(await say(world, chat.id, "remember more")).at(-1)!.status).toBe("error")
-    world.faux.setResponses(useTool("set_identity", { name: "Mallory" }, "May I?"))
-    expect(tools(await say(world, chat.id, "rename yourself")).at(-1)!.status).toBe("error")
-    // ...and the file, which is the same memory, cannot be used to go around them.
-    world.faux.setResponses(useTool("bash", { command: "echo injected > MEMORY.md" }))
-    const edited = tools(await say(world, chat.id, "edit the file")).at(-1)!
-    expect(JSON.stringify(edited)).toContain("put back as they were")
-    const after = await call<{ memory: string; agent: { name: string | null } }>(world, "/")
-    expect(after.memory).toBe("first note")
-    expect(after.agent.name).toBe(null)
-    world.faux.setResponses(useTool("bash", { command: "cat MEMORY.md" }))
-    expect(tools(await say(world, chat.id, "show it")).at(-1)!.output).toBe("first note\n")
   })
 
   it("reject rules for things that cannot have one", async () => {

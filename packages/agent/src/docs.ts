@@ -2,8 +2,8 @@ import type { Avatar, ChatKind, SubagentStatus, ThinkingLevel } from "@durable-c
 import { defineDoc } from "@earendil-works/pi-durable"
 
 /**
- * Who the agent is and what it knows. Canonical here, in the agent's own store, so it survives a
- * stopped or replaced sandbox; the workspace files (SOUL.md and friends) are a mirror of this.
+ * Who the agent is and what it knows. Kept here, in the agent's own store, and nowhere else: it
+ * is on no computer, so it survives any of them being stopped or replaced.
  */
 export type IdentityState = {
   name: string | null
@@ -32,12 +32,24 @@ export type IdentityState = {
   createdAt: number
   /** The user's IANA timezone, learned from their client. */
   timezone: string | null
-  /** The kind of computer it works on. Absent on an agent from before there was a choice. */
+  /**
+   * The kind of machine it had to itself, from when every agent had one. Absent on an agent
+   * from before there was a choice of kind, and on one made since computers belonged to a
+   * workspace.
+   */
   computer?: string
-  /** Every kind it has had a computer of, so that each can be deleted with the agent. */
+  /**
+   * Every kind it has had a machine of to itself. Where an agent still has machines to itself,
+   * each is deleted with it.
+   */
   computers?: string[]
-  /** When it was last moved to a different computer, if it ever was. */
+  /** When it was last moved to another kind of machine, in the days when that was done. */
   computerChangedAt?: number
+  /**
+   * The machines it had to itself were handed to its host, or it never had any. Absent on an
+   * agent from before computers belonged to a workspace, until it is next opened.
+   */
+  adopted?: boolean
   /** When its owner watched it hatch. Until then it is shown as an egg. */
   hatchedAt?: number
 }

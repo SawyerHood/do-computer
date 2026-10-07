@@ -203,6 +203,11 @@ export type LibraryFile = {
   source: "agent" | "user"
   /** The chat it was sent or uploaded in. */
   chatId: string | null
+  /**
+   * The agent that made it, or in whose chat it was sent or uploaded, where several agents
+   * share the library. Absent where the library is one agent's.
+   */
+  agentId?: string
   createdAt: number
   /** When its content last changed, and who changed it. */
   updatedAt: number

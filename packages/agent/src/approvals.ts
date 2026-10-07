@@ -18,7 +18,7 @@ import {
 } from "@earendil-works/pi-durable"
 import { type Caller, sentMeta } from "./caller.ts"
 import { ChatsDoc } from "./docs.ts"
-import { ComputersDoc } from "./paired.ts"
+import { ComputersDoc } from "./computers.ts"
 import { own } from "./own.ts"
 import { formatTime } from "./schedule.ts"
 
@@ -79,13 +79,9 @@ const ABILITIES: readonly { id: string; label: string; hint?: string; tools: str
   {
     id: "tool:memory",
     label: "Change its memory and identity",
-    hint: "Also stops it changing them by editing the memory and identity files on its computer.",
     tools: ["memory", "set_identity"],
   },
 ]
-/** The subject for changing memory and identity, which editing their mirror files also answers to. */
-export const MEMORY_SUBJECT = "tool:memory"
-
 /** What each built-in tool does, for naming a request. */
 const TOOL_TITLES: Record<string, string> = {
   bash: "Run commands",
@@ -116,6 +112,12 @@ function abilitiesOf(call: ToolCall): string[] {
   return ids.length > 0 ? ids : [`tool:${call.name}`]
 }
 
+/** The tools that always run on a computer, whether or not the call names one. */
+const COMPUTER_TOOLS = new Set(["bash", "read", "write", "edit", "send_file"])
+const usesComputer = (call: ToolCall) =>
+  COMPUTER_TOOLS.has(call.name) ||
+  (call.name === "library" && (call.arguments as { action?: unknown }).action === "get")
+
 const RULES: readonly ApprovalRule[] = ["allow", "ask", "deny"]
 const strictest = (rules: readonly ApprovalRule[]): ApprovalRule =>
   rules.includes("deny") ? "deny" : rules.includes("ask") ? "ask" : "allow"
@@ -142,6 +144,14 @@ export type ApprovalsOptions = {
   ) => Promise<{ id: string; name: string } | undefined>
   /** The connectors and what they are called, for listing subjects. */
   readonly connectors: (context: Context) => Promise<{ id: string; name: string }[]>
+  /**
+   * The computer a call would run on: the one it names, or the one it means by naming none.
+   * Undefined where there is no such computer.
+   */
+  readonly computerOf?: (
+    name: string | undefined,
+    context: Context,
+  ) => Promise<{ id: string; name: string } | undefined>
   /** Called when the agent has asked for something, to tell the user wherever they are. */
   readonly onRequest?: (request: ApprovalRequest) => void
 }
@@ -204,20 +214,22 @@ export class Approvals {
       }
     }
     const target = (call.arguments as { computer?: unknown }).computer
-    if (typeof target === "string" && target.trim() !== "") {
-      const computers = (await this.#require().snapshot(ComputersDoc, context))?.computers ?? {}
-      const wanted = target.trim().toLowerCase()
-      const match = Object.entries(computers).find(
-        ([id, computer]) => computer.name.toLowerCase() === wanted || id === target,
+    const named = typeof target === "string" && target.trim() !== ""
+    // A call that names no computer still runs on one, where it is a tool that works on them.
+    if (named || usesComputer(call)) {
+      const match = await this.#options.computerOf?.(
+        named ? (target as string) : undefined,
+        context,
       )
       // An unknown name fails in the tool itself; there is nothing to protect.
       if (match !== undefined) {
         subjects.push({
-          id: `computer:${match[0]}`,
-          label: `Work on ${match[1].name}`,
+          id: `computer:${match.id}`,
+          label: `Work on ${match.name}`,
           kind: "computer",
         })
-        title = `${title} on ${match[1].name}`
+        // Said where the call says it: a call that names none means the one machine there is.
+        if (named) title = `${title} on ${match.name}`
       }
     }
     return { subjects, title }

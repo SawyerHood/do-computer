@@ -232,7 +232,9 @@ describe("the browsing skill", () => {
     expect(viewed.status).toBe("done")
     expect(viewed.output).toContain("node browse.mjs text <url>")
     const folder = `${computer.home}/.agents/skills/browsing-the-web`
-    expect(viewed.output).toContain(`Its files are in ${folder} on your computer.`)
+    expect(viewed.output).toContain(
+      `Its files are in ${folder} on the computer you are working on.`,
+    )
 
     // The script is on the computer, whole, and is a program Node accepts.
     const check = await computer.exec(`node --check ${folder}/browse.mjs && echo valid`)
