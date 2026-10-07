@@ -239,20 +239,11 @@ describe("model configuration", () => {
     ).toBe("vendor/cheap")
   })
 
-  it("gives the summaries a cheaper model of their own, which can be set apart from search", () => {
-    expect(createAgentModels({}).summaries).toBe(undefined)
-    expect(createAgentModels({ openrouterApiKey: "sk-or-x" }).summaries).toEqual({
-      apiKey: "sk-or-x",
-      model: "openai/gpt-4.1-nano",
-    })
-    const set = createAgentModels({
-      openrouterApiKey: "sk-or-x",
-      searchModel: "vendor/reader",
-      summaryModel: "vendor/tiny",
-    })
-    expect(set.summaries?.model).toBe("vendor/tiny")
+  it("gives judging a small model of its own, which can be set apart from search", () => {
+    expect(createAgentModels({}).judge).toBe(undefined)
+    const set = createAgentModels({ openrouterApiKey: "sk-or-x", searchModel: "vendor/reader" })
     expect(set.webSearch?.model).toBe("vendor/reader")
-    // Judging whether an agent meant to stop is a third small job, with a model picked for it.
+    // Judging whether an agent meant to stop is a second small job, with a model picked for it.
     expect(createAgentModels({ openrouterApiKey: "sk-or-x" }).judge?.model).toBe(
       "mistralai/mistral-small-3.2-24b-instruct",
     )

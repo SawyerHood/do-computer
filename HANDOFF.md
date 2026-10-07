@@ -155,11 +155,13 @@ Since then, newest last:
    one copy of the creature is ever animated; elsewhere it is a still picture.
 9. **The daemon starts with only the server's address.** It used to ignore the address unless
    `--name` was also given, so the install command the app shows did nothing.
-10. **Summaries of what the agent did** (`packages/agent/src/activity.ts`). One entry for each
-    thing asked: a short title, with the outcome, time and steps inside. A small model writes
-    them in the background when a run ends, every three steps during a long one, and when a chat
-    is opened whose runs have none. Without a model key they are worked out from the run
-    (`packages/protocol/src/runs.ts`). Their cost is counted in the agent's usage.
+10. **The list of what the agent did** (`packages/agent/src/log.ts`). The agent writes the
+    entries itself, with a `log` tool: a short title and a sentence on the outcome, and only
+    for substantial work, which its prompt and the tool's description ask of it. Nothing is
+    stored for an entry. The call is in the transcript, and the panel reads the list from the
+    chat (`chatRuns` in `packages/protocol/src/runs.ts`), with the run's other steps inside. A
+    small model used to write an entry for every run in the background; that is gone, and what
+    it cost is still counted in the agent's usage (`SmallCostDoc` in `keep-going.ts`).
 11. **Pictures.** A picture pasted or attached is scaled down in the browser and sent with the
     message, so a model that takes pictures sees it. The original goes to the library as before.
 12. **Keeping an agent going** (`packages/agent/src/keep-going.ts`). A turn ends when the model
@@ -224,8 +226,9 @@ Design, in their words where quoted:
 - No brown. Teal is the accent now.
 - Muse is the reference for layout and for a living character.
 
-Cost: they found Claude Haiku too expensive for the summaries, which is why those have their own
-cheaper model. Web search still uses Haiku; they were told and have not asked to change it.
+Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
+each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only
+for big things. Web search still uses Haiku; they were told and have not asked to change it.
 
 ## 7. Open questions and unfinished work
 
@@ -285,7 +288,8 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
   break those pages.
 - **An activity entry shows a tick** when the agent answered, even if a step inside it failed.
 - **Thinking and full tool output** are not in the transcript by design. Tool output is in the
-  panel's entries, on wide screens only; thinking is not shown anywhere.
+  panel's entries, on wide screens only, and so only for work big enough to have an entry;
+  thinking is not shown anywhere.
 - **`PLAN.md` section 0** stops at 2026-10-03 and does not mention the creature, the panel, the
   summaries or pictures. This file does.
 
@@ -297,8 +301,7 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
   schedules; Daytona machines, including moving an agent to one and back and deleting it, and
   the listing the library folder is read with (the whole sync has only run against the built-in
   shell and a local shell); a
-  public MCP server as a connector; the bundled browsing skill; the summaries, against real
-  models; a vision model describing an attached picture; deploys to Cloudflare from this
+  public MCP server as a connector; the bundled browsing skill; a vision model describing an attached picture; deploys to Cloudflare from this
   machine and from GitHub Actions.
 - **On the live site**, without the owner's session, only this could be checked: it answers, its
   pages and assets load, the GitHub sign-in button leads to GitHub with the right callback, and
@@ -325,7 +328,7 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
 - **Tests that always pass an option hide the default path.** The daemon bug in section 5 lived
   because every test passed `--name`.
 - **Small models that reason spend a short token allowance on thinking and return nothing.**
-  Three of the cheapest candidates for the summaries failed that way.
+  Three of the cheapest candidates for the summaries, when a model wrote those, failed that way.
 - **Real services find what stand-ins do not.** Each time the app was first run against a real
   provider it turned up bugs the tests had missed. Treat the first run of anything on Modal,
   Cloudflare Containers or a phone as a trial.

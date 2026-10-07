@@ -78,8 +78,6 @@ export type AgentEvent =
         | "approvals"
         | "library"
         | "memory"
-        /** A summary of what it did in some chat was written or rewritten. */
-        | "activity"
     }
 
 export type ModelOption = {

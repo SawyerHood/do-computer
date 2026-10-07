@@ -6,7 +6,6 @@ import {
   type ApprovalDecision,
   type ApprovalRule,
   type ApprovalsState,
-  type ChatActivity,
   type ChatHistoryPage,
   type HistoryHit,
   type ApiError as ApiErrorBody,
@@ -294,8 +293,6 @@ export function createClient(options: ClientOptions) {
           patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
         removeConnector: (connectorId: string) =>
           request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
-        /** The summaries written of what the agent did in a chat, by the id of each run. */
-        activity: (chatId: string) => request<ChatActivity>(`${base}/chats/${chatId}/activity`),
         /** The agent's approval rules, what a rule can be set for, and what it is waiting on. */
         approvals: () => request<ApprovalsState>(`${base}/approvals`),
         /** Set rules by subject id. `allow` removes a rule. */

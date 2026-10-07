@@ -1,16 +1,12 @@
 import {
   type AgentSummary,
-  type ChatActivity,
   type ChatRun,
   chatRuns,
   type ChatState,
-  type RunSummary,
-  runSummary,
   toolActivity,
   type ToolPart,
   toolSummary,
 } from "@durable-computer/protocol"
-import { useQuery } from "@tanstack/react-query"
 import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
@@ -20,8 +16,6 @@ import {
 } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
-import { client } from "@/lib/client"
-import { activityKey } from "@/lib/collections"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
@@ -90,7 +84,8 @@ function Step({ part }: { part: ToolPart }) {
 }
 
 /** One piece of work: what it was, what came of it, and its steps for whoever wants them. */
-function Work({ run, summary }: { run: ChatRun; summary: RunSummary }) {
+function Work({ run }: { run: ChatRun }) {
+  const summary = run.entry
   return (
     <li>
       <details className="group rounded-xl open:bg-surface">
@@ -131,7 +126,6 @@ function Work({ run, summary }: { run: ChatRun; summary: RunSummary }) {
  */
 export function AgentPanel({
   agent,
-  chatId,
   state,
   face,
   reconnecting,
@@ -139,7 +133,6 @@ export function AgentPanel({
   onClose,
 }: {
   agent: AgentSummary
-  chatId: string
   state: ChatState
   /** Its creature, large. Given from outside because a new agent hatches in it. */
   face: React.ReactNode
@@ -150,14 +143,9 @@ export function AgentPanel({
   onClose: () => void
 }) {
   const mood = useAtomValue(mascotMoodAtom(agent.id))
-  // Newest first. Each is one thing that was asked for, however many steps it took.
+  // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
+  // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
-  // What a small model wrote about them, where the deployment has one. Until it has, and where
-  // it has none, each is described from the run itself.
-  const { data: written } = useQuery<ChatActivity>({
-    queryKey: activityKey(agent.id, chatId),
-    queryFn: () => client.agent(agent.id).activity(chatId),
-  })
   const name = agent.name ?? "New agent"
   return (
     <aside
@@ -201,13 +189,13 @@ export function AgentPanel({
         </h3>
         {runs.length === 0 ? (
           <p className="px-5 text-sm text-muted-foreground">
-            Nothing yet. When {name} runs commands, works on files or looks things up for this chat,
-            what it did is summed up here, with its steps inside.
+            Nothing yet. When {name} gets something substantial done in this chat, it notes it here,
+            with its steps inside.
           </p>
         ) : (
           <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-4">
             {runs.map((run) => (
-              <Work key={run.id} run={run} summary={written?.runs[run.id] ?? runSummary(run)} />
+              <Work key={run.id} run={run} />
             ))}
           </ul>
         )}
