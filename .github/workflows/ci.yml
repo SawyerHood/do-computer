@@ -23,13 +23,23 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm check
 
-  # Unit and integration tests, on Node and inside the Workers runtime.
+  # Unit and integration tests, on Node and inside the Workers runtime. The agent's take as long
+  # as all the others together, so they have a machine of their own.
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: agent
+            filter: "@durable-computer/agent"
+          - name: the rest
+            filter: "!@durable-computer/agent"
+    name: test (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm test
+      - run: pnpm --filter '${{ matrix.filter }}' run test
 
   # Browser tests against the built Node server, with a real daemon. Each file of them has a
   # server to itself, so they are dealt out over several machines.

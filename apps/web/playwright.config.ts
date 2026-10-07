@@ -12,8 +12,9 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
   fullyParallel: false,
-  // CI's machines have two cores. Elsewhere it is half of what there is.
-  workers: process.env.CI ? 2 : undefined,
+  // CI's machines have two cores, and the tests spend much of their time waiting. Elsewhere it
+  // is half the cores there are.
+  workers: process.env.CI ? 3 : undefined,
   reporter: [["list"]],
   use: {
     colorScheme: "dark",

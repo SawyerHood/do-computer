@@ -1,12 +1,24 @@
 name: Set up
-description: pnpm, Node and the workspace's dependencies, from the cache where they are in it.
+description: pnpm, Node and the workspace's dependencies.
 runs:
   using: composite
   steps:
     - uses: pnpm/action-setup@v4
+    # What `pnpm install` leaves behind is kept whole, for as long as nothing that decides it
+    # changes. Putting it back is quicker than installing, even from pnpm's own store.
+    - uses: actions/cache@v4
+      id: modules
+      with:
+        path: |
+          node_modules
+          apps/*/node_modules
+          packages/*/node_modules
+        key: modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'packages/*/package.json') }}
+    # When it has changed, install as usual, with pnpm's store from the cache.
     - uses: actions/setup-node@v4
       with:
         node-version: 24
-        cache: pnpm
-    - run: pnpm install --frozen-lockfile
+        cache: ${{ steps.modules.outputs.cache-hit != 'true' && 'pnpm' || '' }}
+    - if: steps.modules.outputs.cache-hit != 'true'
+      run: pnpm install --frozen-lockfile
       shell: bash
