@@ -5,10 +5,10 @@ import {
   type FauxProviderHandle,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
-import { createModels, type Models } from "@earendil-works/pi-ai/models"
+import { createModels, getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models"
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
-import type { Agent, ModelRef } from "@earendil-works/pi-durable"
-import type { SummaryOptions } from "./activity.ts"
+import type { ModelRef } from "@earendil-works/pi-durable"
+import type { JudgeOptions } from "./keep-going.ts"
 import type { WebSearchOptions } from "./web-search.ts"
 
 /** OpenRouter models suggested first in the picker. Ones the catalog lacks are dropped. */
@@ -23,11 +23,6 @@ const CURATED = [
 
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5.5"
 /**
- * How hard an agent thinks before it answers. A model that cannot reason ignores it, and one that
- * lacks this level takes the nearest it has.
- */
-export const THINKING_LEVEL: Agent["thinkingLevel"] = "medium"
-/**
  * Reads web search results when no search model is configured. Reading a handful of pages and
  * reporting what they say does not need the agent's own model, and one search with it cost
  * about eight cents when measured.
@@ -35,19 +30,11 @@ export const THINKING_LEVEL: Agent["thinkingLevel"] = "medium"
 const DEFAULT_SEARCH_MODEL = "anthropic/claude-haiku-4.5"
 
 /**
- * The model that sums up what the agent did. The job is a title and a sentence from a list of
- * steps, done after every run, so it wants the cheapest model that does it reliably. Tried on
- * 2026-10-03 against a dozen low-priced models: this one gave usable, accurate entries every
- * time in about a second, at roughly a thirteenth of the search model's price.
- */
-export const DEFAULT_SUMMARY_MODEL = "openai/gpt-4.1-nano"
-
-/**
  * The model that is asked whether an agent meant to stop. It reads one message against what was
  * asked and answers with a word, but a wrong "carry on" would push an agent past a question it
  * had put to its user, so it has to judge well. Tried on 2026-10-06 on twelve endings: this one
- * was right on all of them, four times over, at the summary model's price; the summary model
- * itself got a third of them wrong.
+ * was right on all of them, four times over, at about a thirteenth of the search model's
+ * price; the still cheaper `openai/gpt-4.1-nano` got a third of them wrong.
  */
 export const DEFAULT_JUDGE_MODEL = "mistralai/mistral-small-3.2-24b-instruct"
 
@@ -60,10 +47,8 @@ export type AgentModels = {
   readonly faux?: FauxProviderHandle
   /** What web search needs. Absent without a model key: there is nothing to search with. */
   readonly webSearch?: WebSearchOptions
-  /** What summing up the agent's work needs. Absent without a model key. */
-  readonly summaries?: SummaryOptions
   /** What judging whether an agent meant to stop needs. Absent without a model key. */
-  readonly judge?: SummaryOptions
+  readonly judge?: JudgeOptions
 }
 
 export type AgentModelsConfig = {
@@ -73,8 +58,6 @@ export type AgentModelsConfig = {
   readonly defaultModel?: string
   /** OpenRouter model id that reads web search results. Default: a small, fast model. */
   readonly searchModel?: string
-  /** OpenRouter model id that sums up what the agent did. Default: a smaller, cheaper one. */
-  readonly summaryModel?: string
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
   readonly judgeModel?: string
 }
@@ -201,6 +184,7 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
       id: `openrouter/${id}`,
       name: model.name,
       reasoning: model.reasoning,
+      ...(model.reasoning ? { thinking: getSupportedThinkingLevels(model) } : {}),
       inputCost: model.cost.input,
       outputCost: model.cost.output,
       contextWindow: model.contextWindow,
@@ -225,7 +209,6 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
           : defaultModel.slice("openrouter/".length)),
     },
     // Asked for by its OpenRouter id, so it need not be a model an agent could run on.
-    summaries: { apiKey: key, model: config.summaryModel ?? DEFAULT_SUMMARY_MODEL },
     judge: { apiKey: key, model: config.judgeModel ?? DEFAULT_JUDGE_MODEL },
   }
 }

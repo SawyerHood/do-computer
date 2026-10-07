@@ -169,8 +169,8 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
   await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
 
-  // The work behind the answer is kept in the panel about the agent, which opens from the header
-  // above the chat and takes its place. There it can be opened and read.
+  // The panel about the agent opens from the header above the chat and takes its place. It
+  // lists what the agent wrote up, which it does only for big things: this was not one.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const header = page.getByRole("button", { name: "Show Juniper beside the chat" })
   await expect(panel).toHaveCount(0)
@@ -180,19 +180,23 @@ test("the agent uses its computer: one line says what it is doing, and only its 
     "data-mood",
     /idle|done/,
   )
-  // It is one entry for what was asked: a few words, so the list can be taken in at a glance.
-  const work = panel.getByRole("listitem").filter({ hasText: "/tool bash" }).first()
-  await expect(work).toContainText('/tool bash {"command":"sleep 1; echo from…')
-  // What came of it and its steps are inside, and what a step returned is inside that.
-  const step = work.getByText("Ran: sleep 1; echo from the shell", { exact: false })
-  await expect(work.getByText("The tool returned")).toBeHidden()
-  await expect(step).toBeHidden()
-  await work.getByText("/tool bash").click()
-  await expect(work.getByText("The tool returned")).toBeVisible()
-  await expect(work.getByText("1 step")).toBeVisible()
-  await expect(work.getByText("MEMORY.md")).toBeHidden()
-  await step.click()
-  await expect(work.getByText("MEMORY.md")).toBeVisible()
+  await expect(panel.getByText("Nothing yet.")).toBeVisible()
+  await expect(panel.getByRole("listitem")).toHaveCount(0)
+
+  // The agent adds an entry itself, with a tool: a few words, so the list can be taken in at a
+  // glance, with what came of it inside.
+  await composer(page).fill(
+    '/tool log {"title":"Write a note","outcome":"Left a note in the workspace."}',
+  )
+  await page.keyboard.press("Enter")
+  const work = panel.getByRole("listitem").filter({ hasText: "Write a note" }).first()
+  await expect(work).toBeVisible()
+  await expect(panel.getByText("Nothing yet.")).toHaveCount(0)
+  await expect(work.getByText("Left a note in the workspace.")).toBeHidden()
+  await work.getByText("Write a note").click()
+  await expect(work.getByText("Left a note in the workspace.")).toBeVisible()
+  await expect(work.getByText("0 steps")).toBeVisible()
+  await expect(page.getByRole("status")).toHaveCount(0)
   // Beside its name it says what it is doing in a word or two, not the whole command.
   await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
   // Put away, the header is back.
@@ -1190,6 +1194,42 @@ test.describe("choosing a model", () => {
     await picker.fill("echo")
     await list.getByRole("option", { name: /Echo/ }).click()
     await expect(picker).toHaveValue("Echo (no model key configured)")
+  })
+
+  test("how hard an agent thinks is chosen under its model", async ({ page }) => {
+    await signIn(page)
+    await page.getByRole("button", { name: "Identity and memory" }).click()
+    const thinking = page.getByRole("group", { name: "Thinking" })
+    // The echo model does not reason, so there is nothing to choose.
+    await expect(thinking).toContainText("does not think")
+    await expect(thinking.getByRole("radio")).toHaveCount(0)
+
+    // Say that it can, with levels of its own, and those are what is offered.
+    await page.route("**/api/models", (route) =>
+      route.fulfill({
+        json: {
+          models: [
+            {
+              id: "echo/echo-1",
+              name: "Echo (no model key configured)",
+              reasoning: true,
+              thinking: ["low", "high", "max"],
+              inputCost: 0,
+              outputCost: 0,
+            },
+          ],
+        },
+      }),
+    )
+    await page.reload()
+    await expect(thinking.getByRole("radio")).toHaveCount(3)
+    // The agent is on medium, which this model lacks; it would use the next one up.
+    await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
+    await thinking.getByText("Max").click()
+    await page.getByRole("button", { name: "Save changes" }).click()
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+    await page.reload()
+    await expect(thinking.getByRole("radio", { name: "Max" })).toBeChecked()
   })
 
   test("the default for new agents is set once, under Settings", async ({ page }) => {

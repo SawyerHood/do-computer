@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sub-agents · design</title>
+    <link rel="preconnect" href="https://rsms.me/" />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <style>
+      /* The app's own tokens, copied from apps/web/src/styles.css. */
+      :root {
+        --canvas: oklch(0.985 0.003 212);
+        --ink: oklch(0.27 0.008 212);
+        --primary: oklch(0.5 0.08 195);
+        --primary-foreground: oklch(0.985 0.01 195);
+        --destructive: oklch(0.5 0.19 26);
+        --rail: color-mix(in oklch, var(--ink) 3%, var(--canvas));
+        --surface: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+        --radius: 0.75rem;
+      }
+      .dark {
+        --canvas: oklch(0.19 0.004 212);
+        --ink: oklch(0.9 0.006 212);
+        --primary: oklch(0.52 0.08 195);
+        --primary-foreground: oklch(0.97 0.012 195);
+        --destructive: oklch(0.7 0.17 24);
+        --rail: color-mix(in oklch, black 22%, var(--canvas));
+        --surface: color-mix(in oklch, var(--ink) 5%, var(--canvas));
+      }
+      :root,
+      .dark {
+        --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+        --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+        --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+        --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
+        --strip: 46px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--rail);
+        color: var(--ink);
+        font:
+          14px/1.5 "Inter Variable",
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        background: none;
+        border: 0;
+        padding: 0;
+        text-align: left;
+      }
+      button:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      p,
+      h1,
+      h2,
+      h3,
+      ul,
+      ol {
+        margin: 0;
+        padding: 0;
+      }
+      ul,
+      ol {
+        list-style: none;
+      }
+      .ic {
+        flex: none;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .spin {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes bob {
+        50% {
+          transform: translateY(-3px);
+        }
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+      .muted {
+        color: var(--muted-foreground);
+      }
+
+      /* ---------- frame ---------- */
+      .stage {
+        height: calc(100% - var(--strip));
+        display: flex;
+        justify-content: center;
+      }
+      .app {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        background: var(--canvas);
+        position: relative;
+        overflow: hidden;
+      }
+      .stage.phone {
+        padding: 18px 0;
+      }
+      .stage.phone .app {
+        width: 390px;
+        border: 1px solid var(--border);
+        border-radius: 28px;
+      }
+      .stage.phone .rail,
+      .stage.phone .list,
+      .stage.phone .agent {
+        display: none;
+      }
+
+      .rail {
+        width: 56px;
+        flex: none;
+        background: var(--rail);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px 0;
+        gap: 6px;
+      }
+      .rail .sp {
+        flex: 1;
+      }
+      .rb {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: var(--muted-foreground);
+      }
+      .rb:hover,
+      .rb.on {
+        background: var(--accent);
+        color: var(--ink);
+      }
+
+      /* ---------- chat list ---------- */
+      .list {
+        width: 256px;
+        flex: none;
+        border-right: 1px solid var(--border);
+        background: color-mix(in oklch, var(--rail) 40%, var(--canvas));
+        display: flex;
+        flex-direction: column;
+        padding: 14px 8px;
+        gap: 2px;
+      }
+      .list h2 {
+        font-size: 14px;
+        font-weight: 500;
+        padding: 2px 8px 8px;
+      }
+      .lrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 7px 10px;
+        border-radius: 8px;
+        color: var(--muted-foreground);
+      }
+      .lrow:hover,
+      .lrow.on {
+        background: var(--accent);
+        color: var(--ink);
+      }
+      .lrow .nm {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .lrow.sub {
+        padding: 5px 10px 5px 22px;
+        font-size: 13px;
+      }
+      .lrow .st {
+        font-size: 11px;
+      }
+      .count {
+        font-size: 11px;
+        border: 1px solid var(--border);
+        border-radius: 99px;
+        padding: 0 6px;
+      }
+
+      /* ---------- chat ---------- */
+      .chat {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        min-height: 52px;
+      }
+      .crumb .back {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted-foreground);
+        border-radius: 8px;
+        padding: 4px 8px 4px 4px;
+        white-space: nowrap;
+      }
+      .crumb .back:hover {
+        background: var(--accent);
+        color: var(--ink);
+      }
+      .crumb .who {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+        min-width: 0;
+        flex: 1;
+      }
+      .crumb .who span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--border);
+        border-radius: 99px;
+        padding: 3px 10px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      button.pill:hover {
+        color: var(--ink);
+        background: var(--accent);
+      }
+      .pill.stop:hover {
+        color: var(--destructive);
+      }
+      .msgs {
+        flex: 1;
+        overflow-y: auto;
+        padding: 28px 0 20px;
+      }
+      .col {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .user,
+      .task {
+        align-self: flex-end;
+        max-width: 85%;
+        border-radius: 18px;
+        padding: 8px 14px;
+        font-size: 15px;
+      }
+      .user {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      /* What the agent asked of a sub-agent: on the asking side, but plainly not the user's words. */
+      .task {
+        background: var(--surface);
+        border: 1px solid var(--border);
+      }
+      .task .from {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        margin-bottom: 2px;
+      }
+      .agentmsg {
+        font-size: 15px;
+        max-width: 62ch;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .agentmsg ul {
+        list-style: disc;
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .working {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted-foreground);
+        font-size: 14px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 12px;
+        padding: 6px 10px 6px 8px;
+        font-size: 13px;
+      }
+      .chip:hover {
+        background: var(--accent);
+      }
+      .chip .st {
+        color: var(--muted-foreground);
+        font-size: 12px;
+      }
+      /* A sub-agent's report arriving in the chat: a marker, like a scheduled task's. */
+      .report {
+        border-left: 2px solid var(--border);
+        padding: 2px 0 2px 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .report .head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .report strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .link {
+        color: var(--primary);
+        font-weight: 500;
+      }
+      .dark .link {
+        color: oklch(0.75 0.09 195);
+      }
+      .link:hover {
+        text-decoration: underline;
+      }
+      .report details {
+        margin-top: 4px;
+      }
+      .report summary {
+        cursor: default;
+      }
+      .report pre {
+        font: inherit;
+        white-space: pre-wrap;
+        margin: 6px 0 0;
+        background: var(--surface);
+        border-radius: 10px;
+        padding: 10px 12px;
+      }
+      .ask {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 14px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 62ch;
+      }
+      .ask .head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+      }
+      .ask code {
+        font:
+          12px/1.5 ui-monospace,
+          monospace;
+        background: var(--canvas);
+        border-radius: 8px;
+        padding: 6px 8px;
+        display: block;
+      }
+      .ask .btns {
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        padding: 5px 12px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .btn:hover {
+        background: var(--accent);
+      }
+      .btn.pri {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .stamp {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .composer {
+        max-width: 680px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 24px 18px;
+      }
+      .composer > div {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 18px;
+        padding: 12px 16px;
+        color: var(--muted-foreground);
+        font-size: 15px;
+      }
+      .composer input {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 18px;
+        padding: 12px 16px;
+        color: var(--ink);
+        font: inherit;
+        font-size: 15px;
+        outline: none;
+      }
+      .composer input:focus {
+        border-color: var(--primary);
+      }
+      .composer input::placeholder {
+        color: var(--muted-foreground);
+      }
+      .composer .hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        padding: 6px 6px 0;
+      }
+      .phonehead {
+        display: none;
+      }
+      .stage.phone .phonehead {
+        display: flex;
+      }
+
+      /* ---------- the agent's panel ---------- */
+      .agent {
+        width: 320px;
+        flex: none;
+        border-left: 1px solid var(--border);
+        background: color-mix(in oklch, var(--rail) 40%, var(--canvas));
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow-y: auto;
+      }
+      .hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 2px;
+        padding: 30px 24px 18px;
+      }
+      .hero h2 {
+        font-size: 18px;
+        font-weight: 500;
+        margin-top: 6px;
+      }
+      .hero .big {
+        animation: bob 3.2s ease-in-out infinite;
+      }
+      /* Its sub-agents, standing by it. */
+      .brood {
+        display: flex;
+        gap: 6px;
+        margin-top: -14px;
+        min-height: 44px;
+      }
+      .brood button {
+        border-radius: 12px;
+        padding: 2px;
+      }
+      .brood button:hover {
+        background: var(--accent);
+      }
+      .brood .running {
+        animation: bob 1.1s ease-in-out infinite;
+      }
+      .brood button:nth-child(2) .running {
+        animation-delay: 0.3s;
+      }
+      .brood button:nth-child(3) .running {
+        animation-delay: 0.6s;
+      }
+      .sec {
+        border-top: 1px solid var(--border);
+        padding: 14px 10px 10px;
+      }
+      .sec h3 {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+        padding: 0 10px 8px;
+      }
+      .hrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 7px 10px;
+        border-radius: 12px;
+        position: relative;
+      }
+      .hrow:hover {
+        background: var(--surface);
+      }
+      .hrow .open {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+      }
+      .hrow .txt {
+        min-width: 0;
+        flex: 1;
+      }
+      .hrow .nm,
+      .hrow .ln {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hrow .ln {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .hrow .ln.need {
+        color: var(--ink);
+      }
+      .hrow .x {
+        color: var(--muted-foreground);
+        border-radius: 8px;
+        padding: 4px;
+        display: grid;
+      }
+      .hrow .x:hover {
+        color: var(--destructive);
+        background: var(--accent);
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 99px;
+        background: var(--primary);
+        flex: none;
+      }
+      .dot.need {
+        background: oklch(0.78 0.15 80);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .wrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 10px;
+        color: var(--ink);
+      }
+      .wrow svg {
+        color: var(--muted-foreground);
+      }
+      .wrow.step {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        padding: 3px 10px 3px 14px;
+      }
+      .wrow.step i {
+        width: 5px;
+        height: 5px;
+        border-radius: 99px;
+        background: currentColor;
+        flex: none;
+      }
+      .wrow.step.go i {
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+
+      /* ---------- phone sheet ---------- */
+      .sheet {
+        position: absolute;
+        inset: 0;
+        background: color-mix(in oklch, black 45%, transparent);
+        display: flex;
+        align-items: flex-end;
+        z-index: 5;
+      }
+      .sheet > div {
+        width: 100%;
+        background: var(--canvas);
+        border-top: 1px solid var(--border);
+        border-radius: 20px 20px 0 0;
+        padding: 14px 8px 20px;
+      }
+      .sheet h3 {
+        font-size: 13px;
+        font-weight: 500;
+        padding: 0 12px 8px;
+      }
+
+      /* ---------- the strip: not part of the design ---------- */
+      .strip {
+        height: var(--strip);
+        border-top: 1px solid var(--border);
+        background: var(--rail);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        font-size: 12px;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      .strip button {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 3px 10px;
+        color: var(--muted-foreground);
+      }
+      .strip button.on {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .strip .sp {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" style="height: 100%"></div>
+    <script>
+      /* ---------- icons and creatures ---------- */
+      const P = {
+        chat: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H10l-5 4v-4a2 2 0 0 1-1-2z",
+        folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+        clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
+        bolt: "M13 3 5 14h6l-1 7 8-11h-6z",
+        gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 3v2M12 19v2M3 12h2M19 12h2M5.600 5.600 7 7M17 17l1.400 1.400M5.600 18.400 7 17M17 7l1.400-1.400",
+        list: "M4 6h16M4 12h16M4 18h10",
+        left: "M15 5l-7 7 7 7",
+        right: "M9 5l7 7-7 7",
+        x: "M6 6l12 12M18 6 6 18",
+        check: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 12.500l2.700 2.700L16 9.500",
+        spin: "M12 3a9 9 0 1 0 9 9",
+        warn: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v5M12 16v.010",
+        stop: "M7 7h10v10H7z",
+        reply: "M9 7 4 12l5 5M4 12h10a6 6 0 0 1 6 6v1",
+        sun: "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M2 12h2M20 12h2",
+        moon: "M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z",
+        pen: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
+      }
+      const ic = (n, s = 16, cls = "") =>
+        `<svg class="ic ${cls}" width="${s}" height="${s}" viewBox="0 0 24 24"><path d="${P[n]}"/></svg>`
+
+      const HUES = {
+        pip: ["#9fb4ff", "#5b6fd6", "#3b3f9c"],
+        flights: ["#ffd9a0", "#f09a3e", "#b5621a"],
+        hotels: ["#ffb3d4", "#e0609b", "#9c2f66"],
+        calendar: ["#b6f0c4", "#4fbf78", "#23804a"],
+      }
+      let gid = 0
+      /**
+       * A creature. The agent's has an antenna; a sub-agent is the same low-polygon body, smaller and
+       * in its own colour, with eyes that say how it is getting on.
+       */
+      function creature(who, size, state = "running") {
+        const [a, b, c] = HUES[who]
+        const id = `g${gid++}`
+        const eye = (x) =>
+          state === "done"
+            ? `<path d="M${x - 5} 40q5-7 10 0" stroke="#1b1d3a" stroke-width="2.600" fill="none" stroke-linecap="round"/>`
+            : state === "stopped"
+              ? `<path d="M${x - 5} 39h10" stroke="#1b1d3a" stroke-width="2.600" stroke-linecap="round"/>`
+              : `<ellipse cx="${x}" cy="38" rx="6" ry="6.500" fill="#fff"/><circle cx="${x + (state === "waiting" ? 0 : 1.5)}" cy="${state === "waiting" ? 35.5 : 39}" r="2.800" fill="#1b1d3a"/>`
+        const antenna =
+          who === "pip"
+            ? `<path d="M32 6v8" stroke="#c9548a" stroke-width="2.500" stroke-linecap="round"/><circle cx="32" cy="5" r="2.500" fill="#ff7ab0"/>`
+            : ""
+        return `<svg class="cr ${state}" width="${size}" height="${size}" viewBox="0 0 64 64" style="flex:none;${state === "stopped" ? "opacity:.55" : ""}"><defs><radialGradient id="${id}" cx=".35" cy=".3"><stop offset="0" stop-color="${a}"/><stop offset=".6" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient></defs>${antenna}<path d="M32 12 52 24 56 44 44 58H20L8 44l4-20z" fill="url(#${id})"/><path d="M32 12 52 24 32 30 12 24z" fill="#fff" opacity=".14"/>${eye(24)}${eye(40)}</svg>`
+      }
+
+      /* ---------- the pretend ---------- */
+      const HELPERS = {
+        flights: {
+          name: "Flights sub-agent",
+          task: "Find nonstop flights from SFO to Lisbon, leaving Fri 15 May and back Mon 18 May, for two adults. Report the three best by price and time, with links.",
+        },
+        hotels: {
+          name: "Hotels sub-agent",
+          task: "Shortlist three hotels in or near Alfama for 15–18 May, under €220 a night, with a room for two. Say why each made the list.",
+        },
+        calendar: {
+          name: "Calendar sub-agent",
+          task: "Check the calendar on MacBook for anything on 15–18 May that clashes with a trip. List what would need moving.",
+        },
+      }
+      const REPORT = `Three nonstop options, two adults, return:
+
+1. TAP 238 / 237 — Fri 16:35 → Sat 12:05, back Mon 10:50 → 14:20. $1,842 total.
+2. United 64 / 65 — Fri 18:10 → Sat 14:00, back Mon 11:55 → 15:30. $2,010 total.
+3. TAP 236 / 235 — Fri 21:15 → Sat 16:50, back Mon 17:40 → 21:05. $1,764 total, but lands late.`
+
+      const S = { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, said: {}, theme: "dark" }
+      const SCENES = [
+        ["Sub-agents start", { phase: 1 }],
+        ["Reports come back", { phase: 2 }],
+        ["Inside a sub-agent", { phase: 2, view: "hotels" }],
+        ["A finished sub-agent", { phase: 2, view: "flights" }],
+        ["You message one", { phase: 2, view: "hotels", said: { hotels: ["Skip anything without a lift."] } }],
+        ["Chat list open", { phase: 2, list: true }],
+        ["On a phone", { phase: 2, phone: true }],
+      ]
+      let scene = 1
+      function go(n) {
+        scene = n
+        Object.assign(S, { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, said: {} }, structuredClone(SCENES[n][1]))
+        render()
+      }
+
+      /** How a sub-agent is getting on, in the scene on screen. */
+      function st(id) {
+        if (S.stopped[id]) return { state: "stopped", line: "Stopped by you" }
+        if (S.said[id]?.length) return { state: "running", line: "Working on what you told it" }
+        if (S.phase === 1)
+          return {
+            state: "running",
+            line: { flights: "Searching the web: SFO to LIS nonstop", hotels: "Searching the web: hotels in Alfama", calendar: "Starting" }[id],
+          }
+        if (id === "flights") return { state: "done", line: "Reported back · took 4 min" }
+        if (id === "hotels") return { state: "running", line: "Reading: Memmo Alfama availability" }
+        return S.ok
+          ? { state: "running", line: "Running a command on MacBook" }
+          : { state: "waiting", line: "Waiting for your OK" }
+      }
+      const ids = Object.keys(HELPERS)
+      const esc = (text) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c])
+      /** What you said to its sub-agents, noted in the agent's chat so it knows too. */
+      const told = () =>
+        ids
+          .flatMap((id) =>
+            (S.said[id] ?? []).map(
+              (text) =>
+                `<div class="report"><div class="head">${creature(id, 20, st(id).state)}<span>You told <strong>${HELPERS[id].name}</strong>: “${esc(text)}”</span><button class="link" data-a="open" data-id="${id}">Open its chat</button></div></div>`,
+            ),
+          )
+          .join("")
+      const count = (state) => ids.filter((id) => st(id).state === state).length
+      const mark = (state, size = 15) =>
+        state === "running"
+          ? ic("spin", size, "spin")
+          : state === "done"
+            ? ic("check", size)
+            : state === "waiting"
+              ? `<span class="dot need"></span>`
+              : ic("stop", size)
+
+      /* ---------- pieces ---------- */
+      const rail = () => {
+        const b = (n, l, on) => `<button class="rb${on ? " on" : ""}" title="${l}"${l === "Chats" ? ' data-a="list"' : ""}>${ic(n, 20)}</button>`
+        return `<nav class="rail"><div style="margin-bottom:6px">${creature("pip", 38)}</div>${b("list", "Chats", S.list)}${b("folder", "Library")}${b("clock", "Automations")}${b("bolt", "Skills")}<div class="sp"></div>${b("gear", "Settings")}</nav>`
+      }
+
+      function list() {
+        const working = count("running") + count("waiting")
+        const sub = ids
+          .map((id) => {
+            const s = st(id)
+            return `<button class="lrow sub${S.view === id ? " on" : ""}" data-a="open" data-id="${id}">${creature(id, 18, s.state)}<span class="nm">${HELPERS[id].name}</span><span class="st">${mark(s.state, 13)}</span></button>`
+          })
+          .join("")
+        return `<aside class="list"><h2 style="display:flex;justify-content:space-between;align-items:center">Chats ${ic("pen", 16)}</h2>
+          <button class="lrow${S.view === null ? " on" : ""}" data-a="back"><span class="nm">Lisbon weekend</span>${working ? `<span class="count">${working}</span>` : ""}</button>
+          ${sub}
+          <button class="lrow"><span class="nm">Tax paperwork</span></button>
+          <button class="lrow"><span class="nm">Garden plan for spring</span></button>
+          <button class="lrow"><span class="nm">What can you do?</span></button></aside>`
+      }
+
+      const chip = (id) => {
+        const s = st(id)
+        return `<button class="chip" data-a="open" data-id="${id}">${creature(id, 22, s.state)}<span>${HELPERS[id].name}</span><span class="st">${{ running: "working", done: "done", waiting: "needs your OK", stopped: "stopped" }[s.state]}</span>${ic("right", 13)}</button>`
+      }
+
+      const ask = () =>
+        S.ok
+          ? `<p class="stamp">${ic("check", 14)} Allowed. The calendar sub-agent is carrying on.</p>`
+          : `<div class="ask"><div class="head">${creature("calendar", 22, "waiting")}Calendar sub-agent is waiting for your OK</div>
+              <p class="muted">It wants to run a command on MacBook:</p>
+              <code>icalBuddy -f eventsFrom:2026-05-15 to:2026-05-18</code>
+              <div class="btns"><button class="btn pri" data-a="ok">Allow</button><button class="btn" data-a="stop" data-id="calendar">Don't allow</button><span style="flex:1"></span><button class="link" data-a="open" data-id="calendar" style="font-size:13px">Open its chat</button></div></div>`
+
+      function mainChat() {
+        const working = count("running") + count("waiting")
+        const later =
+          S.phase === 1
+            ? ""
+            : `<div class="report"><div class="head">${creature("flights", 20, "done")}<span><strong>Flights sub-agent</strong> reported back</span><button class="link" data-a="open" data-id="flights">Open its chat</button></div>
+                <details><summary>What it reported</summary><pre>${REPORT}</pre></details></div>
+              <div class="agentmsg"><p>Flights are in. All three are nonstop:</p>
+                <ul><li><b>TAP 238</b>, Friday 16:35, $1,842 for two. The best fit: you land at lunchtime Saturday.</li><li><b>United 64</b>, Friday 18:10, $2,010.</li><li><b>TAP 236</b>, Friday 21:15, $1,764. Cheapest, but most of Saturday is gone.</li></ul>
+                <p>I'd take the first. Hotels are still being compared.</p></div>
+              ${S.stopped.calendar ? `<p class="stamp">${ic("stop", 14)} You stopped the calendar sub-agent.</p>` : ask()}`
+        return `<section class="chat">
+          <div class="crumb phonehead">${creature("pip", 30)}<div class="who"><span>Pip</span></div><button class="pill" data-a="sheet">${ids.length} sub-agents${working ? ` · ${working} working` : ""}</button></div>
+          <div class="msgs"><div class="col">
+            <div class="user">Help me plan a long weekend in Lisbon, 15–18 May. Flights from SFO, somewhere to stay near Alfama, and check I'm actually free.</div>
+            <div class="agentmsg"><p>On it. I've started three sub-agents so these happen at the same time, and I'll tell you what each one finds.</p>
+              <div class="chips">${ids.map(chip).join("")}</div></div>
+            <div class="user">While they work: what's the weather like there in May?</div>
+            <div class="agentmsg"><p>Warm and mostly dry: about 22°C by day and 14°C at night, with long evenings. Bring a light jacket for the wind off the river.</p></div>
+            ${later}
+            ${told()}
+          </div></div>
+          <div class="composer"><div>Message Pip</div></div>
+          ${S.sheet ? `<div class="sheet" data-a="sheet"><div><h3>Pip's sub-agents in this chat</h3>${ids.map((id) => hrow(id)).join("")}</div></div>` : ""}
+        </section>`
+      }
+
+      function subChat(id) {
+        const h = HELPERS[id]
+        const s = st(id)
+        const said = S.said[id] ?? []
+        const stoppedLine = `<p class="stamp">${ic("stop", 14)} You stopped this sub-agent. Pip was told.</p>`
+        const yours =
+          said.map((text) => `<div class="user">${esc(text)}</div>`).join("") +
+          (said.length
+            ? `<div class="agentmsg"><p>Got it. I'll work that in, and tell Pip what changed when I report back.</p></div>${s.state === "running" ? `<div class="working">${ic("spin", 15, "spin")} Working on what you told it</div>` : ""}`
+            : "")
+        const body = {
+          flights: `<div class="agentmsg"><p>Looking for nonstop flights first. If there are fewer than three I'll add one-stops under 15 hours.</p></div>
+            <div class="agentmsg"><p>Three nonstop options, two adults, return:</p>
+              <ul><li><b>TAP 238 / 237</b>: Fri 16:35 → Sat 12:05, back Mon 10:50 → 14:20. $1,842 total.</li><li><b>United 64 / 65</b>: Fri 18:10 → Sat 14:00, back Mon 11:55 → 15:30. $2,010 total.</li><li><b>TAP 236 / 235</b>: Fri 21:15 → Sat 16:50, back Mon 17:40 → 21:05. $1,764 total, but lands late.</li></ul>
+              <p class="stamp">${ic("reply", 14)} Reported back to Pip at 2:14 PM</p></div>`,
+          hotels: `<div class="agentmsg"><p>Starting inside Alfama, then widening to Graça and Baixa if there are too few under €220.</p></div>
+            <div class="agentmsg"><p>Six candidates so far. Checking which have a room for all three nights.</p></div>
+            ${s.state === "stopped" ? stoppedLine : said.length ? "" : `<div class="working">${ic("spin", 15, "spin")} Reading: Memmo Alfama availability</div>`}`,
+          calendar: `<div class="agentmsg"><p>I need to read the calendar on MacBook for 15–18 May.</p></div>
+            ${s.state === "stopped" ? stoppedLine : s.state === "waiting" ? ask() : `${ask()}${said.length ? "" : `<div class="working">${ic("spin", 15, "spin")} Running a command on MacBook</div>`}`}`,
+        }[id]
+        const live = s.state === "running" || s.state === "waiting"
+        return `<section class="chat">
+          <div class="crumb"><button class="back" data-a="back">${ic("left", 16)} Lisbon weekend</button>
+            <div class="who">${creature(id, 24, s.state)}<span>${h.name}</span></div>
+            <span class="pill">${mark(s.state, 13)} ${{ running: "Working", done: "Done", waiting: "Needs your OK", stopped: "Stopped" }[s.state]}</span>
+            ${live ? `<button class="pill stop" data-a="stop" data-id="${id}">${ic("stop", 12)} Stop</button>` : ""}</div>
+          <div class="msgs"><div class="col">
+            <div class="task"><div class="from">${creature("pip", 16)} Pip asked</div>${h.task}</div>
+            ${body}
+            ${yours}
+          </div></div>
+          <form class="composer" data-id="${id}"><input name="text" autocomplete="off" placeholder="Message ${h.name}" aria-label="Message ${h.name}" />
+            <p class="hint">${creature("pip", 16)} Pip is told what you say here, and still gets its report.</p></form>
+        </section>`
+      }
+
+      function hrow(id) {
+        const s = st(id)
+        const live = s.state === "running" || s.state === "waiting"
+        return `<div class="hrow"><button class="open" data-a="open" data-id="${id}">${creature(id, 30, s.state)}<span class="txt"><span class="nm">${HELPERS[id].name}</span><span class="ln${s.state === "waiting" ? " need" : ""}">${s.line}</span></span>${mark(s.state)}</button>${live ? `<button class="x" title="Stop ${HELPERS[id].name}" data-a="stop" data-id="${id}">${ic("x", 14)}</button>` : ""}</div>`
+      }
+
+      function panel() {
+        if (S.view !== null) {
+          const id = S.view
+          const s = st(id)
+          const steps = {
+            flights: [["Searched the web: SFO to LIS nonstop 15 May"], ["Read tap.pt fares"], ["Read united.com fares"], ["Searched the web: TAP 236 arrival time"]],
+            hotels: [["Searched the web: hotels in Alfama under €220"], ["Read Santiago de Alfama"], ["Read Memmo Alfama availability", s.state === "running"]],
+            calendar: [["Run a command on MacBook", s.state !== "stopped"]],
+          }[id]
+          return `<aside class="agent"><div class="hero"><div class="big">${creature(id, 150, s.state)}</div><h2>${HELPERS[id].name}</h2>
+              <p class="muted">${{ running: "Looking something up", done: "Done", waiting: "Waiting for your OK", stopped: "Stopped" }[s.state]}</p>
+              <p class="muted" style="font-size:12px;margin-top:4px">A sub-agent of Pip, for “Lisbon weekend”</p></div>
+            <div class="sec"><h3>What it did here</h3>
+              <div class="wrow">${mark(s.state === "waiting" ? "running" : s.state)}<span>${{ flights: "Found three nonstop flights", hotels: "Shortlisting hotels near Alfama", calendar: "Checking the calendar" }[id]}</span></div>
+              ${steps.map(([t, going]) => `<div class="wrow step${going ? " go" : ""}"><i></i>${t}</div>`).join("")}</div></aside>`
+        }
+        const working = count("running")
+        const waiting = count("waiting")
+        const words = [working ? `${working} ${working === 1 ? "sub-agent" : "sub-agents"} working` : "", waiting ? `${waiting} waiting for you` : ""].filter(Boolean).join(" · ")
+        return `<aside class="agent"><div class="hero"><div class="big">${creature("pip", 170)}</div>
+            <div class="brood">${ids.map((id) => `<button title="${HELPERS[id].name}" data-a="open" data-id="${id}">${creature(id, 40, st(id).state)}</button>`).join("")}</div>
+            <h2>Pip</h2><p class="muted">Ready</p>${words ? `<p class="muted" style="font-size:12px;margin-top:2px">${words}</p>` : ""}</div>
+          <div class="sec"><h3>Sub-agents in this chat</h3>${ids.map(hrow).join("")}</div>
+          <div class="sec"><h3>What it did here</h3>
+            <div class="wrow">${ic("check")}<span>Answered about the weather in May</span></div>
+            <div class="wrow">${ic("check")}<span>Started three sub-agents for the trip</span></div></div></aside>`
+      }
+
+      /* ---------- rendering ---------- */
+      function render() {
+        gid = 0
+        document.documentElement.className = S.theme
+        const keep = document.querySelector(".msgs")?.scrollTop
+        document.getElementById("root").innerHTML = `<div class="stage${S.phone ? " phone" : ""}"><div class="app">${rail()}${S.list ? list() : ""}${S.view === null ? mainChat() : subChat(S.view)}${panel()}</div></div>
+          <div class="strip">${SCENES.map(([l], n) => `<button class="${n === scene ? "on" : ""}" data-a="scene" data-n="${n}">${n + 1}. ${l}</button>`).join("")}<span class="sp"></span><span class="muted">This strip is not part of the design.</span><button data-a="theme">${S.theme === "dark" ? "Light" : "Dark"}</button></div>`
+        const msgs = document.querySelector(".msgs")
+        if (msgs) msgs.scrollTop = keep ?? msgs.scrollHeight
+      }
+
+      document.addEventListener("click", (event) => {
+        const el = event.target.closest("[data-a]")
+        if (!el) return
+        const { a, id, n } = el.dataset
+        if (a === "scene") return go(Number(n))
+        if (a === "open") Object.assign(S, { view: id, sheet: false })
+        else if (a === "back") S.view = null
+        else if (a === "stop") S.stopped[id] = true
+        else if (a === "ok") S.ok = true
+        else if (a === "list") S.list = !S.list
+        else if (a === "sheet") S.sheet = !S.sheet
+        else if (a === "theme") S.theme = S.theme === "dark" ? "light" : "dark"
+        const moved = a === "open" || a === "back"
+        if (moved) document.querySelector(".msgs")?.remove()
+        render()
+      })
+
+      document.addEventListener("submit", (event) => {
+        event.preventDefault()
+        const { id } = event.target.dataset
+        const text = event.target.elements.text.value.trim()
+        if (text === "") return
+        // A word from you sets it going again, whether it had finished or been stopped.
+        delete S.stopped[id]
+        ;(S.said[id] ??= []).push(text)
+        document.querySelector(".msgs")?.remove()
+        render()
+        document.querySelector(".composer input")?.focus()
+      })
+
+      go(Number(new URLSearchParams(location.search).get("scene") ?? 2) - 1 || 0)
+    </script>
+  </body>
+</html>

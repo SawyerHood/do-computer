@@ -127,17 +127,25 @@ describe("agent actor", () => {
     const world = open(temporary())
     const chat = await setup(world)
     const asked: unknown[] = []
-    world.faux.setResponses([
-      (_context, options) => {
-        asked.push(options?.reasoning)
-        return fauxAssistantMessage("Done.")
-      },
-    ])
-    const following = follow(world, chat.id, answered(1))
-    await send(world, chat.id, "hi")
-    await following
+    const think = (_context: unknown, options: { reasoning?: unknown } | undefined) => {
+      asked.push(options?.reasoning)
+      return fauxAssistantMessage("Done.")
+    }
+    world.faux.setResponses([think, think, think])
+    await Promise.all([follow(world, chat.id, answered(1)), send(world, chat.id, "hi")])
 
-    expect(asked).toEqual(["medium"])
+    // Its owner's choice reaches a chat that already exists, from its next reply.
+    const state = await call<{ agent: { thinking: string } }>(world, "/", "PATCH", {
+      thinking: "high",
+    })
+    expect(state.agent.thinking).toBe("high")
+    await Promise.all([follow(world, chat.id, answered(2)), send(world, chat.id, "again")])
+
+    await call(world, "/", "PATCH", { thinking: "off" })
+    await Promise.all([follow(world, chat.id, answered(3)), send(world, chat.id, "once more")])
+
+    expect(asked).toEqual(["medium", "high", undefined])
+    await expect(call(world, "/", "PATCH", { thinking: "lots" })).rejects.toThrow("400")
   })
 
   it("answers a message and streams it to a client", async () => {

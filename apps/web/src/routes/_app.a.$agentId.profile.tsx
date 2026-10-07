@@ -4,7 +4,9 @@ import {
   type Avatar,
   AVATAR_COLORS,
   defaultAvatar,
+  nearestThinking,
   randomId,
+  type ThinkingLevel,
 } from "@durable-computer/protocol"
 import { ArrowLeftIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -13,6 +15,7 @@ import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { ComputerPicker } from "@/components/computer-picker"
 import { ModelPicker } from "@/components/model-picker"
+import { ThinkingPicker } from "@/components/thinking-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,6 +42,7 @@ type Form = {
   user: string
   memory: string
   model: string
+  thinking: ThinkingLevel
   /** The kind of computer. Null where the deployment offers no choice of one. */
   computer: string | null
 }
@@ -52,6 +56,7 @@ function toForm(state: AgentState): Form {
     user: state.user,
     memory: state.memory,
     model: state.agent.model,
+    thinking: state.agent.thinking,
     computer: state.computer,
   }
 }
@@ -327,6 +332,8 @@ function ProfilePage() {
     setForm({ ...form, [key]: value })
     setDirty(true)
   }
+  // Which levels there are to choose from depends on the model, so it waits for the list of them.
+  const chosen = models?.find((model) => model.id === form.model)
   const over = form.user.length > state.limits.user || form.memory.length > state.limits.memory
   const moving = form.computer !== state.computer
 
@@ -340,6 +347,8 @@ function ProfilePage() {
       user: form.user,
       memory: form.memory,
       model: form.model,
+      // What is saved is what the picker showed as chosen, which is what the model will do.
+      thinking: nearestThinking(chosen?.thinking ?? [], form.thinking) ?? form.thinking,
       ...(moving && form.computer !== null ? { computer: form.computer } : {}),
     })
   }
@@ -469,6 +478,14 @@ function ProfilePage() {
             value={form.model}
             onChange={(model) => set("model", model)}
           />
+          {chosen ? (
+            <ThinkingPicker
+              label="Thinking"
+              levels={chosen.thinking ?? []}
+              value={form.thinking}
+              onChange={(thinking) => set("thinking", thinking)}
+            />
+          ) : null}
         </Section>
 
         {form.computer !== null && computers !== undefined && computers.kinds.length > 1 ? (

@@ -17,11 +17,37 @@ export type AgentIdentity = {
   tagline: string | null
 }
 
+/** How hard an agent thinks before it answers, from not at all to a lot. */
+export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
+/** What an agent that has not been told otherwise uses. */
+export const DEFAULT_THINKING: ThinkingLevel = "medium"
+export const isThinkingLevel = (value: string): value is ThinkingLevel =>
+  (THINKING_LEVELS as readonly string[]).includes(value)
+
+/**
+ * The level a model uses when asked for `wanted`, given the ones it offers: that one if it has it,
+ * else the next one up, else the next one down. This is how the request itself is settled, so a
+ * picker that shows this shows what will happen. Undefined for a model that offers none.
+ */
+export function nearestThinking(
+  offered: readonly ThinkingLevel[],
+  wanted: ThinkingLevel,
+): ThinkingLevel | undefined {
+  const at = THINKING_LEVELS.indexOf(wanted)
+  return (
+    THINKING_LEVELS.slice(at).find((level) => offered.includes(level)) ??
+    THINKING_LEVELS.slice(0, at).findLast((level) => offered.includes(level))
+  )
+}
+
 export type AgentSummary = AgentIdentity & {
   id: string
   createdAt: number
   /** `provider/model` the agent runs on. */
   model: string
+  /** How hard it thinks before it answers. A model that cannot reason ignores it. */
+  thinking: ThinkingLevel
   /** Whether its owner has watched it hatch. Until then it is shown as an egg. */
   hatched: boolean
 }
@@ -52,8 +78,6 @@ export type AgentEvent =
         | "approvals"
         | "library"
         | "memory"
-        /** A summary of what it did in some chat was written or rewritten. */
-        | "activity"
     }
 
 export type ModelOption = {
@@ -61,6 +85,11 @@ export type ModelOption = {
   id: string
   name: string
   reasoning: boolean
+  /**
+   * The thinking levels it offers, least first. Models differ: some cannot stop thinking, some
+   * skip levels, a few go past high. Absent or empty for a model that does not reason.
+   */
+  thinking?: ThinkingLevel[]
   /** USD per million tokens. */
   inputCost: number
   outputCost: number

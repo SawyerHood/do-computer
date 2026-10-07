@@ -59,6 +59,8 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
     }
     case "memory":
       return "Updating its memory"
+    case "log":
+      return "Noting what it did"
     case "set_identity":
       return "Updating its identity"
     case "history":
@@ -97,6 +99,7 @@ const PAST: Record<string, string> = {
   Saving: "Saved",
   Getting: "Got",
   Using: "Used",
+  Noting: "Noted",
 }
 
 /**
@@ -158,6 +161,7 @@ export function toolKind(name: string): WorkKind {
     case "memory":
     case "set_identity":
     case "schedule":
+    case "log":
       return "memory"
     default:
       // A connector's tool, named `<connector>__<tool>`, reaches out to another service.

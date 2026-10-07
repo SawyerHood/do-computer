@@ -13,7 +13,9 @@ import {
   readLimited,
   type CreateChatRequest,
   diffChat,
+  DEFAULT_THINKING,
   encodeSse,
+  isThinkingLevel,
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
   MESSAGE_IMAGE_TYPES,
@@ -23,6 +25,7 @@ import {
   type SendMessageRequest,
   SSE_HEADERS,
   SSE_HEARTBEAT,
+  THINKING_LEVELS,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
@@ -51,13 +54,13 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
-import { Activity, type SummaryOptions } from "./activity.ts"
 import { ApprovalError, Approvals, ApprovalsDoc, MEMORY_SUBJECT } from "./approvals.ts"
 import { Computer, COMPUTER_EXTENSION, WithoutComputer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
-import { KeepGoing } from "./keep-going.ts"
+import { type JudgeOptions, KeepGoing } from "./keep-going.ts"
+import { Log } from "./log.ts"
 import {
   cleanLibraryPath,
   Library,
@@ -67,7 +70,7 @@ import {
   MAX_LIBRARY_FILE_BYTES,
 } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
-import { parseModel, THINKING_LEVEL } from "./models.ts"
+import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
@@ -120,15 +123,10 @@ export type AgentActorOptions = {
   /** Gives the agent a web search tool. Absent: it has none. */
   readonly webSearch?: WebSearchOptions
   /**
-   * Has a small model write short summaries of what the agent did in each chat, in the
-   * background. Absent: none are written, and clients show what they can work out themselves.
-   */
-  readonly summaries?: SummaryOptions
-  /**
    * Has a small model judge, when a run ends on what could be a progress update, whether the
    * agent meant to go on, and sets it going again if so. Absent: a run ends where the agent stops.
    */
-  readonly judge?: SummaryOptions
+  readonly judge?: JudgeOptions
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -279,10 +277,7 @@ export class AgentActor implements Actor {
   readonly #scheduler: Scheduler
   readonly #skills: Skills
   readonly #approvals: Approvals
-  readonly #activity: Activity
   readonly #keepGoing: KeepGoing
-  /** Told, with the chat's id, when the summaries of what was done in a chat changed. */
-  readonly #activityListeners = new Set<(chatId: string) => void>()
   #harness: Promise<Harness> | undefined
 
   constructor(host: ActorHost, options: AgentActorOptions) {
@@ -341,23 +336,10 @@ export class AgentActor implements Actor {
           chatId: request.chatKind === "chat" ? request.chatId : null,
         }),
     })
-    this.#activity = new Activity({
-      summaries: options.summaries,
-      now: () => host.now(),
-      context,
-      chat: (chatId) => this.#chatState(chatId),
-      onChanged: (chatId) => {
-        for (const listener of this.#activityListeners) listener(chatId)
-      },
-      onError: (error) => options.onReport?.(error),
-    })
     this.#keepGoing = new KeepGoing({
       judge: options.judge,
       chat: (chatId) => this.#chatState(chatId),
-      onSpent: (chatId, spent) =>
-        void this.#activity
-          .charge(chatId, spent, context)
-          .catch((error) => options.onReport?.(error)),
+      context,
       onError: (error) => options.onReport?.(error),
     })
     this.#scheduler = new Scheduler({
@@ -463,7 +445,7 @@ export class AgentActor implements Actor {
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#skills.extension)
-      registry.install(this.#activity.extension)
+      registry.install(Log)
       registry.install(this.#keepGoing.extension)
       if (this.#options.webSearch !== undefined) {
         registry.install(webSearchExtension(this.#options.webSearch))
@@ -489,7 +471,7 @@ export class AgentActor implements Actor {
       )
       opened = harness
       this.#approvals.attach(harness)
-      this.#activity.attach(harness)
+      this.#keepGoing.attach(harness)
       await this.#settleComputer(harness)
       this.#scheduler.attach(harness)
       this.#skills.attach(harness)
@@ -926,14 +908,6 @@ export class AgentActor implements Actor {
             ),
           )
         }
-        if (rest === "activity" && method === "GET") {
-          const view = await conversation.viewState(context)
-          try {
-            return json(await this.#activity.read(chatId, projectChat(view.value), context))
-          } finally {
-            view.dispose()
-          }
-        }
         if (rest === "events" && method === "GET") return this.#chatEvents(conversation)
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request))
@@ -1031,21 +1005,21 @@ export class AgentActor implements Actor {
       // A tool that calls a model of its own reports what that cost, without naming the model.
       for (const spent of Object.values(ledger.tools)) count(spent as Usage)
     }
-    // What the small models did for it is its cost too, though it made none of those calls.
-    const small: [string | undefined, "summaries" | "judged"][] = [
-      [this.#options.summaries?.model, "summaries"],
-      [this.#options.judge?.model, "judged"],
-    ]
+    // What small models did for it is its cost too, though it made none of those calls.
+    const judge = this.#options.judge?.model
     for (const chatId of Object.keys(chats)) {
-      const spent = await this.#activity.spent(chatId, context)
+      const spent = await this.#keepGoing.spent(chatId, context)
       if (spent === undefined) continue
-      for (const [model, kind] of small) {
-        const used = spent[kind]
-        if (model === undefined || used === undefined) continue
-        if (used.inputTokens + used.outputTokens === 0) continue
-        const key = `openrouter/${model}`
-        if (!models.has(key)) models.set(key, zero())
-        for (const total of [usage.total, models.get(key)!]) {
+      // Summaries a small model once wrote of each run are under no model: none is set for
+      // that now.
+      const small: [string | undefined, ChatUsage | undefined][] = [
+        [undefined, spent.summaries],
+        [judge === undefined ? undefined : `openrouter/${judge}`, spent.judged],
+      ]
+      for (const [key, used] of small) {
+        if (used === undefined || used.inputTokens + used.outputTokens === 0) continue
+        if (key !== undefined && !models.has(key)) models.set(key, zero())
+        for (const total of key === undefined ? [usage.total] : [usage.total, models.get(key)!]) {
           total.inputTokens += used.inputTokens
           total.outputTokens += used.outputTokens
           total.cost += used.cost
@@ -1070,6 +1044,7 @@ export class AgentActor implements Actor {
       tagline: identity.tagline,
       createdAt: identity.createdAt,
       model: identity.model,
+      thinking: identity.thinking ?? DEFAULT_THINKING,
       // An agent from before there were eggs has a name, and is not sent back into one.
       hatched: identity.hatchedAt !== undefined || identity.name !== null,
     }
@@ -1107,6 +1082,10 @@ export class AgentActor implements Actor {
     const memory = text("memory", MEMORY_LIMIT)
     const model = text("model", 200)
     if (model !== undefined) this.#requireModel(model)
+    const thinking = text("thinking", 20)
+    if (thinking !== undefined && !isThinkingLevel(thinking)) {
+      throw new HttpError(400, `thinking must be one of ${THINKING_LEVELS.join(", ")}`)
+    }
     const timezone = text("timezone", 64)
     if (timezone !== undefined && !isValidTimezone(timezone)) {
       throw new HttpError(400, `"${timezone}" is not an IANA timezone`)
@@ -1151,6 +1130,8 @@ export class AgentActor implements Actor {
           identity.computers = [...(identity.computers ?? []), computer]
         }
       }
+      // Chats pick this up on their next message.
+      if (thinking !== undefined) identity.thinking = thinking
       if (model === undefined || model === identity.model) return []
       identity.model = model
       return Object.keys((await tx.doc(ChatsDoc)).chats)
@@ -1196,7 +1177,10 @@ export class AgentActor implements Actor {
     const conversation = await harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model: parseModel(identity.model), thinkingLevel: THINKING_LEVEL },
+        agent: {
+          model: parseModel(identity.model),
+          thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
+        },
         init: async (tx, id) => {
           ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
         },
@@ -1240,11 +1224,12 @@ export class AgentActor implements Actor {
     // would change on every request and defeat the provider's prompt cache.
     const timezone =
       typeof input.timezone === "string" && isValidTimezone(input.timezone) ? input.timezone : null
-    // A chat from before agents thought, or from when they thought differently, catches up here.
-    if ((await conversation.agent(context)).thinkingLevel !== THINKING_LEVEL) {
-      await conversation.configure({ thinkingLevel: THINKING_LEVEL }, context)
-    }
     const identity = await this.#identity(harness)
+    // A chat from before agents thought, or from when this one thought differently, catches up here.
+    const thinking = identity.thinking ?? DEFAULT_THINKING
+    if ((await conversation.agent(context)).thinkingLevel !== thinking) {
+      await conversation.configure({ thinkingLevel: thinking }, context)
+    }
     const zone = timezone ?? identity.timezone
     const meta = `<meta sent_at="${formatTime(this.#host.now(), zone)}"/>`
     // Pictures go to the model with the words, where the agent's model can take them.
@@ -1385,12 +1370,8 @@ export class AgentActor implements Actor {
       library?.start(changed("library"))
       connectors?.start(changed("connectors"))
       approvals?.start(changed("approvals"))
-      const activity = changed("activity")
-      const written = () => void activity()
-      this.#activityListeners.add(written)
       void (identity ?? chats)?.closed.then(close)
       return () => {
-        this.#activityListeners.delete(written)
         void identity?.stop()
         void chats?.stop()
         void schedules?.stop()
