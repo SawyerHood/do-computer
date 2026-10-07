@@ -302,7 +302,8 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   const transcript = page.getByRole("log")
   // The agent is not kept waiting: it answers, and the sub-agent's report arrives by itself.
   await expect(transcript.getByText(/Started sub-agent \d+, "Flights"/)).toBeVisible()
-  await expect(transcript.getByText("reported back")).toBeVisible({ timeout: 15_000 })
+  // Said where it reported and, once that has caught up, where it was started.
+  await expect(transcript.getByText("reported back").first()).toBeVisible({ timeout: 15_000 })
   // The report is folded away, and the agent is given a turn to say what came of it.
   await expect(transcript.getByText(/You said: \[Your sub-agent "Flights"/)).toBeVisible()
   await transcript.getByText("What it reported").click()
