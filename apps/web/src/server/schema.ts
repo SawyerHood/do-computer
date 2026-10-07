@@ -11,8 +11,8 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     "CREATE INDEX dc_agents_by_owner ON dc_agents (owner_id, created_at)",
   ],
   [
-    // A computer of the user's, paired with one agent. Its daemon authenticates with a token
-    // whose hash is stored; the hash is null until the daemon has collected the token.
+    // A computer someone paired. Its daemon authenticates with a token whose hash is stored; the
+    // hash is null until the daemon has collected the token.
     `CREATE TABLE dc_computers (
       id TEXT PRIMARY KEY,
       owner_id TEXT NOT NULL,
@@ -109,6 +109,39 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     "UPDATE dc_agents SET workspace_id = 'personal:' || owner_id",
     "CREATE INDEX dc_agents_by_workspace ON dc_agents (workspace_id, created_at)",
   ],
+  [
+    // A computer belongs to a workspace: the own one of whoever paired it, or a team's. Which
+    // agents can work on it is a row each, where it used to be one agent named on the computer.
+    "ALTER TABLE dc_computers ADD COLUMN workspace_id TEXT",
+    "UPDATE dc_computers SET workspace_id = 'personal:' || owner_id",
+    "CREATE INDEX dc_computers_by_workspace ON dc_computers (workspace_id, created_at)",
+    // The home directory there, which an agent has to be told when it is connected. Null for a
+    // computer from before this was kept; its daemon says it when it connects.
+    "ALTER TABLE dc_computers ADD COLUMN home TEXT",
+    `CREATE TABLE dc_computer_grants (
+      computer_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      granted_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (computer_id, agent_id)
+    )`,
+    "CREATE INDEX dc_computer_grants_by_agent ON dc_computer_grants (agent_id)",
+    `INSERT INTO dc_computer_grants (computer_id, agent_id, granted_by, created_at)
+       SELECT id, agent_id, owner_id, created_at FROM dc_computers`,
+    "ALTER TABLE dc_computers DROP COLUMN agent_id",
+    // An agent asking to work on a computer it is not connected to, until someone the computer
+    // belongs to answers. Asking again for the same computer is the same request.
+    `CREATE TABLE dc_computer_requests (
+      id TEXT PRIMARY KEY,
+      computer_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      chat_id TEXT,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE (computer_id, agent_id)
+    )`,
+    "CREATE INDEX dc_computer_requests_by_agent ON dc_computer_requests (agent_id)",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"
@@ -125,11 +158,14 @@ export async function writeMeta(db: AppDatabase, key: string, value: string): Pr
   )
 }
 
-/** Bring the app tables up to date. Each migration and its version bump land in one batch. */
-export async function migrateAppDatabase(db: AppDatabase): Promise<void> {
+/**
+ * Bring the app tables up to date. Each migration and its version bump land in one batch.
+ * `upTo` stops at an earlier version, for testing what a migration does to rows from before it.
+ */
+export async function migrateAppDatabase(db: AppDatabase, upTo = MIGRATIONS.length): Promise<void> {
   await db.run("CREATE TABLE IF NOT EXISTS dc_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   const current = Number((await readMeta(db, VERSION_KEY)) ?? "0")
-  for (let version = current; version < MIGRATIONS.length; version++) {
+  for (let version = current; version < Math.min(upTo, MIGRATIONS.length); version++) {
     await db.batch([
       ...MIGRATIONS[version]!.map((sql) => ({ sql })),
       {

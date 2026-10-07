@@ -100,6 +100,7 @@ const TOOL_TITLES: Record<string, string> = {
   set_identity: "Change its name and look",
   history: "Search your chats",
   library: "Use your library",
+  computers: "See your computers, and ask to use one",
 }
 
 /** The abilities a call exercises: its own, and any it could stand in for. */

@@ -210,9 +210,14 @@ too.
   deleted file can be brought back. A file the agent sends appears in the chat, and opens beside
   it.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
-  prints a link; confirm it and choose the agent. The agent can then run commands and read and
-  write files there, and everything it does is logged in `~/.durable-computer/audit.log` on that
-  machine. Add `--read-only` to allow reading only.
+  prints a link; confirm it, say whose the computer is, and choose which agents get it. Those
+  agents can then run commands and read and write files there, and everything they do is logged
+  in `~/.durable-computer/audit.log` on that machine. Add `--read-only` to allow reading only.
+  A computer is paired once and connected to as many agents as you like, in any of your
+  workspaces: Computers lists each one with its agents, to add and remove. An agent that was not
+  given a computer can see that it is there and ask for it. Whoever it belongs to gets a
+  notification and a request in the app, and the agent is told the answer in the chat it asked
+  from.
 
 You can talk instead of typing: the microphone button records, and the server transcribes with
 the same OpenRouter key (`DC_TRANSCRIPTION_MODEL`, default `openai/whisper-large-v3`).
@@ -240,9 +245,16 @@ share: start one from the workspace menu at the top of the sidebar.
 
 What a team shares is everything about its agents: what an agent remembers is the team's, a
 connector someone signed in to acts as them for whoever is using the agent, and a computer
-someone paired with a team's agent runs commands for all of them. Anyone in the team can answer
-what the agent asks leave for, and the others see who did. Removing someone ends their access at
-once and unpairs their computers from the team's agents.
+connected to a team's agent runs commands for all of them. Anyone in the team can answer what the
+agent asks leave for, and the others see who did.
+
+A computer belongs either to the person who paired it or to a team. Your own computer is yours
+to hand out: only you connect it to agents, a team's agents included, and only you answer when
+an agent asks for it. A team's computer can be connected to the team's agents by anyone in the
+team, and anyone in the team can answer for it; whoever paired it, or an admin, can remove it. A
+team's agent can see the team's computers and its members' own, and ask for any of them.
+Removing someone from a team ends their access at once, disconnects their own computers from
+the team's agents, and removes the computers they paired for the team, since those run as them.
 
 ## Trust
 
@@ -270,7 +282,11 @@ paired computer. What limits the damage:
   wants services on its own network.
 - **A team's agent is reachable by its members and nobody else.** Who is in a team is checked
   on every request, from the session and the database, never from what the client says.
-- **Revocation.** Removing a computer cuts its daemon off at once. Removing a connector deletes its
+- **Asking for a computer changes nothing by itself.** An agent can see which computers the
+  people it works for have paired, by name, owner and whether they are online, and nothing else
+  about them. It gets one only when someone the computer belongs to says yes.
+- **Revocation.** Removing a computer cuts its daemon off at once, and disconnecting an agent
+  from one ends that agent's access to it. Removing a connector deletes its
   credentials. Deleting an agent deletes its computer and everything it stored.
 
 ## Mobile app

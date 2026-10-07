@@ -2,6 +2,7 @@ import type { AgentSummary, WorkspaceSummary } from "@durable-computer/protocol"
 import {
   CaretLeftIcon,
   CaretUpDownIcon,
+  DesktopIcon,
   GearIcon,
   MoonIcon,
   SidebarSimpleIcon,
@@ -13,6 +14,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { useSetAtom } from "jotai"
 import { useEffect, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
+import { useComputerRequests } from "@/components/computer-requests"
 import { FaceStack, names, PersonFace } from "@/components/people"
 import { InviteDialog } from "@/components/team/invite"
 import { Button } from "@/components/ui/button"
@@ -47,6 +49,8 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
   const next = theme === "dark" ? "light" : "dark"
   const team = workspace.kind === "team"
   const person = { id: me.id, name: me.name, image: me.image ?? null }
+  // Agents asking for a computer of theirs, in whichever workspace: answered under Computers.
+  const asking = useComputerRequests().filter((request) => request.canAnswer).length
 
   const signOut = async () => {
     await authClient.signOut()
@@ -62,6 +66,12 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
         >
           <PersonFace person={person} title="" className="size-7" />
           <span className="min-w-0 flex-1 truncate text-sm">{me.name}</span>
+          {asking > 0 ? (
+            <span
+              title="An agent is asking to use a computer"
+              className="size-2 shrink-0 rounded-full bg-primary"
+            />
+          ) : null}
           <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start" className="w-68">
@@ -73,6 +83,17 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
             </div>
           </div>
           <DropdownMenuSeparator />
+          {asking > 0 ? (
+            <DropdownMenuItem onClick={() => openWorkspace("computers")}>
+              <DesktopIcon />
+              <span className="flex-1">
+                {asking === 1
+                  ? "An agent asks for a computer"
+                  : `${asking} agents ask for computers`}
+              </span>
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onClick={() => openWorkspace(team ? "team" : "computers")}>
             <GearIcon />
             <span className="flex-1">Workspace settings</span>

@@ -31,6 +31,7 @@ import {
   whoIs,
 } from "@/lib/workspaces"
 import { AgentPanel } from "./agent-panel.tsx"
+import { PendingComputerRequests } from "@/components/computer-requests"
 import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
@@ -442,6 +443,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           agentName={agent.name ?? "Your agent"}
           chatId={chatId}
         />
+        <PendingComputerRequests agentId={agent.id} agentName={agent.name ?? "Your agent"} />
         {sub !== undefined ? (
           // Where the message box would be. Its agent is the one who talks to it.
           <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">

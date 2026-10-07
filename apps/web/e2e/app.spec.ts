@@ -428,7 +428,12 @@ test("installing a skill from a bad URL explains what went wrong", async ({ page
 })
 
 /** Have the agent call a tool, and wait for what the tool says it did. */
-async function tool(page: Page, name: string, args: Record<string, unknown>, said: string) {
+async function tool(
+  page: Page,
+  name: string,
+  args: Record<string, unknown>,
+  said: string | RegExp,
+) {
   await composer(page).fill(`/tool ${name} ${JSON.stringify(args)}`)
   await page.keyboard.press("Enter")
   await expect(page.getByText(said).last()).toBeVisible()
@@ -770,12 +775,19 @@ test.describe("pairing a computer", () => {
     await expect(page.getByRole("heading", { name: "Connect this computer?" })).toBeVisible()
     await expect(page.getByText("test-laptop")).toBeVisible()
     await expect(page.getByText(/run any command/)).toBeVisible()
+    // With one agent there is nothing to choose between: it is the one that gets the computer.
+    await expect(page.getByRole("checkbox", { name: "Juniper" })).toBeChecked()
     await page.getByRole("button", { name: "Connect this computer" }).click()
     await expect(page.getByRole("heading", { name: "Connected" })).toBeVisible()
 
     await page.getByRole("link", { name: "See your computers" }).click()
     const card = page.getByRole("listitem").filter({ hasText: "test-laptop" })
     await expect(card.getByText("Online", { exact: true })).toBeVisible({ timeout: 15_000 })
+    // It is the user's own, and says which agents can work on it.
+    await expect(card.getByText("Belongs to")).toBeVisible()
+    await expect(
+      card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }),
+    ).toBeVisible()
     await expect.poll(() => output).toContain("Connected to")
   })
 
@@ -790,6 +802,61 @@ test.describe("pairing a computer", () => {
     // The command really ran on that machine, and the machine has a record of it.
     expect(readFileSync(join(home, "from-agent.txt"), "utf8")).toBe("agent was here\n")
     expect(readFileSync(join(home, ".dc/audit.log"), "utf8")).toContain("cat hello.txt")
+  })
+
+  test("an agent that was not given the computer asks for it, and is let in from the chat", async ({
+    page,
+  }) => {
+    await signIn(page)
+    await openWorkspaceSettings(page, "Computers")
+    const card = page.getByRole("listitem").filter({ hasText: "test-laptop" })
+    await card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }).click()
+    await expect(card.getByText("None yet")).toHaveCount(0)
+    await expect(
+      card.getByRole("combobox", { name: "Connect an agent to test-laptop" }),
+    ).toBeVisible()
+
+    // The computer is still paired, and the agent can no longer touch it.
+    await newChat(page)
+    await tool(
+      page,
+      "bash",
+      { command: "cat hello.txt", computer: "test-laptop" },
+      'There is no computer named "test-laptop"',
+    )
+    // It can see that the computer is there, and whose it is.
+    await tool(page, "computers", { action: "list" }, /test-laptop: Sawyer's, linux, online/)
+    await tool(
+      page,
+      "computers",
+      { action: "request", name: "test-laptop", reason: "to read hello.txt" },
+      'Asked Sawyer whether you may use "test-laptop"',
+    )
+
+    // What it asked is waiting above the message box, for whoever the computer belongs to.
+    const asked = page.getByRole("list", { name: "Computers it asked to use" })
+    await expect(asked.getByText("asks to use the computer test-laptop")).toBeVisible()
+    await expect(asked.getByText("to read hello.txt")).toBeVisible()
+    // The user's own menu says so too, wherever in the app they are.
+    await page.getByRole("button", { name: /settings and signing out$/ }).click()
+    await expect(page.getByRole("menuitem", { name: "An agent asks for a computer" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await asked.getByRole("button", { name: "Allow", exact: true }).click()
+    await expect(asked).toHaveCount(0)
+
+    // The agent is told in the chat it asked from, and the computer is its to use.
+    await expect(page.getByRole("log").getByText("Sawyer said yes to using")).toBeVisible()
+    await expect(page.getByText(/You said: \[Sawyer said yes: you can now use/)).toBeVisible()
+    await tool(
+      page,
+      "bash",
+      { command: "cat hello.txt", computer: "test-laptop" },
+      "a file on the user's laptop",
+    )
+    await openWorkspaceSettings(page, "Computers")
+    await expect(
+      card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }),
+    ).toBeVisible()
   })
 
   test("removing the computer cuts the daemon off", async ({ page }) => {
