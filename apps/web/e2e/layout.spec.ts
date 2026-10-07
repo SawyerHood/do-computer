@@ -187,8 +187,8 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
 })
 
 test("the layout works at phone width", async ({ page }) => {
-  await page.setViewportSize({ width: 400, height: 800 })
   await signIn(page)
+  await newChat(page)
   await composer(page).fill("What can you do?")
   await composer(page).press("Enter")
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
@@ -197,6 +197,7 @@ test("the layout works at phone width", async ({ page }) => {
   for (let made = 0; made < 9; made++) {
     expect((await page.request.post(`/api/agents/${agentId}/chats`, { data: {} })).ok()).toBe(true)
   }
+  await page.setViewportSize({ width: 400, height: 800 })
   await page.reload()
   // The agent's pages are tabs across the top, and fit the screen.
   const pages = page.getByRole("navigation", { name: "Juniper's pages" })
