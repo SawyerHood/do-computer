@@ -57,8 +57,18 @@ export async function newChat(page: Page) {
   // A settings window is over the page, and in the way, until it is closed.
   if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
   const before = page.url()
+  // The address changes a moment before the page does. Until the page is listening to the new
+  // chat, the message box is still the old one's, and what is typed there stays behind with it.
+  const listening = page.waitForRequest((request) => {
+    const path = new URL(request.url()).pathname
+    return (
+      /\/chats\/\d+\/events$/.test(path) &&
+      !before.endsWith(path.replace(/^.*\/chats\/(\d+)\/events$/, "/c/$1"))
+    )
+  })
   await page.getByRole("button", { name: "New chat", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
+  await listening
   await expect(composer(page)).toHaveValue("")
 }
 
