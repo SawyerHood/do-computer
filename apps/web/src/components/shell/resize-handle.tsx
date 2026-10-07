@@ -34,7 +34,9 @@ export function ResizeHandle({
     // No text is selected by the drag.
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
-    from.current = { x: event.clientX, width }
+    // From where the edge is on screen: a column can be shown narrower than the width kept for it.
+    const shown = event.currentTarget.parentElement?.getBoundingClientRect().width
+    from.current = { x: event.clientX, width: shown ?? width }
     setDragging(true)
   }
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
@@ -84,6 +86,8 @@ export function ResizeHandle({
         aria-hidden
         className="absolute inset-y-0 left-0 w-0.5 bg-primary opacity-0 transition-opacity group-hover/resize:opacity-60 group-hover/resize:delay-150 group-focus-visible/resize:opacity-100 group-data-dragging/resize:opacity-100"
       />
+      {/* A page shown in a frame would take the pointer as it passed over, and the drag would stop. */}
+      {dragging ? <span aria-hidden className="fixed inset-0" /> : null}
     </div>
   )
 }
