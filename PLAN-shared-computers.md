@@ -1,7 +1,8 @@
 # Shared computers: plan
 
-**Status:** agreed in outline on 2026-10-07, not built. Section 7 lists the choices in here that
-the owner has not made himself.
+**Status:** built on 2026-10-07. HANDOFF.md section 5 item 19 says how, and where the build
+departed from this plan. Section 7 lists the choices in here that the owner has not made
+himself.
 
 Today every agent has a cloud machine of its own, made for it and deleted with it. This plan makes
 computers belong to the workspace. An agent has no computer of its own: it uses the workspace's

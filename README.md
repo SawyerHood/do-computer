@@ -1,8 +1,8 @@
 # durable-computer
 
 An open-source, self-hostable, always-on personal agent. Each agent has a name, an avatar, a
-personality, memory and its own computer. It keeps working when the client is closed, runs
-schedules, learns skills, and can work on your own machines. An agent can be yours alone or
+personality and memory, and works on the computers of its workspace. It keeps working when the
+client is closed, runs schedules, learns skills, and can work on your own machines. An agent can be yours alone or
 shared by a [team](#teams).
 
 One codebase deploys to Cloudflare Workers and to plain Node. Models are called through
@@ -78,41 +78,55 @@ runs the tests and nothing else.
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                                                 |
 | `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                                               |
 | `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`.                     |
-| `DC_SANDBOX`                               | The computer a new agent gets: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                                    |
-| `DC_SANDBOX_KINDS`                         | The kinds an agent can be given, comma-separated. Default: every kind that has what it needs.                                                                     |
+| `DC_SANDBOX`                               | The kind of machine a workspace is given: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                         |
+| `DC_SANDBOX_KINDS`                         | The kinds of machine on offer, comma-separated. Default: every kind that has what it needs.                                                                       |
 | `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                                         |
 | `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                                        |
 | `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                                        |
 
 ## Computers
 
-Each agent has one computer, of one of the kinds below. A remote machine is created the first
-time an agent runs something, and stops by itself when the agent is not using it.
+An agent has no computer of its own. A workspace, your own or a team's, has machines of the
+kinds below, and its agents work on them. A remote machine is created the first time something
+runs on it, and stops by itself when nothing is using it.
 
-Which kind an agent has is chosen in the app. Its own page has a **Computer** section, and
-**Settings** has the kind your new agents get. The server's environment decides what is on
-offer: the built-in shell and no computer always, Daytona once `DAYTONA_API_KEY` is set, Modal
-once its two tokens are, and a Cloudflare container when `DC_SANDBOX` is `cloudflare`. The keys
-stay in the environment and are never shown or entered in the app. `DC_SANDBOX` is the kind an
-agent gets when its owner has not chosen, and `DC_SANDBOX_KINDS` narrows what is offered, for
-example `just-bash,daytona`.
+- **Shared by default.** When you make an agent in a workspace that has no machine it could
+  use, the workspace is given one, of the kind under **Default computer** in Settings. It is
+  open to every agent of the workspace, so the agents you make afterwards share it.
+- **A folder each.** On a machine an agent works in a folder of its own under the home
+  directory, named after the agent the first time it works there. Nothing stops it leaving that
+  folder: agents on one machine can read and change each other's files, which is how they hand
+  work over, and it means a machine is not a wall between them.
+- **More than one.** Under **Computers** in a workspace's settings you can add machines, and
+  say for each whether every agent of the workspace can use it or only the ones you choose. An
+  agent that can use one machine works there without being told to. One that can use several
+  says which on each call, and one that can use none says so when a task needs one.
+- **Asking.** An agent can see the computers of its workspace and ask to use one it was not
+  chosen for; whoever it belongs to answers.
 
-Moving an agent does not copy its files. What it made stays on the computer it leaves, and is
-there again if it is moved back; its memory, chats, skills and automations are with the agent
-and are not affected. The agent is told it was moved, so it does not treat a file from the
-other computer as lost. It cannot be moved while it is in the middle of a reply. Deleting an
-agent deletes every computer it has had.
+The server's environment decides which kinds are on offer: the built-in shell and no computer
+always, Daytona once `DAYTONA_API_KEY` is set, Modal once its two tokens are, and a Cloudflare
+container when `DC_SANDBOX` is `cloudflare`. The keys stay in the environment and are never
+shown or entered in the app. `DC_SANDBOX` is the kind a workspace gets when nobody has chosen,
+and `DC_SANDBOX_KINDS` narrows what is offered, for example `just-bash,daytona`.
+
+Deleting a machine deletes it at the provider, with everything on it. Deleting an agent leaves
+the machines it shared, and offers to delete one that only it could use. Moving an agent to
+another workspace takes along a machine only it could use; there it has that workspace's
+machines, and that workspace's library.
 
 | Kind         | The computer                                                                                  | Runs on          | What persists                                | Settings                                                                                                     |
 | ------------ | --------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace, in the agent's own database   | none                                                                                                         |
+| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace, in one agent's own database   | none                                                                                                         |
 | `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
 | `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
 | `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
-| `none`       | No computer of its own. It can still work on computers of yours that are paired with it.      | Node, Cloudflare |                                              | none                                                                                                         |
+| `none`       | No machine is added. Agents can still work on computers of yours that are paired with them.   | Node, Cloudflare |                                              | none                                                                                                         |
 
 Things to know before choosing one:
 
+- **The built-in shell cannot be shared.** Its files are in one agent's database, so where it
+  is the default every agent gets its own, which goes when the agent is deleted.
 - **Daytona** stops a machine after 15 minutes without use and starts the same machine again on
   the next command. A machine is only ever created when Daytona says there is none; if Daytona
   cannot be reached the agent is told so, and no empty replacement is made.
@@ -127,12 +141,14 @@ Things to know before choosing one:
   Snapshots are in public beta and expire after 30 days, so a stopped machine is restored and
   saved again every 20 days; an agent can be left alone for months and keep its disk.
 - On every remote machine, running processes do not survive a stop. Files do, as described above.
-- Changing `DC_SANDBOX` changes what new agents get. Agents that exist stay on the kind they
-  have until they are moved in the app.
-- If a kind stops being offered, because its key was removed or `DC_SANDBOX_KINDS` changed, the
-  agents on it use the default until it is offered again, and then go back to it. Their machines
-  are not deleted meanwhile, and cannot be: delete such an agent while its kind is offered, or
-  remove the machine at the provider.
+- Changing `DC_SANDBOX` changes what a workspace is given from then on. Machines that exist
+  stay as they are.
+- If a kind stops being offered, because its key was removed or `DC_SANDBOX_KINDS` changed, its
+  machines cannot be reached until it is offered again, and cannot be deleted either: delete
+  them while the kind is offered, or remove them at the provider.
+- **Agents from before machines were shared** keep the machine each had, as a computer of its
+  workspace that only that agent can use. Open it to the workspace, or connect other agents to
+  it, under Computers.
 
 Daytona has been run for real, on Node and in the Workers runtime: creating the machine, the
 shell, file tools, stopping and coming back with its files, moving an agent to it from the
@@ -157,8 +173,7 @@ answering or someone stops the conversation.
   close the tab, and is there when you come back. It can search what was said in its other chats.
 - **Be someone.** It names itself in its first conversation, picks its color, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable in
-  its settings, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
-  workspace.
+  its settings. They are kept with the agent and on no computer.
 - **Look at pictures.** A picture attached or pasted into the message box is shown to the agent
   along with your words, if its model takes pictures; the box says so when it does not. The
   browser scales a copy down for that, and the original goes to the library as a file.
@@ -182,15 +197,18 @@ answering or someone stops the conversation.
 - **Think with the model you choose.** Each agent can be set to any OpenRouter model that can
   call tools (about 400), from a searchable list on its page, and Settings holds the default your
   new agents start on.
-- **Use its computer**: read, write and edit files and run shell commands in a workspace that
-  persists. The default computer is [just-bash](https://github.com/vercel-labs/just-bash), a shell
-  interpreter with a durable virtual filesystem that needs no machine; it has the usual text tools
-  and `curl` for the internet, but no real programs. For a real Linux machine, see [Computers](#computers); on one, the agent
-  also starts with a skill for driving a headless browser.
+- **Use a computer**: read, write and edit files and run shell commands on a machine of its
+  workspace, in a folder of its own that persists. An agent has no computer to itself: a
+  workspace has machines, and its agents share them. The default is
+  [just-bash](https://github.com/vercel-labs/just-bash), a shell interpreter with a durable
+  virtual filesystem that needs no machine; it has the usual text tools and `curl` for the
+  internet, but no real programs, and it is the one kind that each agent has to itself. For a
+  real Linux machine, see [Computers](#computers); where a deployment offers one, an agent also
+  starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and
   reports back to the chat you asked in; see and pause them under Automations.
 - **Hand work to sub-agents.** For a piece of work that stands on its own, the agent can start
-  a sub-agent: a copy of itself, with its memory, skills and computer, working in the
+  a sub-agent: a copy of itself, with its memory, skills and computers, working in the
   background in a conversation of its own while the agent stays free to talk. Several can work
   at once. When one finishes, its report arrives in the chat that started it and the agent
   tells you what came of it. You can open a sub-agent's chat and read along, and stop it; only
@@ -210,12 +228,13 @@ answering or someone stops the conversation.
 - **Use your services.** Under Connectors, add a remote [MCP](https://modelcontextprotocol.io)
   server by its address, with an access token or by signing in to the service. Its tools become
   the agent's. Tokens stay on the server; the agent never sees them.
-- **Write you documents.** The folder `library` in the agent's workspace is your Library: what it
-  writes there, by hand or with a program, appears in the app in the same folders, and so do the
-  files you upload and the edits you make. A Markdown document is read and edited in the app. An
+- **Write you documents.** A workspace has one Library, which all its agents share. On each of
+  its machines the folder `~/library` is that library: what an agent writes there, by hand or
+  with a program, appears in the app in the same folders, and so do the files you upload and the
+  edits you make, on every machine. A Markdown document is read and edited in the app. An
   HTML document is shown as the page it is, and the styles, scripts and images beside it load.
-  The files are kept outside the agent's computer, so they are there when it is asleep or gone,
-  and it gets them back on a new one. Earlier contents of a file are kept as versions, and a
+  The files are kept outside any computer, so they are there when a machine is asleep or gone,
+  and a new machine gets them. Earlier contents of a file are kept as versions, and a
   deleted file can be brought back. A file the agent sends appears in the chat, and opens beside
   it.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
@@ -276,10 +295,13 @@ paired computer. What limits the damage:
   command or arguments appears above the composer and as a notification, and nothing happens until
   you answer. A rule on one of your computers covers everything done there, reading included.
   A rule is about what happens, not which tool does it: "Create and change files" also governs
-  commands, which can change files, and "Change its memory and identity" also stops it editing
-  the files that mirror them.
-- **Its own computer is not yours.** The default computer has no network and no real programs. A
-  remote one is a separate machine at a provider.
+  commands, which can change files.
+- **A workspace's machine is not yours.** The built-in shell has no real programs and reaches
+  only the public internet. A remote one is a separate machine at a provider.
+- **Agents on one machine are not walled off from each other.** Each has its own folder, and any
+  of them can read and change the others' files and stop their programs. What an agent
+  remembers is not on a machine, so another agent cannot change it there. Give an agent whose
+  permissions you have limited a machine that only it can use.
 - **Secrets stay on the server.** Connector tokens and sign-in grants are never in the model's
   context or on the agent's computer.
 - **The server will not be used to reach inside your network.** Connector addresses and skill
@@ -303,7 +325,8 @@ paired computer. What limits the damage:
 - **Revocation.** Removing a computer cuts its daemon off at once, and disconnecting an agent
   from one ends that agent's access to it: which agents may use a computer is looked up on the
   server before every use, not left to what the agent remembers. Removing a connector deletes its
-  credentials. Deleting an agent deletes its computer and everything it stored.
+  credentials. Deleting an agent deletes everything it stored, and offers to delete a machine
+  that only it could use. Its files in the library are the workspace's, and stay.
 
 ## Mobile app
 

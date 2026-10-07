@@ -12,8 +12,9 @@ the repository is made public.
 
 durable computer is an open-source, self-hostable personal agent: a version of Meta's Muse built
 on the pi-durable harness, with OpenRouter for models. Each user has persistent agents with a
-name, a personality, memory, a computer of their own, scheduled automations, skills, connectors
-(remote MCP servers) and the user's own paired computers. It runs on Cloudflare Workers (one
+name, a personality, memory, scheduled automations, skills, connectors (remote MCP servers) and
+the user's own paired computers. An agent has no computer of its own: it works on the machines
+of its workspace, which the workspace's agents share, and they share one library. It runs on Cloudflare Workers (one
 Durable Object per agent) and on plain Node, from the same code. There is a web app (TanStack
 Start, shadcn, jotai, TanStack DB and Query, Better Auth) and an Expo mobile app.
 
@@ -26,8 +27,9 @@ The owner is Sawyer. The repository is private: `SawyerHood/durable-computer`.
   which was torn down on 2026-10-03.
 - **Signing in:** GitHub sign-in is on, and so is email and password. The deployment is
   invite-only; the owner has the first account.
-- **New agents** get a Daytona machine by default there (`DC_SANDBOX=daytona`). The built-in
-  shell and "no computer" are also offered, per agent.
+- **A workspace** is given a Daytona machine there when an agent is made in one that has none
+  (`DC_SANDBOX=daytona`), and its agents share it. Agents from before 2026-10-07 each keep the
+  machine they had, for themselves alone, until someone opens it to the workspace.
 - **Models:** agents run on any OpenRouter model, chosen per agent with a default in Settings.
   Web search results are read by `anthropic/claude-haiku-4.5` (`DC_SEARCH_MODEL`). Summaries of
   what an agent did are written by `openai/gpt-4.1-nano` (`DC_SUMMARY_MODEL`). Whether an agent
@@ -96,7 +98,7 @@ Layout, briefly (`README.md` has the full table):
 | -------------------- | ------------------------------------------------------------------------------------ |
 | `packages/protocol`  | Types and pure functions shared by server and clients                                |
 | `packages/runtime`   | The actor host over Durable Objects and Node; the address guard for outgoing fetches |
-| `packages/sandbox`   | Agent computers: just-bash, Daytona, Modal, Cloudflare Containers                    |
+| `packages/sandbox`   | The machines agents work on: just-bash, Daytona, Modal, Cloudflare Containers        |
 | `packages/agent`     | The agent actor and everything it can do                                             |
 | `packages/computers` | The link to a user's paired computer                                                 |
 | `packages/mascot`    | The creature: one plain JavaScript file, typings, and a playground                   |
@@ -398,6 +400,62 @@ Since then, newest last:
       leads back. On a narrow screen a side chat always has the middle. What a chat page needs
       of a chat is in `lib/use-chat.ts`, which both columns use.
 
+19. **Machines that belong to a workspace, and one library for it** (2026-10-07;
+    `PLAN-shared-computers.md` is the plan, with what the owner decided and what was chosen for
+    them). The owner asked whether every agent needed a VM of its own, then: "What if we kind of
+    just got rid of the concept of having a home computer for an agent could they run without a
+    computer and then they can just like like freely connect to the different ones".
+    - **An agent has no computer.** Item 4 is undone: there is no kind to pick for an agent and
+      no moving it between kinds. `packages/agent/src/computers.ts` (once `paired.ts`) holds
+      every computer an agent can use, paired or a machine, in `ComputersDoc`. The file and
+      shell tools, `send_file`, `library` and `skill` are wrapped to run on the computer a call
+      names. A call that names none means the one machine the agent can use; with several it
+      must say which; a paired computer is never meant without being named.
+      `computer.ts` and `mirror.ts` are gone, and with them the memory files.
+    - **A machine is a row in `dc_computers`** with a `kind`, a `machine_key` (what it is named
+      after at its provider: its own id, or the agent's id for a machine from before) and an
+      `access`: `open` to every agent of its workspace, or `chosen`, for the agents with a
+      grant. `mayUse` is still the one rule and is asked before every use. `provideFor`
+      (`computers.ts`) adds an open machine when an agent is made where it could use none. The
+      built-in shell keeps its files in one agent's database, so each agent gets its own,
+      `chosen`, and it cannot be shared or removed apart from its agent (`UNSHARED_KINDS`).
+    - **The record is told to agents, whole.** `tellMachines` puts every machine an agent can
+      use to it (`PUT /computers`), and the agent replaces what it had. An agent that was not
+      told catches up by asking its host (`ComputerDirectory.machines`) the first time a name
+      or the one machine it means is not there.
+    - **Folders.** `dc_computer_folders` has each agent's folder on each machine, chosen by
+      `folderFor` the first time the agent works there: `<home>/<its name then>`, never renamed,
+      never `library`. The agent starts its calls there; `~` is still the machine's home.
+      Nothing keeps an agent in its folder.
+    - **Agents from before** hand over their machines the next time they are opened
+      (`AgentActor.#adopt`, `computer-adoption.ts`): the one each was on becomes a `chosen`
+      machine of its workspace with that agent alone, its home directory as its folder; ones it
+      had left behind become machines with nobody on them. The four memory files are removed
+      from its home directory the next time it works there.
+    - **The library is an actor per workspace** (`library-actor.ts`, `LibraryObject` on
+      Cloudflare, named by the workspace's id). `library-store.ts` is the store, which keeps its
+      record through a small interface: rows in the actor's database there, or the agent's own
+      documents where a host gives no library, which is what the agent package's tests and
+      anyone using it alone get. `library.ts` is the agent's side: the tools, the prompt and the
+      sync. The gateway sends `/api/agents/<id>/library` and `/d/<agent>/...` straight to the
+      library of the agent's workspace, so the clients did not change. A file records the agent
+      that made it, and a listing names a file's chat only to that agent, since chats are
+      numbered agent by agent.
+    - **One `~/library` folder per machine.** The pass that brings it into step still runs in
+      the agent that used the machine. The library hands out one pass per machine at a time and
+      keeps what each folder held; an agent waits up to 20 seconds for another's pass. A pass
+      that nothing else interrupted records where the library stood, so the next read on that
+      machine skips the pass until the library changes.
+    - **An agent's own library moves in** when it is next opened (`#moveLibrary`): files,
+      versions and deleted files, by the same ids. Where a path is taken the file goes under a
+      folder named for its agent. What each machine's folder held moves too, which is what
+      keeps a taken path from being read as a change.
+    - **Departures from the plan.** A page is served at `/d/<agent>/<key>/<path>`, not at
+      `/d/<workspace>/...`, so the clients' addresses stayed as they were; any agent of the
+      workspace serves the same library. The prompt names the other agents' folders on a
+      machine, not the agents. There is no mock-up in `prototypes/`. The mobile app was not
+      changed: its library and settings work through the same calls.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -424,6 +482,13 @@ Computers, decided on 2026-10-07: "every user has a list of their computers (a c
 belong to a person or a workspace) and then you can connect agents to different computers. The
 agent also can have a tool to list computers and request access to one and it will send an async
 notif to the person who owns it and they can approve."
+
+Machines and the library, decided on 2026-10-07: a workspace has machines, perhaps several,
+and it can be chosen which agents use which; an agent has no home computer and uses the ones
+it can reach; "maybe the agents have different like starting working directories that makes a
+lot of sense to me"; the library is shared by a workspace's agents; and memory is no longer
+mirrored as files, which was put to them as the cost of this and accepted. Section 7 of
+`PLAN-shared-computers.md` lists what was chosen for them and can be changed.
 
 Agents writing to each other, decided on 2026-10-07: "maybe we don't need the permissions and
 agent can message any other agent in a workspace. I'm not worried about loops". So there is no
@@ -489,11 +554,19 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   replies and cannot open the conversations.
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.
-- **Mobile** has no model picker, computer picker, connectors, permissions or file attaching, and
+- **Machines:** agents on one machine are not walled off from each other, by the owner's
+  choice of sharing; a Unix user per agent would be the wall and was not built. The built-in
+  shell cannot be shared. A machine cannot be renamed. Nothing shows what a machine costs or
+  when it last ran. When an agent is moved to another workspace, the cards in its old chats
+  point at files in the library it left, and open only if they are also in the new one. The
+  move of an agent's own library into its workspace's runs once, when the agent is next
+  opened, and cannot be undone.
+- **Mobile** has no model picker, connectors, permissions or file attaching, and
   no agent panel. Its creature is checked only through the app's web build. It shows the answer
   to an agent's request for a computer but cannot give one: the notification opens the chat,
   and the request is answered on the web.
-- **Never run for real:** the mobile app on a device, Modal, Cloudflare Containers, sign-in with
+- **Never run for real:** two agents sharing a machine on Modal or Cloudflare Containers,
+  the mobile app on a device, Modal, Cloudflare Containers, sign-in with
   Google, and a connector that needs a sign-in against a real service. Sign-in with GitHub is
   configured on the live site; nobody has reported how it went.
 - **Not built:** usage limits, a rate limit on pairing codes, a reason and retry for provider
@@ -528,7 +601,10 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   shell and a local shell); a
   public MCP server as a connector; the bundled browsing skill; a vision model describing an attached picture; deploys to Cloudflare from this
   machine and from GitHub Actions; one agent asking another for something in its memory and
-  passing the answer on, on the Node server. On Workers, where an agent reaches another through
+  passing the answer on, on the Node server; two agents sharing one Daytona machine, each in
+  its own folder, with the workspace's library on it and on a second machine, an edit made in
+  the app arriving there, taking an agent off a machine, and deleting both machines, on the
+  Node server with the echo model. On Workers, where an agent reaches another through
   its own Durable Object namespace, that has run only in the tests' local runtime with the echo
   model.
 - **On the live site**, without the owner's session, only this could be checked: it answers, its
