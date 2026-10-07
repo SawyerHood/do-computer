@@ -210,6 +210,31 @@ Since then, newest last:
       the file beside the chat, in the place of the agent's panel, with the same viewer; on a
       narrow one it opens in the library. `prototypes/library-docs` is the mock-up it was built
       from.
+14. **Sub-agents** (2026-10-07; `packages/agent/src/subagents.ts`). The agent has a `subagent`
+    tool: start, message, stop, list. A sub-agent is a conversation of its own with the
+    agent's memory, skills and computer, and it only ever works in the background: starting
+    one returns at once.
+    - **It is a chat of kind `subagent`**, kept in the chat index like a scheduled run's, with
+      what is known of it (the chat that started it, its task, how it is getting on) on its
+      record. That is what makes its transcript, its steps, its spend and its place in history
+      search work with nothing new. It is not owned by a task in pi-durable's sense, so stopping
+      a reply in the chat that started it does not stop it.
+    - **A report is its last answer once it has come to rest**: nothing admitted and unanswered
+      in its conversation, and nothing it has asked the user's leave for. The report is written
+      into the chat that started it as an entry of kind `dc.subagent`, and a note for the model
+      alone then gives the agent a turn there. Both are keyed, so a crash can delay a report
+      and cannot send it twice. One that failed is reported the same way. One the user stopped
+      is written in without a turn.
+    - **Only the agent writes in it.** The user reads it and can stop it; sending to it or
+      starting it fresh is refused by the server. A sub-agent cannot start sub-agents or change
+      schedules, and at most six work at once.
+    - **Looking in on them runs under the actor's own context**, not the tool call's, which
+      ends with the call: waiting on a sub-agent under it failed as soon as the agent had
+      answered. The tests keep the wake-up interval long so that this path is the one tested.
+    - **The web app** shows a chip where one was started, a marker with the report folded
+      inside where one reported, small creatures beside the agent's and a list in its panel,
+      and the sub-agents of the open chat under it in the chat list. A sub-agent's creature
+      grows from its chat's id. `prototypes/subagents` is the mock-up it was built from.
 
 ## 6. What the owner has said they want
 
@@ -266,6 +291,8 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 
 ### Known gaps
 
+- **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
+  own chats cannot be opened there, and nothing shows that one is at work.
 - **Mobile** has no model picker, computer picker, connectors, permissions or file attaching, and
   no agent panel. Its creature is checked only through the app's web build.
 - **Never run for real:** the mobile app on a device, Modal, Cloudflare Containers, sign-in with

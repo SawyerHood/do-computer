@@ -126,11 +126,27 @@ function Message({
 }) {
   const theme = useTheme()
   if (message.role === "notice") {
+    const notice = message.parts[0]?.type === "notice" ? message.parts[0] : undefined
+    if (notice?.kind === "subagent") {
+      // Word from a sub-agent. Its own chat is read on the web.
+      return (
+        <View style={{ gap: space(1), paddingHorizontal: space(1) }}>
+          <Text tone="muted" size={14}>
+            {notice.outcome === "stopped"
+              ? `You stopped ${notice.text}`
+              : `${notice.text} ${notice.outcome === "failed" ? "did not finish" : "reported back"}`}
+          </Text>
+          {notice.detail === undefined ? null : (
+            <Text tone="muted" size={13}>
+              {notice.detail}
+            </Text>
+          )}
+        </View>
+      )
+    }
     return (
       <Text tone="muted" size={13} style={{ textAlign: "center" }}>
-        {message.parts[0]?.type === "notice" && message.parts[0].kind === "compaction"
-          ? "Earlier messages were summarized"
-          : "New context"}
+        {notice?.kind === "compaction" ? "Earlier messages were summarized" : "New context"}
       </Text>
     )
   }

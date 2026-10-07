@@ -290,6 +290,74 @@ test("opening the agent lands on a chat of yours, not on a scheduled run", async
   expect(page.url()).toBe(mine)
 })
 
+test("the agent hands work to a sub-agent, whose chat is read and not written in", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool subagent {"action":"start","title":"Flights","task":"Find flights to Lisbon"}',
+  )
+  await page.keyboard.press("Enter")
+  const transcript = page.getByRole("log")
+  // The agent is not kept waiting: it answers, and the sub-agent's report arrives by itself.
+  await expect(transcript.getByText(/Started sub-agent \d+, "Flights"/)).toBeVisible()
+  await expect(transcript.getByText("reported back")).toBeVisible({ timeout: 15_000 })
+  // The report is folded away, and the agent is given a turn to say what came of it.
+  await expect(transcript.getByText(/You said: \[Your sub-agent "Flights"/)).toBeVisible()
+  await transcript.getByText("What it reported").click()
+  await expect(transcript.getByText("You said: Find flights to Lisbon").first()).toBeVisible()
+  const mine = page.url()
+
+  // Where it was started leads to its own chat, which says whose it is.
+  await transcript.getByRole("link", { name: /Flights reported back/ }).click()
+  await page.waitForURL((url) => url.href !== mine)
+  await expect(page.getByText("Juniper asked")).toBeVisible()
+  await expect(page.getByText("Find flights to Lisbon").first()).toBeVisible()
+  await expect(page.getByText("Only Juniper talks to its sub-agents.")).toBeVisible()
+  await expect(composer(page)).toHaveCount(0)
+  // Nothing can be sent to it around the page either.
+  const sent = await page.request.post(
+    `${page.url().replace("/a/", "/api/agents/").replace("/c/", "/chats/")}/messages`,
+    {
+      data: { text: "hello", requestId: "direct" },
+    },
+  )
+  expect(sent.status()).toBe(409)
+
+  // It is not a chat of the user's: it is not listed as one, and opening the agent does not land in it.
+  await page.getByRole("link", { name: "Back to Juniper" }).click()
+  await page.waitForURL(mine)
+  await page.goto("/")
+  await page.waitForURL(/\/c\/\d+$/)
+  expect(page.url()).toBe(mine)
+})
+
+test("a sub-agent at work can be stopped from its chat, and the agent is told", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool subagent {"action":"start","title":"Slow job","task":"/tool bash {\\"command\\":\\"sleep 8\\"}"}',
+  )
+  await page.keyboard.press("Enter")
+  const transcript = page.getByRole("log")
+  const chip = transcript.getByRole("link", { name: /Slow job working/ })
+  await expect(chip).toBeVisible()
+  const mine = page.url()
+  await chip.click()
+  await page.waitForURL((url) => url.href !== mine)
+  await page.getByRole("button", { name: "Stop", exact: true }).click()
+  await expect(page.getByText("Stopped", { exact: true }).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
+
+  await page.getByRole("link", { name: "Back to Juniper" }).click()
+  await page.waitForURL(mine)
+  await expect(page.getByRole("log").getByText("You stopped")).toBeVisible()
+  await expect(page.getByRole("log").getByRole("link", { name: /Slow job stopped/ })).toBeVisible()
+})
+
 test("the agent saves a skill, and it can be read, switched off and deleted", async ({ page }) => {
   await signIn(page)
   await newChat(page)

@@ -476,8 +476,12 @@ export class Scheduler {
         try {
           const chatId = String(api.conversationId)
           const chats = (await api.snapshot(ChatsDoc, context))?.chats ?? {}
-          if (args.action !== "list" && own(chats, chatId)?.kind === "schedule") {
-            return reply("A scheduled run cannot change schedules.", true)
+          const kind = own(chats, chatId)?.kind
+          if (args.action !== "list" && (kind === "schedule" || kind === "subagent")) {
+            return reply(
+              `A ${kind === "schedule" ? "scheduled run" : "sub-agent"} cannot change schedules.`,
+              true,
+            )
           }
           switch (args.action) {
             case "list": {

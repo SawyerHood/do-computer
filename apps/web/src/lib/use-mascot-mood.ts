@@ -19,8 +19,14 @@ const DOZE_MS = 4 * 60_000
  * rest comes from around it: the user typing, a request waiting for an answer, a run that just
  * finished or failed, and a page nobody has touched for a while.
  */
-export function useMascotMood(agentId: string, chatKey: string, state: ChatState): void {
-  const setMood = useSetAtom(mascotMoodAtom(agentId))
+export function useMascotMood(
+  agentId: string,
+  chatKey: string,
+  state: ChatState,
+  /** Whose creature it is, when not the agent's own: a sub-agent's, in its chat. */
+  face: string = agentId,
+): void {
+  const setMood = useSetAtom(mascotMoodAtom(face))
   const draft = useAtomValue(draftAtom(chatKey))
   const { data: approvals } = useQuery<ApprovalsState>({
     queryKey: approvalsKey(agentId),
@@ -39,11 +45,11 @@ export function useMascotMood(agentId: string, chatKey: string, state: ChatState
     if (draft === typed.current) return
     typed.current = draft
     if (draft === "") return setListening(false)
-    feedMascot(agentId, "key")
+    feedMascot(face, "key")
     setListening(true)
     const timer = setTimeout(() => setListening(false), LISTEN_MS)
     return () => clearTimeout(timer)
-  }, [agentId, draft])
+  }, [face, draft])
 
   // A run that was going has stopped: pleased if it answered, troubled if it failed.
   const wasBusy = useRef(state.busy)
@@ -68,8 +74,8 @@ export function useMascotMood(agentId: string, chatKey: string, state: ChatState
       ? last.parts.reduce((sum, part) => sum + (part.type === "text" ? part.text.length : 0), 0)
       : 0
   useEffect(() => {
-    if (written > 0) feedMascot(agentId, "token")
-  }, [agentId, written])
+    if (written > 0) feedMascot(face, "token")
+  }, [face, written])
 
   // Nothing has happened here for a while: it dozes until someone stirs.
   const quiet = base.state === "idle" && !listening && !waiting && ending === undefined

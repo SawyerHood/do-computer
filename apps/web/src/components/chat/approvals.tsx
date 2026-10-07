@@ -35,7 +35,11 @@ function RequestCard({
           </p>
           {here ? null : (
             <p className="text-xs text-muted-foreground">
-              {request.chatKind === "schedule" ? "In the scheduled run " : "In the chat "}
+              {request.chatKind === "schedule"
+                ? "In the scheduled run "
+                : request.chatKind === "subagent"
+                  ? "From the sub-agent "
+                  : "In the chat "}
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId, chatId: request.chatId }}

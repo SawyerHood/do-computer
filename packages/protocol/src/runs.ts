@@ -13,7 +13,8 @@ export type RunSummary = {
 
 /**
  * One piece of work in a chat that the agent wrote an entry for: what the user asked for, or
- * what a scheduled task set off, and everything the agent did until it stopped.
+ * what a scheduled task or a sub-agent's report set off, and everything the agent did until it
+ * stopped.
  */
 export type ChatRun = {
   /** The id of the message that started it, which does not change as the run goes on. */
@@ -53,9 +54,14 @@ export function chatRuns(state: ChatState): ChatRun[] {
   const runs: (Omit<ChatRun, "entry"> & { entry?: RunSummary })[] = []
   let current: (typeof runs)[number] | undefined
   for (const message of state.messages) {
+    // A sub-agent's report gives the agent a turn, as a message from the user would.
     const starts =
       message.role === "user" ||
-      message.parts.some((part) => part.type === "notice" && part.kind === "schedule")
+      message.parts.some(
+        (part) =>
+          part.type === "notice" &&
+          (part.kind === "schedule" || (part.kind === "subagent" && part.outcome !== "stopped")),
+      )
     if (starts) {
       current = { id: message.id, steps: [], status: "done" }
       if (message.createdAt !== undefined) current.at = message.createdAt

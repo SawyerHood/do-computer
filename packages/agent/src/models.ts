@@ -97,7 +97,11 @@ function echoAnswer(context: EchoContext) {
   if (last?.role === "toolResult") {
     return fauxAssistantMessage(`The tool returned:\n\n${blockText(last.content)}`)
   }
-  const user = context.messages.findLast((message) => message.role === "user")
+  // The newest thing said to it. A note for the model alone, such as word that a sub-agent has
+  // reported, says nothing to repeat: what it follows is repeated instead.
+  const user = context.messages.findLast(
+    (message) => message.role === "user" && blockText(message.content) !== "",
+  )
   const text = blockText(user?.content)
   const failure = /^\/fail\s+([\s\S]+)$/.exec(text)
   if (failure) {

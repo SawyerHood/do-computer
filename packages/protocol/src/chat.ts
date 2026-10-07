@@ -19,9 +19,18 @@ export type ToolPart = {
 export type ImagePart = { type: "image"; mimeType: string; data: string }
 export type NoticePart = {
   type: "notice"
-  /** `schedule` heads the report of a scheduled task; its text is the task's title. */
-  kind: "reset" | "compaction" | "error" | "schedule"
+  /**
+   * `schedule` heads the report of a scheduled task; its text is the task's title. `subagent` is
+   * word from a sub-agent; its text is the sub-agent's title.
+   */
+  kind: "reset" | "compaction" | "error" | "schedule" | "subagent"
   text: string
+  /** For `subagent`: the sub-agent's own chat. */
+  chatId?: string
+  /** For `subagent`: what the word is. */
+  outcome?: "reported" | "failed" | "stopped"
+  /** For `subagent`: what it reported, or why it failed. */
+  detail?: string
 }
 
 export type MessagePart = TextPart | ThinkingPart | ToolPart | ImagePart | NoticePart

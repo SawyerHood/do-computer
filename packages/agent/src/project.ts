@@ -170,6 +170,33 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         createdAt: first?.role === "user" ? first.timestamp : undefined,
       }
     }
+    case "dc.subagent": {
+      // Word from a sub-agent, in the chat that started it.
+      const word = entry.data as
+        | {
+            chatId?: string
+            title?: string
+            outcome?: "reported" | "failed" | "stopped"
+            text?: string
+          }
+        | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "subagent",
+            text: word?.title ?? "Sub-agent",
+            ...(word?.chatId === undefined ? {} : { chatId: word.chatId }),
+            outcome: word?.outcome ?? "reported",
+            ...(word?.text ? { detail: word.text } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
     default:
       return undefined
   }
@@ -245,6 +272,14 @@ export function entryText(
       return {
         role: "assistant",
         text: [report?.title, report?.text].filter(Boolean).join("\n"),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.subagent": {
+      const word = entry.data as { title?: string; text?: string } | undefined
+      return {
+        role: "assistant",
+        text: [word?.title, word?.text].filter(Boolean).join("\n"),
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }

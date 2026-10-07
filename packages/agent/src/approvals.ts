@@ -311,6 +311,19 @@ export class Approvals {
       .sort((a, b) => a.createdAt - b.createdAt)
   }
 
+  /** Take back what a chat asked for and was not answered, when its work has been stopped. */
+  async withdraw(chatId: string, context: Context): Promise<void> {
+    const now = this.#options.now()
+    await this.#require().commit(async (tx) => {
+      const doc = await tx.doc(ApprovalsDoc)
+      for (const request of Object.values(doc.requests)) {
+        if (request.chatId !== chatId || request.status !== "pending") continue
+        request.status = "denied"
+        request.resolvedAt = now
+      }
+    }, context)
+  }
+
   /** Everything a rule can be set for right now, with the rules that are set. */
   async state(context: Context): Promise<ApprovalsState> {
     const harness = this.#require()

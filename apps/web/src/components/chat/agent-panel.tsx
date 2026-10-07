@@ -3,6 +3,7 @@ import {
   type ChatRun,
   chatRuns,
   type ChatState,
+  type ChatSummary,
   toolActivity,
   type ToolPart,
   toolSummary,
@@ -18,6 +19,8 @@ import { useAtomValue } from "jotai"
 import { useMemo } from "react"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
+
+import { SubagentBrood, SubagentRows, subagentSeed, subagentWords } from "./subagents.tsx"
 
 /** How many of the latest pieces of work are listed. */
 const SHOWN = 30
@@ -131,6 +134,8 @@ export function AgentPanel({
   reconnecting,
   startFresh,
   onClose,
+  subagent,
+  subagents,
 }: {
   agent: AgentSummary
   state: ChatState
@@ -141,12 +146,29 @@ export function AgentPanel({
   /** Starts the chat's context over, where there is something to start over from. */
   startFresh: { title: string; disabled: boolean; run: () => void } | undefined
   onClose: () => void
+  /** Set in a sub-agent's chat: the panel is then about it, not about its agent. */
+  subagent?: {
+    chatId: string
+    title: string
+    status: ChatSummary["status"]
+    parentTitle: string | undefined
+  }
+  /** The sub-agents started in this chat. */
+  subagents: ChatSummary[]
 }) {
-  const mood = useAtomValue(mascotMoodAtom(agent.id))
+  const mood = useAtomValue(
+    mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
+  )
   // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
-  const name = agent.name ?? "New agent"
+  const agentName = agent.name ?? "New agent"
+  const name = subagent?.title ?? agentName
+  // A sub-agent at rest says how it ended; one at work says what it is doing.
+  const doing =
+    subagent !== undefined && mood.state === "idle"
+      ? subagentWords(subagent.status)
+      : moodWords(mood, agent.hatched)
   return (
     <aside
       aria-label={`About ${name}`}
@@ -163,10 +185,16 @@ export function AgentPanel({
       </button>
       <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
         {face}
+        {subagent === undefined ? <SubagentBrood agentId={agent.id} subagents={subagents} /> : null}
         <h2 className="mt-3 text-lg font-medium">{name}</h2>
         {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
-        <p className="text-sm text-muted-foreground">{moodWords(mood, agent.hatched)}</p>
-        {agent.tagline ? (
+        <p className="text-sm text-muted-foreground">{doing}</p>
+        {subagent !== undefined ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            A sub-agent of {agentName}
+            {subagent.parentTitle === undefined ? "" : `, for “${subagent.parentTitle}”`}
+          </p>
+        ) : agent.tagline ? (
           <p className="mt-1 text-xs text-muted-foreground">{agent.tagline}</p>
         ) : null}
         {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
@@ -183,6 +211,16 @@ export function AgentPanel({
           </button>
         )}
       </div>
+      {subagent !== undefined || subagents.length === 0 ? null : (
+        <div className="flex max-h-[40%] shrink-0 flex-col border-t">
+          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Sub-agents in this chat
+          </h3>
+          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
+            <SubagentRows agentId={agent.id} subagents={subagents} />
+          </div>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col border-t">
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           What it did here

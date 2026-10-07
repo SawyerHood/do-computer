@@ -52,7 +52,17 @@ export type AgentSummary = AgentIdentity & {
   hatched: boolean
 }
 
-export type ChatKind = "chat" | "schedule"
+/**
+ * `chat` is one the user talks in. A scheduled run and a sub-agent each have a chat of their own,
+ * which can be read and not written in.
+ */
+export type ChatKind = "chat" | "schedule" | "subagent"
+
+/**
+ * How a sub-agent is getting on. `waiting` is for the user's OK; `done` is once it has reported
+ * back, until it is given more to do.
+ */
+export type SubagentStatus = "working" | "waiting" | "done" | "stopped" | "failed"
 
 export type ChatSummary = {
   id: string
@@ -61,6 +71,10 @@ export type ChatSummary = {
   createdAt: number
   updatedAt: number
   archived: boolean
+  /** For a sub-agent: the chat it was started in, where its reports go. */
+  parentId?: string
+  /** For a sub-agent. */
+  status?: SubagentStatus
 }
 
 /** What changed on an agent, sent on its event stream so clients know what to refetch. */
