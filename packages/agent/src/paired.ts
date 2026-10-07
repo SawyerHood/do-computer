@@ -64,6 +64,11 @@ export type NearbyComputer = {
  * the people it works for. The host decides which those are, and who is asked.
  */
 export type ComputerDirectory = {
+  /**
+   * Whether the agent may work on a computer right now. Asked before every use: the agent's own
+   * record of its computers is what it was last told, and this is what is so.
+   */
+  allowed(agentId: string, computerId: string): Promise<boolean>
   list(agentId: string): Promise<NearbyComputer[]>
   /**
    * Ask the people a computer belongs to whether the agent may use it. Resolves with who was
@@ -154,6 +159,22 @@ export class PairedComputers {
           const found = await this.#find(computer, context)
           if (typeof found === "string") {
             return { isError: true, content: [{ type: "text", text: found }] }
+          }
+          if (
+            this.#directory !== undefined &&
+            !(await this.#directory.lookup.allowed(this.#directory.agentId, found.id))
+          ) {
+            // It was taken away and word of that did not arrive. It arrives now.
+            await this.remove(found.id, context)
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text",
+                  text: `The computer "${found.computer.name}" is no longer connected to you. If you still need it, the \`${TOOL}\` tool can ask for it again.`,
+                },
+              ],
+            }
           }
           const sandbox = computerSandbox({
             id: found.id,

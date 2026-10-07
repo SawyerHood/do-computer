@@ -15,15 +15,19 @@ import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
 import {
   agentsOn,
+  askersOf,
   type ComputerRow,
   computersOf,
   fits,
   forgetAgent,
   forgetComputer,
   grant,
+  isGranted,
   isTheirs,
   leftBehind,
   mayRemove,
+  mayUse,
+  type Misfits,
   misfitsOfAgent,
   misfitsOfComputer,
   peopleById,
@@ -239,18 +243,35 @@ async function connect(
   if (!registered.ok) return fail(502, "The agent could not be told about the computer.")
   const { name } = (await registered.json()) as PairedComputer
   await grant(db, row.id, agentId, by)
+  // Telling the agent took a while. If in the meantime it was moved, the computer changed
+  // hands or its owner left, whatever tidied up after that did not see this connection.
+  if (!(await mayUse(db, agentId, row.id))) {
+    await disconnect(row.id, agentId)
+    return fail(409, "That agent can no longer be connected to this computer.")
+  }
   return { name }
+}
+
+/** Have an agent forget a computer: one it had, or one it had asked for. */
+async function tellGone(computerId: string, agentId: string): Promise<void> {
+  await getPlatform()
+    .agents.get(agentId)
+    .fetch(new Request(`http://agent/computers/${computerId}`, { method: "DELETE" }))
+    .catch(() => {})
 }
 
 /** An agent can no longer work on a computer, and forgets it. */
 async function disconnect(computerId: string, agentId: string): Promise<void> {
-  const { db, agents } = getPlatform()
-  // Access ends with this delete; the rest is tidying up.
-  await ungrant(db, computerId, agentId)
-  await agents
-    .get(agentId)
-    .fetch(new Request(`http://agent/computers/${computerId}`, { method: "DELETE" }))
-    .catch(() => {})
+  // Access ends with this delete, since the agent's host looks here before each use. Telling
+  // the agent is so that it knows.
+  await ungrant(getPlatform().db, computerId, agentId)
+  await tellGone(computerId, agentId)
+}
+
+/** End the connections that no longer hold, and tell the agents whose requests were dropped. */
+async function end(gone: Misfits): Promise<void> {
+  for (const grant of gone.grants) await disconnect(grant.computerId, grant.agentId)
+  for (const request of gone.requests) await tellGone(request.computerId, request.agentId)
 }
 
 /**
@@ -413,9 +434,7 @@ export async function moveComputer(
     return fail(404, "Team not found")
   }
   await db.run("UPDATE dc_computers SET workspace_id = ? WHERE id = ?", input.workspaceId, row.id)
-  for (const gone of await misfitsOfComputer(db, row.id)) {
-    await disconnect(gone.computerId, gone.agentId)
-  }
+  await end(await misfitsOfComputer(db, row.id))
   return json({ ok: true })
 }
 
@@ -445,7 +464,8 @@ export async function disconnectAgent(
 ): Promise<Response> {
   const row = await computerOf(user, computerId)
   if (row === undefined) return fail(404, "Computer not found")
-  await disconnect(row.id, agentId)
+  // Only an agent that has it: this must not reach an agent that has nothing to do with it.
+  if (await isGranted(getPlatform().db, row.id, agentId)) await disconnect(row.id, agentId)
   return json({ ok: true })
 }
 
@@ -511,6 +531,7 @@ export async function answerComputerRequest(
       !(await fits(db, row, agent.workspace_id ?? personalWorkspaceId(agent.owner_id)))
     ) {
       await db.run("DELETE FROM dc_computer_requests WHERE id = ?", asked.id)
+      await tellGone(row.id, asked.agent_id)
       return fail(409, "That agent can no longer be connected to this computer.")
     }
     const connected = await connect(row, asked.agent_id, user.id)
@@ -549,7 +570,7 @@ export async function forgetComputersOf(agentId: string): Promise<void> {
 export async function removeComputersOfMember(userId: string, workspaceId: string): Promise<void> {
   const left = await leftBehind(getPlatform().db, userId, workspaceId)
   for (const row of left.computers) await revokeComputer(row)
-  for (const gone of left.grants) await disconnect(gone.computerId, gone.agentId)
+  await end(left)
 }
 
 /**
@@ -558,9 +579,7 @@ export async function removeComputersOfMember(userId: string, workspaceId: strin
  * to serve the people it was shared with then.
  */
 export async function removeMisfitComputersOf(agentId: string): Promise<void> {
-  for (const gone of await misfitsOfAgent(getPlatform().db, agentId)) {
-    await disconnect(gone.computerId, gone.agentId)
-  }
+  await end(await misfitsOfAgent(getPlatform().db, agentId))
 }
 
 /** A team is gone, and so are the computers that were paired for it. */
@@ -574,20 +593,19 @@ export async function removeComputersOfWorkspace(workspaceId: string): Promise<v
 
 /** Its token stops working, its daemon is disconnected, the agents that had it forget it. */
 async function revokeComputer(row: ComputerRow): Promise<void> {
-  const { db, agents, computers } = getPlatform()
-  const agentIds = (await agentsOn(db, [row.id])).get(row.id) ?? []
+  const { db, computers } = getPlatform()
+  // The agents that had it, and the ones that were waiting to hear about it.
+  const agentIds = new Set([
+    ...((await agentsOn(db, [row.id])).get(row.id) ?? []),
+    ...(await askersOf(db, row.id)),
+  ])
   // Access ends with this delete; the rest is tidying up.
   await forgetComputer(db, row.id)
   await computers
     .get(computerActorName(row.id))
     .fetch(new Request("http://computer/revoke", { method: "POST" }))
     .catch(() => {})
-  for (const agentId of agentIds) {
-    await agents
-      .get(agentId)
-      .fetch(new Request(`http://agent/computers/${row.id}`, { method: "DELETE" }))
-      .catch(() => {})
-  }
+  for (const agentId of agentIds) await tellGone(row.id, agentId)
 }
 
 /** The computer a daemon's bearer token belongs to, or undefined. */

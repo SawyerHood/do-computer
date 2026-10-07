@@ -286,7 +286,8 @@ paired computer. What limits the damage:
   people it works for have paired, by name, owner and whether they are online, and nothing else
   about them. It gets one only when someone the computer belongs to says yes.
 - **Revocation.** Removing a computer cuts its daemon off at once, and disconnecting an agent
-  from one ends that agent's access to it. Removing a connector deletes its
+  from one ends that agent's access to it: which agents may use a computer is looked up on the
+  server before every use, not left to what the agent remembers. Removing a connector deletes its
   credentials. Deleting an agent deletes its computer and everything it stored.
 
 ## Mobile app

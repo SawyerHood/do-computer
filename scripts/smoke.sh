@@ -134,4 +134,6 @@ check "a deleted agent is gone" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}'
 check "the first agent is untouched" "$(get /api/agents | field "['agents'][0]['id']")" "$AGENT"
 check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' | field "['error']")" "Not found"
 check "destroy is not exposed" "$(post "/api/agents/$AGENT/destroy" | field "['error']")" "Not found"
+check "nor behind an address made to look like another" "$(post "/api/agents/$AGENT/chats%2F..%2Fdestroy" | field "['error']")" "Not found"
+check "an agent cannot be handed a computer from outside" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PUT "$BASE/api/agents/$AGENT/chats%2F..%2Fcomputers%2Fstolen" -d '{"name":"stolen","platform":"linux","hostname":"x","home":"/","readOnly":false,"pairedAt":1}' | field "['error']")" "Not found"
 echo "all checks passed against $BASE"

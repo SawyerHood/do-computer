@@ -20,6 +20,7 @@ import {
   isTheirs,
   leftBehind,
   mayRemove,
+  mayUse,
   misfitsOfAgent,
   misfitsOfComputer,
   requestsFor,
@@ -206,9 +207,14 @@ describe("what an agent can see and ask for", () => {
     expect(await requestsFor(db, jon.id)).toEqual([])
 
     // Granting it answers the request.
+    expect(await mayUse(db, shared, mayas.id)).toBe(false)
     await grant(db, mayas.id, shared, maya.id)
     expect(await askedBy(db, shared)).toEqual([])
     expect((await agentsOn(db, [mayas.id])).get(mayas.id)).toEqual([shared])
+    expect(await mayUse(db, shared, mayas.id)).toBe(true)
+    // Being connected to one computer says nothing about another, or about another agent.
+    expect(await mayUse(db, shared, teams.id)).toBe(false)
+    expect(await mayUse(db, await agent(db, sawyer, teamId), mayas.id)).toBe(false)
   })
 })
 
@@ -221,24 +227,25 @@ describe("what ends", () => {
     const mayas = await computer(db, maya)
     const teams = await computer(db, maya, teamId)
     for (const row of [mine, mayas, teams]) await grant(db, row.id, shared, row.owner_id)
-    await ask(db, {
-      computerId: (await computer(db, maya)).id,
-      agentId: shared,
-      chatId: "1",
-      reason: "",
-    })
+    const wanted = await computer(db, maya)
+    await ask(db, { computerId: wanted.id, agentId: shared, chatId: "1", reason: "" })
 
-    expect(await misfitsOfAgent(db, shared)).toEqual([])
+    expect(await misfitsOfAgent(db, shared)).toEqual({ grants: [], requests: [] })
+    expect(await mayUse(db, shared, mayas.id)).toBe(true)
     // Sawyer takes it home: his own computer stays, Maya's and the team's go.
     await db.run(
       "UPDATE dc_agents SET workspace_id = ? WHERE id = ?",
       personalWorkspaceId(sawyer.id),
       shared,
     )
-    expect((await misfitsOfAgent(db, shared)).map((gone) => gone.computerId).sort()).toEqual(
-      [mayas.id, teams.id].sort(),
-    )
+    // From that moment, before anything is tidied up, it may no longer use them.
+    expect(await mayUse(db, shared, mayas.id)).toBe(false)
+    expect(await mayUse(db, shared, teams.id)).toBe(false)
+    expect(await mayUse(db, shared, mine.id)).toBe(true)
+    const gone = await misfitsOfAgent(db, shared)
+    expect(gone.grants.map((grant) => grant.computerId).sort()).toEqual([mayas.id, teams.id].sort())
     // What it had asked Maya for can no longer be granted, and is dropped.
+    expect(gone.requests).toEqual([{ computerId: wanted.id, agentId: shared }])
     expect(await askedBy(db, shared)).toEqual([])
   })
 
@@ -251,7 +258,10 @@ describe("what ends", () => {
     await grant(db, mine.id, own, sawyer.id)
     await grant(db, mine.id, shared, sawyer.id)
     await db.run("UPDATE dc_computers SET workspace_id = ? WHERE id = ?", teamId, mine.id)
-    expect(await misfitsOfComputer(db, mine.id)).toEqual([{ computerId: mine.id, agentId: own }])
+    expect(await misfitsOfComputer(db, mine.id)).toEqual({
+      grants: [{ computerId: mine.id, agentId: own }],
+      requests: [],
+    })
   })
 
   it("when someone leaves a team: what they paired for it, and their own computers' part in it", async () => {

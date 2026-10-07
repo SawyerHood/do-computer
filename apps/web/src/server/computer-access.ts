@@ -180,6 +180,27 @@ export async function ungrant(db: AppDatabase, computerId: string, agentId: stri
 }
 
 /**
+ * Whether an agent may work on a computer right now: it was connected to it, and the computer
+ * could still be connected to it today. Asked before every use, so that access ends when the
+ * connection does, and does not rest on the agent having been told.
+ */
+export async function mayUse(
+  db: AppDatabase,
+  agentId: string,
+  computerId: string,
+): Promise<boolean> {
+  const granted = await db.get<{ agent_id: string }>(
+    "SELECT agent_id FROM dc_computer_grants WHERE computer_id = ? AND agent_id = ?",
+    computerId,
+    agentId,
+  )
+  if (granted === undefined) return false
+  const computer = await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", computerId)
+  const workspaceId = await workspaceOfAgent(db, agentId)
+  return computer !== undefined && workspaceId !== undefined && fits(db, computer, workspaceId)
+}
+
+/**
  * Record that an agent asks for a computer. Asking again while nobody has answered changes
  * nothing: `fresh` says whether this was the first time, which is when people are told.
  */
@@ -188,12 +209,6 @@ export async function ask(
   input: { computerId: string; agentId: string; chatId: string | null; reason: string },
   now = Date.now(),
 ): Promise<{ id: string; fresh: boolean }> {
-  const waiting = await db.get<{ id: string }>(
-    "SELECT id FROM dc_computer_requests WHERE computer_id = ? AND agent_id = ?",
-    input.computerId,
-    input.agentId,
-  )
-  if (waiting !== undefined) return { id: waiting.id, fresh: false }
   const id = crypto.randomUUID()
   await db.run(
     `INSERT INTO dc_computer_requests (id, computer_id, agent_id, chat_id, reason, created_at)
@@ -205,7 +220,13 @@ export async function ask(
     input.reason.replace(/\s+/g, " ").trim().slice(0, MAX_REASON_CHARS),
     now,
   )
-  return { id, fresh: true }
+  // Whichever of two that asked at once got there first is the one that is kept.
+  const kept = await db.get<{ id: string }>(
+    "SELECT id FROM dc_computer_requests WHERE computer_id = ? AND agent_id = ?",
+    input.computerId,
+    input.agentId,
+  )
+  return { id: kept?.id ?? id, fresh: kept?.id === id }
 }
 
 /** The computers an agent has asked for and not been answered about. */
@@ -242,6 +263,29 @@ export async function requestsFor(
   return found
 }
 
+/** The agents that asked for a computer and have not been answered. */
+export async function askersOf(db: AppDatabase, computerId: string): Promise<string[]> {
+  const rows = await db.all<{ agent_id: string }>(
+    "SELECT agent_id FROM dc_computer_requests WHERE computer_id = ?",
+    computerId,
+  )
+  return rows.map((row) => row.agent_id)
+}
+
+/** Whether an agent is connected to a computer, as far as the record goes. */
+export async function isGranted(
+  db: AppDatabase,
+  computerId: string,
+  agentId: string,
+): Promise<boolean> {
+  const row = await db.get<{ agent_id: string }>(
+    "SELECT agent_id FROM dc_computer_grants WHERE computer_id = ? AND agent_id = ?",
+    computerId,
+    agentId,
+  )
+  return row !== undefined
+}
+
 /** Forget everything about a computer. Access to it ends with this. */
 export async function forgetComputer(db: AppDatabase, computerId: string): Promise<void> {
   await db.batch([
@@ -261,12 +305,15 @@ export async function forgetAgent(db: AppDatabase, agentId: string): Promise<voi
 
 export type Grant = { computerId: string; agentId: string }
 
+/** What no longer holds: connections to end, and requests that were dropped. */
+export type Misfits = { grants: Grant[]; requests: Grant[] }
+
 /**
- * The connections that no longer hold, given where an agent or a computer is now: each one whose
- * computer could not serve its agent's workspace. Requests that could no longer be granted are
- * dropped here; the connections are for the caller to end, which has the agents to tell.
+ * The connections and requests that no longer hold, given where an agent or a computer is now:
+ * each one whose computer could not serve its agent's workspace. The requests are dropped here.
+ * The connections are for the caller to end, and it has the agents to tell of both.
  */
-async function misfits(db: AppDatabase, where: string, value: string): Promise<Grant[]> {
+async function misfits(db: AppDatabase, where: string, value: string): Promise<Misfits> {
   type Pair = { computer_id: string; agent_id: string }
   const select = (table: string) =>
     db.all<Pair>(`SELECT computer_id, agent_id FROM ${table} WHERE ${where} = ?`, value)
@@ -288,20 +335,21 @@ async function misfits(db: AppDatabase, where: string, value: string): Promise<G
     }
     return found
   }
-  for (const request of await wrong(await select("dc_computer_requests"))) {
+  const requests = await wrong(await select("dc_computer_requests"))
+  for (const request of requests) {
     await db.run(
       "DELETE FROM dc_computer_requests WHERE computer_id = ? AND agent_id = ?",
       request.computerId,
       request.agentId,
     )
   }
-  return wrong(await select("dc_computer_grants"))
+  return { grants: await wrong(await select("dc_computer_grants")), requests }
 }
 
-/** The connections of an agent that no longer hold, after it was moved to another workspace. */
+/** What of an agent's no longer holds, after it was moved to another workspace. */
 export const misfitsOfAgent = (db: AppDatabase, agentId: string) => misfits(db, "agent_id", agentId)
 
-/** The connections of a computer that no longer hold, after whose it is changed. */
+/** What of a computer's no longer holds, after whose it is changed. */
 export const misfitsOfComputer = (db: AppDatabase, computerId: string) =>
   misfits(db, "computer_id", computerId)
 
@@ -313,7 +361,7 @@ export async function leftBehind(
   db: AppDatabase,
   userId: string,
   workspaceId: string,
-): Promise<{ computers: ComputerRow[]; grants: Grant[] }> {
+): Promise<{ computers: ComputerRow[] } & Misfits> {
   const computers = await db.all<ComputerRow>(
     "SELECT * FROM dc_computers WHERE workspace_id = ? AND owner_id = ?",
     workspaceId,
@@ -323,9 +371,13 @@ export async function leftBehind(
     "SELECT id FROM dc_computers WHERE workspace_id = ?",
     personalWorkspaceId(userId),
   )
-  const grants: Grant[] = []
-  for (const computer of own) grants.push(...(await misfitsOfComputer(db, computer.id)))
-  return { computers, grants }
+  const gone: Misfits = { grants: [], requests: [] }
+  for (const computer of own) {
+    const wrong = await misfitsOfComputer(db, computer.id)
+    gone.grants.push(...wrong.grants)
+    gone.requests.push(...wrong.requests)
+  }
+  return { computers, ...gone }
 }
 
 /** People by id, as far as the account table knows them. */

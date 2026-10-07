@@ -23,6 +23,8 @@ const links = new NodeActorNamespace({
 })
 /** What the host says is out there, and what it was asked. Set by the tests that use them. */
 let nearby: NearbyComputer[] = []
+/** Computers the host no longer lets the agent use, whatever the agent was told. */
+const takenAway = new Set<string>()
 const asks: { agentId: string; computerId: string; chatId: string; reason: string }[] = []
 const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
 const models = createModels()
@@ -41,6 +43,7 @@ const agents = new NodeActorNamespace({
       sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
       computerLinks: links,
       computerDirectory: {
+        allowed: async (_agentId, computerId) => !takenAway.has(computerId),
         list: async () => nearby,
         request: async (agentId, ask) => {
           const computer = nearby.find((one) => one.id === ask.computerId)
@@ -428,6 +431,24 @@ describe("computers the agent was not given", () => {
     await call("/computers/c8/answer", "POST", answer)
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(notices(await call<ChatState>(`/chats/${chat.id}`)).length).toBe(1)
+  })
+
+  it("cannot be used once the host says no, even if the agent was never told", async () => {
+    // The connection ended, and the word that it did never reached the agent.
+    takenAway.add("c8")
+    faux.setResponses(useTool("read", { path: "designs.txt", computer: "studio" }))
+    expect(lastTool(await say(chat.id, "read the designs again"))).toMatchObject({
+      status: "error",
+      output:
+        'The computer "studio" is no longer connected to you. If you still need it, the `computers` tool can ask for it again.',
+    })
+    // It knows now, and its own computers are untouched.
+    expect(
+      (await call<{ computers: { name: string }[] }>("/computers")).computers.map((c) => c.name),
+    ).toEqual(["laptop"])
+    faux.setResponses(useTool("bash", { command: "echo mine" }))
+    expect(lastTool(await say(chat.id, "your own shell")).output).toBe("mine\n")
+    takenAway.delete("c8")
   })
 
   it("is told when the answer is no", async () => {

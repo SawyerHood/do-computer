@@ -299,6 +299,19 @@ Since then, newest last:
       connections that no longer fit are ended (`misfitsOfAgent`, `misfitsOfComputer`,
       `leftBehind`); a computer someone paired for a team is removed when they leave, since it
       runs as them. Deleting an agent no longer removes a computer, only the agent's part in it.
+    - **The record is what counts, not what the agent was told.** The agent keeps its own list
+      of its computers, which the gateway writes, and the link to a computer answers any agent.
+      So before every use the agent's host asks the directory (`mayUse`): there must be a grant,
+      and the computer must still fit where the agent is. A connection therefore ends when its
+      row goes, even if telling the agent failed, and one that a missed tidy-up left behind
+      gives nothing. `connect` looks again after it has told the agent, for the case where the
+      agent was moved in between.
+    - **The gateway judges a path as the actor will read it.** `proxyToAgent` refused the
+      actor's own routes (`computers`, `init`, `destroy`, `team`) by the path as sent, and the
+      actor reads it after it has been parsed, so `chats%2F..%2Fcomputers%2F<id>`, an encoded
+      dot or a doubled slash went past. That was there before this work and mattered more with
+      it, since a teammate can now see a computer's id. It parses first now, and the browser
+      tests and `scripts/smoke.sh` try the dressed-up addresses.
     - **The agent asks through its host.** `computerDirectory` (`computer-directory.ts`) is
       handed to the agent actor as an option, with the database and the links, because the actor
       does not run where requests are served. The agent's `computers` tool

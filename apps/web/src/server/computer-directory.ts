@@ -9,6 +9,7 @@ import {
   computerIdsOfAgent,
   type ComputerRow,
   computersNear,
+  mayUse,
   peopleById,
 } from "./computer-access.ts"
 import { sendPush } from "./push.ts"
@@ -44,6 +45,7 @@ export function computerDirectory(
         : { owner: teams.get(row.workspace_id)!, team: true }
   }
   return {
+    allowed: (agentId, computerId) => mayUse(db, agentId, computerId),
     async list(agentId) {
       const rows = await computersNear(db, agentId)
       const connected = new Set(await computerIdsOfAgent(db, agentId))
