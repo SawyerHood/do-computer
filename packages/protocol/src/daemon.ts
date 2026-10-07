@@ -154,20 +154,37 @@ export function chunkBytes(bytes: Uint8Array): string[] {
   return chunks
 }
 
-/** A paired computer as the app lists it to someone who can see it. */
+/** The kind of a computer somebody paired, as opposed to a machine the app made at a provider. */
+export const PAIRED_COMPUTER = "paired"
+
+/**
+ * A computer as the app lists it to someone who can see it: one somebody paired, or a machine
+ * of a workspace, which the app made and which the workspace's agents work on.
+ */
 export type ComputerSummary = {
   id: string
   /** The name agents refer to it by. */
   name: string
+  /** `paired`, or the kind of machine it is: the `id` of one of the deployment's `ComputerKind`s. */
+  kind: string
   platform: string
   hostname: string
-  /** Whose it is: the own workspace of whoever paired it, or a team's. */
+  /** Whose it is: the own workspace of whoever paired or added it, or a team's. */
   workspaceId: string
-  /** Who paired it. Its daemon runs as them on that machine. */
+  /** Who paired or added it. A paired computer's daemon runs as them on that machine. */
   pairedBy: Person
-  /** The agents that can work on it. */
+  /**
+   * Who can use it. `open`: every agent of its workspace, as long as it is one. `chosen`: the
+   * agents it was connected to, one by one. A paired computer is always `chosen`.
+   */
+  access: "open" | "chosen"
+  /** Whether it can serve more than one agent. A kind that keeps its files with one agent cannot. */
+  shareable: boolean
+  /** The agents that can work on it, whichever way they came to. */
   agentIds: string[]
-  /** Whether the signed-in user may remove it: whoever paired it, or an admin of its team. */
+  /** The folder each agent has to itself on a machine, once it has worked there. */
+  folders: { agentId: string; path: string }[]
+  /** Whether the signed-in user may remove it: whoever paired or added it, or an admin of its team. */
   canManage: boolean
   createdAt: number
   online: boolean
@@ -187,6 +204,16 @@ export type ComputerRequest = {
   /** Whether the signed-in user is one of the people the computer belongs to, who can answer. */
   canAnswer: boolean
   createdAt: number
+}
+
+/** What adding a machine to a workspace says about it. */
+export type AddComputerRequest = {
+  /** The workspace it is for: the user's own unless a team of theirs is named. */
+  workspaceId?: string
+  /** The kind of machine: one the deployment offers, that can be shared. */
+  kind: string
+  /** What agents call it. One is made up when this is left out. */
+  name?: string
 }
 
 /** What confirming a pairing code says about the computer behind it. */

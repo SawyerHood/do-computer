@@ -190,7 +190,7 @@ export type AddConnectorRequest = {
 /** The answer to adding or reconnecting a connector: where to send the user if they must sign in. */
 export type ConnectorResult = { connector: ConnectorSummary; authorizationUrl?: string }
 
-/** A file in the agent's library: something it made for the user, or the user gave it. */
+/** A file in a library: something an agent made for the people it works for, or they gave it. */
 export type LibraryFile = {
   id: string
   /** Where it is in the library, folders included: `reports/q3.md`. No two files share one. */
@@ -234,7 +234,8 @@ export type LibraryListing = {
   deleted: DeletedLibraryFile[]
   /**
    * Stands in for the session where files are viewed as pages: a file at `path` is served, with
-   * whatever it links to beside it, at `/d/<agent>/<view>/<path>`. It changes every few hours.
+   * whatever it links to beside it, at `/d/<agent>/<view>/<path>`, for any agent that has the
+   * library. It changes every few hours.
    */
   view: string
 }
@@ -387,7 +388,10 @@ export type UserSettings = {
   defaultModel: string | null
   /** The deployment's own default, which is what null means. */
   deploymentDefaultModel: string
-  /** The kind of computer their new agents get. Null: whatever the deployment gives them. */
+  /**
+   * The kind of machine a workspace is given when they make an agent in one that has none the
+   * agent could use. Null: whatever the deployment gives.
+   */
   defaultComputer: string | null
   deploymentDefaultComputer: string
 }

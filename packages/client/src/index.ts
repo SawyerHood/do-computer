@@ -1,4 +1,5 @@
 import {
+  type AddComputerRequest,
   type AddConnectorRequest,
   type AgentEvent,
   type AgentSummary,
@@ -87,8 +88,6 @@ export type AgentState = {
   agent: AgentSummary
   /** The user's IANA timezone as the agent knows it. */
   timezone: string | null
-  /** The kind of computer it is on. Null where the deployment offers no choice of one. */
-  computer: string | null
   /** The team that shares it, by name. Null: it is one person's. */
   team?: string | null
   /** What a message does that arrives while it is working: join the work, or wait for it. */
@@ -115,11 +114,6 @@ export type AgentPatch = {
   whenBusy?: "steer" | "queue"
   /** Its owner has watched it hatch. There is no putting it back in its egg. */
   hatched?: true
-  /**
-   * Move the agent to a computer of another kind. Refused while it is working. Its files stay
-   * on the computer it leaves, and are there again if it is moved back.
-   */
-  computer?: string
 }
 
 /** A computer waiting to be paired, as shown to the user before they agree. */
@@ -343,9 +337,15 @@ export function createClient(options: ClientOptions) {
         },
       }
     },
-    /** Delete an agent for good, with its memory, files, schedules and computer. */
-    deleteAgent: (agentId: string) =>
-      request<{ ok: true }>(`/api/agents/${agentId}`, { method: "DELETE" }),
+    /**
+     * Delete an agent for good, with its memory, chats, schedules and skills. The machines of
+     * its workspace that only it can use are deleted with it unless `keepComputers` is set.
+     */
+    deleteAgent: (agentId: string, options: { keepComputers?: boolean } = {}) =>
+      request<{ ok: true }>(
+        `/api/agents/${agentId}${options.keepComputers === true ? "?computers=keep" : ""}`,
+        { method: "DELETE" },
+      ),
     /** Register this device for push notifications, with the token its push service issued. */
     registerPush: (token: string, platform: string) =>
       post<{ ok: true }>("/api/push/register", { token, platform }),
@@ -361,6 +361,13 @@ export function createClient(options: ClientOptions) {
       ).text,
     listComputers: async () =>
       (await request<{ computers: ComputerSummary[] }>("/api/computers")).computers,
+    /** Add a machine to a workspace, for its agents to work on. It is made when first used. */
+    addComputer: (input: AddComputerRequest) =>
+      post<{ computerId: string; name: string }>("/api/computers", input),
+    /** Say who can use a machine of a workspace: every agent of it, or the ones connected to it. */
+    setComputerAccess: (computerId: string, access: "open" | "chosen") =>
+      patch<{ ok: true }>(`/api/computers/${encodeURIComponent(computerId)}`, { access }),
+    /** Remove a computer. A machine of a workspace is deleted, with everything on it. */
     removeComputer: (computerId: string) =>
       request<{ ok: true }>(`/api/computers/${encodeURIComponent(computerId)}`, {
         method: "DELETE",
