@@ -169,8 +169,8 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
   await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
 
-  // The work behind the answer is kept in the panel about the agent, which opens from the header
-  // above the chat and takes its place. There it can be opened and read.
+  // The panel about the agent opens from the header above the chat and takes its place. It
+  // lists what the agent wrote up, which it does only for big things: this was not one.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const header = page.getByRole("button", { name: "Show Juniper beside the chat" })
   await expect(panel).toHaveCount(0)
@@ -180,19 +180,23 @@ test("the agent uses its computer: one line says what it is doing, and only its 
     "data-mood",
     /idle|done/,
   )
-  // It is one entry for what was asked: a few words, so the list can be taken in at a glance.
-  const work = panel.getByRole("listitem").filter({ hasText: "/tool bash" }).first()
-  await expect(work).toContainText('/tool bash {"command":"sleep 1; echo from…')
-  // What came of it and its steps are inside, and what a step returned is inside that.
-  const step = work.getByText("Ran: sleep 1; echo from the shell", { exact: false })
-  await expect(work.getByText("The tool returned")).toBeHidden()
-  await expect(step).toBeHidden()
-  await work.getByText("/tool bash").click()
-  await expect(work.getByText("The tool returned")).toBeVisible()
-  await expect(work.getByText("1 step")).toBeVisible()
-  await expect(work.getByText("MEMORY.md")).toBeHidden()
-  await step.click()
-  await expect(work.getByText("MEMORY.md")).toBeVisible()
+  await expect(panel.getByText("Nothing yet.")).toBeVisible()
+  await expect(panel.getByRole("listitem")).toHaveCount(0)
+
+  // The agent adds an entry itself, with a tool: a few words, so the list can be taken in at a
+  // glance, with what came of it inside.
+  await composer(page).fill(
+    '/tool log {"title":"Write a note","outcome":"Left a note in the workspace."}',
+  )
+  await page.keyboard.press("Enter")
+  const work = panel.getByRole("listitem").filter({ hasText: "Write a note" }).first()
+  await expect(work).toBeVisible()
+  await expect(panel.getByText("Nothing yet.")).toHaveCount(0)
+  await expect(work.getByText("Left a note in the workspace.")).toBeHidden()
+  await work.getByText("Write a note").click()
+  await expect(work.getByText("Left a note in the workspace.")).toBeVisible()
+  await expect(work.getByText("0 steps")).toBeVisible()
+  await expect(page.getByRole("status")).toHaveCount(0)
   // Beside its name it says what it is doing in a word or two, not the whole command.
   await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
   // Put away, the header is back.
