@@ -117,6 +117,8 @@ export function ModelPicker({
               if (open && model) choose(model)
             } else if (event.key === "Escape" && open) {
               event.preventDefault()
+              // Only the list is closed: a window this is in stays as it is.
+              event.stopPropagation()
               close()
             }
           }}

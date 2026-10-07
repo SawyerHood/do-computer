@@ -154,8 +154,8 @@ too.
   written when you close the tab, and is there when you come back. It can search what was said in
   its other chats, and so can you, from the chat list.
 - **Be someone.** It names itself in its first conversation, picks its color, and keeps a
-  personality, a profile of you and its own notes. They are capped, visible and editable under
-  Identity and memory, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
+  personality, a profile of you and its own notes. They are capped, visible and editable in
+  its settings, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
   workspace.
 - **Look at pictures.** A picture attached or pasted into the message box is shown to the agent
   along with your words, if its model takes pictures; the box says so when it does not. The
@@ -220,7 +220,7 @@ the same OpenRouter key (`DC_TRANSCRIPTION_MODEL`, default `openai/whisper-large
 ## Teams
 
 Everyone has a personal workspace, which only they can see. A team is a workspace several people
-share: start one from the workspace menu at the top of the rail.
+share: start one from the workspace menu at the top of the sidebar.
 
 - **Inviting.** Ask people by email address or GitHub username. Each gets a link that works once,
   for seven days. An email address is written to where the deployment can send mail; otherwise

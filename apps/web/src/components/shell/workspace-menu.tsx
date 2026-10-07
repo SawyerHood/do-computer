@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { client } from "@/lib/client"
 import { agentsCollection } from "@/lib/collections"
+import { useSettings } from "@/lib/settings"
 import { useHere, usePeople, useWorkspaces, whoIs } from "@/lib/workspaces"
 
 type Me = { id: string; name: string; image?: string | null }
@@ -65,19 +66,12 @@ function TeamRow({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
 }
 
 /**
- * The way between workspaces, at the top of the rail: the user's own, their teams, the
+ * The way between workspaces, at the top of the sidebar: the user's own, their teams, the
  * invitations waiting for them, and starting a new team.
  */
-export function WorkspaceMenu({
-  workspace,
-  me,
-  side = "right",
-}: {
-  workspace: WorkspaceSummary
-  me: Me
-  side?: "right" | "bottom"
-}) {
+export function WorkspaceMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
   const navigate = useNavigate()
+  const { openWorkspace } = useSettings()
   const state = useWorkspaces()
   const [creating, setCreating] = useState(false)
 
@@ -103,25 +97,21 @@ export function WorkspaceMenu({
         <DropdownMenuTrigger
           aria-label={`Workspace: ${workspace.name}. Switch workspace`}
           title="Switch workspace"
-          className="relative rounded-xl p-0.5 outline-none ring-ring/40 hover:ring-2 focus-visible:ring-3 aria-expanded:ring-2"
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl py-1.5 pr-2 pl-1.5 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
         >
-          <WorkspaceMark workspace={workspace} me={me} className="size-9" />
-          <span
-            aria-hidden
-            className="absolute -right-1.5 -bottom-1 grid size-4 place-items-center rounded-full border bg-rail text-muted-foreground"
-          >
-            <CaretUpDownIcon className="size-2.5" />
-          </span>
+          <WorkspaceMark workspace={workspace} me={me} className="size-7" />
+          <span className="min-w-0 truncate text-sm font-semibold">{workspace.name}</span>
+          <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           {(state?.invitations.length ?? 0) > 0 ? (
             <span
               aria-label={`${state!.invitations.length} invitations`}
-              className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[0.625rem] font-bold text-primary-foreground ring-2 ring-rail"
+              className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-primary px-1 text-[0.625rem] font-bold text-primary-foreground"
             >
               {state!.invitations.length}
             </span>
           ) : null}
         </DropdownMenuTrigger>
-        <DropdownMenuContent side={side} align="start" className="w-76">
+        <DropdownMenuContent side="bottom" align="start" className="w-76">
           <DropdownMenuGroup>
             <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
             {(state?.workspaces ?? [workspace]).map((entry) => (
@@ -166,11 +156,7 @@ export function WorkspaceMenu({
             <PlusIcon /> New team
           </DropdownMenuItem>
           {isPersonalWorkspace(workspace.id) ? null : (
-            <DropdownMenuItem
-              onClick={() =>
-                navigate({ to: "/w/$workspaceId/people", params: { workspaceId: workspace.id } })
-              }
-            >
+            <DropdownMenuItem onClick={() => openWorkspace("team")}>
               <UsersIcon /> People in {workspace.name}
             </DropdownMenuItem>
           )}

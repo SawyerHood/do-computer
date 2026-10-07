@@ -1,10 +1,12 @@
 import type { ScheduleSummary } from "@durable-computer/protocol"
-import { ArrowLeftIcon, ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@phosphor-icons/react"
+import type { AgentState } from "@durable-computer/client"
+import { ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { AgentAside } from "@/components/chat/agent-aside"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
-import { schedulesKey } from "@/lib/collections"
+import { agentKey, schedulesKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 
@@ -123,40 +125,42 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
 /** The agent's scheduled and repeating tasks. They are created by asking the agent, in chat. */
 function AutomationsPage() {
   const { agentId } = Route.useParams()
+  // Shares the layout's query, so this never fetches on its own.
+  const { data: state } = useQuery<AgentState>({
+    queryKey: agentKey(agentId),
+    queryFn: () => client.agent(agentId).state(),
+  })
+  const agent = state?.agent
   const { data: schedules } = useQuery({
     queryKey: schedulesKey(agentId),
     queryFn: () => client.agent(agentId).schedules(),
   })
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-16 pb-24 md:pt-10">
-        <Link
-          to="/a/$agentId"
-          params={{ agentId }}
-          className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon /> Back to chat
-        </Link>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Automations</h1>
-          <p className="text-sm text-muted-foreground">
-            Things your agent does on its own, once or on a schedule. To add one, ask in chat:
-            “Every weekday at 9, tell me what is on my calendar.”
-          </p>
+    <div className="flex h-full min-h-0">
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-8 pb-24 md:pt-10">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Automations</h1>
+            <p className="text-sm text-muted-foreground">
+              Things your agent does on its own, once or on a schedule. To add one, ask in chat:
+              “Every weekday at 9, tell me what is on my calendar.”
+            </p>
+          </div>
+          {schedules === undefined ? null : schedules.length === 0 ? (
+            <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nothing scheduled yet.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {schedules.map((schedule) => (
+                <ScheduleCard key={schedule.id} agentId={agentId} schedule={schedule} />
+              ))}
+            </ul>
+          )}
         </div>
-        {schedules === undefined ? null : schedules.length === 0 ? (
-          <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Nothing scheduled yet.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {schedules.map((schedule) => (
-              <ScheduleCard key={schedule.id} agentId={agentId} schedule={schedule} />
-            ))}
-          </ul>
-        )}
       </div>
+      {agent === undefined ? null : <AgentAside agent={agent} />}
     </div>
   )
 }

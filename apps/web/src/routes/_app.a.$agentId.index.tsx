@@ -8,7 +8,7 @@ import { queryClient } from "@/lib/query"
  * which is reached from the automations page and is not where a visit begins.
  */
 export const Route = createFileRoute("/_app/a/$agentId/")({
-  beforeLoad: async ({ params }) => {
+  beforeLoad: async ({ params, search }) => {
     const api = client.agent(params.agentId)
     const state = await queryClient.fetchQuery({
       queryKey: agentKey(params.agentId),
@@ -23,6 +23,8 @@ export const Route = createFileRoute("/_app/a/$agentId/")({
     throw redirect({
       to: "/a/$agentId/c/$chatId",
       params: { agentId: params.agentId, chatId: chat.id },
+      // A settings window that was asked for by address opens over the chat.
+      search,
       replace: true,
     })
   },

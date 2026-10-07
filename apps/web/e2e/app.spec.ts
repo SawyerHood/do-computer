@@ -26,17 +26,46 @@ async function signIn(page: Page) {
 
 const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 
+/**
+ * Open a section of the agent's settings. They are a window over whichever of its pages is
+ * showing, opened from the end of the strip above them.
+ */
+async function openSettings(page: Page, section: string) {
+  const dialog = page.getByRole("dialog")
+  if ((await dialog.count()) === 0) await page.getByRole("button", { name: /'s settings$/ }).click()
+  await dialog.getByRole("button", { name: section, exact: true }).click()
+}
+
+/** Open a section of the workspace's settings, from the menu on the user's name. */
+async function openWorkspaceSettings(page: Page, section: string) {
+  await page.getByRole("button", { name: /settings and signing out$/ }).click()
+  await page.getByRole("menuitem", { name: /Workspace settings/ }).click()
+  await page.getByRole("dialog").getByRole("button", { name: section, exact: true }).click()
+}
+
+/** Close whichever settings window is open, leaving the page that was under it. */
+async function closeSettings(page: Page) {
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+}
+
+/** One of the agent's tabs, in the strip above its pages. */
+const tab = (page: Page, name: "Chat" | "Library" | "Automations") =>
+  page.getByRole("link", { name, exact: true })
+
 /** Start a chat and wait until it is the one on screen, so typing lands in it. */
 async function newChat(page: Page) {
+  // A settings window is over the page, and in the way, until it is closed.
+  if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
   const before = page.url()
   await page.getByRole("button", { name: "New chat", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
   await expect(composer(page)).toHaveValue("")
 }
 
-// On a wide screen the chat list starts closed and the panel about the agent starts open. Most
-// of these tests work in the chat list and read the transcript, so they have the list open and
-// the panel put away, the way someone might have left them. The tests of those two say so.
+// On a wide screen the sidebar starts closed and the panel about the agent starts open. Most
+// of these tests work in the sidebar's list and read the transcript, so they have the sidebar
+// open and the panel put away, the way someone might have left them. The tests of those two say so.
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("dc-chat-list", "open")
@@ -105,7 +134,7 @@ test("chats are separate, and an archived chat leaves the list", async ({ page }
 
 test("identity edits are saved and show up across the app", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Identity and memory" }).click()
+  await openSettings(page, "Identity")
   await page.getByLabel("Name").fill("Juniper")
   await page.getByLabel("Tagline").fill("Calm and curious")
   // Its color is a choice; what it looks like is a roll of the dice.
@@ -115,12 +144,12 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
   await page.getByRole("button", { name: "Save changes" }).click()
   await expect(page.getByText("Saved", { exact: true })).toBeVisible()
 
-  await page.getByRole("link", { name: "Back to chat" }).click()
+  await closeSettings(page)
   await expect(page.getByText("Juniper").first()).toBeVisible()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
 
   await page.reload()
-  await page.getByRole("button", { name: "Identity and memory" }).click()
+  await openSettings(page, "Identity")
   await expect(page.getByLabel("Name")).toHaveValue("Juniper")
   await expect(page.locator("#user")).toHaveValue("Prefers short answers")
   await expect(page.getByRole("button", { name: "Tide" })).toHaveAttribute("aria-pressed", "true")
@@ -136,7 +165,7 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
 
 test("memory over its limit cannot be saved", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Identity and memory" }).click()
+  await openSettings(page, "Identity")
   await page.locator("#user").fill("x".repeat(1400))
   await expect(page.getByText("1400 / 1375")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled()
@@ -153,10 +182,12 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await page.keyboard.press("Enter")
   // While it works, a single line says what it is doing, with the command it is running.
   await expect(page.getByRole("status")).toContainText("Running: sleep 1; echo from the shell")
-  // Its creature, above the chat, is at work. It is the only one of it that moves: the one in
-  // the sidebar is a picture, and there is none beside the line.
-  await expect(page.locator("main [data-mood]")).toHaveAttribute("data-mood", "working")
-  await expect(page.locator("[data-mood]")).toHaveCount(2)
+  // Its creature, above the chat, is at work. It is the only one of it that moves: the ones in
+  // the sidebar and in the strip are pictures, and there is none beside the line.
+  await expect(
+    page.getByRole("button", { name: "Show Juniper beside the chat" }).locator("[data-mood]"),
+  ).toHaveAttribute("data-mood", "working")
+  await expect(page.locator("[data-mood]")).toHaveCount(3)
 
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("The tool returned:")).toBeVisible()
@@ -199,8 +230,8 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(page.getByRole("status")).toHaveCount(0)
   // Beside its name it says what it is doing in a word or two, not the whole command.
   await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
-  // Put away, the header is back.
-  await panel.getByRole("button", { name: "Hide this panel" }).click()
+  // Put away, from the end of the strip, the header is back.
+  await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
   await expect(panel).toHaveCount(0)
   await expect(header).toBeVisible()
   await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
@@ -224,7 +255,7 @@ test("a scheduled task runs on its own and reports back to the chat it was asked
     page.getByText(/You said: \[You are running the scheduled task "Magic words"/),
   ).toBeVisible()
 
-  await page.getByRole("button", { name: "Automations" }).click()
+  await tab(page, "Automations").click()
   const card = page.getByRole("listitem").filter({ hasText: "Magic words" })
   await expect(card.getByText("Done", { exact: true })).toBeVisible()
   await expect(card.getByText(/reported back/)).toBeVisible()
@@ -241,7 +272,7 @@ test("automations can be paused, run on demand and deleted", async ({ page }) =>
   await page.keyboard.press("Enter")
   await expect(page.getByText(/Scheduled\./)).toBeVisible()
 
-  await page.getByRole("button", { name: "Automations" }).click()
+  await tab(page, "Automations").click()
   const card = page.getByRole("listitem").filter({ hasText: "Stretch break" })
   await expect(card.getByText("Active", { exact: true })).toBeVisible()
   await card.getByRole("button", { name: "Pause" }).click()
@@ -276,7 +307,7 @@ test("opening the agent lands on a chat of yours, not on a scheduled run", async
   )
   await page.keyboard.press("Enter")
   await expect(page.getByText(/Scheduled\./)).toBeVisible()
-  await page.getByRole("button", { name: "Automations" }).click()
+  await tab(page, "Automations").click()
   const card = page.getByRole("listitem").filter({ hasText: "Night watch" })
   await card.getByRole("button", { name: "Run now" }).click()
   await expect(card.getByText(/Last run/)).toBeVisible({ timeout: 15_000 })
@@ -368,7 +399,7 @@ test("the agent saves a skill, and it can be read, switched off and deleted", as
   await page.keyboard.press("Enter")
   await expect(page.getByText('Saved skill "morning-brief".')).toBeVisible()
 
-  await page.getByRole("button", { name: "Skills" }).click()
+  await openSettings(page, "Skills")
   const card = page.getByRole("listitem").filter({ hasText: "morning-brief" })
   await expect(card.getByText("Written by the agent")).toBeVisible()
   await expect(page.getByRole("listitem").filter({ hasText: "writing-skills" })).toContainText(
@@ -384,7 +415,7 @@ test("the agent saves a skill, and it can be read, switched off and deleted", as
 
 test("installing a skill from a bad URL explains what went wrong", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Skills" }).click()
+  await openSettings(page, "Skills")
   await page.getByLabel("Skill URL").fill("https://127.0.0.1:1/not-a-skill/SKILL.md")
   await page.getByRole("button", { name: "Install" }).click()
   await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 })
@@ -460,7 +491,7 @@ test("a document the agent writes opens from the chat, to be read and edited", a
   await expect(page.locator(".prose-doc strong")).toHaveText("Friday")
   await page.screenshot({ path: "test-results/library-document.png" })
 
-  await page.getByRole("button", { name: "Back to chat" }).click()
+  await tab(page, "Chat").click()
   await tool(page, "bash", { command: "cat library/notes/plan.md" }, "Ship it on Friday.")
 
   // And what the agent then writes shows up, with the earlier content kept.
@@ -470,7 +501,7 @@ test("a document the agent writes opens from the chat, to be read and edited", a
     { path: "library/notes/plan.md", content: "# The plan\n\nShipped.\n" },
     "Successfully wrote to library/notes/plan.md",
   )
-  await page.getByRole("button", { name: "Library", exact: true }).click()
+  await tab(page, "Library").click()
   await page
     .getByRole("navigation", { name: "Files" })
     .getByRole("link", { name: "plan.md" })
@@ -502,7 +533,7 @@ test("a page the agent writes is shown as a page, apart from the app", async ({ 
     },
     "made",
   )
-  await page.getByRole("button", { name: "Library", exact: true }).click()
+  await tab(page, "Library").click()
   // The page asks the app who is signed in, the way a hostile page would.
   const asked = page.waitForRequest(
     (request) => request.url().endsWith("/api/me") && request.frame() !== page.mainFrame(),
@@ -544,7 +575,7 @@ test("a page the agent writes is shown as a page, apart from the app", async ({ 
 
 test("the user can add, rename and delete files, and bring one back", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Library", exact: true }).click()
+  await tab(page, "Library").click()
   const files = page.getByRole("navigation", { name: "Files" })
 
   // An upload goes into the folder last clicked.
@@ -617,12 +648,12 @@ test("a file attached to a message is one the agent can open", async ({ page }) 
   await expect(transcript.getByText("rye bread").first()).toBeVisible()
 
   // It is also in the library, with the other things the user attached in chats.
-  await page.getByRole("button", { name: "Library", exact: true }).click()
+  await tab(page, "Library").click()
   const files = page.getByRole("navigation", { name: "Files" })
   await expect(files.getByRole("button", { name: "uploads" })).toBeVisible()
   await expect(files.getByTitle("uploads/shopping.txt")).toBeVisible()
   // And in the agent's own folder, without it having to fetch the file first.
-  await page.getByRole("button", { name: "Back to chat" }).click()
+  await tab(page, "Chat").click()
   await composer(page).fill('/tool bash {"command":"wc -c < library/uploads/shopping.txt"}')
   await composer(page).press("Enter")
   await expect(transcript.getByText("19", { exact: true }).first()).toBeVisible()
@@ -757,7 +788,7 @@ test.describe("pairing a computer", () => {
 
   test("removing the computer cuts the daemon off", async ({ page }) => {
     await signIn(page)
-    await page.getByRole("button", { name: "Computers" }).click()
+    await openWorkspaceSettings(page, "Computers")
     await page.getByRole("button", { name: "Remove test-laptop" }).click()
     await expect(page.getByRole("listitem").filter({ hasText: "test-laptop" })).toHaveCount(0)
     await expect.poll(() => output, { timeout: 10_000 }).toContain("was removed from your account")
@@ -787,13 +818,13 @@ test.describe("connectors", () => {
 
   async function openConnectors(page: Page) {
     await signIn(page)
-    await page.getByRole("button", { name: "Connectors" }).click()
+    await openSettings(page, "Connectors")
     await expect(page.getByRole("heading", { name: "Connectors", exact: true })).toBeVisible()
   }
 
   test("a connector with a token gives the agent its tools", async ({ page }) => {
     await openConnectors(page)
-    await page.getByLabel("Name", { exact: true }).fill("Sums")
+    await page.locator("#connector-name").fill("Sums")
     await page.getByLabel("Server address").fill(`${mcp.origin}/token/mcp`)
     await page.getByLabel("Access token (optional)").fill(FIXED_TOKEN)
     await page.getByRole("button", { name: "Add connector" }).click()
@@ -812,7 +843,7 @@ test.describe("connectors", () => {
 
   test("a wrong token is reported, and the connector can be removed", async ({ page }) => {
     await openConnectors(page)
-    await page.getByLabel("Name", { exact: true }).fill("Locked")
+    await page.locator("#connector-name").fill("Locked")
     await page.getByLabel("Server address").fill(`${mcp.origin}/token/mcp`)
     await page.getByLabel("Access token (optional)").fill("not-the-token")
     await page.getByRole("button", { name: "Add connector" }).click()
@@ -827,14 +858,14 @@ test.describe("connectors", () => {
     page,
   }) => {
     await openConnectors(page)
-    await page.getByLabel("Name", { exact: true }).fill("Calendar")
+    await page.locator("#connector-name").fill("Calendar")
     await page.getByLabel("Server address").fill(`${mcp.origin}/oauth/mcp`)
     await page.getByRole("button", { name: "Add connector" }).click()
 
     // The service's own page, in the same tab.
     await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
     await page.getByRole("link", { name: "Deny" }).click()
-    await expect(page).toHaveURL(/\/a\/[^/]+\/connectors/)
+    await expect(page).toHaveURL(/settings=connectors/)
     await expect(page.getByRole("alert")).toContainText("You said no.")
     const card = page.getByRole("listitem").filter({ hasText: "Calendar" })
     await expect(card.getByText("Needs sign-in")).toBeVisible()
@@ -931,7 +962,7 @@ test("starting fresh keeps the earlier messages within reach", async ({ page }) 
 
 test("an agent told to ask first waits for an answer before it acts", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Permissions" }).click()
+  await openSettings(page, "Permissions")
   const commands = page.getByRole("radiogroup", { name: "Run commands" })
   await expect(commands.getByRole("radio", { name: "Allow" })).toBeChecked()
   await commands.getByRole("radio", { name: "Ask first" }).click()
@@ -971,14 +1002,14 @@ test("an agent told to ask first waits for an answer before it acts", async ({ p
   await expect(waiting).toHaveCount(0)
 
   // Back to trusting it, as the other tests expect.
-  await page.getByRole("button", { name: "Permissions" }).click()
+  await openSettings(page, "Permissions")
   await commands.getByRole("radio", { name: "Allow" }).click()
   await expect(commands.getByRole("radio", { name: "Allow" })).toBeChecked()
 })
 
 test("the settings page shows what the agent's thinking has cost", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Identity and memory" }).click()
+  await openSettings(page, "Usage")
   const usage = page.getByRole("region", { name: "Usage" })
   await expect(usage.getByRole("table", { name: "Usage by model" })).toBeVisible()
   // The built-in echo model is free, and says so.
@@ -1023,7 +1054,7 @@ test("a second agent can be made, and deleted without touching the first", async
   const second = page.url().match(/\/a\/([^/]+)/)![1]!
   await expect(page.getByText("It has no name yet")).toBeVisible()
 
-  await page.getByRole("button", { name: "Identity and memory" }).click()
+  await openSettings(page, "Move or delete")
   await page.getByRole("button", { name: "Delete agent…" }).click()
   const confirm = page.getByRole("button", { name: "Delete for good" })
   await expect(confirm).toBeDisabled()
@@ -1108,7 +1139,7 @@ test("chatting works over plain http, where the browser withholds some features"
   ).toBeVisible()
 
   // The command to pair a computer can still be copied, by selecting it.
-  await page.getByRole("button", { name: "Computers" }).click()
+  await openWorkspaceSettings(page, "Computers")
   await page.getByRole("button", { name: "Copy command" }).first().click()
   await expect(page.getByText(/Selected\. Press/)).toBeVisible()
   expect(await page.evaluate(() => window.getSelection()?.toString())).toContain("install.sh")
@@ -1215,7 +1246,7 @@ test.describe("choosing a model", () => {
   test("an agent's model is picked from a list that narrows as you type", async ({ page }) => {
     await stubModels(page)
     await signIn(page)
-    await page.getByRole("button", { name: "Identity and memory" }).click()
+    await openSettings(page, "Model and computer")
     const picker = page.getByRole("combobox", { name: "Model" })
     await expect(picker).toHaveValue("Echo (no model key configured)")
 
@@ -1265,7 +1296,7 @@ test.describe("choosing a model", () => {
 
   test("how hard an agent thinks is chosen under its model", async ({ page }) => {
     await signIn(page)
-    await page.getByRole("button", { name: "Identity and memory" }).click()
+    await openSettings(page, "Model and computer")
     const thinking = page.getByRole("group", { name: "Thinking" })
     // The echo model does not reason, so there is nothing to choose.
     await expect(thinking).toContainText("does not think")
@@ -1292,11 +1323,11 @@ test.describe("choosing a model", () => {
     await expect(thinking.getByRole("radio")).toHaveCount(3)
     // The agent is on medium, which this model lacks; it would use the next one up.
     await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
-    // Choosing moves nothing: the page around the form stays where it was.
-    const rail = page.getByRole("button", { name: "Identity and memory" })
-    const before = await rail.boundingBox()
+    // Choosing moves nothing: the form stays where it was.
+    const save = page.getByRole("button", { name: "Save changes" })
+    const before = await save.boundingBox()
     await thinking.getByText("Max").click()
-    expect(await rail.boundingBox()).toEqual(before)
+    expect(await save.boundingBox()).toEqual(before)
     await page.getByRole("button", { name: "Save changes" }).click()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible()
     await page.reload()
@@ -1306,7 +1337,7 @@ test.describe("choosing a model", () => {
   test("the default for new agents is set once, under Settings", async ({ page }) => {
     await stubModels(page)
     await signIn(page)
-    await page.getByRole("button", { name: "Settings" }).click()
+    await openWorkspaceSettings(page, "New agents")
     await expect(page.getByRole("heading", { name: "Default model" })).toBeVisible()
     const picker = page.getByRole("combobox", { name: "Default model" })
     await expect(picker).toHaveValue("Echo (no model key configured)")
@@ -1368,7 +1399,7 @@ test.describe("choosing a computer", () => {
     await page.keyboard.press("Enter")
     await expect(page.getByRole("log")).toContainText("kept.txt")
 
-    await page.getByRole("button", { name: "Identity and memory" }).click()
+    await openSettings(page, "Model and computer")
     const section = page.getByRole("region", { name: "Computer" })
     // It is not moved in the middle of an answer, and says why.
     await expect
@@ -1409,7 +1440,7 @@ test.describe("choosing a computer", () => {
     await section.getByRole("radio", { name: "Built-in shell" }).check()
     await page.getByRole("button", { name: "Save changes" }).click()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible()
-    await page.getByRole("link", { name: "Back to chat" }).click()
+    await closeSettings(page)
     await page.waitForURL(/\/c\/\d+$/)
     await newChat(page)
     await composer(page).fill('/tool bash {"command":"cat kept.txt"}')
@@ -1428,7 +1459,7 @@ test.describe("choosing a computer", () => {
 
   test("the kind a new agent gets is set once, under Settings", async ({ page }) => {
     await signIn(page)
-    await page.getByRole("button", { name: "Settings" }).click()
+    await openWorkspaceSettings(page, "New agents")
     const section = page.getByRole("region", { name: "Default computer" })
     await expect(section.getByRole("radio", { name: "Built-in shell" })).toBeChecked()
     await expect(section.getByText("this server’s default")).toBeVisible()
@@ -1445,7 +1476,7 @@ test.describe("choosing a computer", () => {
 
     // A new agent starts there. The ones that exist are where they were.
     const first = agentIn(page)
-    await page.getByRole("link", { name: "Back to chat" }).click()
+    await closeSettings(page)
     const made = await newAgent(page)
     expect((await stateOf(page, made)).computer).toBe("none")
     expect((await stateOf(page, first)).computer).toBe("just-bash")
@@ -1463,7 +1494,7 @@ test.describe("choosing a computer", () => {
   })
 })
 
-test("the chat list is put away until it is asked for, and stays how it was left", async ({
+test("the sidebar is put away until it is asked for, and stays how it was left", async ({
   browser,
   baseURL,
 }) => {
@@ -1475,7 +1506,7 @@ test("the chat list is put away until it is asked for, and stays how it was left
   // The agent has the room instead: its panel is open beside the chat, and stays shut once hidden.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
-  await panel.getByRole("button", { name: "Hide this panel" }).click()
+  await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
   await page.reload()
   await expect(composer(page)).toBeVisible()
   await expect(panel).toHaveCount(0)
@@ -1489,12 +1520,12 @@ test("the chat list is put away until it is asked for, and stays how it was left
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
 
   // Asked for, it is beside the chat, and still there after a reload.
-  await page.getByRole("button", { name: "Agents", exact: true }).click()
+  await page.getByRole("button", { name: "Show the sidebar" }).click()
   await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Agents", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Show the sidebar" })).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
-  await page.getByRole("button", { name: "Hide chats" }).click()
+  await page.getByRole("button", { name: "Hide the sidebar" }).click()
   await expect(page.getByRole("searchbox", { name: "Search chats" })).toHaveCount(0)
   await context.close()
 })
@@ -1524,7 +1555,8 @@ test("a reply that fails is said plainly, with the provider's answer behind Deta
 
 test("signing out ends the session", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Sign out" }).click()
+  await page.getByRole("button", { name: /settings and signing out$/ }).click()
+  await page.getByRole("menuitem", { name: "Sign out" }).click()
   await expect(page).toHaveURL(/\/login$/)
   await page.goto("/")
   await expect(page).toHaveURL(/\/login$/)
@@ -1533,18 +1565,18 @@ test("signing out ends the session", async ({ page }) => {
 test("the layout works at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 800 })
   await signIn(page)
-  await page.getByRole("button", { name: "Agents" }).click()
-  // The agent's pages are a menu that fits the sheet.
-  const pages = page.getByRole("navigation", { name: "Pages" })
-  await expect(pages.getByRole("link")).toHaveCount(8)
-  // Measured once the sheet has finished sliding in.
+  // The agent's pages are tabs across the top, and fit the screen.
+  const pages = page.getByRole("navigation", { name: "Juniper's pages" })
+  await expect(pages.getByRole("link")).toHaveCount(3)
+  for (const link of await pages.getByRole("link").all()) {
+    const box = (await link.boundingBox())!
+    expect(box.x + box.width).toBeLessThanOrEqual(400)
+  }
+  // The sidebar is a sheet from the side. Measured once it has finished sliding in.
+  await page.getByRole("button", { name: "Agents and chats" }).click()
   await expect(async () => {
     const sheet = (await page.getByRole("dialog").boundingBox())!
     expect(sheet.x).toBe(0)
-    for (const link of await pages.getByRole("link").all()) {
-      const box = (await link.boundingBox())!
-      expect(box.x + box.width).toBeLessThanOrEqual(sheet.x + sheet.width)
-    }
   }).toPass()
   // Only an agent's latest chats are listed until the rest are asked for.
   await page.getByRole("button", { name: /older chats?$/ }).click()

@@ -151,7 +151,7 @@ Since then, newest last:
    On mobile it is `apps/mobile/src/components/avatar.tsx`, through `expo-gl`.
 8. **The layout the owner asked for, after Muse.** On a wide screen (1280 px and up) a panel on
    the right of the chat holds the creature, the agent's name, a few words on what it is doing,
-   and what it did in this chat. The chat list starts closed behind a "Chats" button. The header
+   and what it did in this chat. The sidebar starts closed, behind a button at the start of the agent's strip. The header
    above the chat exists only when the panel is closed, and pressing it reopens the panel. Only
    one copy of the creature is ever animated; elsewhere it is a still picture.
 9. **The daemon starts with only the server's address.** It used to ignore the address unless
@@ -262,11 +262,22 @@ Since then, newest last:
       in memory. The same socket tells open tabs when the team changes. It is reached at
       `/api/presence/<team>`, which the server entries route before the framework, as they do
       for daemons; the gateway checks the session, the membership and the page's origin.
-    - **The web app** has a workspace menu at the top of the rail and no agent switcher: the
-      side column lists the workspace's agents, each with its chats folded under it on one line
-      each. The end of a chat's row is a spinner while there is work going on in it, else when
-      it was last used. A team has a home (`/w/<id>`), a page for its people, and an
-      invitation page (`/invite/<token>`) that can be read before signing in.
+    - **The web app** has one sidebar and no rail. The workspace menu is at its top; under it
+      are the workspace's agents, each with its chats folded under it on one line each; at its
+      foot is the user's own menu, which leads to the workspace's settings. The end of a chat's
+      row is a spinner while there is work going on in it, else when it was last used. A team
+      has no page of its own: `/w/<id>` goes to its first agent, and stops only where there is
+      none yet. Its people are a section of the workspace's settings. The invitation page
+      (`/invite/<token>`) can be read before signing in.
+    - **An agent's pages** are tabs in a strip above them (`components/shell/agent-strip.tsx`):
+      Chat, Library and Automations. The strip also has the agent's name, which opens a menu of
+      the other agents and its recent chats, the way into its settings, and the switch for its
+      panel. The panel is beside every tab, and on the Library tab the sidebar's list is the
+      library's files, put there through a portal (`sidebarSlotAtom`), so changing tab moves
+      nothing. Settings are windows over the page, opened by the address: `?settings=<section>`
+      for the agent (`components/settings/agent-settings.tsx`) and `?workspace=<section>` for
+      the workspace. The old page addresses (`/a/<id>/skills` and the like) redirect to them.
+      The mock-up this was built from is in `prototypes/agent-pages`.
 
 ## 6. What the owner has said they want
 

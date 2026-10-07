@@ -13,7 +13,6 @@ import {
   CheckCircleIcon,
   CircleNotchIcon,
   WarningCircleIcon,
-  XIcon,
 } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
@@ -133,10 +132,10 @@ export function AgentPanel({
   face,
   reconnecting,
   startFresh,
-  onClose,
   subagent,
   subagents,
   presence,
+  chatless = false,
 }: {
   agent: AgentSummary
   state: ChatState
@@ -146,7 +145,6 @@ export function AgentPanel({
   reconnecting: boolean
   /** Starts the chat's context over, where there is something to start over from. */
   startFresh: { title: string; disabled: boolean; run: () => void } | undefined
-  onClose: () => void
   /** Set in a sub-agent's chat: the panel is then about it, not about its agent. */
   subagent?: {
     chatId: string
@@ -158,6 +156,8 @@ export function AgentPanel({
   subagents: ChatSummary[]
   /** In a team: who is in this chat right now. Shown above what the agent did. */
   presence?: React.ReactNode
+  /** Beside a page that is not a chat: there is then no work here to list. */
+  chatless?: boolean
 }) {
   const mood = useAtomValue(
     mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
@@ -177,15 +177,6 @@ export function AgentPanel({
       aria-label={`About ${name}`}
       className="relative flex w-80 shrink-0 flex-col border-l bg-rail/40"
     >
-      <button
-        type="button"
-        aria-label="Hide this panel"
-        title="Hide"
-        onClick={onClose}
-        className="absolute top-3 right-3 z-10 rounded-full p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
-      >
-        <XIcon className="size-4" />
-      </button>
       <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
         {face}
         {subagent === undefined ? <SubagentBrood agentId={agent.id} subagents={subagents} /> : null}
@@ -225,7 +216,7 @@ export function AgentPanel({
         </div>
       )}
       {presence}
-      <div className="flex min-h-0 flex-1 flex-col border-t">
+      <div hidden={chatless} className="flex min-h-0 flex-1 flex-col border-t">
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           What it did here
         </h3>
