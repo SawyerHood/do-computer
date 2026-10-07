@@ -7,7 +7,7 @@ import {
 import { ListIcon, SidebarSimpleIcon } from "@phosphor-icons/react"
 import { useLocation, useParams, useRouteContext } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
-import { type PrimitiveAtom, useAtom } from "jotai"
+import { type PrimitiveAtom, useAtom, useAtomValue } from "jotai"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { AgentSettings } from "@/components/settings/agent-settings"
 import { WorkspaceSettings } from "@/components/settings/workspace-settings"
@@ -15,8 +15,10 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { agentPanelOpenAtom, sidebarOpenAtom } from "@/lib/atoms"
 import { agentsCollection } from "@/lib/collections"
+import { sidebarColumn } from "@/lib/columns"
 import { usePresence, useWorkspaces } from "@/lib/workspaces"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
+import { ResizeHandle } from "./resize-handle.tsx"
 import { Sidebar } from "./sidebar.tsx"
 
 /**
@@ -109,6 +111,7 @@ export function AppShell({
   usePresence(workspace.id, { agentId: agent?.id ?? null, chatId: chatId ?? null })
 
   const [sidebarOpen, toggleSidebar] = useRemembered(sidebarOpenAtom, "dc-chat-list")
+  const sidebarWidth = useAtomValue(sidebarColumn.width)
   // The panel's switch is in the strip, so what it was left as is kept from here.
   useRemembered(agentPanelOpenAtom, "dc-agent-panel")
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -126,7 +129,10 @@ export function AppShell({
         <style>{`:root{--agent-color:${avatarLook(agent.avatar, agent.id).color}}`}</style>
       )}
       {sidebarOpen ? (
-        <aside className="hidden w-72 shrink-0 border-r bg-rail/60 md:block">
+        <aside
+          className="relative hidden shrink-0 border-r bg-rail/60 md:block"
+          style={{ width: sidebarWidth }}
+        >
           <Sidebar
             workspace={workspace}
             me={me.user}
@@ -134,6 +140,7 @@ export function AppShell({
             library={agent !== undefined && page === "library"}
             onCollapse={toggleSidebar}
           />
+          <ResizeHandle column={sidebarColumn} edge="right" label="Resize the sidebar" />
         </aside>
       ) : null}
 

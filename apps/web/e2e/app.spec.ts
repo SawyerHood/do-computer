@@ -1509,6 +1509,73 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   await context.close()
 })
 
+test("the sidebar and the agent's panel are dragged by their edges, and stay as wide as left", async ({
+  page,
+}) => {
+  await signIn(page)
+  const sidebar = page
+    .locator("aside")
+    .filter({ has: page.getByRole("heading", { name: "Agents" }) })
+  const edge = page.getByRole("separator", { name: "Resize the sidebar" })
+  const width = async (of: typeof sidebar) => {
+    await of.waitFor()
+    return Math.round((await of.boundingBox())!.width)
+  }
+  /** Take hold of an edge and move it sideways by so many pixels. */
+  const drag = async (handle: typeof edge, by: number) => {
+    const box = (await handle.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + by, y, { steps: 4 })
+    await page.mouse.up()
+  }
+  expect(await width(sidebar)).toBe(288)
+
+  // Its edge follows the pointer, and the chat has what room is left.
+  await drag(edge, 72)
+  expect(await width(sidebar)).toBe(360)
+  await expect(edge).toHaveAttribute("aria-valuenow", "360")
+  // It goes no further than its bounds, either way.
+  await drag(edge, 600)
+  expect(await width(sidebar)).toBe(448)
+  await drag(edge, -600)
+  expect(await width(sidebar)).toBe(208)
+  // The arrow keys move it too.
+  await edge.focus()
+  await page.keyboard.press("ArrowRight")
+  await page.keyboard.press("ArrowRight")
+  expect(await width(sidebar)).toBe(240)
+
+  // The agent's panel is dragged by its other edge: to the left is wider.
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  const panel = page.getByRole("complementary", { name: "About Juniper" })
+  const panelEdge = page.getByRole("separator", { name: "Resize Juniper's panel" })
+  expect(await width(panel)).toBe(320)
+  await drag(panelEdge, -80)
+  expect(await width(panel)).toBe(400)
+
+  // Both are as they were left after a reload, and the panel is as wide beside another tab.
+  await page.reload()
+  await expect(composer(page)).toBeVisible()
+  expect(await width(sidebar)).toBe(240)
+  // These tests put the panel away on every load, so it is asked for again.
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  expect(await width(panel)).toBe(400)
+  await tab(page, "Automations").click()
+  await page.waitForURL(/\/automations$/)
+  expect(await width(panel)).toBe(400)
+  await tab(page, "Chat").click()
+  await expect(composer(page)).toBeVisible()
+
+  // Pressing an edge twice puts its column back to the width it started at.
+  await edge.dblclick()
+  expect(await width(sidebar)).toBe(288)
+  await panelEdge.dblclick()
+  expect(await width(panel)).toBe(320)
+})
+
 test("a reply that fails is said plainly, with the provider's answer behind Details", async ({
   page,
 }) => {

@@ -16,6 +16,8 @@ import {
 } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
+import { ResizeHandle } from "@/components/shell/resize-handle"
+import { agentPanelColumn } from "@/lib/columns"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
@@ -162,6 +164,7 @@ export function AgentPanel({
   const mood = useAtomValue(
     mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
   )
+  const width = useAtomValue(agentPanelColumn.width)
   // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
@@ -175,8 +178,10 @@ export function AgentPanel({
   return (
     <aside
       aria-label={`About ${name}`}
-      className="relative flex w-80 shrink-0 flex-col border-l bg-rail/40"
+      className="relative flex shrink-0 flex-col border-l bg-rail/40"
+      style={{ width }}
     >
+      <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
       {/* Rarely wanted, so it is out of the way in the corner. */}
       {startFresh === undefined ? null : (
         <button
