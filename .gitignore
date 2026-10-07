@@ -27,3 +27,6 @@ packages/mascot/demo/mascot.html
 
 # The console-mascot UI prototype, built from prototypes/console-ui/src
 prototypes/console-ui/index.html
+
+# The teams mock-up, built from prototypes/teams/src
+prototypes/teams/index.html
