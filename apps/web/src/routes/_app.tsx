@@ -1,8 +1,9 @@
 import { ApiError } from "@durable-computer/client"
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
+import { createFileRoute, Outlet, redirect, useRouter } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppSkeleton } from "@/components/shell/app-skeleton"
 import { agentQuery, agentsQuery, meKey, meQuery } from "@/lib/collections"
+import { syncNotifications } from "@/lib/notifications"
 import { queryClient } from "@/lib/query"
 import { validateAppSearch } from "@/lib/settings"
 import { warmChat } from "@/lib/use-live-chat"
@@ -44,7 +45,8 @@ export const Route = createFileRoute("/_app")({
 /**
  * The pages behind sign-in. A session that ends while one is open is found out by the next
  * thing asked for, which is refused. The page is then loaded again at the sign-in, so that
- * nothing of the session is left in it.
+ * nothing of the session is left in it. Being signed in is also when the browser is set up to
+ * be notified.
  */
 function SignedIn() {
   useEffect(() => {
@@ -62,5 +64,19 @@ function SignedIn() {
       mutations()
     }
   }, [])
+  const router = useRouter()
+  useEffect(() => {
+    void syncNotifications()
+    if (!("serviceWorker" in navigator)) return
+    // A notification was tapped while the app was open: the service worker says which page it
+    // was about.
+    const opened = (event: MessageEvent) => {
+      const data = event.data as { type?: unknown; path?: unknown } | null
+      if (data?.type !== "dc-open" || typeof data.path !== "string") return
+      router.history.push(data.path)
+    }
+    navigator.serviceWorker.addEventListener("message", opened)
+    return () => navigator.serviceWorker.removeEventListener("message", opened)
+  }, [router])
   return <Outlet />
 }

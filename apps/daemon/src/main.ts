@@ -1,5 +1,5 @@
 /**
- * The durable computer daemon. Run it on one of your own machines to let one of your agents work
+ * The Do Computer daemon. Run it on one of your own machines to let one of your agents work
  * there.
  *
  * The first run pairs: it prints a code and a link, you confirm while signed in and choose the

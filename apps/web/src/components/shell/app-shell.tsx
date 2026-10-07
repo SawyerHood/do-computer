@@ -142,7 +142,7 @@ export function AppShell({
   })
 
   return (
-    <div ref={setShell} className="flex h-dvh min-h-0">
+    <div ref={setShell} className="flex h-full min-h-0">
       {/* The accent follows the open agent. Set on the root, so windows and menus have it too. */}
       {agent === undefined ? null : (
         <style>{`:root{--agent-color:${avatarLook(agent.avatar, agent.id).color}}`}</style>

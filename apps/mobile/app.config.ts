@@ -1,7 +1,7 @@
 import type { ExpoConfig } from "expo/config"
 
 const config: ExpoConfig = {
-  name: "durable computer",
+  name: "Do Computer",
   slug: "durable-computer",
   // Must match MOBILE_SCHEME in apps/web/src/server/auth.ts, which trusts sign-ins from it.
   scheme: "durablecomputer",

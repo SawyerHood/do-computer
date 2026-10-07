@@ -489,9 +489,9 @@ function invitationText(
   note: string | null,
 ): { subject: string; text: string } {
   return {
-    subject: `${from} invited you to ${team} on durable computer`,
+    subject: `${from} invited you to ${team} on Do Computer`,
     text: [
-      `${from} invited you to join ${team} on durable computer, where you would share its agents and their chats.`,
+      `${from} invited you to join ${team} on Do Computer, where you would share its agents and their chats.`,
       ...(note === null ? [] : ["", `"${note}"`]),
       "",
       `Join here: ${link}`,

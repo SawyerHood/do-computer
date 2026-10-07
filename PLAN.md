@@ -41,7 +41,7 @@ for actor hosts, the app database and sandboxes passing on both.
 | Teams               | Workspaces: one's own, and teams with owner, admin and member; invitations by email or GitHub username; shared agents and chats with authors; who is where     |
 | Web                 | Chat, chat list and search, library, automations, skills, connectors, computers, permissions, identity and memory, usage                                       |
 | Mobile              | Expo app: sign-in, streaming chat, dictation, library, automations, skills, push registration, approval requests                                               |
-| Dictation and push  | Transcription through OpenRouter with the deployment key; notifications through Expo's push service                                                            |
+| Dictation and push  | Transcription through OpenRouter with the deployment key; notifications through Expo's push service and, in browsers, Web Push                                 |
 
 ### Where the build departed from the plan
 

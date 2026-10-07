@@ -11,11 +11,19 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "durable computer" },
+      { title: "Do Computer" },
+      // What the app is called and colored when it is on a phone's home screen, or installed.
+      { name: "application-name", content: "Do Computer" },
+      { name: "apple-mobile-web-app-title", content: "Do Computer" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#121415" },
+      { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#f8fbfb" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   notFoundComponent: () => (

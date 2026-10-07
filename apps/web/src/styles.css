@@ -114,6 +114,15 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  /*
+   * Opened from a phone's home screen, the page reaches the bottom edge of the glass, under the
+   * bar the phone draws there to go home by. The page ends above it.
+   */
+  @media (display-mode: standalone) {
+    body {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;

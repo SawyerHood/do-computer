@@ -162,6 +162,12 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     "CREATE INDEX dc_computer_folders_by_agent ON dc_computer_folders (agent_id)",
   ],
+  [
+    // A browser is a device to notify too. Its token is the address its push service gave it,
+    // and these are the keys a message to it is encrypted with. Both are null for a phone.
+    "ALTER TABLE dc_push_tokens ADD COLUMN p256dh TEXT",
+    "ALTER TABLE dc_push_tokens ADD COLUMN auth TEXT",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

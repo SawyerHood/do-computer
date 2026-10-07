@@ -56,7 +56,7 @@ export function webSearchExtension(options: WebSearchOptions): Extension {
           headers: {
             authorization: `Bearer ${options.apiKey}`,
             "content-type": "application/json",
-            "x-title": "durable computer",
+            "x-title": "Do Computer",
           },
           body: JSON.stringify({
             model: options.model,

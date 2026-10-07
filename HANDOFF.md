@@ -10,7 +10,7 @@ the repository is made public.
 
 ## 1. What this is
 
-durable computer is an open-source, self-hostable personal agent: a version of Meta's Muse built
+Do Computer is an open-source, self-hostable personal agent: a version of Meta's Muse built
 on the pi-durable harness, with OpenRouter for models. Each user has persistent agents with a
 name, a personality, memory, scheduled automations, skills, connectors (remote MCP servers) and
 the user's own paired computers. An agent has no computer of its own: it works on the machines
@@ -502,6 +502,40 @@ Since then, newest last:
     - **Not done.** The gateway still does not know an agent's main chat, so an agent that has
       never been open in this browser takes two trips (its state, then its chat). The native
       mobile app was not changed.
+
+21. **Notifications in the browser, and the web app on a home screen** (2026-10-07). The owner
+    asked for web notifications, and whether they would work with the app set up as a PWA on
+    iOS and Android. They do: the server already notified the Expo app (`server/push.ts`), and a
+    browser is now one more kind of device there.
+    - **Web Push with nothing to set up** (`server/web-push.ts`). The message is encrypted for
+      the browser (RFC 8291) and the request signed with the deployment's own keys (VAPID), all
+      with WebCrypto, so it is the same code on Node and Workers and there is no library. The
+      keys are made the first time they are needed and kept in `dc_meta`, not in the
+      environment: a deployment gets notifications without a new secret.
+    - **A browser's subscription is a row in `dc_push_tokens`**: its token is the address its
+      push service gave it, with the two keys beside it. A row a push service answers 404 or 410
+      for is deleted. The address comes from the browser, so it is checked like a connector's
+      (`checkAddress`) and redirects from it are not followed.
+    - **In the browser** (`lib/notifications.ts`, `public/sw.js`): the service worker shows what
+      is pushed and, when tapped, asks an open window to go to the page or opens one. It handles
+      no requests, so nothing is cached. It is registered once someone is signed in; a browser
+      that is already subscribed is then registered to whoever that is, and signing out takes it
+      off the account without unsubscribing it. Turned on under the user's name, **Notifications**
+      (`components/settings/notifications.tsx`), which also sends a test.
+    - **The app on a home screen**: `public/manifest.webmanifest`, icons, and the tags in
+      `routes/__root.tsx`. An iPhone only delivers notifications to a site added to the Home
+      Screen, and the settings say so there. Opened that way the page ends above the phone's
+      home bar (`styles.css`), which is why the frame is `h-full` of the body and not `h-dvh`.
+    - **The app is called Do Computer.** The owner said so when they saw "durable" under the
+      home screen icon. That is the name wherever a person reads one: the page's title, the
+      manifest, notifications, invitations, sign-in, the name given to connectors and to
+      OpenRouter, the mobile app and the daemon's service. The repository and its packages keep
+      `durable-computer`.
+    - **Checked:** the encryption against the example in the RFC; a real push service
+      (Mozilla's) taking a message signed this way and delivering it, and refusing a stranger's
+      key; and on the Workers dev server, an agent's answer in a chat nobody had open arriving
+      at a fake push service. **Not checked:** a real phone, Apple's and Google's push services,
+      and how the installed app looks on iOS.
 
 ## 6. What the owner has said they want
 

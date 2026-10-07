@@ -61,7 +61,7 @@ export function AppSkeleton() {
   const page = useLocation({ select: (location) => location.pathname.split("/").at(-1) })
   const chat = page !== "library" && page !== "automations" && page !== "pair"
   return (
-    <div data-loading aria-busy="true" aria-label="Loading" className="flex h-dvh min-h-0">
+    <div data-loading aria-busy="true" aria-label="Loading" className="flex h-full min-h-0">
       <aside
         className="hidden shrink-0 flex-col border-r bg-rail/60 md:[[data-sidebar=open]_&]:flex"
         style={{ width: "var(--kept-sidebar, 288px)" }}
