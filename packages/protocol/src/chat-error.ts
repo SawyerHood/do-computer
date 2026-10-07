@@ -210,10 +210,14 @@ export function describeChatError(error: string | undefined): ChatErrorView {
     numbers([...valuesOf(objects, "status"), ...valuesOf(objects, "code")]).find(isStatus)
 
   const haystack = raw.toLowerCase()
-  const kind =
+  const found =
     BY_WORDS.find(([, words]) => words.test(haystack))?.[0] ??
     (status === undefined ? undefined : byStatus(status)) ??
     "unknown"
+  // A model is served by several providers. When one of them says it does not have the model,
+  // that is its trouble: the next try goes to another, and the model is still there to pick.
+  const kind =
+    found === "modelGone" && /provider returned error/.test(haystack) ? "provider" : found
 
   // The innermost message is the provider's own; the ones around it are wrappers'.
   const said = strings(valuesOf(objects, "message")).filter(readable).at(-1)
@@ -264,20 +268,34 @@ function isBareFailure(message: ChatMessage): boolean {
   )
 }
 
+/** A reply the agent got to give: the try that came after a failed one, and worked. */
+function isReply(message: ChatMessage | undefined): boolean {
+  return message?.role === "assistant" && message.status !== "error"
+}
+
 /**
  * Fold failures that follow one another into the last of them, with how many there were, so that
  * a reply that failed four times is said once.
+ *
+ * A failed try is tried again without anyone asking, and each try is kept in the chat. One that
+ * was followed by a reply, or that is being tried again while the agent is still `busy`, is
+ * nothing a person has to hear about: it is left out.
  */
 export function foldFailures(
   messages: readonly ChatMessage[],
+  busy = false,
 ): { message: ChatMessage; failures: number }[] {
   const folded: { message: ChatMessage; failures: number }[] = []
   let failures = 0
   messages.forEach((message, index) => {
-    const next = messages[index + 1]
+    const next = messages.slice(index + 1).find((later) => later.role !== "notice")
     if (isBareFailure(message)) {
       failures++
       if (next !== undefined && isBareFailure(next)) return
+      if (next === undefined ? busy : isReply(next)) {
+        failures = 0
+        return
+      }
     }
     folded.push({ message, failures: message.status === "error" ? Math.max(failures, 1) : 0 })
     failures = 0

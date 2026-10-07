@@ -291,7 +291,7 @@ export function Transcript({
   // What the agent is doing, when its answer is not already being written on screen.
   const activity = chatActivity(state)
   const lastSent = state.messages.findLast((message) => message.role === "user")?.id
-  const shown = foldFailures(state.messages.filter(isVisibleMessage))
+  const shown = foldFailures(state.messages.filter(isVisibleMessage), state.busy)
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <FollowSends lastSent={lastSent} />

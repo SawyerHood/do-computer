@@ -200,8 +200,8 @@ export function Transcript({
   // and thinking are this one line while they happen, and nothing afterwards.
   const activity = chatActivity(state)
   const messages = useMemo(
-    () => foldFailures(state.messages.filter(isVisibleMessage)),
-    [state.messages],
+    () => foldFailures(state.messages.filter(isVisibleMessage), state.busy),
+    [state.messages, state.busy],
   )
   // Follow new content at the end. Earlier messages arriving at the top change the first message
   // and not the last, and must not pull the reader back down.

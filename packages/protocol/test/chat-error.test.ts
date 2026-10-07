@@ -3,6 +3,7 @@ import { type ChatMessage, describeChatError, foldFailures } from "../src/index.
 
 const OVERLOADED = `503: {"message":"Provider returned error","code":503,"metadata":{"raw":"{\\"error\\":{\\"code\\":\\"service_overloaded\\",\\"message\\":\\"The backend is temporarily overloaded. Please retry.\\",\\"param\\":null,\\"type\\":\\"server_error\\"}}","provider_name":"Meta","is_byok":false,"provider_error_code":"service_overloaded","retry_after_seconds":60,"retry_after_seconds_raw":60,"headers":{"Retry-After":"60"}}} {"error":{"code":"service_overloaded","message":"The backend is temporarily overloaded. Please retry.","param":null,"type":"server_error"}}`
 const INTERNAL = `502: {"message":"Provider returned error","code":502,"metadata":{"raw":"{\\"error\\":{\\"code\\":null,\\"message\\":\\"internal server error\\",\\"param\\":null,\\"type\\":\\"server_error\\"}}","provider_name":"Meta","is_byok":false}} {"error":{"code":null,"message":"internal server error","param":null,"type":"server_error"}}`
+const NOT_SERVED = `404: {"message":"Provider returned error","code":404,"metadata":{"raw":"{\\"error\\":{\\"code\\":404,\\"message\\":\\"Publisher model was not found\\",\\"status\\":\\"NOT_FOUND\\"}}","provider_name":"Google","is_byok":false}}`
 
 describe("describeChatError", () => {
   it("says an overloaded provider plainly, and keeps what it answered for a closer look", () => {
@@ -22,6 +23,14 @@ describe("describeChatError", () => {
     expect(describeChatError(INTERNAL)).toMatchObject({
       kind: "provider",
       facts: ["502", "Meta"],
+      retryable: true,
+    })
+  })
+
+  it("does not call a model gone when one provider of it says so", () => {
+    expect(describeChatError(NOT_SERVED)).toMatchObject({
+      kind: "provider",
+      facts: ["404", "Google"],
       retryable: true,
     })
   })
@@ -118,5 +127,27 @@ describe("foldFailures", () => {
       ["b", 1],
       ["c", 1],
     ])
+  })
+
+  const said = (id: string): ChatMessage => ({
+    id,
+    role: "assistant",
+    parts: [{ type: "text", text: "On it" }],
+    status: "done",
+  })
+
+  it("leaves out a failure that was tried again and got its reply", () => {
+    const folded = foldFailures([user("u1"), failed("a"), failed("b"), said("c"), failed("d")])
+    expect(folded.map(({ message, failures }) => [message.id, failures])).toEqual([
+      ["u1", 0],
+      ["c", 0],
+      ["d", 1],
+    ])
+  })
+
+  it("leaves out a failure that is being tried again", () => {
+    const messages = [user("u1"), said("a"), failed("b")]
+    expect(foldFailures(messages, true).map(({ message }) => message.id)).toEqual(["u1", "a"])
+    expect(foldFailures(messages, false).map(({ message }) => message.id)).toEqual(["u1", "a", "b"])
   })
 })
