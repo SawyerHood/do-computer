@@ -101,6 +101,7 @@ function Hatchling({
       hatched={hatch.phase === "out"}
       hatching={hatch.phase === "hatching"}
       onHatched={hatch.hatched}
+      pettable
     />
   )
   if (hatch.phase === "out") return face
@@ -288,8 +289,8 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     sub === undefined && live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
   const startFreshTitle =
     "Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
-  // An empty chat has the creature in its middle, so the one in the header holds still: there is
-  // only ever one of it moving.
+  // An empty chat has the creature in its middle, so the one in the header, right above it, holds
+  // still.
   const welcoming = live.loaded && state.messages.length === 0 && !state.busy
   const identity = (
     <>

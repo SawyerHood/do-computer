@@ -152,8 +152,9 @@ Since then, newest last:
 8. **The layout the owner asked for, after Muse.** On a wide screen (1280 px and up) a panel on
    the right of the chat holds the creature, the agent's name, a few words on what it is doing,
    and what it did in this chat. The sidebar starts closed, behind a button at the start of the agent's strip. The header
-   above the chat exists only when the panel is closed, and pressing it reopens the panel. Only
-   one copy of the creature is ever animated; elsewhere it is a still picture.
+   above the chat exists only when the panel is closed, and pressing it reopens the panel. The
+   creature moves in the panel, where it can also be petted, and beside each agent in the
+   sidebar; elsewhere it is a still picture.
 9. **The daemon starts with only the server's address.** It used to ignore the address unless
    `--name` was also given, so the install command the app shows did nothing.
 10. **The list of what the agent did** (`packages/agent/src/log.ts`). The agent writes the

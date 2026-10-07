@@ -83,7 +83,7 @@ export function SubagentHero({
 }) {
   const seed = subagentSeed(agentId, chatId)
   const mood = useAtomValue(mascotMoodAtom(seed))
-  return <AgentAvatar avatar={null} seed={seed} className={className} mood={mood} />
+  return <AgentAvatar avatar={null} seed={seed} className={className} mood={mood} pettable />
 }
 
 function StatusMark({ status }: { status: SubagentStatus | undefined }) {

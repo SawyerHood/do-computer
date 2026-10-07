@@ -257,6 +257,49 @@
   }
 }
 
+/* A heart from petting an agent's creature: it rises from the hand in a few steps, like the creature moves. */
+.pet-heart {
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.22));
+  animation: pet-heart 1.1s steps(14, end) forwards;
+}
+
+@keyframes pet-heart {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--drift) * 12%), -130%) scale(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift) * 60%), -420%) scale(0.85);
+  }
+}
+
+@keyframes pet-heart-calm {
+  from,
+  to {
+    opacity: 0;
+    transform: translate(-50%, -130%);
+  }
+  25%,
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -130%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-heart {
+    animation: pet-heart-calm 1.1s linear forwards;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-shine {
     background: none;

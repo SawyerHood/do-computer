@@ -43,6 +43,11 @@ export interface Orb {
   /** One token of the answer being written, or one keystroke of the user's. */
   feed(kind: "token", amount?: number): void
   feed(kind: "key"): void
+  /**
+   * A hand on it. `x` is where across it, from -1 at its left edge to 1 at its right; `amount` is
+   * how much of a stroke, 1 for a whole pat. It comes out of it by itself once left alone.
+   */
+  pet(x: number, amount?: number): void
   /** Point its attention at a place on the page; null lets go. */
   setPointer(clientX: number | null, clientY?: number): void
   /** The same without a page: a direction, and how strongly. */

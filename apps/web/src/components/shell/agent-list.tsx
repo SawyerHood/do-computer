@@ -465,7 +465,7 @@ export function AgentList({
                       open && "rotate-90",
                     )}
                   />
-                  <AgentFace agent={agent} className="size-8" still />
+                  <AgentFace agent={agent} className="size-8" quiet />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{name}</span>
                     {team ? (

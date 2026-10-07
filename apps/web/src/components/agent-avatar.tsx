@@ -11,6 +11,7 @@ import {
   prefersCalm,
   showing,
 } from "@/lib/mascot"
+import { type Heart, usePetting } from "@/lib/use-petting"
 import { cn } from "@/lib/utils"
 
 /**
@@ -28,6 +29,7 @@ export function AgentAvatar({
   onHatched,
   quiet = false,
   still = false,
+  pettable = false,
 }: {
   avatar: Avatar | null | undefined
   /** The agent's id: what the creature grows from unless it was given a seed of its own. */
@@ -45,7 +47,12 @@ export function AgentAvatar({
   quiet?: boolean
   /** A picture of it, holding still: drawn once, and again only when its look changes. */
   still?: boolean
+  /** It can be petted: patted with a click or a tap, and stroked by rubbing the pointer on it. */
+  pettable?: boolean
 }) {
+  const petting = usePetting(seed)
+  // While it hatches it is busy with that, and a click there skips the hatch.
+  const canPet = pettable && !hatching
   const look = useMemo(() => avatarLook(avatar, seed), [avatar, seed])
   const standIn = useMemo(
     () => `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvg(avatar, seed))}`,
@@ -125,7 +132,12 @@ export function AgentAvatar({
       role="img"
       aria-label="Agent avatar"
       data-mood={!hatched ? "egg" : still ? "idle" : mood.state}
-      className={cn("relative inline-block size-8 shrink-0", className)}
+      className={cn(
+        "relative inline-block size-8 shrink-0",
+        canPet && "cursor-grab touch-none select-none active:cursor-grabbing",
+        className,
+      )}
+      {...(canPet ? petting.handlers : undefined)}
     >
       {orb ? null : <img src={standIn} alt="" className="absolute inset-0 size-full" />}
       {/* Drawn a little past its box: the creature keeps room around itself for hops and rings. */}
@@ -137,7 +149,33 @@ export function AgentAvatar({
           !orb && "invisible",
         )}
       />
+      {petting.hearts.map((heart) => (
+        <PetHeart key={heart.id} heart={heart} gone={petting.gone} />
+      ))}
     </span>
+  )
+}
+
+/** A little heart, in the creature's own blocky style, that rises from the hand and fades. */
+function PetHeart({ heart, gone }: { heart: Heart; gone: (id: number) => void }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 7 6"
+      shapeRendering="crispEdges"
+      className="pet-heart pointer-events-none absolute w-[10%] min-w-3.5"
+      style={
+        {
+          left: `${heart.x * 100}%`,
+          top: `${heart.y * 100}%`,
+          "--drift": heart.drift,
+        } as React.CSSProperties
+      }
+      onAnimationEnd={() => gone(heart.id)}
+    >
+      <path fill="#ff6b8e" d="M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z" />
+      <path fill="#ffd0db" d="M1 1h1v1H1z" />
+    </svg>
   )
 }
 
@@ -147,11 +185,13 @@ export function AgentFace({
   className,
   quiet,
   still,
+  pettable,
 }: {
   agent: Pick<AgentSummary, "id" | "avatar" | "hatched">
   className?: string
   quiet?: boolean
   still?: boolean
+  pettable?: boolean
 }) {
   const mood = useAtomValue(mascotMoodAtom(agent.id))
   return (
@@ -163,6 +203,7 @@ export function AgentFace({
       hatched={agent.hatched}
       quiet={quiet}
       still={still}
+      pettable={pettable}
     />
   )
 }

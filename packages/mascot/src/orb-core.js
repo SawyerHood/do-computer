@@ -16,6 +16,7 @@
    orb.getState()                       'egg', 'hatching' or the state name
    orb.feed('token', 0..1)              one streamed token of the answer
    orb.feed('key')                      one keystroke of the user
+   orb.pet(x, amount)                   a hand on it: x from -1 (its left edge) to 1, amount 0..1 of a pat
    orb.setPointer(clientX, clientY)     point its attention there (null lets go);
                                         orb.attend(x, y, strength) is the raw, DOM-free form
    orb.hatch({ onDone })                play the hatch; orb.skipHatch() jumps to its end
@@ -1003,7 +1004,7 @@ function Orb(canvas, opts) {
   this.ptr = { x: 0, y: 0, t: -1e9 };
   // egg and hatching
   this.eggMode = 'none'; this.hatchT = 0; this.hatchDur = 5.3; this.hatchPh = 0; this.onHatched = null;
-  this.born = 1; this.bornY = 0; this.joy = 0; this.eggWait = 1.5; this.eggYc = 0;
+  this.born = 1; this.bornY = 0; this.joy = 0; this.petK = 0; this.petX = 0; this.eggWait = 1.5; this.eggYc = 0;
   this.E = { roll: 0, squash: 0, crack: 0, burst: 0, fade: 1, jolt: 0, rockT: 9, rockA: 0 };
   this.eo = { use: false, close: 0, up: 0, gx: 0, gy: 0, fade: 1 };
   this.text = { x: 0.1, y: -0.7 };
@@ -1405,6 +1406,22 @@ Orb.prototype._voice = function (amount) {
 };
 Orb.prototype.blink = function () { if (this.blinkP < 0) this.blinkP = 0; };
 
+// A hand on it: x is where across it, -1 at its left edge to 1 at its right; amount is how much of a stroke,
+// 1 for a whole pat. It shuts its eyes, smiles and leans into the hand, the more so the longer the stroking
+// goes on, and comes out of it by itself once left alone. An egg only rocks.
+Orb.prototype.pet = function (x, amount) {
+  if (this.eggMode === 'hatch') return;
+  x = clamp(x || 0, -1, 1);
+  if (this.eggMode === 'egg') {
+    if (!this.reduced && this.E.rockT > 0.45) { this.E.rockT = 0; this.E.rockA = x < 0 ? 0.13 : -0.13; this.eggWait = Math.max(this.eggWait, 1.5); }
+    return;
+  }
+  // the first touch presses it down a little
+  if (this.petK < 0.12) this.sp.squash.v -= 1.3 * (this.reduced ? 0.2 : 1);
+  this.petK = Math.min(1, this.petK + (amount == null ? 0.3 : amount));
+  this.petX = x;
+};
+
 // Point its attention at a place on screen (client coordinates); it lets go by itself after a moment. null lets go now.
 Orb.prototype.setPointer = function (x, y) {
   if (x == null) { this.ptr.t = -1e9; this.attn.target = 0; return; }
@@ -1456,7 +1473,8 @@ Orb.prototype.update = function (dt) {
 
   // --- impulses decay ---
   this.flash *= decay(dt, 0.42); this.tick *= decay(dt, this.reduced ? 0.24 : 0.10); this.swell *= decay(dt, 0.55); this.gulp *= decay(dt, 0.30);
-  this.flowBoost *= decay(dt, 1.1); this.keyPulse *= decay(dt, 0.13); this.nod *= decay(dt, 0.22); this.joy *= decay(dt, 0.45);
+  this.flowBoost *= decay(dt, 1.1); this.keyPulse *= decay(dt, 0.13); this.nod *= decay(dt, 0.22); this.joy *= decay(dt, 0.45); this.petK *= decay(dt, 0.6);
+  var pet = smooth(0.08, 0.6, this.petK);
 
   // --- breathing ---
   this.breath += dt * TAU * p.hz * g.breathHz;
@@ -1630,8 +1648,10 @@ Orb.prototype.update = function (dt) {
   var fl = 0.5 + 0.5 * Math.min(1, p.wob);
   sp.x.t = gzx * 0.05 * p.lean + this.drift.x * w.idle + 0.012 * Math.sin(t * 0.37 + g.ph[1]) * fl * ms + aFile * fileX * 0.02;
   sp.y.t = gzy * 0.04 * p.lean + this.drift.y * w.idle + 0.016 * Math.sin(t * 0.29 + g.ph[2]) * fl * ms;
-  sp.lift.t = p.lift; sp.scale.t = p.scale; sp.squash.t = p.squash;
-  sp.roll.t = -gzx * 0.13 * p.lean + w.waiting * this.waitSide * 0.13 + w.thinking * (0.08 * g.side + 0.05 * Math.sin(t * 0.9) * ms) + w.error * 0.09 * g.side + w.asleep * 0.07 * g.side;
+  sp.lift.t = p.lift; sp.scale.t = p.scale; sp.squash.t = p.squash - pet * 0.07 * ms;
+  sp.roll.t = -gzx * 0.13 * p.lean + w.waiting * this.waitSide * 0.13 + w.thinking * (0.08 * g.side + 0.05 * Math.sin(t * 0.9) * ms) + w.error * 0.09 * g.side + w.asleep * 0.07 * g.side
+    // petted: it leans into the hand and rubs against it
+    - pet * (this.petX * 0.14 + 0.035 * Math.sin(t * 10.5)) * ms;
   if (this.reduced) { sp.squash.z = 1; sp.lift.z = 1; }
   else { sp.squash.z = g.bounce - (R ? 0.08 : 0); sp.lift.z = g.bounce + (R ? 0 : 0.1); }
   sp.squash.f = R ? 3.3 : 2.9; sp.lift.f = R ? 2.3 : 2.0;
@@ -1724,8 +1744,9 @@ Orb.prototype.update = function (dt) {
   var esz = this.eyeScale * (1 + 0.10 * Math.max(0, upv - 1));
   var eA = g.eyeSize * esz, eB = eA * g.eyeAspect;
   b.uEye.value.set(Math.max(g.eyeSize + g.eyeGap, eA + (R ? 1.1 * (2 / this.px) / S : 0.035)), g.eyeY, eA, eB);
-  var smile = clamp(Math.max(e.smile, this.flash, this.joy), -1, 1), sm = Math.max(0, smile);
-  var close = clamp(Math.max(e.close + this.flash * 0.95 + this.joy * 0.8 + this.gulp * 0.9 * aMem, this.blinkV, eo.close), 0, 1);
+  var glad = Math.max(this.joy, pet);
+  var smile = clamp(Math.max(e.smile, this.flash, glad), -1, 1), sm = Math.max(0, smile);
+  var close = clamp(Math.max(e.close + this.flash * 0.95 + glad * 0.8 + this.gulp * 0.9 * aMem, this.blinkV, eo.close), 0, 1);
   var U = upv <= 1 ? lerp(-0.3, g.eyeLid, upv) : g.eyeLid + (upv - 1);
   var Lo = lerp(-1.25, 0.15, clamp(e.low + aMem * 0.08, 0, 1));
   var yc = lerp(-0.28, 0.06, sm);
@@ -1750,7 +1771,7 @@ Orb.prototype.update = function (dt) {
   if (R) {
     var mW = 0.085 * g.mouthW * e.mw * lerp(1.3, 1, this.detail);
     var mO = clamp(e.mo + voice * 0.95 + this.flash * 0.25, 0, 1.2);
-    b.uMouth.value.set(g.eyeY - eB - lerp(0.20, 0.15, this.detail), mW, mO * 0.75, e.mc + dizzy * 0.25 * Math.sin(t * 13));
+    b.uMouth.value.set(g.eyeY - eB - lerp(0.20, 0.15, this.detail), mW * (1 + 0.25 * pet), mO * 0.75, lerp(e.mc, 0.9, pet) + dizzy * 0.25 * Math.sin(t * 13));
     b.uMouthK.value.set(1, w.thinking * g.side * 0.05 + sp.ex.x * 0.03, lerp(0.34, 0.2, this.detail));
   } else b.uMouthK.value.set(0, 0, 0.2);
 
@@ -1766,7 +1787,7 @@ Orb.prototype.update = function (dt) {
 
   var h = this.uH;
   h.uC.value.set(X, Y); h.uSc.value.set(S * sx * b.uShape.value.x, S * sy * b.uShape.value.y); h.uRoll.value = roll; h.uRs.value = S;
-  h.uHalo.value = (p.halo * (1 + 0.14 * br) + voice * 0.45 + this.swell * 0.4 * w.waiting + this.flash * 0.8 + this.tick * 0.16 * aCmd + this.gulp * 0.4 * aMem) * (this.dark ? 1 : 0.62);
+  h.uHalo.value = (p.halo * (1 + 0.14 * br) + voice * 0.45 + this.swell * 0.4 * w.waiting + this.flash * 0.8 + this.tick * 0.16 * aCmd + this.gulp * 0.4 * aMem + pet * 0.3) * (this.dark ? 1 : 0.62);
   h.uLobe.value.set(Math.cos(this.think) * g.side, cz * 0.72, w.thinking * 0.75);
   var big = smooth(150, 260, this.css), air = Y - this.rest;
   h.uGround.value.set(big * (this.dark ? 0.16 : 0.20) * clamp(1 - (air + 0.1) * 2.2, 0.25, 1.2) * (0.5 + 0.5 * p.bright), 1.0 + (air + 0.05) * 1.5, Math.max(-0.92, this.rest - this.fill * b.uShape.value.y - 0.26));

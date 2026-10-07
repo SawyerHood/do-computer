@@ -335,6 +335,13 @@ function boot(saved) {
 
   var everyone = linked.concat(others);
   window.addEventListener('pointermove', function (e) { each(everyone, function (o) { o.setPointer(e.clientX, e.clientY); }); }, { passive: true });
+  // a press on the centrepiece pats it, and dragging across it strokes it
+  function petAt(e, amount) {
+    var r = $('orb-main').getBoundingClientRect();
+    each(linked, function (o) { o.pet(((e.clientX - r.left) / r.width - 0.5) / 0.4, amount); });
+  }
+  $('orb-main').addEventListener('pointerdown', function (e) { petAt(e, 0.75); });
+  $('orb-main').addEventListener('pointermove', function (e) { if (e.buttons) petAt(e, 0.1); });
 
   function stats() {
     var all = linked.concat(others), calls = 0, shown = 0;

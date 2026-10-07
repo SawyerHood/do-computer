@@ -177,7 +177,7 @@ export function Sidebar({
               className="mx-2 mt-1 flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               <CaretLeftIcon className="size-3.5 shrink-0" />
-              <AgentFace agent={agent} className="size-5" still />
+              <AgentFace agent={agent} className="size-5" quiet />
               <span className="min-w-0 truncate">Agents and chats</span>
             </Link>
             <div ref={setSlot} className="min-h-0 flex-1" />

@@ -89,3 +89,10 @@ export function feedMascot(agentId: string, kind: "token" | "key"): void {
     else orb.feed("key")
   }
 }
+
+/** A hand on the agent's creature: every drawing of it that is moving leans into it. */
+export function petMascot(agentId: string, x: number, amount?: number): void {
+  for (const orb of shown.get(agentId) ?? []) {
+    if (!orb.paused) orb.pet(x, amount)
+  }
+}
