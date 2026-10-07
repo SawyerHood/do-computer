@@ -98,9 +98,10 @@ const blockText = (content: unknown): string => {
 }
 
 /**
- * What the echo model answers. It repeats the last user message, with one affordance for trying
+ * What the echo model answers. It repeats the last user message, with two affordances for trying
  * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
- * that tool and then report the result.
+ * that tool and then report the result, and `/fail <error>` makes the reply fail with that error,
+ * the way a model provider's would.
  */
 function echoAnswer(context: EchoContext) {
   // Prompt changes are recorded as system entries, which can follow a tool result.
@@ -110,6 +111,10 @@ function echoAnswer(context: EchoContext) {
   }
   const user = context.messages.findLast((message) => message.role === "user")
   const text = blockText(user?.content)
+  const failure = /^\/fail\s+([\s\S]+)$/.exec(text)
+  if (failure) {
+    return fauxAssistantMessage([], { stopReason: "error", errorMessage: failure[1]!.trim() })
+  }
   const command = /^\/tool\s+(\w+)\s+(\{[\s\S]*\})\s*$/.exec(text)
   if (command) {
     try {

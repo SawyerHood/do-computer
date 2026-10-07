@@ -81,6 +81,29 @@ test("a message is answered, streamed into the transcript, and titles the chat",
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
 })
 
+test("a reply that fails is said plainly, with the provider's answer behind Details", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/fail 503: {"message":"Provider returned error","code":503,"metadata":{"raw":"{\\"error\\":{\\"code\\":\\"service_overloaded\\",\\"message\\":\\"The backend is temporarily overloaded. Please retry.\\"}}","provider_name":"Meta","retry_after_seconds":60}}',
+  )
+  await composer(page).press("Enter")
+  const failure = page.getByRole("alert").filter({ hasText: "The model is overloaded right now." })
+  await expect(failure).toBeVisible()
+  await expect(failure).not.toContainText("Provider returned error")
+
+  await failure.getByRole("button", { name: "Details" }).click()
+  await expect(failure).toContainText("Provider returned error")
+  await expect(failure).toContainText("retry after 60s")
+
+  // Trying again asks again, and the echo model answers this time.
+  await failure.getByRole("button", { name: "Try again" }).click()
+  await expect(page.getByText("You said: Try again")).toBeVisible()
+  await expect(failure.getByRole("button", { name: "Try again" })).toHaveCount(0)
+})
+
 test("assistant text is rendered as Markdown", async ({ page }) => {
   await signIn(page)
   await composer(page).fill("a list:\n\n- one\n- two")

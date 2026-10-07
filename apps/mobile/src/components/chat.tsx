@@ -2,6 +2,8 @@ import {
   chatActivity,
   type ChatMessage,
   type ChatState,
+  describeChatError,
+  foldFailures,
   isSentFile,
   isShownPart,
   isVisibleMessage,
@@ -92,7 +94,36 @@ function Part({ part, agentId }: { part: MessagePart; agentId: string }) {
   }
 }
 
-function Message({ message, agentId }: { message: ChatMessage; agentId: string }) {
+/** A reply that failed, as one plain sentence, and what to do about it. */
+function ReplyError({ error, failures }: { error: string | undefined; failures: number }) {
+  const view = describeChatError(error)
+  const hint = [failures > 1 ? `Tried ${failures} times.` : undefined, view.hint]
+    .filter((text) => text !== undefined)
+    .join(" ")
+  return (
+    <View accessibilityRole="alert" style={{ paddingHorizontal: space(1) }}>
+      <Text size={14} weight="500">
+        {view.title}
+      </Text>
+      {hint === "" ? null : (
+        <Text tone="muted" size={14}>
+          {hint}
+        </Text>
+      )}
+    </View>
+  )
+}
+
+function Message({
+  message,
+  failures,
+  agentId,
+}: {
+  message: ChatMessage
+  /** How many times in a row the reply failed. */
+  failures: number
+  agentId: string
+}) {
   const theme = useTheme()
   if (message.role === "notice") {
     return (
@@ -123,9 +154,7 @@ function Message({ message, agentId }: { message: ChatMessage; agentId: string }
       {message.parts.filter(isShownPart).map((part, index) => (
         <Part key={part.type === "tool" ? part.toolCallId : index} part={part} agentId={agentId} />
       ))}
-      {message.status === "error" ? (
-        <ErrorText>{message.error ?? "Something went wrong generating this reply."}</ErrorText>
-      ) : null}
+      {message.status === "error" ? <ReplyError error={message.error} failures={failures} /> : null}
       {message.status === "aborted" ? (
         <Text tone="muted" size={13}>
           Stopped
@@ -149,12 +178,15 @@ export function Transcript({
   header?: React.ReactElement | null
 }) {
   const theme = useTheme()
-  const list = useRef<FlatList<ChatMessage>>(null)
+  const list = useRef<FlatList<{ message: ChatMessage; failures: number }>>(null)
   const last = state.messages.at(-1)
   // What the agent is doing, when its answer is not already being written on screen. Tool calls
   // and thinking are this one line while they happen, and nothing afterwards.
   const activity = chatActivity(state)
-  const messages = useMemo(() => state.messages.filter(isVisibleMessage), [state.messages])
+  const messages = useMemo(
+    () => foldFailures(state.messages.filter(isVisibleMessage)),
+    [state.messages],
+  )
   // Follow new content at the end. Earlier messages arriving at the top change the first message
   // and not the last, and must not pull the reader back down.
   const firstId = state.messages[0]?.id
@@ -168,8 +200,10 @@ export function Transcript({
       accessibilityRole="list"
       accessibilityLabel="Messages"
       data={messages}
-      keyExtractor={(message) => message.id}
-      renderItem={({ item }) => <Message message={item} agentId={agentId} />}
+      keyExtractor={({ message }) => message.id}
+      renderItem={({ item }) => (
+        <Message message={item.message} failures={item.failures} agentId={agentId} />
+      )}
       // A short chat sits at the bottom, next to the box the next message is typed in.
       contentContainerStyle={{
         padding: space(4),
