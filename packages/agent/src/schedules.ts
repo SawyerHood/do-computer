@@ -11,7 +11,7 @@ import {
   type Harness,
 } from "@earendil-works/pi-durable"
 import { ChatsDoc, IdentityDoc, type ScheduleRecord, SchedulesDoc } from "./docs.ts"
-import { parseModel } from "./models.ts"
+import { parseModel, THINKING_LEVEL } from "./models.ts"
 import { formatTime, nextRunAt, parseSchedule } from "./schedule.ts"
 import { own } from "./own.ts"
 
@@ -294,7 +294,7 @@ export class Scheduler {
     await harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model: parseModel(identity.model) },
+        agent: { model: parseModel(identity.model), thinkingLevel: THINKING_LEVEL },
         init: async (tx, conversationId) => {
           const record = own((await tx.doc(SchedulesDoc)).schedules, id)
           // Removed or already fired since the snapshot: the chat stays unlisted and empty.

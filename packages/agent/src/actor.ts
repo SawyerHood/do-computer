@@ -67,7 +67,7 @@ import {
   MAX_LIBRARY_FILE_BYTES,
 } from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
-import { parseModel } from "./models.ts"
+import { parseModel, THINKING_LEVEL } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
@@ -1196,7 +1196,7 @@ export class AgentActor implements Actor {
     const conversation = await harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model: parseModel(identity.model) },
+        agent: { model: parseModel(identity.model), thinkingLevel: THINKING_LEVEL },
         init: async (tx, id) => {
           ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
         },
@@ -1240,6 +1240,10 @@ export class AgentActor implements Actor {
     // would change on every request and defeat the provider's prompt cache.
     const timezone =
       typeof input.timezone === "string" && isValidTimezone(input.timezone) ? input.timezone : null
+    // A chat from before agents thought, or from when they thought differently, catches up here.
+    if ((await conversation.agent(context)).thinkingLevel !== THINKING_LEVEL) {
+      await conversation.configure({ thinkingLevel: THINKING_LEVEL }, context)
+    }
     const identity = await this.#identity(harness)
     const zone = timezone ?? identity.timezone
     const meta = `<meta sent_at="${formatTime(this.#host.now(), zone)}"/>`

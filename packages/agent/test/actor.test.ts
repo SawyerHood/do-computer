@@ -123,6 +123,23 @@ describe("agent actor", () => {
     expect(state.agent).toMatchObject({ id: "agent-1", model: "test/model", name: null })
   })
 
+  it("asks the model to think before it answers", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    const asked: unknown[] = []
+    world.faux.setResponses([
+      (_context, options) => {
+        asked.push(options?.reasoning)
+        return fauxAssistantMessage("Done.")
+      },
+    ])
+    const following = follow(world, chat.id, answered(1))
+    await send(world, chat.id, "hi")
+    await following
+
+    expect(asked).toEqual(["medium"])
+  })
+
   it("answers a message and streams it to a client", async () => {
     const world = open(temporary(), 60)
     const chat = await setup(world)
