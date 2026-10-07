@@ -183,6 +183,12 @@ is why sign-up is by invitation unless you open it.
   also starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and
   reports back to the chat you asked in; see and pause them under Automations.
+- **Hand work to sub-agents.** For a piece of work that stands on its own, the agent can start
+  a sub-agent: a copy of itself, with its memory, skills and computer, working in the
+  background in a conversation of its own while the agent stays free to talk. Several can work
+  at once. When one finishes, its report arrives in the chat that started it and the agent
+  tells you what came of it. You can open a sub-agent's chat and read along, and stop it; only
+  the agent writes in it.
 - **Learn skills**: saved instructions it loads when a task calls for them, writes for itself, and
   can install from a GitHub folder or a `SKILL.md` URL.
 - **Search the web**, when the deployment has a model key: one request to OpenRouter searches,

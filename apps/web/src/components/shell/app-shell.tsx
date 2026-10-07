@@ -37,6 +37,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { SubagentFace, subagentWords } from "@/components/chat/subagents"
 import { chatListOpenAtom } from "@/lib/atoms"
 import { authClient } from "@/lib/auth-client"
 import { client } from "@/lib/client"
@@ -208,6 +209,16 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
         .where(({ chat }) => and(eq(chat.archived, false), eq(chat.kind, "chat")))
         .orderBy(({ chat }) => chat.updatedAt, "desc"),
   })
+  // Sub-agents are listed under the chat that started them, once that chat or one of them is open.
+  const { data: subagents } = useLiveQuery({
+    query: (q) =>
+      q
+        .from({ chat: collection })
+        .where(({ chat }) => eq(chat.kind, "subagent"))
+        .orderBy(({ chat }) => chat.createdAt, "asc"),
+  })
+  const openParentId =
+    (subagents ?? []).find((subagent) => subagent.id === activeChatId)?.parentId ?? activeChatId
 
   const [query, setQuery] = useState("")
   const searching = query.trim().length >= 2
@@ -253,7 +264,7 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
               onClick={onNavigate}
               className={cn(
                 "block truncate rounded-lg py-2 pr-9 pl-3 text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-                chat.id === activeChatId && "bg-accent text-foreground",
+                chat.id === openParentId && "bg-accent text-foreground",
               )}
             >
               {chat.title}
@@ -262,10 +273,37 @@ function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () =>
               type="button"
               aria-label={`Archive ${chat.title}`}
               onClick={() => archive(chat)}
-              className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/chat:opacity-100"
+              className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/chat:opacity-100"
             >
               <ArchiveIcon className="size-4" />
             </button>
+            {chat.id !== openParentId
+              ? null
+              : (subagents ?? [])
+                  .filter((subagent) => subagent.parentId === chat.id)
+                  .map((subagent) => (
+                    <Link
+                      key={subagent.id}
+                      to="/a/$agentId/c/$chatId"
+                      params={{ agentId, chatId: subagent.id }}
+                      onClick={onNavigate}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg py-1.5 pr-3 pl-5 text-[0.8125rem] text-muted-foreground hover:bg-accent hover:text-foreground",
+                        subagent.id === activeChatId && "bg-accent text-foreground",
+                      )}
+                    >
+                      <SubagentFace
+                        agentId={agentId}
+                        chatId={subagent.id}
+                        status={subagent.status}
+                        className="size-5"
+                      />
+                      <span className="min-w-0 flex-1 truncate">{subagent.title}</span>
+                      <span className="shrink-0 text-xs">
+                        {subagentWords(subagent.status).toLowerCase()}
+                      </span>
+                    </Link>
+                  ))}
           </div>
         ))}
         {chats !== undefined && chats.length === 0 ? (

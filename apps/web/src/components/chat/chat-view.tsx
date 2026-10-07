@@ -4,8 +4,10 @@ import {
   type MessageImage,
   randomId,
 } from "@durable-computer/protocol"
+import type { AgentState } from "@durable-computer/client"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react"
+import { Link } from "@tanstack/react-router"
+import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useAtomValue } from "jotai"
@@ -23,6 +25,15 @@ import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
+import {
+  isAtWork,
+  SubagentFace,
+  SubagentHero,
+  SubagentRows,
+  subagentSeed,
+  subagentWords,
+  useSubagents,
+} from "./subagents.tsx"
 import { Transcript } from "./transcript.tsx"
 
 /** Record that the agent's owner has seen it out of its egg, so it is shown hatched from now on. */
@@ -158,7 +169,23 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const api = client.agent(agent.id)
   const [earlier, setEarlier] = useAtom(earlierAtom(chatKey(agent.id, chatId)))
 
-  useMascotMood(agent.id, chatKey(agent.id, chatId), live.state)
+  // What kind of chat this is. A sub-agent's is read here and not written in.
+  const { data: agentState } = useQuery<AgentState>({
+    queryKey: agentKey(agent.id),
+    queryFn: () => client.agent(agent.id).state(),
+  })
+  const chat = agentState?.chats.find((entry) => entry.id === chatId)
+  const sub = chat?.kind === "subagent" ? chat : undefined
+  const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
+  const subagents = useSubagents(agent.id, chatId)
+  const [subagentsOpen, setSubagentsOpen] = useState(false)
+
+  useMascotMood(
+    agent.id,
+    chatKey(agent.id, chatId),
+    live.state,
+    sub === undefined ? undefined : subagentSeed(agent.id, chatId),
+  )
   // What the agent's model can take decides whether a picture is sent for it to look at.
   const { data: models } = useQuery({
     queryKey: modelsKey,
@@ -250,7 +277,8 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   )
 
   const name = agent.name ?? "New agent"
-  const canStartFresh = live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
+  const canStartFresh =
+    sub === undefined && live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
   const startFreshTitle =
     "Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
   // An empty chat has the creature in its middle, so the one in the header holds still: there is
@@ -267,10 +295,46 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     <div className="flex h-full min-h-0">
       <div className="relative flex min-w-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
-        {/* With the panel beside the chat the agent is there, and needs no header here as well. */}
-        {beside ? null : (
+        {sub !== undefined ? (
+          // A sub-agent's chat always says whose it is, and leads back to where it was started.
+          <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+              <Link
+                to="/a/$agentId/c/$chatId"
+                params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
+                aria-label={`Back to ${parent?.title ?? name}`}
+                className="flex min-w-0 items-center gap-1 rounded-full py-1 pr-1.5 pl-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+              >
+                <ArrowLeftIcon className="size-4 shrink-0" />
+                <span className="max-w-40 truncate">{parent?.title ?? name}</span>
+              </Link>
+              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+              <SubagentFace
+                agentId={agent.id}
+                chatId={chatId}
+                status={sub.status}
+                className="size-7"
+              />
+              <span className="min-w-0 truncate text-sm font-medium">{sub.title}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {subagentWords(sub.status)}
+              </span>
+              {isAtWork(sub.status) ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  className="flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
+                >
+                  <StopIcon className="size-3" />
+                  Stop
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : beside ? null : (
+          // With the panel beside the chat the agent is there, and needs no header here as well.
           <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
+            <div className="pointer-events-auto relative flex items-center gap-1 rounded-full border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
               {wide ? (
                 // Pressing the header brings the panel back.
                 <button
@@ -300,6 +364,27 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                   <ArrowsClockwiseIcon className="size-4" />
                 </button>
               ) : null}
+              {/* Without the panel, this is the way to the chat's sub-agents. */}
+              {subagents.length === 0 ? null : (
+                <>
+                  <button
+                    type="button"
+                    aria-expanded={subagentsOpen}
+                    onClick={() => setSubagentsOpen(!subagentsOpen)}
+                    className="rounded-full border px-2.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                  >
+                    {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
+                    {subagents.some((entry) => isAtWork(entry.status))
+                      ? ` · ${subagents.filter((entry) => isAtWork(entry.status)).length} at work`
+                      : ""}
+                  </button>
+                  {subagentsOpen ? (
+                    <div className="absolute top-full left-1/2 mt-2 max-h-80 w-72 max-w-[90vw] -translate-x-1/2 overflow-y-auto rounded-2xl border bg-popover p-1.5 shadow-lg">
+                      <SubagentRows agentId={agent.id} subagents={subagents} />
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -308,9 +393,10 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
             <OpenFileContext value={wide ? setOpenDoc : undefined}>
               <Transcript
                 state={state}
-                onRetry={retry}
+                onRetry={sub === undefined ? retry : undefined}
+                asker={sub === undefined ? undefined : name}
                 empty={
-                  live.loaded ? (
+                  live.loaded && sub === undefined ? (
                     <Welcome
                       agent={agent}
                       face={
@@ -346,18 +432,35 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           agentName={agent.name ?? "Your agent"}
           chatId={chatId}
         />
-        <Composer
-          draftKey={chatKey(agent.id, chatId)}
-          placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
-          busy={live.state.busy}
-          queued={live.state.queued}
-          onSend={send}
-          error={sendError}
-          onStop={stop}
-          sees={models?.find((model) => model.id === agent.model)?.images === true}
-          agentName={name}
-          onAttach={attach}
-        />
+        {sub !== undefined ? (
+          // Where the message box would be. Its agent is the one who talks to it.
+          <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
+            <AgentFace agent={agent} className="size-8" still />
+            <p className="min-w-0 flex-1">
+              Only {name} talks to its sub-agents. To change what this one is doing, tell {name}.
+            </p>
+            <Link
+              to="/a/$agentId/c/$chatId"
+              params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
+              className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+            >
+              Back to {name}
+            </Link>
+          </div>
+        ) : (
+          <Composer
+            draftKey={chatKey(agent.id, chatId)}
+            placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
+            busy={live.state.busy}
+            queued={live.state.queued}
+            onSend={send}
+            error={sendError}
+            onStop={stop}
+            sees={models?.find((model) => model.id === agent.model)?.images === true}
+            agentName={name}
+            onAttach={attach}
+          />
+        )}
       </div>
       {wide && openDoc !== undefined ? (
         <DocPanel
@@ -372,7 +475,19 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         <AgentPanel
           agent={agent}
           state={state}
-          face={<Hatchling agent={agent} hatch={hatch} className="size-52" />}
+          face={
+            sub === undefined ? (
+              <Hatchling agent={agent} hatch={hatch} className="size-52" />
+            ) : (
+              <SubagentHero agentId={agent.id} chatId={chatId} className="size-44" />
+            )
+          }
+          subagent={
+            sub === undefined
+              ? undefined
+              : { chatId, title: sub.title, status: sub.status, parentTitle: parent?.title }
+          }
+          subagents={subagents}
           reconnecting={live.status === "reconnecting"}
           startFresh={
             canStartFresh

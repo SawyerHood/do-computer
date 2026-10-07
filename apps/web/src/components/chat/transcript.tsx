@@ -6,6 +6,7 @@ import {
   foldFailures,
   isSentFile,
   isShownPart,
+  isSubagentStart,
   isVisibleMessage,
   type MessagePart,
 } from "@durable-computer/protocol"
@@ -33,9 +34,11 @@ import {
 import { cn } from "@/lib/utils"
 import { Markdown } from "./markdown.tsx"
 import { SentFile } from "./sent-file.tsx"
+import { SubagentChip, SubagentWord } from "./subagents.tsx"
 
 function AssistantPart({ part }: { part: MessagePart }) {
   if (isSentFile(part)) return <SentFile part={part} />
+  if (isSubagentStart(part)) return <SubagentChip part={part} />
   switch (part.type) {
     case "text":
       return (
@@ -141,13 +144,16 @@ function MessageView({
   message,
   failures,
   onRetry,
+  asker,
 }: {
   message: ChatMessage
   failures: number
   onRetry?: (() => void) | undefined
+  asker?: string | undefined
 }) {
   if (message.role === "notice") {
     const part = message.parts[0]
+    if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
     return (
       <Marker variant="separator">
         <MarkerIcon>
@@ -159,6 +165,28 @@ function MessageView({
             : "New context"}
         </MarkerContent>
       </Marker>
+    )
+  }
+  if (message.role === "user" && asker !== undefined) {
+    // In a sub-agent's chat this side is its agent's: what it was asked to do. The exception is
+    // the user's answer to something it asked leave for.
+    const text = message.parts
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n")
+    const answered = /^(Approved|Not allowed): /.test(text)
+    return (
+      <Message align="end">
+        <MessageContent>
+          <Bubble align="end" variant="secondary">
+            <BubbleContent className="border-border whitespace-pre-wrap text-[0.9375rem]">
+              <span className="mb-0.5 block text-xs text-muted-foreground">
+                {answered ? "You answered" : `${asker} asked`}
+              </span>
+              {text}
+            </BubbleContent>
+          </Bubble>
+        </MessageContent>
+      </Message>
     )
   }
   if (message.role === "user") {
@@ -222,13 +250,16 @@ export function Transcript({
   empty,
   before,
   onRetry,
+  asker,
 }: {
   state: ChatState
   empty: React.ReactNode
   /** Shown above the first message, for reaching what came before it. */
   before?: React.ReactNode
   /** Have another go at a reply that failed. Offered on the last message, while nothing is running. */
-  onRetry?: () => void
+  onRetry?: (() => void) | undefined
+  /** In a sub-agent's chat: the agent that gave it its task, by name. */
+  asker?: string | undefined
 }) {
   // What the agent is doing, when its answer is not already being written on screen.
   const activity = chatActivity(state)
@@ -249,6 +280,7 @@ export function Transcript({
                   message={message}
                   failures={failures}
                   onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
+                  asker={asker}
                 />
               </MessageScrollerItem>
             ))}

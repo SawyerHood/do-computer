@@ -1,4 +1,4 @@
-import type { Avatar, ChatKind, ThinkingLevel } from "@durable-computer/protocol"
+import type { Avatar, ChatKind, SubagentStatus, ThinkingLevel } from "@durable-computer/protocol"
 import { defineDoc } from "@earendil-works/pi-durable"
 
 /**
@@ -52,12 +52,31 @@ export const IdentityDoc = defineDoc<IdentityState>({
   }),
 })
 
+/** What is kept about a sub-agent, on its chat. */
+export type SubagentRecord = {
+  /** The chat it was started in, where its reports go. */
+  parentId: string
+  /** What it was asked to do: its first message. */
+  task: string
+  /** Whether that message has been sent to it. */
+  started?: boolean
+  status: SubagentStatus
+  /** The message it last reported, so that one answer is reported once. */
+  reported: string | null
+  /** How many times word of it has been sent to its parent. */
+  reports: number
+  /** Who asked for it to be stopped, until it has been. */
+  stopping?: "user" | "agent"
+}
+
 export type ChatRecord = {
   title: string
   kind: ChatKind
   createdAt: number
   updatedAt: number
   archived: boolean
+  /** Present on a sub-agent's chat. */
+  subagent?: SubagentRecord
 }
 
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */

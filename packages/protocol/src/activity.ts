@@ -57,6 +57,12 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       if (args.action === "delete") return "Removing a skill"
       return name === undefined ? "Saving a skill" : `Saving its ${name} skill`
     }
+    case "subagent": {
+      if (args.action === "start")
+        return withDetail("Starting a sub-agent", text(args.title) ?? text(args.task))
+      if (args.action === "message") return "Sending more to a sub-agent"
+      return args.action === "stop" ? "Stopping a sub-agent" : "Checking on its sub-agents"
+    }
     case "memory":
       return "Updating its memory"
     case "log":
@@ -100,6 +106,8 @@ const PAST: Record<string, string> = {
   Getting: "Got",
   Using: "Used",
   Noting: "Noted",
+  Starting: "Started",
+  Stopping: "Stopped",
 }
 
 /**
@@ -208,13 +216,28 @@ export function isSentFile(part: MessagePart): part is ToolPart {
   )
 }
 
+/**
+ * Whether a part is the agent starting a sub-agent. That is shown too, as a way into the
+ * sub-agent's own chat.
+ */
+export function isSubagentStart(part: MessagePart): part is ToolPart {
+  return (
+    part.type === "tool" &&
+    part.name === "subagent" &&
+    part.status === "done" &&
+    (part.args as { action?: unknown } | null)?.action === "start" &&
+    typeof (part.details as { chatId?: unknown } | null | undefined)?.chatId === "string"
+  )
+}
+
 /** Whether a part of a message is shown in a transcript. Thinking and tool calls are not. */
 export function isShownPart(part: MessagePart): boolean {
   return (
     (part.type === "text" && part.text !== "") ||
     part.type === "image" ||
     part.type === "notice" ||
-    isSentFile(part)
+    isSentFile(part) ||
+    isSubagentStart(part)
   )
 }
 

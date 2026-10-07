@@ -39,14 +39,16 @@ export function ThinkingPicker({
           {levels.map((level) => (
             <label
               key={level}
-              className="min-w-0 flex-1 cursor-pointer truncate rounded-md px-2 py-1.5 text-center text-sm has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/30"
+              className="relative min-w-0 flex-1 cursor-pointer truncate rounded-md px-2 py-1.5 text-center text-sm has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/30"
             >
               <input
                 type="radio"
                 name={id}
                 value={level}
                 checked={level === chosen}
-                className="sr-only"
+                // Kept inside its label. Left to sit wherever the page put it, focusing it scrolls
+                // the whole app to reach it.
+                className="absolute inset-0 cursor-pointer opacity-0"
                 onChange={() => onChange(level)}
               />
               {LABELS[level]}

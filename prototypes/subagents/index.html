@@ -458,7 +458,7 @@
         margin: 0 auto;
         padding: 0 24px 18px;
       }
-      .composer > div {
+      .composer div {
         border: 1px solid var(--border);
         background: var(--surface);
         border-radius: 18px;
@@ -466,30 +466,18 @@
         color: var(--muted-foreground);
         font-size: 15px;
       }
-      .composer input {
-        width: 100%;
-        border: 1px solid var(--border);
-        background: var(--surface);
-        border-radius: 18px;
-        padding: 12px 16px;
-        color: var(--ink);
-        font: inherit;
-        font-size: 15px;
-        outline: none;
-      }
-      .composer input:focus {
-        border-color: var(--primary);
-      }
-      .composer input::placeholder {
-        color: var(--muted-foreground);
-      }
-      .composer .hint {
+      /* Under a sub-agent's chat, where the message box would be. */
+      .readonly {
+        border-top: 1px solid var(--border);
+        padding: 12px 20px;
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 12px;
+        gap: 12px;
         color: var(--muted-foreground);
-        padding: 6px 6px 0;
+        font-size: 13px;
+      }
+      .readonly p {
+        flex: 1;
       }
       .phonehead {
         display: none;
@@ -769,27 +757,25 @@
 2. United 64 / 65 — Fri 18:10 → Sat 14:00, back Mon 11:55 → 15:30. $2,010 total.
 3. TAP 236 / 235 — Fri 21:15 → Sat 16:50, back Mon 17:40 → 21:05. $1,764 total, but lands late.`
 
-      const S = { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, said: {}, theme: "dark" }
+      const S = { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, theme: "dark" }
       const SCENES = [
         ["Sub-agents start", { phase: 1 }],
         ["Reports come back", { phase: 2 }],
         ["Inside a sub-agent", { phase: 2, view: "hotels" }],
         ["A finished sub-agent", { phase: 2, view: "flights" }],
-        ["You message one", { phase: 2, view: "hotels", said: { hotels: ["Skip anything without a lift."] } }],
         ["Chat list open", { phase: 2, list: true }],
         ["On a phone", { phase: 2, phone: true }],
       ]
       let scene = 1
       function go(n) {
         scene = n
-        Object.assign(S, { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, said: {} }, structuredClone(SCENES[n][1]))
+        Object.assign(S, { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {} }, SCENES[n][1])
         render()
       }
 
       /** How a sub-agent is getting on, in the scene on screen. */
       function st(id) {
         if (S.stopped[id]) return { state: "stopped", line: "Stopped by you" }
-        if (S.said[id]?.length) return { state: "running", line: "Working on what you told it" }
         if (S.phase === 1)
           return {
             state: "running",
@@ -802,17 +788,6 @@
           : { state: "waiting", line: "Waiting for your OK" }
       }
       const ids = Object.keys(HELPERS)
-      const esc = (text) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c])
-      /** What you said to its sub-agents, noted in the agent's chat so it knows too. */
-      const told = () =>
-        ids
-          .flatMap((id) =>
-            (S.said[id] ?? []).map(
-              (text) =>
-                `<div class="report"><div class="head">${creature(id, 20, st(id).state)}<span>You told <strong>${HELPERS[id].name}</strong>: “${esc(text)}”</span><button class="link" data-a="open" data-id="${id}">Open its chat</button></div></div>`,
-            ),
-          )
-          .join("")
       const count = (state) => ids.filter((id) => st(id).state === state).length
       const mark = (state, size = 15) =>
         state === "running"
@@ -878,7 +853,6 @@
             <div class="user">While they work: what's the weather like there in May?</div>
             <div class="agentmsg"><p>Warm and mostly dry: about 22°C by day and 14°C at night, with long evenings. Bring a light jacket for the wind off the river.</p></div>
             ${later}
-            ${told()}
           </div></div>
           <div class="composer"><div>Message Pip</div></div>
           ${S.sheet ? `<div class="sheet" data-a="sheet"><div><h3>Pip's sub-agents in this chat</h3>${ids.map((id) => hrow(id)).join("")}</div></div>` : ""}
@@ -888,13 +862,6 @@
       function subChat(id) {
         const h = HELPERS[id]
         const s = st(id)
-        const said = S.said[id] ?? []
-        const stoppedLine = `<p class="stamp">${ic("stop", 14)} You stopped this sub-agent. Pip was told.</p>`
-        const yours =
-          said.map((text) => `<div class="user">${esc(text)}</div>`).join("") +
-          (said.length
-            ? `<div class="agentmsg"><p>Got it. I'll work that in, and tell Pip what changed when I report back.</p></div>${s.state === "running" ? `<div class="working">${ic("spin", 15, "spin")} Working on what you told it</div>` : ""}`
-            : "")
         const body = {
           flights: `<div class="agentmsg"><p>Looking for nonstop flights first. If there are fewer than three I'll add one-stops under 15 hours.</p></div>
             <div class="agentmsg"><p>Three nonstop options, two adults, return:</p>
@@ -902,9 +869,9 @@
               <p class="stamp">${ic("reply", 14)} Reported back to Pip at 2:14 PM</p></div>`,
           hotels: `<div class="agentmsg"><p>Starting inside Alfama, then widening to Graça and Baixa if there are too few under €220.</p></div>
             <div class="agentmsg"><p>Six candidates so far. Checking which have a room for all three nights.</p></div>
-            ${s.state === "stopped" ? stoppedLine : said.length ? "" : `<div class="working">${ic("spin", 15, "spin")} Reading: Memmo Alfama availability</div>`}`,
+            ${s.state === "stopped" ? `<p class="stamp">${ic("stop", 14)} You stopped this sub-agent. Pip was told.</p>` : `<div class="working">${ic("spin", 15, "spin")} Reading: Memmo Alfama availability</div>`}`,
           calendar: `<div class="agentmsg"><p>I need to read the calendar on MacBook for 15–18 May.</p></div>
-            ${s.state === "stopped" ? stoppedLine : s.state === "waiting" ? ask() : `${ask()}${said.length ? "" : `<div class="working">${ic("spin", 15, "spin")} Running a command on MacBook</div>`}`}`,
+            ${s.state === "stopped" ? `<p class="stamp">${ic("stop", 14)} You stopped this sub-agent. Pip was told.</p>` : s.state === "waiting" ? ask() : `${ask()}<div class="working">${ic("spin", 15, "spin")} Running a command on MacBook</div>`}`,
         }[id]
         const live = s.state === "running" || s.state === "waiting"
         return `<section class="chat">
@@ -915,10 +882,8 @@
           <div class="msgs"><div class="col">
             <div class="task"><div class="from">${creature("pip", 16)} Pip asked</div>${h.task}</div>
             ${body}
-            ${yours}
           </div></div>
-          <form class="composer" data-id="${id}"><input name="text" autocomplete="off" placeholder="Message ${h.name}" aria-label="Message ${h.name}" />
-            <p class="hint">${creature("pip", 16)} Pip is told what you say here, and still gets its report.</p></form>
+          <div class="readonly">${creature("pip", 26)}<p>Only Pip talks to its sub-agents. To change what this one is doing, tell Pip.</p><button class="btn" data-a="back">Back to Pip</button></div>
         </section>`
       }
 
@@ -982,19 +947,6 @@
         const moved = a === "open" || a === "back"
         if (moved) document.querySelector(".msgs")?.remove()
         render()
-      })
-
-      document.addEventListener("submit", (event) => {
-        event.preventDefault()
-        const { id } = event.target.dataset
-        const text = event.target.elements.text.value.trim()
-        if (text === "") return
-        // A word from you sets it going again, whether it had finished or been stopped.
-        delete S.stopped[id]
-        ;(S.said[id] ??= []).push(text)
-        document.querySelector(".msgs")?.remove()
-        render()
-        document.querySelector(".composer input")?.focus()
       })
 
       go(Number(new URLSearchParams(location.search).get("scene") ?? 2) - 1 || 0)

@@ -76,6 +76,7 @@ import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
+import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 import { isInherited, own } from "./own.ts"
 
@@ -254,7 +255,12 @@ function eventStream(
 const absent = (name: string) => defineExtension({ name })
 
 function summarize(id: string, record: ChatRecord): ChatSummary {
-  return { id, ...record }
+  const { subagent, ...chat } = record
+  return {
+    id,
+    ...chat,
+    ...(subagent === undefined ? {} : { parentId: subagent.parentId, status: subagent.status }),
+  }
 }
 
 /**
@@ -275,6 +281,7 @@ export class AgentActor implements Actor {
   /** How many clients are following each chat right now. */
   readonly #watchers = new Map<string, number>()
   readonly #scheduler: Scheduler
+  readonly #subagents: Subagents
   readonly #skills: Skills
   readonly #approvals: Approvals
   readonly #keepGoing: KeepGoing
@@ -351,6 +358,22 @@ export class AgentActor implements Actor {
           text: report.text,
           chatId: report.chatId,
         }),
+      onError: (error) => options.onReport?.(error),
+    })
+    this.#subagents = new Subagents({
+      now: () => host.now(),
+      context,
+      chat: (chatId) => this.#chatState(chatId),
+      waiting: async (chatId, c) =>
+        (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+      onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
+      // What the agent says about a report is told like any other answer nobody was there for.
+      onReport: (report) => {
+        if (report.turn === undefined || this.#harness === undefined) return
+        void this.#harness.then((harness) =>
+          this.#notifyWhenUnseen(harness, report.parentId, report.turn!),
+        )
+      },
       onError: (error) => options.onReport?.(error),
     })
   }
@@ -444,6 +467,7 @@ export class AgentActor implements Actor {
       // Before the paired-computer wraps, which also apply to sending a file.
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
+      registry.install(this.#subagents.extension)
       registry.install(this.#skills.extension)
       registry.install(Log)
       registry.install(this.#keepGoing.extension)
@@ -474,6 +498,7 @@ export class AgentActor implements Actor {
       this.#keepGoing.attach(harness)
       await this.#settleComputer(harness)
       this.#scheduler.attach(harness)
+      this.#subagents.attach(harness)
       this.#skills.attach(harness)
       this.#paired?.attach(harness)
       this.#library.attach(harness)
@@ -531,7 +556,11 @@ export class AgentActor implements Actor {
     if (this.#harness === undefined) return
     const harness = await this.#harness
     const inspection = await harness.inspect(context)
-    const live = inspection.tasks.length > 0 || inspection.submissions.length > 0
+    // A sub-agent that has finished and not yet reported has nothing live, and still needs a look.
+    const live =
+      inspection.tasks.length > 0 ||
+      inspection.submissions.length > 0 ||
+      (await this.#subagents.working(context))
     const keepAlive = live ? this.#host.now() + (this.#options.keepAliveMs ?? KEEPALIVE_MS) : null
     const scheduled = await this.#scheduler.nextWake(context)
     const wake =
@@ -547,6 +576,7 @@ export class AgentActor implements Actor {
   async alarm(): Promise<void> {
     await this.#open()
     await this.#scheduler.tick(context)
+    await this.#subagents.tick()
     await this.#rearm()
   }
 
@@ -605,6 +635,7 @@ export class AgentActor implements Actor {
       }
       if (
         error instanceof ScheduleError ||
+        error instanceof SubagentError ||
         error instanceof SkillError ||
         error instanceof LibraryError ||
         error instanceof HistoryError ||
@@ -840,6 +871,8 @@ export class AgentActor implements Actor {
       if (requestId !== undefined && segments[2] === undefined && method === "POST") {
         const { decision } = await body<{ decision: ApprovalDecision }>(request)
         await this.#approvals.resolve(requestId, decision, context)
+        // The answer sets a sub-agent that was waiting for it going again.
+        await this.#subagents.tick()
         return json({ ok: true })
       }
     }
@@ -909,11 +942,18 @@ export class AgentActor implements Actor {
           )
         }
         if (rest === "events" && method === "GET") return this.#chatEvents(conversation)
+        // A sub-agent's chat is its agent's to write in. The user reads it, and can stop it.
+        const subagent =
+          own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind === "subagent"
+        if (subagent && (rest === "messages" || rest === "reset") && method === "POST") {
+          throw new HttpError(409, "Only the agent talks to its sub-agents.", "subagent")
+        }
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request))
         }
         if (rest === "abort" && method === "POST") {
-          await conversation.abort(context)
+          if (subagent) await this.#subagents.stop(chatId, "user", context)
+          else await conversation.abort(context)
           return json({ ok: true })
         }
         if (rest === "reset" && method === "POST") {

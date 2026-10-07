@@ -78,6 +78,42 @@ describe("agent actor in a Durable Object", () => {
   })
 })
 
+describe("sub-agents in a Durable Object", () => {
+  it("has a sub-agent work in its own chat and report back to the one that started it", async () => {
+    const agent = "agent-workers-subagent"
+    await call(agent, "/init", "POST", { ownerId: "user-1" })
+    const chat = await call<ChatSummary>(agent, "/chats", "POST", {})
+    await call(agent, `/chats/${chat.id}/messages`, "POST", {
+      text: '/tool subagent {"action":"start","title":"Flights","task":"Find flights to Lisbon"}',
+      requestId: "request-1",
+    })
+
+    // The report arrives by itself, and the agent is given a turn over it.
+    const said = (state: ChatState) =>
+      state.messages
+        .flatMap((message) => message.parts)
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    let state: ChatState = EMPTY_CHAT
+    for (let attempt = 0; attempt < 150; attempt++) {
+      state = await call<ChatState>(agent, `/chats/${chat.id}`)
+      if (!state.busy && said(state).some((text) => text.includes("has reported back"))) break
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    const { chats } = await call<{ chats: ChatSummary[] }>(agent, "/")
+    const subagent = chats.find((entry) => entry.kind === "subagent")
+    expect(subagent).toMatchObject({ title: "Flights", parentId: chat.id, status: "done" })
+    const word = state.messages
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === "notice" && part.kind === "subagent")
+    expect(word).toMatchObject({ text: "Flights", chatId: subagent!.id, outcome: "reported" })
+    expect(said(state).at(-1)).toContain('[Your sub-agent "Flights"')
+    // Its chat is the agent's to write in.
+    await expect(
+      call(agent, `/chats/${subagent!.id}/messages`, "POST", { text: "hi", requestId: "direct" }),
+    ).rejects.toThrow("409")
+  })
+})
+
 describe("agent computer in a Durable Object", () => {
   it("runs the shell and keeps files in Durable Object storage", async () => {
     const agent = "agent-workers-computer"
