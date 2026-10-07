@@ -8,6 +8,7 @@ import {
   r2Blobs,
 } from "@durable-computer/runtime/cloudflare"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
+import { agentDirectory } from "./server/agent-directory.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
@@ -38,6 +39,7 @@ export const AgentObject = createDurableActorClass<Env>({
         d1Database(env.DB),
         durableObjectNamespace(env.COMPUTER),
       ),
+      agentDirectory: agentDirectory(d1Database(env.DB), () => durableObjectNamespace(env.AGENT)),
       onNotify: (notification) =>
         void notifyPeople(
           d1Database(env.DB),

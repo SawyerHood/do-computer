@@ -1,33 +1,15 @@
-import { type Browser, expect, type Page, test } from "@playwright/test"
+import type { Browser, Page } from "@playwright/test"
+import { expect, test } from "./fixtures.ts"
+import { composer, owner, signUp } from "./helpers.ts"
 
-// Runs after app.spec.ts against the same server, whose first account is the owner's. Sign-up
-// there is by invitation, so the second person here can only get in by being asked to a team.
-const owner = { name: "Sawyer", email: "owner@example.com", password: "correct horse battery" }
+// The first account on the server is the owner's. Sign-up there is by invitation, so the second
+// person here can only get in by being asked to a team.
 const maya = { name: "Maya Okafor", email: "maya@example.com", password: "correct horse battery" }
-
-const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 
 async function fill(page: Page, account: { name?: string; email: string; password: string }) {
   if (account.name !== undefined) await page.getByLabel("Name").fill(account.name)
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill(account.password)
-}
-
-/** Sign the owner in, making the account when this file is run on its own. */
-async function signInOwner(page: Page) {
-  await page.goto("/login")
-  await fill(page, { email: owner.email, password: owner.password })
-  await page.getByRole("button", { name: "Sign in" }).click()
-  const there = page.waitForURL(/\/a\/[^/]+\/c\/\d+/).then(() => true)
-  const refused = page
-    .getByRole("alert")
-    .waitFor()
-    .then(() => false)
-  if (await Promise.race([there, refused])) return
-  await page.goto("/signup")
-  await fill(page, owner)
-  await page.getByRole("button", { name: "Create account" }).click()
-  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
 }
 
 async function open(browser: Browser, baseURL: string | undefined) {
@@ -48,13 +30,11 @@ let chatPath = ""
 test.beforeAll(async ({ browser, baseURL }) => {
   sawyer = await open(browser, baseURL)
   her = await open(browser, baseURL)
-  await signInOwner(sawyer)
+  await signUp(sawyer)
+  await sawyer.waitForURL(/\/a\/[^/]+\/c\/\d+/)
 })
 
 test.afterAll(async () => {
-  // Leave the server as the other tests expect it: no team, and no agent in one.
-  if (agentId !== "") await sawyer.request.delete(`/api/agents/${agentId}`)
-  if (team !== "") await sawyer.request.delete(`/api/workspaces/${team}`)
   await sawyer.context().close()
   await her.context().close()
 })

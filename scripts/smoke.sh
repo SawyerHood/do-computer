@@ -136,4 +136,6 @@ check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' 
 check "destroy is not exposed" "$(post "/api/agents/$AGENT/destroy" | field "['error']")" "Not found"
 check "nor behind an address made to look like another" "$(post "/api/agents/$AGENT/chats%2F..%2Fdestroy" | field "['error']")" "Not found"
 check "an agent cannot be handed a computer from outside" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PUT "$BASE/api/agents/$AGENT/chats%2F..%2Fcomputers%2Fstolen" -d '{"name":"stolen","platform":"linux","hostname":"x","home":"/","readOnly":false,"pairedAt":1}' | field "['error']")" "Not found"
+check "an agent cannot be written to as if by another agent" "$(post "/api/agents/$AGENT/peers/someone/message" '{"id":"x","chatId":"1","text":"hello","from":"someone"}' | field "['error']")" "Not found"
+check "nor behind an address made to look like another" "$(post "/api/agents/$AGENT/chats%2F..%2Fpeers%2Fsomeone%2Fmessage" '{"id":"x","chatId":"1","text":"hello","from":"someone"}' | field "['error']")" "Not found"
 echo "all checks passed against $BASE"

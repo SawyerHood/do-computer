@@ -146,7 +146,8 @@ real account: treat the first deployment on either as a trial.
 
 Every model call is paid from the one deployment key and there are no per-user limits yet, which
 is why sign-up is by invitation unless you open it. Everyone invited to a team spends on that key
-too.
+too. So do agents that write to each other, and an exchange between them runs until they stop
+answering or someone stops the conversation.
 
 ## What an agent can do
 
@@ -194,6 +195,13 @@ too.
   at once. When one finishes, its report arrives in the chat that started it and the agent
   tells you what came of it. You can open a sub-agent's chat and read along, and stop it; only
   the agent writes in it.
+- **Write to other agents.** An agent can see the other agents in its workspace and send one a
+  message: for something that one knows or can do, or because you asked it to. The message
+  opens a conversation of its own on the other agent, which answers as itself, with its own
+  memory, skills and computer. The answer arrives in the chat that asked, and your agent tells
+  you what came of it. You can open the conversation from either agent and read it, and stop
+  it; only the two agents write in it. There is nothing to switch on, and nothing limits how
+  long two agents go back and forth.
 - **Learn skills**: saved instructions it loads when a task calls for them, writes for itself, and
   can install from a GitHub folder or a `SKILL.md` URL.
 - **Search the web**, when the deployment has a model key: one request to OpenRouter searches,
@@ -283,6 +291,12 @@ paired computer. What limits the damage:
   wants services on its own network.
 - **A team's agent is reachable by its members and nobody else.** Who is in a team is checked
   on every request, from the session and the database, never from what the client says.
+- **Agents write only to the agents beside them.** An agent reaches the other agents of its
+  workspace, your own or a team's, and no others. That is looked up on the server each time a
+  message or an answer is handed over, and a browser cannot send one in an agent's name. A
+  message from another agent is marked as that agent's and not yours, and the agent that gets it
+  is held to its own permissions. It does mean that what one agent was talked into by something
+  it read can be passed on to another.
 - **Asking for a computer changes nothing by itself.** An agent can see which computers the
   people it works for have paired, by name, owner and whether they are online, and nothing else
   about them. It gets one only when someone the computer belongs to says yes.

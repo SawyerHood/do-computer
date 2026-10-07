@@ -25,6 +25,6 @@ chats are listed.
   open, with no arrows to fold. The agent's own row is its main chat.
 - **C, in the agent's panel.** The sidebar as in A; side chats are a section under the creature.
 
-The owner chose A, and it was built in the web app the same day (HANDOFF.md, section 5, item 17).
+The owner chose A, and it was built in the web app the same day (HANDOFF.md, section 5, item 18).
 
 `#today` is the sidebar as it was, for comparison. `#mobile` is A as four stills of a phone.

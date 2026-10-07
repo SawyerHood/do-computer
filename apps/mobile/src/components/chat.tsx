@@ -144,6 +144,27 @@ function Message({
         </View>
       )
     }
+    if (notice?.kind === "agent") {
+      // Another agent's reply to a message. What the two said to each other is read on the web.
+      return (
+        <View style={{ gap: space(1), paddingHorizontal: space(1) }}>
+          <Text tone="muted" size={14}>
+            {`${notice.text} ${
+              notice.outcome === "stopped"
+                ? "was stopped before it answered"
+                : notice.outcome === "failed"
+                  ? "could not answer"
+                  : "replied"
+            }`}
+          </Text>
+          {notice.detail === undefined ? null : (
+            <Text tone="muted" size={13}>
+              {notice.detail}
+            </Text>
+          )}
+        </View>
+      )
+    }
     if (notice?.kind === "computer") {
       // The answer to the agent's asking to use a computer. Asking is answered on the web.
       return (

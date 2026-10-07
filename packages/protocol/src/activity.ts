@@ -249,6 +249,17 @@ export function isSubagentStart(part: MessagePart): part is ToolPart {
   )
 }
 
+/**
+ * Whether a part is the agent sending a message to another agent. That is shown too, as a way
+ * into the conversation the two of them are having.
+ */
+export function isAgentMessage(part: MessagePart): part is ToolPart {
+  if (part.type !== "tool" || part.name !== "agents" || part.status !== "done") return false
+  if ((part.args as { action?: unknown } | null)?.action !== "message") return false
+  const details = part.details as { agentId?: unknown; chatId?: unknown } | null | undefined
+  return typeof details?.agentId === "string" && typeof details.chatId === "string"
+}
+
 /** Whether a part of a message is shown in a transcript. Thinking and tool calls are not. */
 export function isShownPart(part: MessagePart): boolean {
   return (
@@ -256,7 +267,8 @@ export function isShownPart(part: MessagePart): boolean {
     part.type === "image" ||
     part.type === "notice" ||
     isSentFile(part) ||
-    isSubagentStart(part)
+    isSubagentStart(part) ||
+    isAgentMessage(part)
   )
 }
 

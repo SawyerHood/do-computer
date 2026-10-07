@@ -78,6 +78,7 @@ import {
   PairedComputers,
 } from "./paired.ts"
 import { parseModel } from "./models.ts"
+import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
@@ -124,6 +125,11 @@ export type AgentActorOptions = {
    * one. Without it, the agent has only the computers it was given. Needs `computerLinks`.
    */
   readonly computerDirectory?: ComputerDirectory
+  /**
+   * Who the other agents of the agent's workspace are, and how a message reaches one. Without
+   * it, the agent knows of no other agent.
+   */
+  readonly agentDirectory?: AgentDirectory
   /** Used to reach connectors (remote MCP servers). Default: the global `fetch`. */
   readonly connectorFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>
   /**
@@ -273,12 +279,18 @@ const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
   identity.whenBusy ?? (identity.team ? "queue" : "steer")
 
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
-  const { subagent, ...chat } = record
+  const { subagent, peer, ...chat } = record
   return {
     id,
     ...chat,
     ...(id === main ? { main: true } : {}),
     ...(subagent === undefined ? {} : { parentId: subagent.parentId, status: subagent.status }),
+    ...(peer === undefined
+      ? {}
+      : {
+          status: peer.status,
+          peer: { agentId: peer.agentId, name: peer.name, chatId: peer.chatId },
+        }),
   }
 }
 
@@ -301,6 +313,7 @@ export class AgentActor implements Actor {
   readonly #watchers = new Map<string, number>()
   readonly #scheduler: Scheduler
   readonly #subagents: Subagents
+  readonly #peers: Peers | undefined
   readonly #skills: Skills
   readonly #approvals: Approvals
   readonly #keepGoing: KeepGoing
@@ -399,6 +412,20 @@ export class AgentActor implements Actor {
       },
       onError: (error) => options.onReport?.(error),
     })
+    this.#peers =
+      options.agentDirectory === undefined
+        ? undefined
+        : new Peers({
+            agentId: host.name,
+            directory: options.agentDirectory,
+            now: () => host.now(),
+            context,
+            chat: (chatId) => this.#chatState(chatId),
+            waiting: async (chatId, c) =>
+              (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+            onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
+            onError: (error) => options.onReport?.(error),
+          })
   }
 
   /** A chat as a client would see it, or undefined if there is no such chat or nothing is open. */
@@ -491,6 +518,7 @@ export class AgentActor implements Actor {
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
+      if (this.#peers !== undefined) registry.install(this.#peers.extension)
       registry.install(this.#skills.extension)
       registry.install(Log)
       registry.install(this.#keepGoing.extension)
@@ -522,6 +550,7 @@ export class AgentActor implements Actor {
       await this.#settleComputer(harness)
       this.#scheduler.attach(harness)
       this.#subagents.attach(harness)
+      this.#peers?.attach(harness)
       this.#skills.attach(harness)
       this.#paired?.attach(harness)
       this.#library.attach(harness)
@@ -579,11 +608,13 @@ export class AgentActor implements Actor {
     if (this.#harness === undefined) return
     const harness = await this.#harness
     const inspection = await harness.inspect(context)
-    // A sub-agent that has finished and not yet reported has nothing live, and still needs a look.
+    // A sub-agent that has finished and not yet reported has nothing live, and still needs a
+    // look. So does a conversation with another agent whose answer is still to be handed back.
     const live =
       inspection.tasks.length > 0 ||
       inspection.submissions.length > 0 ||
-      (await this.#subagents.working(context))
+      (await this.#subagents.working(context)) ||
+      ((await this.#peers?.working(context)) ?? false)
     const keepAlive = live ? this.#host.now() + (this.#options.keepAliveMs ?? KEEPALIVE_MS) : null
     const scheduled = await this.#scheduler.nextWake(context)
     const wake =
@@ -600,6 +631,7 @@ export class AgentActor implements Actor {
     await this.#open()
     await this.#scheduler.tick(context)
     await this.#subagents.tick()
+    await this.#peers?.tick()
     await this.#rearm()
   }
 
@@ -659,6 +691,7 @@ export class AgentActor implements Actor {
       if (
         error instanceof ScheduleError ||
         error instanceof SubagentError ||
+        error instanceof PeerError ||
         error instanceof SkillError ||
         error instanceof LibraryError ||
         error instanceof HistoryError ||
@@ -738,6 +771,22 @@ export class AgentActor implements Actor {
       }
       if (computerId !== undefined && method === "DELETE") {
         await this.#paired.remove(computerId, context)
+        return json({ ok: true })
+      }
+    }
+    // Word from another agent in the workspace, which the host has checked is one.
+    if (segments[0] === "peers" && this.#peers !== undefined && method === "POST") {
+      const from = segments[1]
+      if (from !== undefined && segments[2] === "message" && segments[3] === undefined) {
+        return json(await this.#peers.receive(from, await body<PeerMessage>(request), context))
+      }
+      if (from !== undefined && segments[2] === "reply" && segments[3] === undefined) {
+        const delivered = await this.#peers.replied(from, await body<PeerReply>(request), context)
+        if (delivered === undefined) throw new HttpError(404, "Chat not found")
+        // What the agent says about it is told like any other answer nobody was there for.
+        if (!delivered.thread) {
+          void this.#notifyWhenUnseen(harness, delivered.chatId, delivered.turn, undefined)
+        }
         return json({ ok: true })
       }
     }
@@ -924,8 +973,10 @@ export class AgentActor implements Actor {
           context,
           identity.team ? caller : undefined,
         )
-        // The answer sets a sub-agent that was waiting for it going again.
+        // The answer sets a sub-agent that was waiting for it going again, and a conversation
+        // with another agent likewise.
         await this.#subagents.tick()
+        await this.#peers?.tick()
         return json({ ok: true })
       }
     }
@@ -999,16 +1050,22 @@ export class AgentActor implements Actor {
         }
         if (rest === "events" && method === "GET") return this.#chatEvents(conversation)
         // A sub-agent's chat is its agent's to write in. The user reads it, and can stop it.
-        const subagent =
-          own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind === "subagent"
+        const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
+        const subagent = kind === "subagent"
         if (subagent && (rest === "messages" || rest === "reset") && method === "POST") {
           throw new HttpError(409, "Only the agent talks to its sub-agents.", "subagent")
+        }
+        // A conversation with another agent is the two agents' to write in, in the same way.
+        const thread = kind === "agent"
+        if (thread && (rest === "messages" || rest === "reset") && method === "POST") {
+          throw new HttpError(409, "Only the two agents write in this conversation.", "agent")
         }
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request), caller)
         }
         if (rest === "abort" && method === "POST") {
           if (subagent) await this.#subagents.stop(chatId, "user", context)
+          else if (thread && this.#peers !== undefined) await this.#peers.stop(chatId, context)
           else await conversation.abort(context)
           return json({ ok: true })
         }
