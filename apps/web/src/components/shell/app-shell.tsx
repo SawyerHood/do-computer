@@ -1,7 +1,10 @@
-import type { AgentState } from "@durable-computer/client"
-import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
 import {
-  ArchiveIcon,
+  type AgentSummary,
+  isPersonalWorkspace,
+  personalWorkspaceId,
+  type WorkspaceSummary,
+} from "@durable-computer/protocol"
+import {
   ChatCircleIcon,
   ClockIcon,
   DesktopIcon,
@@ -13,37 +16,28 @@ import {
   MoonIcon,
   ShieldCheckIcon,
   NotePencilIcon,
-  PlusIcon,
   SignOutIcon,
   SunIcon,
   UserCircleIcon,
+  UsersIcon,
 } from "@phosphor-icons/react"
-import { useQuery } from "@tanstack/react-query"
-import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router"
-import { and, eq, useLiveQuery } from "@tanstack/react-db"
+import { Link, useLocation, useNavigate, useParams, useRouteContext } from "@tanstack/react-router"
+import { eq, useLiveQuery } from "@tanstack/react-db"
 import { useAtom } from "jotai"
-import { type ReactNode, useEffect, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
+import { FaceStack } from "@/components/people"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { SubagentFace, subagentWords } from "@/components/chat/subagents"
 import { chatListOpenAtom } from "@/lib/atoms"
 import { authClient } from "@/lib/auth-client"
-import { client } from "@/lib/client"
-import { agentsCollection, chatsCollection } from "@/lib/collections"
+import { agentsCollection } from "@/lib/collections"
 import { currentTheme, setTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
+import { useHere, usePeople, usePresence, useWorkspaces, whoIs } from "@/lib/workspaces"
+import { AgentList, useNewChat } from "./agent-list.tsx"
+import { WorkspaceMenu } from "./workspace-menu.tsx"
 
 function RailButton({
   label,
@@ -60,7 +54,7 @@ function RailButton({
             size="icon-lg"
             aria-label={label}
             className={cn(
-              "rounded-full text-muted-foreground",
+              "relative rounded-full text-muted-foreground",
               active && "bg-accent text-foreground",
             )}
             {...props}
@@ -74,245 +68,7 @@ function RailButton({
   )
 }
 
-function AgentSwitcher({ agent }: { agent: AgentSummary }) {
-  const navigate = useNavigate()
-  const { data: agents } = useLiveQuery({ query: (q) => q.from({ agent: agentsCollection }) })
-  const create = async () => {
-    const created = await client.createAgent()
-    await agentsCollection.utils.refetch()
-    await navigate({ to: "/a/$agentId", params: { agentId: created.id } })
-  }
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Switch agent"
-        className="rounded-full outline-none ring-ring/40 focus-visible:ring-3"
-      >
-        <AgentFace agent={agent} className="size-10" still />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="start" className="w-60">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Your agents</DropdownMenuLabel>
-          {(agents ?? []).map((other) => (
-            <DropdownMenuItem
-              key={other.id}
-              onClick={() => navigate({ to: "/a/$agentId", params: { agentId: other.id } })}
-            >
-              <AgentFace agent={other} className="size-6" still />
-              <span className="truncate">{other.name ?? "New agent"}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={create}>
-          <PlusIcon /> New agent
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
-
-/** Matches for a search across everything said in the agent's chats. */
-function SearchResults({
-  agentId,
-  query,
-  onNavigate,
-}: {
-  agentId: string
-  query: string
-  onNavigate?: () => void
-}) {
-  // Wait for a pause in typing: each search reads the transcripts.
-  const [settled, setSettled] = useState(query)
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(query), 250)
-    return () => clearTimeout(timer)
-  }, [query])
-  const { data, isError } = useQuery({
-    queryKey: ["agents", agentId, "search", settled],
-    queryFn: () => client.agent(agentId).search(settled),
-    staleTime: 10_000,
-  })
-  return (
-    <div
-      role="region"
-      aria-label="Search results"
-      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
-    >
-      {isError ? (
-        <p className="px-3 py-2 text-sm text-destructive">The search did not work. Try again.</p>
-      ) : data === undefined || settled !== query ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">Searching…</p>
-      ) : data.hits.length === 0 ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">Nothing matches.</p>
-      ) : (
-        <>
-          {data.partial ? (
-            <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
-              Nothing has all of those words. These come closest.
-            </p>
-          ) : null}
-          {data.hits.map((hit) => (
-            <Link
-              key={`${hit.chatId}/${hit.messageId}`}
-              to="/a/$agentId/c/$chatId"
-              params={{ agentId, chatId: hit.chatId }}
-              onClick={onNavigate}
-              className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-sm hover:bg-accent"
-            >
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="truncate font-medium">{hit.chatTitle}</span>
-                {hit.at === null ? null : (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {day.format(hit.at)}
-                  </span>
-                )}
-              </span>
-              <span className="line-clamp-3 text-xs text-muted-foreground">{hit.snippet}</span>
-            </Link>
-          ))}
-        </>
-      )}
-      {data !== undefined && !data.complete && data.hits.length > 0 ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          There may be more. Add a word to narrow it down.
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
 const CHAT_LIST_KEY = "dc-chat-list"
-
-/** Starts a chat with the agent and opens it. */
-function useNewChat(agentId: string, onNavigate?: () => void) {
-  const navigate = useNavigate()
-  return async () => {
-    const chat = await client.agent(agentId).createChat()
-    await chatsCollection(agentId).utils.refetch()
-    onNavigate?.()
-    await navigate({ to: "/a/$agentId/c/$chatId", params: { agentId, chatId: chat.id } })
-  }
-}
-
-function ChatList({ agentId, onNavigate }: { agentId: string; onNavigate?: () => void }) {
-  const navigate = useNavigate()
-  const { chatId: activeChatId } = useParams({ strict: false })
-  const collection = chatsCollection(agentId)
-  const { data: chats } = useLiveQuery({
-    query: (q) =>
-      q
-        .from({ chat: collection })
-        // Scheduled runs have their own chats; those are reached from the automations page.
-        .where(({ chat }) => and(eq(chat.archived, false), eq(chat.kind, "chat")))
-        .orderBy(({ chat }) => chat.updatedAt, "desc"),
-  })
-  // Sub-agents are listed under the chat that started them, once that chat or one of them is open.
-  const { data: subagents } = useLiveQuery({
-    query: (q) =>
-      q
-        .from({ chat: collection })
-        .where(({ chat }) => eq(chat.kind, "subagent"))
-        .orderBy(({ chat }) => chat.createdAt, "asc"),
-  })
-  const openParentId =
-    (subagents ?? []).find((subagent) => subagent.id === activeChatId)?.parentId ?? activeChatId
-
-  const [query, setQuery] = useState("")
-  const searching = query.trim().length >= 2
-
-  const create = useNewChat(agentId, onNavigate)
-  const archive = async (chat: ChatSummary) => {
-    collection.update(chat.id, (draft) => {
-      draft.archived = true
-    })
-    if (chat.id === activeChatId) await navigate({ to: "/a/$agentId", params: { agentId } })
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h2 className="text-sm font-medium">Chats</h2>
-        <Button variant="ghost" size="icon-sm" onClick={create} aria-label="New chat">
-          <NotePencilIcon />
-        </Button>
-      </div>
-      <div className="px-3 pb-2">
-        <Input
-          type="search"
-          aria-label="Search chats"
-          placeholder="Search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="h-8 text-sm"
-        />
-      </div>
-      {searching ? (
-        <SearchResults agentId={agentId} query={query.trim()} onNavigate={onNavigate} />
-      ) : null}
-      <nav
-        hidden={searching}
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
-      >
-        {(chats ?? []).map((chat) => (
-          <div key={chat.id} className="group/chat relative">
-            <Link
-              to="/a/$agentId/c/$chatId"
-              params={{ agentId, chatId: chat.id }}
-              onClick={onNavigate}
-              className={cn(
-                "block truncate rounded-lg py-2 pr-9 pl-3 text-sm text-muted-foreground hover:bg-accent hover:text-foreground",
-                chat.id === openParentId && "bg-accent text-foreground",
-              )}
-            >
-              {chat.title}
-            </Link>
-            <button
-              type="button"
-              aria-label={`Archive ${chat.title}`}
-              onClick={() => archive(chat)}
-              className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/chat:opacity-100"
-            >
-              <ArchiveIcon className="size-4" />
-            </button>
-            {chat.id !== openParentId
-              ? null
-              : (subagents ?? [])
-                  .filter((subagent) => subagent.parentId === chat.id)
-                  .map((subagent) => (
-                    <Link
-                      key={subagent.id}
-                      to="/a/$agentId/c/$chatId"
-                      params={{ agentId, chatId: subagent.id }}
-                      onClick={onNavigate}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg py-1.5 pr-3 pl-5 text-[0.8125rem] text-muted-foreground hover:bg-accent hover:text-foreground",
-                        subagent.id === activeChatId && "bg-accent text-foreground",
-                      )}
-                    >
-                      <SubagentFace
-                        agentId={agentId}
-                        chatId={subagent.id}
-                        status={subagent.status}
-                        className="size-5"
-                      />
-                      <span className="min-w-0 flex-1 truncate">{subagent.title}</span>
-                      <span className="shrink-0 text-xs">
-                        {subagentWords(subagent.status).toLowerCase()}
-                      </span>
-                    </Link>
-                  ))}
-          </div>
-        ))}
-        {chats !== undefined && chats.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-muted-foreground">No chats yet.</p>
-        ) : null}
-      </nav>
-    </div>
-  )
-}
 
 function ThemeToggle() {
   const [theme, setCurrent] = useState<"light" | "dark">("dark")
@@ -331,12 +87,72 @@ function ThemeToggle() {
   )
 }
 
-/** The frame around an agent: a rail of destinations, its chat list, and the current page. */
-export function AppShell({ state, children }: { state: AgentState; children: ReactNode }) {
-  const { agent } = state
+/** The workspace a page is in: the one named, else the agent's, else the user's own. */
+function useCurrentWorkspace(
+  me: { id: string; name: string; email: string; image?: string | null },
+  agentId: string | undefined,
+  workspaceId: string | undefined,
+): WorkspaceSummary {
+  const state = useWorkspaces()
+  const { data: found } = useLiveQuery(
+    (q) => q.from({ agent: agentsCollection }).where(({ agent }) => eq(agent.id, agentId ?? "")),
+    [agentId],
+  )
+  const id = workspaceId ?? found?.[0]?.workspaceId ?? personalWorkspaceId(me.id)
+  return useMemo(
+    () =>
+      state?.workspaces.find((workspace) => workspace.id === id) ?? {
+        // Until the list has arrived, and for a team it does not have: the user's own.
+        id: personalWorkspaceId(me.id),
+        name: "Personal",
+        color: "teal",
+        kind: "personal",
+        role: "owner",
+        members: [
+          {
+            id: me.id,
+            name: me.name,
+            email: me.email,
+            image: me.image ?? null,
+            role: "owner",
+            joinedAt: 0,
+          },
+        ],
+        createdAt: 0,
+      },
+    [state, id, me],
+  )
+}
+
+/**
+ * The frame around everything behind sign-in: a rail with the workspace and the open agent's
+ * pages, the workspace's agents with their chats, and the current page. Without an agent, as on
+ * a team's own pages, the rail has only what belongs to the workspace.
+ */
+export function AppShell({
+  agent,
+  workspaceId,
+  children,
+}: {
+  agent?: AgentSummary
+  /** The team whose page this is, where the page is not an agent's. */
+  workspaceId?: string
+  children: ReactNode
+}) {
   const navigate = useNavigate()
+  const { me } = useRouteContext({ from: "/_app" })
+  const { chatId } = useParams({ strict: false })
+  const workspace = useCurrentWorkspace(me.user, agent?.id, workspaceId)
+  const team = !isPersonalWorkspace(workspace.id)
+  usePresence(workspace.id, { agentId: agent?.id ?? null, chatId: chatId ?? null })
+  const here = useHere(workspace.id)
+  const people = usePeople(workspace)
+  const others = whoIs(here, (place) => place.userId !== me.user.id).flatMap(
+    (id) => people.get(id) ?? [],
+  )
+
   const [listOpen, setListOpen] = useAtom(chatListOpenAtom)
-  // The chat list stays the way it was left.
+  // The list stays the way it was left.
   useEffect(() => {
     try {
       if (localStorage.getItem(CHAT_LIST_KEY) === "open") setListOpen(true)
@@ -353,117 +169,125 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
       }
       return !open
     })
-  const newChat = useNewChat(agent.id)
+  const newChat = useNewChat(agent?.id)
   const [sheetOpen, setSheetOpen] = useState(false)
   const page = useLocation({
-    select: (location) =>
-      location.pathname.endsWith("/profile")
-        ? "profile"
-        : location.pathname.endsWith("/automations")
-          ? "automations"
-          : location.pathname.endsWith("/skills")
-            ? "skills"
-            : location.pathname.endsWith("/computers")
-              ? "computers"
-              : location.pathname.endsWith("/library")
-                ? "library"
-                : location.pathname.endsWith("/connectors")
-                  ? "connectors"
-                  : location.pathname.endsWith("/permissions")
-                    ? "permissions"
-                    : location.pathname.endsWith("/settings")
-                      ? "settings"
-                      : "chat",
+    select: (location) => {
+      const last = location.pathname.split("/").at(-1) ?? ""
+      if (location.pathname.startsWith("/w/")) return last === "people" ? "people" : "team"
+      return [
+        "profile",
+        "automations",
+        "skills",
+        "computers",
+        "library",
+        "connectors",
+        "permissions",
+        "settings",
+      ].includes(last)
+        ? last
+        : "chat"
+    },
   })
-  const profile = page === "profile"
+  // Where the list of agents and chats is the thing to see: a chat, or a team's own pages.
+  const listed = page === "chat" || page === "team" || page === "people"
 
   const signOut = async () => {
     await authClient.signOut()
     await navigate({ to: "/login" })
   }
+  const to = (path: string) => () =>
+    navigate({ to: `/a/$agentId/${path}`, params: { agentId: agent!.id } })
 
   return (
     <div className="flex h-dvh min-h-0">
       <aside className="hidden w-16 shrink-0 flex-col items-center gap-2 border-r bg-rail py-3 md:flex">
-        <AgentSwitcher agent={agent} />
-        <div className="mt-3 flex flex-col items-center gap-1">
+        <WorkspaceMenu workspace={workspace} me={me.user} />
+        <div className="mt-3 flex flex-col items-center gap-1 border-t pt-3">
           {/* The library has a list of its own in that place, so from there this leads back. */}
           <RailButton
             label={page === "library" ? "Back to chat" : listOpen ? "Hide chats" : "Show chats"}
-            active={listOpen && page === "chat"}
+            active={listOpen && listed}
             onClick={
               page === "library"
-                ? () => navigate({ to: "/a/$agentId", params: { agentId: agent.id } })
+                ? () => navigate({ to: "/a/$agentId", params: { agentId: agent!.id } })
                 : toggleList
             }
           >
             <ChatCircleIcon />
           </RailButton>
-          <RailButton
-            label="Library"
-            active={page === "library"}
-            onClick={() => navigate({ to: "/a/$agentId/library", params: { agentId: agent.id } })}
-          >
-            <FolderIcon />
-          </RailButton>
-          <RailButton
-            label="Automations"
-            active={page === "automations"}
-            onClick={() =>
-              navigate({ to: "/a/$agentId/automations", params: { agentId: agent.id } })
-            }
-          >
-            <ClockIcon />
-          </RailButton>
-          <RailButton
-            label="Skills"
-            active={page === "skills"}
-            onClick={() => navigate({ to: "/a/$agentId/skills", params: { agentId: agent.id } })}
-          >
-            <LightningIcon />
-          </RailButton>
-          <RailButton
-            label="Connectors"
-            active={page === "connectors"}
-            onClick={() =>
-              navigate({ to: "/a/$agentId/connectors", params: { agentId: agent.id } })
-            }
-          >
-            <PlugsIcon />
-          </RailButton>
-          <RailButton
-            label="Computers"
-            active={page === "computers"}
-            onClick={() => navigate({ to: "/a/$agentId/computers", params: { agentId: agent.id } })}
-          >
-            <DesktopIcon />
-          </RailButton>
-          <RailButton
-            label="Permissions"
-            active={page === "permissions"}
-            onClick={() =>
-              navigate({ to: "/a/$agentId/permissions", params: { agentId: agent.id } })
-            }
-          >
-            <ShieldCheckIcon />
-          </RailButton>
-          <RailButton
-            label="Identity and memory"
-            active={profile}
-            onClick={() => navigate({ to: "/a/$agentId/profile", params: { agentId: agent.id } })}
-          >
-            <UserCircleIcon />
-          </RailButton>
+          {agent === undefined ? null : (
+            <>
+              <RailButton label="Library" active={page === "library"} onClick={to("library")}>
+                <FolderIcon />
+              </RailButton>
+              <RailButton
+                label="Automations"
+                active={page === "automations"}
+                onClick={to("automations")}
+              >
+                <ClockIcon />
+              </RailButton>
+              <RailButton label="Skills" active={page === "skills"} onClick={to("skills")}>
+                <LightningIcon />
+              </RailButton>
+              <RailButton
+                label="Connectors"
+                active={page === "connectors"}
+                onClick={to("connectors")}
+              >
+                <PlugsIcon />
+              </RailButton>
+              <RailButton label="Computers" active={page === "computers"} onClick={to("computers")}>
+                <DesktopIcon />
+              </RailButton>
+              <RailButton
+                label="Permissions"
+                active={page === "permissions"}
+                onClick={to("permissions")}
+              >
+                <ShieldCheckIcon />
+              </RailButton>
+              <RailButton
+                label="Identity and memory"
+                active={page === "profile"}
+                onClick={to("profile")}
+              >
+                <UserCircleIcon />
+              </RailButton>
+            </>
+          )}
         </div>
         <div className="mt-auto flex flex-col items-center gap-1">
+          {team ? (
+            <RailButton
+              label={
+                others.length === 0
+                  ? workspace.name
+                  : `${workspace.name}: ${others.length} here now`
+              }
+              active={page === "team" || page === "people"}
+              onClick={() =>
+                navigate({ to: "/w/$workspaceId", params: { workspaceId: workspace.id } })
+              }
+            >
+              <UsersIcon />
+              {others.length > 0 ? (
+                <span
+                  aria-hidden
+                  className="absolute top-0.5 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-[oklch(0.7_0.16_150)] px-1 text-[0.625rem] font-bold text-[oklch(0.2_0.05_150)] ring-2 ring-rail"
+                >
+                  {others.length}
+                </span>
+              ) : null}
+            </RailButton>
+          ) : null}
           {/* For the account, so it sits with signing out, apart from the agent's own pages. */}
-          <RailButton
-            label="Settings"
-            active={page === "settings"}
-            onClick={() => navigate({ to: "/a/$agentId/settings", params: { agentId: agent.id } })}
-          >
-            <GearIcon />
-          </RailButton>
+          {agent === undefined ? null : (
+            <RailButton label="Settings" active={page === "settings"} onClick={to("settings")}>
+              <GearIcon />
+            </RailButton>
+          )}
           <ThemeToggle />
           <RailButton label="Sign out" onClick={signOut}>
             <SignOutIcon />
@@ -473,7 +297,7 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
 
       {listOpen && page !== "library" ? (
         <aside className="hidden w-72 shrink-0 border-r bg-rail/60 md:block">
-          <ChatList agentId={agent.id} />
+          <AgentList workspace={workspace} activeAgentId={agent?.id} meId={me.user.id} />
         </aside>
       ) : null}
 
@@ -485,25 +309,35 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
             className="rounded-full"
             onClick={() => setSheetOpen(true)}
           >
-            <ListIcon /> Chats
+            <ListIcon /> Agents
           </Button>
         </div>
-        {/* On a wide screen the list is beside the chat when it is open, and behind this when not. */}
-        {listOpen || page !== "chat" ? null : (
+        {/* On a wide screen the list is beside the page when it is open, and behind this when not. */}
+        {listOpen || !listed ? null : (
           <div className="absolute top-3 left-3 z-20 hidden items-center gap-1.5 md:flex">
-            <Button variant="secondary" size="sm" className="rounded-full" onClick={toggleList}>
-              <ListIcon /> Chats
-            </Button>
             <Button
               variant="secondary"
-              size="icon-sm"
-              className="rounded-full"
-              aria-label="New chat"
-              title="New chat"
-              onClick={() => void newChat()}
+              size="sm"
+              className="rounded-full [--face-ring:var(--secondary)]"
+              aria-label="Agents"
+              onClick={toggleList}
             >
-              <NotePencilIcon />
+              <ListIcon /> Agents
+              {/* Who else is about, so that it shows with the list put away. */}
+              <FaceStack people={others} className="size-[1.125rem]" />
             </Button>
+            {agent === undefined ? null : (
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                className="rounded-full"
+                aria-label="New chat"
+                title="New chat"
+                onClick={() => void newChat()}
+              >
+                <NotePencilIcon />
+              </Button>
+            )}
           </div>
         )}
         {children}
@@ -511,48 +345,56 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="left" className="flex w-80 flex-col p-0">
-          <SheetTitle className="sr-only">Chats</SheetTitle>
+          <SheetTitle className="sr-only">Agents and chats</SheetTitle>
           <div className="flex items-center gap-3 border-b p-4 pr-12">
-            <AgentSwitcher agent={agent} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{agent.name ?? "New agent"}</p>
-              {agent.tagline ? (
-                <p className="truncate text-xs text-muted-foreground">{agent.tagline}</p>
-              ) : null}
+            <WorkspaceMenu workspace={workspace} me={me.user} side="bottom" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{workspace.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {agent === undefined ? "Pick an agent" : (agent.name ?? "New agent")}
+              </p>
             </div>
+            {agent === undefined ? null : <AgentFace agent={agent} className="size-9" still />}
           </div>
-          {/* The agent's pages, two to a row so the chats below keep most of the sheet. */}
-          <nav aria-label="Pages" className="grid grid-cols-2 gap-1 border-b p-2">
-            {(
-              [
-                // Short enough for half a sheet. Its page is still titled in full.
-                ["profile", "Identity", <UserCircleIcon key="i" />],
-                ["library", "Library", <FolderIcon key="i" />],
-                ["automations", "Automations", <ClockIcon key="i" />],
-                ["skills", "Skills", <LightningIcon key="i" />],
-                ["connectors", "Connectors", <PlugsIcon key="i" />],
-                ["computers", "Computers", <DesktopIcon key="i" />],
-                ["permissions", "Permissions", <ShieldCheckIcon key="i" />],
-                ["settings", "Settings", <GearIcon key="i" />],
-              ] as const
-            ).map(([path, label, icon]) => (
-              <Link
-                key={path}
-                to={`/a/$agentId/${path}`}
-                params={{ agentId: agent.id }}
-                onClick={() => setSheetOpen(false)}
-                className={cn(
-                  "flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&_svg]:size-4 [&_svg]:shrink-0",
-                  page === path && "bg-accent text-foreground",
-                )}
-              >
-                {icon}
-                <span className="truncate">{label}</span>
-              </Link>
-            ))}
-          </nav>
+          {/* The agent's pages, two to a row so the list below keeps most of the sheet. */}
+          {agent === undefined ? null : (
+            <nav aria-label="Pages" className="grid grid-cols-2 gap-1 border-b p-2">
+              {(
+                [
+                  // Short enough for half a sheet. Its page is still titled in full.
+                  ["profile", "Identity", <UserCircleIcon key="i" />],
+                  ["library", "Library", <FolderIcon key="i" />],
+                  ["automations", "Automations", <ClockIcon key="i" />],
+                  ["skills", "Skills", <LightningIcon key="i" />],
+                  ["connectors", "Connectors", <PlugsIcon key="i" />],
+                  ["computers", "Computers", <DesktopIcon key="i" />],
+                  ["permissions", "Permissions", <ShieldCheckIcon key="i" />],
+                  ["settings", "Settings", <GearIcon key="i" />],
+                ] as const
+              ).map(([path, label, icon]) => (
+                <Link
+                  key={path}
+                  to={`/a/$agentId/${path}`}
+                  params={{ agentId: agent.id }}
+                  onClick={() => setSheetOpen(false)}
+                  className={cn(
+                    "flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&_svg]:size-4 [&_svg]:shrink-0",
+                    page === path && "bg-accent text-foreground",
+                  )}
+                >
+                  {icon}
+                  <span className="truncate">{label}</span>
+                </Link>
+              ))}
+            </nav>
+          )}
           <div className="min-h-0 flex-1">
-            <ChatList agentId={agent.id} onNavigate={() => setSheetOpen(false)} />
+            <AgentList
+              workspace={workspace}
+              activeAgentId={agent?.id}
+              meId={me.user.id}
+              onNavigate={() => setSheetOpen(false)}
+            />
           </div>
           <div className="border-t p-3">
             <Button variant="ghost" size="sm" onClick={signOut}>

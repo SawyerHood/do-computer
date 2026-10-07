@@ -32,7 +32,7 @@ function AgentLayout() {
   }
   if (state === undefined) return null
   return (
-    <AppShell state={state}>
+    <AppShell agent={state.agent}>
       <Outlet />
     </AppShell>
   )

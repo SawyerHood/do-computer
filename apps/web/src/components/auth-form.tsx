@@ -1,6 +1,6 @@
 import { GithubLogoIcon, GoogleLogoIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,16 @@ import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
 
 type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
+
+/**
+ * Where to go once signed in: the page that sent the visitor here, when it named itself, such as
+ * an invitation. Only ever a path of this app, never an address someone else could choose.
+ */
+function destination(): string {
+  if (typeof location === "undefined") return "/"
+  const next = new URLSearchParams(location.search).get("next") ?? ""
+  return /^\/(?![/\\])/.test(next) ? next : "/"
+}
 
 /** Sign in or create an account, with email and password or a configured provider. */
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
@@ -45,11 +55,13 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       setError(result.error.message ?? "That did not work. Check your details and try again.")
       return
     }
-    await navigate({ to: "/" })
+    await navigate({ href: destination() })
   }
 
   const social = (provider: "google" | "github") =>
-    authClient.signIn.social({ provider, callbackURL: "/" })
+    authClient.signIn.social({ provider, callbackURL: destination() })
+  // The way between signing in and signing up keeps where the visitor was headed.
+  const carried = typeof location === "undefined" ? "" : location.search
 
   return (
     <main className="flex h-dvh items-center justify-center overflow-y-auto p-6">
@@ -117,16 +129,16 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
 
         <p className="text-sm text-muted-foreground">
           {signingUp ? "Already have an account? " : "New here? "}
-          <Link
-            to={signingUp ? "/login" : "/signup"}
+          <a
+            href={`${signingUp ? "/login" : "/signup"}${ready ? carried : ""}`}
             className="text-foreground underline underline-offset-3"
           >
             {signingUp ? "Sign in" : "Create an account"}
-          </Link>
+          </a>
           {signingUp && methods?.signup === "invite" ? (
             <span className="mt-2 block text-xs">
-              This deployment is invite-only: after the first account, only invited emails can sign
-              up.
+              This deployment is invite-only: after the first account, only people who have been
+              invited can sign up.
             </span>
           ) : null}
         </p>

@@ -59,6 +59,7 @@ export function Composer({
   onAttach,
   sees,
   agentName,
+  onTyping,
 }: {
   draftKey: string
   placeholder: string
@@ -74,6 +75,8 @@ export function Composer({
   onStop: () => void
   /** Put a file in the library, where the agent can reach it. */
   onAttach: (file: File) => Promise<LibraryFile>
+  /** Told as the user writes and when they stop, where others in the chat are shown it. */
+  onTyping?: ((typing: boolean) => void) | undefined
 }) {
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
@@ -150,6 +153,7 @@ export function Composer({
     // Cleared at once, as a sent message should be, and put back if it turns out not to have gone.
     setDraft("")
     setAttached([])
+    onTyping?.(false)
     void onSend(
       [typed.trim(), names === "" ? "" : `Attached: ${names}`].filter(Boolean).join("\n\n") ||
         // A picture alone, which could not be saved as a file, still needs words to go with.
@@ -245,7 +249,10 @@ export function Composer({
           placeholder={placeholder}
           aria-label="Message"
           className="max-h-[200px] flex-1 resize-none self-center bg-transparent py-1.5 text-[0.9375rem] outline-none placeholder:text-muted-foreground"
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            onTyping?.(event.target.value.trim() !== "")
+          }}
           onPaste={(event) => {
             // A picture or a file on the clipboard is attached, as if it had been chosen. Text
             // that came with it is still pasted as text.

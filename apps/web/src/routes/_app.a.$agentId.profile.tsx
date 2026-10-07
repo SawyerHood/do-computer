@@ -32,6 +32,7 @@ import {
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 
+import { refreshWorkspaces, useWorkspaceOfAgent, useWorkspaces } from "@/lib/workspaces"
 export const Route = createFileRoute("/_app/a/$agentId/profile")({ component: ProfilePage })
 
 type Form = {
@@ -293,8 +294,139 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
   )
 }
 
+/**
+ * What a message does that arrives while the agent is working. Saved as it is chosen, apart from
+ * the form above: it is about how the agent is used, not who it is.
+ */
+function WhenBusy({ agentId, state }: { agentId: string; state: AgentState }) {
+  const save = useMutation({
+    mutationFn: (whenBusy: "steer" | "queue") => client.agent(agentId).update({ whenBusy }),
+    onSuccess: (next) => queryClient.setQueryData(agentKey(agentId), next),
+  })
+  const chosen = save.isPending ? save.variables : (state.whenBusy ?? "steer")
+  const options = [
+    ["queue", "Wait its turn", "It finishes what it is doing, then answers the new message."],
+    [
+      "steer",
+      "Join in",
+      "It takes the new message into what it is doing, as a correction would be.",
+    ],
+  ] as const
+  return (
+    <Section
+      title="When a message arrives while it is working"
+      hint={
+        state.team
+          ? "In a team the next message is often someone else's, so it waits unless you say otherwise."
+          : "Whether a message you send mid-answer changes the answer or waits for it."
+      }
+    >
+      <div role="radiogroup" aria-label="When it is busy" className="flex flex-col gap-2">
+        {options.map(([value, label, words]) => (
+          <label key={value} className="flex items-start gap-3 rounded-xl border px-3 py-2.5">
+            <input
+              type="radio"
+              name="when-busy"
+              checked={chosen === value}
+              disabled={save.isPending}
+              onChange={() => save.mutate(value)}
+              className="mt-1 accent-primary"
+            />
+            <span>
+              <span className="block text-sm font-medium">{label}</span>
+              <span className="block text-sm text-muted-foreground">{words}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {save.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {save.error.message}
+        </p>
+      ) : null}
+    </Section>
+  )
+}
+
+/** Where the agent lives, and moving it: to a team, to share it, or back to oneself. */
+function Workspace({ agentId, name }: { agentId: string; name: string }) {
+  const workspace = useWorkspaceOfAgent(agentId)
+  const all = useWorkspaces()?.workspaces ?? []
+  const [target, setTarget] = useState("")
+  const move = useMutation({
+    mutationFn: () => client.moveAgent(agentId, target),
+    onSuccess: async () => {
+      setTarget("")
+      refreshWorkspaces()
+      await agentsCollection.utils.refetch()
+      await queryClient.invalidateQueries({ queryKey: agentKey(agentId) })
+    },
+  })
+  if (workspace === undefined) return null
+  const elsewhere = all.filter((entry) => entry.id !== workspace.id)
+  // Its owner, or an admin of the team it is in.
+  const may = workspace.role !== "member"
+  const to = all.find((entry) => entry.id === target)
+  return (
+    <Section
+      title="Workspace"
+      hint={
+        workspace.kind === "team"
+          ? `${name} is in ${workspace.name}: everyone there can use it and read its chats.`
+          : `${name} is yours alone. Move it to a team to share it.`
+      }
+    >
+      {!may ? (
+        <p className="text-sm text-muted-foreground">Only an admin of the team can move it.</p>
+      ) : elsewhere.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Start a team from the workspace menu, at the top of the rail, to have somewhere to move
+          it.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Move to"
+            value={target}
+            onChange={(event) => setTarget(event.target.value)}
+            className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          >
+            <option value="">Move to…</option>
+            {elsewhere.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={target === "" || move.isPending}
+            onClick={() => move.mutate()}
+          >
+            {move.isPending ? "Moving…" : "Move"}
+          </Button>
+        </div>
+      )}
+      {to === undefined ? null : (
+        <p role="note" className="rounded-xl bg-muted px-3 py-2 text-sm">
+          {to.kind === "team"
+            ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers.`
+            : `Only you will be able to use ${name}. Everyone else loses its chats.`}
+        </p>
+      )}
+      {move.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {move.error.message}
+        </p>
+      ) : null}
+    </Section>
+  )
+}
+
 function ProfilePage() {
   const { agentId } = Route.useParams()
+  const workspace = useWorkspaceOfAgent(agentId)
   const { data: state } = useQuery<AgentState>({
     queryKey: agentKey(agentId),
     queryFn: () => client.agent(agentId).state(),
@@ -443,8 +575,12 @@ function ProfilePage() {
         </Section>
 
         <Section
-          title="About you"
-          hint="What the agent knows about you. It reads this in every conversation, one entry per line."
+          title={state.team ? "About the team" : "About you"}
+          hint={
+            state.team
+              ? `What the agent knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
+              : "What the agent knows about you. It reads this in every conversation, one entry per line."
+          }
         >
           <Counted
             id="user"
@@ -509,8 +645,13 @@ function ProfilePage() {
           </Section>
         ) : null}
 
+        <WhenBusy agentId={agentId} state={state} />
+        <Workspace agentId={agentId} name={state.agent.name ?? "This agent"} />
         <Usage agentId={agentId} />
-        <DeleteAgent agentId={agentId} name={state.agent.name} />
+        {/* A team's agent is everyone's, so deleting it is for the people who run the team. */}
+        {workspace?.role === "member" ? null : (
+          <DeleteAgent agentId={agentId} name={state.agent.name} />
+        )}
 
         <div className="sticky bottom-4 flex items-center justify-end gap-3">
           {save.isError ? (
