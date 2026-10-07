@@ -254,6 +254,38 @@ test("scheduled runs do not clutter the chat list", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Stretch break", exact: true })).toHaveCount(0)
 })
 
+test("opening the agent lands on a chat of yours, not on a scheduled run", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("Chat to come back to")
+  await page.keyboard.press("Enter")
+  await expect(page.getByText("You said: Chat to come back to")).toBeVisible()
+  const mine = page.url()
+
+  // A run of a schedule whose chat is then put away is the newest chat the agent has.
+  await newChat(page)
+  await composer(page).fill("Chat to put away")
+  await page.keyboard.press("Enter")
+  await expect(page.getByText("You said: Chat to put away")).toBeVisible()
+  await composer(page).fill(
+    '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Look around","title":"Night watch"}',
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText(/Scheduled\./)).toBeVisible()
+  await page.getByRole("button", { name: "Automations" }).click()
+  const card = page.getByRole("listitem").filter({ hasText: "Night watch" })
+  await card.getByRole("button", { name: "Run now" }).click()
+  await expect(card.getByText(/Last run/)).toBeVisible({ timeout: 15_000 })
+  await card.getByRole("button", { name: "Delete Night watch" }).click()
+  await page.getByRole("link", { name: "Chat to put away" }).hover()
+  await page.getByRole("button", { name: "Archive Chat to put away" }).click()
+  await expect(page.getByRole("link", { name: "Chat to put away" })).toHaveCount(0)
+
+  await page.goto("/")
+  await page.waitForURL(/\/c\/\d+$/)
+  expect(page.url()).toBe(mine)
+})
+
 test("the agent saves a skill, and it can be read, switched off and deleted", async ({ page }) => {
   await signIn(page)
   await newChat(page)
