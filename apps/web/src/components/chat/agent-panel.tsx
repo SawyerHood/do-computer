@@ -4,6 +4,8 @@ import {
   chatRuns,
   type ChatState,
   type ChatSummary,
+  type LibraryFile,
+  sentFiles,
   toolActivity,
   type ToolPart,
   toolSummary,
@@ -12,12 +14,15 @@ import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
   CircleNotchIcon,
+  FileIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
 import { ResizeHandle } from "@/components/shell/resize-handle"
+import { client } from "@/lib/client"
 import { agentPanelColumn } from "@/lib/columns"
+import { formatBytes, isViewable } from "@/lib/library"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
@@ -123,10 +128,55 @@ function Work({ run }: { run: ChatRun }) {
   )
 }
 
+/** A file the agent sent in this chat: opened beside it where it can be shown, and otherwise downloaded. */
+function Shared({
+  agentId,
+  file,
+  onOpen,
+}: {
+  agentId: string
+  file: LibraryFile
+  onOpen: (fileId: string) => void
+}) {
+  const row =
+    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40"
+  const label = (
+    <>
+      <FileIcon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+    </>
+  )
+  return (
+    <li>
+      {isViewable(file) ? (
+        <button
+          type="button"
+          title="Open beside the chat"
+          onClick={() => onOpen(file.id)}
+          className={row}
+        >
+          {label}
+        </button>
+      ) : (
+        <a
+          href={client.agent(agentId).libraryFileUrl(file.id)}
+          download={file.name}
+          title="Download"
+          className={row}
+        >
+          {label}
+        </a>
+      )}
+    </li>
+  )
+}
+
 /**
  * The agent, beside its chat: its creature at a size where it can be watched, what it is doing,
- * and what it has done here. The transcript keeps only what was said; this is where the work
- * behind an answer can be opened and read.
+ * what it has shared here and what it has done here. The transcript keeps only what was said; this
+ * is where the work behind an answer can be opened and read, and a file found without scrolling
+ * back to where it was sent.
  */
 export function AgentPanel({
   agent,
@@ -137,6 +187,7 @@ export function AgentPanel({
   subagent,
   subagents,
   presence,
+  onOpenFile,
   chatless = false,
 }: {
   agent: AgentSummary
@@ -158,6 +209,8 @@ export function AgentPanel({
   subagents: ChatSummary[]
   /** In a team: who is in this chat right now. Shown above what the agent did. */
   presence?: React.ReactNode
+  /** Opens a file the agent sent beside the chat, by its id. Without it the files are not listed. */
+  onOpenFile?: (fileId: string) => void
   /** Beside a page that is not a chat: there is then no work here to list. */
   chatless?: boolean
 }) {
@@ -168,6 +221,7 @@ export function AgentPanel({
   // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
+  const files = useMemo(() => sentFiles(state), [state])
   const agentName = agent.name ?? "New agent"
   const name = subagent?.title ?? agentName
   // A sub-agent at rest says how it ended; one at work says what it is doing.
@@ -220,6 +274,18 @@ export function AgentPanel({
         </div>
       )}
       {presence}
+      {onOpenFile === undefined || files.length === 0 ? null : (
+        <section aria-label="Shared here" className="flex max-h-[30%] shrink-0 flex-col border-t">
+          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Shared here
+          </h3>
+          <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2.5 pb-3">
+            {files.map((file) => (
+              <Shared key={file.id} agentId={agent.id} file={file} onOpen={onOpenFile} />
+            ))}
+          </ul>
+        </section>
+      )}
       <div hidden={chatless} className="flex min-h-0 flex-1 flex-col border-t">
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           What it did here

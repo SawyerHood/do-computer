@@ -1,10 +1,13 @@
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+import { useAtomValue } from "jotai"
 import { useState } from "react"
+import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { libraryKey } from "@/lib/collections"
+import { DOC_PANEL_LEAVES, docPanelColumn } from "@/lib/columns"
 import { type ViewMode, Viewer } from "./viewer.tsx"
 
 /**
@@ -30,6 +33,7 @@ export function DocPanel({
     queryFn: () => client.agent(agentId).libraryListing(),
   })
   const [mode, setMode] = useState<ViewMode>("read")
+  const width = useAtomValue(docPanelColumn.width)
   const file = listing?.files.find((entry) => entry.id === fileId)
   const close = (
     <Button variant="ghost" size="icon-sm" aria-label="Close the document" onClick={onClose}>
@@ -39,8 +43,10 @@ export function DocPanel({
   return (
     <aside
       aria-label="Document"
-      className="hidden w-[min(52%,56rem)] shrink-0 border-l bg-background xl:block"
+      className="relative hidden shrink-0 border-l bg-background xl:block"
+      style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES})` }}
     >
+      <ResizeHandle column={docPanelColumn} edge="left" label="Resize the document" />
       {listing === undefined ? null : file === undefined ? (
         <div className="flex h-full flex-col">
           <div className="flex justify-end p-2">{close}</div>

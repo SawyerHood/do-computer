@@ -542,6 +542,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               </section>
             )
           }
+          onOpenFile={setOpenDoc}
           reconnecting={live.status === "reconnecting"}
           startFresh={
             canStartFresh

@@ -39,6 +39,9 @@ export function kindOf(file: Pick<LibraryFile, "name" | "size">): FileKind {
   return kind !== "image" && kind !== "other" && file.size > MAX_TEXT_BYTES ? "other" : kind
 }
 
+/** Whether the library can show a file. One sent before it showed documents has no place in it on record. */
+export const isViewable = (file: LibraryFile) => file.path !== undefined && kindOf(file) !== "other"
+
 /** The folder a path is in, or "" at the top. */
 export const dirOf = (path: string) =>
   path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""

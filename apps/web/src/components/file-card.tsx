@@ -2,7 +2,7 @@ import type { LibraryFile } from "@durable-computer/protocol"
 import { DownloadSimpleIcon, FileIcon } from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { client } from "@/lib/client"
-import { formatBytes, kindOf } from "@/lib/library"
+import { formatBytes, isViewable } from "@/lib/library"
 
 export { formatBytes }
 
@@ -24,8 +24,7 @@ export function FileCard({
   onOpen?: () => void
 }) {
   const url = client.agent(agentId).libraryFileUrl(file.id)
-  // A file sent before the library could show documents has no place in it on record.
-  const viewable = file.path !== undefined && kindOf(file) !== "other"
+  const viewable = isViewable(file)
   const label = (
     <>
       <FileIcon className="size-5 shrink-0 text-muted-foreground" />

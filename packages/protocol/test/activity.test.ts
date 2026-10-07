@@ -6,6 +6,7 @@ import {
   chatMood,
   EMPTY_CHAT,
   type MessagePart,
+  sentFiles,
   toolActivity,
   toolKind,
   type ToolPart,
@@ -195,5 +196,49 @@ describe("chatMood", () => {
     expect(["history", "deepwiki__ask_question"].map(toolKind)).toEqual(["search", "search"])
     expect(["set_identity", "schedule"].map(toolKind)).toEqual(["memory", "memory"])
     expect(toolKind("something_new")).toBe("command")
+  })
+})
+
+describe("sentFiles", () => {
+  const sent = (id: string, name: string, status: ToolPart["status"] = "done"): ToolPart => ({
+    type: "tool",
+    toolCallId: `send-${id}-${name}`,
+    name: "send_file",
+    args: { path: `library/${name}` },
+    status,
+    ...(status === "done" ? { details: { id, name, path: name } } : {}),
+  })
+  const says = (id: string, parts: MessagePart[]): ChatMessage => ({
+    id,
+    role: "assistant",
+    parts,
+    status: "done",
+  })
+
+  it("lists what was delivered, newest first, and nothing that was not", () => {
+    const state: ChatState = {
+      ...EMPTY_CHAT,
+      messages: [
+        says("1", [{ type: "text", text: "Here." }, sent("a", "plan.md"), sent("b", "data.csv")]),
+        says("2", [
+          tool("write", { path: "library/draft.md" }, "done"),
+          sent("c", "late.md", "error"),
+        ]),
+        says("3", [sent("d", "chart.png")]),
+      ],
+    }
+    expect(sentFiles(state).map((file) => file.name)).toEqual(["chart.png", "data.csv", "plan.md"])
+    expect(sentFiles(EMPTY_CHAT)).toEqual([])
+  })
+
+  it("lists a file sent again once, where it was last sent and as it then was", () => {
+    const state: ChatState = {
+      ...EMPTY_CHAT,
+      messages: [
+        says("1", [sent("a", "plan.md"), sent("b", "data.csv")]),
+        says("2", [sent("a", "the-plan.md")]),
+      ],
+    }
+    expect(sentFiles(state).map((file) => file.name)).toEqual(["the-plan.md", "data.csv"])
   })
 })

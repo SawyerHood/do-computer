@@ -1,3 +1,4 @@
+import type { LibraryFile } from "./agent.ts"
 import type { ChatMessage, ChatState, MessagePart, ToolPart } from "./chat.ts"
 
 const MAX_DETAIL = 72
@@ -214,6 +215,24 @@ export function isSentFile(part: MessagePart): part is ToolPart {
     part.details !== undefined &&
     part.details !== null
   )
+}
+
+/**
+ * The files the agent delivered in a chat, newest first. One sent more than once is listed once,
+ * where it was last sent and as it then was.
+ */
+export function sentFiles(state: ChatState): LibraryFile[] {
+  const files = new Map<string, LibraryFile>()
+  for (const message of state.messages) {
+    for (const part of message.parts) {
+      if (!isSentFile(part)) continue
+      const file = part.details as unknown as LibraryFile
+      // Taken out first, so that it goes back in at the end.
+      files.delete(file.id)
+      files.set(file.id, file)
+    }
+  }
+  return [...files.values()].reverse()
 }
 
 /**
