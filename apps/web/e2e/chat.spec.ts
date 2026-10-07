@@ -1,0 +1,262 @@
+import { expect, test } from "./fixtures.ts"
+import {
+  asOwner,
+  composer,
+  newChat,
+  openSettings,
+  openWorkspaceSettings,
+  signIn,
+  tool,
+} from "./helpers.ts"
+
+asOwner()
+
+test("the agent uses its computer: one line says what it is doing, and only its answer stays", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool bash {"command":"sleep 1; echo from the shell > note.txt && cat note.txt && ls"}',
+  )
+  await page.keyboard.press("Enter")
+  // While it works, a single line says what it is doing, with the command it is running.
+  await expect(page.getByRole("status")).toContainText("Running: sleep 1; echo from the shell")
+  // Its creature, above the chat, is at work. It is the only one of it that moves: the ones in
+  // the sidebar and in the strip are pictures, and there is none beside the line.
+  await expect(
+    page.getByRole("button", { name: "Show Juniper beside the chat" }).locator("[data-mood]"),
+  ).toHaveAttribute("data-mood", "working")
+  await expect(page.locator("[data-mood]")).toHaveCount(3)
+
+  const transcript = page.getByRole("log")
+  await expect(transcript.getByText("The tool returned:")).toBeVisible()
+  await expect(transcript).toContainText("note.txt")
+  // The identity files are part of the workspace.
+  await expect(transcript).toContainText("MEMORY.md")
+
+  // Once it has answered, the line is gone and the call itself was never put in the transcript.
+  await expect(page.getByRole("status")).toHaveCount(0)
+  await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
+  await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
+
+  // The panel about the agent opens from the header above the chat and takes its place. It
+  // lists what the agent wrote up, which it does only for big things: this was not one.
+  const panel = page.getByRole("complementary", { name: "About Juniper" })
+  const header = page.getByRole("button", { name: "Show Juniper beside the chat" })
+  await expect(panel).toHaveCount(0)
+  await header.click()
+  await expect(header).toHaveCount(0)
+  await expect(panel.getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
+    "data-mood",
+    /idle|done/,
+  )
+  await expect(panel.getByText("Nothing yet.")).toBeVisible()
+  await expect(panel.getByRole("listitem")).toHaveCount(0)
+
+  // The agent adds an entry itself, with a tool: a few words, so the list can be taken in at a
+  // glance, with what came of it inside.
+  await composer(page).fill(
+    '/tool log {"title":"Write a note","outcome":"Left a note in the workspace."}',
+  )
+  await page.keyboard.press("Enter")
+  const work = panel.getByRole("listitem").filter({ hasText: "Write a note" }).first()
+  await expect(work).toBeVisible()
+  await expect(panel.getByText("Nothing yet.")).toHaveCount(0)
+  await expect(work.getByText("Left a note in the workspace.")).toBeHidden()
+  await work.getByText("Write a note").click()
+  await expect(work.getByText("Left a note in the workspace.")).toBeVisible()
+  await expect(work.getByText("0 steps")).toBeVisible()
+  await expect(page.getByRole("status")).toHaveCount(0)
+  // Beside its name it says what it is doing in a word or two, not the whole command.
+  await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
+  // Put away, from the end of the strip, the header is back.
+  await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(header).toBeVisible()
+  await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
+})
+
+test("a picture pasted into the message box is attached, under a name of its own", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("Look at this: ")
+  const paste = (name: string, text?: string) =>
+    page.evaluate(
+      ([name, text]) => {
+        const png = Uint8Array.from(
+          atob(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+          ),
+          (character) => character.charCodeAt(0),
+        )
+        const data = new DataTransfer()
+        data.items.add(new File([png], name!, { type: "image/png" }))
+        if (text) data.setData("text/plain", text)
+        document
+          .querySelector('textarea[aria-label="Message"]')!
+          .dispatchEvent(
+            new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+          )
+      },
+      [name, text] as const,
+    )
+  // A screenshot on the clipboard is called image.png every time, so it is named for the moment.
+  await paste("image.png")
+  const attached = page.getByRole("list", { name: "Attached files" })
+  await expect(attached.getByText(/^pasted-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.png$/)).toBeVisible()
+  // A copied file keeps its own name. What was typed is left as it was.
+  await paste("receipt.png")
+  await expect(attached.getByText("receipt.png")).toBeVisible()
+  await expect(composer(page)).toHaveValue("Look at this: ")
+  // The built-in echo model cannot look at pictures, and the box says what that means.
+  await expect(attached.getByRole("note")).toContainText("cannot look at pictures")
+
+  await composer(page).press("Enter")
+  await expect(
+    page
+      .getByRole("log")
+      .getByText(/Attached: pasted-[\d_-]+\.png, receipt\.png/)
+      .first(),
+  ).toBeVisible()
+  await expect(attached).toHaveCount(0)
+})
+
+test("dictation without a model key says what is missing", async ({ browser, baseURL }) => {
+  // A browser with a fake microphone, so recording works without hardware or a prompt.
+  const context = await browser.newContext({
+    baseURL,
+    permissions: ["microphone"],
+    colorScheme: "dark",
+  })
+  const page = await context.newPage()
+  await signIn(page)
+  await page.getByRole("button", { name: "Dictate" }).click()
+  await expect(page.getByRole("button", { name: "Stop dictating" })).toBeVisible()
+  await page.waitForTimeout(600)
+  await page.getByRole("button", { name: "Stop dictating" }).click()
+  await expect(page.getByRole("alert")).toContainText("Dictation needs a model key")
+  await context.close()
+})
+
+test("starting fresh keeps the earlier messages within reach", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("The first thing I said")
+  await composer(page).press("Enter")
+  const transcript = page.getByRole("log")
+  await expect(transcript.getByText("You said: The first thing I said")).toBeVisible()
+
+  await page.getByRole("button", { name: "Start fresh" }).click()
+  await expect(transcript.getByText("New context")).toBeVisible()
+  await expect(transcript.getByText("The first thing I said")).toHaveCount(0)
+  await composer(page).fill("The second thing")
+  await composer(page).press("Enter")
+  await expect(transcript.getByText("You said: The second thing")).toBeVisible()
+
+  // What came before is not gone, here or after a reload.
+  await page.reload()
+  await page.getByRole("button", { name: "Show earlier messages" }).click()
+  await expect(transcript.getByText("The first thing I said", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
+  // In order: the old exchange, the marker, the new one.
+  const text = await transcript.innerText()
+  expect(text.indexOf("The first thing I said")).toBeLessThan(text.indexOf("New context"))
+  expect(text.indexOf("New context")).toBeLessThan(text.indexOf("The second thing"))
+})
+
+test("chatting works over plain http, where the browser withholds some features", async ({
+  page,
+}) => {
+  // A page served over http from anything but localhost has no crypto.randomUUID and no
+  // clipboard. That is how a self-hosted install on a home network or a tailnet is often reached.
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { value: undefined })
+    Object.defineProperty(navigator, "clipboard", { value: undefined })
+  })
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill("sent without the secure-context extras")
+  await composer(page).press("Enter")
+  await expect(
+    page.getByRole("log").getByText("You said: sent without the secure-context extras"),
+  ).toBeVisible()
+
+  // The command to pair a computer can still be copied, by selecting it.
+  await openWorkspaceSettings(page, "Computers")
+  await page.getByRole("button", { name: "Copy command" }).first().click()
+  await expect(page.getByText(/Selected\. Press/)).toBeVisible()
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toContain("install.sh")
+})
+
+test("a message that cannot be sent says so and stays in the box", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await page.route(/\/chats\/\d+\/messages$/, (route) => route.abort())
+  await composer(page).fill("this one will not get through")
+  await composer(page).press("Enter")
+  await expect(page.getByRole("alert")).toContainText("That was not sent")
+  await expect(composer(page)).toHaveValue("this one will not get through")
+
+  // And goes once the way is clear.
+  await page.unroute(/\/chats\/\d+\/messages$/)
+  await composer(page).press("Enter")
+  await expect(
+    page.getByRole("log").getByText("You said: this one will not get through"),
+  ).toBeVisible()
+  await expect(page.getByRole("alert")).toHaveCount(0)
+})
+
+test("the transcript rests at the newest message, with no empty space under it", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  /** How far the last message ends above the bottom of the transcript, and whether the page scrolls. */
+  const measure = () =>
+    page.evaluate(() => {
+      const viewport = document.querySelector('[data-slot="message-scroller-viewport"]')!
+      const items = document.querySelectorAll('[data-slot="message-scroller-item"]')
+      const last = items[items.length - 1]!.getBoundingClientRect()
+      const frame = viewport.getBoundingClientRect()
+      return {
+        gap: Math.round(frame.bottom - last.bottom),
+        atEnd: viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop < 2,
+        pageScrolls: document.scrollingElement!.scrollHeight > window.innerHeight + 1,
+      }
+    })
+  const say = async (text: string) => {
+    await composer(page).fill(text)
+    await composer(page).press("Enter")
+    await expect(
+      page.getByRole("log").getByText(new RegExp(`You said: ${text}[\\s\\S]*echo model`)),
+    ).toBeVisible()
+  }
+
+  // One exchange: it sits at the bottom, next to the message box, not at the top of an empty page.
+  await say("short one")
+  await expect.poll(async () => (await measure()).gap).toBeLessThan(60)
+
+  // A long conversation: still at the end, with nothing but the usual margin under the newest.
+  for (const n of [2, 3, 4, 5, 6, 7]) await say(`message ${n}`)
+  await expect.poll(async () => (await measure()).gap).toBeLessThan(60)
+  expect(await measure()).toMatchObject({ atEnd: true, pageScrolls: false })
+
+  // Someone reading further up is brought back when they send something.
+  await page.locator('[data-slot="message-scroller-viewport"]').evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await say("back to the end")
+  await expect.poll(async () => (await measure()).atEnd).toBe(true)
+})
+
+test("the settings page shows what the agent's thinking has cost", async ({ page }) => {
+  await signIn(page)
+  await openSettings(page, "Usage")
+  const usage = page.getByRole("region", { name: "Usage" })
+  await expect(usage.getByRole("table", { name: "Usage by model" })).toBeVisible()
+  // The built-in echo model is free, and says so.
+  await expect(usage.getByRole("row").nth(1)).toContainText("$0")
+})
