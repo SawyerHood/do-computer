@@ -192,8 +192,14 @@ is why sign-up is by invitation unless you open it.
 - **Use your services.** Under Connectors, add a remote [MCP](https://modelcontextprotocol.io)
   server by its address, with an access token or by signing in to the service. Its tools become
   the agent's. Tokens stay on the server; the agent never sees them.
-- **Send and keep files.** A file the agent sends appears in the chat and in the Library, where you
-  can also upload files for it.
+- **Write you documents.** The folder `library` in the agent's workspace is your Library: what it
+  writes there, by hand or with a program, appears in the app in the same folders, and so do the
+  files you upload and the edits you make. A Markdown document is read and edited in the app. An
+  HTML document is shown as the page it is, and the styles, scripts and images beside it load.
+  The files are kept outside the agent's computer, so they are there when it is asleep or gone,
+  and it gets them back on a new one. Earlier contents of a file are kept as versions, and a
+  deleted file can be brought back. A file the agent sends appears in the chat, where it opens
+  in the Library.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
   prints a link; confirm it and choose the agent. The agent can then run commands and read and
   write files there, and everything it does is logged in `~/.durable-computer/audit.log` on that

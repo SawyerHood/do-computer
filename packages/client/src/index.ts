@@ -21,6 +21,8 @@ import {
   type CreateChatRequest,
   EMPTY_CHAT,
   type LibraryFile,
+  type LibraryListing,
+  type LibraryVersion,
   type ModelOption,
   readSse,
   reduceChat,
@@ -301,20 +303,84 @@ export function createClient(options: ClientOptions) {
           post<{ ok: true }>(`${base}/approvals/${requestId}`, { decision }),
         /** What the agent has spent on models so far. */
         usage: () => request<AgentUsage>(`${base}/usage`),
-        library: async () => (await request<{ files: LibraryFile[] }>(`${base}/library`)).files,
-        /** Where a library file's bytes are served from; needs the same credentials as any call. */
-        libraryFileUrl: (fileId: string) => `${options.baseUrl}${base}/library/${fileId}`,
+        library: async () => (await request<LibraryListing>(`${base}/library`)).files,
+        /** The files, the deleted ones that can be brought back, and where files are viewed. */
+        libraryListing: () => request<LibraryListing>(`${base}/library`),
+        /**
+         * Where a library file's bytes are served from; needs the same credentials as any call.
+         * With `rev`, the content it had at that revision, which never changes.
+         */
+        libraryFileUrl: (fileId: string, rev?: number) =>
+          `${options.baseUrl}${base}/library/${fileId}${rev === undefined ? "" : `?rev=${rev}`}`,
+        /**
+         * Where the file at `path` is served as what it is, so that an HTML document is a page
+         * and the files it links to load. `view` comes with the listing and needs no session.
+         */
+        libraryViewUrl: (view: string, path: string) =>
+          `${options.baseUrl}/d/${agentId}/${view}/${path.split("/").map(encodeURIComponent).join("/")}`,
+        /** A file's content as text, as it is now or as it was at `rev`. */
+        libraryText: async (fileId: string, rev?: number) => {
+          const response = await send(
+            `${base}/library/${fileId}${rev === undefined ? "" : `?rev=${rev}`}`,
+          )
+          if (!response.ok) throw new ApiError(response.status, "The file could not be read.")
+          return response.text()
+        },
         removeLibraryFile: (fileId: string) =>
           request<{ ok: true }>(`${base}/library/${fileId}`, { method: "DELETE" }),
-        upload: (file: { name: string; type: string; body: BodyInit }, chatId?: string) =>
+        /**
+         * Put a file in the library. From a chat it goes with the uploads; `dir` names another
+         * folder, and "" the top.
+         */
+        upload: (
+          file: { name: string; type: string; body: BodyInit },
+          chatId?: string,
+          dir?: string,
+        ) =>
           request<LibraryFile>(
-            `${base}/library?name=${encodeURIComponent(file.name)}${chatId ? `&chat=${chatId}` : ""}`,
+            `${base}/library?name=${encodeURIComponent(file.name)}${chatId ? `&chat=${chatId}` : ""}${
+              dir === undefined ? "" : `&dir=${encodeURIComponent(dir)}`
+            }`,
             {
               method: "POST",
               body: file.body,
               headers: { "content-type": file.type || "application/octet-stream" },
             },
           ),
+        /** Start a document at `path`. If something is there already it gets the next free name. */
+        createLibraryFile: (path: string, content: string) =>
+          request<LibraryFile>(`${base}/library?path=${encodeURIComponent(path)}`, {
+            method: "POST",
+            body: content,
+            headers: { "content-type": "application/octet-stream" },
+          }),
+        /**
+         * Give a file new content. With `rev`, fails with the code `conflict` if the file has
+         * changed since that revision, and saves nothing.
+         */
+        writeLibraryFile: (fileId: string, content: BodyInit, rev?: number) =>
+          request<LibraryFile>(
+            `${base}/library/${fileId}${rev === undefined ? "" : `?rev=${rev}`}`,
+            {
+              method: "PUT",
+              body: content,
+              headers: { "content-type": "application/octet-stream" },
+            },
+          ),
+        /** Rename a file, or move it to another folder, by giving its whole new path. */
+        moveLibraryFile: (fileId: string, path: string) =>
+          request<LibraryFile>(`${base}/library/${fileId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ path }),
+          }),
+        libraryVersions: async (fileId: string) =>
+          (await request<{ versions: LibraryVersion[] }>(`${base}/library/${fileId}/versions`))
+            .versions,
+        /** Make an earlier content the current one. */
+        revertLibraryFile: (fileId: string, rev: number) =>
+          post<LibraryFile>(`${base}/library/${fileId}/revert`, { rev }),
+        restoreLibraryFile: (fileId: string) =>
+          request<LibraryFile>(`${base}/library/deleted/${fileId}/restore`, { method: "POST" }),
         /** Calls `onState` with each new state of the chat, starting from its current one. */
         watchChat(
           chatId: string,

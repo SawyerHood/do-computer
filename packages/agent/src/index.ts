@@ -23,7 +23,7 @@ export {
   formatModel,
   parseModel,
 } from "./models.ts"
-export { Library, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
+export { Library, LIBRARY_FOLDER, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 export { computerActorName, type PairedComputer, PairedComputers } from "./paired.ts"
 export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"
