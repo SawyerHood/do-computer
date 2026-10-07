@@ -8,7 +8,7 @@ import {
   tellAgentItsTeam,
 } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
-import { removeComputersOfOutsiders } from "./computers.ts"
+import { removeMisfitComputersOf } from "./computers.ts"
 import { announce } from "./presence.ts"
 import { mayRemoveAgent, roleIn } from "./teams.ts"
 
@@ -41,9 +41,9 @@ export async function moveAgent(
     return fail(502, "The agent could not be told. Try again.")
   }
   await db.run("UPDATE dc_agents SET workspace_id = ? WHERE id = ?", workspaceId, agentId)
-  // A computer someone paired with it served the people it was shared with then. Whoever is
-  // not among the people it is shared with now gets their computer back.
-  await removeComputersOfOutsiders(agentId, workspaceId)
+  // A computer connected to it served the people it was shared with then. One that belongs to
+  // a team it has left, or to someone who is not among the people it is shared with now, stops.
+  await removeMisfitComputersOf(agentId)
   await announce(access.workspaceId)
   await announce(workspaceId)
   return json({ ok: true })

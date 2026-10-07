@@ -47,12 +47,10 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
     .locator("aside")
     .filter({ has: page.getByRole("heading", { name: "Agents" }) })
   const edge = page.getByRole("separator", { name: "Resize the sidebar" })
-  const width = async (of: typeof sidebar) => {
-    // The panel is taken down and put up again as the tab changes, so it is asked until it is there.
-    let box: Awaited<ReturnType<typeof of.boundingBox>> = null
-    await expect.poll(async () => (box = await of.boundingBox())).not.toBeNull()
-    return Math.round(box!.width)
-  }
+  // Measured in one step, and looked at until it settles: the panel is put up anew when the tab
+  // changes, so for a moment the one that is found is on its way out.
+  const width = async (of: typeof sidebar) =>
+    Math.round(await of.evaluate((element) => element.getBoundingClientRect().width))
   /** Take hold of an edge and move it sideways by so many pixels. */
   const drag = async (handle: typeof edge, by: number) => {
     const box = (await handle.boundingBox())!
@@ -63,49 +61,49 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
     await page.mouse.move(x + by, y, { steps: 4 })
     await page.mouse.up()
   }
-  expect(await width(sidebar)).toBe(288)
+  await expect.poll(() => width(sidebar)).toBe(288)
 
   // Its edge follows the pointer, and the chat has what room is left.
   await drag(edge, 72)
-  expect(await width(sidebar)).toBe(360)
+  await expect.poll(() => width(sidebar)).toBe(360)
   await expect(edge).toHaveAttribute("aria-valuenow", "360")
   // It goes no further than its bounds, either way.
   await drag(edge, 600)
-  expect(await width(sidebar)).toBe(448)
+  await expect.poll(() => width(sidebar)).toBe(448)
   await drag(edge, -600)
-  expect(await width(sidebar)).toBe(208)
+  await expect.poll(() => width(sidebar)).toBe(208)
   // The arrow keys move it too.
   await edge.focus()
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
-  expect(await width(sidebar)).toBe(240)
+  await expect.poll(() => width(sidebar)).toBe(240)
 
   // The agent's panel is dragged by its other edge: to the left is wider.
   await page.getByRole("button", { name: "Show Juniper's panel" }).click()
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const panelEdge = page.getByRole("separator", { name: "Resize Juniper's panel" })
-  expect(await width(panel)).toBe(320)
+  await expect.poll(() => width(panel)).toBe(320)
   await drag(panelEdge, -80)
-  expect(await width(panel)).toBe(400)
+  await expect.poll(() => width(panel)).toBe(400)
 
   // Both are as they were left after a reload, and the panel is as wide beside another tab.
   await page.reload()
   await expect(composer(page)).toBeVisible()
-  expect(await width(sidebar)).toBe(240)
+  await expect.poll(() => width(sidebar)).toBe(240)
   // These tests put the panel away on every load, so it is asked for again.
   await page.getByRole("button", { name: "Show Juniper's panel" }).click()
-  expect(await width(panel)).toBe(400)
+  await expect.poll(() => width(panel)).toBe(400)
   await tab(page, "Automations").click()
   await page.waitForURL(/\/automations$/)
-  expect(await width(panel)).toBe(400)
+  await expect.poll(() => width(panel)).toBe(400)
   await tab(page, "Chat").click()
   await expect(composer(page)).toBeVisible()
 
   // Pressing an edge twice puts its column back to the width it started at.
   await edge.dblclick()
-  expect(await width(sidebar)).toBe(288)
+  await expect.poll(() => width(sidebar)).toBe(288)
   await panelEdge.dblclick()
-  expect(await width(panel)).toBe(320)
+  await expect.poll(() => width(panel)).toBe(320)
 })
 
 test("what the agent shared is listed in its panel, and a document's edge is dragged too", async ({

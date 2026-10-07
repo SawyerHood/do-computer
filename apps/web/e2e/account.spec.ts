@@ -1,5 +1,14 @@
 import { expect, test } from "./fixtures.ts"
-import { closeSettings, composer, inOrder, openSettings, owner, signIn, signUp } from "./helpers.ts"
+import {
+  closeSettings,
+  composer,
+  inOrder,
+  openSettings,
+  owner,
+  signIn,
+  signUp,
+  tab,
+} from "./helpers.ts"
 
 inOrder()
 
@@ -143,6 +152,11 @@ test("the API refuses bodies that are too large and routes that are not a client
   // What the gateway keeps for itself is not reachable through it.
   for (const [method, path] of [
     ["delete", "computers/anything"],
+    // However the address is dressed up: the actor reads it after it has been parsed.
+    ["put", "chats%2F..%2Fcomputers%2Fanything"],
+    ["put", "chats/%2e%2e/computers/anything"],
+    ["put", "/computers/anything"],
+    ["post", "x%5C..%5Cdestroy"],
     ["post", "init"],
     ["post", "destroy"],
     ["patch", "schedules/__proto__"],

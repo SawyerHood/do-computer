@@ -73,7 +73,12 @@ export async function newChat(page: Page) {
 }
 
 /** Have the agent call a tool, and wait for what the tool says it did. */
-export async function tool(page: Page, name: string, args: Record<string, unknown>, said: string) {
+export async function tool(
+  page: Page,
+  name: string,
+  args: Record<string, unknown>,
+  said: string | RegExp,
+) {
   await composer(page).fill(`/tool ${name} ${JSON.stringify(args)}`)
   await page.keyboard.press("Enter")
   await expect(page.getByText(said).last()).toBeVisible()

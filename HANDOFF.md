@@ -290,6 +290,57 @@ Since then, newest last:
       the workspace. The old page addresses (`/a/<id>/skills` and the like) redirect to them.
       The mock-up this was built from is in `prototypes/agent-pages`.
 
+16. **Computers that belong to someone, connected to many agents** (2026-10-07;
+    `apps/web/src/server/computer-access.ts`). A pairing used to name one agent. Now a computer
+    is paired once, belongs to a workspace, and is connected to agents one by one.
+    - **Three tables.** `dc_computers.workspace_id` says whose it is: `personal:<user id>` of
+      whoever paired it, or a team. `dc_computer_grants` has a row for each agent that can work
+      on it. `dc_computer_requests` has a row for each agent that asked and has not been
+      answered, one per computer and agent. The migration turned every old pairing into its
+      pairer's own computer with one grant. `home` is kept on the computer now, since an agent
+      has to be told it when connected; for an older computer it is taken from what its daemon
+      said, or from an agent that has it (`homeOf` in `computers.ts`).
+    - **Who may do what** is in `computer-access.ts`, which like `teams.ts` knows only the
+      database. `fits` is the rule for whether a computer can serve an agent at all: someone's
+      own serves any agent they can use, a team's serves the team's agents. The people a
+      computer belongs to (its owner, or everyone in its team) connect it and answer for it.
+      Whoever paired it, or an admin of its team, removes it, and only its pairer changes whose
+      it is. When an agent moves, a computer changes hands or someone leaves a team, the
+      connections that no longer fit are ended (`misfitsOfAgent`, `misfitsOfComputer`,
+      `leftBehind`); a computer someone paired for a team is removed when they leave, since it
+      runs as them. Deleting an agent no longer removes a computer, only the agent's part in it.
+    - **The record is what counts, not what the agent was told.** The agent keeps its own list
+      of its computers, which the gateway writes, and the link to a computer answers any agent.
+      So before every use the agent's host asks the directory (`mayUse`): there must be a grant,
+      and the computer must still fit where the agent is. A connection therefore ends when its
+      row goes, even if telling the agent failed, and one that a missed tidy-up left behind
+      gives nothing. `connect` looks again after it has told the agent, for the case where the
+      agent was moved in between.
+    - **The gateway judges a path as the actor will read it.** `proxyToAgent` refused the
+      actor's own routes (`computers`, `init`, `destroy`, `team`) by the path as sent, and the
+      actor reads it after it has been parsed, so `chats%2F..%2Fcomputers%2F<id>`, an encoded
+      dot or a doubled slash went past. That was there before this work and mattered more with
+      it, since a teammate can now see a computer's id. It parses first now, and the browser
+      tests and `scripts/smoke.sh` try the dressed-up addresses.
+    - **The agent asks through its host.** `computerDirectory` (`computer-directory.ts`) is
+      handed to the agent actor as an option, with the database and the links, because the actor
+      does not run where requests are served. The agent's `computers` tool
+      (`packages/agent/src/paired.ts`) lists what the directory says is near: the computers of
+      its workspace and the own computers of the people it works for, with whose each is and
+      whether it is online. Asking records a request and sends a push notification to whoever
+      can answer. The tool's argument is `name`, not `computer`, which on every other tool means
+      "run this there" to the permission rules.
+    - **The answer comes back like a sub-agent's report.** The gateway connects the agent, then
+      posts to its `/computers/<id>/answer`; the agent writes a `dc.computer-access` entry into
+      the chat that asked and gives itself a turn there, both keyed by the request. What it has
+      asked for is also kept in its own document, so its prompt says it is waiting and the
+      page hears of it through the agent's events.
+    - **In the app** a request is a card above the message box in the agent's chats, with Allow
+      and Don't allow for whoever the computer belongs to and "Waiting for ..." for everyone
+      else, and the same card is at the top of Computers in the workspace's settings. Each
+      computer there says whose it is and which agents it has. The pair page asks whose the
+      computer is, where the user has a team, and which agents get it.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -311,6 +362,11 @@ computers shared with the team are fine; whether a message sent while the agent 
 it or waits is a setting; teammates spending on the one key is fine. The side column lists
 agents, collapsible, with single-line chats; sub-agents are not listed in it ("too much
 nesting"); and the row's last slot is a spinner or the time, "never ... together".
+
+Computers, decided on 2026-10-07: "every user has a list of their computers (a computer can
+belong to a person or a workspace) and then you can connect agents to different computers. The
+agent also can have a tool to list computers and request access to one and it will send an async
+notif to the person who owns it and they can approve."
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
 each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only
@@ -362,7 +418,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.
 - **Mobile** has no model picker, computer picker, connectors, permissions or file attaching, and
-  no agent panel. Its creature is checked only through the app's web build.
+  no agent panel. Its creature is checked only through the app's web build. It shows the answer
+  to an agent's request for a computer but cannot give one: the notification opens the chat,
+  and the request is answered on the web.
 - **Never run for real:** the mobile app on a device, Modal, Cloudflare Containers, sign-in with
   Google, and a connector that needs a sign-in against a real service. Sign-in with GitHub is
   configured on the live site; nobody has reported how it went.

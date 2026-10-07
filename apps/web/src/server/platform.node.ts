@@ -10,6 +10,7 @@ import {
   openNodeAppDatabase,
   type SocketLike,
 } from "@durable-computer/runtime/node"
+import { computerDirectory } from "./computer-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
 import { createPresenceActor } from "./presence-actor.ts"
@@ -64,6 +65,7 @@ function create(): NodePlatform {
         allowPrivateHosts: config.allowPrivateHosts,
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
+        computerDirectory: computerDirectory(app, links),
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),

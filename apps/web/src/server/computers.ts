@@ -1,9 +1,40 @@
 import { getPlatform } from "#platform"
-import { computerActorName, type PairedComputer } from "@durable-computer/agent"
+import {
+  type ComputerAnswer,
+  computerActorName,
+  type PairedComputer,
+} from "@durable-computer/agent"
 import { linkStatus } from "@durable-computer/computers"
-import type { ComputerSummary } from "@durable-computer/protocol"
+import {
+  type ComputerRequest,
+  type ComputerSummary,
+  type ConfirmPairingRequest,
+  personalWorkspaceId,
+} from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
+import {
+  agentsOn,
+  askersOf,
+  type ComputerRow,
+  computersOf,
+  fits,
+  forgetAgent,
+  forgetComputer,
+  grant,
+  isGranted,
+  isTheirs,
+  leftBehind,
+  mayRemove,
+  mayUse,
+  type Misfits,
+  misfitsOfAgent,
+  misfitsOfComputer,
+  peopleById,
+  type RequestRow,
+  requestsFor,
+  ungrant,
+} from "./computer-access.ts"
 import { agentAccess, roleIn } from "./teams.ts"
 
 const PAIRING_TTL_MS = 10 * 60_000
@@ -12,18 +43,6 @@ const MAX_COMPUTERS_PER_USER = 20
 /** Letters and digits that are hard to confuse when read off a terminal. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 export const TOKEN_PREFIX = "dcc_"
-
-type ComputerRow = {
-  id: string
-  owner_id: string
-  agent_id: string
-  name: string
-  platform: string
-  hostname: string
-  read_only: number
-  token_hash: string | null
-  created_at: number
-}
 
 type PairRow = {
   code: string
@@ -166,22 +185,145 @@ export async function getPairing(code: string): Promise<Response> {
   })
 }
 
-/** A signed-in user gives one of their agents access to the computer behind a code. */
-export async function confirmPairing(user: SessionUser, request: Request): Promise<Response> {
-  const { db, agents } = getPlatform()
-  const input = (await request.json().catch(() => ({}))) as { code?: unknown; agentId?: unknown }
-  if (typeof input.code !== "string" || typeof input.agentId !== "string") {
-    return fail(400, "code and agentId are required")
+/** The home directory on a computer, from when it was paired or from what its daemon says. */
+async function homeOf(row: ComputerRow): Promise<string | undefined> {
+  if (row.home !== null && row.home !== "") return row.home
+  const { db, agents, computers } = getPlatform()
+  const status = await linkStatus(computers.get(computerActorName(row.id))).catch(() => undefined)
+  if (status?.hello?.home) return status.hello.home
+  // Paired before this was kept, and its daemon is not here to ask: an agent that has it knows.
+  for (const agentId of (await agentsOn(db, [row.id])).get(row.id) ?? []) {
+    const response = await agents
+      .get(agentId)
+      .fetch(new Request("http://agent/computers"))
+      .catch(() => undefined)
+    if (response?.ok !== true) continue
+    const { computers: known } = (await response.json()) as {
+      computers: (PairedComputer & { id: string })[]
+    }
+    const home = known.find((computer) => computer.id === row.id)?.home
+    if (home) return home
   }
+  return undefined
+}
+
+/**
+ * Let an agent work on a computer: the agent is told about it, and then the connection is
+ * recorded. Resolves with the name the agent knows it by, or with why it could not be done.
+ */
+async function connect(
+  row: ComputerRow,
+  agentId: string,
+  by: string,
+): Promise<{ name: string } | Response> {
+  const { db, agents, computers } = getPlatform()
+  const home = await homeOf(row)
+  if (home === undefined) {
+    return fail(
+      409,
+      "Start the daemon on that computer once, so that its home directory is known, and try again.",
+    )
+  }
+  const status = await linkStatus(computers.get(computerActorName(row.id))).catch(() => undefined)
+  // The agent decides the final name, so two computers of one agent never share one.
+  const registered = await agents.get(agentId).fetch(
+    new Request(`http://agent/computers/${row.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: row.name,
+        platform: row.platform,
+        hostname: row.hostname,
+        home,
+        readOnly: status?.hello?.readOnly ?? row.read_only === 1,
+        pairedAt: Date.now(),
+      } satisfies PairedComputer),
+    }),
+  )
+  if (!registered.ok) return fail(502, "The agent could not be told about the computer.")
+  const { name } = (await registered.json()) as PairedComputer
+  await grant(db, row.id, agentId, by)
+  // Telling the agent took a while. If in the meantime it was moved, the computer changed
+  // hands or its owner left, whatever tidied up after that did not see this connection.
+  if (!(await mayUse(db, agentId, row.id))) {
+    await disconnect(row.id, agentId)
+    return fail(409, "That agent can no longer be connected to this computer.")
+  }
+  return { name }
+}
+
+/** Have an agent forget a computer: one it had, or one it had asked for. */
+async function tellGone(computerId: string, agentId: string): Promise<void> {
+  await getPlatform()
+    .agents.get(agentId)
+    .fetch(new Request(`http://agent/computers/${computerId}`, { method: "DELETE" }))
+    .catch(() => {})
+}
+
+/** An agent can no longer work on a computer, and forgets it. */
+async function disconnect(computerId: string, agentId: string): Promise<void> {
+  // Access ends with this delete, since the agent's host looks here before each use. Telling
+  // the agent is so that it knows.
+  await ungrant(getPlatform().db, computerId, agentId)
+  await tellGone(computerId, agentId)
+}
+
+/** End the connections that no longer hold, and tell the agents whose requests were dropped. */
+async function end(gone: Misfits): Promise<void> {
+  for (const grant of gone.grants) await disconnect(grant.computerId, grant.agentId)
+  for (const request of gone.requests) await tellGone(request.computerId, request.agentId)
+}
+
+/**
+ * A signed-in user takes the computer behind a code: as their own, or for a team of theirs, and
+ * connected to whichever agents they name.
+ */
+export async function confirmPairing(user: SessionUser, request: Request): Promise<Response> {
+  const { db } = getPlatform()
+  const input = (await request.json().catch(() => ({}))) as Partial<ConfirmPairingRequest> & {
+    agentId?: unknown
+  }
+  if (typeof input.code !== "string") return fail(400, "code is required")
+  const workspaceId =
+    typeof input.workspaceId === "string" ? input.workspaceId : personalWorkspaceId(user.id)
+  if ((await roleIn(db, user.id, workspaceId)) === undefined) return fail(404, "Team not found")
+  const agentIds = [
+    ...new Set(
+      [
+        ...(Array.isArray(input.agentIds) ? input.agentIds : []),
+        // What a client from before a computer could have several agents sends.
+        ...(typeof input.agentId === "string" ? [input.agentId] : []),
+      ].filter((id): id is string => typeof id === "string"),
+    ),
+  ]
   const row = await db.get<PairRow>(
     "SELECT * FROM dc_pair_requests WHERE code = ? AND expires_at >= ? AND computer_id IS NULL",
     normalizeCode(input.code),
     Date.now(),
   )
   if (row === undefined) return fail(404, "That code is not valid or has expired.")
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  const computer: ComputerRow = {
+    id,
+    owner_id: user.id,
+    workspace_id: workspaceId,
+    name: row.name,
+    platform: row.platform,
+    hostname: row.hostname,
+    home: row.home,
+    read_only: row.read_only,
+    token_hash: null,
+    created_at: now,
+  }
   // Anyone who can use an agent can give it a computer of theirs, a team's agent included.
-  const agent = await agentAccess(db, user.id, input.agentId)
-  if (agent === undefined) return fail(404, "Agent not found")
+  for (const agentId of agentIds) {
+    const agent = await agentAccess(db, user.id, agentId)
+    if (agent === undefined) return fail(404, "Agent not found")
+    if (!(await fits(db, computer, agent.workspaceId))) {
+      return fail(409, "A team's computer can only be connected to that team's agents.")
+    }
+  }
   const owned = await db.get<{ n: number }>(
     "SELECT COUNT(*) AS n FROM dc_computers WHERE owner_id = ?",
     user.id,
@@ -189,43 +331,46 @@ export async function confirmPairing(user: SessionUser, request: Request): Promi
   if ((owned?.n ?? 0) >= MAX_COMPUTERS_PER_USER) {
     return fail(409, `An account can have at most ${MAX_COMPUTERS_PER_USER} computers.`)
   }
-
-  const id = crypto.randomUUID()
-  const now = Date.now()
-  // The agent decides the final name, so two computers of one agent never share one.
-  const registered = await agents.get(agent.id).fetch(
-    new Request(`http://agent/computers/${id}`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: row.name,
-        platform: row.platform,
-        hostname: row.hostname,
-        home: row.home,
-        readOnly: row.read_only === 1,
-        pairedAt: now,
-      } satisfies PairedComputer),
-    }),
-  )
-  if (!registered.ok) return fail(502, "The agent could not be told about the computer.")
-  const { name } = (await registered.json()) as PairedComputer
   await db.batch([
     {
       sql: `INSERT INTO dc_computers
-              (id, owner_id, agent_id, name, platform, hostname, read_only, token_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
-      params: [id, user.id, agent.id, name, row.platform, row.hostname, row.read_only, now],
+              (id, owner_id, workspace_id, name, platform, hostname, home, read_only, token_hash,
+               created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      params: [
+        id,
+        user.id,
+        workspaceId,
+        row.name,
+        row.platform,
+        row.hostname,
+        row.home,
+        row.read_only,
+        now,
+      ],
     },
     { sql: "UPDATE dc_pair_requests SET computer_id = ? WHERE code = ?", params: [id, row.code] },
   ])
+  let name = row.name
+  for (const agentId of agentIds) {
+    const connected = await connect(computer, agentId, user.id)
+    // The computer is paired either way; an agent that could not be told can be connected later.
+    if (!(connected instanceof Response)) name = connected.name
+  }
   return json({ computerId: id, name }, 201)
 }
 
+/** The computers in the user's list: their own, and those of the teams they are in. */
 export async function listComputers(user: SessionUser): Promise<Response> {
   const { db, computers } = getPlatform()
-  const rows = await db.all<ComputerRow>(
-    "SELECT * FROM dc_computers WHERE owner_id = ? ORDER BY created_at",
-    user.id,
+  const rows = await computersOf(db, user.id)
+  const agentIds = await agentsOn(
+    db,
+    rows.map((row) => row.id),
+  )
+  const people = await peopleById(
+    db,
+    rows.map((row) => row.owner_id),
   )
   const summaries = await Promise.all(
     rows.map(async (row): Promise<ComputerSummary> => {
@@ -237,7 +382,10 @@ export async function listComputers(user: SessionUser): Promise<Response> {
         name: row.name,
         platform: row.platform,
         hostname: row.hostname,
-        agentId: row.agent_id,
+        workspaceId: row.workspace_id,
+        pairedBy: people.get(row.owner_id) ?? { id: row.owner_id, name: "Someone", image: null },
+        agentIds: agentIds.get(row.id) ?? [],
+        canManage: await mayRemove(db, user.id, row),
         createdAt: row.created_at,
         online: status?.online ?? false,
         // What the daemon reports now wins over what it said when it was paired.
@@ -249,66 +397,215 @@ export async function listComputers(user: SessionUser): Promise<Response> {
   return json({ computers: summaries })
 }
 
-/** Remove a computer of the user's. */
+async function computerOf(user: SessionUser, computerId: string): Promise<ComputerRow | undefined> {
+  const { db } = getPlatform()
+  const row = await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", computerId)
+  // Someone it does not belong to is not told that it exists.
+  return row !== undefined && (await isTheirs(db, user.id, row)) ? row : undefined
+}
+
+/** Remove a computer: whoever paired it can, and so can an admin of the team it belongs to. */
 export async function removeComputer(user: SessionUser, computerId: string): Promise<Response> {
-  const row = await getPlatform().db.get<ComputerRow>(
-    "SELECT * FROM dc_computers WHERE id = ? AND owner_id = ?",
-    computerId,
-    user.id,
-  )
+  const row = await computerOf(user, computerId)
   if (row === undefined) return fail(404, "Computer not found")
-  return revokeComputer(row)
+  if (!(await mayRemove(getPlatform().db, user.id, row))) {
+    return fail(403, "Only whoever paired it, or an admin of the team, can remove it.")
+  }
+  await revokeComputer(row)
+  return json({ ok: true })
 }
 
-/** Every computer paired with an agent, whoever paired it, for when the agent is deleted. */
-export async function removeComputersOf(agentId: string): Promise<void> {
-  const rows = await getPlatform().db.all<ComputerRow>(
-    "SELECT * FROM dc_computers WHERE agent_id = ?",
-    agentId,
+/**
+ * Change whose a computer is: its pairer's own, or a team of theirs. Only whoever paired it can,
+ * since it is their account there that the agents act as. Agents it can no longer serve lose it.
+ */
+export async function moveComputer(
+  user: SessionUser,
+  computerId: string,
+  request: Request,
+): Promise<Response> {
+  const { db } = getPlatform()
+  const row = await computerOf(user, computerId)
+  if (row === undefined) return fail(404, "Computer not found")
+  const input = (await request.json().catch(() => ({}))) as { workspaceId?: unknown }
+  if (typeof input.workspaceId !== "string") return fail(400, "Say whose it should be.")
+  if (row.owner_id !== user.id) return fail(403, "Only whoever paired it can change whose it is.")
+  if ((await roleIn(db, user.id, input.workspaceId)) === undefined) {
+    return fail(404, "Team not found")
+  }
+  await db.run("UPDATE dc_computers SET workspace_id = ? WHERE id = ?", input.workspaceId, row.id)
+  await end(await misfitsOfComputer(db, row.id))
+  return json({ ok: true })
+}
+
+/** Connect an agent to a computer. Anyone the computer belongs to can, for an agent they can use. */
+export async function connectAgent(
+  user: SessionUser,
+  computerId: string,
+  agentId: string,
+): Promise<Response> {
+  const { db } = getPlatform()
+  const row = await computerOf(user, computerId)
+  if (row === undefined) return fail(404, "Computer not found")
+  const agent = await agentAccess(db, user.id, agentId)
+  if (agent === undefined) return fail(404, "Agent not found")
+  if (!(await fits(db, row, agent.workspaceId))) {
+    return fail(409, "A team's computer can only be connected to that team's agents.")
+  }
+  const connected = await connect(row, agent.id, user.id)
+  return connected instanceof Response ? connected : json(connected)
+}
+
+/** Take a computer away from an agent. Anyone the computer belongs to can. */
+export async function disconnectAgent(
+  user: SessionUser,
+  computerId: string,
+  agentId: string,
+): Promise<Response> {
+  const row = await computerOf(user, computerId)
+  if (row === undefined) return fail(404, "Computer not found")
+  // Only an agent that has it: this must not reach an agent that has nothing to do with it.
+  if (await isGranted(getPlatform().db, row.id, agentId)) await disconnect(row.id, agentId)
+  return json({ ok: true })
+}
+
+/** What the user's agents are waiting to hear about computers they asked for. */
+export async function listComputerRequests(user: SessionUser): Promise<Response> {
+  const { db } = getPlatform()
+  const waiting = await requestsFor(db, user.id)
+  const people = await peopleById(
+    db,
+    waiting.map(({ computer }) => computer.owner_id),
   )
-  for (const row of rows) await revokeComputer(row)
+  const requests: ComputerRequest[] = []
+  for (const { request, computer } of waiting) {
+    requests.push({
+      id: request.id,
+      computer: {
+        id: computer.id,
+        name: computer.name,
+        workspaceId: computer.workspace_id,
+        readOnly: computer.read_only === 1,
+        pairedBy: people.get(computer.owner_id) ?? {
+          id: computer.owner_id,
+          name: "Someone",
+          image: null,
+        },
+      },
+      agentId: request.agent_id,
+      chatId: request.chat_id,
+      reason: request.reason,
+      canAnswer: await isTheirs(db, user.id, computer),
+      createdAt: request.created_at,
+    })
+  }
+  return json({ requests })
 }
 
-/** The computers someone paired with a team's agents, for when they are no longer in the team. */
+/**
+ * Answer an agent that asked for a computer: connect it, or say no. Anyone the computer belongs
+ * to can answer. Either way the agent is told, in the chat it asked from.
+ */
+export async function answerComputerRequest(
+  user: SessionUser,
+  requestId: string,
+  request: Request,
+): Promise<Response> {
+  const { db, agents } = getPlatform()
+  const input = (await request.json().catch(() => ({}))) as { approve?: unknown }
+  if (typeof input.approve !== "boolean") return fail(400, "Say whether to approve it.")
+  const asked = await db.get<RequestRow>(
+    "SELECT * FROM dc_computer_requests WHERE id = ?",
+    requestId,
+  )
+  const row = asked === undefined ? undefined : await computerOf(user, asked.computer_id)
+  if (asked === undefined || row === undefined) return fail(404, "That request is gone.")
+  const agent = await db.get<{ owner_id: string; workspace_id: string | null }>(
+    "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
+    asked.agent_id,
+  )
+  let name = row.name
+  if (input.approve) {
+    if (
+      agent === undefined ||
+      !(await fits(db, row, agent.workspace_id ?? personalWorkspaceId(agent.owner_id)))
+    ) {
+      await db.run("DELETE FROM dc_computer_requests WHERE id = ?", asked.id)
+      await tellGone(row.id, asked.agent_id)
+      return fail(409, "That agent can no longer be connected to this computer.")
+    }
+    const connected = await connect(row, asked.agent_id, user.id)
+    if (connected instanceof Response) return connected
+    name = connected.name
+  }
+  await db.run("DELETE FROM dc_computer_requests WHERE id = ?", asked.id)
+  await agents
+    .get(asked.agent_id)
+    .fetch(
+      new Request(`http://agent/computers/${row.id}/answer`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          requestId: asked.id,
+          chatId: asked.chat_id,
+          approved: input.approve,
+          by: user.name,
+          name,
+        } satisfies ComputerAnswer),
+      }),
+    )
+    .catch(() => {})
+  return json({ ok: true })
+}
+
+/** An agent is being deleted: nothing is connected to it or asked for by it any more. */
+export async function forgetComputersOf(agentId: string): Promise<void> {
+  await forgetAgent(getPlatform().db, agentId)
+}
+
+/**
+ * Someone is no longer in a team. The computers they paired for it are removed, since those run
+ * as them, and their own computers stop serving its agents.
+ */
 export async function removeComputersOfMember(userId: string, workspaceId: string): Promise<void> {
+  const left = await leftBehind(getPlatform().db, userId, workspaceId)
+  for (const row of left.computers) await revokeComputer(row)
+  await end(left)
+}
+
+/**
+ * An agent was moved to another workspace. The computers that cannot serve it there stop doing
+ * so: another team's, and those of people who are not in the workspace it is in now. They agreed
+ * to serve the people it was shared with then.
+ */
+export async function removeMisfitComputersOf(agentId: string): Promise<void> {
+  await end(await misfitsOfAgent(getPlatform().db, agentId))
+}
+
+/** A team is gone, and so are the computers that were paired for it. */
+export async function removeComputersOfWorkspace(workspaceId: string): Promise<void> {
   const rows = await getPlatform().db.all<ComputerRow>(
-    `SELECT c.* FROM dc_computers c JOIN dc_agents a ON a.id = c.agent_id
-      WHERE c.owner_id = ? AND a.workspace_id = ?`,
-    userId,
+    "SELECT * FROM dc_computers WHERE workspace_id = ?",
     workspaceId,
   )
   for (const row of rows) await revokeComputer(row)
 }
 
-/**
- * The computers paired with an agent by people who are not in the workspace it is in now, for
- * when it has been moved: they agreed to serve the people it was shared with then.
- */
-export async function removeComputersOfOutsiders(
-  agentId: string,
-  workspaceId: string,
-): Promise<void> {
-  const { db } = getPlatform()
-  const rows = await db.all<ComputerRow>("SELECT * FROM dc_computers WHERE agent_id = ?", agentId)
-  for (const row of rows) {
-    if ((await roleIn(db, row.owner_id, workspaceId)) === undefined) await revokeComputer(row)
-  }
-}
-
-/** Its token stops working, its daemon is disconnected, the agent forgets it. */
-async function revokeComputer(row: ComputerRow): Promise<Response> {
-  const { db, agents, computers } = getPlatform()
+/** Its token stops working, its daemon is disconnected, the agents that had it forget it. */
+async function revokeComputer(row: ComputerRow): Promise<void> {
+  const { db, computers } = getPlatform()
+  // The agents that had it, and the ones that were waiting to hear about it.
+  const agentIds = new Set([
+    ...((await agentsOn(db, [row.id])).get(row.id) ?? []),
+    ...(await askersOf(db, row.id)),
+  ])
   // Access ends with this delete; the rest is tidying up.
-  await db.run("DELETE FROM dc_computers WHERE id = ?", row.id)
+  await forgetComputer(db, row.id)
   await computers
     .get(computerActorName(row.id))
     .fetch(new Request("http://computer/revoke", { method: "POST" }))
     .catch(() => {})
-  await agents
-    .get(row.agent_id)
-    .fetch(new Request(`http://agent/computers/${row.id}`, { method: "DELETE" }))
-    .catch(() => {})
-  return json({ ok: true })
+  for (const agentId of agentIds) await tellGone(row.id, agentId)
 }
 
 /** The computer a daemon's bearer token belongs to, or undefined. */

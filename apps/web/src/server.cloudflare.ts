@@ -8,6 +8,7 @@ import {
   r2Blobs,
 } from "@durable-computer/runtime/cloudflare"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
+import { computerDirectory } from "./server/computer-directory.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
@@ -33,6 +34,10 @@ export const AgentObject = createDurableActorClass<Env>({
       judge: models.judge,
       allowPrivateHosts: config.allowPrivateHosts,
       computerLinks: durableObjectNamespace(env.COMPUTER),
+      computerDirectory: computerDirectory(
+        d1Database(env.DB),
+        durableObjectNamespace(env.COMPUTER),
+      ),
       onNotify: (notification) =>
         void notifyPeople(
           d1Database(env.DB),

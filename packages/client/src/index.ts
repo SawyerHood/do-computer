@@ -14,7 +14,9 @@ import {
   type ChatState,
   type ChatSummary,
   type ComputerKinds,
+  type ComputerRequest,
   type ComputerSummary,
+  type ConfirmPairingRequest,
   type ConnectorResult,
   type ConnectorSummary,
   type CreateChatRequest,
@@ -365,8 +367,29 @@ export function createClient(options: ClientOptions) {
       }),
     pairingRequest: (code: string) =>
       request<PairingRequest>(`/api/computers/pair/request/${encodeURIComponent(code)}`),
-    confirmPairing: (code: string, agentId: string) =>
-      post<{ computerId: string; name: string }>("/api/computers/pair/confirm", { code, agentId }),
+    /** Take the computer behind a code: as the user's own or a team's, for the agents named. */
+    confirmPairing: (input: ConfirmPairingRequest) =>
+      post<{ computerId: string; name: string }>("/api/computers/pair/confirm", input),
+    /** Change whose a computer is: the user's own, or a team of theirs. */
+    moveComputer: (computerId: string, workspaceId: string) =>
+      patch<{ ok: true }>(`/api/computers/${encodeURIComponent(computerId)}`, { workspaceId }),
+    /** Let an agent work on a computer. Resolves with the name the agent knows it by. */
+    connectComputer: (computerId: string, agentId: string) =>
+      request<{ name: string }>(
+        `/api/computers/${encodeURIComponent(computerId)}/agents/${encodeURIComponent(agentId)}`,
+        { method: "PUT" },
+      ),
+    disconnectComputer: (computerId: string, agentId: string) =>
+      request<{ ok: true }>(
+        `/api/computers/${encodeURIComponent(computerId)}/agents/${encodeURIComponent(agentId)}`,
+        { method: "DELETE" },
+      ),
+    /** What the user's agents are waiting to hear about computers they asked to use. */
+    computerRequests: async () =>
+      (await request<{ requests: ComputerRequest[] }>("/api/computers/requests")).requests,
+    /** Say yes or no to an agent that asked for a computer. */
+    answerComputerRequest: (requestId: string, approve: boolean) =>
+      post<{ ok: true }>(`/api/computers/requests/${encodeURIComponent(requestId)}`, { approve }),
 
     agent(agentId: string) {
       const base = `/api/agents/${encodeURIComponent(agentId)}`

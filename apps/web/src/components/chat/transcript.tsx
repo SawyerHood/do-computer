@@ -15,6 +15,7 @@ import {
   ArrowsClockwiseIcon,
   CaretRightIcon,
   ClockIcon,
+  DesktopIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useContext, useEffect, useState } from "react"
@@ -159,6 +160,18 @@ function MessageView({
   if (message.role === "notice") {
     const part = message.parts[0]
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
+    if (part?.type === "notice" && part.kind === "computer") {
+      // The answer to the agent's asking to use a computer.
+      return (
+        <div className="flex items-center gap-2 border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
+          <DesktopIcon className="size-4 shrink-0" />
+          <span>
+            {part.by ?? "Someone"} {part.approved ? "said yes to" : "said no to"} using{" "}
+            <span className="font-mono font-medium text-foreground">{part.text}</span>
+          </span>
+        </div>
+      )
+    }
     return (
       <Marker variant="separator">
         <MarkerIcon>

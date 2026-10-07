@@ -10,6 +10,8 @@ export const agentKey = (agentId: string) => ["agents", agentId, "state"] as con
 export const schedulesKey = (agentId: string) => ["agents", agentId, "schedules"] as const
 export const skillsKey = (agentId: string) => ["agents", agentId, "skills"] as const
 export const computersKey = ["computers"] as const
+/** Under the computers' key, so that whatever refreshes those refreshes these. */
+export const computerRequestsKey = ["computers", "requests"] as const
 export const usageKey = (agentId: string) => ["agents", agentId, "usage"] as const
 export const modelsKey = ["models"] as const
 export const settingsKey = ["settings"] as const

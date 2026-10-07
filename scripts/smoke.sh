@@ -68,7 +68,7 @@ if [ -f "$DAEMON" ]; then
   trap 'rm -f "$JAR"; kill $DAEMON_PID 2>/dev/null || true' EXIT
   for _ in $(seq 1 20); do grep -q "confirm the code" "$LAPTOP/daemon.log" && break; sleep 0.3; done
   CODE=$(grep -o 'code [A-Z0-9]\{4\}-[A-Z0-9]\{4\}' "$LAPTOP/daemon.log" | head -1 | cut -d' ' -f2)
-  check "daemon is paired from its code" "$(post /api/computers/pair/confirm "{\"code\":\"$CODE\",\"agentId\":\"$AGENT\"}" | field "['name']")" "smoke-laptop"
+  check "daemon is paired from its code" "$(post /api/computers/pair/confirm "{\"code\":\"$CODE\",\"agentIds\":[\"$AGENT\"]}" | field "['name']")" "smoke-laptop"
   for _ in $(seq 1 30); do
     ONLINE=$(get /api/computers | field "['computers'][0]['online']")
     [ "$ONLINE" = "True" ] && break
@@ -78,6 +78,18 @@ if [ -f "$DAEMON" ]; then
   tool '/tool bash {"command":"cat proof.txt","computer":"smoke-laptop"}'
   wait_for "not d['busy'] and 'on the paired machine' in $TEXTS" "agent ran a command on the paired computer"
   COMPUTER=$(get /api/computers | field "['computers'][0]['id']")
+  # The computer is taken from the agent, which asks for it back, and its owner says yes.
+  curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/computers/$COMPUTER/agents/$AGENT" >/dev/null
+  check "a disconnected computer stays paired, with no agent" "$(get /api/computers | field "['computers'][0]['agentIds']")" "[]"
+  tool '/tool computers {"action":"request","name":"smoke-laptop","reason":"smoke"}'
+  wait_for "not d['busy'] and 'Asked Smoke whether you may use' in $TEXTS" "agent asked for a computer it was not given"
+  check "its owner is the one to answer" "$(get /api/computers/requests | field "['requests'][0]['canAnswer']")" "True"
+  REQUEST=$(get /api/computers/requests | field "['requests'][0]['id']")
+  post "/api/computers/requests/$REQUEST" '{"approve":true}' >/dev/null
+  wait_for "not d['busy'] and any(p.get('kind')=='computer' and p.get('approved') for m in d['messages'] for p in m['parts'])" "agent was told the answer in the chat it asked from"
+  check "the agent has the computer again" "$(get /api/computers | field "['computers'][0]['agentIds'][0]")" "$AGENT"
+  tool '/tool bash {"command":"echo back on $(cat proof.txt)","computer":"smoke-laptop"}'
+  wait_for "not d['busy'] and 'back on on the paired machine' in $TEXTS" "agent works there again"
   curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/computers/$COMPUTER" >/dev/null
   for _ in $(seq 1 30); do kill -0 $DAEMON_PID 2>/dev/null || break; sleep 0.3; done
   if kill -0 $DAEMON_PID 2>/dev/null; then echo "FAIL removed computer's daemon is still running"; exit 1; else echo "ok   removing the computer stopped its daemon"; fi
@@ -122,4 +134,6 @@ check "a deleted agent is gone" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}'
 check "the first agent is untouched" "$(get /api/agents | field "['agents'][0]['id']")" "$AGENT"
 check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' | field "['error']")" "Not found"
 check "destroy is not exposed" "$(post "/api/agents/$AGENT/destroy" | field "['error']")" "Not found"
+check "nor behind an address made to look like another" "$(post "/api/agents/$AGENT/chats%2F..%2Fdestroy" | field "['error']")" "Not found"
+check "an agent cannot be handed a computer from outside" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PUT "$BASE/api/agents/$AGENT/chats%2F..%2Fcomputers%2Fstolen" -d '{"name":"stolen","platform":"linux","hostname":"x","home":"/","readOnly":false,"pairedAt":1}' | field "['error']")" "Not found"
 echo "all checks passed against $BASE"

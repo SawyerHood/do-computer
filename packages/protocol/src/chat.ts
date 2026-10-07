@@ -21,10 +21,15 @@ export type NoticePart = {
   type: "notice"
   /**
    * `schedule` heads the report of a scheduled task; its text is the task's title. `subagent` is
-   * word from a sub-agent; its text is the sub-agent's title.
+   * word from a sub-agent; its text is the sub-agent's title. `computer` is the answer to the
+   * agent's asking to use a computer; its text is the computer's name.
    */
-  kind: "reset" | "compaction" | "error" | "schedule" | "subagent"
+  kind: "reset" | "compaction" | "error" | "schedule" | "subagent" | "computer"
   text: string
+  /** For `computer`: whether the agent was let in. */
+  approved?: boolean
+  /** For `computer`: who answered. */
+  by?: string
   /** For `subagent`: the sub-agent's own chat. */
   chatId?: string
   /** For `subagent`: what the word is. */

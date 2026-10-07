@@ -153,18 +153,20 @@ export async function proxyToAgent(
   path: string,
 ): Promise<Response> {
   if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
+  // The route as the actor will read it, which is after the address has been parsed: `..`, an
+  // encoded dot, a backslash or a doubled slash each change what comes first, and judging the
+  // path as it was sent would let any of them past.
+  const route = new URL(`http://agent/${path}`).pathname.split("/").filter(Boolean)
   // Routes the actor keeps for the gateway itself.
-  if (INTERNAL.some((route) => path === route || path.startsWith(`${route}/`))) {
-    return fail(404, "Not found")
-  }
+  if (route[0] !== undefined && INTERNAL.includes(route[0])) return fail(404, "Not found")
   const url = new URL(request.url)
   let body: ArrayBuffer | undefined
   if (request.method !== "GET" && request.method !== "HEAD") {
     // Every user's requests share this process's memory, so a body is read only up to a limit.
     const limit =
-      path === "library" || path.startsWith("library/")
+      route[0] === "library"
         ? MAX_UPLOAD_BYTES
-        : /^chats\/[^/]+\/messages$/.test(path)
+        : route[0] === "chats" && route[2] === "messages" && route.length === 3
           ? MAX_MESSAGE_BYTES
           : MAX_BODY_BYTES
     if (declaredTooLarge(request.headers, limit)) return fail(413, "That is too large to send.")

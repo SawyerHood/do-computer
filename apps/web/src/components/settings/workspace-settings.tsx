@@ -48,7 +48,7 @@ export function WorkspaceSettings({
       onSection={openWorkspace}
     >
       {section === "team" ? <TeamSettings workspace={workspace} /> : null}
-      {section === "computers" ? <ComputersSettings agentId={agentId} /> : null}
+      {section === "computers" ? <ComputersSettings agentId={agentId} meId={me.id} /> : null}
       {section === "agents" ? <DefaultsSettings /> : null}
     </SettingsDialog>
   )

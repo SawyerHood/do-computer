@@ -8,6 +8,8 @@
  * Durable Object WebSocket.
  */
 
+import type { Person } from "./workspace.ts"
+
 /** Cap on each of stdout and stderr, so a result always fits in a frame. */
 export const EXEC_STDIO_CAP = 256 * 1024
 /** Raw bytes per file chunk: about 342 KiB once base64-encoded. */
@@ -152,17 +154,46 @@ export function chunkBytes(bytes: Uint8Array): string[] {
   return chunks
 }
 
-/** A paired computer as the app lists it. */
+/** A paired computer as the app lists it to someone who can see it. */
 export type ComputerSummary = {
   id: string
-  /** The name the agent refers to it by. */
+  /** The name agents refer to it by. */
   name: string
   platform: string
   hostname: string
-  /** The agent it is paired with. */
-  agentId: string
+  /** Whose it is: the own workspace of whoever paired it, or a team's. */
+  workspaceId: string
+  /** Who paired it. Its daemon runs as them on that machine. */
+  pairedBy: Person
+  /** The agents that can work on it. */
+  agentIds: string[]
+  /** Whether the signed-in user may remove it: whoever paired it, or an admin of its team. */
+  canManage: boolean
   createdAt: number
   online: boolean
   readOnly: boolean
   lastSeenAt: number | null
+}
+
+/** An agent asking to work on a computer it is not connected to, until someone answers. */
+export type ComputerRequest = {
+  id: string
+  computer: { id: string; name: string; workspaceId: string; pairedBy: Person; readOnly: boolean }
+  agentId: string
+  /** The chat it asked from, where the answer is sent. */
+  chatId: string | null
+  /** What the agent said it wants the computer for. */
+  reason: string
+  /** Whether the signed-in user is one of the people the computer belongs to, who can answer. */
+  canAnswer: boolean
+  createdAt: number
+}
+
+/** What confirming a pairing code says about the computer behind it. */
+export type ConfirmPairingRequest = {
+  code: string
+  /** Whose it is to be: the user's own workspace unless a team of theirs is named. */
+  workspaceId?: string
+  /** The agents to connect it to straight away. More can be connected later. */
+  agentIds?: string[]
 }
