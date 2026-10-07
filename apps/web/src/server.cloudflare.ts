@@ -10,8 +10,10 @@ import {
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
+import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
+import { createPresenceActor } from "./server/presence-actor.ts"
 import { readConfig } from "./server/platform.ts"
-import { notifyOwner } from "./server/push.ts"
+import { notifyPeople } from "./server/push.ts"
 import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
 import { computerChoices } from "./server/sandbox.ts"
 
@@ -32,7 +34,7 @@ export const AgentObject = createDurableActorClass<Env>({
       allowPrivateHosts: config.allowPrivateHosts,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       onNotify: (notification) =>
-        void notifyOwner(
+        void notifyPeople(
           d1Database(env.DB),
           notification.agentId,
           notification.agentName,
@@ -51,6 +53,13 @@ export const ComputerObject = createDurableActorClass<Env>({
   socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
 })
 
+/** One Durable Object per team. Its members' sockets hibernate with it. */
+export const PresenceObject = createDurableActorClass<Env>({
+  create: (host) => createPresenceActor(host),
+  blobs: (env, name) => r2Blobs(env.BLOBS, `presence/${encodeURIComponent(name)}/`),
+  socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
+})
+
 export default createServerEntry({
   fetch: async (request) => {
     // A daemon's WebSocket goes straight to its computer's object; a framework in between
@@ -62,6 +71,16 @@ export default createServerEntry({
       const computerId = await authenticateDaemon(request)
       if (computerId === undefined) return new Response("Unauthorized", { status: 401 })
       return getPlatform().computers.get(computerActorName(computerId)).fetch(request)
+    }
+    // A member's presence socket goes straight to its team's object, for the same reason.
+    const workspaceId = presenceWorkspace(new URL(request.url).pathname)
+    if (workspaceId !== undefined) {
+      if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+        return new Response("Expected a WebSocket", { status: 426 })
+      }
+      const admitted = await admitToPresence(request, workspaceId)
+      if (admitted === undefined) return new Response("Unauthorized", { status: 401 })
+      return getPlatform().presence.get(workspaceId).fetch(admitted)
     }
     return handler.fetch(request)
   },

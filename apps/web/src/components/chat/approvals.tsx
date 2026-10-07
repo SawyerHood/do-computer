@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { approvalsKey } from "@/lib/collections"
+import { useWorkspaceOfAgent } from "@/lib/workspaces"
 import { queryClient } from "@/lib/query"
 
 function RequestCard({
@@ -19,6 +20,7 @@ function RequestCard({
   /** Whether the request came from the chat on screen. */
   here: boolean
 }) {
+  const team = useWorkspaceOfAgent(agentId)
   const answer = useMutation({
     mutationFn: (decision: ApprovalDecision) =>
       client.agent(agentId).answerApproval(request.id, decision),
@@ -81,6 +83,11 @@ function RequestCard({
         >
           Don’t allow
         </Button>
+        {team?.kind === "team" ? (
+          <span className="ml-auto self-center text-xs text-muted-foreground">
+            Anyone in {team.name} can answer
+          </span>
+        ) : null}
       </div>
     </li>
   )

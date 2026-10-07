@@ -1,7 +1,7 @@
 import { getPlatform } from "#platform"
 import { CONNECTOR_REDIRECT_HEADER } from "@durable-computer/agent"
 import type { ConnectorResult } from "@durable-computer/protocol"
-import { fail, json } from "./agents.ts"
+import { agentFor, fail, json } from "./agents.ts"
 import { getUser, type SessionUser } from "./auth.ts"
 
 /** How long a user has to finish signing in to a service. */
@@ -9,15 +9,6 @@ const STATE_TTL_MS = 15 * 60_000
 const CALLBACK_PATH = "/api/connectors/callback"
 
 const origin = (request: Request) => getPlatform().config.baseUrl ?? new URL(request.url).origin
-
-async function owns(user: SessionUser, agentId: string): Promise<boolean> {
-  const row = await getPlatform().db.get<{ id: string }>(
-    "SELECT id FROM dc_agents WHERE id = ? AND owner_id = ?",
-    agentId,
-    user.id,
-  )
-  return row !== undefined
-}
 
 /**
  * Add a connector, or reconnect one. Done here and not by the generic proxy because only the
@@ -29,7 +20,7 @@ export async function connectConnector(
   agentId: string,
   connectorId?: string,
 ): Promise<Response> {
-  if (!(await owns(user, agentId))) return fail(404, "Agent not found")
+  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
   const { db, agents } = getPlatform()
   const path = connectorId === undefined ? "/connectors" : `/connectors/${connectorId}/connect`
   const response = await agents.get(agentId).fetch(

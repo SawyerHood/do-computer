@@ -5,6 +5,7 @@ import { getMigrations } from "better-auth/db/migration"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
 import type { Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
+import { isInvited } from "./teams.ts"
 
 /**
  * Names the auth tables this build expects. Bump it when the Better Auth version or its plugins
@@ -41,7 +42,10 @@ function authOptions(platform: Platform) {
         source,
       }: {
         user: Record<string, unknown>
-        source: { action: string }
+        source: {
+          action: string
+          oauth?: { providerId: string; profile?: Record<string, unknown> }
+        }
       }) => {
         if (source.action !== "create-user" || config.signup === "open") return
         const email = typeof user.email === "string" ? user.email.toLowerCase() : ""
@@ -49,6 +53,18 @@ function authOptions(platform: Platform) {
         // The first account on a fresh deployment is its owner and needs no invitation.
         const existing = await platform.db.get<{ id: string }>("SELECT id FROM user LIMIT 1")
         if (existing === undefined) return
+        // Someone a team has asked to join is invited, by the address or the GitHub account
+        // the team named.
+        const githubId =
+          source.oauth?.providerId === "github" ? source.oauth.profile?.id : undefined
+        if (
+          await isInvited(platform.db, {
+            email,
+            githubId: githubId === undefined ? undefined : String(githubId),
+          })
+        ) {
+          return
+        }
         return {
           error: "signup_not_allowed",
           errorDescription: "Sign-up is by invitation on this deployment.",
@@ -87,7 +103,14 @@ export function getAuth(): Promise<Auth> {
   return ready
 }
 
-export type SessionUser = { id: string; email: string; name: string; image?: string | null }
+export type SessionUser = {
+  id: string
+  email: string
+  name: string
+  image?: string | null
+  /** Whether the address is known to be theirs: a social sign-in vouches for it. */
+  emailVerified?: boolean
+}
 
 /** The signed-in user of a request, or undefined. */
 export async function getUser(request: Request): Promise<SessionUser | undefined> {

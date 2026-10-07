@@ -50,6 +50,8 @@ export type AgentSummary = AgentIdentity & {
   thinking: ThinkingLevel
   /** Whether its owner has watched it hatch. Until then it is shown as an egg. */
   hatched: boolean
+  /** The workspace it lives in. Filled in by the gateway, which is what knows. */
+  workspaceId?: string
 }
 
 /**
@@ -71,6 +73,8 @@ export type ChatSummary = {
   createdAt: number
   updatedAt: number
   archived: boolean
+  /** The id of the user who started it, where that is known. */
+  createdBy?: string
   /** For a sub-agent: the chat it was started in, where its reports go. */
   parentId?: string
   /** For a sub-agent. */

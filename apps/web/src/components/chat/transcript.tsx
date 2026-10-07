@@ -17,7 +17,8 @@ import {
   ClockIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
-import { useEffect, useState } from "react"
+import { useContext, useEffect, useState } from "react"
+import { PersonFace } from "@/components/people"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
@@ -32,7 +33,10 @@ import {
   useMessageScroller,
 } from "@/components/ui/message-scroller"
 import { cn } from "@/lib/utils"
+import { TeamContext } from "@/lib/workspaces"
 import { Markdown } from "./markdown.tsx"
+
+const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { SentFile } from "./sent-file.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
 
@@ -151,6 +155,7 @@ function MessageView({
   onRetry?: (() => void) | undefined
   asker?: string | undefined
 }) {
+  const team = useContext(TeamContext)
   if (message.role === "notice") {
     const part = message.parts[0]
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
@@ -174,13 +179,18 @@ function MessageView({
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n")
     const answered = /^(Approved|Not allowed): /.test(text)
+    // In a team, anyone may have answered.
+    const answerer =
+      team !== undefined && message.author !== undefined && message.author.id !== team.meId
+        ? message.author.name.split(" ")[0]
+        : "You"
     return (
       <Message align="end">
         <MessageContent>
           <Bubble align="end" variant="secondary">
             <BubbleContent className="border-border whitespace-pre-wrap text-[0.9375rem]">
               <span className="mb-0.5 block text-xs text-muted-foreground">
-                {answered ? "You answered" : `${asker} asked`}
+                {answered ? `${answerer} answered` : `${asker} asked`}
               </span>
               {text}
             </BubbleContent>
@@ -190,12 +200,29 @@ function MessageView({
     )
   }
   if (message.role === "user") {
+    // In a team, someone else's message is theirs to the eye: their face, their name, and not
+    // the color of one's own.
+    const other =
+      team !== undefined && message.author !== undefined && message.author.id !== team.meId
+        ? (team.people.get(message.author.id) ?? { ...message.author, image: null })
+        : undefined
     return (
       <Message align="end">
+        {other === undefined ? null : <PersonFace person={other} className="size-7 self-end" />}
         <MessageContent>
+          {other === undefined ? null : (
+            <span className="-mb-1 flex gap-1.5 self-end pr-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{other.name}</span>
+              {message.createdAt === undefined ? null : clock.format(message.createdAt)}
+            </span>
+          )}
           {message.parts.map((part, index) =>
             part.type === "text" ? (
-              <Bubble key={index} align="end">
+              <Bubble
+                key={index}
+                align="end"
+                variant={other === undefined ? "default" : "secondary"}
+              >
                 <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
                   {part.text}
                 </BubbleContent>

@@ -61,3 +61,4 @@ jobs:
           DC_JUDGE_MODEL: ${{ vars.DC_JUDGE_MODEL }}
           DC_SANDBOX: ${{ vars.DC_SANDBOX }}
           DC_SANDBOX_KINDS: ${{ vars.DC_SANDBOX_KINDS }}
+          DC_EMAIL_FROM: ${{ vars.DC_EMAIL_FROM }}

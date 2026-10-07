@@ -32,6 +32,7 @@ const SETTINGS = [
   "DAYTONA_TARGET",
   "DC_CLOUDFLARE_IMAGE",
   "DC_CLOUDFLARE_INSTANCE",
+  "DC_EMAIL_FROM",
 ]
 
 const setting = (name) => (process.env[name] === "" ? undefined : process.env[name])

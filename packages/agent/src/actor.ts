@@ -55,6 +55,7 @@ import {
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc, MEMORY_SUBJECT } from "./approvals.ts"
+import { type Caller, readCaller, sentMeta } from "./caller.ts"
 import { Computer, COMPUTER_EXTENSION, WithoutComputer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
@@ -161,6 +162,8 @@ export type AgentNotification = {
   text: string
   /** The chat to open; null when the chat a report was meant for is gone. */
   chatId: string | null
+  /** The user this is an answer to, where the agent knows. Otherwise it is for everyone. */
+  userId?: string
 }
 
 /** Header in which the gateway tells the actor where a connector's sign-in should return to. */
@@ -253,6 +256,10 @@ function eventStream(
 
 /** Holds an extension's place in the registry while there is nothing to put there. */
 const absent = (name: string) => defineExtension({ name })
+
+/** What a message does that arrives while the agent is working, where the sender did not say. */
+const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
+  identity.whenBusy ?? (identity.team ? "queue" : "steer")
 
 function summarize(id: string, record: ChatRecord): ChatSummary {
   const { subagent, ...chat } = record
@@ -371,7 +378,8 @@ export class AgentActor implements Actor {
       onReport: (report) => {
         if (report.turn === undefined || this.#harness === undefined) return
         void this.#harness.then((harness) =>
-          this.#notifyWhenUnseen(harness, report.parentId, report.turn!),
+          // Nobody in particular asked for it, so it is for everyone the agent works for.
+          this.#notifyWhenUnseen(harness, report.parentId, report.turn!, undefined),
         )
       },
       onError: (error) => options.onReport?.(error),
@@ -666,9 +674,20 @@ export class AgentActor implements Actor {
     if (segments[0] === "init" && method === "POST") {
       return this.#init(
         harness,
-        await body<{ ownerId: string; model?: string; computer?: string }>(request),
+        await body<{ ownerId: string; team?: string | null; model?: string; computer?: string }>(
+          request,
+        ),
       )
     }
+    // Which team shares it, from the gateway, which is what knows.
+    if (segments[0] === "team" && method === "PUT") {
+      const { team } = await body<{ team?: string | null }>(request)
+      await harness.commit(async (tx) => {
+        ;(await tx.doc(IdentityDoc)).team = typeof team === "string" && team !== "" ? team : null
+      }, context)
+      return json({ ok: true })
+    }
+    const caller = readCaller(request)
     if (segments[0] === "destroy" && method === "POST") return this.#destroy(harness)
     const identity = await this.#identity(harness)
 
@@ -870,7 +889,12 @@ export class AgentActor implements Actor {
       }
       if (requestId !== undefined && segments[2] === undefined && method === "POST") {
         const { decision } = await body<{ decision: ApprovalDecision }>(request)
-        await this.#approvals.resolve(requestId, decision, context)
+        await this.#approvals.resolve(
+          requestId,
+          decision,
+          context,
+          identity.team ? caller : undefined,
+        )
         // The answer sets a sub-agent that was waiting for it going again.
         await this.#subagents.tick()
         return json({ ok: true })
@@ -910,7 +934,7 @@ export class AgentActor implements Actor {
     }
     if (segments[0] === "chats") {
       if (segments.length === 1 && method === "POST") {
-        return this.#createChat(harness, identity, await body<CreateChatRequest>(request))
+        return this.#createChat(harness, identity, await body<CreateChatRequest>(request), caller)
       }
       const chatId = segments[1]
       if (chatId !== undefined) {
@@ -949,7 +973,7 @@ export class AgentActor implements Actor {
           throw new HttpError(409, "Only the agent talks to its sub-agents.", "subagent")
         }
         if (rest === "messages" && method === "POST") {
-          return this.#send(harness, conversation, await body<SendMessageRequest>(request))
+          return this.#send(harness, conversation, await body<SendMessageRequest>(request), caller)
         }
         if (rest === "abort" && method === "POST") {
           if (subagent) await this.#subagents.stop(chatId, "user", context)
@@ -977,7 +1001,7 @@ export class AgentActor implements Actor {
 
   async #init(
     harness: Harness,
-    input: { ownerId: string; model?: string; computer?: string },
+    input: { ownerId: string; team?: string | null; model?: string; computer?: string },
   ): Promise<Response> {
     if (typeof input.ownerId !== "string" || input.ownerId === "") {
       throw new HttpError(400, "ownerId is required")
@@ -993,6 +1017,7 @@ export class AgentActor implements Actor {
       await tx.doc(ChatsDoc)
       if (identity.ownerId !== "") return "ok"
       identity.ownerId = input.ownerId
+      if (typeof input.team === "string" && input.team !== "") identity.team = input.team
       identity.model = model
       identity.createdAt = this.#host.now()
       if (this.#choices.kinds.length > 0) {
@@ -1094,6 +1119,9 @@ export class AgentActor implements Actor {
       // The kind it is on now. Null where the deployment gives no choice of one.
       computer: this.#choices.kinds.length === 0 ? null : this.#kind,
       ownerId: identity.ownerId,
+      // The team that shares it, by name, or null for one person's.
+      team: identity.team ?? null,
+      whenBusy: whenBusyOf(identity),
       soul: identity.soul,
       user: identity.user,
       memory: identity.memory,
@@ -1130,6 +1158,10 @@ export class AgentActor implements Actor {
     if (timezone !== undefined && !isValidTimezone(timezone)) {
       throw new HttpError(400, `"${timezone}" is not an IANA timezone`)
     }
+    const whenBusy = text("whenBusy", 10)
+    if (whenBusy !== undefined && whenBusy !== "steer" && whenBusy !== "queue") {
+      throw new HttpError(400, "whenBusy must be steer or queue")
+    }
     const computer = text("computer", 40)
     if (computer !== undefined) this.#requireKind(computer)
     const moving = computer !== undefined && computer !== this.#kind
@@ -1163,6 +1195,7 @@ export class AgentActor implements Actor {
       // Hatching happens once. There is no putting it back in the egg.
       if (input.hatched === true) identity.hatchedAt ??= now
       if (timezone !== undefined) identity.timezone = timezone
+      if (whenBusy !== undefined) identity.whenBusy = whenBusy
       if (computer !== undefined) identity.computer = computer
       if (moving) {
         identity.computerChangedAt = now
@@ -1205,6 +1238,7 @@ export class AgentActor implements Actor {
     harness: Harness,
     identity: Readonly<IdentityState>,
     input: CreateChatRequest,
+    caller: Caller | undefined,
   ): Promise<Response> {
     const now = this.#host.now()
     const record: ChatRecord = {
@@ -1213,6 +1247,7 @@ export class AgentActor implements Actor {
       createdAt: now,
       updatedAt: now,
       archived: false,
+      ...(caller === undefined ? {} : { createdBy: caller.id }),
     }
     const conversation = await harness.createConversation(
       {
@@ -1246,6 +1281,7 @@ export class AgentActor implements Actor {
     harness: Harness,
     conversation: Conversation,
     input: SendMessageRequest,
+    caller: Caller | undefined,
   ): Promise<Response> {
     if (typeof input.text !== "string" || input.text.trim() === "") {
       throw new HttpError(400, "text is required")
@@ -1271,7 +1307,8 @@ export class AgentActor implements Actor {
       await conversation.configure({ thinkingLevel: thinking }, context)
     }
     const zone = timezone ?? identity.timezone
-    const meta = `<meta sent_at="${formatTime(this.#host.now(), zone)}"/>`
+    // Where a team shares the agent, it is also told who is speaking.
+    const meta = sentMeta(formatTime(this.#host.now(), zone), identity.team ? caller : undefined)
     // Pictures go to the model with the words, where the agent's model can take them.
     const images = this.#images(input.images, identity.model)
     const submission = await conversation.submit(
@@ -1283,12 +1320,18 @@ export class AgentActor implements Actor {
           { type: "text", text: meta },
         ],
         requestId: input.requestId,
-        whenBusy: input.whenBusy === "followUp" ? "followUp" : "steer",
+        // What the sender asked for, else what the agent is set to do with a message that
+        // arrives while it is working.
+        whenBusy:
+          input.whenBusy === "followUp" ||
+          (input.whenBusy === undefined && whenBusyOf(identity) === "queue")
+            ? "followUp"
+            : "steer",
       },
       context,
     )
     const chatId = String(conversation.id)
-    void this.#notifyWhenUnseen(harness, chatId, submission)
+    void this.#notifyWhenUnseen(harness, chatId, submission, caller)
     await harness.commit(async (tx) => {
       const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
       if (chat === undefined) return
@@ -1338,6 +1381,7 @@ export class AgentActor implements Actor {
     harness: Harness,
     chatId: string,
     submission: Awaited<ReturnType<Conversation["submit"]>>,
+    caller: Caller | undefined,
   ): Promise<void> {
     if (this.#options.onNotify === undefined) return
     try {
@@ -1350,7 +1394,14 @@ export class AgentActor implements Actor {
         message?.role === "assistant"
           ? message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("")
           : ""
-      if (text.trim() !== "") await this.#notify({ kind: "reply", text: text.trim(), chatId })
+      if (text.trim() !== "") {
+        await this.#notify({
+          kind: "reply",
+          text: text.trim(),
+          chatId,
+          ...(caller === undefined ? {} : { userId: caller.id }),
+        })
+      }
     } catch (error) {
       this.#options.onReport?.(error)
     }

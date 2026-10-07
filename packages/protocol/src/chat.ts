@@ -45,6 +45,8 @@ export type ChatMessage = {
   createdAt?: number
   /** `provider/model` that produced an assistant message. */
   model?: string
+  /** Who sent a user message, where the agent is shared by a team. */
+  author?: { id: string; name: string }
 }
 
 export type QueuedInput = {

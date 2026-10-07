@@ -136,6 +136,7 @@ export function AgentPanel({
   onClose,
   subagent,
   subagents,
+  presence,
 }: {
   agent: AgentSummary
   state: ChatState
@@ -155,6 +156,8 @@ export function AgentPanel({
   }
   /** The sub-agents started in this chat. */
   subagents: ChatSummary[]
+  /** In a team: who is in this chat right now. Shown above what the agent did. */
+  presence?: React.ReactNode
 }) {
   const mood = useAtomValue(
     mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
@@ -221,6 +224,7 @@ export function AgentPanel({
           </div>
         </div>
       )}
+      {presence}
       <div className="flex min-h-0 flex-1 flex-col border-t">
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           What it did here

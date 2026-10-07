@@ -6,6 +6,7 @@ export type Env = {
   DB: D1Database
   AGENT: DurableObjectNamespace
   COMPUTER: DurableObjectNamespace
+  PRESENCE: DurableObjectNamespace
   SANDBOX: DurableObjectNamespace
   BLOBS: R2Bucket
 } & Record<string, string | undefined>
@@ -21,5 +22,6 @@ export function getPlatform(): Platform {
     authDatabase: bindings.DB,
     agents: durableObjectNamespace(bindings.AGENT),
     computers: durableObjectNamespace(bindings.COMPUTER),
+    presence: durableObjectNamespace(bindings.PRESENCE),
   })
 }

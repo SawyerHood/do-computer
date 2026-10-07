@@ -50,6 +50,12 @@ export type Config = {
   readonly allowPrivateHosts: boolean
   /** OpenRouter speech-to-text model used for dictation. */
   readonly transcriptionModel: string
+  /** For sending invitations by email, through Resend. Without both, invitations are links only. */
+  readonly email: {
+    readonly resendApiKey: string | undefined
+    /** The address mail is sent from, for example `durable computer <hello@example.com>`. */
+    readonly from: string | undefined
+  }
 }
 
 export const SANDBOX_KINDS = ["just-bash", "none", "daytona", "modal", "cloudflare"] as const
@@ -70,6 +76,8 @@ export type Platform = {
   readonly agents: ActorNamespace
   /** One actor per paired computer, holding its daemon's connection. */
   readonly computers: ActorNamespace
+  /** One actor per team, holding its members' connections and where each of them is. */
+  readonly presence: ActorNamespace
 }
 
 function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): SandboxKind {
@@ -134,5 +142,6 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     },
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
+    email: { resendApiKey: optional("RESEND_API_KEY"), from: optional("DC_EMAIL_FROM") },
   }
 }

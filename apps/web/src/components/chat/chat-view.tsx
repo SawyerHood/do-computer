@@ -6,12 +6,13 @@ import {
 } from "@durable-computer/protocol"
 import type { AgentState } from "@durable-computer/client"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
-import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
+import { Link, useRouteContext } from "@tanstack/react-router"
+import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon, UsersIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
+import { FaceStack, names, PersonFace } from "@/components/people"
 import { Button } from "@/components/ui/button"
 import { chatKey, earlierAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
@@ -20,6 +21,14 @@ import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useLiveChat } from "@/lib/use-live-chat"
 import { useMascotMood } from "@/lib/use-mascot-mood"
+import {
+  noteTyping,
+  TeamContext,
+  useHere,
+  usePeople,
+  useWorkspaceOfAgent,
+  whoIs,
+} from "@/lib/workspaces"
 import { AgentPanel } from "./agent-panel.tsx"
 import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
@@ -179,6 +188,24 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
   const subagents = useSubagents(agent.id, chatId)
   const [subagentsOpen, setSubagentsOpen] = useState(false)
+
+  // In a team: who else has this chat open, and who is writing in it.
+  const { me } = useRouteContext({ from: "/_app" })
+  const workspace = useWorkspaceOfAgent(agent.id)
+  const team = workspace?.kind === "team" ? workspace : undefined
+  const people = usePeople(team)
+  const here = useHere(team?.id)
+  const inChat = (place: { agentId: string | null; chatId: string | null }) =>
+    place.agentId === agent.id && place.chatId === chatId
+  const present = whoIs(here, inChat).flatMap((id) => people.get(id) ?? [])
+  const typing = whoIs(
+    here,
+    (place) => inChat(place) && place.typing && place.userId !== me.user.id,
+  ).flatMap((id) => people.get(id) ?? [])
+  const teamContext = useMemo(
+    () => (team === undefined ? undefined : { meId: me.user.id, people }),
+    [team, me.user.id, people],
+  )
 
   useMascotMood(
     agent.id,
@@ -388,42 +415,58 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
             </div>
           </div>
         )}
+        {team === undefined ? null : (
+          // Who is in this chat, and that it is the team's to read.
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+            <FaceStack people={present} className="size-7" max={4} />
+            <Link
+              to="/w/$workspaceId"
+              params={{ workspaceId: team.id }}
+              title={`Everyone in ${team.name} can read this chat and write in it`}
+              className="hidden h-8 items-center gap-1.5 rounded-full border bg-background/85 px-3 text-xs whitespace-nowrap text-muted-foreground shadow-sm outline-none backdrop-blur hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 xl:flex"
+            >
+              <UsersIcon className="size-3.5" /> Shared with {team.name}
+            </Link>
+          </div>
+        )}
         <div className="min-h-0 flex-1">
           <AgentIdContext value={agent.id}>
             <OpenFileContext value={wide ? setOpenDoc : undefined}>
-              <Transcript
-                state={state}
-                onRetry={sub === undefined ? retry : undefined}
-                asker={sub === undefined ? undefined : name}
-                empty={
-                  live.loaded && sub === undefined ? (
-                    <Welcome
-                      agent={agent}
-                      face={
-                        // Where the panel is beside the chat, the creature is in it and not here too.
-                        beside ? null : (
-                          <span className="mb-6">
-                            <Hatchling agent={agent} hatch={hatch} className="size-72" />
-                          </span>
-                        )
-                      }
-                    />
-                  ) : null
-                }
-                before={
-                  hasEarlier ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="self-center text-muted-foreground"
-                      disabled={earlier.loading}
-                      onClick={loadEarlier}
-                    >
-                      {earlier.loading ? "Loading…" : "Show earlier messages"}
-                    </Button>
-                  ) : null
-                }
-              />
+              <TeamContext value={teamContext}>
+                <Transcript
+                  state={state}
+                  onRetry={sub === undefined ? retry : undefined}
+                  asker={sub === undefined ? undefined : name}
+                  empty={
+                    live.loaded && sub === undefined ? (
+                      <Welcome
+                        agent={agent}
+                        face={
+                          // Where the panel is beside the chat, the creature is in it and not here too.
+                          beside ? null : (
+                            <span className="mb-6">
+                              <Hatchling agent={agent} hatch={hatch} className="size-72" />
+                            </span>
+                          )
+                        }
+                      />
+                    ) : null
+                  }
+                  before={
+                    hasEarlier ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="self-center text-muted-foreground"
+                        disabled={earlier.loading}
+                        onClick={loadEarlier}
+                      >
+                        {earlier.loading ? "Loading…" : "Show earlier messages"}
+                      </Button>
+                    ) : null
+                  }
+                />
+              </TeamContext>
             </OpenFileContext>
           </AgentIdContext>
         </div>
@@ -448,18 +491,30 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
             </Link>
           </div>
         ) : (
-          <Composer
-            draftKey={chatKey(agent.id, chatId)}
-            placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
-            busy={live.state.busy}
-            queued={live.state.queued}
-            onSend={send}
-            error={sendError}
-            onStop={stop}
-            sees={models?.find((model) => model.id === agent.model)?.images === true}
-            agentName={name}
-            onAttach={attach}
-          />
+          <>
+            {typing.length === 0 ? null : (
+              <p
+                role="status"
+                className="mx-auto flex w-full max-w-3xl items-center gap-2 px-6 pb-1.5 text-xs text-muted-foreground"
+              >
+                <FaceStack people={typing} className="size-[1.125rem]" />
+                {names(typing)} {typing.length === 1 ? "is" : "are"} typing…
+              </p>
+            )}
+            <Composer
+              onTyping={team === undefined ? undefined : noteTyping}
+              draftKey={chatKey(agent.id, chatId)}
+              placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
+              busy={live.state.busy}
+              queued={live.state.queued}
+              onSend={send}
+              error={sendError}
+              onStop={stop}
+              sees={models?.find((model) => model.id === agent.model)?.images === true}
+              agentName={name}
+              onAttach={attach}
+            />
+          </>
         )}
       </div>
       {wide && openDoc !== undefined ? (
@@ -488,6 +543,36 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               : { chatId, title: sub.title, status: sub.status, parentTitle: parent?.title }
           }
           subagents={subagents}
+          presence={
+            team === undefined ? undefined : (
+              <section aria-label="Here now" className="shrink-0 border-t px-5 pt-4 pb-3.5">
+                <h3 className="flex items-center justify-between pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Here now
+                  {team.role === "member" ? null : (
+                    <Link
+                      to="/w/$workspaceId/people"
+                      params={{ workspaceId: team.id }}
+                      className="rounded-sm text-xs font-medium tracking-normal text-primary normal-case outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40 dark:text-[oklch(0.78_0.09_195)]"
+                    >
+                      Invite
+                    </Link>
+                  )}
+                </h3>
+                <div className="flex items-center gap-1.5 [--face-ring:var(--rail)]">
+                  {present.map((person) => (
+                    <PersonFace key={person.id} person={person} here className="size-7" />
+                  ))}
+                  <span className="ml-1 min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                    {typing.length > 0
+                      ? `${names(typing)} ${typing.length === 1 ? "is" : "are"} typing`
+                      : present.length === 0
+                        ? "Connecting…"
+                        : names(present, me.user.name)}
+                  </span>
+                </div>
+              </section>
+            )
+          }
           reconnecting={live.status === "reconnecting"}
           startFresh={
             canStartFresh

@@ -6,6 +6,7 @@ export {
   CONNECTOR_REDIRECT_HEADER,
   createAgentActor,
 } from "./actor.ts"
+export { type Caller, CALLER_HEADER, encodeCaller, readCaller } from "./caller.ts"
 export type { JudgeOptions } from "./keep-going.ts"
 export { ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
 export {

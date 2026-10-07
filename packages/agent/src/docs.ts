@@ -19,8 +19,16 @@ export type IdentityState = {
   model: string
   /** How hard it thinks before it answers. Absent on an agent that was never told. */
   thinking?: ThinkingLevel
-  /** Account that owns this agent. */
+  /** The account that made this agent. Who may use it is the gateway's to say. */
   ownerId: string
+  /** The name of the team that shares it. Null or absent: it is one person's. */
+  team?: string | null
+  /**
+   * What a message does that arrives while it is working: `steer` joins the work, `queue` waits
+   * for it to finish. Absent: steer for one person, queue for a team, where the message is
+   * likely someone else's.
+   */
+  whenBusy?: "steer" | "queue"
   createdAt: number
   /** The user's IANA timezone, learned from their client. */
   timezone: string | null
@@ -75,6 +83,8 @@ export type ChatRecord = {
   createdAt: number
   updatedAt: number
   archived: boolean
+  /** The user who started it. Absent on a chat from before agents were shared, and on runs. */
+  createdBy?: string
   /** Present on a sub-agent's chat. */
   subagent?: SubagentRecord
 }

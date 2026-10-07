@@ -69,6 +69,46 @@ const MIGRATIONS: readonly (readonly string[])[] = [
   ],
   // The kind of computer a user's new agents get.
   ["ALTER TABLE dc_user_settings ADD COLUMN default_computer TEXT"],
+  [
+    // A team: a workspace several people share. A personal workspace has no row; its id is made
+    // from its owner's, and every agent from before teams is in its owner's.
+    `CREATE TABLE dc_workspaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE dc_members (
+      workspace_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (workspace_id, user_id)
+    )`,
+    "CREATE INDEX dc_members_by_user ON dc_members (user_id)",
+    // Someone asked to join a team, by email or by GitHub account. The link they are sent holds
+    // a token, of which only the hash is kept. A row is deleted once it is answered or withdrawn.
+    `CREATE TABLE dc_invitations (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      email TEXT,
+      github_id TEXT,
+      github_login TEXT,
+      role TEXT NOT NULL,
+      note TEXT,
+      invited_by TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    )`,
+    "CREATE INDEX dc_invitations_by_workspace ON dc_invitations (workspace_id)",
+    "CREATE INDEX dc_invitations_by_email ON dc_invitations (email)",
+    "CREATE INDEX dc_invitations_by_github ON dc_invitations (github_id)",
+    "ALTER TABLE dc_agents ADD COLUMN workspace_id TEXT",
+    "UPDATE dc_agents SET workspace_id = 'personal:' || owner_id",
+    "CREATE INDEX dc_agents_by_workspace ON dc_agents (workspace_id, created_at)",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

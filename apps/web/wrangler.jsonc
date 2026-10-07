@@ -10,6 +10,7 @@
       { "name": "AGENT", "class_name": "AgentObject" },
       { "name": "COMPUTER", "class_name": "ComputerObject" },
       { "name": "SANDBOX", "class_name": "SandboxObject" },
+      { "name": "PRESENCE", "class_name": "PresenceObject" },
     ],
   },
   // To give each agent a Linux machine on Cloudflare Containers (Workers Paid plan), uncomment
@@ -20,6 +21,7 @@
     { "tag": "v1", "new_sqlite_classes": ["AgentObject"] },
     { "tag": "v2", "new_sqlite_classes": ["ComputerObject"] },
     { "tag": "v3", "new_sqlite_classes": ["SandboxObject"] },
+    { "tag": "v4", "new_sqlite_classes": ["PresenceObject"] },
   ],
   "d1_databases": [
     {
@@ -32,5 +34,6 @@
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "durable-computer" }],
   "vars": { "DC_SIGNUP": "invite" },
   // Secrets (wrangler secret put): DC_AUTH_SECRET, OPENROUTER_API_KEY, and optionally
-  // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET.
+  // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and
+  // RESEND_API_KEY to send team invitations by email (with DC_EMAIL_FROM in `vars`).
 }

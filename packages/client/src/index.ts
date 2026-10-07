@@ -18,22 +18,35 @@ import {
   type ConnectorResult,
   type ConnectorSummary,
   type CreateChatRequest,
+  type CreateWorkspaceRequest,
   EMPTY_CHAT,
+  type Invitation,
+  type InvitationPreview,
+  type InviteRequest,
+  type InviteResult,
   type LibraryFile,
   type LibraryListing,
   type LibraryVersion,
   type ModelOption,
+  PING_FRAME,
+  type PresenceEvent,
+  type PresenceUpdate,
   readSse,
   reduceChat,
   type ScheduleSummary,
   type SendMessageRequest,
   type SendMessageResponse,
+  type SentInvitation,
   type SkillDetail,
   type SkillSummary,
   type ThinkingLevel,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
+  type UpdateWorkspaceRequest,
   type UserSettings,
+  type WorkspaceRole,
+  type WorkspacesState,
+  type WorkspaceSummary,
 } from "@durable-computer/protocol"
 
 export class ApiError extends Error {
@@ -61,7 +74,7 @@ export type ClientOptions = {
 }
 
 export type Me = {
-  user: { id: string; email: string; name: string }
+  user: { id: string; email: string; name: string; image?: string | null }
   google: boolean
   github: boolean
   signup: "open" | "invite"
@@ -74,6 +87,10 @@ export type AgentState = {
   timezone: string | null
   /** The kind of computer it is on. Null where the deployment offers no choice of one. */
   computer: string | null
+  /** The team that shares it, by name. Null: it is one person's. */
+  team?: string | null
+  /** What a message does that arrives while it is working: join the work, or wait for it. */
+  whenBusy?: "steer" | "queue"
   soul: string
   user: string
   memory: string
@@ -92,6 +109,8 @@ export type AgentPatch = {
   /** How hard it thinks before it answers. Applies from its next reply. */
   thinking?: ThinkingLevel
   timezone?: string
+  /** What a message does that arrives while it is working. */
+  whenBusy?: "steer" | "queue"
   /** Its owner has watched it hatch. There is no putting it back in its egg. */
   hatched?: true
   /**
@@ -114,6 +133,12 @@ export type PairingRequest = {
 export type StreamStatus = "connecting" | "open" | "reconnecting" | "closed"
 
 export type Subscription = { close(): void }
+
+/** A place in a team's presence: say where this tab is, and stop. */
+export type PresenceLink = Subscription & { update(where: PresenceUpdate): void }
+
+/** How often a presence socket is pinged, so that whatever is between it and the server keeps it. */
+const PRESENCE_PING_MS = 30_000
 
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000]
 
@@ -212,7 +237,110 @@ export function createClient(options: ClientOptions) {
     /** Change account settings. Null for either default goes back to the deployment's. */
     updateSettings: (change: { defaultModel?: string | null; defaultComputer?: string | null }) =>
       patch<UserSettings>("/api/settings", change),
-    createAgent: async () => (await post<{ agent: AgentSummary }>("/api/agents")).agent,
+    /** Make an agent in a workspace: the user's own, unless a team is named. */
+    createAgent: async (workspaceId?: string) =>
+      (await post<{ agent: AgentSummary }>("/api/agents", { workspaceId })).agent,
+    /** Move an agent, with everything it has, to another workspace the user is in. */
+    moveAgent: (agentId: string, workspaceId: string) =>
+      post<{ ok: true }>(`/api/agents/${encodeURIComponent(agentId)}/move`, { workspaceId }),
+    /** The user's workspaces, and the invitations waiting for them. */
+    workspaces: () => request<WorkspacesState>("/api/workspaces"),
+    createWorkspace: (input: CreateWorkspaceRequest) =>
+      post<{ workspace: WorkspaceSummary; invited?: InviteResult }>("/api/workspaces", input),
+    /** What an invitation is to, by the token in its link or by its id. */
+    invitation: (key: string) =>
+      request<InvitationPreview>(`/api/invitations/${encodeURIComponent(key)}`),
+    acceptInvitation: (key: string) =>
+      post<{ workspaceId: string }>(`/api/invitations/${encodeURIComponent(key)}/accept`),
+    declineInvitation: (invitationId: string) =>
+      request<{ ok: true }>(`/api/invitations/${encodeURIComponent(invitationId)}`, {
+        method: "DELETE",
+      }),
+
+    workspace(workspaceId: string) {
+      const base = `/api/workspaces/${encodeURIComponent(workspaceId)}`
+      return {
+        update: (change: UpdateWorkspaceRequest) => patch<{ ok: true }>(base, change),
+        /** Delete the team. It has to be empty of agents. */
+        remove: () => request<{ ok: true }>(base, { method: "DELETE" }),
+        invitations: async () =>
+          (await request<{ invitations: Invitation[] }>(`${base}/invitations`)).invitations,
+        invite: (input: InviteRequest) => post<InviteResult>(`${base}/invitations`, input),
+        /** Send an invitation again. It gets a new link, and the old one stops working. */
+        renewInvitation: (invitationId: string) =>
+          post<SentInvitation>(`${base}/invitations/${encodeURIComponent(invitationId)}`),
+        withdrawInvitation: (invitationId: string) =>
+          request<{ ok: true }>(`${base}/invitations/${encodeURIComponent(invitationId)}`, {
+            method: "DELETE",
+          }),
+        setRole: (userId: string, role: WorkspaceRole) =>
+          patch<{ ok: true }>(`${base}/members/${encodeURIComponent(userId)}`, { role }),
+        /** Remove someone from the team. With the user's own id, leave it. */
+        removeMember: (userId: string) =>
+          request<{ ok: true }>(`${base}/members/${encodeURIComponent(userId)}`, {
+            method: "DELETE",
+          }),
+        /**
+         * Join the team's presence: hear where everyone is and when the team changes, and say
+         * where this tab is. Reconnects with backoff, saying again where it is each time. Needs
+         * a platform with WebSockets that carry the session, which is a browser.
+         */
+        presence(onEvent: (event: PresenceEvent) => void): PresenceLink {
+          let socket: WebSocket | undefined
+          let where: PresenceUpdate | undefined
+          let closed = false
+          let attempt = 0
+          let ping: ReturnType<typeof setInterval> | undefined
+          let retry: ReturnType<typeof setTimeout> | undefined
+          const origin = options.baseUrl === "" ? globalThis.location.origin : options.baseUrl
+          const url = `${origin.replace(/^http/, "ws")}/api/presence/${encodeURIComponent(workspaceId)}`
+          const connect = () => {
+            if (closed) return
+            const current = new WebSocket(url)
+            socket = current
+            current.onopen = () => {
+              attempt = 0
+              if (where !== undefined) current.send(JSON.stringify(where))
+              ping = setInterval(() => current.send(PING_FRAME), PRESENCE_PING_MS)
+            }
+            current.onmessage = (message) => {
+              try {
+                const event = JSON.parse(String(message.data)) as PresenceEvent
+                if (event.type === "presence" || event.type === "changed") onEvent(event)
+              } catch {
+                // Not for us.
+              }
+            }
+            current.onclose = (event) => {
+              clearInterval(ping)
+              if (socket === current) socket = undefined
+              // Nobody is here as far as this tab can tell, until it is back.
+              onEvent({ type: "presence", here: [] })
+              // Let go because they are no longer in the team: what they have of it is stale.
+              if (event.code === 4403) onEvent({ type: "changed" })
+              // Turned away for good: signed out, or no longer in the team.
+              if (closed || event.code === 4401 || event.code === 4403) return
+              const delay =
+                RECONNECT_DELAYS_MS[Math.min(attempt++, RECONNECT_DELAYS_MS.length - 1)]!
+              retry = setTimeout(connect, delay)
+            }
+          }
+          connect()
+          return {
+            update(next) {
+              where = next
+              if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(next))
+            },
+            close() {
+              closed = true
+              clearTimeout(retry)
+              clearInterval(ping)
+              socket?.close()
+            },
+          }
+        },
+      }
+    },
     /** Delete an agent for good, with its memory, files, schedules and computer. */
     deleteAgent: (agentId: string) =>
       request<{ ok: true }>(`/api/agents/${agentId}`, { method: "DELETE" }),

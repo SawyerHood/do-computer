@@ -1,4 +1,5 @@
 import type { AppDatabase } from "@durable-computer/runtime"
+import { peopleOfAgent } from "./teams.ts"
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 /** Expo accepts up to this many messages per request. */
@@ -74,29 +75,33 @@ export async function sendPush(
   }
 }
 
-/** Notify the owner of an agent. Looks up who that is and what the agent is called. */
-export async function notifyOwner(
+/**
+ * Notify the people an agent works for. Where it knows who it is answering, only they hear of
+ * it, as long as they can still reach the agent; otherwise its owner does, or everyone in its team.
+ */
+export async function notifyPeople(
   db: AppDatabase,
   agentId: string,
   agentName: string | null,
-  message: { heading?: string; text: string; chatId: string | null },
+  message: { heading?: string; text: string; chatId: string | null; userId?: string },
   fetcher?: typeof fetch,
 ): Promise<void> {
-  const owner = await db
-    .get<{ owner_id: string }>("SELECT owner_id FROM dc_agents WHERE id = ?", agentId)
-    .catch(() => undefined)
-  if (owner === undefined) return
+  const people = await peopleOfAgent(db, agentId).catch((): string[] => [])
+  const to =
+    message.userId !== undefined && people.includes(message.userId) ? [message.userId] : people
   const body = preview(message.text)
-  await sendPush(
-    db,
-    owner.owner_id,
-    {
-      title: agentName ?? "Your agent",
-      body: message.heading ? `${message.heading}: ${body}` : body,
-      data: { agentId, chatId: message.chatId },
-    },
-    fetcher,
-  )
+  for (const userId of to) {
+    await sendPush(
+      db,
+      userId,
+      {
+        title: agentName ?? "Your agent",
+        body: message.heading ? `${message.heading}: ${body}` : body,
+        data: { agentId, chatId: message.chatId },
+      },
+      fetcher,
+    )
+  }
 }
 
 export async function registerPushToken(
