@@ -120,6 +120,19 @@
   }
 }
 
+/*
+ * Safari on a phone zooms the page in on a field whose text is under 16px, and leaves it zoomed.
+ * Under a finger every field is written in at that size, whatever it is with a mouse. This is
+ * outside the layers so that it holds over the size a field's own classes give it.
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 1rem;
+  }
+}
+
 /* Assistant prose: Markdown inside a bubble. */
 @layer components {
   .prose-chat {
