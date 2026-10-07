@@ -308,40 +308,205 @@ test("installing a skill from a bad URL explains what went wrong", async ({ page
   await expect(page.getByRole("alert")).toBeVisible({ timeout: 15_000 })
 })
 
-test("a file the agent sends appears in the chat and in the library", async ({ page }) => {
+/** Have the agent call a tool, and wait for what the tool says it did. */
+async function tool(page: Page, name: string, args: Record<string, unknown>, said: string) {
+  await composer(page).fill(`/tool ${name} ${JSON.stringify(args)}`)
+  await page.keyboard.press("Enter")
+  await expect(page.getByText(said).last()).toBeVisible()
+}
+
+test("a document the agent writes opens from the chat, to be read and edited", async ({ page }) => {
   await signIn(page)
   await newChat(page)
-  await composer(page).fill(
-    '/tool write {"path":"plan.md","content":"# The plan\\n\\nShip it.\\n"}',
+  await tool(
+    page,
+    "write",
+    {
+      path: "library/notes/plan.md",
+      content: "# The plan\n\nShip it. Then read [more](more.md).\n",
+    },
+    "Successfully wrote to library/notes/plan.md",
   )
-  await page.keyboard.press("Enter")
-  await expect(page.getByText("Successfully wrote to plan.md")).toBeVisible()
-  await composer(page).fill('/tool send_file {"path":"plan.md"}')
+  await tool(
+    page,
+    "write",
+    { path: "library/notes/more.md", content: "# More\n" },
+    "Successfully wrote to library/notes/more.md",
+  )
+  await composer(page).fill('/tool send_file {"path":"library/notes/plan.md"}')
   await page.keyboard.press("Enter")
 
-  const card = page.getByRole("main").getByRole("link", { name: /plan\.md/ })
+  const card = page
+    .getByRole("main")
+    .getByRole("button", { name: /plan\.md/ })
+    .first()
   await expect(card).toBeVisible()
   const download = page.waitForEvent("download")
-  await card.click()
+  await page.getByRole("link", { name: "Download plan.md" }).click()
   const file = await download
   expect(file.suggestedFilename()).toBe("plan.md")
-  expect(readFileSync(await file.path(), "utf8")).toBe("# The plan\n\nShip it.\n")
+  expect(readFileSync(await file.path(), "utf8")).toContain("Ship it.")
 
-  await page.getByRole("button", { name: "Library" }).click()
-  const row = page.getByRole("listitem").filter({ hasText: "plan.md" })
-  await expect(row).toContainText("from your agent")
+  // The card opens the document beside the chat, where a link to the one next to it opens that.
+  await card.click()
+  const beside = page.getByRole("complementary", { name: "Document" })
+  await expect(beside.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+  await expect(composer(page)).toBeVisible()
+  await page.screenshot({ path: "test-results/library-beside-chat.png" })
+  await beside.getByRole("link", { name: "more", exact: true }).click()
+  await expect(beside.getByRole("heading", { name: "More", level: 1 })).toBeVisible()
 
-  // The user can add files too, and remove any of them.
+  // From there it opens in the library, in its folder.
+  await beside.getByRole("link", { name: "Open in the Library" }).click()
+  await expect(page).toHaveURL(/\/library\?path=notes%2Fmore\.md/)
+  const files = page.getByRole("navigation", { name: "Files" })
+  await expect(files.getByRole("button", { name: "notes" })).toBeVisible()
+  await files.getByRole("link", { name: "plan.md" }).click()
+  await expect(files.getByRole("link", { name: "plan.md" })).toHaveAttribute("aria-current", "page")
+  await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+
+  // A link to the document beside it opens that one.
+  await page.getByRole("link", { name: "more", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "More", level: 1 })).toBeVisible()
+  await files.getByRole("link", { name: "plan.md" }).click()
+
+  // What the user types is saved, and is what the agent then reads.
+  await page.getByRole("button", { name: "Split" }).click()
+  const editor = page.getByRole("textbox", { name: "Edit plan.md" })
+  await editor.fill("# The plan\n\nShip it on **Friday**.\n")
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+  await expect(page.locator(".prose-doc strong")).toHaveText("Friday")
+  await page.screenshot({ path: "test-results/library-document.png" })
+
+  await page.getByRole("button", { name: "Back to chat" }).click()
+  await tool(page, "bash", { command: "cat library/notes/plan.md" }, "Ship it on Friday.")
+
+  // And what the agent then writes shows up, with the earlier content kept.
+  await tool(
+    page,
+    "write",
+    { path: "library/notes/plan.md", content: "# The plan\n\nShipped.\n" },
+    "Successfully wrote to library/notes/plan.md",
+  )
+  await page.getByRole("button", { name: "Library", exact: true }).click()
+  await page
+    .getByRole("navigation", { name: "Files" })
+    .getByRole("link", { name: "plan.md" })
+    .click()
+  await expect(page.getByText("Shipped.")).toBeVisible()
+  await page.getByRole("button", { name: "History" }).click()
+  await expect(page.getByRole("menuitem", { name: /Put back this version/ })).toHaveCount(2)
+  await page
+    .getByRole("menuitem", { name: /Put back this version/ })
+    .first()
+    .click()
+  await expect(page.locator(".prose-doc strong")).toHaveText("Friday")
+})
+
+test("a page the agent writes is shown as a page, apart from the app", async ({ page }) => {
+  await signIn(page)
+  await newChat(page)
+  await tool(
+    page,
+    "bash",
+    {
+      command: [
+        "mkdir -p library/site",
+        `printf '%s' '<link rel="stylesheet" href="style.css"><h1>Energy</h1><p id="out">static</p><a href="../notes/plan.md">the plan</a><script src="app.js"></script>' > library/site/index.html`,
+        `printf '%s' 'h1{color:rgb(0, 128, 128)}' > library/site/style.css`,
+        `printf '%s' 'var c;try{c=document.cookie}catch(e){c="blocked"}document.getElementById("out").textContent="ran:"+c+":"+self.origin;fetch("/api/me",{credentials:"include",mode:"no-cors"})' > library/site/app.js`,
+        "echo made",
+      ].join(" && "),
+    },
+    "made",
+  )
+  await page.getByRole("button", { name: "Library", exact: true }).click()
+  // The page asks the app who is signed in, the way a hostile page would.
+  const asked = page.waitForRequest(
+    (request) => request.url().endsWith("/api/me") && request.frame() !== page.mainFrame(),
+  )
+  await page
+    .getByRole("navigation", { name: "Files" })
+    .getByRole("link", { name: "index.html" })
+    .click()
+  // The browser sends that without the session: to it, the page is another site.
+  expect((await (await asked).allHeaders()).cookie).toBeUndefined()
+
+  const frame = page.frameLocator('iframe[title="index.html"]')
+  // The stylesheet and the script beside it loaded, by their relative addresses.
+  await expect(frame.getByRole("heading", { name: "Energy" })).toHaveCSS(
+    "color",
+    "rgb(0, 128, 128)",
+  )
+  // The script ran, but as nobody: it may not read cookies, and its origin is not the app's.
+  await expect(frame.locator("#out")).toHaveText("ran:blocked:null")
+  await page.screenshot({ path: "test-results/library-page.png" })
+
+  // A link from the page to a document opens the document here.
+  await frame.getByRole("link", { name: "the plan" }).click()
+  await expect(page).toHaveURL(/path=notes%2Fplan\.md/)
+  await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+
+  // The address of a page works without the session, and only with its own key.
+  await page
+    .getByRole("navigation", { name: "Files" })
+    .getByRole("link", { name: "index.html" })
+    .click()
+  const address = await page.locator('iframe[title="index.html"]').getAttribute("src")
+  const anonymous = await page.request.fetch(address!, { headers: { cookie: "" } })
+  expect(anonymous.status()).toBe(200)
+  expect(anonymous.headers()["content-security-policy"]).toContain("sandbox")
+  const forged = await page.request.fetch(address!.replace(/\/d\/([^/]+)\/[^/]+\//, "/d/$1/0-00/"))
+  expect(forged.status()).toBe(404)
+})
+
+test("the user can add, rename and delete files, and bring one back", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole("button", { name: "Library", exact: true }).click()
+  const files = page.getByRole("navigation", { name: "Files" })
+
+  // An upload goes into the folder last clicked.
+  await files.getByRole("button", { name: "notes" }).click()
   await page.getByLabel("Choose a file to upload").setInputFiles({
     name: "notes from me.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("remember the milk"),
   })
-  await expect(page.getByRole("listitem").filter({ hasText: "notes from me.txt" })).toContainText(
-    "uploaded by you",
+  await files.getByRole("button", { name: "notes" }).click()
+  await files.getByRole("link", { name: "notes from me.txt" }).click()
+  await expect(page).toHaveURL(
+    /path=notes%2Fnotes\+from\+me\.txt|path=notes%2Fnotes%20from%20me\.txt/,
   )
-  await row.getByRole("button", { name: "Delete plan.md" }).click()
-  await expect(page.getByRole("listitem").filter({ hasText: "plan.md" })).toHaveCount(0)
+  await expect(page.getByRole("textbox", { name: "Edit notes from me.txt" })).toHaveValue(
+    "remember the milk",
+  )
+
+  await page.getByRole("button", { name: "More" }).click()
+  await page.getByRole("menuitem", { name: "Rename or move" }).click()
+  await page.getByLabel("Folder and name").fill("lists/shopping.txt")
+  await page.getByRole("button", { name: "Save" }).click()
+  await expect(files.getByRole("link", { name: "shopping.txt" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  )
+  await expect(files.getByRole("button", { name: "lists" })).toBeVisible()
+
+  await page.getByRole("button", { name: "More" }).click()
+  await page.getByRole("menuitem", { name: "Delete" }).click()
+  await expect(files.getByRole("link", { name: "shopping.txt" })).toHaveCount(0)
+
+  await page.getByRole("button", { name: /Recently deleted/ }).click()
+  await page.getByRole("button", { name: "Restore shopping.txt" }).click()
+  await expect(files.getByRole("link", { name: "shopping.txt" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  )
+
+  // A new document starts beside the open file, ready to be written.
+  await page.getByRole("button", { name: "New document" }).first().click()
+  await expect(page.getByRole("textbox", { name: "Edit Untitled.md" })).toBeVisible()
+  await expect(files.getByRole("link", { name: "Untitled.md" })).toBeVisible()
+  await page.screenshot({ path: "test-results/library-new.png" })
 })
 
 test("a file attached to a message is one the agent can open", async ({ page }) => {
@@ -369,10 +534,16 @@ test("a file attached to a message is one the agent can open", async ({ page }) 
   await composer(page).press("Enter")
   await expect(transcript.getByText("rye bread").first()).toBeVisible()
 
-  // It is also in the library, as something the user uploaded.
+  // It is also in the library, with the other things the user attached in chats.
   await page.getByRole("button", { name: "Library", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
-  await expect(page.getByText("shopping.txt", { exact: true })).toBeVisible()
+  const files = page.getByRole("navigation", { name: "Files" })
+  await expect(files.getByRole("button", { name: "uploads" })).toBeVisible()
+  await expect(files.getByTitle("uploads/shopping.txt")).toBeVisible()
+  // And in the agent's own folder, without it having to fetch the file first.
+  await page.getByRole("button", { name: "Back to chat" }).click()
+  await composer(page).fill('/tool bash {"command":"wc -c < library/uploads/shopping.txt"}')
+  await composer(page).press("Enter")
+  await expect(transcript.getByText("19", { exact: true }).first()).toBeVisible()
 })
 
 test("a picture pasted into the message box is attached, under a name of its own", async ({

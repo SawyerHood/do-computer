@@ -14,5 +14,5 @@ const remove = (input: Input) =>
     : handle(input)
 
 export const Route = createFileRoute("/api/agents/$agentId/$")({
-  server: { handlers: { GET: handle, POST: handle, PATCH: handle, DELETE: remove } },
+  server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: remove } },
 })

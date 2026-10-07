@@ -130,17 +130,48 @@ export type AddConnectorRequest = {
 /** The answer to adding or reconnecting a connector: where to send the user if they must sign in. */
 export type ConnectorResult = { connector: ConnectorSummary; authorizationUrl?: string }
 
-/** A file in the agent's library: something it delivered to the user, or the user gave it. */
+/** A file in the agent's library: something it made for the user, or the user gave it. */
 export type LibraryFile = {
   id: string
+  /** Where it is in the library, folders included: `reports/q3.md`. No two files share one. */
+  path: string
+  /** The last part of `path`. */
   name: string
   size: number
   contentType: string
-  /** `agent` for a file the agent sent, `user` for one the user uploaded. */
+  /** `agent` for a file the agent made, `user` for one the user uploaded or wrote. */
   source: "agent" | "user"
   /** The chat it was sent or uploaded in. */
   chatId: string | null
   createdAt: number
+  /** When its content last changed, and who changed it. */
+  updatedAt: number
+  updatedBy: "agent" | "user"
+  /** Counts up each time the content changes. Earlier contents are kept as versions for a while. */
+  rev: number
+}
+
+/** An earlier content of a library file, which it can be put back to. */
+export type LibraryVersion = {
+  rev: number
+  size: number
+  /** When this content was written, and by whom. */
+  at: number
+  by: "agent" | "user"
+}
+
+/** A library file that was deleted and can still be brought back. */
+export type DeletedLibraryFile = LibraryFile & { deletedAt: number; deletedBy: "agent" | "user" }
+
+/** What `GET /library` answers with. */
+export type LibraryListing = {
+  files: LibraryFile[]
+  deleted: DeletedLibraryFile[]
+  /**
+   * Stands in for the session where files are viewed as pages: a file at `path` is served, with
+   * whatever it links to beside it, at `/d/<agent>/<view>/<path>`. It changes every few hours.
+   */
+  view: string
 }
 
 /** A task the agent runs on its own, once or on a repeating schedule. */

@@ -349,10 +349,15 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
       <aside className="hidden w-16 shrink-0 flex-col items-center gap-2 border-r bg-rail py-3 md:flex">
         <AgentSwitcher agent={agent} />
         <div className="mt-3 flex flex-col items-center gap-1">
+          {/* The library has a list of its own in that place, so from there this leads back. */}
           <RailButton
-            label={listOpen ? "Hide chats" : "Show chats"}
+            label={page === "library" ? "Back to chat" : listOpen ? "Hide chats" : "Show chats"}
             active={listOpen && page === "chat"}
-            onClick={toggleList}
+            onClick={
+              page === "library"
+                ? () => navigate({ to: "/a/$agentId", params: { agentId: agent.id } })
+                : toggleList
+            }
           >
             <ChatCircleIcon />
           </RailButton>
@@ -428,7 +433,7 @@ export function AppShell({ state, children }: { state: AgentState; children: Rea
         </div>
       </aside>
 
-      {listOpen ? (
+      {listOpen && page !== "library" ? (
         <aside className="hidden w-72 shrink-0 border-r bg-rail/60 md:block">
           <ChatList agentId={agent.id} />
         </aside>

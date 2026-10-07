@@ -58,7 +58,14 @@ import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
 import { KeepGoing } from "./keep-going.ts"
-import { Library, LibraryDoc, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
+import {
+  cleanLibraryPath,
+  Library,
+  LibraryConflict,
+  LibraryDoc,
+  LibraryError,
+  MAX_LIBRARY_FILE_BYTES,
+} from "./library.ts"
 import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
@@ -287,7 +294,23 @@ export class AgentActor implements Actor {
       default: "",
       create: (_kind, host) => options.sandbox?.(host),
     }
-    this.#library = new Library({ blobs: host.blobs, now: () => host.now() })
+    this.#library = new Library({
+      blobs: host.blobs,
+      now: () => host.now(),
+      computer: () =>
+        this.#computer === undefined
+          ? undefined
+          : { sandbox: this.#computer.sandbox, key: this.#kind === "" ? "default" : this.#kind },
+      onProblem: (error) =>
+        options.onReport?.(
+          new Error(
+            `The agent's library folder could not be brought into step with its library: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            { cause: error },
+          ),
+        ),
+    })
     this.#paired =
       options.computerLinks === undefined
         ? undefined
@@ -392,6 +415,7 @@ export class AgentActor implements Actor {
     }
     this.#computer = computer
     this.#kind = kind
+    this.#library.computerChanged()
     // Installing under a name that is taken replaces what is there, where it stands.
     // The file and shell tools are needed for paired computers even without one of its own.
     this.#registry?.install(
@@ -471,6 +495,7 @@ export class AgentActor implements Actor {
       this.#skills.attach(harness)
       this.#paired?.attach(harness)
       this.#library.attach(harness)
+      await this.#library.upgrade(context)
       // Connector tools come and go while the agent runs, so they are installed after opening.
       this.#connectors = new Connectors({
         sql: this.#host.sql,
@@ -694,25 +719,46 @@ export class AgentActor implements Actor {
         return json({ ok: true })
       }
     }
-    if (segments[0] === "library") {
-      const fileId = segments[1]
-      if (fileId === undefined && method === "GET") {
-        return json({ files: await this.#library.list(context) })
+    if (segments[0] === "view" && segments[1] !== undefined && method === "GET") {
+      let path: string
+      try {
+        path = segments.slice(2).map(decodeURIComponent).join("/")
+      } catch {
+        throw new HttpError(404, "Not found")
       }
-      if (fileId === undefined && method === "POST") {
-        // The body is the file; its name and the chat it belongs to are in the query.
+      const response = await this.#library.view(segments[1], path, request, context)
+      if (response === undefined) throw new HttpError(404, "Not found")
+      return response
+    }
+    if (segments[0] === "library") {
+      const library = this.#library
+      const fileId = segments[1]
+      const action = segments[2]
+      const missing = () => new HttpError(404, "File not found")
+      /** The request's body as a file's content, read only up to the size a file may be. */
+      const content = async () => {
         const tooLarge = () => new HttpError(413, "That file is too large.")
         if (declaredTooLarge(request.headers, MAX_LIBRARY_FILE_BYTES)) throw tooLarge()
-        const name = url.searchParams.get("name")
-        if (name === null || name === "") throw new HttpError(400, "name is required")
         // Counted as it arrives: the declared length is only what the sender says.
-        const bytes = await readLimited(request.body, MAX_LIBRARY_FILE_BYTES).catch((error) => {
+        return readLimited(request.body, MAX_LIBRARY_FILE_BYTES).catch((error) => {
           throw error instanceof BodyTooLarge ? tooLarge() : error
         })
-        const file = await this.#library.add(
+      }
+      if (fileId === undefined && method === "GET") return json(await library.listing(context))
+      if (fileId === undefined && method === "POST") {
+        // The body is the file. Its name, and where it goes, are in the query: a `path` for a new
+        // document at exactly that place, or a `name` to go into `dir` or with the uploads.
+        const name = url.searchParams.get("name")
+        const path = url.searchParams.get("path")
+        if ((name === null || name === "") && (path === null || path === "")) {
+          throw new HttpError(400, "name is required")
+        }
+        const file = await library.add(
           {
-            name,
-            bytes,
+            ...(path !== null && path !== ""
+              ? { path: cleanLibraryPath(path) ?? "" }
+              : { name: name!, dir: url.searchParams.get("dir") ?? undefined }),
+            bytes: await content(),
             source: "user",
             chatId: url.searchParams.get("chat"),
             contentType: request.headers.get("content-type") ?? undefined,
@@ -721,15 +767,57 @@ export class AgentActor implements Actor {
         )
         return json(file, 201)
       }
-      if (fileId !== undefined && method === "GET") {
-        const response = await this.#library.serve(fileId, context)
-        if (response === undefined) throw new HttpError(404, "File not found")
-        return response
+      if (fileId === "deleted" && action !== undefined) {
+        if (segments[3] === "restore" && method === "POST") {
+          const file = await library.restore(action, context)
+          if (file === undefined) throw missing()
+          return json(file)
+        }
+        if (segments[3] === undefined && method === "DELETE") {
+          if (!(await library.forget(action, context))) throw missing()
+          return json({ ok: true })
+        }
       }
-      if (fileId !== undefined && method === "DELETE") {
-        if (!(await this.#library.remove(fileId, context)))
-          throw new HttpError(404, "File not found")
-        return json({ ok: true })
+      if (fileId !== undefined && action === undefined) {
+        if (method === "GET") {
+          const response = await library.serve(fileId, request, context)
+          if (response === undefined) throw missing()
+          return response
+        }
+        if (method === "PUT") {
+          // New content for the file. With `rev`, only if it is still at that revision.
+          const rev = url.searchParams.get("rev")
+          try {
+            return json(
+              await library.write(fileId, await content(), "user", context, {
+                ifRev: rev === null ? undefined : Number(rev),
+              }),
+            )
+          } catch (error) {
+            if (error instanceof LibraryConflict)
+              throw new HttpError(409, error.message, "conflict")
+            throw error
+          }
+        }
+        if (method === "PATCH") {
+          const { path } = await body<{ path?: string }>(request)
+          if (typeof path !== "string") throw new HttpError(400, "path is required")
+          return json(await library.move(fileId, path, context))
+        }
+        if (method === "DELETE") {
+          if (!(await library.remove(fileId, "user", context))) throw missing()
+          return json({ ok: true })
+        }
+      }
+      if (fileId !== undefined && action === "versions" && method === "GET") {
+        const versions = await library.versions(fileId, context)
+        if (versions === undefined) throw missing()
+        return json({ versions })
+      }
+      if (fileId !== undefined && action === "revert" && method === "POST") {
+        const { rev } = await body<{ rev?: number }>(request)
+        if (typeof rev !== "number") throw new HttpError(400, "rev is required")
+        return json(await library.revert(fileId, rev, "user", context))
       }
     }
     if (segments[0] === "skills") {

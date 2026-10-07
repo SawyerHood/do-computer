@@ -174,6 +174,40 @@ Since then, newest last:
     was wrong too often, including on "I'll check with you first"; Mistral Small was not.
     pi-durable has no such tool: continuing from `onYield`, as its `28-reviewer.ts` example
     does, is the way it offers.
+13. **Documents in the library** (2026-10-07; `packages/agent/src/library.ts` and
+    `library-sync.ts`, `apps/web/src/components/library`). The owner asked for a file tree with
+    a Markdown editor and an HTML viewer, and chose how it is kept from the options put to them:
+    "lets try the server-driven sync".
+    - **The library has folders.** A file has a path, a revision that counts up with each change,
+      up to ten earlier contents kept as versions, and a place among the last hundred deleted
+      files it can be brought back from. Files from before got a path when the agent next
+      opened: uploads under `uploads/`, the rest at the top.
+    - **`library/` in the agent's workspace is a working copy of it.** Blob storage is the truth,
+      which is why a file can be read while the computer is asleep. Before a tool that reads
+      files, and after one that can write them, the server lists the folder and compares it with
+      the library and with what the two held when they last agreed (kept per computer, in a
+      document clients never see). Whichever side differs from that is the side that changed.
+      Where both did, the folder wins and the library keeps the other as a version. A file
+      missing from the folder is deleted from the library, restorably; one that reappears with
+      the same content under another name is a rename. Hidden files, `node_modules`, links and
+      files over 25 MB are left out, and the agent is told once about each file left out. On a
+      machine with real programs the listing is one `find`; in the built-in shell it walks the
+      directories. Nothing runs on the computer between tool calls, so what a background
+      process writes after a run ends is picked up at the next run.
+    - **An HTML document is served as a page** at `/d/<agent>/<key>/<path>`, where relative
+      links resolve on their own. There is no session on that route. The key is signed with a
+      secret of the agent's, is the same for six hours and works for up to twelve, and comes
+      with the library listing. Every response carries `Content-Security-Policy: sandbox`
+      without `allow-same-origin`, so a page has an origin of its own: the browser tests check
+      that it cannot read cookies and that its requests to the app go without the session.
+    - **The web app** shows the tree where the chat list is, a front page of recent files, and
+      a viewer per kind: Markdown to read, edit or both side by side; a page with its source;
+      pictures; other text as an editor. Edits save a moment after typing stops and name the
+      revision they were made from, so one the agent made meanwhile becomes a choice between
+      the two and is never overwritten silently. On a wide screen a file card in a chat opens
+      the file beside the chat, in the place of the agent's panel, with the same viewer; on a
+      narrow one it opens in the library. `prototypes/library-docs` is the mock-up it was built
+      from.
 
 ## 6. What the owner has said they want
 
@@ -240,6 +274,15 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
   built it. Its author's own list of rough edges: at 24 px the command and file variants are
   hard to tell apart; flat-shaded bodies can show a large white highlight; the error state greys
   the eye whites; the alternative "glass" look is less finished and unused by the app.
+- **The library** on mobile is still the flat list with downloads. On the web, PDFs and other
+  formats have no viewer; there are no empty folders, since a folder is only the paths of the
+  files in it; a file's history shows who and when but not what changed; and a document changes
+  on screen when the agent's tool call ends, not as it types, which the mock-up pretended.
+- **A page from the library can load anything from the internet**, and could send what is in
+  the library to wherever it likes, since it can read the files beside it. That is the price of
+  letting pages use scripts and fonts from elsewhere. Serving them from a second domain would
+  add a wall the sandbox already provides; forbidding outside requests would close this, and
+  break those pages.
 - **An activity entry shows a tick** when the agent answered, even if a step inside it failed.
 - **Thinking and full tool output** are not in the transcript by design. Tool output is in the
   panel's entries, on wide screens only; thinking is not shown anywhere.
@@ -251,7 +294,9 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
 - Unit and integration tests pass on Node and inside the Workers runtime, and browser tests pass
   for the web app and the mobile web build. CI was green on the last commit before this file.
 - **Run against real services:** OpenRouter chat with tools, web search, transcription and
-  schedules; Daytona machines, including moving an agent to one and back and deleting it; a
+  schedules; Daytona machines, including moving an agent to one and back and deleting it, and
+  the listing the library folder is read with (the whole sync has only run against the built-in
+  shell and a local shell); a
   public MCP server as a connector; the bundled browsing skill; the summaries, against real
   models; a vision model describing an attached picture; deploys to Cloudflare from this
   machine and from GitHub Actions.
@@ -263,6 +308,11 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
 
 ## 9. Things that were learned the hard way
 
+- **A blob key is a path on Node and only a name on R2.** A key that is another key plus
+  `/more` needs the first to be a directory, which a file cannot be. A file's later revisions
+  are therefore stored beside its first one (`library/<id>.r3`), not under it.
+- **A page in a sandboxed frame may not even read `document.cookie`:** it throws. A script
+  that does so stops there, which looks like the script not loading.
 - **A Durable Object's SQLite row has a size limit** (about 2 MB) that Node's does not. A message
   is one row. That is why pictures are scaled down in the browser to fit a message, and why
   anything large belongs in blob storage, not in a document.

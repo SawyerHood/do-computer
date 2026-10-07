@@ -119,7 +119,7 @@ export async function proxyToAgent(
   if (request.method !== "GET" && request.method !== "HEAD") {
     // Every user's requests share this process's memory, so a body is read only up to a limit.
     const limit =
-      path === "library"
+      path === "library" || path.startsWith("library/")
         ? MAX_UPLOAD_BYTES
         : /^chats\/[^/]+\/messages$/.test(path)
           ? MAX_MESSAGE_BYTES
@@ -133,12 +133,43 @@ export async function proxyToAgent(
       return fail(400, "The request was cut off before it was complete.")
     }
   }
+  const headers: Record<string, string> = {
+    "content-type": request.headers.get("content-type") ?? "application/json",
+  }
+  // So that a file the browser already has is not sent again.
+  const cached = request.headers.get("if-none-match")
+  if (cached !== null) headers["if-none-match"] = cached
   return callAgent(agentId, `/${path}${url.search}`, {
     method: request.method,
-    headers: { "content-type": request.headers.get("content-type") ?? "application/json" },
+    headers,
     body,
     signal: request.signal,
   })
+}
+
+/**
+ * Serve a library file as a page, to whoever holds an address for it. There is no session here:
+ * a page is shown in a frame that is kept apart from the app, and so apart from its cookies, and
+ * the address itself carries the permission, which the agent checks.
+ */
+export async function viewLibraryFile(request: Request, agentId: string): Promise<Response> {
+  const missing = () => new Response("Not found", { status: 404 })
+  // Asking an agent that does not exist would create one.
+  const known = await getPlatform().db.get<{ id: string }>(
+    "SELECT id FROM dc_agents WHERE id = ?",
+    agentId,
+  )
+  if (known === undefined) return missing()
+  const { pathname } = new URL(request.url)
+  const rest = pathname.slice(`/d/${encodeURIComponent(agentId)}/`.length)
+  const headers: Record<string, string> = {}
+  for (const name of ["if-none-match", "sec-fetch-dest"]) {
+    const value = request.headers.get(name)
+    if (value !== null) headers[name] = value
+  }
+  const response = await callAgent(agentId, `/view/${rest}`, { headers, signal: request.signal })
+  // The agent answers in JSON, for the app. This is read by a browser.
+  return response.status === 404 ? missing() : response
 }
 
 export { getAuth }

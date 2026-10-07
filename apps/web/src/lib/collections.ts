@@ -22,6 +22,11 @@ export const activityKey = (agentId: string, chatId?: string) =>
     : (["agents", agentId, "activity", chatId] as const)
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
+/** A library file's text at one revision. Kept apart from the listing, which changes; this never does. */
+export const libraryTextKey = (agentId: string, fileId: string, rev: number) =>
+  ["agents", agentId, "library-text", fileId, rev] as const
+export const libraryVersionsKey = (agentId: string, fileId: string) =>
+  ["agents", agentId, "library-versions", fileId] as const
 
 /** The signed-in user's agents. */
 export const agentsCollection = createCollection(
@@ -93,6 +98,7 @@ export function refreshAgent(agentId: string, what: string): void {
   }
   if (what === "library") {
     void queryClient.invalidateQueries({ queryKey: libraryKey(agentId) })
+    void queryClient.invalidateQueries({ queryKey: ["agents", agentId, "library-versions"] })
     return
   }
   if (what === "computers") {
