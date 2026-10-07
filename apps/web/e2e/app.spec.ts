@@ -987,8 +987,7 @@ test("the settings page shows what the agent's thinking has cost", async ({ page
 test("a new agent is met as an egg, and hatches once", async ({ page }) => {
   await signIn(page)
   const first = page.url().match(/\/a\/([^/]+)/)![1]!
-  await page.getByRole("button", { name: "Switch agent" }).click()
-  await page.getByRole("menuitem", { name: "New agent" }).click()
+  await page.getByRole("button", { name: "New agent", exact: true }).click()
   await expect(page).not.toHaveURL(new RegExp(`/a/${first}`))
   await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
   const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
@@ -1018,8 +1017,7 @@ test("a new agent is met as an egg, and hatches once", async ({ page }) => {
 test("a second agent can be made, and deleted without touching the first", async ({ page }) => {
   await signIn(page)
   const first = page.url().match(/\/a\/([^/]+)/)![1]!
-  await page.getByRole("button", { name: "Switch agent" }).click()
-  await page.getByRole("menuitem", { name: "New agent" }).click()
+  await page.getByRole("button", { name: "New agent", exact: true }).click()
   await expect(page).not.toHaveURL(new RegExp(`/a/${first}`))
   const second = page.url().match(/\/a\/([^/]+)/)![1]!
   await expect(page.getByText("It has no name yet")).toBeVisible()
@@ -1353,8 +1351,7 @@ test.describe("choosing a computer", () => {
   /** Make another agent and land on it, leaving the first one as it is. */
   async function newAgent(page: Page): Promise<string> {
     const before = agentIn(page)
-    await page.getByRole("button", { name: "Switch agent" }).click()
-    await page.getByRole("menuitem", { name: "New agent" }).click()
+    await page.getByRole("button", { name: "New agent", exact: true }).click()
     await expect(page).not.toHaveURL(new RegExp(`/a/${before}`))
     await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
     return agentIn(page)
@@ -1491,9 +1488,9 @@ test("the chat list is put away until it is asked for, and stays how it was left
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
 
   // Asked for, it is beside the chat, and still there after a reload.
-  await page.getByRole("button", { name: "Chats", exact: true }).click()
+  await page.getByRole("button", { name: "Agents", exact: true }).click()
   await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Chats", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Agents", exact: true })).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole("searchbox", { name: "Search chats" })).toBeVisible()
   await page.getByRole("button", { name: "Hide chats" }).click()
@@ -1535,7 +1532,7 @@ test("signing out ends the session", async ({ page }) => {
 test("the layout works at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 400, height: 800 })
   await signIn(page)
-  await page.getByRole("button", { name: "Chats" }).click()
+  await page.getByRole("button", { name: "Agents" }).click()
   // The agent's pages are a menu that fits the sheet.
   const pages = page.getByRole("navigation", { name: "Pages" })
   await expect(pages.getByRole("link")).toHaveCount(8)
@@ -1548,6 +1545,8 @@ test("the layout works at phone width", async ({ page }) => {
       expect(box.x + box.width).toBeLessThanOrEqual(sheet.x + sheet.width)
     }
   }).toPass()
+  // Only an agent's latest chats are listed until the rest are asked for.
+  await page.getByRole("button", { name: /older chats?$/ }).click()
   await expect(page.getByRole("link", { name: "What can you do?" })).toBeVisible()
   await page.getByRole("link", { name: "What can you do?" }).click()
   await expect(page.getByText("You said: What can you do?")).toBeVisible()

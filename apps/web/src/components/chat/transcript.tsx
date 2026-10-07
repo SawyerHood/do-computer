@@ -179,13 +179,18 @@ function MessageView({
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n")
     const answered = /^(Approved|Not allowed): /.test(text)
+    // In a team, anyone may have answered.
+    const answerer =
+      team !== undefined && message.author !== undefined && message.author.id !== team.meId
+        ? message.author.name.split(" ")[0]
+        : "You"
     return (
       <Message align="end">
         <MessageContent>
           <Bubble align="end" variant="secondary">
             <BubbleContent className="border-border whitespace-pre-wrap text-[0.9375rem]">
               <span className="mb-0.5 block text-xs text-muted-foreground">
-                {answered ? "You answered" : `${asker} asked`}
+                {answered ? `${answerer} answered` : `${asker} asked`}
               </span>
               {text}
             </BubbleContent>

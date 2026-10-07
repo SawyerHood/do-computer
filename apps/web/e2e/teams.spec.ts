@@ -1,0 +1,183 @@
+import { type Browser, expect, type Page, test } from "@playwright/test"
+
+// Runs after app.spec.ts against the same server, whose first account is the owner's. Sign-up
+// there is by invitation, so the second person here can only get in by being asked to a team.
+const owner = { name: "Sawyer", email: "owner@example.com", password: "correct horse battery" }
+const maya = { name: "Maya Okafor", email: "maya@example.com", password: "correct horse battery" }
+
+const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
+
+async function fill(page: Page, account: { name?: string; email: string; password: string }) {
+  if (account.name !== undefined) await page.getByLabel("Name").fill(account.name)
+  await page.getByLabel("Email").fill(account.email)
+  await page.getByLabel("Password").fill(account.password)
+}
+
+/** Sign the owner in, making the account when this file is run on its own. */
+async function signInOwner(page: Page) {
+  await page.goto("/login")
+  await fill(page, { email: owner.email, password: owner.password })
+  await page.getByRole("button", { name: "Sign in" }).click()
+  const there = page.waitForURL(/\/a\/[^/]+\/c\/\d+/).then(() => true)
+  const refused = page
+    .getByRole("alert")
+    .waitFor()
+    .then(() => false)
+  if (await Promise.race([there, refused])) return
+  await page.goto("/signup")
+  await fill(page, owner)
+  await page.getByRole("button", { name: "Create account" }).click()
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+}
+
+async function open(browser: Browser, baseURL: string | undefined) {
+  const context = await browser.newContext({ baseURL, colorScheme: "dark" })
+  await context.addInitScript(() => localStorage.setItem("dc-chat-list", "open"))
+  return context.newPage()
+}
+
+test.describe.configure({ mode: "serial" })
+
+let sawyer: Page
+let her: Page
+let team = ""
+let link = ""
+let agentId = ""
+let chatPath = ""
+
+test.beforeAll(async ({ browser, baseURL }) => {
+  sawyer = await open(browser, baseURL)
+  her = await open(browser, baseURL)
+  await signInOwner(sawyer)
+})
+
+test.afterAll(async () => {
+  // Leave the server as the other tests expect it: no team, and no agent in one.
+  if (agentId !== "") await sawyer.request.delete(`/api/agents/${agentId}`)
+  if (team !== "") await sawyer.request.delete(`/api/workspaces/${team}`)
+  await sawyer.context().close()
+  await her.context().close()
+})
+
+test("a team is started from the workspace menu, with someone asked to join", async () => {
+  await sawyer.getByRole("button", { name: /Switch workspace/ }).click()
+  await sawyer.getByRole("menuitem", { name: "New team" }).click()
+  await sawyer.getByLabel("Team name").fill("Tidewater")
+  await sawyer.getByLabel("Who to invite").fill(maya.email)
+  const made = sawyer.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/workspaces") && response.request().method() === "POST",
+  )
+  await sawyer.getByRole("button", { name: "Create team" }).click()
+  const body = (await (await made).json()) as {
+    workspace: { id: string }
+    invited: { invitations: { link: string; emailed: boolean }[] }
+  }
+  team = body.workspace.id
+  link = new URL(body.invited.invitations[0]!.link).pathname
+  // No mail is set up on this server, so the sender is told to pass the link on.
+  await expect(sawyer.getByText("No email was sent from here. Send them the link.")).toBeVisible()
+  await sawyer.getByRole("button", { name: "Go to Tidewater" }).click()
+  await expect(sawyer.getByRole("heading", { name: "Tidewater", level: 1 })).toBeVisible()
+  await expect(sawyer.getByText("1 person · 0 agents")).toBeVisible()
+})
+
+test("the invitation lets them sign up where sign-up is by invitation, and join", async () => {
+  // Before being asked, the address could not have signed up here at all.
+  await her.goto(link)
+  await expect(her.getByRole("heading", { name: "Sawyer invited you to Tidewater" })).toBeVisible()
+  await her.getByRole("link", { name: "Create an account" }).click()
+  await fill(her, maya)
+  await her.getByRole("button", { name: "Create account" }).click()
+  // Signing up brings them back to the invitation, which they can now answer.
+  await her.waitForURL(new RegExp(`${link}$`))
+  await her.getByRole("button", { name: "Join Tidewater" }).click()
+  await expect(her.getByRole("heading", { name: "Tidewater", level: 1 })).toBeVisible()
+  await expect(her.getByText("2 people · 0 agents")).toBeVisible()
+  // The link is spent.
+  expect((await her.request.get(`/api/invitations/${link.split("/").at(-1)}`)).status()).toBe(404)
+  // And the one who asked sees them arrive without reloading.
+  await expect(sawyer.getByText("2 people · 0 agents")).toBeVisible()
+})
+
+test("an agent made in the team is everyone's, and an agent of one's own is not", async () => {
+  const mine = sawyer.url()
+  await sawyer.getByRole("button", { name: "New agent for the team" }).click()
+  await sawyer.waitForURL((url) => /\/a\/[^/]+\/c\/\d+$/.test(url.pathname) && url.href !== mine)
+  chatPath = new URL(sawyer.url()).pathname
+  agentId = chatPath.split("/")[2]!
+  await expect(sawyer.getByText("Shared with Tidewater")).toBeVisible()
+
+  expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(200)
+  const { agents } = (await (await sawyer.request.get("/api/agents")).json()) as {
+    agents: { id: string; workspaceId: string }[]
+  }
+  const personal = agents.find((agent) => agent.workspaceId.startsWith("personal:"))!
+  expect((await her.request.get(`/api/agents/${personal.id}`)).status()).toBe(404)
+  expect((await her.request.get(`/api/agents/${personal.id}/chats/1`)).status()).toBe(404)
+})
+
+test("two people talk to the agent in one chat, and each sees who said what", async () => {
+  await her.goto(chatPath)
+  await composer(sawyer).fill("What is still open on the launch checklist?")
+  await composer(sawyer).press("Enter")
+  // She sees his message as his, with his name, and the agent's answer to it.
+  const hers = her.getByRole("log")
+  await expect(
+    hers.getByText("What is still open on the launch checklist?", { exact: true }),
+  ).toBeVisible()
+  await expect(hers.getByRole("img", { name: "Sawyer" })).toBeVisible()
+  await expect(
+    hers.getByText("You said: What is still open on the launch checklist?"),
+  ).toBeVisible()
+
+  await composer(her).fill("And who owns the status page?")
+  await composer(her).press("Enter")
+  const his = sawyer.getByRole("log")
+  await expect(his.getByText("You said: And who owns the status page?")).toBeVisible()
+  await expect(his.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
+  // His own message has no face on it: it is the one in the color of his own.
+  await expect(his.getByRole("img", { name: "Sawyer" })).toHaveCount(0)
+})
+
+test("each sees the other in the chat, and when they are writing", async () => {
+  const here = sawyer.getByRole("region", { name: "Here now" })
+  await expect(here.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
+  // In the list of agents, her face is on the chat she has open.
+  const chats = sawyer.getByRole("navigation", { name: "Chats" })
+  await expect(chats.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
+
+  await composer(her).pressSequentially("I am writing")
+  await expect(sawyer.getByRole("status").filter({ hasText: "Maya is typing" })).toBeVisible()
+  await composer(her).fill("")
+  await expect(sawyer.getByRole("status").filter({ hasText: "Maya is typing" })).toHaveCount(0)
+
+  // When she goes elsewhere she is no longer in the chat.
+  await her.goto(`/w/${team}`)
+  await expect(here.getByRole("img", { name: "Maya Okafor" })).toHaveCount(0)
+  await expect(her.getByRole("link", { name: "Join" })).toBeVisible()
+})
+
+test("a member cannot run the team, and loses its agents when removed", async () => {
+  // She can make agents and use them, but not invite, rename, or delete the team's agent.
+  expect(
+    (
+      await her.request.post(`/api/workspaces/${team}/invitations`, {
+        data: { who: ["x@example.com"] },
+      })
+    ).status(),
+  ).toBe(403)
+  expect(
+    (await her.request.patch(`/api/workspaces/${team}`, { data: { name: "Hers" } })).status(),
+  ).toBe(403)
+  expect((await her.request.delete(`/api/agents/${agentId}`)).status()).toBe(403)
+
+  await sawyer.goto(`/w/${team}/people`)
+  sawyer.once("dialog", (dialog) => void dialog.accept())
+  await sawyer.getByRole("button", { name: "Remove" }).click()
+  await expect(sawyer.getByRole("heading", { name: "Members · 1" })).toBeVisible()
+  expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(404)
+  expect((await her.request.get(`/api/agents/${agentId}/chats/1`)).status()).toBe(404)
+  // Her page lets go of the team by itself.
+  await expect(her.getByRole("heading", { name: "This team could not be found" })).toBeVisible()
+})

@@ -8,654 +8,657 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root"
-import { Route as AppRouteImport } from "./routes/_app"
-import { Route as DaemonDotjsRouteImport } from "./routes/daemon[.]js"
-import { Route as InstallDotshRouteImport } from "./routes/install[.]sh"
-import { Route as LoginRouteImport } from "./routes/login"
-import { Route as SignupRouteImport } from "./routes/signup"
-import { Route as AppIndexRouteImport } from "./routes/_app.index"
-import { Route as AppPairRouteImport } from "./routes/_app.pair"
-import { Route as ApiAuthMethodsRouteImport } from "./routes/api/auth-methods"
-import { Route as ApiComputerKindsRouteImport } from "./routes/api/computer-kinds"
-import { Route as ApiDaemonVersionRouteImport } from "./routes/api/daemon-version"
-import { Route as ApiHealthRouteImport } from "./routes/api/health"
-import { Route as ApiMeRouteImport } from "./routes/api/me"
-import { Route as ApiModelsRouteImport } from "./routes/api/models"
-import { Route as ApiSettingsRouteImport } from "./routes/api/settings"
-import { Route as ApiTranscribeRouteImport } from "./routes/api/transcribe"
-import { Route as InviteTokenRouteImport } from "./routes/invite.$token"
-import { Route as AppAAgentIdRouteImport } from "./routes/_app.a.$agentId"
-import { Route as AppWWorkspaceIdRouteImport } from "./routes/_app.w.$workspaceId"
-import { Route as ApiAgentsIndexRouteImport } from "./routes/api/agents/index"
-import { Route as ApiAuthSplatRouteImport } from "./routes/api/auth/$"
-import { Route as ApiComputersIndexRouteImport } from "./routes/api/computers/index"
-import { Route as ApiComputersComputerIdRouteImport } from "./routes/api/computers/$computerId"
-import { Route as ApiConnectorsCallbackRouteImport } from "./routes/api/connectors/callback"
-import { Route as ApiPushRegisterRouteImport } from "./routes/api/push/register"
-import { Route as ApiPushUnregisterRouteImport } from "./routes/api/push/unregister"
-import { Route as ApiWorkspacesIndexRouteImport } from "./routes/api/workspaces/index"
-import { Route as DAgentIdSplatRouteImport } from "./routes/d.$agentId.$"
-import { Route as AppAAgentIdIndexRouteImport } from "./routes/_app.a.$agentId.index"
-import { Route as AppAAgentIdAutomationsRouteImport } from "./routes/_app.a.$agentId.automations"
-import { Route as AppAAgentIdComputersRouteImport } from "./routes/_app.a.$agentId.computers"
-import { Route as AppAAgentIdConnectorsRouteImport } from "./routes/_app.a.$agentId.connectors"
-import { Route as AppAAgentIdLibraryRouteImport } from "./routes/_app.a.$agentId.library"
-import { Route as AppAAgentIdPermissionsRouteImport } from "./routes/_app.a.$agentId.permissions"
-import { Route as AppAAgentIdProfileRouteImport } from "./routes/_app.a.$agentId.profile"
-import { Route as AppAAgentIdSettingsRouteImport } from "./routes/_app.a.$agentId.settings"
-import { Route as AppAAgentIdSkillsRouteImport } from "./routes/_app.a.$agentId.skills"
-import { Route as AppWWorkspaceIdIndexRouteImport } from "./routes/_app.w.$workspaceId.index"
-import { Route as AppWWorkspaceIdPeopleRouteImport } from "./routes/_app.w.$workspaceId.people"
-import { Route as ApiAgentsAgentIdSplatRouteImport } from "./routes/api/agents/$agentId.$"
-import { Route as ApiAgentsAgentIdConnectorsRouteImport } from "./routes/api/agents/$agentId.connectors"
-import { Route as ApiAgentsAgentIdMoveRouteImport } from "./routes/api/agents/$agentId.move"
-import { Route as ApiComputersPairConfirmRouteImport } from "./routes/api/computers/pair.confirm"
-import { Route as ApiComputersPairPollRouteImport } from "./routes/api/computers/pair.poll"
-import { Route as ApiComputersPairStartRouteImport } from "./routes/api/computers/pair.start"
-import { Route as ApiInvitationsKeyIndexRouteImport } from "./routes/api/invitations/$key.index"
-import { Route as ApiInvitationsKeyAcceptRouteImport } from "./routes/api/invitations/$key.accept"
-import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from "./routes/api/workspaces/$workspaceId.index"
-import { Route as AppAAgentIdCChatIdRouteImport } from "./routes/_app.a.$agentId.c.$chatId"
-import { Route as ApiComputersPairRequestCodeRouteImport } from "./routes/api/computers/pair.request.$code"
-import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from "./routes/api/workspaces/$workspaceId.invitations.index"
-import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from "./routes/api/workspaces/$workspaceId.invitations.$invitationId"
-import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from "./routes/api/workspaces/$workspaceId.members.$userId"
-import { Route as ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport } from "./routes/api/agents/$agentId.connectors.$connectorId.connect"
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as DaemonDotjsRouteImport } from './routes/daemon[.]js'
+import { Route as InstallDotshRouteImport } from './routes/install[.]sh'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppPairRouteImport } from './routes/_app.pair'
+import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
+import { Route as ApiComputerKindsRouteImport } from './routes/api/computer-kinds'
+import { Route as ApiDaemonVersionRouteImport } from './routes/api/daemon-version'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiMeRouteImport } from './routes/api/me'
+import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiSettingsRouteImport } from './routes/api/settings'
+import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
+import { Route as AppWWorkspaceIdRouteImport } from './routes/_app.w.$workspaceId'
+import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiComputersIndexRouteImport } from './routes/api/computers/index'
+import { Route as ApiComputersComputerIdRouteImport } from './routes/api/computers/$computerId'
+import { Route as ApiConnectorsCallbackRouteImport } from './routes/api/connectors/callback'
+import { Route as ApiPushRegisterRouteImport } from './routes/api/push/register'
+import { Route as ApiPushUnregisterRouteImport } from './routes/api/push/unregister'
+import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
+import { Route as DAgentIdSplatRouteImport } from './routes/d.$agentId.$'
+import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
+import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
+import { Route as AppAAgentIdComputersRouteImport } from './routes/_app.a.$agentId.computers'
+import { Route as AppAAgentIdConnectorsRouteImport } from './routes/_app.a.$agentId.connectors'
+import { Route as AppAAgentIdLibraryRouteImport } from './routes/_app.a.$agentId.library'
+import { Route as AppAAgentIdPermissionsRouteImport } from './routes/_app.a.$agentId.permissions'
+import { Route as AppAAgentIdProfileRouteImport } from './routes/_app.a.$agentId.profile'
+import { Route as AppAAgentIdSettingsRouteImport } from './routes/_app.a.$agentId.settings'
+import { Route as AppAAgentIdSkillsRouteImport } from './routes/_app.a.$agentId.skills'
+import { Route as AppWWorkspaceIdIndexRouteImport } from './routes/_app.w.$workspaceId.index'
+import { Route as AppWWorkspaceIdPeopleRouteImport } from './routes/_app.w.$workspaceId.people'
+import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
+import { Route as ApiAgentsAgentIdConnectorsRouteImport } from './routes/api/agents/$agentId.connectors'
+import { Route as ApiAgentsAgentIdMoveRouteImport } from './routes/api/agents/$agentId.move'
+import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
+import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers/pair.poll'
+import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
+import { Route as ApiInvitationsKeyIndexRouteImport } from './routes/api/invitations/$key.index'
+import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invitations/$key.accept'
+import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
+import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
+import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
+import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
+import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId.invitations.$invitationId'
+import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId.members.$userId'
+import { Route as ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport } from './routes/api/agents/$agentId.connectors.$connectorId.connect'
 
 const AppRoute = AppRouteImport.update({
-  id: "/_app",
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DaemonDotjsRoute = DaemonDotjsRouteImport.update({
-  id: "/daemon.js",
-  path: "/daemon.js",
+  id: '/daemon.js',
+  path: '/daemon.js',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstallDotshRoute = InstallDotshRouteImport.update({
-  id: "/install.sh",
-  path: "/install.sh",
+  id: '/install.sh',
+  path: '/install.sh',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
-  id: "/login",
-  path: "/login",
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
-  id: "/signup",
-  path: "/signup",
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPairRoute = AppPairRouteImport.update({
-  id: "/pair",
-  path: "/pair",
+  id: '/pair',
+  path: '/pair',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiAuthMethodsRoute = ApiAuthMethodsRouteImport.update({
-  id: "/api/auth-methods",
-  path: "/api/auth-methods",
+  id: '/api/auth-methods',
+  path: '/api/auth-methods',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiComputerKindsRoute = ApiComputerKindsRouteImport.update({
-  id: "/api/computer-kinds",
-  path: "/api/computer-kinds",
+  id: '/api/computer-kinds',
+  path: '/api/computer-kinds',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDaemonVersionRoute = ApiDaemonVersionRouteImport.update({
-  id: "/api/daemon-version",
-  path: "/api/daemon-version",
+  id: '/api/daemon-version',
+  path: '/api/daemon-version',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
-  id: "/api/health",
-  path: "/api/health",
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMeRoute = ApiMeRouteImport.update({
-  id: "/api/me",
-  path: "/api/me",
+  id: '/api/me',
+  path: '/api/me',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiModelsRoute = ApiModelsRouteImport.update({
-  id: "/api/models",
-  path: "/api/models",
+  id: '/api/models',
+  path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSettingsRoute = ApiSettingsRouteImport.update({
-  id: "/api/settings",
-  path: "/api/settings",
+  id: '/api/settings',
+  path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
-  id: "/api/transcribe",
-  path: "/api/transcribe",
+  id: '/api/transcribe',
+  path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
-  id: "/invite/$token",
-  path: "/invite/$token",
+  id: '/invite/$token',
+  path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppAAgentIdRoute = AppAAgentIdRouteImport.update({
-  id: "/a/$agentId",
-  path: "/a/$agentId",
+  id: '/a/$agentId',
+  path: '/a/$agentId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppWWorkspaceIdRoute = AppWWorkspaceIdRouteImport.update({
-  id: "/w/$workspaceId",
-  path: "/w/$workspaceId",
+  id: '/w/$workspaceId',
+  path: '/w/$workspaceId',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiAgentsIndexRoute = ApiAgentsIndexRouteImport.update({
-  id: "/api/agents/",
-  path: "/api/agents/",
+  id: '/api/agents/',
+  path: '/api/agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: "/api/auth/$",
-  path: "/api/auth/$",
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiComputersIndexRoute = ApiComputersIndexRouteImport.update({
-  id: "/api/computers/",
-  path: "/api/computers/",
+  id: '/api/computers/',
+  path: '/api/computers/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiComputersComputerIdRoute = ApiComputersComputerIdRouteImport.update({
-  id: "/api/computers/$computerId",
-  path: "/api/computers/$computerId",
+  id: '/api/computers/$computerId',
+  path: '/api/computers/$computerId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiConnectorsCallbackRoute = ApiConnectorsCallbackRouteImport.update({
-  id: "/api/connectors/callback",
-  path: "/api/connectors/callback",
+  id: '/api/connectors/callback',
+  path: '/api/connectors/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPushRegisterRoute = ApiPushRegisterRouteImport.update({
-  id: "/api/push/register",
-  path: "/api/push/register",
+  id: '/api/push/register',
+  path: '/api/push/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPushUnregisterRoute = ApiPushUnregisterRouteImport.update({
-  id: "/api/push/unregister",
-  path: "/api/push/unregister",
+  id: '/api/push/unregister',
+  path: '/api/push/unregister',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkspacesIndexRoute = ApiWorkspacesIndexRouteImport.update({
-  id: "/api/workspaces/",
-  path: "/api/workspaces/",
+  id: '/api/workspaces/',
+  path: '/api/workspaces/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DAgentIdSplatRoute = DAgentIdSplatRouteImport.update({
-  id: "/d/$agentId/$",
-  path: "/d/$agentId/$",
+  id: '/d/$agentId/$',
+  path: '/d/$agentId/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppAAgentIdIndexRoute = AppAAgentIdIndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdAutomationsRoute = AppAAgentIdAutomationsRouteImport.update({
-  id: "/automations",
-  path: "/automations",
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdComputersRoute = AppAAgentIdComputersRouteImport.update({
-  id: "/computers",
-  path: "/computers",
+  id: '/computers',
+  path: '/computers',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdConnectorsRoute = AppAAgentIdConnectorsRouteImport.update({
-  id: "/connectors",
-  path: "/connectors",
+  id: '/connectors',
+  path: '/connectors',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdLibraryRoute = AppAAgentIdLibraryRouteImport.update({
-  id: "/library",
-  path: "/library",
+  id: '/library',
+  path: '/library',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdPermissionsRoute = AppAAgentIdPermissionsRouteImport.update({
-  id: "/permissions",
-  path: "/permissions",
+  id: '/permissions',
+  path: '/permissions',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdProfileRoute = AppAAgentIdProfileRouteImport.update({
-  id: "/profile",
-  path: "/profile",
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdSettingsRoute = AppAAgentIdSettingsRouteImport.update({
-  id: "/settings",
-  path: "/settings",
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppAAgentIdSkillsRoute = AppAAgentIdSkillsRouteImport.update({
-  id: "/skills",
-  path: "/skills",
+  id: '/skills',
+  path: '/skills',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
 const AppWWorkspaceIdIndexRoute = AppWWorkspaceIdIndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => AppWWorkspaceIdRoute,
 } as any)
 const AppWWorkspaceIdPeopleRoute = AppWWorkspaceIdPeopleRouteImport.update({
-  id: "/people",
-  path: "/people",
+  id: '/people',
+  path: '/people',
   getParentRoute: () => AppWWorkspaceIdRoute,
 } as any)
 const ApiAgentsAgentIdSplatRoute = ApiAgentsAgentIdSplatRouteImport.update({
-  id: "/api/agents/$agentId/$",
-  path: "/api/agents/$agentId/$",
+  id: '/api/agents/$agentId/$',
+  path: '/api/agents/$agentId/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAgentsAgentIdConnectorsRoute = ApiAgentsAgentIdConnectorsRouteImport.update({
-  id: "/api/agents/$agentId/connectors",
-  path: "/api/agents/$agentId/connectors",
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiAgentsAgentIdConnectorsRoute =
+  ApiAgentsAgentIdConnectorsRouteImport.update({
+    id: '/api/agents/$agentId/connectors',
+    path: '/api/agents/$agentId/connectors',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAgentsAgentIdMoveRoute = ApiAgentsAgentIdMoveRouteImport.update({
-  id: "/api/agents/$agentId/move",
-  path: "/api/agents/$agentId/move",
+  id: '/api/agents/$agentId/move',
+  path: '/api/agents/$agentId/move',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiComputersPairConfirmRoute = ApiComputersPairConfirmRouteImport.update({
-  id: "/api/computers/pair/confirm",
-  path: "/api/computers/pair/confirm",
+  id: '/api/computers/pair/confirm',
+  path: '/api/computers/pair/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiComputersPairPollRoute = ApiComputersPairPollRouteImport.update({
-  id: "/api/computers/pair/poll",
-  path: "/api/computers/pair/poll",
+  id: '/api/computers/pair/poll',
+  path: '/api/computers/pair/poll',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiComputersPairStartRoute = ApiComputersPairStartRouteImport.update({
-  id: "/api/computers/pair/start",
-  path: "/api/computers/pair/start",
+  id: '/api/computers/pair/start',
+  path: '/api/computers/pair/start',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiInvitationsKeyIndexRoute = ApiInvitationsKeyIndexRouteImport.update({
-  id: "/api/invitations/$key/",
-  path: "/api/invitations/$key/",
+  id: '/api/invitations/$key/',
+  path: '/api/invitations/$key/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiInvitationsKeyAcceptRoute = ApiInvitationsKeyAcceptRouteImport.update({
-  id: "/api/invitations/$key/accept",
-  path: "/api/invitations/$key/accept",
+  id: '/api/invitations/$key/accept',
+  path: '/api/invitations/$key/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWorkspacesWorkspaceIdIndexRoute = ApiWorkspacesWorkspaceIdIndexRouteImport.update({
-  id: "/api/workspaces/$workspaceId/",
-  path: "/api/workspaces/$workspaceId/",
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiWorkspacesWorkspaceIdIndexRoute =
+  ApiWorkspacesWorkspaceIdIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/',
+    path: '/api/workspaces/$workspaceId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
-  id: "/c/$chatId",
-  path: "/c/$chatId",
+  id: '/c/$chatId',
+  path: '/c/$chatId',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
-const ApiComputersPairRequestCodeRoute = ApiComputersPairRequestCodeRouteImport.update({
-  id: "/api/computers/pair/request/$code",
-  path: "/api/computers/pair/request/$code",
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiComputersPairRequestCodeRoute =
+  ApiComputersPairRequestCodeRouteImport.update({
+    id: '/api/computers/pair/request/$code',
+    path: '/api/computers/pair/request/$code',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorkspacesWorkspaceIdInvitationsIndexRoute =
   ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport.update({
-    id: "/api/workspaces/$workspaceId/invitations/",
-    path: "/api/workspaces/$workspaceId/invitations/",
+    id: '/api/workspaces/$workspaceId/invitations/',
+    path: '/api/workspaces/$workspaceId/invitations/',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute =
   ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport.update({
-    id: "/api/workspaces/$workspaceId/invitations/$invitationId",
-    path: "/api/workspaces/$workspaceId/invitations/$invitationId",
+    id: '/api/workspaces/$workspaceId/invitations/$invitationId',
+    path: '/api/workspaces/$workspaceId/invitations/$invitationId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiWorkspacesWorkspaceIdMembersUserIdRoute =
   ApiWorkspacesWorkspaceIdMembersUserIdRouteImport.update({
-    id: "/api/workspaces/$workspaceId/members/$userId",
-    path: "/api/workspaces/$workspaceId/members/$userId",
+    id: '/api/workspaces/$workspaceId/members/$userId',
+    path: '/api/workspaces/$workspaceId/members/$userId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiAgentsAgentIdConnectorsConnectorIdConnectRoute =
   ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport.update({
-    id: "/$connectorId/connect",
-    path: "/$connectorId/connect",
+    id: '/$connectorId/connect',
+    path: '/$connectorId/connect',
     getParentRoute: () => ApiAgentsAgentIdConnectorsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof AppIndexRoute
-  "/daemon.js": typeof DaemonDotjsRoute
-  "/install.sh": typeof InstallDotshRoute
-  "/login": typeof LoginRoute
-  "/signup": typeof SignupRoute
-  "/pair": typeof AppPairRoute
-  "/api/auth-methods": typeof ApiAuthMethodsRoute
-  "/api/computer-kinds": typeof ApiComputerKindsRoute
-  "/api/daemon-version": typeof ApiDaemonVersionRoute
-  "/api/health": typeof ApiHealthRoute
-  "/api/me": typeof ApiMeRoute
-  "/api/models": typeof ApiModelsRoute
-  "/api/settings": typeof ApiSettingsRoute
-  "/api/transcribe": typeof ApiTranscribeRoute
-  "/invite/$token": typeof InviteTokenRoute
-  "/a/$agentId": typeof AppAAgentIdRouteWithChildren
-  "/w/$workspaceId": typeof AppWWorkspaceIdRouteWithChildren
-  "/api/auth/$": typeof ApiAuthSplatRoute
-  "/api/computers/$computerId": typeof ApiComputersComputerIdRoute
-  "/api/connectors/callback": typeof ApiConnectorsCallbackRoute
-  "/api/push/register": typeof ApiPushRegisterRoute
-  "/api/push/unregister": typeof ApiPushUnregisterRoute
-  "/d/$agentId/$": typeof DAgentIdSplatRoute
-  "/api/agents/": typeof ApiAgentsIndexRoute
-  "/api/computers/": typeof ApiComputersIndexRoute
-  "/api/workspaces/": typeof ApiWorkspacesIndexRoute
-  "/a/$agentId/automations": typeof AppAAgentIdAutomationsRoute
-  "/a/$agentId/computers": typeof AppAAgentIdComputersRoute
-  "/a/$agentId/connectors": typeof AppAAgentIdConnectorsRoute
-  "/a/$agentId/library": typeof AppAAgentIdLibraryRoute
-  "/a/$agentId/permissions": typeof AppAAgentIdPermissionsRoute
-  "/a/$agentId/profile": typeof AppAAgentIdProfileRoute
-  "/a/$agentId/settings": typeof AppAAgentIdSettingsRoute
-  "/a/$agentId/skills": typeof AppAAgentIdSkillsRoute
-  "/w/$workspaceId/people": typeof AppWWorkspaceIdPeopleRoute
-  "/api/agents/$agentId/$": typeof ApiAgentsAgentIdSplatRoute
-  "/api/agents/$agentId/connectors": typeof ApiAgentsAgentIdConnectorsRouteWithChildren
-  "/api/agents/$agentId/move": typeof ApiAgentsAgentIdMoveRoute
-  "/api/computers/pair/confirm": typeof ApiComputersPairConfirmRoute
-  "/api/computers/pair/poll": typeof ApiComputersPairPollRoute
-  "/api/computers/pair/start": typeof ApiComputersPairStartRoute
-  "/api/invitations/$key/accept": typeof ApiInvitationsKeyAcceptRoute
-  "/a/$agentId/": typeof AppAAgentIdIndexRoute
-  "/w/$workspaceId/": typeof AppWWorkspaceIdIndexRoute
-  "/api/invitations/$key/": typeof ApiInvitationsKeyIndexRoute
-  "/api/workspaces/$workspaceId/": typeof ApiWorkspacesWorkspaceIdIndexRoute
-  "/a/$agentId/c/$chatId": typeof AppAAgentIdCChatIdRoute
-  "/api/computers/pair/request/$code": typeof ApiComputersPairRequestCodeRoute
-  "/api/workspaces/$workspaceId/invitations/$invitationId": typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
-  "/api/workspaces/$workspaceId/members/$userId": typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
-  "/api/workspaces/$workspaceId/invitations/": typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
-  "/api/agents/$agentId/connectors/$connectorId/connect": typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+  '/': typeof AppIndexRoute
+  '/daemon.js': typeof DaemonDotjsRoute
+  '/install.sh': typeof InstallDotshRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/pair': typeof AppPairRoute
+  '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/computer-kinds': typeof ApiComputerKindsRoute
+  '/api/daemon-version': typeof ApiDaemonVersionRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/me': typeof ApiMeRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/settings': typeof ApiSettingsRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/a/$agentId': typeof AppAAgentIdRouteWithChildren
+  '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
+  '/api/push/register': typeof ApiPushRegisterRoute
+  '/api/push/unregister': typeof ApiPushUnregisterRoute
+  '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/api/agents/': typeof ApiAgentsIndexRoute
+  '/api/computers/': typeof ApiComputersIndexRoute
+  '/api/workspaces/': typeof ApiWorkspacesIndexRoute
+  '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
+  '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
+  '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
+  '/a/$agentId/permissions': typeof AppAAgentIdPermissionsRoute
+  '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/a/$agentId/settings': typeof AppAAgentIdSettingsRoute
+  '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
+  '/w/$workspaceId/people': typeof AppWWorkspaceIdPeopleRoute
+  '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
+  '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
+  '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
+  '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
+  '/a/$agentId/': typeof AppAAgentIdIndexRoute
+  '/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
+  '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
+  '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
+  '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRoutesByTo {
-  "/daemon.js": typeof DaemonDotjsRoute
-  "/install.sh": typeof InstallDotshRoute
-  "/login": typeof LoginRoute
-  "/signup": typeof SignupRoute
-  "/pair": typeof AppPairRoute
-  "/api/auth-methods": typeof ApiAuthMethodsRoute
-  "/api/computer-kinds": typeof ApiComputerKindsRoute
-  "/api/daemon-version": typeof ApiDaemonVersionRoute
-  "/api/health": typeof ApiHealthRoute
-  "/api/me": typeof ApiMeRoute
-  "/api/models": typeof ApiModelsRoute
-  "/api/settings": typeof ApiSettingsRoute
-  "/api/transcribe": typeof ApiTranscribeRoute
-  "/invite/$token": typeof InviteTokenRoute
-  "/": typeof AppIndexRoute
-  "/api/auth/$": typeof ApiAuthSplatRoute
-  "/api/computers/$computerId": typeof ApiComputersComputerIdRoute
-  "/api/connectors/callback": typeof ApiConnectorsCallbackRoute
-  "/api/push/register": typeof ApiPushRegisterRoute
-  "/api/push/unregister": typeof ApiPushUnregisterRoute
-  "/d/$agentId/$": typeof DAgentIdSplatRoute
-  "/api/agents": typeof ApiAgentsIndexRoute
-  "/api/computers": typeof ApiComputersIndexRoute
-  "/api/workspaces": typeof ApiWorkspacesIndexRoute
-  "/a/$agentId/automations": typeof AppAAgentIdAutomationsRoute
-  "/a/$agentId/computers": typeof AppAAgentIdComputersRoute
-  "/a/$agentId/connectors": typeof AppAAgentIdConnectorsRoute
-  "/a/$agentId/library": typeof AppAAgentIdLibraryRoute
-  "/a/$agentId/permissions": typeof AppAAgentIdPermissionsRoute
-  "/a/$agentId/profile": typeof AppAAgentIdProfileRoute
-  "/a/$agentId/settings": typeof AppAAgentIdSettingsRoute
-  "/a/$agentId/skills": typeof AppAAgentIdSkillsRoute
-  "/w/$workspaceId/people": typeof AppWWorkspaceIdPeopleRoute
-  "/api/agents/$agentId/$": typeof ApiAgentsAgentIdSplatRoute
-  "/api/agents/$agentId/connectors": typeof ApiAgentsAgentIdConnectorsRouteWithChildren
-  "/api/agents/$agentId/move": typeof ApiAgentsAgentIdMoveRoute
-  "/api/computers/pair/confirm": typeof ApiComputersPairConfirmRoute
-  "/api/computers/pair/poll": typeof ApiComputersPairPollRoute
-  "/api/computers/pair/start": typeof ApiComputersPairStartRoute
-  "/api/invitations/$key/accept": typeof ApiInvitationsKeyAcceptRoute
-  "/a/$agentId": typeof AppAAgentIdIndexRoute
-  "/w/$workspaceId": typeof AppWWorkspaceIdIndexRoute
-  "/api/invitations/$key": typeof ApiInvitationsKeyIndexRoute
-  "/api/workspaces/$workspaceId": typeof ApiWorkspacesWorkspaceIdIndexRoute
-  "/a/$agentId/c/$chatId": typeof AppAAgentIdCChatIdRoute
-  "/api/computers/pair/request/$code": typeof ApiComputersPairRequestCodeRoute
-  "/api/workspaces/$workspaceId/invitations/$invitationId": typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
-  "/api/workspaces/$workspaceId/members/$userId": typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
-  "/api/workspaces/$workspaceId/invitations": typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
-  "/api/agents/$agentId/connectors/$connectorId/connect": typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+  '/daemon.js': typeof DaemonDotjsRoute
+  '/install.sh': typeof InstallDotshRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/pair': typeof AppPairRoute
+  '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/computer-kinds': typeof ApiComputerKindsRoute
+  '/api/daemon-version': typeof ApiDaemonVersionRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/me': typeof ApiMeRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/settings': typeof ApiSettingsRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/': typeof AppIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
+  '/api/push/register': typeof ApiPushRegisterRoute
+  '/api/push/unregister': typeof ApiPushUnregisterRoute
+  '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/api/agents': typeof ApiAgentsIndexRoute
+  '/api/computers': typeof ApiComputersIndexRoute
+  '/api/workspaces': typeof ApiWorkspacesIndexRoute
+  '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
+  '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
+  '/a/$agentId/library': typeof AppAAgentIdLibraryRoute
+  '/a/$agentId/permissions': typeof AppAAgentIdPermissionsRoute
+  '/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/a/$agentId/settings': typeof AppAAgentIdSettingsRoute
+  '/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
+  '/w/$workspaceId/people': typeof AppWWorkspaceIdPeopleRoute
+  '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
+  '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
+  '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
+  '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
+  '/a/$agentId': typeof AppAAgentIdIndexRoute
+  '/w/$workspaceId': typeof AppWWorkspaceIdIndexRoute
+  '/api/invitations/$key': typeof ApiInvitationsKeyIndexRoute
+  '/api/workspaces/$workspaceId': typeof ApiWorkspacesWorkspaceIdIndexRoute
+  '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  "/_app": typeof AppRouteWithChildren
-  "/daemon.js": typeof DaemonDotjsRoute
-  "/install.sh": typeof InstallDotshRoute
-  "/login": typeof LoginRoute
-  "/signup": typeof SignupRoute
-  "/_app/pair": typeof AppPairRoute
-  "/api/auth-methods": typeof ApiAuthMethodsRoute
-  "/api/computer-kinds": typeof ApiComputerKindsRoute
-  "/api/daemon-version": typeof ApiDaemonVersionRoute
-  "/api/health": typeof ApiHealthRoute
-  "/api/me": typeof ApiMeRoute
-  "/api/models": typeof ApiModelsRoute
-  "/api/settings": typeof ApiSettingsRoute
-  "/api/transcribe": typeof ApiTranscribeRoute
-  "/invite/$token": typeof InviteTokenRoute
-  "/_app/": typeof AppIndexRoute
-  "/_app/a/$agentId": typeof AppAAgentIdRouteWithChildren
-  "/_app/w/$workspaceId": typeof AppWWorkspaceIdRouteWithChildren
-  "/api/auth/$": typeof ApiAuthSplatRoute
-  "/api/computers/$computerId": typeof ApiComputersComputerIdRoute
-  "/api/connectors/callback": typeof ApiConnectorsCallbackRoute
-  "/api/push/register": typeof ApiPushRegisterRoute
-  "/api/push/unregister": typeof ApiPushUnregisterRoute
-  "/d/$agentId/$": typeof DAgentIdSplatRoute
-  "/api/agents/": typeof ApiAgentsIndexRoute
-  "/api/computers/": typeof ApiComputersIndexRoute
-  "/api/workspaces/": typeof ApiWorkspacesIndexRoute
-  "/_app/a/$agentId/automations": typeof AppAAgentIdAutomationsRoute
-  "/_app/a/$agentId/computers": typeof AppAAgentIdComputersRoute
-  "/_app/a/$agentId/connectors": typeof AppAAgentIdConnectorsRoute
-  "/_app/a/$agentId/library": typeof AppAAgentIdLibraryRoute
-  "/_app/a/$agentId/permissions": typeof AppAAgentIdPermissionsRoute
-  "/_app/a/$agentId/profile": typeof AppAAgentIdProfileRoute
-  "/_app/a/$agentId/settings": typeof AppAAgentIdSettingsRoute
-  "/_app/a/$agentId/skills": typeof AppAAgentIdSkillsRoute
-  "/_app/w/$workspaceId/people": typeof AppWWorkspaceIdPeopleRoute
-  "/api/agents/$agentId/$": typeof ApiAgentsAgentIdSplatRoute
-  "/api/agents/$agentId/connectors": typeof ApiAgentsAgentIdConnectorsRouteWithChildren
-  "/api/agents/$agentId/move": typeof ApiAgentsAgentIdMoveRoute
-  "/api/computers/pair/confirm": typeof ApiComputersPairConfirmRoute
-  "/api/computers/pair/poll": typeof ApiComputersPairPollRoute
-  "/api/computers/pair/start": typeof ApiComputersPairStartRoute
-  "/api/invitations/$key/accept": typeof ApiInvitationsKeyAcceptRoute
-  "/_app/a/$agentId/": typeof AppAAgentIdIndexRoute
-  "/_app/w/$workspaceId/": typeof AppWWorkspaceIdIndexRoute
-  "/api/invitations/$key/": typeof ApiInvitationsKeyIndexRoute
-  "/api/workspaces/$workspaceId/": typeof ApiWorkspacesWorkspaceIdIndexRoute
-  "/_app/a/$agentId/c/$chatId": typeof AppAAgentIdCChatIdRoute
-  "/api/computers/pair/request/$code": typeof ApiComputersPairRequestCodeRoute
-  "/api/workspaces/$workspaceId/invitations/$invitationId": typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
-  "/api/workspaces/$workspaceId/members/$userId": typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
-  "/api/workspaces/$workspaceId/invitations/": typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
-  "/api/agents/$agentId/connectors/$connectorId/connect": typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+  '/_app': typeof AppRouteWithChildren
+  '/daemon.js': typeof DaemonDotjsRoute
+  '/install.sh': typeof InstallDotshRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/_app/pair': typeof AppPairRoute
+  '/api/auth-methods': typeof ApiAuthMethodsRoute
+  '/api/computer-kinds': typeof ApiComputerKindsRoute
+  '/api/daemon-version': typeof ApiDaemonVersionRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/me': typeof ApiMeRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/settings': typeof ApiSettingsRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
+  '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
+  '/api/push/register': typeof ApiPushRegisterRoute
+  '/api/push/unregister': typeof ApiPushUnregisterRoute
+  '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/api/agents/': typeof ApiAgentsIndexRoute
+  '/api/computers/': typeof ApiComputersIndexRoute
+  '/api/workspaces/': typeof ApiWorkspacesIndexRoute
+  '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
+  '/_app/a/$agentId/computers': typeof AppAAgentIdComputersRoute
+  '/_app/a/$agentId/connectors': typeof AppAAgentIdConnectorsRoute
+  '/_app/a/$agentId/library': typeof AppAAgentIdLibraryRoute
+  '/_app/a/$agentId/permissions': typeof AppAAgentIdPermissionsRoute
+  '/_app/a/$agentId/profile': typeof AppAAgentIdProfileRoute
+  '/_app/a/$agentId/settings': typeof AppAAgentIdSettingsRoute
+  '/_app/a/$agentId/skills': typeof AppAAgentIdSkillsRoute
+  '/_app/w/$workspaceId/people': typeof AppWWorkspaceIdPeopleRoute
+  '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
+  '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
+  '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
+  '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
+  '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
+  '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
+  '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
+  '/_app/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
+  '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
+  '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
+  '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | "/"
-    | "/daemon.js"
-    | "/install.sh"
-    | "/login"
-    | "/signup"
-    | "/pair"
-    | "/api/auth-methods"
-    | "/api/computer-kinds"
-    | "/api/daemon-version"
-    | "/api/health"
-    | "/api/me"
-    | "/api/models"
-    | "/api/settings"
-    | "/api/transcribe"
-    | "/invite/$token"
-    | "/a/$agentId"
-    | "/w/$workspaceId"
-    | "/api/auth/$"
-    | "/api/computers/$computerId"
-    | "/api/connectors/callback"
-    | "/api/push/register"
-    | "/api/push/unregister"
-    | "/d/$agentId/$"
-    | "/api/agents/"
-    | "/api/computers/"
-    | "/api/workspaces/"
-    | "/a/$agentId/automations"
-    | "/a/$agentId/computers"
-    | "/a/$agentId/connectors"
-    | "/a/$agentId/library"
-    | "/a/$agentId/permissions"
-    | "/a/$agentId/profile"
-    | "/a/$agentId/settings"
-    | "/a/$agentId/skills"
-    | "/w/$workspaceId/people"
-    | "/api/agents/$agentId/$"
-    | "/api/agents/$agentId/connectors"
-    | "/api/agents/$agentId/move"
-    | "/api/computers/pair/confirm"
-    | "/api/computers/pair/poll"
-    | "/api/computers/pair/start"
-    | "/api/invitations/$key/accept"
-    | "/a/$agentId/"
-    | "/w/$workspaceId/"
-    | "/api/invitations/$key/"
-    | "/api/workspaces/$workspaceId/"
-    | "/a/$agentId/c/$chatId"
-    | "/api/computers/pair/request/$code"
-    | "/api/workspaces/$workspaceId/invitations/$invitationId"
-    | "/api/workspaces/$workspaceId/members/$userId"
-    | "/api/workspaces/$workspaceId/invitations/"
-    | "/api/agents/$agentId/connectors/$connectorId/connect"
+    | '/'
+    | '/daemon.js'
+    | '/install.sh'
+    | '/login'
+    | '/signup'
+    | '/pair'
+    | '/api/auth-methods'
+    | '/api/computer-kinds'
+    | '/api/daemon-version'
+    | '/api/health'
+    | '/api/me'
+    | '/api/models'
+    | '/api/settings'
+    | '/api/transcribe'
+    | '/invite/$token'
+    | '/a/$agentId'
+    | '/w/$workspaceId'
+    | '/api/auth/$'
+    | '/api/computers/$computerId'
+    | '/api/connectors/callback'
+    | '/api/push/register'
+    | '/api/push/unregister'
+    | '/d/$agentId/$'
+    | '/api/agents/'
+    | '/api/computers/'
+    | '/api/workspaces/'
+    | '/a/$agentId/automations'
+    | '/a/$agentId/computers'
+    | '/a/$agentId/connectors'
+    | '/a/$agentId/library'
+    | '/a/$agentId/permissions'
+    | '/a/$agentId/profile'
+    | '/a/$agentId/settings'
+    | '/a/$agentId/skills'
+    | '/w/$workspaceId/people'
+    | '/api/agents/$agentId/$'
+    | '/api/agents/$agentId/connectors'
+    | '/api/agents/$agentId/move'
+    | '/api/computers/pair/confirm'
+    | '/api/computers/pair/poll'
+    | '/api/computers/pair/start'
+    | '/api/invitations/$key/accept'
+    | '/a/$agentId/'
+    | '/w/$workspaceId/'
+    | '/api/invitations/$key/'
+    | '/api/workspaces/$workspaceId/'
+    | '/a/$agentId/c/$chatId'
+    | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/invitations/'
+    | '/api/agents/$agentId/connectors/$connectorId/connect'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | "/daemon.js"
-    | "/install.sh"
-    | "/login"
-    | "/signup"
-    | "/pair"
-    | "/api/auth-methods"
-    | "/api/computer-kinds"
-    | "/api/daemon-version"
-    | "/api/health"
-    | "/api/me"
-    | "/api/models"
-    | "/api/settings"
-    | "/api/transcribe"
-    | "/invite/$token"
-    | "/"
-    | "/api/auth/$"
-    | "/api/computers/$computerId"
-    | "/api/connectors/callback"
-    | "/api/push/register"
-    | "/api/push/unregister"
-    | "/d/$agentId/$"
-    | "/api/agents"
-    | "/api/computers"
-    | "/api/workspaces"
-    | "/a/$agentId/automations"
-    | "/a/$agentId/computers"
-    | "/a/$agentId/connectors"
-    | "/a/$agentId/library"
-    | "/a/$agentId/permissions"
-    | "/a/$agentId/profile"
-    | "/a/$agentId/settings"
-    | "/a/$agentId/skills"
-    | "/w/$workspaceId/people"
-    | "/api/agents/$agentId/$"
-    | "/api/agents/$agentId/connectors"
-    | "/api/agents/$agentId/move"
-    | "/api/computers/pair/confirm"
-    | "/api/computers/pair/poll"
-    | "/api/computers/pair/start"
-    | "/api/invitations/$key/accept"
-    | "/a/$agentId"
-    | "/w/$workspaceId"
-    | "/api/invitations/$key"
-    | "/api/workspaces/$workspaceId"
-    | "/a/$agentId/c/$chatId"
-    | "/api/computers/pair/request/$code"
-    | "/api/workspaces/$workspaceId/invitations/$invitationId"
-    | "/api/workspaces/$workspaceId/members/$userId"
-    | "/api/workspaces/$workspaceId/invitations"
-    | "/api/agents/$agentId/connectors/$connectorId/connect"
+    | '/daemon.js'
+    | '/install.sh'
+    | '/login'
+    | '/signup'
+    | '/pair'
+    | '/api/auth-methods'
+    | '/api/computer-kinds'
+    | '/api/daemon-version'
+    | '/api/health'
+    | '/api/me'
+    | '/api/models'
+    | '/api/settings'
+    | '/api/transcribe'
+    | '/invite/$token'
+    | '/'
+    | '/api/auth/$'
+    | '/api/computers/$computerId'
+    | '/api/connectors/callback'
+    | '/api/push/register'
+    | '/api/push/unregister'
+    | '/d/$agentId/$'
+    | '/api/agents'
+    | '/api/computers'
+    | '/api/workspaces'
+    | '/a/$agentId/automations'
+    | '/a/$agentId/computers'
+    | '/a/$agentId/connectors'
+    | '/a/$agentId/library'
+    | '/a/$agentId/permissions'
+    | '/a/$agentId/profile'
+    | '/a/$agentId/settings'
+    | '/a/$agentId/skills'
+    | '/w/$workspaceId/people'
+    | '/api/agents/$agentId/$'
+    | '/api/agents/$agentId/connectors'
+    | '/api/agents/$agentId/move'
+    | '/api/computers/pair/confirm'
+    | '/api/computers/pair/poll'
+    | '/api/computers/pair/start'
+    | '/api/invitations/$key/accept'
+    | '/a/$agentId'
+    | '/w/$workspaceId'
+    | '/api/invitations/$key'
+    | '/api/workspaces/$workspaceId'
+    | '/a/$agentId/c/$chatId'
+    | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/invitations'
+    | '/api/agents/$agentId/connectors/$connectorId/connect'
   id:
-    | "__root__"
-    | "/_app"
-    | "/daemon.js"
-    | "/install.sh"
-    | "/login"
-    | "/signup"
-    | "/_app/pair"
-    | "/api/auth-methods"
-    | "/api/computer-kinds"
-    | "/api/daemon-version"
-    | "/api/health"
-    | "/api/me"
-    | "/api/models"
-    | "/api/settings"
-    | "/api/transcribe"
-    | "/invite/$token"
-    | "/_app/"
-    | "/_app/a/$agentId"
-    | "/_app/w/$workspaceId"
-    | "/api/auth/$"
-    | "/api/computers/$computerId"
-    | "/api/connectors/callback"
-    | "/api/push/register"
-    | "/api/push/unregister"
-    | "/d/$agentId/$"
-    | "/api/agents/"
-    | "/api/computers/"
-    | "/api/workspaces/"
-    | "/_app/a/$agentId/automations"
-    | "/_app/a/$agentId/computers"
-    | "/_app/a/$agentId/connectors"
-    | "/_app/a/$agentId/library"
-    | "/_app/a/$agentId/permissions"
-    | "/_app/a/$agentId/profile"
-    | "/_app/a/$agentId/settings"
-    | "/_app/a/$agentId/skills"
-    | "/_app/w/$workspaceId/people"
-    | "/api/agents/$agentId/$"
-    | "/api/agents/$agentId/connectors"
-    | "/api/agents/$agentId/move"
-    | "/api/computers/pair/confirm"
-    | "/api/computers/pair/poll"
-    | "/api/computers/pair/start"
-    | "/api/invitations/$key/accept"
-    | "/_app/a/$agentId/"
-    | "/_app/w/$workspaceId/"
-    | "/api/invitations/$key/"
-    | "/api/workspaces/$workspaceId/"
-    | "/_app/a/$agentId/c/$chatId"
-    | "/api/computers/pair/request/$code"
-    | "/api/workspaces/$workspaceId/invitations/$invitationId"
-    | "/api/workspaces/$workspaceId/members/$userId"
-    | "/api/workspaces/$workspaceId/invitations/"
-    | "/api/agents/$agentId/connectors/$connectorId/connect"
+    | '__root__'
+    | '/_app'
+    | '/daemon.js'
+    | '/install.sh'
+    | '/login'
+    | '/signup'
+    | '/_app/pair'
+    | '/api/auth-methods'
+    | '/api/computer-kinds'
+    | '/api/daemon-version'
+    | '/api/health'
+    | '/api/me'
+    | '/api/models'
+    | '/api/settings'
+    | '/api/transcribe'
+    | '/invite/$token'
+    | '/_app/'
+    | '/_app/a/$agentId'
+    | '/_app/w/$workspaceId'
+    | '/api/auth/$'
+    | '/api/computers/$computerId'
+    | '/api/connectors/callback'
+    | '/api/push/register'
+    | '/api/push/unregister'
+    | '/d/$agentId/$'
+    | '/api/agents/'
+    | '/api/computers/'
+    | '/api/workspaces/'
+    | '/_app/a/$agentId/automations'
+    | '/_app/a/$agentId/computers'
+    | '/_app/a/$agentId/connectors'
+    | '/_app/a/$agentId/library'
+    | '/_app/a/$agentId/permissions'
+    | '/_app/a/$agentId/profile'
+    | '/_app/a/$agentId/settings'
+    | '/_app/a/$agentId/skills'
+    | '/_app/w/$workspaceId/people'
+    | '/api/agents/$agentId/$'
+    | '/api/agents/$agentId/connectors'
+    | '/api/agents/$agentId/move'
+    | '/api/computers/pair/confirm'
+    | '/api/computers/pair/poll'
+    | '/api/computers/pair/start'
+    | '/api/invitations/$key/accept'
+    | '/_app/a/$agentId/'
+    | '/_app/w/$workspaceId/'
+    | '/api/invitations/$key/'
+    | '/api/workspaces/$workspaceId/'
+    | '/_app/a/$agentId/c/$chatId'
+    | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/invitations/'
+    | '/api/agents/$agentId/connectors/$connectorId/connect'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -697,376 +700,376 @@ export interface RootRouteChildren {
   ApiWorkspacesWorkspaceIdInvitationsIndexRoute: typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/_app": {
-      id: "/_app"
-      path: ""
-      fullPath: "/"
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/daemon.js": {
-      id: "/daemon.js"
-      path: "/daemon.js"
-      fullPath: "/daemon.js"
+    '/daemon.js': {
+      id: '/daemon.js'
+      path: '/daemon.js'
+      fullPath: '/daemon.js'
       preLoaderRoute: typeof DaemonDotjsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/install.sh": {
-      id: "/install.sh"
-      path: "/install.sh"
-      fullPath: "/install.sh"
+    '/install.sh': {
+      id: '/install.sh'
+      path: '/install.sh'
+      fullPath: '/install.sh'
       preLoaderRoute: typeof InstallDotshRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/login": {
-      id: "/login"
-      path: "/login"
-      fullPath: "/login"
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/signup": {
-      id: "/signup"
-      path: "/signup"
-      fullPath: "/signup"
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_app/": {
-      id: "/_app/"
-      path: "/"
-      fullPath: "/"
+    '/_app/': {
+      id: '/_app/'
+      path: '/'
+      fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    "/_app/pair": {
-      id: "/_app/pair"
-      path: "/pair"
-      fullPath: "/pair"
+    '/_app/pair': {
+      id: '/_app/pair'
+      path: '/pair'
+      fullPath: '/pair'
       preLoaderRoute: typeof AppPairRouteImport
       parentRoute: typeof AppRoute
     }
-    "/api/auth-methods": {
-      id: "/api/auth-methods"
-      path: "/api/auth-methods"
-      fullPath: "/api/auth-methods"
+    '/api/auth-methods': {
+      id: '/api/auth-methods'
+      path: '/api/auth-methods'
+      fullPath: '/api/auth-methods'
       preLoaderRoute: typeof ApiAuthMethodsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/computer-kinds": {
-      id: "/api/computer-kinds"
-      path: "/api/computer-kinds"
-      fullPath: "/api/computer-kinds"
+    '/api/computer-kinds': {
+      id: '/api/computer-kinds'
+      path: '/api/computer-kinds'
+      fullPath: '/api/computer-kinds'
       preLoaderRoute: typeof ApiComputerKindsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/daemon-version": {
-      id: "/api/daemon-version"
-      path: "/api/daemon-version"
-      fullPath: "/api/daemon-version"
+    '/api/daemon-version': {
+      id: '/api/daemon-version'
+      path: '/api/daemon-version'
+      fullPath: '/api/daemon-version'
       preLoaderRoute: typeof ApiDaemonVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/health": {
-      id: "/api/health"
-      path: "/api/health"
-      fullPath: "/api/health"
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/me": {
-      id: "/api/me"
-      path: "/api/me"
-      fullPath: "/api/me"
+    '/api/me': {
+      id: '/api/me'
+      path: '/api/me'
+      fullPath: '/api/me'
       preLoaderRoute: typeof ApiMeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/models": {
-      id: "/api/models"
-      path: "/api/models"
-      fullPath: "/api/models"
+    '/api/models': {
+      id: '/api/models'
+      path: '/api/models'
+      fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/settings": {
-      id: "/api/settings"
-      path: "/api/settings"
-      fullPath: "/api/settings"
+    '/api/settings': {
+      id: '/api/settings'
+      path: '/api/settings'
+      fullPath: '/api/settings'
       preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/transcribe": {
-      id: "/api/transcribe"
-      path: "/api/transcribe"
-      fullPath: "/api/transcribe"
+    '/api/transcribe': {
+      id: '/api/transcribe'
+      path: '/api/transcribe'
+      fullPath: '/api/transcribe'
       preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/invite/$token": {
-      id: "/invite/$token"
-      path: "/invite/$token"
-      fullPath: "/invite/$token"
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_app/a/$agentId": {
-      id: "/_app/a/$agentId"
-      path: "/a/$agentId"
-      fullPath: "/a/$agentId"
+    '/_app/a/$agentId': {
+      id: '/_app/a/$agentId'
+      path: '/a/$agentId'
+      fullPath: '/a/$agentId'
       preLoaderRoute: typeof AppAAgentIdRouteImport
       parentRoute: typeof AppRoute
     }
-    "/_app/w/$workspaceId": {
-      id: "/_app/w/$workspaceId"
-      path: "/w/$workspaceId"
-      fullPath: "/w/$workspaceId"
+    '/_app/w/$workspaceId': {
+      id: '/_app/w/$workspaceId'
+      path: '/w/$workspaceId'
+      fullPath: '/w/$workspaceId'
       preLoaderRoute: typeof AppWWorkspaceIdRouteImport
       parentRoute: typeof AppRoute
     }
-    "/api/agents/": {
-      id: "/api/agents/"
-      path: "/api/agents"
-      fullPath: "/api/agents/"
+    '/api/agents/': {
+      id: '/api/agents/'
+      path: '/api/agents'
+      fullPath: '/api/agents/'
       preLoaderRoute: typeof ApiAgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/auth/$": {
-      id: "/api/auth/$"
-      path: "/api/auth/$"
-      fullPath: "/api/auth/$"
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/computers/": {
-      id: "/api/computers/"
-      path: "/api/computers"
-      fullPath: "/api/computers/"
+    '/api/computers/': {
+      id: '/api/computers/'
+      path: '/api/computers'
+      fullPath: '/api/computers/'
       preLoaderRoute: typeof ApiComputersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/computers/$computerId": {
-      id: "/api/computers/$computerId"
-      path: "/api/computers/$computerId"
-      fullPath: "/api/computers/$computerId"
+    '/api/computers/$computerId': {
+      id: '/api/computers/$computerId'
+      path: '/api/computers/$computerId'
+      fullPath: '/api/computers/$computerId'
       preLoaderRoute: typeof ApiComputersComputerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/connectors/callback": {
-      id: "/api/connectors/callback"
-      path: "/api/connectors/callback"
-      fullPath: "/api/connectors/callback"
+    '/api/connectors/callback': {
+      id: '/api/connectors/callback'
+      path: '/api/connectors/callback'
+      fullPath: '/api/connectors/callback'
       preLoaderRoute: typeof ApiConnectorsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/push/register": {
-      id: "/api/push/register"
-      path: "/api/push/register"
-      fullPath: "/api/push/register"
+    '/api/push/register': {
+      id: '/api/push/register'
+      path: '/api/push/register'
+      fullPath: '/api/push/register'
       preLoaderRoute: typeof ApiPushRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/push/unregister": {
-      id: "/api/push/unregister"
-      path: "/api/push/unregister"
-      fullPath: "/api/push/unregister"
+    '/api/push/unregister': {
+      id: '/api/push/unregister'
+      path: '/api/push/unregister'
+      fullPath: '/api/push/unregister'
       preLoaderRoute: typeof ApiPushUnregisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/workspaces/": {
-      id: "/api/workspaces/"
-      path: "/api/workspaces"
-      fullPath: "/api/workspaces/"
+    '/api/workspaces/': {
+      id: '/api/workspaces/'
+      path: '/api/workspaces'
+      fullPath: '/api/workspaces/'
       preLoaderRoute: typeof ApiWorkspacesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/d/$agentId/$": {
-      id: "/d/$agentId/$"
-      path: "/d/$agentId/$"
-      fullPath: "/d/$agentId/$"
+    '/d/$agentId/$': {
+      id: '/d/$agentId/$'
+      path: '/d/$agentId/$'
+      fullPath: '/d/$agentId/$'
       preLoaderRoute: typeof DAgentIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_app/a/$agentId/": {
-      id: "/_app/a/$agentId/"
-      path: "/"
-      fullPath: "/a/$agentId/"
+    '/_app/a/$agentId/': {
+      id: '/_app/a/$agentId/'
+      path: '/'
+      fullPath: '/a/$agentId/'
       preLoaderRoute: typeof AppAAgentIdIndexRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/automations": {
-      id: "/_app/a/$agentId/automations"
-      path: "/automations"
-      fullPath: "/a/$agentId/automations"
+    '/_app/a/$agentId/automations': {
+      id: '/_app/a/$agentId/automations'
+      path: '/automations'
+      fullPath: '/a/$agentId/automations'
       preLoaderRoute: typeof AppAAgentIdAutomationsRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/computers": {
-      id: "/_app/a/$agentId/computers"
-      path: "/computers"
-      fullPath: "/a/$agentId/computers"
+    '/_app/a/$agentId/computers': {
+      id: '/_app/a/$agentId/computers'
+      path: '/computers'
+      fullPath: '/a/$agentId/computers'
       preLoaderRoute: typeof AppAAgentIdComputersRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/connectors": {
-      id: "/_app/a/$agentId/connectors"
-      path: "/connectors"
-      fullPath: "/a/$agentId/connectors"
+    '/_app/a/$agentId/connectors': {
+      id: '/_app/a/$agentId/connectors'
+      path: '/connectors'
+      fullPath: '/a/$agentId/connectors'
       preLoaderRoute: typeof AppAAgentIdConnectorsRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/library": {
-      id: "/_app/a/$agentId/library"
-      path: "/library"
-      fullPath: "/a/$agentId/library"
+    '/_app/a/$agentId/library': {
+      id: '/_app/a/$agentId/library'
+      path: '/library'
+      fullPath: '/a/$agentId/library'
       preLoaderRoute: typeof AppAAgentIdLibraryRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/permissions": {
-      id: "/_app/a/$agentId/permissions"
-      path: "/permissions"
-      fullPath: "/a/$agentId/permissions"
+    '/_app/a/$agentId/permissions': {
+      id: '/_app/a/$agentId/permissions'
+      path: '/permissions'
+      fullPath: '/a/$agentId/permissions'
       preLoaderRoute: typeof AppAAgentIdPermissionsRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/profile": {
-      id: "/_app/a/$agentId/profile"
-      path: "/profile"
-      fullPath: "/a/$agentId/profile"
+    '/_app/a/$agentId/profile': {
+      id: '/_app/a/$agentId/profile'
+      path: '/profile'
+      fullPath: '/a/$agentId/profile'
       preLoaderRoute: typeof AppAAgentIdProfileRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/settings": {
-      id: "/_app/a/$agentId/settings"
-      path: "/settings"
-      fullPath: "/a/$agentId/settings"
+    '/_app/a/$agentId/settings': {
+      id: '/_app/a/$agentId/settings'
+      path: '/settings'
+      fullPath: '/a/$agentId/settings'
       preLoaderRoute: typeof AppAAgentIdSettingsRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/a/$agentId/skills": {
-      id: "/_app/a/$agentId/skills"
-      path: "/skills"
-      fullPath: "/a/$agentId/skills"
+    '/_app/a/$agentId/skills': {
+      id: '/_app/a/$agentId/skills'
+      path: '/skills'
+      fullPath: '/a/$agentId/skills'
       preLoaderRoute: typeof AppAAgentIdSkillsRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/_app/w/$workspaceId/": {
-      id: "/_app/w/$workspaceId/"
-      path: "/"
-      fullPath: "/w/$workspaceId/"
+    '/_app/w/$workspaceId/': {
+      id: '/_app/w/$workspaceId/'
+      path: '/'
+      fullPath: '/w/$workspaceId/'
       preLoaderRoute: typeof AppWWorkspaceIdIndexRouteImport
       parentRoute: typeof AppWWorkspaceIdRoute
     }
-    "/_app/w/$workspaceId/people": {
-      id: "/_app/w/$workspaceId/people"
-      path: "/people"
-      fullPath: "/w/$workspaceId/people"
+    '/_app/w/$workspaceId/people': {
+      id: '/_app/w/$workspaceId/people'
+      path: '/people'
+      fullPath: '/w/$workspaceId/people'
       preLoaderRoute: typeof AppWWorkspaceIdPeopleRouteImport
       parentRoute: typeof AppWWorkspaceIdRoute
     }
-    "/api/agents/$agentId/$": {
-      id: "/api/agents/$agentId/$"
-      path: "/api/agents/$agentId/$"
-      fullPath: "/api/agents/$agentId/$"
+    '/api/agents/$agentId/$': {
+      id: '/api/agents/$agentId/$'
+      path: '/api/agents/$agentId/$'
+      fullPath: '/api/agents/$agentId/$'
       preLoaderRoute: typeof ApiAgentsAgentIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/agents/$agentId/connectors": {
-      id: "/api/agents/$agentId/connectors"
-      path: "/api/agents/$agentId/connectors"
-      fullPath: "/api/agents/$agentId/connectors"
+    '/api/agents/$agentId/connectors': {
+      id: '/api/agents/$agentId/connectors'
+      path: '/api/agents/$agentId/connectors'
+      fullPath: '/api/agents/$agentId/connectors'
       preLoaderRoute: typeof ApiAgentsAgentIdConnectorsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/agents/$agentId/move": {
-      id: "/api/agents/$agentId/move"
-      path: "/api/agents/$agentId/move"
-      fullPath: "/api/agents/$agentId/move"
+    '/api/agents/$agentId/move': {
+      id: '/api/agents/$agentId/move'
+      path: '/api/agents/$agentId/move'
+      fullPath: '/api/agents/$agentId/move'
       preLoaderRoute: typeof ApiAgentsAgentIdMoveRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/computers/pair/confirm": {
-      id: "/api/computers/pair/confirm"
-      path: "/api/computers/pair/confirm"
-      fullPath: "/api/computers/pair/confirm"
+    '/api/computers/pair/confirm': {
+      id: '/api/computers/pair/confirm'
+      path: '/api/computers/pair/confirm'
+      fullPath: '/api/computers/pair/confirm'
       preLoaderRoute: typeof ApiComputersPairConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/computers/pair/poll": {
-      id: "/api/computers/pair/poll"
-      path: "/api/computers/pair/poll"
-      fullPath: "/api/computers/pair/poll"
+    '/api/computers/pair/poll': {
+      id: '/api/computers/pair/poll'
+      path: '/api/computers/pair/poll'
+      fullPath: '/api/computers/pair/poll'
       preLoaderRoute: typeof ApiComputersPairPollRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/computers/pair/start": {
-      id: "/api/computers/pair/start"
-      path: "/api/computers/pair/start"
-      fullPath: "/api/computers/pair/start"
+    '/api/computers/pair/start': {
+      id: '/api/computers/pair/start'
+      path: '/api/computers/pair/start'
+      fullPath: '/api/computers/pair/start'
       preLoaderRoute: typeof ApiComputersPairStartRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/invitations/$key/": {
-      id: "/api/invitations/$key/"
-      path: "/api/invitations/$key"
-      fullPath: "/api/invitations/$key/"
+    '/api/invitations/$key/': {
+      id: '/api/invitations/$key/'
+      path: '/api/invitations/$key'
+      fullPath: '/api/invitations/$key/'
       preLoaderRoute: typeof ApiInvitationsKeyIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/invitations/$key/accept": {
-      id: "/api/invitations/$key/accept"
-      path: "/api/invitations/$key/accept"
-      fullPath: "/api/invitations/$key/accept"
+    '/api/invitations/$key/accept': {
+      id: '/api/invitations/$key/accept'
+      path: '/api/invitations/$key/accept'
+      fullPath: '/api/invitations/$key/accept'
       preLoaderRoute: typeof ApiInvitationsKeyAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/workspaces/$workspaceId/": {
-      id: "/api/workspaces/$workspaceId/"
-      path: "/api/workspaces/$workspaceId"
-      fullPath: "/api/workspaces/$workspaceId/"
+    '/api/workspaces/$workspaceId/': {
+      id: '/api/workspaces/$workspaceId/'
+      path: '/api/workspaces/$workspaceId'
+      fullPath: '/api/workspaces/$workspaceId/'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/_app/a/$agentId/c/$chatId": {
-      id: "/_app/a/$agentId/c/$chatId"
-      path: "/c/$chatId"
-      fullPath: "/a/$agentId/c/$chatId"
+    '/_app/a/$agentId/c/$chatId': {
+      id: '/_app/a/$agentId/c/$chatId'
+      path: '/c/$chatId'
+      fullPath: '/a/$agentId/c/$chatId'
       preLoaderRoute: typeof AppAAgentIdCChatIdRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    "/api/computers/pair/request/$code": {
-      id: "/api/computers/pair/request/$code"
-      path: "/api/computers/pair/request/$code"
-      fullPath: "/api/computers/pair/request/$code"
+    '/api/computers/pair/request/$code': {
+      id: '/api/computers/pair/request/$code'
+      path: '/api/computers/pair/request/$code'
+      fullPath: '/api/computers/pair/request/$code'
       preLoaderRoute: typeof ApiComputersPairRequestCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/workspaces/$workspaceId/invitations/": {
-      id: "/api/workspaces/$workspaceId/invitations/"
-      path: "/api/workspaces/$workspaceId/invitations"
-      fullPath: "/api/workspaces/$workspaceId/invitations/"
+    '/api/workspaces/$workspaceId/invitations/': {
+      id: '/api/workspaces/$workspaceId/invitations/'
+      path: '/api/workspaces/$workspaceId/invitations'
+      fullPath: '/api/workspaces/$workspaceId/invitations/'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/workspaces/$workspaceId/invitations/$invitationId": {
-      id: "/api/workspaces/$workspaceId/invitations/$invitationId"
-      path: "/api/workspaces/$workspaceId/invitations/$invitationId"
-      fullPath: "/api/workspaces/$workspaceId/invitations/$invitationId"
+    '/api/workspaces/$workspaceId/invitations/$invitationId': {
+      id: '/api/workspaces/$workspaceId/invitations/$invitationId'
+      path: '/api/workspaces/$workspaceId/invitations/$invitationId'
+      fullPath: '/api/workspaces/$workspaceId/invitations/$invitationId'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/workspaces/$workspaceId/members/$userId": {
-      id: "/api/workspaces/$workspaceId/members/$userId"
-      path: "/api/workspaces/$workspaceId/members/$userId"
-      fullPath: "/api/workspaces/$workspaceId/members/$userId"
+    '/api/workspaces/$workspaceId/members/$userId': {
+      id: '/api/workspaces/$workspaceId/members/$userId'
+      path: '/api/workspaces/$workspaceId/members/$userId'
+      fullPath: '/api/workspaces/$workspaceId/members/$userId'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/agents/$agentId/connectors/$connectorId/connect": {
-      id: "/api/agents/$agentId/connectors/$connectorId/connect"
-      path: "/$connectorId/connect"
-      fullPath: "/api/agents/$agentId/connectors/$connectorId/connect"
+    '/api/agents/$agentId/connectors/$connectorId/connect': {
+      id: '/api/agents/$agentId/connectors/$connectorId/connect'
+      path: '/$connectorId/connect'
+      fullPath: '/api/agents/$agentId/connectors/$connectorId/connect'
       preLoaderRoute: typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport
       parentRoute: typeof ApiAgentsAgentIdConnectorsRoute
     }
@@ -1099,7 +1102,9 @@ const AppAAgentIdRouteChildren: AppAAgentIdRouteChildren = {
   AppAAgentIdCChatIdRoute: AppAAgentIdCChatIdRoute,
 }
 
-const AppAAgentIdRouteWithChildren = AppAAgentIdRoute._addFileChildren(AppAAgentIdRouteChildren)
+const AppAAgentIdRouteWithChildren = AppAAgentIdRoute._addFileChildren(
+  AppAAgentIdRouteChildren,
+)
 
 interface AppWWorkspaceIdRouteChildren {
   AppWWorkspaceIdPeopleRoute: typeof AppWWorkspaceIdPeopleRoute
@@ -1135,13 +1140,16 @@ interface ApiAgentsAgentIdConnectorsRouteChildren {
   ApiAgentsAgentIdConnectorsConnectorIdConnectRoute: typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
 
-const ApiAgentsAgentIdConnectorsRouteChildren: ApiAgentsAgentIdConnectorsRouteChildren = {
-  ApiAgentsAgentIdConnectorsConnectorIdConnectRoute:
-    ApiAgentsAgentIdConnectorsConnectorIdConnectRoute,
-}
+const ApiAgentsAgentIdConnectorsRouteChildren: ApiAgentsAgentIdConnectorsRouteChildren =
+  {
+    ApiAgentsAgentIdConnectorsConnectorIdConnectRoute:
+      ApiAgentsAgentIdConnectorsConnectorIdConnectRoute,
+  }
 
 const ApiAgentsAgentIdConnectorsRouteWithChildren =
-  ApiAgentsAgentIdConnectorsRoute._addFileChildren(ApiAgentsAgentIdConnectorsRouteChildren)
+  ApiAgentsAgentIdConnectorsRoute._addFileChildren(
+    ApiAgentsAgentIdConnectorsRouteChildren,
+  )
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
@@ -1179,16 +1187,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiComputersPairRequestCodeRoute: ApiComputersPairRequestCodeRoute,
   ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute:
     ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute,
-  ApiWorkspacesWorkspaceIdMembersUserIdRoute: ApiWorkspacesWorkspaceIdMembersUserIdRoute,
-  ApiWorkspacesWorkspaceIdInvitationsIndexRoute: ApiWorkspacesWorkspaceIdInvitationsIndexRoute,
+  ApiWorkspacesWorkspaceIdMembersUserIdRoute:
+    ApiWorkspacesWorkspaceIdMembersUserIdRoute,
+  ApiWorkspacesWorkspaceIdInvitationsIndexRoute:
+    ApiWorkspacesWorkspaceIdInvitationsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
-import type { getRouter } from "./router.tsx"
-import type { createStart } from "@tanstack/react-start"
-declare module "@tanstack/react-start" {
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>

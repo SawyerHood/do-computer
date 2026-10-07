@@ -16,9 +16,11 @@ import {
   hook,
   ToolTask,
 } from "@earendil-works/pi-durable"
+import { type Caller, sentMeta } from "./caller.ts"
 import { ChatsDoc } from "./docs.ts"
 import { ComputersDoc } from "./paired.ts"
 import { own } from "./own.ts"
+import { formatTime } from "./schedule.ts"
 
 /** How long an "allow once" waits for the agent to use it. */
 const GRANT_TTL_MS = 15 * 60_000
@@ -373,8 +375,15 @@ export class Approvals {
   /**
    * Record the user's answer and tell the agent, in the chat it asked from. An approval lets its
    * next attempt at the same kind of thing through; "always" also lifts the rules that asked.
+   * Where a team shares the agent, `by` is whoever answered: anyone in the team may, and the
+   * agent and the others are told who did.
    */
-  async resolve(id: string, decision: ApprovalDecision, context: Context): Promise<void> {
+  async resolve(
+    id: string,
+    decision: ApprovalDecision,
+    context: Context,
+    by?: Caller,
+  ): Promise<void> {
     if (decision !== "once" && decision !== "always" && decision !== "deny") {
       throw new ApprovalError("The answer is one of: once, always, deny.")
     }
@@ -409,10 +418,12 @@ export class Approvals {
     )
     if (conversation === undefined) return
     const what = request.detail === "" ? request.title : `${request.title}: ${request.detail}`
+    // Their name is in the note that follows, where it cannot be taken for part of this one.
+    const who = by === undefined ? "The user" : "The person named below"
     const note =
       decision === "deny"
-        ? `<meta kind="approval">The user said no to this. Do not do it, and do not do the same thing another way. Carry on without it, or ask what they would prefer.</meta>`
-        : `<meta kind="approval">The user approved this${
+        ? `<meta kind="approval">${who} said no to this. Do not do it, and do not do the same thing another way. Carry on without it, or ask what they would prefer.</meta>`
+        : `<meta kind="approval">${who} approved this${
             decision === "always" ? ", and you no longer need to ask for it" : ""
           }. Do it now, exactly as you asked, and carry on with what you were doing.</meta>`
     await conversation.submit(
@@ -422,6 +433,9 @@ export class Approvals {
         content: [
           { type: "text", text: `${decision === "deny" ? "Not allowed" : "Approved"}: ${what}` },
           { type: "text", text: note },
+          ...(by === undefined
+            ? []
+            : [{ type: "text" as const, text: sentMeta(formatTime(now, null), by) }]),
         ],
         whenBusy: "steer",
       },

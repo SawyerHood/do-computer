@@ -316,6 +316,8 @@ export function createClient(options: ClientOptions) {
               if (socket === current) socket = undefined
               // Nobody is here as far as this tab can tell, until it is back.
               onEvent({ type: "presence", here: [] })
+              // Let go because they are no longer in the team: what they have of it is stale.
+              if (event.code === 4403) onEvent({ type: "changed" })
               // Turned away for good: signed out, or no longer in the team.
               if (closed || event.code === 4401 || event.code === 4403) return
               const delay =

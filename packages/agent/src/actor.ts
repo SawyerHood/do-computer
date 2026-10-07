@@ -889,7 +889,12 @@ export class AgentActor implements Actor {
       }
       if (requestId !== undefined && segments[2] === undefined && method === "POST") {
         const { decision } = await body<{ decision: ApprovalDecision }>(request)
-        await this.#approvals.resolve(requestId, decision, context)
+        await this.#approvals.resolve(
+          requestId,
+          decision,
+          context,
+          identity.team ? caller : undefined,
+        )
         // The answer sets a sub-agent that was waiting for it going again.
         await this.#subagents.tick()
         return json({ ok: true })
