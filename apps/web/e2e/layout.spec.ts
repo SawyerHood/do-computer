@@ -1,5 +1,15 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, newChat, sideChats, signIn, tab, tool } from "./helpers.ts"
+import {
+  asOwner,
+  closeSettings,
+  composer,
+  newChat,
+  openSettings,
+  sideChats,
+  signIn,
+  tab,
+  tool,
+} from "./helpers.ts"
 
 asOwner()
 
@@ -231,38 +241,52 @@ test("the layout works at phone width", async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(0)
 })
 
-test("under a finger the message box is written in at a size a phone does not zoom in on", async ({
+test("under a finger every field is written in at a size a phone does not zoom in on", async ({
   page,
   browser,
   baseURL,
 }) => {
-  const size = (on: typeof page) =>
-    composer(on).evaluate((box) => Number.parseFloat(getComputedStyle(box).fontSize))
+  /** The smallest text of the fields on the page that are typed in or chosen from. */
+  const smallest = (on: typeof page) =>
+    on.evaluate(() =>
+      Math.min(
+        ...[...document.querySelectorAll("input, textarea, select")]
+          .filter((field) => !field.matches("[type=file], [type=checkbox], [type=radio]"))
+          .map((field) => Number.parseFloat(getComputedStyle(field).fontSize)),
+      ),
+    )
   await signIn(page)
   await expect(composer(page)).toBeVisible()
-  // With a mouse it is the size of the chat around it.
-  expect(await size(page)).toBe(15)
+  // With a mouse the message box is the size of the chat around it.
+  expect(await smallest(page)).toBe(15)
 
-  // Safari on a phone zooms the page in on a box whose text is under 16px, and leaves it so.
+  // Safari on a phone zooms the page in on a field whose text is under 16px, and leaves it so.
+  // Held sideways the phone is as wide as this, where the fields would be at their smallest.
   const context = await browser.newContext({
     baseURL,
     colorScheme: "dark",
-    viewport: { width: 400, height: 800 },
+    viewport: { width: 900, height: 420 },
     hasTouch: true,
     storageState: await page.context().storageState(),
   })
   const phone = await context.newPage()
   await phone.goto("/")
   await expect(composer(phone)).toBeVisible()
-  expect(await size(phone)).toBeGreaterThanOrEqual(16)
-  // It is still a line tall beside its buttons, and no wider than the screen.
-  const box = (await composer(phone).boundingBox())!
-  expect(box.height).toBeLessThanOrEqual(40)
-  expect(
-    await phone.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    ),
-  ).toBeLessThanOrEqual(0)
+  expect(await smallest(phone)).toBe(16)
+  // The box is still a line tall beside its buttons.
+  expect((await composer(phone).boundingBox())!.height).toBeLessThanOrEqual(40)
+
+  // The fields of the agent's settings, which are smaller than the message box with a mouse.
+  await openSettings(phone, "Identity")
+  await expect(phone.getByRole("dialog").getByLabel("Name")).toBeVisible()
+  expect(await smallest(phone)).toBe(16)
+  await closeSettings(phone)
+
+  // And a document being written in the library.
+  await tab(phone, "Library").click()
+  await phone.getByRole("button", { name: "New document" }).first().click()
+  await expect(phone.getByRole("textbox", { name: "Edit Untitled.md" })).toBeVisible()
+  expect(await smallest(phone)).toBe(16)
   await context.close()
 })
 
