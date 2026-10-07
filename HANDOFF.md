@@ -42,8 +42,8 @@ The owner's standing instructions, in their words:
   users"
 
 So: commit to `main` and push. `.github/workflows/ci.yml` runs type checks, unit tests and
-browser tests, then its `deploy` job deploys to do.computer. Watch it with
-`gh run watch <id> --exit-status`. A run takes about eight minutes. If production users appear,
+browser tests side by side, then its `deploy` job deploys to do.computer. Watch it with
+`gh run watch <id> --exit-status`. A run takes about three minutes. If production users appear,
 that permission's reason is gone: ask again. It never covered force pushes or rewriting history.
 
 Nothing specific to the do.computer deployment is written into tracked files. The owner said of
@@ -87,8 +87,8 @@ own on a fresh data directory (`e2e/fixtures.ts`), so the files run side by side
 inside one run in order and build on each other. A file that begins with `asOwner()` starts with
 the owner signed up and the agent named Juniper. The creature is not drawn live unless a file
 asks for it with `test.use({ creature: true })`: a browser with no graphics card draws it in
-software, which kept a whole core busy. CI deals the files out over several machines, so a new
-file needs nothing but to be there.
+software, which kept a whole core busy. CI deals the files out over several machines, two to a
+machine, so a new file needs nothing but to be there.
 
 Layout, briefly (`README.md` has the full table):
 

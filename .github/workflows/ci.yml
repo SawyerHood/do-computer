@@ -42,13 +42,14 @@ jobs:
       - run: pnpm --filter '${{ matrix.filter }}' run test
 
   # Browser tests against the built Node server, with a real daemon. Each file of them has a
-  # server to itself, so they are dealt out over several machines.
+  # server to itself, so the files are dealt out over several machines, two to a machine: one for
+  # each of its cores. With more files than that, add to `share`.
   e2e:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        share: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -57,11 +58,18 @@ jobs:
           pnpm --filter @durable-computer/web exec playwright install --only-shell chromium &
           pnpm --filter @durable-computer/web build:node
           wait $!
-      - run: pnpm --filter @durable-computer/web exec playwright test --project=web --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+      - name: Run this machine's share of the files
+        working-directory: apps/web
+        run: |
+          files=$(ls e2e/*.spec.ts | grep -v mobile.spec.ts | awk 'NR % ${{ strategy.job-total }} == ${{ strategy.job-index }}')
+          echo "$files"
+          # Asked for no files, Playwright runs them all.
+          [ -n "$files" ] || exit 0
+          pnpm exec playwright test --project=web $files
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: e2e-${{ matrix.shard }}
+          name: e2e-${{ matrix.share }}
           path: apps/web/test-results
           retention-days: 7
 
