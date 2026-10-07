@@ -1,8 +1,12 @@
-import { createDurableActorClass, r2Blobs } from "@durable-computer/runtime/cloudflare"
+import {
+  createDurableActorClass,
+  durableObjectNamespace,
+  r2Blobs,
+} from "@durable-computer/runtime/cloudflare"
 import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
-import { createAgentActor, createAgentModels } from "../../src/index.ts"
+import { type AgentDirectory, createAgentActor, createAgentModels } from "../../src/index.ts"
 import { fakeMcp } from "../fake-mcp.ts"
 
 export type Env = {
@@ -14,13 +18,45 @@ export type Env = {
 // No key: the built-in echo model, which needs no network.
 const echo = createAgentModels({})
 
+/** The agents that share a workspace, for the test of messages between them. */
+export const PEERS = ["peer-ada", "peer-bo"]
+
+/** What a host does for its agents: one object reaches another through its own namespace. */
+function directory(env: Env): AgentDirectory {
+  const beside = (one: string, other: string) =>
+    one !== other && PEERS.includes(one) && PEERS.includes(other)
+  const hand = (to: string, path: string, body: unknown) =>
+    durableObjectNamespace(env.AGENT)
+      .get(to)
+      .fetch(
+        new Request(`http://agent${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      )
+  return {
+    list: async (agentId) =>
+      PEERS.filter((id) => beside(agentId, id)).map((id) => ({ id, name: id, tagline: null })),
+    send: async (agentId, to, message) =>
+      beside(agentId, to)
+        ? ((await (await hand(to, `/peers/${agentId}/message`, message)).json()) as {
+            threadId: string
+          })
+        : undefined,
+    reply: async (agentId, to, reply) =>
+      beside(agentId, to) && (await hand(to, `/peers/${agentId}/reply`, reply)).ok,
+  }
+}
+
 export const AgentObject = createDurableActorClass<Env>({
-  create: (host) =>
+  create: (host, env) =>
     createAgentActor(host, {
       models: echo.models,
       defaultModel: echo.defaultModel,
       modelOptions: echo.options,
       keepAliveMs: 200,
+      agentDirectory: directory(env),
     }),
   blobs: (env, name) => r2Blobs(env.BLOBS, `${encodeURIComponent(name)}/`),
 })

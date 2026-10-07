@@ -60,3 +60,22 @@ export function senderOf(meta: string): Caller | undefined {
   if (id === undefined || name === undefined) return undefined
   return { id: unescapeAttribute(id), name: unescapeAttribute(name) }
 }
+
+/**
+ * The note that travels with a message from another agent, for the model: which agent it is
+ * from, and what to make of it. The name is the other agent's to choose, so it is written as an
+ * attribute's value and cannot end the tag.
+ */
+export function agentMeta(from: Caller, note: string): string {
+  return `<meta kind="agent" from="${escapeAttribute(from.name)}" from_agent="${escapeAttribute(from.id)}">${note}</meta>`
+}
+
+/** Which agent sent a message, read back out of the note that travelled with it. */
+export function agentSenderOf(meta: string): Caller | undefined {
+  if (!meta.startsWith('<meta kind="agent" from="')) return undefined
+  const head = meta.slice(0, meta.indexOf(">"))
+  const id = / from_agent="([^"]*)"/.exec(head)?.[1]
+  const name = / from="([^"]*)"/.exec(head)?.[1]
+  if (id === undefined || name === undefined) return undefined
+  return { id: unescapeAttribute(id), name: unescapeAttribute(name) }
+}

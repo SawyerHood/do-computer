@@ -77,6 +77,30 @@ export type SubagentRecord = {
   stopping?: "user" | "agent"
 }
 
+/** What is kept about a conversation with another agent, on its chat. */
+export type PeerRecord = {
+  /** The agent whose messages arrive here, and to whom the answers go. */
+  agentId: string
+  /** What it called itself when it last wrote. */
+  name: string
+  /** The chat of its own that it writes from, where its answers are delivered. */
+  chatId: string
+  status: SubagentStatus
+  /** The message last sent back as an answer, so that one answer is sent once. */
+  replied: string | null
+  /** How many times word has been sent back. */
+  replies: number
+  /**
+   * How many times it has been given something to answer. Looking in on it takes a while, and
+   * this tells whether more arrived meanwhile.
+   */
+  woken?: number
+  /** Set when someone asked for it to be stopped, until it has been. */
+  stopping?: true
+  /** How many times in a row an answer could not be handed over. */
+  failures?: number
+}
+
 export type ChatRecord = {
   title: string
   kind: ChatKind
@@ -87,6 +111,8 @@ export type ChatRecord = {
   createdBy?: string
   /** Present on a sub-agent's chat. */
   subagent?: SubagentRecord
+  /** Present on a conversation with another agent. */
+  peer?: PeerRecord
 }
 
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */

@@ -333,6 +333,42 @@ Since then, newest last:
       computer there says whose it is and which agents it has. The pair page asks whose the
       computer is, where the user has a team, and which agents get it.
 
+17. **Agents writing to each other** (2026-10-07; `packages/agent/src/peers.ts`,
+    `apps/web/src/server/agent-directory.ts`). An agent has an `agents` tool: list, message. It
+    reaches every other agent in its workspace with nothing to switch on. The owner turned down
+    a switch for each pair and a cap on exchanges (section 6).
+    - **A message opens a chat of kind `agent` on the receiver**, one for each chat of the
+      sender's that writes to it, so more from the same chat carries on from what was said.
+      What is known of it (which agent, which chat of theirs, how it is getting on) is on its
+      record, as a sub-agent's is. The receiver works there as itself. Each time it comes to
+      rest its last answer is handed back: written into the sender's chat as an entry of kind
+      `dc.agent`, with a note for the model alone that gives the sender a turn. The user reads
+      the conversation and can stop it, and the sender is then told and given a turn too, since
+      its user may not be the one who stopped it.
+    - **Only chats with a person and these conversations can send.** A scheduled run and a
+      sub-agent each report once, when they come to rest, so a reply arriving later would have
+      nowhere to go. A conversation sending is how a question is passed on to a third agent:
+      the answer sets the conversation going again, and what it then says goes back to the
+      agent it is with.
+    - **The host carries the messages.** `agentDirectory` is handed to the actor as an option,
+      as `computerDirectory` is, with the database and the agents' namespace. It looks up that
+      the two agents are in one workspace (`areBeside`) each time a message or an answer is
+      handed over, so an agent that was moved or deleted is not reached by what it was told
+      before. The actor's routes for this (`peers/<agent>/message` and `/reply`) are among those
+      the gateway keeps for itself, and the browser tests and `scripts/smoke.sh` try them.
+    - **Nothing is said twice.** A message is keyed by the tool call that sent it, an answer by
+      its conversation and how many answers that has sent. An answer that cannot be handed over
+      is tried again on the agent's next wake-ups, five times. One whose asker is gone, or is
+      somewhere else now, is given up and its conversation marked as failed.
+    - **A reply that arrived while an answer was being handed back was lost**, until the tests
+      found it: the conversation was marked as done after the hand-over, over the top of having
+      been set going again. Each record now counts how often it was given something to answer
+      (`woken`), and a look-in that finds the count changed leaves the conversation at work.
+    - **The web app** shows a chip where a message was sent, a marker with the reply folded
+      inside where it came back, the conversation on the receiving agent with the sender's face
+      on its messages and no message box, and a list "From other agents" in the receiver's
+      panel. Conversations are not in the side column.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -359,6 +395,10 @@ Computers, decided on 2026-10-07: "every user has a list of their computers (a c
 belong to a person or a workspace) and then you can connect agents to different computers. The
 agent also can have a tool to list computers and request access to one and it will send an async
 notif to the person who owns it and they can approve."
+
+Agents writing to each other, decided on 2026-10-07: "maybe we don't need the permissions and
+agent can message any other agent in a workspace. I'm not worried about loops". So there is no
+switch to allow it and no cap on how long an exchange runs.
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
 each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only
@@ -407,6 +447,10 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
   it does on the built server and on Workers. Invitation email has never been sent for real.
 
+- **Agents writing to each other:** nothing limits an exchange, by the owner's choice; one is
+  ended by stopping the conversation from its chat. Sub-agents and scheduled runs cannot send.
+  Nothing on the sender's side shows that it is waiting to hear back. The native app shows the
+  replies and cannot open the conversations.
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.
 - **Mobile** has no model picker, computer picker, connectors, permissions or file attaching, and
@@ -447,7 +491,10 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   the listing the library folder is read with (the whole sync has only run against the built-in
   shell and a local shell); a
   public MCP server as a connector; the bundled browsing skill; a vision model describing an attached picture; deploys to Cloudflare from this
-  machine and from GitHub Actions.
+  machine and from GitHub Actions; one agent asking another for something in its memory and
+  passing the answer on, on the Node server. On Workers, where an agent reaches another through
+  its own Durable Object namespace, that has run only in the tests' local runtime with the echo
+  model.
 - **On the live site**, without the owner's session, only this could be checked: it answers, its
   pages and assets load, the GitHub sign-in button leads to GitHub with the right callback, and
   the daemon downloaded from it starts pairing. The owner has since paired a computer, pasted

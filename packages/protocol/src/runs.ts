@@ -54,13 +54,16 @@ export function chatRuns(state: ChatState): ChatRun[] {
   const runs: (Omit<ChatRun, "entry"> & { entry?: RunSummary })[] = []
   let current: (typeof runs)[number] | undefined
   for (const message of state.messages) {
-    // A sub-agent's report gives the agent a turn, as a message from the user would.
+    // A sub-agent's report gives the agent a turn, as a message from the user would, and so does
+    // another agent's reply.
     const starts =
       message.role === "user" ||
       message.parts.some(
         (part) =>
           part.type === "notice" &&
-          (part.kind === "schedule" || (part.kind === "subagent" && part.outcome !== "stopped")),
+          (part.kind === "schedule" ||
+            part.kind === "agent" ||
+            (part.kind === "subagent" && part.outcome !== "stopped")),
       )
     if (starts) {
       current = { id: message.id, steps: [], status: "done" }

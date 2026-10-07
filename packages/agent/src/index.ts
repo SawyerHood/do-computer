@@ -33,6 +33,7 @@ export {
   type PairedComputer,
   PairedComputers,
 } from "./paired.ts"
+export { type AgentDirectory, type PeerAgent, type PeerMessage, type PeerReply } from "./peers.ts"
 export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"
 export { type ScheduledReport, Scheduler, SILENT_MARKER } from "./schedules.ts"

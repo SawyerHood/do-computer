@@ -31,7 +31,8 @@ import {
   whoIs,
 } from "@/lib/workspaces"
 import { AgentPanel } from "./agent-panel.tsx"
-import { PendingComputerRequests } from "@/components/computer-requests"
+import { PeerFace, threadWords, useThreads } from "./agent-threads.tsx"
+import { PendingComputerRequests, useAgentsById } from "@/components/computer-requests"
 import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
@@ -169,6 +170,14 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
   const subagents = useSubagents(agent.id, chatId)
   const [subagentsOpen, setSubagentsOpen] = useState(false)
+  // A conversation another agent is having with this one is read here too, and not written in.
+  const thread = chat?.kind === "agent" ? chat : undefined
+  const threads = useThreads(agent.id)
+  const agents = useAgentsById()
+  const peer = thread?.peer === undefined ? undefined : agents.get(thread.peer.agentId)
+  const peerName = peer?.name ?? thread?.peer?.name ?? "the other agent"
+  // Whether this chat is the user's to write in.
+  const own = sub === undefined && thread === undefined
 
   // In a team: who else has this chat open, and who is writing in it.
   const { me } = useRouteContext({ from: "/_app" })
@@ -287,7 +296,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
 
   const name = agent.name ?? "New agent"
   const canStartFresh =
-    sub === undefined && live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
+    own && live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
   const startFreshTitle =
     "Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
   // An empty chat has the creature in its middle, so the one in the header, right above it, holds
@@ -329,6 +338,38 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                 {subagentWords(sub.status)}
               </span>
               {isAtWork(sub.status) ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
+                >
+                  <StopIcon className="size-3" />
+                  Stop
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : thread?.peer !== undefined ? (
+          // A conversation with another agent says who it is with, and leads to where they wrote from.
+          <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+              <Link
+                to="/a/$agentId/c/$chatId"
+                params={{ agentId: thread.peer.agentId, chatId: thread.peer.chatId }}
+                aria-label={`Back to ${peerName}`}
+                className="flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-1.5 pl-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+              >
+                <ArrowLeftIcon className="size-4 shrink-0" />
+                <PeerFace agent={peer} agentId={thread.peer.agentId} className="size-7" />
+                {/* On a narrow screen the face says who, and the title keeps the room. */}
+                <span className="hidden max-w-40 truncate sm:inline">{peerName}</span>
+              </Link>
+              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+              <span className="min-w-0 truncate text-sm font-medium">{thread.title}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {threadWords(thread.status)}
+              </span>
+              {isAtWork(thread.status) ? (
                 <button
                   type="button"
                   onClick={stop}
@@ -403,10 +444,10 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               <TeamContext value={teamContext}>
                 <Transcript
                   state={state}
-                  onRetry={sub === undefined ? retry : undefined}
+                  onRetry={own ? retry : undefined}
                   asker={sub === undefined ? undefined : name}
                   empty={
-                    live.loaded && sub === undefined ? (
+                    live.loaded && own ? (
                       <Welcome
                         agent={agent}
                         face={
@@ -457,6 +498,22 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               Back to {name}
+            </Link>
+          </div>
+        ) : thread?.peer !== undefined ? (
+          // Where the message box would be. The two agents are the ones who write here.
+          <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
+            <AgentFace agent={agent} className="size-8" still />
+            <p className="min-w-0 flex-1">
+              Only {name} and {peerName} write here. To change what {name} is doing in it, tell{" "}
+              {peerName}.
+            </p>
+            <Link
+              to="/a/$agentId/c/$chatId"
+              params={{ agentId: thread.peer.agentId, chatId: thread.peer.chatId }}
+              className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+            >
+              Back to {peerName}
             </Link>
           </div>
         ) : (
@@ -512,6 +569,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               : { chatId, title: sub.title, status: sub.status, parentTitle: parent?.title }
           }
           subagents={subagents}
+          threads={threads}
           presence={
             team === undefined ? undefined : (
               <section aria-label="Here now" className="shrink-0 border-t px-5 pt-4 pb-3.5">

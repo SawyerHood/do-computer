@@ -4,6 +4,7 @@ import {
   type ChatState,
   describeChatError,
   foldFailures,
+  isAgentMessage,
   isSentFile,
   isShownPart,
   isSubagentStart,
@@ -19,6 +20,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useContext, useEffect, useState } from "react"
+import { useAgentsById } from "@/components/computer-requests"
 import { PersonFace } from "@/components/people"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
@@ -38,12 +40,14 @@ import { TeamContext } from "@/lib/workspaces"
 import { Markdown } from "./markdown.tsx"
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
+import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
 import { SentFile } from "./sent-file.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
 
 function AssistantPart({ part }: { part: MessagePart }) {
   if (isSentFile(part)) return <SentFile part={part} />
   if (isSubagentStart(part)) return <SubagentChip part={part} />
+  if (isAgentMessage(part)) return <AgentMessageChip part={part} />
   switch (part.type) {
     case "text":
       return (
@@ -145,6 +149,38 @@ function ReplyError({
   )
 }
 
+/** A message another agent sent, in its conversation with this one: its face, its name, its words. */
+function FromAgent({
+  message,
+  sender,
+}: {
+  message: ChatMessage
+  sender: { id: string; name: string }
+}) {
+  const agents = useAgentsById()
+  const agent = agents.get(sender.id)
+  return (
+    <Message align="end">
+      <PeerFace agent={agent} agentId={sender.id} className="size-7 self-end" />
+      <MessageContent>
+        <span className="-mb-1 flex gap-1.5 self-end pr-1 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{agent?.name ?? sender.name}</span>
+          {message.createdAt === undefined ? null : clock.format(message.createdAt)}
+        </span>
+        {message.parts.map((part, index) =>
+          part.type === "text" ? (
+            <Bubble key={index} align="end" variant="secondary">
+              <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
+                {part.text}
+              </BubbleContent>
+            </Bubble>
+          ) : null,
+        )}
+      </MessageContent>
+    </Message>
+  )
+}
+
 function MessageView({
   message,
   failures,
@@ -160,6 +196,7 @@ function MessageView({
   if (message.role === "notice") {
     const part = message.parts[0]
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
+    if (part?.type === "notice" && part.kind === "agent") return <AgentWord part={part} />
     if (part?.type === "notice" && part.kind === "computer") {
       // The answer to the agent's asking to use a computer.
       return (
@@ -184,6 +221,9 @@ function MessageView({
         </MarkerContent>
       </Marker>
     )
+  }
+  if (message.role === "user" && message.agent !== undefined) {
+    return <FromAgent message={message} sender={message.agent} />
   }
   if (message.role === "user" && asker !== undefined) {
     // In a sub-agent's chat this side is its agent's: what it was asked to do. The exception is
