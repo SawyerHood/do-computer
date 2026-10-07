@@ -19,7 +19,9 @@ import {
 } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { useMemo } from "react"
+import { RowsPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
+import { Skeleton } from "@/components/ui/skeleton"
 import { client } from "@/lib/client"
 import { agentPanelColumn } from "@/lib/columns"
 import { formatBytes, isViewable } from "@/lib/library"
@@ -191,6 +193,7 @@ export function AgentPanel({
   presence,
   onOpenFile,
   chatless = false,
+  loading = false,
 }: {
   agent: AgentSummary
   state: ChatState
@@ -217,6 +220,8 @@ export function AgentPanel({
   onOpenFile?: (fileId: string) => void
   /** Beside a page that is not a chat: there is then no work here to list. */
   chatless?: boolean
+  /** The chat has not been heard from yet, so what the agent is doing and has done is not known. */
+  loading?: boolean
 }) {
   const mood = useAtomValue(
     mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
@@ -258,7 +263,14 @@ export function AgentPanel({
         {subagent === undefined ? <SubagentBrood agentId={agent.id} subagents={subagents} /> : null}
         <h2 className="mt-3 text-lg font-medium">{name}</h2>
         {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
-        <p className="text-sm text-muted-foreground">{doing}</p>
+        {loading ? (
+          // Not "Ready": nothing has been heard from it yet.
+          <div data-loading aria-busy="true" className="placeholder-late flex h-5 items-center">
+            <Skeleton className="h-2.5 w-16 rounded-full" />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{doing}</p>
+        )}
         {subagent === undefined ? null : (
           <p className="mt-1 text-xs text-muted-foreground">
             A sub-agent of {agentName}
@@ -304,7 +316,9 @@ export function AgentPanel({
         <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           What it did here
         </h3>
-        {runs.length === 0 ? (
+        {loading ? (
+          <RowsPlaceholder className="px-2.5" />
+        ) : runs.length === 0 ? (
           <p className="px-5 text-sm text-muted-foreground">
             Nothing yet. When {name} gets something substantial done in this chat, it notes it here,
             with its steps inside.

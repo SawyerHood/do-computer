@@ -3,20 +3,28 @@ import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppShell } from "@/components/shell/app-shell"
-import { mainChatOf } from "@/lib/chats"
+import { mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
-import { agentKey, refreshAgent } from "@/lib/collections"
+import { agentQuery, refreshAgent } from "@/lib/collections"
 import { useAgentFavicon } from "@/lib/favicon"
+import { queryClient } from "@/lib/query"
+import { useListedAgent } from "@/lib/workspaces"
 
-export const Route = createFileRoute("/_app/a/$agentId")({ component: AgentLayout })
+export const Route = createFileRoute("/_app/a/$agentId")({
+  // Started and not waited for: the frame is drawn from what is already here. Pointing at a
+  // link to the agent runs this too, so its state is often here by the time it is chosen.
+  loader: ({ params }) => {
+    void queryClient.prefetchQuery(agentQuery(params.agentId))
+  },
+  component: AgentLayout,
+})
 
 /** Loads one agent, keeps it fresh from its event stream, and frames its pages. */
 function AgentLayout() {
   const { agentId } = Route.useParams()
-  const { data: state, error } = useQuery({
-    queryKey: agentKey(agentId),
-    queryFn: () => client.agent(agentId).state(),
-  })
+  const { data: state, error } = useQuery(agentQuery(agentId))
+  // The list of agents has its name, creature and color, and is here before its own state is.
+  const listed = useListedAgent(agentId)
 
   useEffect(() => {
     const subscription = client.agent(agentId).watch((event) => {
@@ -38,6 +46,14 @@ function AgentLayout() {
       .catch(() => {})
   }, [agentId, mainless])
 
+  // Kept, so that the next time the agent is chosen its main chat opens without asking which.
+  const mainId = mainChatOf(state?.chats)?.id
+  const failed = error !== null
+  useEffect(() => {
+    if (failed) rememberMainChat(agentId, undefined)
+    else if (mainId !== undefined) rememberMainChat(agentId, mainId)
+  }, [agentId, mainId, failed])
+
   if (error) {
     return (
       <main className="mx-auto flex max-w-md flex-col gap-3 p-8">
@@ -50,14 +66,13 @@ function AgentLayout() {
       </main>
     )
   }
-  if (state === undefined) return null
-  return <AgentPages agent={state.agent} />
+  return <AgentPages agentId={agentId} agent={state?.agent ?? listed} />
 }
 
-function AgentPages({ agent }: { agent: AgentSummary }) {
+function AgentPages({ agentId, agent }: { agentId: string; agent: AgentSummary | undefined }) {
   useAgentFavicon(agent)
   return (
-    <AppShell agent={agent}>
+    <AppShell agentId={agentId} agent={agent}>
       <Outlet />
     </AppShell>
   )

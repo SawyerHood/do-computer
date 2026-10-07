@@ -1,4 +1,9 @@
-import { type ApprovalsState, chatMood, type ChatState } from "@durable-computer/protocol"
+import {
+  type ApprovalsState,
+  chatMood,
+  type ChatState,
+  type Mood,
+} from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { useAtomValue, useSetAtom } from "jotai"
 import { useEffect, useRef, useState } from "react"
@@ -25,6 +30,8 @@ export function useMascotMood(
   state: ChatState,
   /** Whose creature it is, when not the agent's own: a sub-agent's, in its chat. */
   face: string = agentId,
+  /** A message was just sent, and the chat has not yet said that the agent is at it. */
+  expecting = false,
 ): void {
   const setMood = useSetAtom(mascotMoodAtom(face))
   const draft = useAtomValue(draftAtom(chatKey))
@@ -33,7 +40,8 @@ export function useMascotMood(
     queryFn: () => client.agent(agentId).approvals(),
   })
   const waiting = (approvals?.pending.length ?? 0) > 0
-  const base = chatMood(state)
+  // It thinks about what was said from the moment it is said.
+  const base: Mood = expecting && !state.busy ? { state: "thinking" } : chatMood(state)
   // Short-lived things, each with the moment it began.
   const [listening, setListening] = useState(false)
   const [ending, setEnding] = useState<"done" | "error">()

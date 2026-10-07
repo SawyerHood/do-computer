@@ -279,6 +279,20 @@
   }
 }
 
+/*
+ * A placeholder for something that is on its way. It waits a moment before it shows, so that an
+ * answer that comes quickly never flashes one.
+ */
+.placeholder-late {
+  animation: placeholder-in 180ms ease-out 100ms both;
+}
+
+@keyframes placeholder-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* A heart from petting an agent's creature: it rises from the hand in a few steps, like the creature moves. */
 .pet-heart {
   filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.22));

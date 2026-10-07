@@ -78,11 +78,16 @@ async function portrait(agent: Pick<AgentSummary, "id" | "avatar" | "hatched">):
 }
 
 /** While an agent's pages are open, the tab's icon is its creature: in its egg until it hatches. */
-export function useAgentFavicon(agent: Pick<AgentSummary, "id" | "avatar" | "hatched">): void {
-  const { id, hatched } = agent
-  const color = agent.avatar?.color
-  const seed = agent.avatar?.seed
+export function useAgentFavicon(
+  agent: Pick<AgentSummary, "id" | "avatar" | "hatched"> | undefined,
+): void {
+  const id = agent?.id
+  const hatched = agent?.hatched ?? true
+  const color = agent?.avatar?.color
+  const seed = agent?.avatar?.seed
   useEffect(() => {
+    // Not known yet: the tab keeps its usual picture.
+    if (id === undefined) return
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
     if (link === null) return
     const usual = { href: link.getAttribute("href") ?? "", type: link.type }

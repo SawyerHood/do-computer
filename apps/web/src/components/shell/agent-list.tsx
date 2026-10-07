@@ -18,6 +18,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { AgentFace } from "@/components/agent-avatar"
 import { FaceStack, PersonFace } from "@/components/people"
+import { AgentRowsPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -173,16 +174,19 @@ function WhoIsWhere({
  */
 export function AgentList({
   workspace,
+  pending = false,
   activeAgentId,
   meId,
   onNavigate,
 }: {
   workspace: WorkspaceSummary
+  /** Which workspace this is has not settled yet, so neither has whose agents these are. */
+  pending?: boolean
   activeAgentId: string | undefined
   meId: string
   onNavigate?: () => void
 }) {
-  const { data: agents } = useLiveQuery(
+  const { data: agents, isLoading } = useLiveQuery(
     (q) =>
       q
         .from({ agent: agentsCollection })
@@ -194,7 +198,8 @@ export function AgentList({
   const here = useHere(workspace.id)
   const people = usePeople(workspace)
   const newAgent = useNewAgent(workspace.id, onNavigate)
-  const list = agents ?? []
+  const loading = pending || isLoading
+  const list = loading ? [] : (agents ?? [])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -210,6 +215,7 @@ export function AgentList({
         aria-label="Agents"
         className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
       >
+        {loading ? <AgentRowsPlaceholder /> : null}
         {list.map((agent) => {
           const with_ = whoIs(
             here,
@@ -251,7 +257,7 @@ export function AgentList({
             </div>
           )
         })}
-        {agents !== undefined && list.length === 0 ? (
+        {!loading && agents !== undefined && list.length === 0 ? (
           <p className="px-3 py-2 text-sm text-muted-foreground">
             {team ? "This team has no agents yet." : "You have no agents yet."}
           </p>

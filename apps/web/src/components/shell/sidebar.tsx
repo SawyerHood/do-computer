@@ -10,7 +10,7 @@ import {
   SunIcon,
   UserPlusIcon,
 } from "@phosphor-icons/react"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 import { useSetAtom } from "jotai"
 import { useEffect, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
@@ -18,6 +18,7 @@ import { useComputerRequests } from "@/components/computer-requests"
 import { FaceStack, names, PersonFace } from "@/components/people"
 import { InviteDialog } from "@/components/team/invite"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +42,6 @@ type Me = { id: string; name: string; email: string; image?: string | null }
  * theme, and signing out.
  */
 function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
-  const navigate = useNavigate()
   const { openWorkspace } = useSettings()
   const [inviting, setInviting] = useState(false)
   const [theme, setCurrent] = useState<"light" | "dark">("dark")
@@ -54,7 +54,8 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
 
   const signOut = async () => {
     await authClient.signOut()
-    await navigate({ to: "/login" })
+    // The page is loaded again, so that nothing of the session is left in it.
+    window.location.assign("/login")
   }
 
   return (
@@ -137,7 +138,9 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
  */
 export function Sidebar({
   workspace,
+  settled = true,
   me,
+  agentId,
   agent,
   library = false,
   onNavigate,
@@ -145,7 +148,11 @@ export function Sidebar({
   className,
 }: {
   workspace: WorkspaceSummary
+  /** Whether that is known to be the workspace. Until it is, its place is held and not named. */
+  settled?: boolean
   me: Me
+  /** The agent whose page is open, which the address says before the agent itself is here. */
+  agentId: string | undefined
   agent: AgentSummary | undefined
   /** The Library tab is showing, and this is the sidebar its list of files goes in. */
   library?: boolean
@@ -164,7 +171,14 @@ export function Sidebar({
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)}>
       <div className="flex items-center gap-0.5 px-2 pt-2.5 pb-1 [--face-ring:var(--rail)]">
-        <WorkspaceMenu workspace={workspace} me={me} />
+        {settled ? (
+          <WorkspaceMenu workspace={workspace} me={me} />
+        ) : (
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pr-2 pl-1.5">
+            <Skeleton className="size-7 shrink-0 rounded-full" />
+            <Skeleton className="h-3 w-20 rounded-full" />
+          </div>
+        )}
         {others.length > 0 ? (
           <button
             type="button"
@@ -190,15 +204,15 @@ export function Sidebar({
         )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
-        {library && agent !== undefined ? (
+        {library && agentId !== undefined ? (
           <>
             <Link
               to="/a/$agentId"
-              params={{ agentId: agent.id }}
+              params={{ agentId }}
               className="mx-2 mt-1 flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               <CaretLeftIcon className="size-3.5 shrink-0" />
-              <AgentFace agent={agent} className="size-5" quiet />
+              {agent === undefined ? null : <AgentFace agent={agent} className="size-5" quiet />}
               <span className="min-w-0 truncate">Agents</span>
             </Link>
             <div ref={setSlot} className="min-h-0 flex-1" />
@@ -206,7 +220,8 @@ export function Sidebar({
         ) : (
           <AgentList
             workspace={workspace}
-            activeAgentId={agent?.id}
+            pending={!settled}
+            activeAgentId={agentId}
             meId={me.id}
             onNavigate={onNavigate}
           />

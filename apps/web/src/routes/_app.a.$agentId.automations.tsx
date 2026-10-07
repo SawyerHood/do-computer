@@ -1,16 +1,25 @@
 import type { ScheduleSummary } from "@durable-computer/protocol"
-import type { AgentState } from "@durable-computer/client"
 import { ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@phosphor-icons/react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { AgentAside } from "@/components/chat/agent-aside"
+import { Loads } from "@/components/loads"
+import { CardsPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
-import { agentKey, schedulesKey } from "@/lib/collections"
+import { agentQuery, schedulesKey, schedulesQuery } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
+import { useListedAgent } from "@/lib/workspaces"
 
-export const Route = createFileRoute("/_app/a/$agentId/automations")({ component: AutomationsPage })
+export const Route = createFileRoute("/_app/a/$agentId/automations")({
+  // Started and not waited for: the page is drawn at once, and its list when it is here.
+  // Pointing at the tab runs this too.
+  loader: ({ params }) => {
+    void queryClient.prefetchQuery(schedulesQuery(params.agentId))
+  },
+  component: AutomationsPage,
+})
 
 const when = (at: number) =>
   new Intl.DateTimeFormat(undefined, {
@@ -122,19 +131,29 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
   )
 }
 
+/** The list itself, which waits for the agent to say what it has scheduled. */
+function Schedules({ agentId }: { agentId: string }) {
+  const { data: schedules } = useSuspenseQuery(schedulesQuery(agentId))
+  return schedules.length === 0 ? (
+    <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+      Nothing scheduled yet.
+    </p>
+  ) : (
+    <ul className="flex flex-col gap-3">
+      {schedules.map((schedule) => (
+        <ScheduleCard key={schedule.id} agentId={agentId} schedule={schedule} />
+      ))}
+    </ul>
+  )
+}
+
 /** The agent's scheduled and repeating tasks. They are created by asking the agent, in chat. */
 function AutomationsPage() {
   const { agentId } = Route.useParams()
   // Shares the layout's query, so this never fetches on its own.
-  const { data: state } = useQuery<AgentState>({
-    queryKey: agentKey(agentId),
-    queryFn: () => client.agent(agentId).state(),
-  })
-  const agent = state?.agent
-  const { data: schedules } = useQuery({
-    queryKey: schedulesKey(agentId),
-    queryFn: () => client.agent(agentId).schedules(),
-  })
+  const { data: state } = useQuery(agentQuery(agentId))
+  const listed = useListedAgent(agentId)
+  const agent = state?.agent ?? listed
 
   return (
     <div className="flex h-full min-h-0">
@@ -147,17 +166,9 @@ function AutomationsPage() {
               “Every weekday at 9, tell me what is on my calendar.”
             </p>
           </div>
-          {schedules === undefined ? null : schedules.length === 0 ? (
-            <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Nothing scheduled yet.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {schedules.map((schedule) => (
-                <ScheduleCard key={schedule.id} agentId={agentId} schedule={schedule} />
-              ))}
-            </ul>
-          )}
+          <Loads key={agentId} fallback={<CardsPlaceholder />}>
+            <Schedules agentId={agentId} />
+          </Loads>
         </div>
       </div>
       {agent === undefined ? null : <AgentAside agent={agent} />}

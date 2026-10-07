@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
 import { useState } from "react"
+import { DocPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
@@ -47,7 +48,12 @@ export function DocPanel({
       style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES})` }}
     >
       <ResizeHandle column={docPanelColumn} edge="left" label="Resize the document" />
-      {listing === undefined ? null : file === undefined ? (
+      {listing === undefined ? (
+        <div className="flex h-full flex-col">
+          <div className="flex justify-end p-2">{close}</div>
+          <DocPlaceholder />
+        </div>
+      ) : file === undefined ? (
         <div className="flex h-full flex-col">
           <div className="flex justify-end p-2">{close}</div>
           <p className="m-auto max-w-xs p-8 text-center text-sm text-muted-foreground">

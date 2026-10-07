@@ -1,7 +1,9 @@
 import type { SkillSummary } from "@durable-computer/protocol"
 import { CaretRightIcon, TrashIcon } from "@phosphor-icons/react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
+import { Loads } from "@/components/loads"
+import { CardsPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { client } from "@/lib/client"
@@ -147,11 +149,6 @@ function InstallForm({ agentId }: { agentId: string }) {
 
 /** What the agent knows how to do. It writes skills itself; this page is for reading and pruning. */
 export function SkillsSettings({ agentId }: { agentId: string }) {
-  const { data: skills } = useQuery({
-    queryKey: skillsKey(agentId),
-    queryFn: () => client.agent(agentId).skills(),
-  })
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -162,11 +159,24 @@ export function SkillsSettings({ agentId }: { agentId: string }) {
         </p>
       </div>
       <InstallForm agentId={agentId} />
-      <ul className="flex flex-col gap-3">
-        {(skills ?? []).map((skill) => (
-          <SkillCard key={skill.name} agentId={agentId} skill={skill} />
-        ))}
-      </ul>
+      <Loads key={agentId} fallback={<CardsPlaceholder />}>
+        <SkillList agentId={agentId} />
+      </Loads>
     </div>
+  )
+}
+
+/** The skills themselves, which wait for the agent to list them. */
+function SkillList({ agentId }: { agentId: string }) {
+  const { data: skills } = useSuspenseQuery({
+    queryKey: skillsKey(agentId),
+    queryFn: () => client.agent(agentId).skills(),
+  })
+  return (
+    <ul className="flex flex-col gap-3">
+      {skills.map((skill) => (
+        <SkillCard key={skill.name} agentId={agentId} skill={skill} />
+      ))}
+    </ul>
   )
 }

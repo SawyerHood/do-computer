@@ -1,6 +1,7 @@
 import type { AgentState } from "@durable-computer/client"
 import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
 import { queryCollectionOptions } from "@tanstack/query-db-collection"
+import { queryOptions } from "@tanstack/react-query"
 import { createCollection } from "@tanstack/react-db"
 import { client } from "./client.ts"
 import { queryClient } from "./query.ts"
@@ -24,6 +25,36 @@ export const libraryTextKey = (agentId: string, fileId: string, rev: number) =>
   ["agents", agentId, "library-text", fileId, rev] as const
 export const libraryVersionsKey = (agentId: string, fileId: string) =>
   ["agents", agentId, "library-versions", fileId] as const
+
+export const meKey = ["me"] as const
+
+/**
+ * Who is signed in. Asked once and kept for as long as the page is open: a session that has
+ * ended is found out by whatever is asked for next, which is refused.
+ */
+export const meQuery = queryOptions({
+  queryKey: meKey,
+  queryFn: () => client.me(),
+  staleTime: Number.POSITIVE_INFINITY,
+})
+
+/** One agent's state: what it is, and its chats. */
+export const agentQuery = (agentId: string) =>
+  queryOptions({ queryKey: agentKey(agentId), queryFn: () => client.agent(agentId).state() })
+
+export const agentsQuery = queryOptions({ queryKey: agentsKey, queryFn: () => client.listAgents() })
+
+export const schedulesQuery = (agentId: string) =>
+  queryOptions({
+    queryKey: schedulesKey(agentId),
+    queryFn: () => client.agent(agentId).schedules(),
+  })
+
+export const libraryQuery = (agentId: string) =>
+  queryOptions({
+    queryKey: libraryKey(agentId),
+    queryFn: () => client.agent(agentId).libraryListing(),
+  })
 
 /** The signed-in user's agents. */
 export const agentsCollection = createCollection(
