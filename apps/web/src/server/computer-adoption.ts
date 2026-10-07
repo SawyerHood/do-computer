@@ -2,6 +2,7 @@ import type { AgentComputer } from "@durable-computer/agent"
 import { personalWorkspaceId } from "@durable-computer/protocol"
 import type { AppDatabase } from "@durable-computer/runtime"
 import { type ComputerRow, grant, machinesOf } from "./computer-access.ts"
+import { UNSHARED_KINDS } from "./sandbox.ts"
 
 /** A name people and agents can say: lowercase letters, digits and hyphens. */
 const nameFrom = (value: string) =>
@@ -15,7 +16,9 @@ const nameFrom = (value: string) =>
  * Take over the machines an agent had to itself, from the days when every agent had one. Each
  * becomes a computer of the agent's workspace, for that agent alone, named after it. The one it
  * was on stays connected to it, with its home directory as its folder, since its files are
- * there. One it had left behind is listed with nobody on it, where it can be seen and deleted.
+ * there. One it had left behind is listed with nobody on it, where it can be seen and deleted,
+ * unless it is of a kind whose files are with the agent: there is no machine to see, and what
+ * is in it goes with the agent.
  *
  * Doing it again changes nothing: a machine is known by its kind and the agent it is named
  * after. Resolves with every machine the agent can use afterwards.
@@ -35,6 +38,7 @@ export async function adoptMachines(
   const workspaceId = agent.workspace_id ?? personalWorkspaceId(agent.owner_id)
   const called = nameFrom(agentName ?? "") || "agent"
   for (const machine of machines) {
+    if (!machine.current && UNSHARED_KINDS.includes(machine.kind)) continue
     let row = await db.get<ComputerRow>(
       "SELECT * FROM dc_computers WHERE kind = ? AND machine_key = ?",
       machine.kind,

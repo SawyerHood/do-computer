@@ -232,6 +232,8 @@ describe("the machines an agent had to itself", () => {
     const had = [
       { kind: "daytona", home: "/home/daytona", current: true },
       { kind: "modal", home: "/workspace", current: false },
+      // A built-in shell it once had is in its own database: there is no machine to list.
+      { kind: "just-bash", home: "/workspace", current: false },
     ]
     const mine = await adoptMachines(db, scout, had, "Scout")
     // It goes on in the same place: the machine named after it, in the home directory.
