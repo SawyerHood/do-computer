@@ -7,18 +7,19 @@ import {
 import type { AgentState } from "@durable-computer/client"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useRouteContext } from "@tanstack/react-router"
-import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon, UsersIcon } from "@phosphor-icons/react"
+import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { FaceStack, names, PersonFace } from "@/components/people"
 import { Button } from "@/components/ui/button"
-import { chatKey, earlierAtom } from "@/lib/atoms"
+import { agentPanelOpenAtom, chatKey, earlierAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentKey, agentsKey, modelsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
+import { useSettings } from "@/lib/settings"
 import { useLiveChat } from "@/lib/use-live-chat"
 import { useMascotMood } from "@/lib/use-mascot-mood"
 import {
@@ -133,7 +134,8 @@ function Welcome({ agent, face }: { agent: AgentSummary; face: React.ReactNode }
 /** The width from which the agent's panel fits beside the chat. */
 const WIDE = "(min-width: 80rem)"
 
-function useWide(): boolean {
+/** Whether the screen is wide enough for the agent's panel to be beside a page. */
+export function useWide(): boolean {
   return useSyncExternalStore(
     (changed) => {
       const query = matchMedia(WIDE)
@@ -144,29 +146,6 @@ function useWide(): boolean {
     // Not known on the server. The page is first drawn as for a narrow screen.
     () => false,
   )
-}
-
-const PANEL_KEY = "dc-agent-panel"
-
-/** Whether the panel beside the chat is wanted. Remembered, and open until it is closed. */
-function usePanel(): [boolean, (open: boolean) => void] {
-  const [open, setOpen] = useState(true)
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(PANEL_KEY) === "closed") setOpen(false)
-    } catch {
-      // Storage can be unavailable; the panel is then simply open.
-    }
-  }, [])
-  const set = useCallback((next: boolean) => {
-    setOpen(next)
-    try {
-      localStorage.setItem(PANEL_KEY, next ? "open" : "closed")
-    } catch {
-      // The choice then lasts for this page only.
-    }
-  }, [])
-  return [open, set]
 }
 
 /** A chat whose transcript starts at a summary or a fresh start has more before it. */
@@ -220,7 +199,8 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     staleTime: Number.POSITIVE_INFINITY,
   })
   const hatch = useHatch(agent)
-  const [panel, setPanel] = usePanel()
+  const { openWorkspace } = useSettings()
+  const [panel, setPanel] = useAtom(agentPanelOpenAtom)
   const wide = useWide()
   // A file from the library that is open beside this chat, by its id. It takes the panel's place.
   const [openDoc, setOpenDoc] = useState<string>()
@@ -415,20 +395,6 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
             </div>
           </div>
         )}
-        {team === undefined ? null : (
-          // Who is in this chat, and that it is the team's to read.
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-            <FaceStack people={present} className="size-7" max={4} />
-            <Link
-              to="/w/$workspaceId"
-              params={{ workspaceId: team.id }}
-              title={`Everyone in ${team.name} can read this chat and write in it`}
-              className="hidden h-8 items-center gap-1.5 rounded-full border bg-background/85 px-3 text-xs whitespace-nowrap text-muted-foreground shadow-sm outline-none backdrop-blur hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 xl:flex"
-            >
-              <UsersIcon className="size-3.5" /> Shared with {team.name}
-            </Link>
-          </div>
-        )}
         <div className="min-h-0 flex-1">
           <AgentIdContext value={agent.id}>
             <OpenFileContext value={wide ? setOpenDoc : undefined}>
@@ -549,13 +515,13 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                 <h3 className="flex items-center justify-between pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Here now
                   {team.role === "member" ? null : (
-                    <Link
-                      to="/w/$workspaceId/people"
-                      params={{ workspaceId: team.id }}
+                    <button
+                      type="button"
+                      onClick={() => openWorkspace("team")}
                       className="rounded-sm text-xs font-medium tracking-normal text-primary normal-case outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40 dark:text-[oklch(0.78_0.09_195)]"
                     >
                       Invite
-                    </Link>
+                    </button>
                   )}
                 </h3>
                 <div className="flex items-center gap-1.5 [--face-ring:var(--rail)]">
@@ -579,7 +545,6 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               ? { title: startFreshTitle, disabled: live.state.busy, run: startFresh }
               : undefined
           }
-          onClose={() => setPanel(false)}
         />
       ) : null}
     </div>

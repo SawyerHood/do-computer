@@ -40,9 +40,22 @@ export const earlierAtom = atomFamily(() =>
 export const draftAtom = atomFamily(() => atom(""))
 
 /**
- * Whether the chat list is shown beside the chat on wide screens. Closed until asked for, so the
- * chat and the agent have the room; the choice is remembered by the shell.
+ * Whether the sidebar is shown on wide screens: the workspace, its agents and their chats.
+ * Closed until asked for, so the chat and the agent have the room; the choice is remembered by
+ * the shell.
  */
-export const chatListOpenAtom = atom(false)
+export const sidebarOpenAtom = atom(false)
+
+/**
+ * Whether the agent's panel is wanted beside its pages, where there is room for it. One choice
+ * for every tab, so that changing tab does not move anything. Remembered by the shell.
+ */
+export const agentPanelOpenAtom = atom(true)
+
+/**
+ * The place in the sidebar where the library puts its list of files while the Library tab is
+ * showing, in place of the agents and their chats. Null when the sidebar is not on screen.
+ */
+export const sidebarSlotAtom = atom<HTMLElement | null>(null)
 
 export const chatKey = (agentId: string, chatId: string) => `${agentId}/${chatId}`

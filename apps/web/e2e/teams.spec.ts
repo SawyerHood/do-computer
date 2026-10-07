@@ -106,7 +106,8 @@ test("an agent made in the team is everyone's, and an agent of one's own is not"
   await sawyer.waitForURL((url) => /\/a\/[^/]+\/c\/\d+$/.test(url.pathname) && url.href !== mine)
   chatPath = new URL(sawyer.url()).pathname
   agentId = chatPath.split("/")[2]!
-  await expect(sawyer.getByText("Shared with Tidewater")).toBeVisible()
+  // The sidebar says which workspace the agent is in.
+  await expect(sawyer.getByRole("button", { name: /^Workspace: Tidewater/ })).toBeVisible()
 
   expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(200)
   const { agents } = (await (await sawyer.request.get("/api/agents")).json()) as {
@@ -165,9 +166,12 @@ test("each sees the other in the chat, and when they are writing", async () => {
   await expect(sawyer.getByRole("status").filter({ hasText: "Maya is typing" })).toHaveCount(0)
 
   // When she goes elsewhere she is no longer in the chat.
-  await her.goto(`/w/${team}`)
+  await her.goto(`/a/${agentId}/automations`)
   await expect(here.getByRole("img", { name: "Maya Okafor" })).toHaveCount(0)
-  await expect(her.getByRole("link", { name: "Join" })).toBeVisible()
+  // From there the sidebar says where he is, and leads to it.
+  await expect(
+    her.getByRole("region", { name: "Who is in Tidewater" }).getByRole("link", { name: /Sawyer/ }),
+  ).toBeVisible()
 })
 
 test("a member cannot run the team, and loses its agents when removed", async () => {
@@ -190,6 +194,7 @@ test("a member cannot run the team, and loses its agents when removed", async ()
   await expect(sawyer.getByRole("heading", { name: "Members · 1" })).toBeVisible()
   expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(404)
   expect((await her.request.get(`/api/agents/${agentId}/chats/1`)).status()).toBe(404)
-  // Her page lets go of the team by itself.
-  await expect(her.getByRole("heading", { name: "This team could not be found" })).toBeVisible()
+  // Her page lets go of the team's agent by itself, and leads back to what is hers.
+  await expect(her.getByRole("heading", { name: "This agent could not be loaded" })).toBeVisible()
+  await expect(her.getByRole("link", { name: "Back to your agents" })).toBeVisible()
 })

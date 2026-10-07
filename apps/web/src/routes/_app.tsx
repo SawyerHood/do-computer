@@ -1,10 +1,12 @@
 import { ApiError } from "@durable-computer/client"
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { client } from "@/lib/client"
+import { validateAppSearch } from "@/lib/settings"
 
 /** Everything behind sign-in. Rendered in the browser only: its data is the user's own. */
 export const Route = createFileRoute("/_app")({
   ssr: false,
+  validateSearch: validateAppSearch,
   beforeLoad: async () => {
     try {
       return { me: await client.me() }

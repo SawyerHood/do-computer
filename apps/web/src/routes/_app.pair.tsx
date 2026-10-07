@@ -49,8 +49,9 @@ function PairPage() {
             </p>
             {agentId ? (
               <Link
-                to="/a/$agentId/computers"
+                to="/a/$agentId"
                 params={{ agentId }}
+                search={{ workspace: "computers" }}
                 className="text-sm underline underline-offset-3"
               >
                 See your computers

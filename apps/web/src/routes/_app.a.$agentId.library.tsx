@@ -2,11 +2,15 @@ import type { LibraryFile } from "@durable-computer/protocol"
 import { NotePencilIcon, UploadSimpleIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { createPortal } from "react-dom"
+import { useAtomValue } from "jotai"
+import { AgentAside } from "@/components/chat/agent-aside"
 import { DocMarkdown } from "@/components/library/doc-markdown"
 import { KindIcon, LibraryTree } from "@/components/library/tree"
 import { type ViewMode, Viewer } from "@/components/library/viewer"
 import { Button } from "@/components/ui/button"
+import { sidebarSlotAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentKey, libraryKey, libraryTextKey } from "@/lib/collections"
 import { dirOf, formatWhen, kindOf } from "@/lib/library"
@@ -101,8 +105,25 @@ function RecentCard({
  * The agent's library: documents and files it has made, and ones the user has given it, as a
  * tree of folders beside whichever one is open.
  */
+const DESKTOP = "(min-width: 48rem)"
+
+/** Whether the screen is wide enough for the sidebar to be beside the page. */
+function useDesktop(): boolean {
+  return useSyncExternalStore(
+    (changed) => {
+      const query = matchMedia(DESKTOP)
+      query.addEventListener("change", changed)
+      return () => query.removeEventListener("change", changed)
+    },
+    () => matchMedia(DESKTOP).matches,
+    () => false,
+  )
+}
+
 function LibraryPage() {
   const { agentId } = Route.useParams()
+  const desktop = useDesktop()
+  const slot = useAtomValue(sidebarSlotAtom)
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const api = client.agent(agentId)
@@ -167,28 +188,36 @@ function LibraryPage() {
     [files],
   )
 
+  const tree = (
+    <LibraryTree
+      agentId={agentId}
+      files={files}
+      deleted={listing?.deleted ?? []}
+      selected={selected?.path}
+      dir={dir}
+      onDir={setChosenDir}
+      onNew={() => create.mutate()}
+      onUpload={(file) => upload.mutate(file)}
+      onRestore={(fileId) => restore.mutate(fileId)}
+      busy={upload.isPending || create.isPending}
+    />
+  )
+
   return (
-    <div className="flex h-full min-h-0 pt-14 md:pt-0">
-      <aside
-        className={cn(
-          "shrink-0 border-r bg-rail/60 md:block md:w-72",
-          selected === undefined ? "w-full" : "hidden",
-        )}
-      >
-        <LibraryTree
-          agentId={agentId}
-          files={files}
-          deleted={listing?.deleted ?? []}
-          selected={selected?.path}
-          dir={dir}
-          onDir={setChosenDir}
-          onNew={() => create.mutate()}
-          onUpload={(file) => upload.mutate(file)}
-          onRestore={(fileId) => restore.mutate(fileId)}
-          busy={upload.isPending || create.isPending}
-        />
-      </aside>
-      <section className={cn("min-w-0 flex-1", selected === undefined && "hidden md:block")}>
+    <div className="flex h-full min-h-0">
+      {/* On a wide screen the list is in the sidebar, in place of the agents and their chats,
+          and with the sidebar hidden it is hidden too. On a narrow one it is here, until a file
+          is opened. */}
+      {desktop ? (
+        slot === null ? null : (
+          createPortal(tree, slot)
+        )
+      ) : (
+        <aside className={cn("shrink-0", selected === undefined ? "w-full" : "hidden")}>
+          {tree}
+        </aside>
+      )}
+      <section className={cn("min-w-0 flex-1", !desktop && selected === undefined && "hidden")}>
         {listing === undefined ? null : selected !== undefined ? (
           <Viewer
             // Another file starts afresh: nothing of the last one's editing carries over.
@@ -262,6 +291,7 @@ function LibraryPage() {
           </div>
         )}
       </section>
+      {state === undefined ? null : <AgentAside agent={state.agent} />}
     </div>
   )
 }

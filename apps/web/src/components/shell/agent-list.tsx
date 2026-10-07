@@ -11,8 +11,12 @@ import {
   ArchiveIcon,
   CaretRightIcon,
   CircleNotchIcon,
+  ClockIcon,
+  DotsThreeIcon,
+  FolderIcon,
   NotePencilIcon,
   PlusIcon,
+  SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
@@ -23,10 +27,17 @@ import { AgentFace } from "@/components/agent-avatar"
 import { isAtWork } from "@/components/chat/subagents"
 import { FaceStack, PersonFace } from "@/components/people"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { chatKey, liveChatAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentKey, agentsCollection, chatsCollection } from "@/lib/collections"
+import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 
@@ -383,6 +394,7 @@ function WhoIsWhere({
   meId: string
   onNavigate?: (() => void) | undefined
 }) {
+  const { openWorkspace } = useSettings()
   // One line a person: the place they are writing in, else the first that names a chat.
   const others = whoIs(here, (place) => place.userId !== meId).map((userId) => {
     const places = here.filter((place) => place.userId === userId)
@@ -394,15 +406,17 @@ function WhoIsWhere({
   })
   return (
     <section aria-label={`Who is in ${workspace.name}`} className="border-t px-3 pt-3 pb-3.5">
-      <Link
-        to="/w/$workspaceId"
-        params={{ workspaceId: workspace.id }}
-        onClick={onNavigate}
-        className="flex items-baseline justify-between rounded-md px-1 pb-1.5 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.()
+          openWorkspace("team")
+        }}
+        className="flex w-full items-baseline justify-between rounded-md px-1 pb-1.5 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
       >
         <span className="truncate">{workspace.name}</span>
         <span className="shrink-0">{others.length} here</span>
-      </Link>
+      </button>
       {others.length === 0 ? (
         <p className="px-1 text-xs text-muted-foreground">Nobody else is here right now.</p>
       ) : (
@@ -448,8 +462,8 @@ function WhoIsWhere({
 }
 
 /**
- * The side column: the workspace's agents, each with its chats folded under it. This is how an
- * agent is picked, and how a chat is. In a team it also says who is where.
+ * The list in the sidebar: the workspace's agents, each with its chats folded under it. This is
+ * how an agent is picked, and how a chat is. In a team it also says who is where.
  */
 export function AgentList({
   workspace,
@@ -482,8 +496,10 @@ export function AgentList({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-0.5 pt-4 pr-2.5 pb-2 pl-4">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">Agents</h2>
+      <div className="flex items-center gap-0.5 pt-2 pr-2.5 pb-1.5 pl-4">
+        <h2 className="min-w-0 flex-1 truncate text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+          Agents
+        </h2>
         {activeAgentId === undefined ? null : (
           <Button variant="ghost" size="icon-sm" onClick={newChat} aria-label="New chat">
             <NotePencilIcon />
@@ -552,6 +568,7 @@ export function AgentList({
                     ) : null}
                   </span>
                 </button>
+                <AgentMenu agent={agent} onNavigate={onNavigate} />
                 <NewChatWith agent={agent} onNavigate={onNavigate} />
               </div>
               {open ? (
@@ -572,7 +589,8 @@ export function AgentList({
           </p>
         ) : null}
       </div>
-      {team ? (
+      {/* Only while someone else is about. The faces at the top of the sidebar say so too. */}
+      {team && whoIs(here, (place) => place.userId !== meId).length > 0 ? (
         <WhoIsWhere
           workspace={workspace}
           here={here}
@@ -583,6 +601,53 @@ export function AgentList({
         />
       ) : null}
     </div>
+  )
+}
+
+/** An agent's own pages, from its row: the same ones its strip has once it is open. */
+function AgentMenu({
+  agent,
+  onNavigate,
+}: {
+  agent: AgentSummary
+  onNavigate?: (() => void) | undefined
+}) {
+  const navigate = useNavigate()
+  const name = agent.name ?? "New agent"
+  const go = (to: "/a/$agentId/library" | "/a/$agentId/automations") => () => {
+    onNavigate?.()
+    void navigate({ to, params: { agentId: agent.id } })
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`${name}'s pages`}
+        title={`${name}'s pages`}
+        className="rounded-md p-1.5 text-muted-foreground opacity-0 outline-none hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/40 group-hover/agent:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
+      >
+        <DotsThreeIcon weight="bold" className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="start" className="w-48">
+        <DropdownMenuItem onClick={go("/a/$agentId/library")}>
+          <FolderIcon /> Library
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={go("/a/$agentId/automations")}>
+          <ClockIcon /> Automations
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            onNavigate?.()
+            void navigate({
+              to: "/a/$agentId",
+              params: { agentId: agent.id },
+              search: { settings: "identity" },
+            })
+          }}
+        >
+          <SlidersHorizontalIcon /> Settings
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
