@@ -82,6 +82,14 @@ pnpm --filter @durable-computer/mascot demo    # the creature's playground page
 Without `OPENROUTER_API_KEY` the app answers with a built-in echo model. A message of the form
 `/tool <name> <json>` makes it call a tool, which is how the tests exercise tools without a model.
 
+The browser tests are in `apps/web/e2e`, a file to a subject. Each file is given a server of its
+own on a fresh data directory (`e2e/fixtures.ts`), so the files run side by side while the tests
+inside one run in order and build on each other. A file that begins with `asOwner()` starts with
+the owner signed up and the agent named Juniper. The creature is not drawn live unless a file
+asks for it with `test.use({ creature: true })`: a browser with no graphics card draws it in
+software, which kept a whole core busy. CI deals the files out over several machines, so a new
+file needs nothing but to be there.
+
 Layout, briefly (`README.md` has the full table):
 
 | Path                 | What                                                                                 |
