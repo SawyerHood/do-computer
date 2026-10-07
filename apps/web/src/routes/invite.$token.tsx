@@ -4,8 +4,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { FaceStack, names, WorkspaceTile } from "@/components/people"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { client } from "@/lib/client"
+import { cn } from "@/lib/utils"
 import { refreshWorkspaces } from "@/lib/workspaces"
 
 /** An invitation to a team, for whoever holds its link. Seen before signing in, and answered after. */
@@ -119,21 +120,19 @@ function InvitationPage() {
           </>
         ) : (
           <>
-            <Button
-              className="mt-6 h-11 w-full"
-              nativeButton={false}
-              render={<a href={`/login?next=${encodeURIComponent(here)}`} />}
+            {/* Links, which is what they are: each leads to another page and back here. */}
+            <a
+              href={`/login?next=${encodeURIComponent(here)}`}
+              className={cn(buttonVariants(), "mt-6 h-11 w-full")}
             >
               Sign in to join
-            </Button>
-            <Button
-              variant="ghost"
-              className="mt-1 w-full"
-              nativeButton={false}
-              render={<a href={`/signup?next=${encodeURIComponent(here)}`} />}
+            </a>
+            <a
+              href={`/signup?next=${encodeURIComponent(here)}`}
+              className={cn(buttonVariants({ variant: "ghost" }), "mt-1 w-full")}
             >
               Create an account
-            </Button>
+            </a>
           </>
         )}
       </div>

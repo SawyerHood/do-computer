@@ -9,7 +9,7 @@ import { AgentFace } from "@/components/agent-avatar"
 import { FaceStack, names, PersonFace, WorkspaceTile } from "@/components/people"
 import { ago, useNewAgent } from "@/components/shell/agent-list"
 import { InviteDialog } from "@/components/team/invite"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { agentKey, agentsCollection } from "@/lib/collections"
 import { useHere, usePeople, useWorkspace, whoIs } from "@/lib/workspaces"
@@ -75,13 +75,13 @@ function Home({ workspace }: { workspace: WorkspaceSummary }) {
             </p>
           </div>
           <FaceStack people={workspace.members} className="size-7" max={5} />
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<Link to="/w/$workspaceId/people" params={{ workspaceId: workspace.id }} />}
+          <Link
+            to="/w/$workspaceId/people"
+            params={{ workspaceId: workspace.id }}
+            className={buttonVariants({ variant: "outline" })}
           >
             <GearIcon /> People
-          </Button>
+          </Link>
           {admin ? (
             <Button onClick={() => setInviting(true)}>
               <PlusIcon /> Invite people
@@ -153,19 +153,13 @@ function Home({ workspace }: { workspace: WorkspaceSummary }) {
                         </p>
                       </div>
                       {place?.agentId && place.chatId && member.id !== me.user.id ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          nativeButton={false}
-                          render={
-                            <Link
-                              to="/a/$agentId/c/$chatId"
-                              params={{ agentId: place.agentId, chatId: place.chatId }}
-                            />
-                          }
+                        <Link
+                          to="/a/$agentId/c/$chatId"
+                          params={{ agentId: place.agentId, chatId: place.chatId }}
+                          className={buttonVariants({ variant: "outline", size: "sm" })}
                         >
                           Join
-                        </Button>
+                        </Link>
                       ) : null}
                     </li>
                   )
