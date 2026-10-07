@@ -1225,7 +1225,11 @@ test.describe("choosing a model", () => {
     await expect(thinking.getByRole("radio")).toHaveCount(3)
     // The agent is on medium, which this model lacks; it would use the next one up.
     await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
+    // Choosing moves nothing: the page around the form stays where it was.
+    const rail = page.getByRole("button", { name: "Identity and memory" })
+    const before = await rail.boundingBox()
     await thinking.getByText("Max").click()
+    expect(await rail.boundingBox()).toEqual(before)
     await page.getByRole("button", { name: "Save changes" }).click()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible()
     await page.reload()
