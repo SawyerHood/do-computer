@@ -252,6 +252,47 @@ test("the transcript rests at the newest message, with no empty space under it",
   await expect.poll(async () => (await measure()).atEnd).toBe(true)
 })
 
+test("scrolling back up a chat, the messages above are already the height they will be", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 400, height: 800 })
+  await signIn(page)
+  await newChat(page)
+  // Messages of different heights, and more of them than fit on a phone several times over.
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const text =
+      n % 2 === 0 ? `short ${n}` : `long ${n}\n${"and another line\n".repeat(12)}end ${n}`
+    await composer(page).fill(text)
+    await composer(page).press("Enter")
+    await expect(
+      page.getByRole("log").getByText(new RegExp(`You said: (short|long) ${n}[\\s\\S]*echo model`)),
+    ).toBeVisible()
+  }
+
+  // Opened anew, the chat is at its end and nothing above has been on screen yet.
+  await page.reload()
+  const viewport = page.locator('[data-slot="message-scroller-viewport"]')
+  await expect(page.getByRole("log").getByText(/You said: short 8/)).toBeVisible()
+  await expect
+    .poll(() => viewport.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop))
+    .toBeLessThan(2)
+
+  // A message that took its height only as it came into view would move everything under it,
+  // and where the browser does not hold the page still against that (Safari), the page jumps
+  // under the finger. So the whole of it is as tall at the top as it was at the bottom.
+  const heights = await viewport.evaluate(async (el) => {
+    const seen = [el.scrollHeight]
+    while (el.scrollTop > 0) {
+      el.scrollTop -= 150
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      seen.push(el.scrollHeight)
+    }
+    return seen
+  })
+  expect(heights.length).toBeGreaterThan(10)
+  expect(new Set(heights).size).toBe(1)
+})
+
 test("the settings page shows what the agent's thinking has cost", async ({ page }) => {
   await signIn(page)
   await openSettings(page, "Usage")
