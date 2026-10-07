@@ -67,13 +67,13 @@ function MessageScrollerItem({
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Item>) {
   return (
+    // No content-visibility here, though the component came with it. A message off screen would
+    // stand in at a guessed height and take its own only as it came into view, moving everything
+    // under it. Safari does not hold the page still against that, so scrolling up a chat jumped.
     <MessageScrollerPrimitive.Item
       data-slot="message-scroller-item"
       scrollAnchor={scrollAnchor}
-      className={cn(
-        "min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]",
-        className,
-      )}
+      className={cn("min-w-0 shrink-0", className)}
       {...props}
     />
   )
