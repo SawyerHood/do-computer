@@ -134,6 +134,10 @@ test("chats are separate, and an archived chat leaves the list", async ({ page }
 
 test("identity edits are saved and show up across the app", async ({ page }) => {
   await signIn(page)
+  // The tab's icon is the agent's creature, as it looks now.
+  const icon = page.locator('link[rel="icon"]')
+  await expect(icon).toHaveAttribute("href", /^data:image\//)
+  const before = await icon.getAttribute("href")
   await openSettings(page, "Identity")
   await page.getByLabel("Name").fill("Juniper")
   await page.getByLabel("Tagline").fill("Calm and curious")
@@ -143,6 +147,8 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
   await page.locator("#user").fill("Prefers short answers")
   await page.getByRole("button", { name: "Save changes" }).click()
   await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+  await expect.poll(() => icon.getAttribute("href")).not.toBe(before)
+  await expect(icon).toHaveAttribute("href", /^data:image\//)
 
   await closeSettings(page)
   await expect(page.getByText("Juniper").first()).toBeVisible()

@@ -1,9 +1,11 @@
+import type { AgentSummary } from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppShell } from "@/components/shell/app-shell"
 import { client } from "@/lib/client"
 import { agentKey, refreshAgent } from "@/lib/collections"
+import { useAgentFavicon } from "@/lib/favicon"
 
 export const Route = createFileRoute("/_app/a/$agentId")({ component: AgentLayout })
 
@@ -35,8 +37,13 @@ function AgentLayout() {
     )
   }
   if (state === undefined) return null
+  return <AgentPages agent={state.agent} />
+}
+
+function AgentPages({ agent }: { agent: AgentSummary }) {
+  useAgentFavicon(agent)
   return (
-    <AppShell agent={state.agent}>
+    <AppShell agent={agent}>
       <Outlet />
     </AppShell>
   )
