@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Helpers · design</title>
+    <title>Sub-agents · design</title>
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     <style>
@@ -304,7 +304,7 @@
         background: var(--primary);
         color: var(--primary-foreground);
       }
-      /* What the agent asked of a helper: on the asking side, but plainly not the user's words. */
+      /* What the agent asked of a sub-agent: on the asking side, but plainly not the user's words. */
       .task {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -360,7 +360,7 @@
         color: var(--muted-foreground);
         font-size: 12px;
       }
-      /* A helper's report arriving in the chat: a marker, like a scheduled task's. */
+      /* A sub-agent's report arriving in the chat: a marker, like a scheduled task's. */
       .report {
         border-left: 2px solid var(--border);
         padding: 2px 0 2px 12px;
@@ -458,7 +458,7 @@
         margin: 0 auto;
         padding: 0 24px 18px;
       }
-      .composer div {
+      .composer > div {
         border: 1px solid var(--border);
         background: var(--surface);
         border-radius: 18px;
@@ -466,18 +466,30 @@
         color: var(--muted-foreground);
         font-size: 15px;
       }
-      /* Under a helper's chat, where the message box would be. */
-      .readonly {
-        border-top: 1px solid var(--border);
-        padding: 12px 20px;
+      .composer input {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 18px;
+        padding: 12px 16px;
+        color: var(--ink);
+        font: inherit;
+        font-size: 15px;
+        outline: none;
+      }
+      .composer input:focus {
+        border-color: var(--primary);
+      }
+      .composer input::placeholder {
+        color: var(--muted-foreground);
+      }
+      .composer .hint {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 6px;
+        font-size: 12px;
         color: var(--muted-foreground);
-        font-size: 13px;
-      }
-      .readonly p {
-        flex: 1;
+        padding: 6px 6px 0;
       }
       .phonehead {
         display: none;
@@ -513,7 +525,7 @@
       .hero .big {
         animation: bob 3.2s ease-in-out infinite;
       }
-      /* Its helpers, standing by it. */
+      /* Its sub-agents, standing by it. */
       .brood {
         display: flex;
         gap: 6px;
@@ -717,7 +729,7 @@
       }
       let gid = 0
       /**
-       * A creature. The agent's has an antenna; a helper is the same low-polygon body, smaller and
+       * A creature. The agent's has an antenna; a sub-agent is the same low-polygon body, smaller and
        * in its own colour, with eyes that say how it is getting on.
        */
       function creature(who, size, state = "running") {
@@ -739,15 +751,15 @@
       /* ---------- the pretend ---------- */
       const HELPERS = {
         flights: {
-          name: "Flights helper",
+          name: "Flights sub-agent",
           task: "Find nonstop flights from SFO to Lisbon, leaving Fri 15 May and back Mon 18 May, for two adults. Report the three best by price and time, with links.",
         },
         hotels: {
-          name: "Hotels helper",
+          name: "Hotels sub-agent",
           task: "Shortlist three hotels in or near Alfama for 15–18 May, under €220 a night, with a room for two. Say why each made the list.",
         },
         calendar: {
-          name: "Calendar helper",
+          name: "Calendar sub-agent",
           task: "Check the calendar on MacBook for anything on 15–18 May that clashes with a trip. List what would need moving.",
         },
       }
@@ -757,25 +769,27 @@
 2. United 64 / 65 — Fri 18:10 → Sat 14:00, back Mon 11:55 → 15:30. $2,010 total.
 3. TAP 236 / 235 — Fri 21:15 → Sat 16:50, back Mon 17:40 → 21:05. $1,764 total, but lands late.`
 
-      const S = { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, theme: "dark" }
+      const S = { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, said: {}, theme: "dark" }
       const SCENES = [
-        ["Helpers start", { phase: 1 }],
+        ["Sub-agents start", { phase: 1 }],
         ["Reports come back", { phase: 2 }],
-        ["Inside a helper", { phase: 2, view: "hotels" }],
-        ["A finished helper", { phase: 2, view: "flights" }],
+        ["Inside a sub-agent", { phase: 2, view: "hotels" }],
+        ["A finished sub-agent", { phase: 2, view: "flights" }],
+        ["You message one", { phase: 2, view: "hotels", said: { hotels: ["Skip anything without a lift."] } }],
         ["Chat list open", { phase: 2, list: true }],
         ["On a phone", { phase: 2, phone: true }],
       ]
       let scene = 1
       function go(n) {
         scene = n
-        Object.assign(S, { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {} }, SCENES[n][1])
+        Object.assign(S, { phase: 2, view: null, list: false, phone: false, sheet: false, ok: false, stopped: {}, said: {} }, structuredClone(SCENES[n][1]))
         render()
       }
 
-      /** How a helper is getting on, in the scene on screen. */
+      /** How a sub-agent is getting on, in the scene on screen. */
       function st(id) {
         if (S.stopped[id]) return { state: "stopped", line: "Stopped by you" }
+        if (S.said[id]?.length) return { state: "running", line: "Working on what you told it" }
         if (S.phase === 1)
           return {
             state: "running",
@@ -788,6 +802,17 @@
           : { state: "waiting", line: "Waiting for your OK" }
       }
       const ids = Object.keys(HELPERS)
+      const esc = (text) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c])
+      /** What you said to its sub-agents, noted in the agent's chat so it knows too. */
+      const told = () =>
+        ids
+          .flatMap((id) =>
+            (S.said[id] ?? []).map(
+              (text) =>
+                `<div class="report"><div class="head">${creature(id, 20, st(id).state)}<span>You told <strong>${HELPERS[id].name}</strong>: “${esc(text)}”</span><button class="link" data-a="open" data-id="${id}">Open its chat</button></div></div>`,
+            ),
+          )
+          .join("")
       const count = (state) => ids.filter((id) => st(id).state === state).length
       const mark = (state, size = 15) =>
         state === "running"
@@ -827,8 +852,8 @@
 
       const ask = () =>
         S.ok
-          ? `<p class="stamp">${ic("check", 14)} Allowed. The calendar helper is carrying on.</p>`
-          : `<div class="ask"><div class="head">${creature("calendar", 22, "waiting")}Calendar helper is waiting for your OK</div>
+          ? `<p class="stamp">${ic("check", 14)} Allowed. The calendar sub-agent is carrying on.</p>`
+          : `<div class="ask"><div class="head">${creature("calendar", 22, "waiting")}Calendar sub-agent is waiting for your OK</div>
               <p class="muted">It wants to run a command on MacBook:</p>
               <code>icalBuddy -f eventsFrom:2026-05-15 to:2026-05-18</code>
               <div class="btns"><button class="btn pri" data-a="ok">Allow</button><button class="btn" data-a="stop" data-id="calendar">Don't allow</button><span style="flex:1"></span><button class="link" data-a="open" data-id="calendar" style="font-size:13px">Open its chat</button></div></div>`
@@ -838,30 +863,38 @@
         const later =
           S.phase === 1
             ? ""
-            : `<div class="report"><div class="head">${creature("flights", 20, "done")}<span><strong>Flights helper</strong> reported back</span><button class="link" data-a="open" data-id="flights">Open its chat</button></div>
+            : `<div class="report"><div class="head">${creature("flights", 20, "done")}<span><strong>Flights sub-agent</strong> reported back</span><button class="link" data-a="open" data-id="flights">Open its chat</button></div>
                 <details><summary>What it reported</summary><pre>${REPORT}</pre></details></div>
               <div class="agentmsg"><p>Flights are in. All three are nonstop:</p>
                 <ul><li><b>TAP 238</b>, Friday 16:35, $1,842 for two. The best fit: you land at lunchtime Saturday.</li><li><b>United 64</b>, Friday 18:10, $2,010.</li><li><b>TAP 236</b>, Friday 21:15, $1,764. Cheapest, but most of Saturday is gone.</li></ul>
                 <p>I'd take the first. Hotels are still being compared.</p></div>
-              ${S.stopped.calendar ? `<p class="stamp">${ic("stop", 14)} You stopped the calendar helper.</p>` : ask()}`
+              ${S.stopped.calendar ? `<p class="stamp">${ic("stop", 14)} You stopped the calendar sub-agent.</p>` : ask()}`
         return `<section class="chat">
-          <div class="crumb phonehead">${creature("pip", 30)}<div class="who"><span>Pip</span></div><button class="pill" data-a="sheet">${ids.length} helpers${working ? ` · ${working} working` : ""}</button></div>
+          <div class="crumb phonehead">${creature("pip", 30)}<div class="who"><span>Pip</span></div><button class="pill" data-a="sheet">${ids.length} sub-agents${working ? ` · ${working} working` : ""}</button></div>
           <div class="msgs"><div class="col">
             <div class="user">Help me plan a long weekend in Lisbon, 15–18 May. Flights from SFO, somewhere to stay near Alfama, and check I'm actually free.</div>
-            <div class="agentmsg"><p>On it. I've started three helpers so these happen at the same time, and I'll tell you what each one finds.</p>
+            <div class="agentmsg"><p>On it. I've started three sub-agents so these happen at the same time, and I'll tell you what each one finds.</p>
               <div class="chips">${ids.map(chip).join("")}</div></div>
             <div class="user">While they work: what's the weather like there in May?</div>
             <div class="agentmsg"><p>Warm and mostly dry: about 22°C by day and 14°C at night, with long evenings. Bring a light jacket for the wind off the river.</p></div>
             ${later}
+            ${told()}
           </div></div>
           <div class="composer"><div>Message Pip</div></div>
-          ${S.sheet ? `<div class="sheet" data-a="sheet"><div><h3>Pip's helpers in this chat</h3>${ids.map((id) => hrow(id)).join("")}</div></div>` : ""}
+          ${S.sheet ? `<div class="sheet" data-a="sheet"><div><h3>Pip's sub-agents in this chat</h3>${ids.map((id) => hrow(id)).join("")}</div></div>` : ""}
         </section>`
       }
 
-      function helperChat(id) {
+      function subChat(id) {
         const h = HELPERS[id]
         const s = st(id)
+        const said = S.said[id] ?? []
+        const stoppedLine = `<p class="stamp">${ic("stop", 14)} You stopped this sub-agent. Pip was told.</p>`
+        const yours =
+          said.map((text) => `<div class="user">${esc(text)}</div>`).join("") +
+          (said.length
+            ? `<div class="agentmsg"><p>Got it. I'll work that in, and tell Pip what changed when I report back.</p></div>${s.state === "running" ? `<div class="working">${ic("spin", 15, "spin")} Working on what you told it</div>` : ""}`
+            : "")
         const body = {
           flights: `<div class="agentmsg"><p>Looking for nonstop flights first. If there are fewer than three I'll add one-stops under 15 hours.</p></div>
             <div class="agentmsg"><p>Three nonstop options, two adults, return:</p>
@@ -869,9 +902,9 @@
               <p class="stamp">${ic("reply", 14)} Reported back to Pip at 2:14 PM</p></div>`,
           hotels: `<div class="agentmsg"><p>Starting inside Alfama, then widening to Graça and Baixa if there are too few under €220.</p></div>
             <div class="agentmsg"><p>Six candidates so far. Checking which have a room for all three nights.</p></div>
-            ${s.state === "stopped" ? `<p class="stamp">${ic("stop", 14)} You stopped this helper. Pip was told.</p>` : `<div class="working">${ic("spin", 15, "spin")} Reading: Memmo Alfama availability</div>`}`,
+            ${s.state === "stopped" ? stoppedLine : said.length ? "" : `<div class="working">${ic("spin", 15, "spin")} Reading: Memmo Alfama availability</div>`}`,
           calendar: `<div class="agentmsg"><p>I need to read the calendar on MacBook for 15–18 May.</p></div>
-            ${s.state === "stopped" ? `<p class="stamp">${ic("stop", 14)} You stopped this helper. Pip was told.</p>` : s.state === "waiting" ? ask() : `${ask()}<div class="working">${ic("spin", 15, "spin")} Running a command on MacBook</div>`}`,
+            ${s.state === "stopped" ? stoppedLine : s.state === "waiting" ? ask() : `${ask()}${said.length ? "" : `<div class="working">${ic("spin", 15, "spin")} Running a command on MacBook</div>`}`}`,
         }[id]
         const live = s.state === "running" || s.state === "waiting"
         return `<section class="chat">
@@ -882,8 +915,10 @@
           <div class="msgs"><div class="col">
             <div class="task"><div class="from">${creature("pip", 16)} Pip asked</div>${h.task}</div>
             ${body}
+            ${yours}
           </div></div>
-          <div class="readonly">${creature("pip", 26)}<p>Only Pip talks to its helpers. To change what this one is doing, tell Pip.</p><button class="btn" data-a="back">Back to Pip</button></div>
+          <form class="composer" data-id="${id}"><input name="text" autocomplete="off" placeholder="Message ${h.name}" aria-label="Message ${h.name}" />
+            <p class="hint">${creature("pip", 16)} Pip is told what you say here, and still gets its report.</p></form>
         </section>`
       }
 
@@ -904,21 +939,21 @@
           }[id]
           return `<aside class="agent"><div class="hero"><div class="big">${creature(id, 150, s.state)}</div><h2>${HELPERS[id].name}</h2>
               <p class="muted">${{ running: "Looking something up", done: "Done", waiting: "Waiting for your OK", stopped: "Stopped" }[s.state]}</p>
-              <p class="muted" style="font-size:12px;margin-top:4px">A helper of Pip, for “Lisbon weekend”</p></div>
+              <p class="muted" style="font-size:12px;margin-top:4px">A sub-agent of Pip, for “Lisbon weekend”</p></div>
             <div class="sec"><h3>What it did here</h3>
               <div class="wrow">${mark(s.state === "waiting" ? "running" : s.state)}<span>${{ flights: "Found three nonstop flights", hotels: "Shortlisting hotels near Alfama", calendar: "Checking the calendar" }[id]}</span></div>
               ${steps.map(([t, going]) => `<div class="wrow step${going ? " go" : ""}"><i></i>${t}</div>`).join("")}</div></aside>`
         }
         const working = count("running")
         const waiting = count("waiting")
-        const words = [working ? `${working} ${working === 1 ? "helper" : "helpers"} working` : "", waiting ? `${waiting} waiting for you` : ""].filter(Boolean).join(" · ")
+        const words = [working ? `${working} ${working === 1 ? "sub-agent" : "sub-agents"} working` : "", waiting ? `${waiting} waiting for you` : ""].filter(Boolean).join(" · ")
         return `<aside class="agent"><div class="hero"><div class="big">${creature("pip", 170)}</div>
             <div class="brood">${ids.map((id) => `<button title="${HELPERS[id].name}" data-a="open" data-id="${id}">${creature(id, 40, st(id).state)}</button>`).join("")}</div>
             <h2>Pip</h2><p class="muted">Ready</p>${words ? `<p class="muted" style="font-size:12px;margin-top:2px">${words}</p>` : ""}</div>
-          <div class="sec"><h3>Helpers in this chat</h3>${ids.map(hrow).join("")}</div>
+          <div class="sec"><h3>Sub-agents in this chat</h3>${ids.map(hrow).join("")}</div>
           <div class="sec"><h3>What it did here</h3>
             <div class="wrow">${ic("check")}<span>Answered about the weather in May</span></div>
-            <div class="wrow">${ic("check")}<span>Started three helpers for the trip</span></div></div></aside>`
+            <div class="wrow">${ic("check")}<span>Started three sub-agents for the trip</span></div></div></aside>`
       }
 
       /* ---------- rendering ---------- */
@@ -926,8 +961,8 @@
         gid = 0
         document.documentElement.className = S.theme
         const keep = document.querySelector(".msgs")?.scrollTop
-        document.getElementById("root").innerHTML = `<div class="stage${S.phone ? " phone" : ""}"><div class="app">${rail()}${S.list ? list() : ""}${S.view === null ? mainChat() : helperChat(S.view)}${panel()}</div></div>
-          <div class="strip">${SCENES.map(([l], n) => `<button class="${n === scene ? "on" : ""}" data-a="scene" data-n="${n}">${n + 1}. ${l}</button>`).join("")}<span class="sp"></span><span class="muted">This strip is not part of the design. Everything above it can be clicked.</span><button data-a="theme">${S.theme === "dark" ? "Light" : "Dark"}</button></div>`
+        document.getElementById("root").innerHTML = `<div class="stage${S.phone ? " phone" : ""}"><div class="app">${rail()}${S.list ? list() : ""}${S.view === null ? mainChat() : subChat(S.view)}${panel()}</div></div>
+          <div class="strip">${SCENES.map(([l], n) => `<button class="${n === scene ? "on" : ""}" data-a="scene" data-n="${n}">${n + 1}. ${l}</button>`).join("")}<span class="sp"></span><span class="muted">This strip is not part of the design.</span><button data-a="theme">${S.theme === "dark" ? "Light" : "Dark"}</button></div>`
         const msgs = document.querySelector(".msgs")
         if (msgs) msgs.scrollTop = keep ?? msgs.scrollHeight
       }
@@ -947,6 +982,19 @@
         const moved = a === "open" || a === "back"
         if (moved) document.querySelector(".msgs")?.remove()
         render()
+      })
+
+      document.addEventListener("submit", (event) => {
+        event.preventDefault()
+        const { id } = event.target.dataset
+        const text = event.target.elements.text.value.trim()
+        if (text === "") return
+        // A word from you sets it going again, whether it had finished or been stopped.
+        delete S.stopped[id]
+        ;(S.said[id] ??= []).push(text)
+        document.querySelector(".msgs")?.remove()
+        render()
+        document.querySelector(".composer input")?.focus()
       })
 
       go(Number(new URLSearchParams(location.search).get("scene") ?? 2) - 1 || 0)

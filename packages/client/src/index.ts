@@ -30,6 +30,7 @@ import {
   type SendMessageResponse,
   type SkillDetail,
   type SkillSummary,
+  type ThinkingLevel,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
   type UserSettings,
@@ -88,6 +89,8 @@ export type AgentPatch = {
   user?: string
   memory?: string
   model?: string
+  /** How hard it thinks before it answers. Applies from its next reply. */
+  thinking?: ThinkingLevel
   timezone?: string
   /** Its owner has watched it hatch. There is no putting it back in its egg. */
   hatched?: true

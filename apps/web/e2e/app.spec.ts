@@ -1192,6 +1192,38 @@ test.describe("choosing a model", () => {
     await expect(picker).toHaveValue("Echo (no model key configured)")
   })
 
+  test("how hard an agent thinks is chosen under its model", async ({ page }) => {
+    await signIn(page)
+    await page.getByRole("button", { name: "Identity and memory" }).click()
+    const thinking = page.getByRole("group", { name: "Thinking" })
+    // The echo model does not reason, so there is nothing to choose.
+    await expect(thinking.getByRole("radio", { name: "Medium" })).toBeChecked()
+    await expect(thinking.getByRole("radio", { name: "High" })).toBeDisabled()
+
+    // Say that it can, and the choice is offered and kept.
+    await page.route("**/api/models", (route) =>
+      route.fulfill({
+        json: {
+          models: [
+            {
+              id: "echo/echo-1",
+              name: "Echo (no model key configured)",
+              reasoning: true,
+              inputCost: 0,
+              outputCost: 0,
+            },
+          ],
+        },
+      }),
+    )
+    await page.reload()
+    await thinking.getByText("High").click()
+    await page.getByRole("button", { name: "Save changes" }).click()
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
+    await page.reload()
+    await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
+  })
+
   test("the default for new agents is set once, under Settings", async ({ page }) => {
     await stubModels(page)
     await signIn(page)
