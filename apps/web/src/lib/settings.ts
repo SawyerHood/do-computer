@@ -15,7 +15,7 @@ export const AGENT_SECTIONS = [
 export type AgentSection = (typeof AGENT_SECTIONS)[number]
 
 /** The sections of a workspace's settings. `team` is only there for a team. */
-export const WORKSPACE_SECTIONS = ["team", "computers", "agents"] as const
+export const WORKSPACE_SECTIONS = ["team", "computers", "agents", "notifications"] as const
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]
 
 /**

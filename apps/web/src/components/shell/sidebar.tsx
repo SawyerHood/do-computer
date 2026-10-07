@@ -1,5 +1,6 @@
 import type { AgentSummary, WorkspaceSummary } from "@durable-computer/protocol"
 import {
+  BellIcon,
   CaretLeftIcon,
   CaretUpDownIcon,
   DesktopIcon,
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { sidebarSlotAtom } from "@/lib/atoms"
 import { authClient } from "@/lib/auth-client"
+import { forgetNotifications } from "@/lib/notifications"
 import { useSettings } from "@/lib/settings"
 import { currentTheme, setTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
@@ -38,8 +40,8 @@ import { WorkspaceMenu } from "./workspace-menu.tsx"
 type Me = { id: string; name: string; email: string; image?: string | null }
 
 /**
- * The user's own menu, at the foot of the sidebar: the way into the workspace's settings, the
- * theme, and signing out.
+ * The user's own menu, at the foot of the sidebar: the way into the workspace's settings and to
+ * notifications, the theme, and signing out.
  */
 function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
   const { openWorkspace } = useSettings()
@@ -53,6 +55,7 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
   const asking = useComputerRequests().filter((request) => request.canAnswer).length
 
   const signOut = async () => {
+    await forgetNotifications()
     await authClient.signOut()
     // The page is loaded again, so that nothing of the session is left in it.
     window.location.assign("/login")
@@ -107,6 +110,9 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
               <UserPlusIcon /> Invite people
             </DropdownMenuItem>
           ) : null}
+          <DropdownMenuItem onClick={() => openWorkspace("notifications")}>
+            <BellIcon /> Notifications
+          </DropdownMenuItem>
           <DropdownMenuItem
             // The menu stays open, so the change is seen from where it was asked for.
             closeOnClick={false}

@@ -32,7 +32,9 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiComputersIndexRouteImport } from './routes/api/computers/index'
 import { Route as ApiComputersComputerIdRouteImport } from './routes/api/computers/$computerId'
 import { Route as ApiConnectorsCallbackRouteImport } from './routes/api/connectors/callback'
+import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
 import { Route as ApiPushRegisterRouteImport } from './routes/api/push/register'
+import { Route as ApiPushTestRouteImport } from './routes/api/push/test'
 import { Route as ApiPushUnregisterRouteImport } from './routes/api/push/unregister'
 import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
 import { Route as DAgentIdSplatRouteImport } from './routes/d.$agentId.$'
@@ -180,9 +182,19 @@ const ApiConnectorsCallbackRoute = ApiConnectorsCallbackRouteImport.update({
   path: '/api/connectors/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPushKeyRoute = ApiPushKeyRouteImport.update({
+  id: '/api/push/key',
+  path: '/api/push/key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPushRegisterRoute = ApiPushRegisterRouteImport.update({
   id: '/api/push/register',
   path: '/api/push/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPushTestRoute = ApiPushTestRouteImport.update({
+  id: '/api/push/test',
+  path: '/api/push/test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPushUnregisterRoute = ApiPushUnregisterRouteImport.update({
@@ -377,7 +389,9 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
+  '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/register': typeof ApiPushRegisterRoute
+  '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
@@ -432,7 +446,9 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
+  '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/register': typeof ApiPushRegisterRoute
+  '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/api/agents': typeof ApiAgentsIndexRoute
@@ -491,7 +507,9 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
+  '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/register': typeof ApiPushRegisterRoute
+  '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
@@ -550,7 +568,9 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/computers/$computerId'
     | '/api/connectors/callback'
+    | '/api/push/key'
     | '/api/push/register'
+    | '/api/push/test'
     | '/api/push/unregister'
     | '/d/$agentId/$'
     | '/api/agents/'
@@ -605,7 +625,9 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/computers/$computerId'
     | '/api/connectors/callback'
+    | '/api/push/key'
     | '/api/push/register'
+    | '/api/push/test'
     | '/api/push/unregister'
     | '/d/$agentId/$'
     | '/api/agents'
@@ -663,7 +685,9 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/computers/$computerId'
     | '/api/connectors/callback'
+    | '/api/push/key'
     | '/api/push/register'
+    | '/api/push/test'
     | '/api/push/unregister'
     | '/d/$agentId/$'
     | '/api/agents/'
@@ -718,7 +742,9 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
   ApiConnectorsCallbackRoute: typeof ApiConnectorsCallbackRoute
+  ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushRegisterRoute: typeof ApiPushRegisterRoute
+  ApiPushTestRoute: typeof ApiPushTestRoute
   ApiPushUnregisterRoute: typeof ApiPushUnregisterRoute
   DAgentIdSplatRoute: typeof DAgentIdSplatRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
@@ -904,11 +930,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConnectorsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/push/key': {
+      id: '/api/push/key'
+      path: '/api/push/key'
+      fullPath: '/api/push/key'
+      preLoaderRoute: typeof ApiPushKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/push/register': {
       id: '/api/push/register'
       path: '/api/push/register'
       fullPath: '/api/push/register'
       preLoaderRoute: typeof ApiPushRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/push/test': {
+      id: '/api/push/test'
+      path: '/api/push/test'
+      fullPath: '/api/push/test'
+      preLoaderRoute: typeof ApiPushTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/push/unregister': {
@@ -1246,7 +1286,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,
   ApiConnectorsCallbackRoute: ApiConnectorsCallbackRoute,
+  ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushRegisterRoute: ApiPushRegisterRoute,
+  ApiPushTestRoute: ApiPushTestRoute,
   ApiPushUnregisterRoute: ApiPushUnregisterRoute,
   DAgentIdSplatRoute: DAgentIdSplatRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,

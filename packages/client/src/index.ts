@@ -349,7 +349,15 @@ export function createClient(options: ClientOptions) {
     /** Register this device for push notifications, with the token its push service issued. */
     registerPush: (token: string, platform: string) =>
       post<{ ok: true }>("/api/push/register", { token, platform }),
+    /** Forget a device: by its token, or for a browser by its subscription's address. */
     unregisterPush: (token: string) => post<{ ok: true }>("/api/push/unregister", { token }),
+    /** The key a browser subscribes to its push service with. */
+    pushKey: () => request<{ key: string }>("/api/push/key"),
+    /** Register this browser for notifications, with the subscription its push service gave it. */
+    registerBrowser: (subscription: PushSubscriptionJSON) =>
+      post<{ ok: true }>("/api/push/register", { subscription }),
+    /** Send this browser a notification now. `ok` is whether its push service took it. */
+    testPush: (endpoint: string) => post<{ ok: boolean }>("/api/push/test", { endpoint }),
     /** Turn a short recording into text. `type` is the recording's media type. */
     transcribe: async (audio: { type: string; body: BodyInit }) =>
       (
