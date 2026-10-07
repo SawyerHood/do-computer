@@ -16,6 +16,7 @@ import { agentKey, agentsKey, modelsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useSettings } from "@/lib/settings"
+import { cn } from "@/lib/utils"
 import { startsMidway, useChat } from "@/lib/use-chat"
 import { useMascotMood } from "@/lib/use-mascot-mood"
 import { useWide } from "@/lib/use-wide"
@@ -234,6 +235,12 @@ export function ChatView({
   // An empty chat has the creature in its middle, so the one in the header, right above it, holds
   // still.
   const welcoming = live.loaded && state.messages.length === 0 && !state.busy
+  // What the header above the chat has to say on a narrow screen, where the strip names the agent.
+  const floats =
+    sub !== undefined ||
+    thread?.peer !== undefined ||
+    live.status === "reconnecting" ||
+    subagents.length > 0
   const identity = (
     <>
       <AgentFace agent={agent} className="size-11" still={welcoming} />
@@ -248,7 +255,13 @@ export function ChatView({
           <SideChatBar agent={agent} chat={aside} main={main} />
         )}
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent",
+              // With nothing over the transcript there is nothing to fade it under.
+              !floats && "max-md:hidden",
+            )}
+          />
           {sub !== undefined ? (
             // A sub-agent's chat always says whose it is, and leads back to where it was started.
             <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
@@ -319,8 +332,15 @@ export function ChatView({
             </div>
           ) : beside ? null : (
             // With the panel beside the chat the agent is there, and needs no header here as well.
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-              <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
+            // On a narrow screen the strip right above says whose chat this is, so what is left
+            // here is what the strip does not have, and with none of that there is nothing here.
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center",
+                !floats && "max-md:hidden",
+              )}
+            >
+              <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur max-md:px-1.5">
                 {wide ? (
                   // Pressing the header brings the panel back.
                   <button
@@ -337,7 +357,7 @@ export function ChatView({
                     {identity}
                   </button>
                 ) : (
-                  <span className="flex items-center gap-2.5 pr-1.5">{identity}</span>
+                  <span className="flex items-center gap-2.5 pr-1.5 max-md:hidden">{identity}</span>
                 )}
                 {live.status === "reconnecting" ? (
                   <span className="pr-1 text-xs text-muted-foreground">reconnecting…</span>
@@ -349,7 +369,7 @@ export function ChatView({
                     title={startFreshTitle}
                     disabled={live.state.busy}
                     onClick={startFresh}
-                    className="rounded-md p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground disabled:opacity-40 max-md:hidden"
                   >
                     <ArrowsClockwiseIcon className="size-4" />
                   </button>
