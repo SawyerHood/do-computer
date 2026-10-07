@@ -150,9 +150,10 @@ too.
 
 ## What an agent can do
 
-- **Chat**, in as many separate chats as you like, all sharing its memory. A reply keeps being
-  written when you close the tab, and is there when you come back. It can search what was said in
-  its other chats.
+- **Chat.** Choosing an agent opens its main chat, one conversation that carries on. Anything
+  else goes in a side chat, from the button on the agent's strip: its own conversation, with the
+  same memory, open beside the main chat on a wide screen. A reply keeps being written when you
+  close the tab, and is there when you come back. It can search what was said in its other chats.
 - **Be someone.** It names itself in its first conversation, picks its color, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable in
   its settings, and mirrored as `SOUL.md`, `IDENTITY.md`, `USER.md` and `MEMORY.md` in its
@@ -237,7 +238,7 @@ share: start one from the workspace menu at the top of the sidebar.
 - **One chat, several people.** A message from someone else has their face and name on it, and
   the agent is told who is speaking. By default a message that arrives while the agent is
   working waits its turn; that is a setting on each agent.
-- **Who is where.** The list of agents shows who has which chat open, a chat shows who is in it
+- **Who is where.** The list of agents shows who is with which agent, a chat shows who is in it
   and who is writing, and the team's page lists everyone who is here.
 - **Roles.** Members do all of the above. Admins also invite and remove people, rename the team,
   and move or delete its agents. The owner also decides who is an admin, and can hand the team

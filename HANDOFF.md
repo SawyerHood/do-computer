@@ -266,9 +266,8 @@ Since then, newest last:
       `/api/presence/<team>`, which the server entries route before the framework, as they do
       for daemons; the gateway checks the session, the membership and the page's origin.
     - **The web app** has one sidebar and no rail. The workspace menu is at its top; under it
-      are the workspace's agents, each with its chats folded under it on one line each; at its
-      foot is the user's own menu, which leads to the workspace's settings. The end of a chat's
-      row is a spinner while there is work going on in it, else when it was last used. A team
+      are the workspace's agents (item 17 says what choosing one does); at its foot is the
+      user's own menu, which leads to the workspace's settings. A team
       has no page of its own: `/w/<id>` goes to its first agent, and stops only where there is
       none yet. Its people are a section of the workspace's settings. The invitation page
       (`/invite/<token>`) can be read before signing in.
@@ -332,6 +331,29 @@ Since then, newest last:
       else, and the same card is at the top of Computers in the workspace's settings. Each
       computer there says whose it is and which agents it has. The pair page asks whose the
       computer is, where the user has a team, and which agents get it.
+17. **A main chat, and side chats** (2026-10-07; `prototypes/main-and-side-chats`). The owner
+    found the chats folded under each agent in the sidebar unclear: "ideally you just pick an
+    agent and you're talking to it". Of three mock-ups they chose the one where the sidebar
+    lists agents and nothing else.
+    - **The main chat.** An agent has one, the conversation that opens when the agent is
+      chosen and carries on from day to day. Its id is `main` in the agent's `dc.chats`
+      document, and its `ChatSummary` has `main: true`. `POST /chats/main` returns it and
+      settles on one where there is none: an agent from before this gets the chat it was last
+      talked to in, and one never talked to gets a new chat. The agent's index page calls it,
+      and so does the agent's layout for an agent opened at another of its pages. The main chat
+      cannot be archived (409); "Start fresh" is how it is cleared.
+    - **Side chats** are the other chats of kind `chat`. `POST /chats` makes one, as it always
+      made a chat. Nothing about how they run differs from the main chat: same agent, same
+      memory, their own conversation.
+    - **In the app** the sidebar's rows are links to `/a/<agent>`, which goes to the main chat.
+      The agent's strip has a "Side chats" button with their number, whose menu lists them and
+      starts a new one (`components/shell/side-chats.tsx`). Opened from the main chat on a wide
+      screen, a side chat is a column beside it, in the place the agent's panel has, and the
+      address says so: `/a/<agent>/c/<main>?side=<id>` (`components/chat/side-chat.tsx`). The
+      column drags wider, as a document's does. It can be given the middle, which is its own
+      address, `/a/<agent>/c/<id>`; a line under the strip then says it is a side chat and
+      leads back. On a narrow screen a side chat always has the middle. What a chat page needs
+      of a chat is in `lib/use-chat.ts`, which both columns use.
 
 ## 6. What the owner has said they want
 
@@ -402,10 +424,17 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 
 - **Teams:** there are no private chats in a team, though the mock-up had an "Only you" one;
   no invite link that anyone can ask to join by; and no teams in the mobile app, which lists
-  every agent the user can reach and shows no authors or presence. A chat's spinner in the side
-  column knows about sub-agents everywhere but about the agent itself only in the chat on
-  screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
+  every agent the user can reach and shows no authors or presence. A side chat's spinner in
+  the strip's menu knows about sub-agents everywhere but about the agent itself only in a chat
+  on screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
   it does on the built server and on Workers. Invitation email has never been sent for real.
+
+- **Main and side chats:** an agent's row in the sidebar says nothing of what the agent last
+  said or whether it is working, which the mock-up's rows did: the list of agents comes from the
+  gateway, which does not know, and asking every agent would wake each one. A side chat cannot
+  be renamed or brought back from the app once archived (the API can do both). Someone typing
+  in a side chat that is beside the main chat is not shown as typing, and is counted as being
+  in the main chat. The mobile app still lists every chat alike.
 
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.

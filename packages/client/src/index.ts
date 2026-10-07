@@ -396,7 +396,10 @@ export function createClient(options: ClientOptions) {
       return {
         state: () => request<AgentState>(base),
         update: (change: AgentPatch) => patch<AgentState>(base, change),
+        /** Start a side chat: a conversation of its own, beside the main one. */
         createChat: (input: CreateChatRequest = {}) => post<ChatSummary>(`${base}/chats`, input),
+        /** The agent's main chat, which it is given if it has none yet. */
+        mainChat: () => post<ChatSummary>(`${base}/chats/main`),
         updateChat: (chatId: string, change: UpdateChatRequest) =>
           patch<ChatSummary>(`${base}/chats/${chatId}`, change),
         chat: (chatId: string) => request<ChatState>(`${base}/chats/${chatId}`),

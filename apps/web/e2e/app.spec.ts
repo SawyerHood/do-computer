@@ -53,13 +53,28 @@ async function closeSettings(page: Page) {
 const tab = (page: Page, name: "Chat" | "Library" | "Automations") =>
   page.getByRole("link", { name, exact: true })
 
-/** Start a chat and wait until it is the one on screen, so typing lands in it. */
+/** The way to the agent's side chats, at the end of its strip. */
+const sideChats = (page: Page) => page.getByRole("button", { name: /'s side chats$/ })
+
+/**
+ * Start a side chat and give it the middle of the page, so that it is the only chat on screen
+ * and typing lands in it. Started from the main chat on a wide screen it opens beside it, where
+ * there would be two boxes to write in.
+ */
 async function newChat(page: Page) {
   // A settings window is over the page, and in the way, until it is closed.
   if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
   const before = page.url()
-  await page.getByRole("button", { name: "New chat", exact: true }).click()
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: "New side chat" }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
+  if (new URL(page.url()).searchParams.has("side")) {
+    await page.getByRole("link", { name: "Give it the whole chat" }).click()
+    await page.waitForURL((url) => !url.searchParams.has("side"))
+  }
+  // The address changes before the page does: wait until the one chat is all there is.
+  await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
   await expect(composer(page)).toHaveValue("")
 }
 
@@ -95,15 +110,16 @@ test("a second account is refused on an invite-only deployment", async ({ page }
   await expect(page).toHaveURL(/\/signup$/)
 })
 
-test("a message is answered, streamed into the transcript, and titles the chat", async ({
-  page,
-}) => {
+test("a message is answered and streamed into the transcript", async ({ page }) => {
   await signIn(page)
   await composer(page).fill("What can you do?")
   await page.keyboard.press("Enter")
   await expect(composer(page)).toHaveValue("")
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
-  await expect(page.getByRole("link", { name: "What can you do?" })).toBeVisible()
+  // The agent's row in the sidebar is the way to this chat: it has no chats listed under it.
+  const agents = page.getByRole("navigation", { name: "Agents" })
+  await expect(agents.getByRole("link")).toHaveCount(1)
+  await expect(agents.getByRole("link")).toHaveAttribute("aria-current", "page")
 
   // The transcript is the agent's, not the tab's: it is still there after a reload.
   await page.reload()
@@ -117,18 +133,51 @@ test("assistant text is rendered as Markdown", async ({ page }) => {
   await expect(page.locator(".prose-chat li")).toHaveText(["one", "two"])
 })
 
-test("chats are separate, and an archived chat leaves the list", async ({ page }) => {
+test("a side chat opens beside the main chat, is separate from it, and can be put away", async ({
+  page,
+}) => {
   await signIn(page)
-  await page.getByRole("button", { name: "New chat", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Say hello" })).toBeVisible()
-  await composer(page).fill("second chat here")
+  const main = page.url()
+  await sideChats(page).click()
+  await expect(page.getByText(/^None yet\./)).toBeVisible()
+  await page.getByRole("menuitem", { name: "New side chat" }).click()
+
+  // The main chat stays where it is, and the side chat is in a column of its own beside it.
+  const beside = page.getByRole("complementary", { name: /^Side chat:/ })
+  await expect(beside.getByText(/A side chat keeps its own conversation/)).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`${new URL(main).pathname}\\?side=\\d+$`))
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  await beside.getByRole("textbox", { name: "Message" }).fill("second chat here")
   await page.keyboard.press("Enter")
+  await expect(beside.getByText("You said: second chat here")).toBeVisible()
+  await expect(beside.getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(beside.getByRole("heading", { name: "second chat here" })).toBeVisible()
+
+  // It is still beside the main chat after a reload, and it is listed in the agent's side chats.
+  await page.reload()
+  await expect(beside.getByText("You said: second chat here")).toBeVisible()
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toBeVisible()
+  await page.keyboard.press("Escape")
+
+  // Given the whole chat, a line under the strip says what it is and leads back.
+  await beside.getByRole("link", { name: "Give it the whole chat" }).click()
+  await expect(beside).toHaveCount(0)
   await expect(page.getByText("You said: second chat here")).toBeVisible()
   await expect(page.getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(composer(page)).toHaveAttribute("placeholder", /in this side chat$/)
+  await page.getByRole("link", { name: "Main chat", exact: true }).click()
+  await expect(page).toHaveURL(main)
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
 
-  await page.getByRole("link", { name: "second chat here" }).hover()
-  await page.getByRole("button", { name: "Archive second chat here" }).click()
-  await expect(page.getByRole("link", { name: "second chat here" })).toHaveCount(0)
+  // From the menu it opens beside the main chat again, and is put away from there.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^second chat here/ }).click()
+  await beside.getByRole("button", { name: "Archive second chat here" }).click()
+  await expect(beside).toHaveCount(0)
+  await expect(page).toHaveURL(main)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toHaveCount(0)
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
 })
 
@@ -289,21 +338,20 @@ test("automations can be paused, run on demand and deleted", async ({ page }) =>
   await expect(page.getByRole("listitem").filter({ hasText: "Stretch break" })).toHaveCount(0)
 })
 
-test("scheduled runs do not clutter the chat list", async ({ page }) => {
+test("scheduled runs are not among the side chats", async ({ page }) => {
   await signIn(page)
-  await expect(page.getByRole("link", { name: "Magic words", exact: true })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Stretch break", exact: true })).toHaveCount(0)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: /Magic words/ })).toHaveCount(0)
+  await expect(page.getByRole("menuitem", { name: /Stretch break/ })).toHaveCount(0)
 })
 
-test("opening the agent lands on a chat of yours, not on a scheduled run", async ({ page }) => {
+test("opening the agent lands on its main chat, whatever was used last", async ({ page }) => {
   await signIn(page)
-  await newChat(page)
-  await composer(page).fill("Chat to come back to")
-  await page.keyboard.press("Enter")
-  await expect(page.getByText("You said: Chat to come back to")).toBeVisible()
-  const mine = page.url()
+  await page.waitForURL(/\/c\/\d+$/)
+  const main = page.url()
 
-  // A run of a schedule whose chat is then put away is the newest chat the agent has.
+  // A side chat and a run of a schedule are both newer than anything said in the main chat.
   await newChat(page)
   await composer(page).fill("Chat to put away")
   await page.keyboard.press("Enter")
@@ -318,13 +366,24 @@ test("opening the agent lands on a chat of yours, not on a scheduled run", async
   await card.getByRole("button", { name: "Run now" }).click()
   await expect(card.getByText(/Last run/)).toBeVisible({ timeout: 15_000 })
   await card.getByRole("button", { name: "Delete Night watch" }).click()
-  await page.getByRole("link", { name: "Chat to put away" }).hover()
-  await page.getByRole("button", { name: "Archive Chat to put away" }).click()
-  await expect(page.getByRole("link", { name: "Chat to put away" })).toHaveCount(0)
 
   await page.goto("/")
   await page.waitForURL(/\/c\/\d+$/)
-  expect(page.url()).toBe(mine)
+  expect(page.url()).toBe(main)
+  // Choosing the agent in the sidebar leads there too, from one of its side chats.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^Chat to put away/ }).click()
+  await page.getByRole("link", { name: "Give it the whole chat" }).click()
+  await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
+  await page.getByRole("navigation", { name: "Agents" }).getByRole("link").first().click()
+  await expect(page).toHaveURL(main)
+
+  // The main chat is always there: it is not one that can be put away.
+  const [, agentId, chatId] = /\/a\/([^/]+)\/c\/(\d+)$/.exec(main)!
+  const refused = await page.request.patch(`/api/agents/${agentId}/chats/${chatId}`, {
+    data: { archived: true },
+  })
+  expect(refused.status()).toBe(409)
 })
 
 test("the agent hands work to a sub-agent, whose chat is read and not written in", async ({
@@ -363,12 +422,12 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   )
   expect(sent.status()).toBe(409)
 
-  // It is not a chat of the user's: it is not listed as one, and opening the agent does not land in it.
+  // It is not a chat of the user's: it is not among the agent's side chats.
   await page.getByRole("link", { name: "Back to Juniper" }).click()
   await page.waitForURL(mine)
-  await page.goto("/")
-  await page.waitForURL(/\/c\/\d+$/)
-  expect(page.url()).toBe(mine)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: /^Flights/ })).toHaveCount(0)
 })
 
 test("a sub-agent at work can be stopped from its chat, and the agent is told", async ({
@@ -461,7 +520,9 @@ test("a document the agent writes opens from the chat, to be read and edited", a
   await page.keyboard.press("Enter")
 
   const card = page
-    .getByRole("main")
+    // Within the transcript: a side chat is named after what was first said in it, which here
+    // is this file's path, and so is the button that puts the chat away.
+    .getByRole("log")
     .getByRole("button", { name: /plan\.md/ })
     .first()
   await expect(card).toBeVisible()
@@ -1595,10 +1656,10 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   await page.getByRole("button", { name: "Show Juniper beside the chat" }).click()
   await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
 
-  // A chat can be started without it.
-  const before = page.url()
-  await page.getByRole("button", { name: "New chat", exact: true }).click()
-  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
+  // The agent's side chats are reached without it.
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await page.keyboard.press("Escape")
 
   // Asked for, it is beside the chat, and still there after a reload.
   await page.getByRole("button", { name: "Show the sidebar" }).click()
@@ -1746,7 +1807,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   // It is as wide when a document is next opened, from its card as well, after a reload.
   await page.reload()
   await page
-    .getByRole("main")
+    .getByRole("log")
     .getByRole("button", { name: /notes\.md/ })
     .first()
     .click()
@@ -1803,15 +1864,24 @@ test("the layout works at phone width", async ({ page }) => {
     expect(box.x + box.width).toBeLessThanOrEqual(400)
   }
   // The sidebar is a sheet from the side. Measured once it has finished sliding in.
-  await page.getByRole("button", { name: "Agents and chats" }).click()
+  await page.getByRole("button", { name: "Agents", exact: true }).click()
   await expect(async () => {
     const sheet = (await page.getByRole("dialog").boundingBox())!
     expect(sheet.x).toBe(0)
   }).toPass()
-  // Only an agent's latest chats are listed until the rest are asked for.
-  await page.getByRole("button", { name: /older chats?$/ }).click()
-  await expect(page.getByRole("link", { name: "What can you do?" })).toBeVisible()
-  await page.getByRole("link", { name: "What can you do?" }).click()
+  // Choosing the agent there is talking to it: its main chat.
+  await page
+    .getByRole("dialog")
+    .getByRole("link", { name: /Juniper/ })
+    .click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  // With no room for two chats, a side chat takes the place of the main one, and leads back.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^Chat to put away/ }).click()
+  await expect(page.getByText("You said: Chat to put away")).toBeVisible()
+  await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
+  await page.getByRole("link", { name: "Main chat", exact: true }).click()
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
   // Nothing is wider than the screen.
   const overflow = await page.evaluate(

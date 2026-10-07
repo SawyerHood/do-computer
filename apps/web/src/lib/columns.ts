@@ -46,7 +46,7 @@ function column(key: string, bounds: { min: number; max: number; start: number }
  * shown on: the sidebar from 48rem, and the agent's panel with it from 80rem.
  */
 
-/** The sidebar, on wide screens: the workspace, its agents and their chats. */
+/** The sidebar, on wide screens: the workspace and its agents. */
 export const sidebarColumn = column("dc-sidebar-width", { min: 208, max: 448, start: 288 })
 
 /** The agent's panel, beside its pages. One width for every tab, so changing tab moves nothing. */
@@ -59,3 +59,9 @@ export const agentPanelColumn = column("dc-agent-panel-width", { min: 256, max: 
  */
 export const docPanelColumn = column("dc-doc-panel-width", { min: 352, max: 1280, start: 640 })
 export const DOC_PANEL_LEAVES = "20rem"
+
+/**
+ * A side chat open beside the main chat, in the panel's place. It leaves the main chat the room
+ * a document does.
+ */
+export const sideChatColumn = column("dc-side-chat-width", { min: 352, max: 960, start: 448 })

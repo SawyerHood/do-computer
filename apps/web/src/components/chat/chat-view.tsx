@@ -1,27 +1,24 @@
-import {
-  type AgentSummary,
-  type ChatMessage,
-  type MessageImage,
-  randomId,
-} from "@durable-computer/protocol"
+import type { AgentSummary } from "@durable-computer/protocol"
 import type { AgentState } from "@durable-computer/client"
 import { useQuery } from "@tanstack/react-query"
-import { Link, useRouteContext } from "@tanstack/react-router"
+import { Link, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { FaceStack, names, PersonFace } from "@/components/people"
 import { Button } from "@/components/ui/button"
-import { agentPanelOpenAtom, chatKey, earlierAtom } from "@/lib/atoms"
+import { agentPanelOpenAtom, chatKey } from "@/lib/atoms"
+import { isSideChat, mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentKey, agentsKey, modelsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useSettings } from "@/lib/settings"
-import { useLiveChat } from "@/lib/use-live-chat"
+import { startsMidway, useChat } from "@/lib/use-chat"
 import { useMascotMood } from "@/lib/use-mascot-mood"
+import { useWide } from "@/lib/use-wide"
 import {
   noteTyping,
   TeamContext,
@@ -36,6 +33,7 @@ import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
+import { SideChat, SideChatBar, SideChatWelcome } from "./side-chat.tsx"
 import {
   isAtWork,
   SubagentFace,
@@ -133,31 +131,25 @@ function Welcome({ agent, face }: { agent: AgentSummary; face: React.ReactNode }
   )
 }
 
-/** The width from which the agent's panel fits beside the chat. */
-const WIDE = "(min-width: 80rem)"
-
-/** Whether the screen is wide enough for the agent's panel to be beside a page. */
-export function useWide(): boolean {
-  return useSyncExternalStore(
-    (changed) => {
-      const query = matchMedia(WIDE)
-      query.addEventListener("change", changed)
-      return () => query.removeEventListener("change", changed)
-    },
-    () => matchMedia(WIDE).matches,
-    // Not known on the server. The page is first drawn as for a narrow screen.
-    () => false,
+/**
+ * One chat: the transcript, kept live by its event stream, and the composer. Beside it is the
+ * agent's panel, or a document, or, beside the main chat, one of the agent's side chats.
+ */
+export function ChatView({
+  agent,
+  chatId,
+  sideId,
+}: {
+  agent: AgentSummary
+  chatId: string
+  /** A side chat to have open beside this one, where there is room. */
+  sideId?: string | undefined
+}) {
+  const { live, state, earlier, startFresh, send, sendError, retry, stop, attach } = useChat(
+    agent.id,
+    chatId,
   )
-}
-
-/** A chat whose transcript starts at a summary or a fresh start has more before it. */
-const startsMidway = (first: ChatMessage | undefined) => first?.role === "notice"
-
-/** One chat: the transcript, kept live by its event stream, and the composer. */
-export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: string }) {
-  const live = useLiveChat(agent.id, chatId)
-  const api = client.agent(agent.id)
-  const [earlier, setEarlier] = useAtom(earlierAtom(chatKey(agent.id, chatId)))
+  const navigate = useNavigate()
 
   // What kind of chat this is. A sub-agent's is read here and not written in.
   const { data: agentState } = useQuery<AgentState>({
@@ -165,6 +157,12 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     queryFn: () => client.agent(agent.id).state(),
   })
   const chat = agentState?.chats.find((entry) => entry.id === chatId)
+  const main = mainChatOf(agentState?.chats)
+  // A side chat has the middle to itself here. Until the agent has a main chat there are none.
+  const aside = main !== undefined && isSideChat(chat) ? chat : undefined
+  const side = agentState?.chats.find(
+    (entry) => entry.id === sideId && entry.id !== chatId && isSideChat(entry) && !entry.archived,
+  )
   const sub = chat?.kind === "subagent" ? chat : undefined
   const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
   const subagents = useSubagents(agent.id, chatId)
@@ -206,84 +204,18 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const wide = useWide()
   // A file from the library that is open beside this chat, by its id. It takes the panel's place.
   const [openDoc, setOpenDoc] = useState<string>()
-  useEffect(() => setOpenDoc(undefined), [chatId])
-  // The panel is beside the chat only where there is room for both.
-  const beside = panel && wide && openDoc === undefined
+  useEffect(() => setOpenDoc(undefined), [chatId, sideId])
+  // A side chat is beside the chat only where there is room for both, and so is the panel. Of
+  // the things that can be there, one is: a document, else a side chat, else the panel.
+  const sideOpen = wide && side !== undefined && openDoc === undefined
+  const beside = panel && wide && openDoc === undefined && side === undefined
+  const closeSide = () =>
+    void navigate({ to: "/a/$agentId/c/$chatId", params: { agentId: agent.id, chatId } })
   // Someone who starts talking before the egg has opened has met their agent all the same.
   const talked = live.loaded && live.state.messages.length > 0
   useEffect(() => {
     if (talked && !agent.hatched) void markHatched(agent.id)
   }, [talked, agent.hatched, agent.id])
-
-  const liveFirst = live.state.messages[0]
-  // The live transcript starts somewhere new after a summary or a fresh start. What was loaded
-  // led up to the old start and would now leave a gap, so it is dropped and can be loaded again.
-  useEffect(() => {
-    if (live.loaded && earlier.anchor !== undefined && earlier.anchor !== liveFirst?.id) {
-      setEarlier({ messages: [], before: undefined, loading: false })
-    }
-  }, [live.loaded, earlier.anchor, liveFirst?.id, setEarlier])
-
-  const hasEarlier =
-    earlier.before === undefined ? startsMidway(liveFirst) : earlier.before !== null
-  const loadEarlier = useCallback(async () => {
-    if (liveFirst === undefined) return
-    setEarlier((previous) => ({ ...previous, loading: true }))
-    try {
-      const page = await api.earlier(chatId, earlier.before ?? liveFirst.id)
-      setEarlier((previous) => ({
-        anchor: liveFirst.id,
-        messages: [...page.messages, ...previous.messages],
-        before: page.before,
-        loading: false,
-      }))
-    } catch {
-      setEarlier((previous) => ({ ...previous, loading: false }))
-    }
-  }, [api, chatId, earlier.before, liveFirst, setEarlier])
-  const startFresh = useCallback(() => void api.resetChat(chatId), [api, chatId])
-  const state = useMemo(
-    () =>
-      earlier.messages.length === 0
-        ? live.state
-        : { ...live.state, messages: [...earlier.messages, ...live.state.messages] },
-    [earlier.messages, live.state],
-  )
-
-  const [sendError, setSendError] = useState<string>()
-  useEffect(() => setSendError(undefined), [chatId])
-  const send = useCallback(
-    async (text: string, images: MessageImage[] = []) => {
-      setSendError(undefined)
-      try {
-        await api.send(chatId, {
-          text,
-          ...(images.length > 0 ? { images } : {}),
-          requestId: randomId(),
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        })
-        return true
-      } catch (error) {
-        // A message that did not go must not just vanish: say so, and leave it in the box.
-        setSendError(
-          `That was not sent: ${error instanceof Error ? error.message : "something went wrong"}. Try again.`,
-        )
-        return false
-      }
-    },
-    [api, chatId],
-  )
-  // There is no running a reply again as such: asking again is what works, so the button asks.
-  const retry = useCallback(() => void send("Try again"), [send])
-  const stop = useCallback(() => void api.abort(chatId), [api, chatId])
-  const attach = useCallback(
-    (file: File) =>
-      api.upload(
-        { name: file.name, type: file.type || "application/octet-stream", body: file },
-        chatId,
-      ),
-    [api, chatId],
-  )
 
   const name = agent.name ?? "New agent"
   const canStartFresh =
@@ -302,189 +234,206 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
-        {sub !== undefined ? (
-          // A sub-agent's chat always says whose it is, and leads back to where it was started.
-          <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
-            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {aside === undefined || main === undefined ? null : (
+          <SideChatBar agent={agent} chat={aside} main={main} />
+        )}
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent" />
+          {sub !== undefined ? (
+            // A sub-agent's chat always says whose it is, and leads back to where it was started.
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+              <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+                <Link
+                  to="/a/$agentId/c/$chatId"
+                  params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
+                  aria-label={`Back to ${parent?.title ?? name}`}
+                  className="flex min-w-0 items-center gap-1 rounded-lg py-1 pr-1.5 pl-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                >
+                  <ArrowLeftIcon className="size-4 shrink-0" />
+                  <span className="max-w-40 truncate">{parent?.title ?? name}</span>
+                </Link>
+                <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+                <SubagentFace
+                  agentId={agent.id}
+                  chatId={chatId}
+                  status={sub.status}
+                  className="size-7"
+                />
+                <span className="min-w-0 truncate text-sm font-medium">{sub.title}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {subagentWords(sub.status)}
+                </span>
+                {isAtWork(sub.status) ? (
+                  <button
+                    type="button"
+                    onClick={stop}
+                    className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
+                  >
+                    <StopIcon className="size-3" />
+                    Stop
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : beside ? null : (
+            // With the panel beside the chat the agent is there, and needs no header here as well.
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
+              <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
+                {wide ? (
+                  // Pressing the header brings the panel back.
+                  <button
+                    type="button"
+                    aria-label={`Show ${name} beside the chat`}
+                    title={`Show ${name} beside the chat`}
+                    className="flex items-center gap-2.5 rounded-lg pr-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+                    onClick={() => {
+                      setPanel(true)
+                      // A side chat is where the panel would be, and makes way for it.
+                      if (side !== undefined) closeSide()
+                    }}
+                  >
+                    {identity}
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2.5 pr-1.5">{identity}</span>
+                )}
+                {live.status === "reconnecting" ? (
+                  <span className="pr-1 text-xs text-muted-foreground">reconnecting…</span>
+                ) : null}
+                {canStartFresh ? (
+                  <button
+                    type="button"
+                    aria-label="Start fresh"
+                    title={startFreshTitle}
+                    disabled={live.state.busy}
+                    onClick={startFresh}
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  >
+                    <ArrowsClockwiseIcon className="size-4" />
+                  </button>
+                ) : null}
+                {/* Without the panel, this is the way to the chat's sub-agents. */}
+                {subagents.length === 0 ? null : (
+                  <>
+                    <button
+                      type="button"
+                      aria-expanded={subagentsOpen}
+                      onClick={() => setSubagentsOpen(!subagentsOpen)}
+                      className="rounded-md border px-2.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                    >
+                      {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
+                      {subagents.some((entry) => isAtWork(entry.status))
+                        ? ` · ${subagents.filter((entry) => isAtWork(entry.status)).length} at work`
+                        : ""}
+                    </button>
+                    {subagentsOpen ? (
+                      <div className="absolute top-full left-1/2 mt-2 max-h-80 w-72 max-w-[90vw] -translate-x-1/2 overflow-y-auto rounded-2xl border bg-popover p-1.5 shadow-lg">
+                        <SubagentRows agentId={agent.id} subagents={subagents} />
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            <AgentIdContext value={agent.id}>
+              <OpenFileContext value={wide ? setOpenDoc : undefined}>
+                <TeamContext value={teamContext}>
+                  <Transcript
+                    state={state}
+                    onRetry={sub === undefined ? retry : undefined}
+                    asker={sub === undefined ? undefined : name}
+                    empty={
+                      !live.loaded || sub !== undefined ? null : aside !== undefined ? (
+                        <SideChatWelcome agent={agent} />
+                      ) : (
+                        <Welcome
+                          agent={agent}
+                          face={
+                            // Where the panel is beside the chat, the creature is in it and not here too.
+                            beside ? null : (
+                              <span className="mb-6">
+                                <Hatchling agent={agent} hatch={hatch} className="size-72" />
+                              </span>
+                            )
+                          }
+                        />
+                      )
+                    }
+                    before={
+                      earlier.has ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="self-center text-muted-foreground"
+                          disabled={earlier.loading}
+                          onClick={earlier.load}
+                        >
+                          {earlier.loading ? "Loading…" : "Show earlier messages"}
+                        </Button>
+                      ) : null
+                    }
+                  />
+                </TeamContext>
+              </OpenFileContext>
+            </AgentIdContext>
+          </div>
+          <PendingApprovals
+            agentId={agent.id}
+            agentName={agent.name ?? "Your agent"}
+            chatId={chatId}
+          />
+          <PendingComputerRequests agentId={agent.id} agentName={agent.name ?? "Your agent"} />
+          {sub !== undefined ? (
+            // Where the message box would be. Its agent is the one who talks to it.
+            <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
+              <AgentFace agent={agent} className="size-8" still />
+              <p className="min-w-0 flex-1">
+                Only {name} talks to its sub-agents. To change what this one is doing, tell {name}.
+              </p>
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
-                aria-label={`Back to ${parent?.title ?? name}`}
-                className="flex min-w-0 items-center gap-1 rounded-lg py-1 pr-1.5 pl-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
               >
-                <ArrowLeftIcon className="size-4 shrink-0" />
-                <span className="max-w-40 truncate">{parent?.title ?? name}</span>
+                Back to {name}
               </Link>
-              <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-              <SubagentFace
-                agentId={agent.id}
-                chatId={chatId}
-                status={sub.status}
-                className="size-7"
+            </div>
+          ) : (
+            <>
+              {typing.length === 0 ? null : (
+                <p
+                  role="status"
+                  className="mx-auto flex w-full max-w-3xl items-center gap-2 px-6 pb-1.5 text-xs text-muted-foreground"
+                >
+                  <FaceStack people={typing} className="size-[1.125rem]" />
+                  {names(typing)} {typing.length === 1 ? "is" : "are"} typing…
+                </p>
+              )}
+              <Composer
+                onTyping={team === undefined ? undefined : noteTyping}
+                draftKey={chatKey(agent.id, chatId)}
+                placeholder={
+                  aside !== undefined
+                    ? `Message ${name} in this side chat`
+                    : agent.name
+                      ? `Message ${agent.name}`
+                      : "Say hello"
+                }
+                busy={live.state.busy}
+                queued={live.state.queued}
+                onSend={send}
+                error={sendError}
+                onStop={stop}
+                sees={models?.find((model) => model.id === agent.model)?.images === true}
+                agentName={name}
+                onAttach={attach}
               />
-              <span className="min-w-0 truncate text-sm font-medium">{sub.title}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {subagentWords(sub.status)}
-              </span>
-              {isAtWork(sub.status) ? (
-                <button
-                  type="button"
-                  onClick={stop}
-                  className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
-                >
-                  <StopIcon className="size-3" />
-                  Stop
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : beside ? null : (
-          // With the panel beside the chat the agent is there, and needs no header here as well.
-          <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
-            <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur">
-              {wide ? (
-                // Pressing the header brings the panel back.
-                <button
-                  type="button"
-                  aria-label={`Show ${name} beside the chat`}
-                  title={`Show ${name} beside the chat`}
-                  className="flex items-center gap-2.5 rounded-lg pr-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
-                  onClick={() => setPanel(true)}
-                >
-                  {identity}
-                </button>
-              ) : (
-                <span className="flex items-center gap-2.5 pr-1.5">{identity}</span>
-              )}
-              {live.status === "reconnecting" ? (
-                <span className="pr-1 text-xs text-muted-foreground">reconnecting…</span>
-              ) : null}
-              {canStartFresh ? (
-                <button
-                  type="button"
-                  aria-label="Start fresh"
-                  title={startFreshTitle}
-                  disabled={live.state.busy}
-                  onClick={startFresh}
-                  className="rounded-md p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                >
-                  <ArrowsClockwiseIcon className="size-4" />
-                </button>
-              ) : null}
-              {/* Without the panel, this is the way to the chat's sub-agents. */}
-              {subagents.length === 0 ? null : (
-                <>
-                  <button
-                    type="button"
-                    aria-expanded={subagentsOpen}
-                    onClick={() => setSubagentsOpen(!subagentsOpen)}
-                    className="rounded-md border px-2.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
-                  >
-                    {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
-                    {subagents.some((entry) => isAtWork(entry.status))
-                      ? ` · ${subagents.filter((entry) => isAtWork(entry.status)).length} at work`
-                      : ""}
-                  </button>
-                  {subagentsOpen ? (
-                    <div className="absolute top-full left-1/2 mt-2 max-h-80 w-72 max-w-[90vw] -translate-x-1/2 overflow-y-auto rounded-2xl border bg-popover p-1.5 shadow-lg">
-                      <SubagentRows agentId={agent.id} subagents={subagents} />
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-        <div className="min-h-0 flex-1">
-          <AgentIdContext value={agent.id}>
-            <OpenFileContext value={wide ? setOpenDoc : undefined}>
-              <TeamContext value={teamContext}>
-                <Transcript
-                  state={state}
-                  onRetry={sub === undefined ? retry : undefined}
-                  asker={sub === undefined ? undefined : name}
-                  empty={
-                    live.loaded && sub === undefined ? (
-                      <Welcome
-                        agent={agent}
-                        face={
-                          // Where the panel is beside the chat, the creature is in it and not here too.
-                          beside ? null : (
-                            <span className="mb-6">
-                              <Hatchling agent={agent} hatch={hatch} className="size-72" />
-                            </span>
-                          )
-                        }
-                      />
-                    ) : null
-                  }
-                  before={
-                    hasEarlier ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="self-center text-muted-foreground"
-                        disabled={earlier.loading}
-                        onClick={loadEarlier}
-                      >
-                        {earlier.loading ? "Loading…" : "Show earlier messages"}
-                      </Button>
-                    ) : null
-                  }
-                />
-              </TeamContext>
-            </OpenFileContext>
-          </AgentIdContext>
+            </>
+          )}
         </div>
-        <PendingApprovals
-          agentId={agent.id}
-          agentName={agent.name ?? "Your agent"}
-          chatId={chatId}
-        />
-        <PendingComputerRequests agentId={agent.id} agentName={agent.name ?? "Your agent"} />
-        {sub !== undefined ? (
-          // Where the message box would be. Its agent is the one who talks to it.
-          <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
-            <AgentFace agent={agent} className="size-8" still />
-            <p className="min-w-0 flex-1">
-              Only {name} talks to its sub-agents. To change what this one is doing, tell {name}.
-            </p>
-            <Link
-              to="/a/$agentId/c/$chatId"
-              params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
-              className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
-            >
-              Back to {name}
-            </Link>
-          </div>
-        ) : (
-          <>
-            {typing.length === 0 ? null : (
-              <p
-                role="status"
-                className="mx-auto flex w-full max-w-3xl items-center gap-2 px-6 pb-1.5 text-xs text-muted-foreground"
-              >
-                <FaceStack people={typing} className="size-[1.125rem]" />
-                {names(typing)} {typing.length === 1 ? "is" : "are"} typing…
-              </p>
-            )}
-            <Composer
-              onTyping={team === undefined ? undefined : noteTyping}
-              draftKey={chatKey(agent.id, chatId)}
-              placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
-              busy={live.state.busy}
-              queued={live.state.queued}
-              onSend={send}
-              error={sendError}
-              onStop={stop}
-              sees={models?.find((model) => model.id === agent.model)?.images === true}
-              agentName={name}
-              onAttach={attach}
-            />
-          </>
-        )}
       </div>
       {wide && openDoc !== undefined ? (
         <DocPanel
@@ -495,6 +444,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           onClose={() => setOpenDoc(undefined)}
         />
       ) : null}
+      {sideOpen ? <SideChat agent={agent} chat={side} mainId={chatId} /> : null}
       {beside ? (
         <AgentPanel
           agent={agent}

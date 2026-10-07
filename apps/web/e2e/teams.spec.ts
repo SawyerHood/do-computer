@@ -156,9 +156,9 @@ test("two people talk to the agent in one chat, and each sees who said what", as
 test("each sees the other in the chat, and when they are writing", async () => {
   const here = sawyer.getByRole("region", { name: "Here now" })
   await expect(here.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
-  // In the list of agents, her face is on the chat she has open.
-  const chats = sawyer.getByRole("navigation", { name: "Chats" })
-  await expect(chats.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
+  // In the list of agents, her face is on the agent she is with.
+  const agents = sawyer.getByRole("navigation", { name: "Agents" })
+  await expect(agents.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
 
   await composer(her).pressSequentially("I am writing")
   await expect(sawyer.getByRole("status").filter({ hasText: "Maya is typing" })).toBeVisible()
