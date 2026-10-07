@@ -1,4 +1,4 @@
-import { createAgentActor, createAgentModels } from "@durable-computer/agent"
+import { createAgentActor, createAgentModels, createLibraryActor } from "@durable-computer/agent"
 import { createComputerLinkActor } from "@durable-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
 import {
@@ -10,6 +10,7 @@ import {
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { agentDirectory } from "./server/agent-directory.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
+import { libraryDirectory } from "./server/library-directory.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
@@ -39,6 +40,7 @@ export const AgentObject = createDurableActorClass<Env>({
         d1Database(env.DB),
         durableObjectNamespace(env.COMPUTER),
       ),
+      library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
       agentDirectory: agentDirectory(d1Database(env.DB), () => durableObjectNamespace(env.AGENT)),
       onNotify: (notification) =>
         void notifyPeople(
@@ -58,6 +60,12 @@ export const ComputerObject = createDurableActorClass<Env>({
   create: (host) => createComputerLinkActor(host),
   blobs: (env, name) => r2Blobs(env.BLOBS, `computers/${encodeURIComponent(name)}/`),
   socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
+})
+
+/** One Durable Object per workspace, keeping the library its agents share. */
+export const LibraryObject = createDurableActorClass<Env>({
+  create: (host) => createLibraryActor(host),
+  blobs: (env, name) => r2Blobs(env.BLOBS, `libraries/${encodeURIComponent(name)}/`),
 })
 
 /** One Durable Object per team. Its members' sockets hibernate with it. */

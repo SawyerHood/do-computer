@@ -5,7 +5,11 @@ import { justBashSandbox, type Sandbox } from "@durable-computer/sandbox"
 import { daytonaSandbox } from "@durable-computer/sandbox/daytona"
 import { type Config, ConfigError, type SandboxKind } from "./platform.ts"
 
-export type SandboxFactory = (host: ActorHost) => Sandbox
+/**
+ * Builds the machine behind a key. `host` is the agent asking, for a kind that keeps its files
+ * with one agent: such a kind has nothing to build where no agent is asking.
+ */
+export type SandboxFactory = (key: string, host?: ActorHost) => Sandbox | undefined
 
 /** Providers only one runtime has: Modal's SDK needs Node, and a container needs Cloudflare. */
 export type RuntimeProviders = {
@@ -124,15 +128,19 @@ function factoryFor(
             resolve: providers.resolveHost,
           })
         : undefined
-      // Files live in the agent's own database, so this needs no other service on either runtime.
-      return (host) => justBashSandbox({ id: host.name, database: host.sql, fetch: fetcher })
+      // Files live in the agent's own database, so this needs no other service on either
+      // runtime, and it is one agent's: nobody else can be given it.
+      return (_key, host) =>
+        host === undefined
+          ? undefined
+          : justBashSandbox({ id: host.name, database: host.sql, fetch: fetcher })
     }
     case "daytona": {
       const { apiKey, apiUrl, target, snapshot, image } = config.daytona
       if (apiKey === undefined) throw new ConfigError("Daytona needs DAYTONA_API_KEY.")
-      return (host) =>
+      return (key) =>
         daytonaSandbox({
-          id: host.name,
+          id: key,
           apiKey,
           apiUrl,
           target,
@@ -150,10 +158,12 @@ function factoryFor(
   }
 }
 
+/** The kinds whose machine is one agent's and cannot serve another: its files are with the agent. */
+export const UNSHARED_KINDS: readonly string[] = ["just-bash"]
+
 /**
- * The computers an agent of this deployment can be given. A remote machine is created the first
- * time an agent runs something on it, and named after the agent, so an agent that is moved away
- * from one and back finds it again.
+ * The machines this deployment can make. A remote machine is created the first time something
+ * runs on it, and named after its key, so the same key always finds the same machine.
  */
 export function computerChoices(
   config: Config,
@@ -168,6 +178,6 @@ export function computerChoices(
   return {
     kinds,
     default: fallback,
-    create: (kind, host) => factories.get(kind)?.(host),
+    create: (kind, key, host) => factories.get(kind)?.(key, host),
   }
 }

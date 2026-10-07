@@ -133,6 +133,7 @@ export type ComputerDirectory = {
   adopt?(
     agentId: string,
     machines: readonly { kind: string; home: string; current: boolean }[],
+    agentName: string | null,
   ): Promise<(AgentComputer & { id: string })[]>
 }
 
@@ -573,8 +574,13 @@ export class Computers {
       for (const [id, computer] of Object.entries(state.computers)) {
         if (!isPaired(computer) && !ids.has(id)) delete state.computers[id]
       }
-      for (const { id, ...machine } of wanted) {
+      for (const { id, ...told } of wanted) {
         const kept = own(state.computers, id)
+        // A kind whose machine is the agent's alone has a home only the agent can say.
+        const machine =
+          told.home !== ""
+            ? told
+            : { ...told, home: this.#sandboxOf(id, told)?.home ?? kept?.home ?? "" }
         const taken = new Set(
           Object.entries(state.computers)
             .filter(([other]) => other !== id)

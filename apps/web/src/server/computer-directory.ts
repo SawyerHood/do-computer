@@ -2,6 +2,7 @@ import { computerActorName, type ComputerDirectory } from "@durable-computer/age
 import { linkStatus } from "@durable-computer/computers"
 import { isPersonalWorkspace } from "@durable-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
+import { adoptMachines } from "./computer-adoption.ts"
 import {
   answerersOf,
   ask,
@@ -9,10 +10,15 @@ import {
   computerIdsOfAgent,
   type ComputerRow,
   computersNear,
+  folderFor,
+  foldersOn,
+  isMachine,
+  machinesOf,
   mayUse,
   peopleById,
 } from "./computer-access.ts"
 import { sendPush } from "./push.ts"
+import { UNSHARED_KINDS } from "./sandbox.ts"
 
 /**
  * What an agent can find out about computers it is not connected to, and how it asks for one. It
@@ -53,14 +59,16 @@ export function computerDirectory(
       const ownerOf = await owners(rows)
       return Promise.all(
         rows.map(async (row) => {
-          const status = await linkStatus(links.get(computerActorName(row.id))).catch(
-            () => undefined,
-          )
+          // A machine has no daemon to be away: it starts when something runs on it.
+          const status = isMachine(row)
+            ? { online: true, hello: null }
+            : await linkStatus(links.get(computerActorName(row.id))).catch(() => undefined)
           return {
             id: row.id,
             name: row.name,
             ...ownerOf(row),
             platform: row.platform,
+            kind: row.kind,
             readOnly: status?.hello?.readOnly ?? row.read_only === 1,
             online: status?.online ?? false,
             connected: connected.has(row.id),
@@ -69,6 +77,22 @@ export function computerDirectory(
         }),
       )
     },
+    machines: (agentId) => machinesOf(db, agentId),
+    async folder(agentId, computerId, agentName) {
+      const row = await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", computerId)
+      if (row === undefined || !isMachine(row) || !(await mayUse(db, agentId, computerId))) {
+        return undefined
+      }
+      // A kind that is one agent's has no other folders to keep apart from: its home is the folder.
+      if (UNSHARED_KINDS.includes(row.kind)) return undefined
+      const folder = await folderFor(db, row, agentId, agentName)
+      const there = (await foldersOn(db, [computerId])).get(computerId) ?? []
+      return {
+        folder,
+        neighbors: there.filter((one) => one.agentId !== agentId).map((one) => one.path),
+      }
+    },
+    adopt: (agentId, machines, agentName) => adoptMachines(db, agentId, machines, agentName),
     async request(agentId, input) {
       const row = (await computersNear(db, agentId)).find(
         (computer) => computer.id === input.computerId,

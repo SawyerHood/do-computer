@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { createAgentActor, createAgentModels } from "@durable-computer/agent"
+import { createAgentActor, createAgentModels, createLibraryActor } from "@durable-computer/agent"
 import { createComputerLinkActor } from "@durable-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
 import {
@@ -12,6 +12,7 @@ import {
 } from "@durable-computer/runtime/node"
 import { agentDirectory } from "./agent-directory.ts"
 import { computerDirectory } from "./computer-directory.ts"
+import { libraryDirectory } from "./library-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
 import { createPresenceActor } from "./presence-actor.ts"
@@ -52,6 +53,12 @@ function create(): NodePlatform {
     socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
     onError: (error, name) => console.error(`[${name}]`, error),
   })
+  const libraries = new NodeActorNamespace({
+    directory: join(directory, "libraries"),
+    blobs: (name) => fileBlobs(join(directory, "blobs", "libraries", encodeURIComponent(name))),
+    factory: (host) => createLibraryActor(host),
+    onError: (error, name) => console.error(`[library ${name}]`, error),
+  })
   const agents: NodeActorNamespace = new NodeActorNamespace({
     directory: join(directory, "agents"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -67,6 +74,7 @@ function create(): NodePlatform {
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
         computerDirectory: computerDirectory(app, links),
+        library: libraryDirectory(app, libraries),
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents),
         onNotify: (notification) =>
@@ -92,6 +100,8 @@ function create(): NodePlatform {
     agents,
     computers: links,
     presence,
+    libraries,
+    machines: computers,
     connectComputer: (name, socket, request) => links.connect(name, socket, request),
     connectPresence: (name, socket, request) => presence.connect(name, socket, request),
   }

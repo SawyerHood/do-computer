@@ -87,8 +87,9 @@ function DefaultComputer({ settings }: { settings: UserSettings }) {
           Default computer
         </h2>
         <p className="text-sm text-muted-foreground">
-          The kind of computer a new agent gets, for its files and for running commands. Agents you
-          already have keep theirs; move one on its own page.
+          The kind of computer a workspace is given when you make an agent in one that has none the
+          agent could use. A workspace that already has a computer keeps it, and more are added
+          under Computers.
         </p>
       </div>
       <ComputerPicker

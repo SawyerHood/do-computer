@@ -164,11 +164,23 @@ test.describe("pairing a computer", () => {
   })
 })
 
-test.describe("choosing a computer", () => {
-  type AgentState = { computer: string | null }
+test.describe("the machines of a workspace", () => {
+  type Listed = {
+    id: string
+    name: string
+    kind: string
+    access: "open" | "chosen"
+    shareable: boolean
+    agentIds: string[]
+  }
   const agentIn = (page: Page) => page.url().match(/\/a\/([^/]+)/)![1]!
-  const stateOf = async (page: Page, agentId: string) =>
-    (await (await page.request.get(`/api/agents/${agentId}`)).json()) as AgentState
+  const computersOf = async (page: Page) =>
+    ((await (await page.request.get("/api/computers")).json()) as { computers: Listed[] }).computers
+  /** The machines an agent can work on, leaving out the computers people paired. */
+  const machinesOf = async (page: Page, agentId: string) =>
+    (await computersOf(page)).filter(
+      (computer) => computer.kind !== "paired" && computer.agentIds.includes(agentId),
+    )
 
   /** Make another agent and land on it, leaving the first one as it is. */
   async function newAgent(page: Page): Promise<string> {
@@ -179,75 +191,69 @@ test.describe("choosing a computer", () => {
     return agentIn(page)
   }
 
-  test("an agent is moved to another kind from its own page, and told what that means", async ({
+  test("a new agent's built-in shell is listed with the computers, and is that agent's alone", async ({
     page,
   }) => {
     await signIn(page)
     const agentId = await newAgent(page)
-    expect((await stateOf(page, agentId)).computer).toBe("just-bash")
-    await composer(page).fill('/tool bash {"command":"echo kept > kept.txt && ls"}')
-    await page.keyboard.press("Enter")
-    await expect(page.getByRole("log")).toContainText("kept.txt")
-
-    await openSettings(page, "Model and computer")
-    const section = page.getByRole("region", { name: "Computer" })
-    // It is not moved in the middle of an answer, and says why.
-    await expect
-      .poll(async () => {
-        const response = await page.request.patch(`/api/agents/${agentId}`, {
-          data: { computer: "none" },
-        })
-        if (response.status() === 409) {
-          expect(((await response.json()) as { error: string }).error).toContain(
-            "in the middle of something",
-          )
-        }
-        return response.status()
-      })
-      .toBe(200)
-    await page.request.patch(`/api/agents/${agentId}`, { data: { computer: "just-bash" } })
-    await page.reload()
-    // Each kind says what it is, and without any provider's key these two are what there is.
-    await expect(section.getByRole("radio")).toHaveCount(2)
-    await expect(section.getByRole("radio", { name: "Built-in shell" })).toBeChecked()
-    await expect(
-      section.getByRole("radio", { name: "Built-in shell" }),
-    ).toHaveAccessibleDescription(/lightweight shell inside this server/)
-    await expect(section.getByRole("note")).toHaveCount(0)
-
-    // Nothing moves until it is saved, and before that it says what moving does.
-    await section.getByRole("radio", { name: "No computer" }).check()
-    await expect(section.getByRole("note")).toContainText("Files are not copied")
-    expect((await stateOf(page, agentId)).computer).toBe("just-bash")
-    await page.getByRole("button", { name: "Save changes" }).click()
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
-    await expect(section.getByRole("note")).toHaveCount(0)
-    expect((await stateOf(page, agentId)).computer).toBe("none")
-    await page.reload()
-    await expect(section.getByRole("radio", { name: "No computer" })).toBeChecked()
-
-    // Moved back, it finds what it left.
-    await section.getByRole("radio", { name: "Built-in shell" }).check()
-    await page.getByRole("button", { name: "Save changes" }).click()
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible()
-    await closeSettings(page)
-    await page.waitForURL(/\/c\/\d+$/)
-    await newChat(page)
-    await composer(page).fill('/tool bash {"command":"cat kept.txt"}')
-    await page.keyboard.press("Enter")
-    await expect(page.getByRole("log")).toContainText("The tool returned:")
-    await expect(page.getByRole("log")).toContainText("kept")
-
-    // A kind this server does not offer is refused.
-    const refused = await page.request.patch(`/api/agents/${agentId}`, {
-      data: { computer: "daytona" },
+    // Without any provider's key the built-in shell is what there is, and it cannot be shared.
+    await expect.poll(async () => (await machinesOf(page, agentId)).length).toBe(1)
+    const machine = (await machinesOf(page, agentId))[0]!
+    expect(machine).toMatchObject({
+      kind: "just-bash",
+      access: "chosen",
+      shareable: false,
+      agentIds: [agentId],
     })
-    expect(refused.status()).toBe(400)
-    expect((await stateOf(page, agentId)).computer).toBe("just-bash")
-    await page.request.delete(`/api/agents/${agentId}`)
+    // A name, so that its card is told from the first agent's.
+    await page.request.patch(`/api/agents/${agentId}`, { data: { name: "Wren" } })
+    await page.reload()
+
+    await openWorkspaceSettings(page, "Computers")
+    const card = page
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("heading", { name: machine.name, exact: true }) })
+      .filter({ hasText: "Wren" })
+    await expect(card).toHaveCount(1)
+    await expect(card.getByText("Built-in shell", { exact: true })).toBeVisible()
+    await expect(card.getByText("Wren", { exact: true })).toBeVisible()
+    // There is no one to open it to, and no agent to connect or disconnect. Nor is it ever offline.
+    await expect(card.getByRole("combobox")).toHaveCount(0)
+    await expect(card.getByRole("button", { name: /^Disconnect/ })).toHaveCount(0)
+    await expect(card.getByText(/^(Online|Offline)$/)).toHaveCount(0)
+    // This server has no kind of machine that can be added by hand.
+    await expect(page.getByRole("button", { name: "Add a computer" })).toHaveCount(0)
+    await closeSettings(page)
+
+    // The agent's own page says what it can work on, and leads back here to change that.
+    await openSettings(page, "Model and computer")
+    const section = page.getByRole("region", { name: "Computers" })
+    const usable = section.getByRole("list", { name: "Computers this agent can use" })
+    await expect(usable.getByRole("listitem")).toHaveCount(1)
+    await expect(usable).toContainText(machine.name)
+    await expect(usable).toContainText("Built-in shell")
+    await expect(section.getByRole("radio")).toHaveCount(0)
+    await section.getByRole("button", { name: "Computers", exact: true }).click()
+    await expect(
+      page.getByRole("heading", { name: "Connect a computer of your own" }),
+    ).toBeVisible()
+    await closeSettings(page)
+
+    // Deleting the agent takes the machine only it can use with it, unless that is unticked.
+    await openSettings(page, "Move or delete")
+    await page.getByRole("button", { name: "Delete agent…" }).click()
+    await expect(page.getByRole("checkbox", { name: `Also delete ${machine.name}` })).toBeChecked()
+    await page.getByLabel(/to confirm/).fill("Wren")
+    await page.getByRole("button", { name: "Delete for good" }).click()
+    await expect(page).not.toHaveURL(new RegExp(`/a/${agentId}`))
+    await expect
+      .poll(async () => (await computersOf(page)).map((computer) => computer.id))
+      .not.toContain(machine.id)
   })
 
-  test("the kind a new agent gets is set once, under Settings", async ({ page }) => {
+  test("the kind of computer an agent is given where there is none for it is set under Settings", async ({
+    page,
+  }) => {
     await signIn(page)
     await openWorkspaceSettings(page, "New agents")
     const section = page.getByRole("region", { name: "Default computer" })
@@ -264,12 +270,12 @@ test.describe("choosing a computer", () => {
     await page.reload()
     await expect(section.getByRole("radio", { name: "No computer" })).toBeChecked()
 
-    // A new agent starts there. The ones that exist are where they were.
+    // A new agent is then given none. The ones that exist keep what they had.
     const first = agentIn(page)
     await closeSettings(page)
     const made = await newAgent(page)
-    expect((await stateOf(page, made)).computer).toBe("none")
-    expect((await stateOf(page, first)).computer).toBe("just-bash")
+    expect(await machinesOf(page, made)).toEqual([])
+    expect((await machinesOf(page, first)).map((computer) => computer.kind)).toEqual(["just-bash"])
     await page.request.delete(`/api/agents/${made}`)
 
     // Choosing the server's own default goes back to following it.

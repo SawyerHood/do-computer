@@ -11,9 +11,9 @@ export const nodeProviders: RuntimeProviders = {
     if (tokenId === undefined || tokenSecret === undefined) {
       throw new ConfigError("Modal needs MODAL_TOKEN_ID and MODAL_TOKEN_SECRET.")
     }
-    return (host) =>
+    return (key) =>
       modalSandbox({
-        id: host.name,
+        id: key,
         tokenId,
         tokenSecret,
         app,

@@ -72,7 +72,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           </h1>
           <p className="text-sm text-muted-foreground">
             {signingUp
-              ? "Then meet your agent: it gets its own name, memory and computer."
+              ? "Then meet your agent: it gets its own name and memory, and a computer to work on."
               : "Sign in to pick up where you and your agent left off."}
           </p>
         </div>

@@ -517,10 +517,12 @@ export class AgentActor implements Actor {
         : await directory.adopt(
             this.#host.name,
             machines.map(({ kind, home, current }) => ({ kind: kind!, home, current })),
+            identity.name,
           )
-    // Its memory was mirrored as files in each home directory, which are still there.
+    // Its memory was mirrored as files in the home directory of each machine it had to itself,
+    // and they are still there.
     await this.#computers.setMachines(
-      mine.map((machine) => ({ ...machine, mirrored: true })),
+      mine.map((machine) => ({ ...machine, mirrored: machine.machineKey === this.#host.name })),
       context,
     )
     // What each machine's library folder held was kept under the kind, and is now under the machine.

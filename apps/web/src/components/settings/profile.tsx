@@ -5,6 +5,7 @@ import {
   AVATAR_COLORS,
   defaultAvatar,
   nearestThinking,
+  PAIRED_COMPUTER,
   randomId,
   type ThinkingLevel,
 } from "@durable-computer/protocol"
@@ -12,7 +13,6 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
-import { ComputerPicker } from "@/components/computer-picker"
 import { ModelPicker } from "@/components/model-picker"
 import { ThinkingPicker } from "@/components/thinking-picker"
 import { Button } from "@/components/ui/button"
@@ -25,10 +25,12 @@ import {
   agentsCollection,
   agentsKey,
   computerKindsKey,
+  computersKey,
   modelsKey,
   usageKey,
 } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
+import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 
 import { refreshWorkspaces, useWorkspaceOfAgent, useWorkspaces } from "@/lib/workspaces"
@@ -42,8 +44,6 @@ type Form = {
   memory: string
   model: string
   thinking: ThinkingLevel
-  /** The kind of computer. Null where the deployment offers no choice of one. */
-  computer: string | null
 }
 
 function toForm(state: AgentState): Form {
@@ -56,7 +56,6 @@ function toForm(state: AgentState): Form {
     memory: state.memory,
     model: state.agent.model,
     thinking: state.agent.thinking,
-    computer: state.computer,
   }
 }
 
@@ -226,10 +225,28 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState("")
   const expected = name ?? "delete"
+  const { data: computers } = useQuery({
+    queryKey: computersKey,
+    queryFn: () => client.listComputers(),
+  })
+  // Machines no other agent can use, which nothing would work on once this agent is gone.
+  const alone = (computers ?? []).filter(
+    (computer) =>
+      computer.kind !== PAIRED_COMPUTER &&
+      computer.access === "chosen" &&
+      computer.agentIds.length === 1 &&
+      computer.agentIds[0] === agentId,
+  )
+  const [withComputers, setWithComputers] = useState(true)
   const remove = useMutation({
-    mutationFn: () => client.deleteAgent(agentId),
+    mutationFn: () =>
+      client.deleteAgent(
+        agentId,
+        alone.length > 0 && !withComputers ? { keepComputers: true } : {},
+      ),
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: agentKey(agentId) })
+      void queryClient.invalidateQueries({ queryKey: computersKey })
       await agentsCollection.utils.refetch()
       // The index route picks another agent, or makes a new one if this was the last.
       await navigate({ to: "/" })
@@ -238,7 +255,7 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
   return (
     <Section
       title="Delete this agent"
-      hint="Removes its memory, chats, files, schedules, skills, connectors and its computer, and unpairs your computers from it. This cannot be undone."
+      hint="Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone."
     >
       {open ? (
         <div className="flex flex-col gap-3 rounded-2xl border border-destructive/40 p-4">
@@ -251,6 +268,30 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
           />
+          {alone.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                  checked={withComputers}
+                  disabled={remove.isPending}
+                  onChange={(event) => setWithComputers(event.target.checked)}
+                />
+                <span>
+                  Also delete{" "}
+                  <span className="font-mono">
+                    {new Intl.ListFormat("en").format(alone.map((computer) => computer.name))}
+                  </span>
+                </span>
+              </label>
+              <p className="pl-6 text-sm text-muted-foreground">
+                {alone.length === 1
+                  ? "No other agent can use this computer. Deleting it deletes everything on it."
+                  : "No other agent can use these computers. Deleting them deletes everything on them."}
+              </p>
+            </div>
+          ) : null}
           {remove.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {remove.error.message}
@@ -409,8 +450,8 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
       {to === undefined ? null : (
         <p role="note" className="rounded-xl bg-muted px-3 py-2 text-sm">
           {to.kind === "team"
-            ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers.`
-            : `Only you will be able to use ${name}. Everyone else loses its chats.`}
+            ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other agents stay behind, and it can work on the ones ${to.name} has open to every agent.`
+            : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other agents stay with the team.`}
         </p>
       )}
       {move.isError ? (
@@ -418,6 +459,71 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
           {move.error.message}
         </p>
       ) : null}
+    </Section>
+  )
+}
+
+/**
+ * The computers an agent can work on. They belong to its workspace and not to the agent, so
+ * this only lists them: adding one, and saying which agents may use it, is done for the workspace.
+ */
+function Computers({ agentId }: { agentId: string }) {
+  const { openWorkspace } = useSettings()
+  const { data: computers } = useQuery({
+    queryKey: computersKey,
+    queryFn: () => client.listComputers(),
+  })
+  // The same for every agent, and it only changes with the deployment.
+  const { data: kinds } = useQuery({
+    queryKey: computerKindsKey,
+    queryFn: () => client.computerKinds(),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+  const usable = (computers ?? []).filter((computer) => computer.agentIds.includes(agentId))
+  return (
+    <Section
+      title="Computers"
+      hint="Where this agent can keep files and run commands. Computers belong to the workspace, and an agent has a folder of its own on each machine it has worked on."
+    >
+      {computers === undefined ? null : usable.length === 0 ? (
+        <p className="text-sm text-muted-foreground">It has no computer to work on.</p>
+      ) : (
+        <ul aria-label="Computers this agent can use" className="flex flex-col gap-2">
+          {usable.map((computer) => {
+            const folder = computer.folders.find((entry) => entry.agentId === agentId)?.path
+            return (
+              <li
+                key={computer.id}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 rounded-xl border p-3 text-sm"
+              >
+                <span className="font-mono font-medium">{computer.name}</span>
+                <span className="text-muted-foreground">
+                  {computer.kind === PAIRED_COMPUTER
+                    ? "paired"
+                    : (kinds?.kinds.find((kind) => kind.id === computer.kind)?.label ??
+                      computer.kind)}
+                </span>
+                {folder === undefined ? null : (
+                  <span className="ml-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
+                    {folder}
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <p className="text-sm text-muted-foreground">
+        Computers are added, removed and shared under{" "}
+        <button
+          type="button"
+          className="font-medium text-foreground underline underline-offset-4"
+          onClick={() => openWorkspace("computers")}
+        >
+          Computers
+        </button>{" "}
+        in the workspace settings.
+      </p>
     </Section>
   )
 }
@@ -448,11 +554,6 @@ export function ProfileSettings({
     queryFn: () => client.models(),
     staleTime: Number.POSITIVE_INFINITY,
   })
-  const { data: computers } = useQuery({
-    queryKey: computerKindsKey,
-    queryFn: () => client.computerKinds(),
-    staleTime: Number.POSITIVE_INFINITY,
-  })
   const [form, setForm] = useState<Form>()
   const [dirty, setDirty] = useState(false)
 
@@ -478,7 +579,6 @@ export function ProfileSettings({
   // Which levels there are to choose from depends on the model, so it waits for the list of them.
   const chosen = models?.find((model) => model.id === form.model)
   const over = form.user.length > state.limits.user || form.memory.length > state.limits.memory
-  const moving = form.computer !== state.computer
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -492,7 +592,6 @@ export function ProfileSettings({
       model: form.model,
       // What is saved is what the picker showed as chosen, which is what the model will do.
       thinking: nearestThinking(chosen?.thinking ?? [], form.thinking) ?? form.thinking,
-      ...(moving && form.computer !== null ? { computer: form.computer } : {}),
     })
   }
 
@@ -618,7 +717,7 @@ export function ProfileSettings({
       <div hidden={section !== "model"} className="flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Model and computer</h2>
-          <p className="text-sm text-muted-foreground">{`What ${name} thinks with, where it works, and what it does with a message that arrives while it is busy.`}</p>
+          <p className="text-sm text-muted-foreground">{`What ${name} thinks with, the computers it can work on, and what it does with a message that arrives while it is busy.`}</p>
         </div>
         <Section
           title="Model"
@@ -640,26 +739,7 @@ export function ProfileSettings({
           ) : null}
         </Section>
 
-        {form.computer !== null && computers !== undefined && computers.kinds.length > 1 ? (
-          <Section
-            title="Computer"
-            hint="Where this agent keeps files and runs commands. New agents get your default, which is under Settings."
-          >
-            <ComputerPicker
-              label="Computer"
-              kinds={computers.kinds}
-              value={form.computer}
-              onChange={(computer) => set("computer", computer)}
-            />
-            {moving ? (
-              <p role="note" className="rounded-xl bg-muted px-3 py-2 text-sm">
-                Saving moves {state.agent.name ?? "this agent"} to a different computer. Files are
-                not copied: what it has made stays on the computer it has now, and is there again if
-                you move it back. Its memory, chats, skills and automations are not affected.
-              </p>
-            ) : null}
-          </Section>
-        ) : null}
+        <Computers agentId={agentId} />
         <WhenBusy agentId={agentId} state={state} />
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}

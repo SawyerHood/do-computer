@@ -16,7 +16,7 @@ const SECTIONS: readonly SettingsSection<WorkspaceSection>[] = [
 
 /**
  * What is set for the workspace and not for one agent: a team's name and people, the computers
- * that are paired, and what a new agent starts with. A window over whatever page is showing,
+ * its agents work on, and what a new agent starts with. A window over whatever page is showing,
  * open when the address says so.
  */
 export function WorkspaceSettings({
@@ -48,7 +48,9 @@ export function WorkspaceSettings({
       onSection={openWorkspace}
     >
       {section === "team" ? <TeamSettings workspace={workspace} /> : null}
-      {section === "computers" ? <ComputersSettings agentId={agentId} meId={me.id} /> : null}
+      {section === "computers" ? (
+        <ComputersSettings agentId={agentId} meId={me.id} workspaceId={workspace.id} />
+      ) : null}
       {section === "agents" ? <DefaultsSettings /> : null}
     </SettingsDialog>
   )

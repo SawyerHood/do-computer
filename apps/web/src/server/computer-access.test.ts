@@ -5,8 +5,10 @@ import { personalWorkspaceId } from "@durable-computer/protocol"
 import type { AppDatabase } from "@durable-computer/runtime"
 import { openNodeAppDatabase } from "@durable-computer/runtime/node"
 import { describe, expect, it } from "vitest"
+import { adoptMachines } from "./computer-adoption.ts"
 import {
   agentsOn,
+  agentsUsing,
   answerersOf,
   ask,
   askedBy,
@@ -14,6 +16,10 @@ import {
   computersNear,
   computersOf,
   fits,
+  folderFor,
+  foldersOn,
+  machinesOf,
+  machinesOnlyOf,
   forgetAgent,
   forgetComputer,
   grant,
@@ -99,6 +105,162 @@ async function computer(db: AppDatabase, owner: Who, workspaceId?: string): Prom
   )
   return (await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", id))!
 }
+
+/** A machine the app made for a workspace: open to its agents unless it says `chosen`. */
+async function machine(
+  db: AppDatabase,
+  owner: Who,
+  workspaceId: string,
+  access: "open" | "chosen" = "open",
+): Promise<ComputerRow> {
+  const id = `machine-${++made}`
+  await db.run(
+    `INSERT INTO dc_computers
+       (id, owner_id, workspace_id, name, platform, hostname, home, read_only, created_at,
+        kind, machine_key, access)
+     VALUES (?, ?, ?, 'box', 'linux', '', '/home/box', 0, ?, 'daytona', ?, ?)`,
+    id,
+    owner.id,
+    workspaceId,
+    made,
+    id,
+    access,
+  )
+  return (await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", id))!
+}
+
+describe("a machine of a workspace", () => {
+  it("serves every agent of its workspace while it is open, and nobody else's", async () => {
+    const db = await database()
+    const teamId = await team(db)
+    const box = await machine(db, sawyer, teamId)
+    const one = await agent(db, sawyer, teamId)
+    const two = await agent(db, maya, teamId)
+    const elsewhere = await agent(db, sawyer)
+
+    // Nobody connected them: being in the workspace is enough.
+    expect(await mayUse(db, one, box.id)).toBe(true)
+    expect(await mayUse(db, two, box.id)).toBe(true)
+    expect(await mayUse(db, elsewhere, box.id)).toBe(false)
+    expect((await agentsUsing(db, [box])).get(box.id)).toEqual([one, two])
+    expect((await machinesOf(db, one)).map((row) => row.id)).toEqual([box.id])
+    expect(await machinesOf(db, elsewhere)).toEqual([])
+    // An agent that arrives later has it too, and one that is moved away has it no more.
+    const three = await agent(db, sawyer, teamId)
+    expect(await mayUse(db, three, box.id)).toBe(true)
+    await db.run("UPDATE dc_agents SET workspace_id = ? WHERE id = ?", "personal:sawyer", one)
+    expect(await mayUse(db, one, box.id)).toBe(false)
+  })
+
+  it("serves only the agents chosen for it once it is not open", async () => {
+    const db = await database()
+    const teamId = await team(db)
+    const box = await machine(db, sawyer, teamId, "chosen")
+    const one = await agent(db, sawyer, teamId)
+    const two = await agent(db, maya, teamId)
+    expect(await mayUse(db, one, box.id)).toBe(false)
+    await grant(db, box.id, one, sawyer.id)
+    expect(await mayUse(db, one, box.id)).toBe(true)
+    expect(await mayUse(db, two, box.id)).toBe(false)
+    expect((await agentsUsing(db, [box])).get(box.id)).toEqual([one])
+    // It is the only agent on it, so the machine is what would go with the agent.
+    expect((await machinesOnlyOf(db, one)).map((row) => row.id)).toEqual([box.id])
+    await grant(db, box.id, two, sawyer.id)
+    expect(await machinesOnlyOf(db, one)).toEqual([])
+    // An open machine is never one agent's alone, however few agents there are.
+    const shared = await machine(db, sawyer, teamId)
+    expect((await machinesOnlyOf(db, one)).map((row) => row.id)).not.toContain(shared.id)
+  })
+
+  it("gives each agent a folder of its own, named once and kept", async () => {
+    const db = await database()
+    const teamId = await team(db)
+    const box = await machine(db, sawyer, teamId)
+    const one = await agent(db, sawyer, teamId)
+    const two = await agent(db, maya, teamId)
+    const three = await agent(db, maya, teamId)
+
+    expect(await folderFor(db, box, one, "Scout")).toBe("/home/box/scout")
+    // Two agents of one name do not share a folder, and the library's folder is nobody's.
+    expect(await folderFor(db, box, two, "Scout")).toBe("/home/box/scout-2")
+    expect(await folderFor(db, box, three, "Library")).toBe("/home/box/library-2")
+    // An agent that is renamed keeps the folder its work is in.
+    expect(await folderFor(db, box, one, "Ranger")).toBe("/home/box/scout")
+    expect((await foldersOn(db, [box.id])).get(box.id)).toEqual([
+      { agentId: one, path: "/home/box/scout" },
+      { agentId: two, path: "/home/box/scout-2" },
+      { agentId: three, path: "/home/box/library-2" },
+    ])
+    // What an agent is told of the machine: its own folder, and the others'.
+    expect(await machinesOf(db, one)).toMatchObject([
+      {
+        id: box.id,
+        kind: "daytona",
+        machineKey: box.id,
+        home: "/home/box",
+        folder: "/home/box/scout",
+        neighbors: ["/home/box/scout-2", "/home/box/library-2"],
+      },
+    ])
+    // One with no name yet is named for what it is.
+    const nameless = await agent(db, sawyer, teamId)
+    expect(await folderFor(db, box, nameless, null)).toBe(`/home/box/agent-${nameless}`)
+    await forgetAgent(db, one)
+    expect((await foldersOn(db, [box.id])).get(box.id)?.map((row) => row.agentId)).not.toContain(
+      one,
+    )
+  })
+
+  it("stays when whoever added it for a team leaves, unlike a computer they paired", async () => {
+    const db = await database()
+    const teamId = await team(db)
+    const box = await machine(db, maya, teamId)
+    const laptop = await computer(db, maya, teamId)
+    await removeMember(db, sawyer, teamId, maya.id)
+    expect((await leftBehind(db, maya.id, teamId)).computers.map((row) => row.id)).toEqual([
+      laptop.id,
+    ])
+    expect((await computersOf(db, sawyer.id)).map((row) => row.id)).toContain(box.id)
+  })
+})
+
+describe("the machines an agent had to itself", () => {
+  it("become computers of its workspace, for it alone, and the one it was on stays its own", async () => {
+    const db = await database()
+    const teamId = await team(db)
+    const scout = await agent(db, sawyer, teamId)
+    const had = [
+      { kind: "daytona", home: "/home/daytona", current: true },
+      { kind: "modal", home: "/workspace", current: false },
+    ]
+    const mine = await adoptMachines(db, scout, had, "Scout")
+    // It goes on in the same place: the machine named after it, in the home directory.
+    expect(mine).toMatchObject([
+      {
+        name: "scout-computer",
+        kind: "daytona",
+        machineKey: scout,
+        home: "/home/daytona",
+        folder: "/home/daytona",
+      },
+    ])
+    expect(await mayUse(db, scout, mine[0]!.id)).toBe(true)
+    // The one it left behind is listed with nobody on it, to be seen and deleted.
+    const rows = await computersOf(db, sawyer.id)
+    expect(rows.map((row) => [row.name, row.kind, row.access, row.machine_key])).toEqual([
+      ["scout-computer", "daytona", "chosen", scout],
+      ["scout-modal", "modal", "chosen", scout],
+    ])
+    expect((await agentsUsing(db, rows)).get(rows[1]!.id)).toBeUndefined()
+    // Another agent of the team does not get it by being there.
+    expect(await mayUse(db, await agent(db, maya, teamId), mine[0]!.id)).toBe(false)
+    // Handing them over again changes nothing.
+    expect((await adoptMachines(db, scout, had, "Renamed")).map((row) => row.id)).toEqual([
+      mine[0]!.id,
+    ])
+    expect((await computersOf(db, sawyer.id)).length).toBe(2)
+  })
+})
 
 describe("whose a computer is", () => {
   it("someone's list holds their own computers and their teams', and nobody else's", async () => {

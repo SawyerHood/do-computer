@@ -10,7 +10,13 @@ const handle = ({ request, params }: Input) =>
 /** `DELETE /api/agents/:id` deletes the agent itself; anything deeper is the agent's to answer. */
 const remove = (input: Input) =>
   (input.params._splat ?? "") === ""
-    ? withUser(input.request, (user) => deleteAgent(user, input.params.agentId))
+    ? withUser(input.request, (user) =>
+        deleteAgent(
+          user,
+          input.params.agentId,
+          new URL(input.request.url).searchParams.get("computers") === "keep",
+        ),
+      )
     : handle(input)
 
 export const Route = createFileRoute("/api/agents/$agentId/$")({

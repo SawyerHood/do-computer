@@ -4,7 +4,7 @@ import type { Env } from "./platform.cloudflare.ts"
 import { readConfig } from "./platform.ts"
 import type { RuntimeProviders } from "./sandbox.ts"
 
-/** One Durable Object per agent's computer. Its container exists only while it is in use. */
+/** One Durable Object per machine. Its container exists only while it is in use. */
 export const SandboxObject = createContainerSandboxClass<Env>({
   config: (env) => {
     const config = readConfig(env)
@@ -18,10 +18,10 @@ export const SandboxObject = createContainerSandboxClass<Env>({
 })
 
 export const cloudflareProviders = (env: Env): RuntimeProviders => ({
-  cloudflare: (config) => (host) =>
+  cloudflare: (config) => (key) =>
     containerSandbox({
-      id: host.name,
+      id: key,
       network: config.sandboxNetwork,
-      fetch: (request) => env.SANDBOX.get(env.SANDBOX.idFromName(host.name)).fetch(request),
+      fetch: (request) => env.SANDBOX.get(env.SANDBOX.idFromName(key)).fetch(request),
     }),
 })
