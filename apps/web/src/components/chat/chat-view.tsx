@@ -21,7 +21,8 @@ import { useMascotMood } from "@/lib/use-mascot-mood"
 import { AgentPanel } from "./agent-panel.tsx"
 import { PendingApprovals } from "./approvals.tsx"
 import { Composer } from "./composer.tsx"
-import { AgentIdContext } from "./sent-file.tsx"
+import { DocPanel } from "@/components/library/doc-panel"
+import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
 import { Transcript } from "./transcript.tsx"
 
 /** Record that the agent's owner has seen it out of its egg, so it is shown hatched from now on. */
@@ -167,8 +168,11 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const hatch = useHatch(agent)
   const [panel, setPanel] = usePanel()
   const wide = useWide()
+  // A file from the library that is open beside this chat, by its id. It takes the panel's place.
+  const [openDoc, setOpenDoc] = useState<string>()
+  useEffect(() => setOpenDoc(undefined), [chatId])
   // The panel is beside the chat only where there is room for both.
-  const beside = panel && wide
+  const beside = panel && wide && openDoc === undefined
   // Someone who starts talking before the egg has opened has met their agent all the same.
   const talked = live.loaded && live.state.messages.length > 0
   useEffect(() => {
@@ -299,37 +303,39 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
         )}
         <div className="min-h-0 flex-1">
           <AgentIdContext value={agent.id}>
-            <Transcript
-              state={state}
-              empty={
-                live.loaded ? (
-                  <Welcome
-                    agent={agent}
-                    face={
-                      // Where the panel is beside the chat, the creature is in it and not here too.
-                      beside ? null : (
-                        <span className="mb-6">
-                          <Hatchling agent={agent} hatch={hatch} className="size-72" />
-                        </span>
-                      )
-                    }
-                  />
-                ) : null
-              }
-              before={
-                hasEarlier ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="self-center text-muted-foreground"
-                    disabled={earlier.loading}
-                    onClick={loadEarlier}
-                  >
-                    {earlier.loading ? "Loading…" : "Show earlier messages"}
-                  </Button>
-                ) : null
-              }
-            />
+            <OpenFileContext value={wide ? setOpenDoc : undefined}>
+              <Transcript
+                state={state}
+                empty={
+                  live.loaded ? (
+                    <Welcome
+                      agent={agent}
+                      face={
+                        // Where the panel is beside the chat, the creature is in it and not here too.
+                        beside ? null : (
+                          <span className="mb-6">
+                            <Hatchling agent={agent} hatch={hatch} className="size-72" />
+                          </span>
+                        )
+                      }
+                    />
+                  ) : null
+                }
+                before={
+                  hasEarlier ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="self-center text-muted-foreground"
+                      disabled={earlier.loading}
+                      onClick={loadEarlier}
+                    >
+                      {earlier.loading ? "Loading…" : "Show earlier messages"}
+                    </Button>
+                  ) : null
+                }
+              />
+            </OpenFileContext>
           </AgentIdContext>
         </div>
         <PendingApprovals
@@ -350,6 +356,15 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           onAttach={attach}
         />
       </div>
+      {wide && openDoc !== undefined ? (
+        <DocPanel
+          agentId={agent.id}
+          agentName={agent.name ?? "Your agent"}
+          fileId={openDoc}
+          onOpen={setOpenDoc}
+          onClose={() => setOpenDoc(undefined)}
+        />
+      ) : null}
       {beside ? (
         <AgentPanel
           agent={agent}

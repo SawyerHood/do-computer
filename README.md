@@ -198,8 +198,8 @@ is why sign-up is by invitation unless you open it.
   HTML document is shown as the page it is, and the styles, scripts and images beside it load.
   The files are kept outside the agent's computer, so they are there when it is asleep or gone,
   and it gets them back on a new one. Earlier contents of a file are kept as versions, and a
-  deleted file can be brought back. A file the agent sends appears in the chat, where it opens
-  in the Library.
+  deleted file can be brought back. A file the agent sends appears in the chat, and opens beside
+  it.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
   prints a link; confirm it and choose the agent. The agent can then run commands and read and
   write files there, and everything it does is logged in `~/.durable-computer/audit.log` on that

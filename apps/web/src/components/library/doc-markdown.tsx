@@ -20,6 +20,7 @@ export const DocMarkdown = memo(function DocMarkdown({
   view,
   paths,
   className,
+  onOpen,
 }: {
   agentId: string
   file: LibraryFile
@@ -29,6 +30,8 @@ export const DocMarkdown = memo(function DocMarkdown({
   /** Every path in the library, to tell a link to a file from a link to nothing. */
   paths: ReadonlySet<string>
   className?: string
+  /** Open a linked file where this document is shown, instead of going to the library for it. */
+  onOpen?: (path: string) => void
 }) {
   const dir = dirOf(file.path)
   return (
@@ -40,7 +43,17 @@ export const DocMarkdown = memo(function DocMarkdown({
             const path = href === undefined ? undefined : resolveLink(dir, href)
             if (path !== undefined && paths.has(path)) {
               return (
-                <Link to="/a/$agentId/library" params={{ agentId }} search={{ path }} title={title}>
+                <Link
+                  to="/a/$agentId/library"
+                  params={{ agentId }}
+                  search={{ path }}
+                  title={title}
+                  onClick={(event) => {
+                    if (onOpen === undefined) return
+                    event.preventDefault()
+                    onOpen(path)
+                  }}
+                >
                   {children}
                 </Link>
               )

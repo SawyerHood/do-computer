@@ -204,8 +204,10 @@ Since then, newest last:
       a viewer per kind: Markdown to read, edit or both side by side; a page with its source;
       pictures; other text as an editor. Edits save a moment after typing stops and name the
       revision they were made from, so one the agent made meanwhile becomes a choice between
-      the two and is never overwritten silently. A file card in a chat opens the file there.
-      `prototypes/library-docs` is the mock-up it was built from.
+      the two and is never overwritten silently. On a wide screen a file card in a chat opens
+      the file beside the chat, in the place of the agent's panel, with the same viewer; on a
+      narrow one it opens in the library. `prototypes/library-docs` is the mock-up it was built
+      from.
 
 ## 6. What the owner has said they want
 
@@ -272,10 +274,10 @@ cheaper model. Web search still uses Haiku; they were told and have not asked to
   built it. Its author's own list of rough edges: at 24 px the command and file variants are
   hard to tell apart; flat-shaded bodies can show a large white highlight; the error state greys
   the eye whites; the alternative "glass" look is less finished and unused by the app.
-- **The library** on mobile is still the flat list with downloads. On the web, a document does
-  not open beside the chat, as the mock-up showed; PDFs and other formats have no viewer; there
-  are no empty folders, since a folder is only the paths of the files in it; and a file's
-  history shows who and when but not what changed.
+- **The library** on mobile is still the flat list with downloads. On the web, PDFs and other
+  formats have no viewer; there are no empty folders, since a folder is only the paths of the
+  files in it; a file's history shows who and when but not what changed; and a document changes
+  on screen when the agent's tool call ends, not as it types, which the mock-up pretended.
 - **A page from the library can load anything from the internet**, and could send what is in
   the library to wherever it likes, since it can read the files beside it. That is the price of
   letting pages use scripts and fonts from elsewhere. Serving them from a second domain would

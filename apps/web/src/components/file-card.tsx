@@ -13,7 +13,16 @@ const PREVIEWABLE = new Set(["image/png", "image/jpeg", "image/gif", "image/webp
  * A file from the library, in a chat: a preview when it is an image, a way into the library when
  * it is something that can be shown there, and a download either way.
  */
-export function FileCard({ agentId, file }: { agentId: string; file: LibraryFile }) {
+export function FileCard({
+  agentId,
+  file,
+  onOpen,
+}: {
+  agentId: string
+  file: LibraryFile
+  /** Open the file where the card is, instead of going to the library for it. */
+  onOpen?: () => void
+}) {
   const url = client.agent(agentId).libraryFileUrl(file.id)
   // A file sent before the library could show documents has no place in it on record.
   const viewable = file.path !== undefined && kindOf(file) !== "other"
@@ -33,15 +42,26 @@ export function FileCard({ agentId, file }: { agentId: string; file: LibraryFile
       ) : null}
       {viewable ? (
         <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl border bg-surface text-sm">
-          <Link
-            to="/a/$agentId/library"
-            params={{ agentId }}
-            search={{ file: file.id }}
-            title="Open in the library"
-            className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 hover:bg-accent"
-          >
-            {label}
-          </Link>
+          {onOpen === undefined ? (
+            <Link
+              to="/a/$agentId/library"
+              params={{ agentId }}
+              search={{ file: file.id }}
+              title="Open in the library"
+              className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 hover:bg-accent"
+            >
+              {label}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              title="Open beside the chat"
+              onClick={onOpen}
+              className="flex min-w-0 items-center gap-3 py-2.5 pr-3 pl-3 text-left hover:bg-accent"
+            >
+              {label}
+            </button>
+          )}
           <a
             href={url}
             download={file.name}

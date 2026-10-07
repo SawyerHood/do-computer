@@ -310,6 +310,7 @@ function TextBody({
   paths,
   mode,
   stamp,
+  inPlace,
   onOpen,
   onState,
 }: {
@@ -320,6 +321,8 @@ function TextBody({
   paths: ReadonlySet<string>
   mode: ViewMode
   stamp: number
+  /** Links to other files open here, where this is shown, and not in the library. */
+  inPlace: boolean
   onOpen: (path: string) => void
   onState: (state: SaveState) => void
 }) {
@@ -342,6 +345,7 @@ function TextBody({
       text={text}
       view={view}
       paths={paths}
+      onOpen={inPlace ? onOpen : undefined}
       className="mx-auto max-w-3xl px-6 pt-10 pb-24 md:px-9"
     />
   )
@@ -398,6 +402,8 @@ export function Viewer({
   mode,
   onMode,
   onOpen,
+  compact = false,
+  actions,
 }: {
   agentId: string
   agentName: string
@@ -408,6 +414,10 @@ export function Viewer({
   onMode: (mode: ViewMode) => void
   /** Open another file, or with nothing, go back to the library's front page. */
   onOpen: (path?: string) => void
+  /** Shown in a narrow place, such as beside a chat: only the file's name, not where it is. */
+  compact?: boolean
+  /** Buttons for wherever this is shown, after its own. */
+  actions?: ReactNode
 }) {
   const api = client.agent(agentId)
   const kind = kindOf(file)
@@ -443,15 +453,17 @@ export function Viewer({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex h-13 shrink-0 items-center gap-2 border-b pr-2 pl-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="md:hidden"
-          aria-label="Back to the library"
-          onClick={() => onOpen()}
-        >
-          <ArrowLeftIcon />
-        </Button>
+        {compact ? null : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="md:hidden"
+            aria-label="Back to the library"
+            onClick={() => onOpen()}
+          >
+            <ArrowLeftIcon />
+          </Button>
+        )}
         {renaming === undefined ? (
           <nav
             aria-label="Where this file is"
@@ -461,7 +473,7 @@ export function Viewer({
               to="/a/$agentId/library"
               params={{ agentId }}
               search={{}}
-              className="hidden hover:text-foreground md:inline"
+              className={cn("hidden hover:text-foreground", !compact && "md:inline")}
             >
               Library
             </Link>
@@ -470,10 +482,10 @@ export function Viewer({
                 key={`${index}:${part}`}
                 className={cn(
                   "flex min-w-0 items-center gap-1",
-                  index < parts.length - 1 && "hidden md:flex",
+                  index < parts.length - 1 && (compact ? "hidden" : "hidden md:flex"),
                 )}
               >
-                <CaretRightIcon className="hidden size-3 shrink-0 md:block" />
+                <CaretRightIcon className={cn("hidden size-3 shrink-0", !compact && "md:block")} />
                 {index === parts.length - 1 ? (
                   // Not a heading: a document brings its own, and this is only its file name.
                   <span aria-current="page" className="truncate font-medium text-foreground">
@@ -509,7 +521,7 @@ export function Viewer({
             </Button>
           </form>
         )}
-        {renaming === undefined ? (
+        {renaming === undefined && !compact ? (
           <p className="hidden shrink-0 pl-1 text-xs text-muted-foreground lg:block">
             {who(file.updatedBy, agentName)} · {formatWhen(file.updatedAt)} ·{" "}
             {formatBytes(file.size)}
@@ -569,6 +581,7 @@ export function Viewer({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {actions}
       </header>
       <div className="min-h-0 flex-1">
         {kind === "image" ? (
@@ -603,6 +616,7 @@ export function Viewer({
             paths={paths}
             mode={mode}
             stamp={stamp}
+            inPlace={compact}
             onOpen={onOpen}
             onState={setSaveState}
           />

@@ -315,7 +315,7 @@ test("a document the agent writes opens from the chat, to be read and edited", a
 
   const card = page
     .getByRole("main")
-    .getByRole("link", { name: /plan\.md/ })
+    .getByRole("button", { name: /plan\.md/ })
     .first()
   await expect(card).toBeVisible()
   const download = page.waitForEvent("download")
@@ -324,13 +324,23 @@ test("a document the agent writes opens from the chat, to be read and edited", a
   expect(file.suggestedFilename()).toBe("plan.md")
   expect(readFileSync(await file.path(), "utf8")).toContain("Ship it.")
 
-  // The card leads to the document, in its folder, shown as a document.
+  // The card opens the document beside the chat, where a link to the one next to it opens that.
   await card.click()
-  await expect(page).toHaveURL(/\/library\?path=notes%2Fplan\.md/)
-  await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+  const beside = page.getByRole("complementary", { name: "Document" })
+  await expect(beside.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+  await expect(composer(page)).toBeVisible()
+  await page.screenshot({ path: "test-results/library-beside-chat.png" })
+  await beside.getByRole("link", { name: "more", exact: true }).click()
+  await expect(beside.getByRole("heading", { name: "More", level: 1 })).toBeVisible()
+
+  // From there it opens in the library, in its folder.
+  await beside.getByRole("link", { name: "Open in the Library" }).click()
+  await expect(page).toHaveURL(/\/library\?path=notes%2Fmore\.md/)
   const files = page.getByRole("navigation", { name: "Files" })
   await expect(files.getByRole("button", { name: "notes" })).toBeVisible()
+  await files.getByRole("link", { name: "plan.md" }).click()
   await expect(files.getByRole("link", { name: "plan.md" })).toHaveAttribute("aria-current", "page")
+  await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
 
   // A link to the document beside it opens that one.
   await page.getByRole("link", { name: "more", exact: true }).click()
