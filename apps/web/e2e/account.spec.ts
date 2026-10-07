@@ -1,14 +1,5 @@
 import { expect, test } from "./fixtures.ts"
-import {
-  closeSettings,
-  composer,
-  inOrder,
-  openSettings,
-  owner,
-  signIn,
-  signUp,
-  tab,
-} from "./helpers.ts"
+import { composer, inOrder, openSettings, owner, signIn, signUp, tab } from "./helpers.ts"
 
 inOrder()
 
@@ -66,43 +57,6 @@ test("chats are separate, and an archived chat leaves the list", async ({ page }
   await page.getByRole("button", { name: "Archive second chat here" }).click()
   await expect(page.getByRole("link", { name: "second chat here" })).toHaveCount(0)
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
-})
-
-test("identity edits are saved and show up across the app", async ({ page }) => {
-  await signIn(page)
-  // The tab's icon is the agent's creature, as it looks now.
-  const icon = page.locator('link[rel="icon"]')
-  await expect(icon).toHaveAttribute("href", /^data:image\//)
-  const before = await icon.getAttribute("href")
-  await openSettings(page, "Identity")
-  await page.getByLabel("Name").fill("Juniper")
-  await page.getByLabel("Tagline").fill("Calm and curious")
-  // Its color is a choice; what it looks like is a roll of the dice.
-  await page.getByRole("button", { name: "Tide" }).click()
-  await page.getByRole("button", { name: "Roll a new look" }).click()
-  await page.locator("#user").fill("Prefers short answers")
-  await page.getByRole("button", { name: "Save changes" }).click()
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible()
-  await expect.poll(() => icon.getAttribute("href")).not.toBe(before)
-  await expect(icon).toHaveAttribute("href", /^data:image\//)
-
-  await closeSettings(page)
-  await expect(page.getByText("Juniper").first()).toBeVisible()
-  await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
-
-  await page.reload()
-  await openSettings(page, "Identity")
-  await expect(page.getByLabel("Name")).toHaveValue("Juniper")
-  await expect(page.locator("#user")).toHaveValue("Prefers short answers")
-  await expect(page.getByRole("button", { name: "Tide" })).toHaveAttribute("aria-pressed", "true")
-  const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
-  const saved = (await (await page.request.get(`/api/agents/${agentId}`)).json()) as {
-    agent: { avatar: { color: string; seed?: string }; hatched: boolean }
-  }
-  expect(saved.agent.avatar.color).toBe("tide")
-  expect(saved.agent.avatar.seed).toMatch(/^.{6,}$/)
-  // It has a name now, so it is out of its egg whether or not anyone watched.
-  expect(saved.agent.hatched).toBe(true)
 })
 
 test("memory over its limit cannot be saved", async ({ page }) => {

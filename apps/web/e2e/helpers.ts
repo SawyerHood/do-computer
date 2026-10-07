@@ -103,17 +103,20 @@ export function inOrder() {
 
 /**
  * The same, for a file that is not about signing up: the owner's account is there before its
- * first test, with the agent named Juniper and so out of its egg.
+ * first test, with the agent named Juniper and so out of its egg. Or with no name yet, when
+ * giving it one is what the file's first test is about.
  */
-export function asOwner() {
+export function asOwner({ agent = "Juniper" }: { agent?: string | null } = {}) {
   inOrder()
   test.beforeAll(async ({ browser, baseURL }) => {
     const page = await browser.newPage({ baseURL })
     await signUp(page)
     await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
-    const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
-    const named = await page.request.patch(`/api/agents/${agentId}`, { data: { name: "Juniper" } })
-    expect(named.status()).toBe(200)
+    if (agent !== null) {
+      const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
+      const named = await page.request.patch(`/api/agents/${agentId}`, { data: { name: agent } })
+      expect(named.status()).toBe(200)
+    }
     await page.close()
   })
 }
