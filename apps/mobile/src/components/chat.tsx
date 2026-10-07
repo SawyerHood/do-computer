@@ -144,6 +144,14 @@ function Message({
         </View>
       )
     }
+    if (notice?.kind === "computer") {
+      // The answer to the agent's asking to use a computer. Asking is answered on the web.
+      return (
+        <Text tone="muted" size={14} style={{ paddingHorizontal: space(1) }}>
+          {`${notice.by ?? "Someone"} ${notice.approved ? "said yes to" : "said no to"} using ${notice.text}`}
+        </Text>
+      )
+    }
     return (
       <Text tone="muted" size={13} style={{ textAlign: "center" }}>
         {notice?.kind === "compaction" ? "Earlier messages were summarized" : "New context"}

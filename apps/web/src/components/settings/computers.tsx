@@ -1,12 +1,27 @@
-import type { ComputerSummary } from "@durable-computer/protocol"
-import { CopyIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  type AgentSummary,
+  type ComputerSummary,
+  isPersonalWorkspace,
+  type WorkspaceSummary,
+} from "@durable-computer/protocol"
+import { CopyIcon, TrashIcon, XIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useRef, useState } from "react"
+import { AgentFace } from "@/components/agent-avatar"
+import {
+  ComputerRequestCard,
+  useAgentsById,
+  useComputerRequests,
+} from "@/components/computer-requests"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
+import { useWorkspaces } from "@/lib/workspaces"
+
+const SELECT =
+  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
 
 const PLATFORMS: Record<string, string> = { darwin: "macOS", linux: "Linux", win32: "Windows" }
 
@@ -18,11 +33,51 @@ function ago(at: number): string {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`
 }
 
-function ComputerCard({ computer, here }: { computer: ComputerSummary; here: boolean }) {
+function ComputerCard({
+  computer,
+  meId,
+  agentId,
+  workspaces,
+  agents,
+}: {
+  computer: ComputerSummary
+  meId: string
+  /** The agent on screen, which is offered first. */
+  agentId: string | undefined
+  workspaces: readonly WorkspaceSummary[]
+  agents: ReadonlyMap<string, AgentSummary>
+}) {
+  const settled = () => queryClient.invalidateQueries({ queryKey: computersKey })
   const remove = useMutation({
     mutationFn: () => client.removeComputer(computer.id),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: computersKey }),
+    onSettled: settled,
   })
+  const move = useMutation({
+    mutationFn: (workspaceId: string) => client.moveComputer(computer.id, workspaceId),
+    onSettled: settled,
+  })
+  const connect = useMutation({
+    mutationFn: (agentId: string) => client.connectComputer(computer.id, agentId),
+    onSettled: settled,
+  })
+  const disconnect = useMutation({
+    mutationFn: (agentId: string) => client.disconnectComputer(computer.id, agentId),
+    onSettled: settled,
+  })
+  const personal = isPersonalWorkspace(computer.workspaceId)
+  const mine = computer.pairedBy.id === meId
+  const team = workspaces.find((workspace) => workspace.id === computer.workspaceId)
+  const teams = workspaces.filter((workspace) => workspace.kind === "team")
+  // One's own computer serves any agent one can use; a team's serves the team's agents.
+  const connectable = [...agents.values()]
+    .filter(
+      (agent) =>
+        !computer.agentIds.includes(agent.id) &&
+        (personal || agent.workspaceId === computer.workspaceId),
+    )
+    .sort((a, b) => Number(b.id === agentId) - Number(a.id === agentId))
+  const problem = [remove, move, connect, disconnect].find((mutation) => mutation.isError)?.error
+  const busy = move.isPending || connect.isPending || disconnect.isPending || remove.isPending
   return (
     <li className="flex flex-col gap-3 rounded-2xl border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
@@ -31,7 +86,6 @@ function ComputerCard({ computer, here }: { computer: ComputerSummary; here: boo
           <p className="text-sm text-muted-foreground">
             {PLATFORMS[computer.platform] ?? computer.platform} · {computer.hostname}
             {computer.readOnly ? " · read-only" : ""}
-            {here ? "" : " · paired with another agent"}
           </p>
         </div>
         <span
@@ -51,28 +105,131 @@ function ComputerCard({ computer, here }: { computer: ComputerSummary; here: boo
           {computer.online ? "Online" : "Offline"}
         </span>
       </div>
+
+      <dl className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-2.5 text-sm">
+        <dt className="text-muted-foreground">Belongs to</dt>
+        <dd className="min-w-0">
+          {mine && teams.length > 0 ? (
+            // Whoever paired it says whose it is: it is their account there that agents act as.
+            <select
+              aria-label={`Who ${computer.name} belongs to`}
+              value={computer.workspaceId}
+              disabled={busy}
+              onChange={(event) => {
+                const to = workspaces.find((workspace) => workspace.id === event.target.value)
+                if (to === undefined) return
+                const losing = computer.agentIds.filter(
+                  (id) => to.kind === "team" && agents.get(id)?.workspaceId !== to.id,
+                )
+                if (
+                  losing.length > 0 &&
+                  !confirm(
+                    `Give ${computer.name} to ${to.name}? Agents outside ${to.name} will be disconnected from it.`,
+                  )
+                ) {
+                  return
+                }
+                move.mutate(to.id)
+              }}
+              className={SELECT}
+            >
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.kind === "personal" ? "You" : workspace.name}
+                </option>
+              ))}
+            </select>
+          ) : personal ? (
+            "You"
+          ) : (
+            <>
+              {team?.name ?? "A team"}
+              <span className="text-muted-foreground">
+                {" "}
+                · paired by {mine ? "you" : computer.pairedBy.name}
+              </span>
+            </>
+          )}
+        </dd>
+        <dt className="self-start pt-1 text-muted-foreground">Agents</dt>
+        <dd className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {computer.agentIds.map((id) => {
+            const agent = agents.get(id)
+            const name = agent?.name ?? "New agent"
+            return (
+              <span
+                key={id}
+                className="flex items-center gap-1.5 rounded-lg border bg-background py-0.5 pr-0.5 pl-1.5"
+              >
+                {agent === undefined ? null : <AgentFace agent={agent} className="size-5" still />}
+                <span className="max-w-40 truncate">{name}</span>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="size-6 text-muted-foreground"
+                  disabled={busy}
+                  aria-label={`Disconnect ${name} from ${computer.name}`}
+                  onClick={() => disconnect.mutate(id)}
+                >
+                  <XIcon />
+                </Button>
+              </span>
+            )
+          })}
+          {connectable.length > 0 ? (
+            <select
+              aria-label={`Connect an agent to ${computer.name}`}
+              value=""
+              disabled={busy}
+              onChange={(event) => {
+                if (event.target.value !== "") connect.mutate(event.target.value)
+              }}
+              className={cn(SELECT, "text-muted-foreground")}
+            >
+              <option value="">
+                {computer.agentIds.length === 0 ? "Connect an agent…" : "Connect another…"}
+              </option>
+              {connectable.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name ?? "New agent"}
+                  {personal && teams.length > 0
+                    ? ` · ${workspaces.find((workspace) => workspace.id === agent.workspaceId)?.name ?? ""}`
+                    : ""}
+                </option>
+              ))}
+            </select>
+          ) : computer.agentIds.length === 0 ? (
+            <span className="text-muted-foreground">None yet</span>
+          ) : null}
+        </dd>
+      </dl>
+
       <div className="flex items-center gap-2">
         <p className="text-sm text-muted-foreground">
           {computer.online
-            ? "Your agent can work on this computer now."
+            ? computer.agentIds.length === 0
+              ? "No agent can work on it until one is connected. An agent can also ask."
+              : "Its agents can work on it now."
             : computer.lastSeenAt
               ? `Last connected ${ago(computer.lastSeenAt)}. Start the daemon there to bring it back.`
               : "Its daemon has not connected yet."}
         </p>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto shrink-0 text-muted-foreground"
-          disabled={remove.isPending}
-          aria-label={`Remove ${computer.name}`}
-          onClick={() => remove.mutate()}
-        >
-          <TrashIcon /> Remove
-        </Button>
+        {computer.canManage ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto shrink-0 text-muted-foreground"
+            disabled={busy}
+            aria-label={`Remove ${computer.name}`}
+            onClick={() => remove.mutate()}
+          >
+            <TrashIcon /> Remove
+          </Button>
+        ) : null}
       </div>
-      {remove.isError ? (
+      {problem ? (
         <p role="alert" className="text-sm text-destructive">
-          {remove.error.message}
+          {problem.message}
         </p>
       ) : null}
     </li>
@@ -121,12 +278,18 @@ function Command({ label, command }: { label: string; command: string }) {
   )
 }
 
-/** The user's own machines their agents can work on, and how to add one. */
+/**
+ * The computers people have paired: the user's own, and those of the teams they are in. Each
+ * says whose it is and which agents can work on it, and an agent that asked for one is answered
+ * here.
+ */
 export function ComputersSettings({
   agentId,
+  meId,
 }: {
-  /** The agent on screen, whose computers are marked as its own. */
+  /** The agent on screen, if there is one. */
   agentId?: string | undefined
+  meId: string
 }) {
   const { data: computers } = useQuery({
     queryKey: computersKey,
@@ -134,6 +297,10 @@ export function ComputersSettings({
     // Whether a computer is online changes without any event reaching this page.
     refetchInterval: 5_000,
   })
+  const workspaces = useWorkspaces()?.workspaces ?? []
+  const agents = useAgentsById()
+  // As often as the list under it, which is looked at for the same reason.
+  const requests = useComputerRequests(5_000).filter((request) => request.canAnswer)
   const install = `curl -fsSL ${location.origin}/install.sh | sh`
 
   return (
@@ -141,10 +308,22 @@ export function ComputersSettings({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Computers</h2>
         <p className="text-sm text-muted-foreground">
-          Your own machines, connected so your agent can work on them: run commands, and read and
-          write files. Everything it does there is logged on that machine.
+          Machines of your own or of a team, connected so agents can work on them: run commands, and
+          read and write files. Everything an agent does there is logged on that machine.
         </p>
       </div>
+
+      {requests.length > 0 ? (
+        <ul aria-label="Agents asking to use a computer" className="flex flex-col gap-2">
+          {requests.map((request) => (
+            <ComputerRequestCard
+              key={request.id}
+              request={request}
+              agentName={agents.get(request.agentId)?.name ?? "An agent"}
+            />
+          ))}
+        </ul>
+      ) : null}
 
       {computers !== undefined && computers.length > 0 ? (
         <ul className="flex flex-col gap-3">
@@ -152,7 +331,10 @@ export function ComputersSettings({
             <ComputerCard
               key={computer.id}
               computer={computer}
-              here={computer.agentId === agentId}
+              meId={meId}
+              agentId={agentId}
+              workspaces={workspaces}
+              agents={agents}
             />
           ))}
         </ul>
@@ -165,12 +347,12 @@ export function ComputersSettings({
           command={install}
         />
         <Command
-          label="Or let the agent read files there without being able to run commands or change anything:"
+          label="Or let agents read files there without being able to run commands or change anything:"
           command={`${install} -s -- --read-only`}
         />
         <p className="text-sm text-muted-foreground">
-          It prints a link. Open it here to choose which agent gets access. Stopping the daemon, or
-          removing the computer on this page, ends that access at once.
+          It prints a link. Open it here to say whose the computer is and which agents get access.
+          Stopping the daemon, or removing the computer on this page, ends that access at once.
         </p>
       </section>
     </div>

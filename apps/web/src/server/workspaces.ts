@@ -10,7 +10,7 @@ import {
 import { moveAgent } from "./agent-move.ts"
 import { callAgent, fail, json, tellAgentItsTeam } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
-import { removeComputersOfMember } from "./computers.ts"
+import { removeComputersOfMember, removeComputersOfWorkspace } from "./computers.ts"
 import { sendEmail } from "./email.ts"
 import { findGithubUser } from "./github.ts"
 import { announce, dismiss } from "./presence.ts"
@@ -129,6 +129,7 @@ export async function patchWorkspace(
 export function removeWorkspace(user: SessionUser, workspaceId: string): Promise<Response> {
   return answer(async () => {
     await deleteWorkspace(getPlatform().db, user, workspaceId)
+    await removeComputersOfWorkspace(workspaceId)
     await announce(workspaceId)
   })
 }
@@ -187,7 +188,10 @@ export async function patchMember(
   })
 }
 
-/** Remove someone from a team, or leave it. Computers of theirs stop serving its agents. */
+/**
+ * Remove someone from a team, or leave it. Computers of theirs stop serving its agents, and the
+ * ones they paired for the team are removed.
+ */
 export function deleteMember(
   user: SessionUser,
   workspaceId: string,

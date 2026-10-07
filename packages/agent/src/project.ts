@@ -217,6 +217,25 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         createdAt: first?.role === "user" ? first.timestamp : undefined,
       }
     }
+    case "dc.computer-access": {
+      // The answer to the agent's asking to use a computer, in the chat it asked from.
+      const answer = entry.data as { name?: string; approved?: boolean; by?: string } | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "computer",
+            text: answer?.name ?? "a computer",
+            approved: answer?.approved === true,
+            ...(answer?.by ? { by: answer.by } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
     default:
       return undefined
   }
@@ -300,6 +319,14 @@ export function entryText(
       return {
         role: "assistant",
         text: [word?.title, word?.text].filter(Boolean).join("\n"),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.computer-access": {
+      const answer = entry.data as { name?: string; approved?: boolean; by?: string } | undefined
+      return {
+        role: "assistant",
+        text: `${answer?.by ?? "Someone"} ${answer?.approved === true ? "let the agent use" : "did not let the agent use"} the computer ${answer?.name ?? ""}`.trim(),
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }

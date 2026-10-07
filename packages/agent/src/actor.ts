@@ -70,7 +70,13 @@ import {
   LibraryError,
   MAX_LIBRARY_FILE_BYTES,
 } from "./library.ts"
-import { ComputersDoc, type PairedComputer, PairedComputers } from "./paired.ts"
+import {
+  type ComputerAnswer,
+  type ComputerDirectory,
+  ComputersDoc,
+  type PairedComputer,
+  PairedComputers,
+} from "./paired.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
@@ -113,6 +119,11 @@ export type AgentActorOptions = {
   readonly keepAliveMs?: number
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
   readonly computerLinks?: ActorNamespace
+  /**
+   * Which computers the agent could be connected to besides the ones it has, and how it asks for
+   * one. Without it, the agent has only the computers it was given. Needs `computerLinks`.
+   */
+  readonly computerDirectory?: ComputerDirectory
   /** Used to reach connectors (remote MCP servers). Default: the global `fetch`. */
   readonly connectorFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>
   /**
@@ -323,10 +334,13 @@ export class AgentActor implements Actor {
     this.#paired =
       options.computerLinks === undefined
         ? undefined
-        : new PairedComputers(options.computerLinks, [
-            this.#library.sendFileTool,
-            this.#library.libraryTool,
-          ])
+        : new PairedComputers(
+            options.computerLinks,
+            [this.#library.sendFileTool, this.#library.libraryTool],
+            options.computerDirectory === undefined
+              ? undefined
+              : { agentId: host.name, lookup: options.computerDirectory },
+          )
     const skillFetch = guardedFetch(
       (input, init) => (options.fetch ?? fetch)(String(input), init),
       options.allowPrivateHosts === true,
@@ -702,6 +716,20 @@ export class AgentActor implements Actor {
       const computerId = segments[1]
       if (computerId === undefined && method === "GET") {
         return json({ computers: await this.#paired.list(context) })
+      }
+      if (computerId !== undefined && segments[2] === "answer" && method === "POST") {
+        const answer = await body<ComputerAnswer>(request)
+        const turn = await this.#paired.answered(computerId, answer, context)
+        if (turn !== undefined && answer.chatId !== null) {
+          const chatId = answer.chatId
+          await harness.commit(async (tx) => {
+            const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
+            if (chat !== undefined) chat.updatedAt = this.#host.now()
+          }, context)
+          // What the agent says about it is told like any other answer nobody was there for.
+          void this.#notifyWhenUnseen(harness, chatId, turn, undefined)
+        }
+        return json({ ok: true })
       }
       if (computerId !== undefined && method === "PUT") {
         const computer = await body<PairedComputer>(request)

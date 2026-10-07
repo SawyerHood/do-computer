@@ -174,6 +174,75 @@ test("each sees the other in the chat, and when they are writing", async () => {
   ).toBeVisible()
 })
 
+/** What a daemon does when it starts: ask to be paired, and get a code for someone to confirm. */
+async function pairingCode(page: Page, name: string): Promise<string> {
+  const response = await page.request.post("/api/computers/pair/start", {
+    data: { name, hostname: `${name}.local`, platform: "darwin", home: `/Users/${name}` },
+  })
+  return ((await response.json()) as { code: string }).code
+}
+
+type Listed = { id: string; name: string; workspaceId: string; agentIds: string[] }
+const computersOf = async (page: Page) =>
+  ((await (await page.request.get("/api/computers")).json()) as { computers: Listed[] }).computers
+
+test("a team's computer is anyone's in the team to connect, and a teammate's own is asked for", async () => {
+  // He pairs a computer for the team, and gives it to no agent yet.
+  await sawyer.goto(`/pair?code=${await pairingCode(sawyer, "team-mini")}`)
+  await sawyer.getByRole("radio", { name: /^Tidewater/ }).check()
+  await sawyer.getByRole("button", { name: "Connect this computer" }).click()
+  await expect(sawyer.getByRole("heading", { name: "Connected" })).toBeVisible()
+  await expect(sawyer.getByText(/No agent can use it yet/)).toBeVisible()
+
+  // She did not pair it, but it is her team's: she sees it, and connects the team's agent.
+  await her.getByRole("button", { name: /settings and signing out$/ }).click()
+  await her.getByRole("menuitem", { name: /Workspace settings/ }).click()
+  await her.getByRole("dialog").getByRole("button", { name: "Computers", exact: true }).click()
+  const mini = her.getByRole("listitem").filter({ hasText: "team-mini" })
+  await expect(mini.getByText("paired by Sawyer")).toBeVisible()
+  await expect(mini.getByRole("button", { name: "Remove team-mini" })).toHaveCount(0)
+  await mini.getByRole("combobox", { name: "Connect an agent to team-mini" }).selectOption(agentId)
+  await expect(mini.getByRole("button", { name: /^Disconnect .* from team-mini$/ })).toBeVisible()
+
+  // A computer of her own is hers alone: he does not see it, and the team's agent cannot use it.
+  const code = await pairingCode(her, "mayas-mac")
+  expect((await her.request.post("/api/computers/pair/confirm", { data: { code } })).status()).toBe(
+    201,
+  )
+  expect((await computersOf(sawyer)).map((computer) => computer.name)).not.toContain("mayas-mac")
+
+  // The agent can see that it is there, though, and ask her for it.
+  await sawyer.goto(chatPath)
+  await composer(sawyer).fill('/tool computers {"action":"list"}')
+  await composer(sawyer).press("Enter")
+  const his = sawyer.getByRole("log")
+  await expect(
+    his.getByText(/team-mini: belongs to the team Tidewater, darwin, offline\. You can use it\./),
+  ).toBeVisible()
+  await expect(
+    his.getByText(/mayas-mac: Maya Okafor's, darwin, offline\. You cannot use/),
+  ).toBeVisible()
+  await composer(sawyer).fill(
+    '/tool computers {"action":"request","name":"mayas-mac","reason":"to check the build"}',
+  )
+  await composer(sawyer).press("Enter")
+  await expect(his.getByText(/Asked Maya Okafor whether you may use "mayas-mac"/)).toBeVisible()
+  // It is not his to give: he sees who it is waiting for.
+  const waiting = sawyer.getByRole("list", { name: "Computers it asked to use" })
+  await expect(waiting.getByText("Waiting for Maya Okafor to answer.")).toBeVisible()
+  await expect(waiting.getByRole("button", { name: "Allow", exact: true })).toHaveCount(0)
+
+  // She is asked where her computers are listed, and says yes.
+  const asking = her.getByRole("list", { name: "Agents asking to use a computer" })
+  await expect(asking.getByText("to check the build")).toBeVisible({ timeout: 15_000 })
+  await asking.getByRole("button", { name: "Allow", exact: true }).click()
+  await expect(asking).toHaveCount(0)
+  await expect(his.getByText("Maya Okafor said yes to using")).toBeVisible()
+  await expect(waiting).toHaveCount(0)
+  const hers = (await computersOf(her)).find((computer) => computer.name === "mayas-mac")!
+  expect(hers.agentIds).toEqual([agentId])
+})
+
 test("a member cannot run the team, and loses its agents when removed", async () => {
   // She can make agents and use them, but not invite, rename, or delete the team's agent.
   expect(
@@ -194,6 +263,14 @@ test("a member cannot run the team, and loses its agents when removed", async ()
   await expect(sawyer.getByRole("heading", { name: "Members · 1" })).toBeVisible()
   expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(404)
   expect((await her.request.get(`/api/agents/${agentId}/chats/1`)).status()).toBe(404)
+  // Her own computer is still hers, and no longer serves the team's agent. The team's computer
+  // stays with the team, out of her sight.
+  expect((await computersOf(her)).map(({ name, agentIds }) => ({ name, agentIds }))).toEqual([
+    { name: "mayas-mac", agentIds: [] },
+  ])
+  expect(
+    (await computersOf(sawyer)).find((computer) => computer.name === "team-mini"),
+  ).toMatchObject({ workspaceId: team, agentIds: [agentId] })
   // Her page lets go of the team's agent by itself, and leads back to what is hers.
   await expect(her.getByRole("heading", { name: "This agent could not be loaded" })).toBeVisible()
   await expect(her.getByRole("link", { name: "Back to your agents" })).toBeVisible()

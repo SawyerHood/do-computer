@@ -8,6 +8,7 @@ import { client } from "@/lib/client"
 import { agentsKey, computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
+import { useWorkspaces } from "@/lib/workspaces"
 
 export const Route = createFileRoute("/_app/pair")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -16,7 +17,10 @@ export const Route = createFileRoute("/_app/pair")({
   component: PairPage,
 })
 
-/** Where the link a daemon prints leads: the user agrees to pair that computer, and picks the agent. */
+/**
+ * Where the link a daemon prints leads: the user agrees to pair that computer, and says whose it
+ * is and which agents can use it.
+ */
 function PairPage() {
   const { code } = Route.useSearch()
   const pairing = useQuery({
@@ -26,14 +30,33 @@ function PairPage() {
     enabled: code !== "",
   })
   const agents = useQuery({ queryKey: agentsKey, queryFn: () => client.listAgents() })
-  const [agentId, setAgentId] = useState<string>()
+  const workspaces = useWorkspaces()?.workspaces ?? []
+  const teams = workspaces.filter((workspace) => workspace.kind === "team")
+  const own = workspaces.find((workspace) => workspace.kind === "personal")
+  /** Whose it is to be. Undefined: the user's own. */
+  const [teamId, setTeamId] = useState<string>()
+  const [chosen, setChosen] = useState<readonly string[]>()
+  // One's own computer can serve any agent one can use; a team's serves the team's agents.
+  const offered = (agents.data ?? []).filter(
+    (agent) => teamId === undefined || agent.workspaceId === teamId,
+  )
   useEffect(() => {
-    if (agentId === undefined && agents.data?.[0] !== undefined) setAgentId(agents.data[0].id)
-  }, [agents.data, agentId])
+    // With one agent there is nothing to choose between, so it is chosen.
+    if (chosen === undefined && agents.data !== undefined) {
+      setChosen(agents.data.length === 1 ? [agents.data[0]!.id] : [])
+    }
+  }, [agents.data, chosen])
+  const agentIds = (chosen ?? []).filter((id) => offered.some((agent) => agent.id === id))
   const confirm = useMutation({
-    mutationFn: () => client.confirmPairing(code, agentId!),
+    mutationFn: () =>
+      client.confirmPairing({
+        code,
+        agentIds,
+        ...(teamId === undefined ? {} : { workspaceId: teamId }),
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: computersKey }),
   })
+  const first = agentIds[0] ?? agents.data?.[0]?.id
 
   return (
     <main className="flex h-dvh items-center justify-center overflow-y-auto p-6">
@@ -43,14 +66,18 @@ function PairPage() {
           <>
             <h1 className="text-2xl font-semibold tracking-tight">Connected</h1>
             <p className="text-sm text-muted-foreground">
-              Your agent knows this computer as{" "}
+              {agentIds.length === 0
+                ? "No agent can use it yet: connect one under Computers, or let an agent ask. It is called "
+                : agentIds.length === 1
+                  ? "Your agent knows this computer as "
+                  : "Your agents know this computer as "}
               <span className="font-mono text-foreground">{confirm.data.name}</span>. The daemon in
               your terminal will connect in a moment; you can close this page.
             </p>
-            {agentId ? (
+            {first ? (
               <Link
                 to="/a/$agentId"
-                params={{ agentId }}
+                params={{ agentId: first }}
                 search={{ workspace: "computers" }}
                 className="text-sm underline underline-offset-3"
               >
@@ -88,41 +115,88 @@ function PairPage() {
               <WarningIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <p>
                 {pairing.data.readOnly
-                  ? "The agent will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
-                  : "The agent will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
+                  ? "An agent connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
+                  : "An agent connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
               </p>
             </div>
+            {teams.length === 0 ? null : (
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-2 text-sm font-medium">Whose computer is it?</legend>
+                {[own, ...teams].map((workspace) => {
+                  if (workspace === undefined) return null
+                  const id = workspace.kind === "personal" ? undefined : workspace.id
+                  return (
+                    <label
+                      key={workspace.id}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-xl border p-2.5 text-sm",
+                        teamId === id && "border-primary bg-primary/10",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="owner"
+                        className="mt-0.5 size-4 shrink-0 accent-primary"
+                        checked={teamId === id}
+                        onChange={() => setTeamId(id)}
+                      />
+                      <span>
+                        <span className="font-medium">
+                          {workspace.kind === "personal" ? "Mine" : workspace.name}
+                        </span>
+                        <span className="block text-muted-foreground">
+                          {workspace.kind === "personal"
+                            ? "Only you decide which agents use it, in any of your workspaces."
+                            : `Anyone in ${workspace.name} can connect its agents to it.`}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </fieldset>
+            )}
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-medium">Which agent gets access?</legend>
-              {(agents.data ?? []).map((agent) => (
+              <legend className="mb-2 text-sm font-medium">Which agents can use it?</legend>
+              {offered.map((agent) => (
                 <label
                   key={agent.id}
                   className={cn(
                     "flex cursor-pointer items-center gap-3 rounded-xl border p-2.5 text-sm",
-                    agentId === agent.id && "border-primary bg-primary/10",
+                    agentIds.includes(agent.id) && "border-primary bg-primary/10",
                   )}
                 >
                   <input
-                    type="radio"
-                    name="agent"
-                    className="sr-only"
-                    checked={agentId === agent.id}
-                    onChange={() => setAgentId(agent.id)}
+                    type="checkbox"
+                    className="size-4 shrink-0 accent-primary"
+                    checked={agentIds.includes(agent.id)}
+                    onChange={(event) =>
+                      setChosen(
+                        event.target.checked
+                          ? [...agentIds, agent.id]
+                          : agentIds.filter((id) => id !== agent.id),
+                      )
+                    }
                   />
                   <AgentFace agent={agent} className="size-7" still />
-                  {agent.name ?? "New agent"}
+                  <span className="min-w-0 flex-1 truncate">{agent.name ?? "New agent"}</span>
+                  {teamId === undefined && teams.length > 0 ? (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {workspaces.find((workspace) => workspace.id === agent.workspaceId)?.name}
+                    </span>
+                  ) : null}
                 </label>
               ))}
+              <p className="text-xs text-muted-foreground">
+                You can change this later under Computers, and an agent that is not connected can
+                ask you for it.
+              </p>
             </fieldset>
             {confirm.isError ? (
               <p role="alert" className="text-sm text-destructive">
                 {confirm.error.message}
               </p>
             ) : null}
-            <Button
-              disabled={agentId === undefined || confirm.isPending}
-              onClick={() => confirm.mutate()}
-            >
+            <Button disabled={confirm.isPending} onClick={() => confirm.mutate()}>
               {confirm.isPending ? "Connecting…" : "Connect this computer"}
             </Button>
           </>

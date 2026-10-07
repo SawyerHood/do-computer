@@ -428,7 +428,12 @@ test("installing a skill from a bad URL explains what went wrong", async ({ page
 })
 
 /** Have the agent call a tool, and wait for what the tool says it did. */
-async function tool(page: Page, name: string, args: Record<string, unknown>, said: string) {
+async function tool(
+  page: Page,
+  name: string,
+  args: Record<string, unknown>,
+  said: string | RegExp,
+) {
   await composer(page).fill(`/tool ${name} ${JSON.stringify(args)}`)
   await page.keyboard.press("Enter")
   await expect(page.getByText(said).last()).toBeVisible()
@@ -770,12 +775,19 @@ test.describe("pairing a computer", () => {
     await expect(page.getByRole("heading", { name: "Connect this computer?" })).toBeVisible()
     await expect(page.getByText("test-laptop")).toBeVisible()
     await expect(page.getByText(/run any command/)).toBeVisible()
+    // With one agent there is nothing to choose between: it is the one that gets the computer.
+    await expect(page.getByRole("checkbox", { name: "Juniper" })).toBeChecked()
     await page.getByRole("button", { name: "Connect this computer" }).click()
     await expect(page.getByRole("heading", { name: "Connected" })).toBeVisible()
 
     await page.getByRole("link", { name: "See your computers" }).click()
     const card = page.getByRole("listitem").filter({ hasText: "test-laptop" })
     await expect(card.getByText("Online", { exact: true })).toBeVisible({ timeout: 15_000 })
+    // It is the user's own, and says which agents can work on it.
+    await expect(card.getByText("Belongs to")).toBeVisible()
+    await expect(
+      card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }),
+    ).toBeVisible()
     await expect.poll(() => output).toContain("Connected to")
   })
 
@@ -790,6 +802,61 @@ test.describe("pairing a computer", () => {
     // The command really ran on that machine, and the machine has a record of it.
     expect(readFileSync(join(home, "from-agent.txt"), "utf8")).toBe("agent was here\n")
     expect(readFileSync(join(home, ".dc/audit.log"), "utf8")).toContain("cat hello.txt")
+  })
+
+  test("an agent that was not given the computer asks for it, and is let in from the chat", async ({
+    page,
+  }) => {
+    await signIn(page)
+    await openWorkspaceSettings(page, "Computers")
+    const card = page.getByRole("listitem").filter({ hasText: "test-laptop" })
+    await card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }).click()
+    await expect(card.getByText("None yet")).toHaveCount(0)
+    await expect(
+      card.getByRole("combobox", { name: "Connect an agent to test-laptop" }),
+    ).toBeVisible()
+
+    // The computer is still paired, and the agent can no longer touch it.
+    await newChat(page)
+    await tool(
+      page,
+      "bash",
+      { command: "cat hello.txt", computer: "test-laptop" },
+      'There is no computer named "test-laptop"',
+    )
+    // It can see that the computer is there, and whose it is.
+    await tool(page, "computers", { action: "list" }, /test-laptop: Sawyer's, linux, online/)
+    await tool(
+      page,
+      "computers",
+      { action: "request", name: "test-laptop", reason: "to read hello.txt" },
+      'Asked Sawyer whether you may use "test-laptop"',
+    )
+
+    // What it asked is waiting above the message box, for whoever the computer belongs to.
+    const asked = page.getByRole("list", { name: "Computers it asked to use" })
+    await expect(asked.getByText("asks to use the computer test-laptop")).toBeVisible()
+    await expect(asked.getByText("to read hello.txt")).toBeVisible()
+    // The user's own menu says so too, wherever in the app they are.
+    await page.getByRole("button", { name: /settings and signing out$/ }).click()
+    await expect(page.getByRole("menuitem", { name: "An agent asks for a computer" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await asked.getByRole("button", { name: "Allow", exact: true }).click()
+    await expect(asked).toHaveCount(0)
+
+    // The agent is told in the chat it asked from, and the computer is its to use.
+    await expect(page.getByRole("log").getByText("Sawyer said yes to using")).toBeVisible()
+    await expect(page.getByText(/You said: \[Sawyer said yes: you can now use/)).toBeVisible()
+    await tool(
+      page,
+      "bash",
+      { command: "cat hello.txt", computer: "test-laptop" },
+      "a file on the user's laptop",
+    )
+    await openWorkspaceSettings(page, "Computers")
+    await expect(
+      card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }),
+    ).toBeVisible()
   })
 
   test("removing the computer cuts the daemon off", async ({ page }) => {
@@ -1104,6 +1171,11 @@ test("the API refuses bodies that are too large and routes that are not a client
   // What the gateway keeps for itself is not reachable through it.
   for (const [method, path] of [
     ["delete", "computers/anything"],
+    // However the address is dressed up: the actor reads it after it has been parsed.
+    ["put", "chats%2F..%2Fcomputers%2Fanything"],
+    ["put", "chats/%2e%2e/computers/anything"],
+    ["put", "/computers/anything"],
+    ["post", "x%5C..%5Cdestroy"],
     ["post", "init"],
     ["post", "destroy"],
     ["patch", "schedules/__proto__"],
@@ -1547,12 +1619,10 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
     .locator("aside")
     .filter({ has: page.getByRole("heading", { name: "Agents" }) })
   const edge = page.getByRole("separator", { name: "Resize the sidebar" })
-  const width = async (of: typeof sidebar) => {
-    // The panel is taken down and put up again as the tab changes, so it is asked until it is there.
-    let box: Awaited<ReturnType<typeof of.boundingBox>> = null
-    await expect.poll(async () => (box = await of.boundingBox())).not.toBeNull()
-    return Math.round(box!.width)
-  }
+  // Measured in one step, and looked at until it settles: the panel is put up anew when the tab
+  // changes, so for a moment the one that is found is on its way out.
+  const width = async (of: typeof sidebar) =>
+    Math.round(await of.evaluate((element) => element.getBoundingClientRect().width))
   /** Take hold of an edge and move it sideways by so many pixels. */
   const drag = async (handle: typeof edge, by: number) => {
     const box = (await handle.boundingBox())!
@@ -1563,49 +1633,49 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
     await page.mouse.move(x + by, y, { steps: 4 })
     await page.mouse.up()
   }
-  expect(await width(sidebar)).toBe(288)
+  await expect.poll(() => width(sidebar)).toBe(288)
 
   // Its edge follows the pointer, and the chat has what room is left.
   await drag(edge, 72)
-  expect(await width(sidebar)).toBe(360)
+  await expect.poll(() => width(sidebar)).toBe(360)
   await expect(edge).toHaveAttribute("aria-valuenow", "360")
   // It goes no further than its bounds, either way.
   await drag(edge, 600)
-  expect(await width(sidebar)).toBe(448)
+  await expect.poll(() => width(sidebar)).toBe(448)
   await drag(edge, -600)
-  expect(await width(sidebar)).toBe(208)
+  await expect.poll(() => width(sidebar)).toBe(208)
   // The arrow keys move it too.
   await edge.focus()
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
-  expect(await width(sidebar)).toBe(240)
+  await expect.poll(() => width(sidebar)).toBe(240)
 
   // The agent's panel is dragged by its other edge: to the left is wider.
   await page.getByRole("button", { name: "Show Juniper's panel" }).click()
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const panelEdge = page.getByRole("separator", { name: "Resize Juniper's panel" })
-  expect(await width(panel)).toBe(320)
+  await expect.poll(() => width(panel)).toBe(320)
   await drag(panelEdge, -80)
-  expect(await width(panel)).toBe(400)
+  await expect.poll(() => width(panel)).toBe(400)
 
   // Both are as they were left after a reload, and the panel is as wide beside another tab.
   await page.reload()
   await expect(composer(page)).toBeVisible()
-  expect(await width(sidebar)).toBe(240)
+  await expect.poll(() => width(sidebar)).toBe(240)
   // These tests put the panel away on every load, so it is asked for again.
   await page.getByRole("button", { name: "Show Juniper's panel" }).click()
-  expect(await width(panel)).toBe(400)
+  await expect.poll(() => width(panel)).toBe(400)
   await tab(page, "Automations").click()
   await page.waitForURL(/\/automations$/)
-  expect(await width(panel)).toBe(400)
+  await expect.poll(() => width(panel)).toBe(400)
   await tab(page, "Chat").click()
   await expect(composer(page)).toBeVisible()
 
   // Pressing an edge twice puts its column back to the width it started at.
   await edge.dblclick()
-  expect(await width(sidebar)).toBe(288)
+  await expect.poll(() => width(sidebar)).toBe(288)
   await panelEdge.dblclick()
-  expect(await width(panel)).toBe(320)
+  await expect.poll(() => width(panel)).toBe(320)
 })
 
 test("what the agent shared is listed in its panel, and a document's edge is dragged too", async ({

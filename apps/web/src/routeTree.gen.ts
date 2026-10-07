@@ -53,10 +53,13 @@ import { Route as ApiAgentsAgentIdMoveRouteImport } from './routes/api/agents/$a
 import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
 import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers/pair.poll'
 import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
+import { Route as ApiComputersRequestsIndexRouteImport } from './routes/api/computers/requests.index'
+import { Route as ApiComputersRequestsRequestIdRouteImport } from './routes/api/computers/requests.$requestId'
 import { Route as ApiInvitationsKeyIndexRouteImport } from './routes/api/invitations/$key.index'
 import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invitations/$key.accept'
 import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
+import { Route as ApiComputersComputerIdAgentsAgentIdRouteImport } from './routes/api/computers/$computerId.agents.$agentId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId.invitations.$invitationId'
@@ -283,6 +286,18 @@ const ApiComputersPairStartRoute = ApiComputersPairStartRouteImport.update({
   path: '/api/computers/pair/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiComputersRequestsIndexRoute =
+  ApiComputersRequestsIndexRouteImport.update({
+    id: '/api/computers/requests/',
+    path: '/api/computers/requests/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiComputersRequestsRequestIdRoute =
+  ApiComputersRequestsRequestIdRouteImport.update({
+    id: '/api/computers/requests/$requestId',
+    path: '/api/computers/requests/$requestId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiInvitationsKeyIndexRoute = ApiInvitationsKeyIndexRouteImport.update({
   id: '/api/invitations/$key/',
   path: '/api/invitations/$key/',
@@ -304,6 +319,12 @@ const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
   path: '/c/$chatId',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const ApiComputersComputerIdAgentsAgentIdRoute =
+  ApiComputersComputerIdAgentsAgentIdRouteImport.update({
+    id: '/agents/$agentId',
+    path: '/agents/$agentId',
+    getParentRoute: () => ApiComputersComputerIdRoute,
+  } as any)
 const ApiComputersPairRequestCodeRoute =
   ApiComputersPairRequestCodeRouteImport.update({
     id: '/api/computers/pair/request/$code',
@@ -354,7 +375,7 @@ export interface FileRoutesByFullPath {
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
@@ -377,12 +398,15 @@ export interface FileRoutesByFullPath {
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
+  '/api/computers/requests/': typeof ApiComputersRequestsIndexRoute
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
@@ -406,7 +430,7 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
@@ -429,12 +453,15 @@ export interface FileRoutesByTo {
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId': typeof AppWWorkspaceIdIndexRoute
+  '/api/computers/requests': typeof ApiComputersRequestsIndexRoute
   '/api/invitations/$key': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
@@ -462,7 +489,7 @@ export interface FileRoutesById {
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/computers/$computerId': typeof ApiComputersComputerIdRoute
+  '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
@@ -485,12 +512,15 @@ export interface FileRoutesById {
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
+  '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
+  '/api/computers/requests/': typeof ApiComputersRequestsIndexRoute
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
@@ -541,12 +571,15 @@ export interface FileRouteTypes {
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
+    | '/api/computers/requests/$requestId'
     | '/api/invitations/$key/accept'
     | '/a/$agentId/'
     | '/w/$workspaceId/'
+    | '/api/computers/requests/'
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/a/$agentId/c/$chatId'
+    | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
@@ -593,12 +626,15 @@ export interface FileRouteTypes {
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
+    | '/api/computers/requests/$requestId'
     | '/api/invitations/$key/accept'
     | '/a/$agentId'
     | '/w/$workspaceId'
+    | '/api/computers/requests'
     | '/api/invitations/$key'
     | '/api/workspaces/$workspaceId'
     | '/a/$agentId/c/$chatId'
+    | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
@@ -648,12 +684,15 @@ export interface FileRouteTypes {
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
+    | '/api/computers/requests/$requestId'
     | '/api/invitations/$key/accept'
     | '/_app/a/$agentId/'
     | '/_app/w/$workspaceId/'
+    | '/api/computers/requests/'
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/_app/a/$agentId/c/$chatId'
+    | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
@@ -677,7 +716,7 @@ export interface RootRouteChildren {
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRoute
+  ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
   ApiConnectorsCallbackRoute: typeof ApiConnectorsCallbackRoute
   ApiPushRegisterRoute: typeof ApiPushRegisterRoute
   ApiPushUnregisterRoute: typeof ApiPushUnregisterRoute
@@ -691,7 +730,9 @@ export interface RootRouteChildren {
   ApiComputersPairConfirmRoute: typeof ApiComputersPairConfirmRoute
   ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
   ApiComputersPairStartRoute: typeof ApiComputersPairStartRoute
+  ApiComputersRequestsRequestIdRoute: typeof ApiComputersRequestsRequestIdRoute
   ApiInvitationsKeyAcceptRoute: typeof ApiInvitationsKeyAcceptRoute
+  ApiComputersRequestsIndexRoute: typeof ApiComputersRequestsIndexRoute
   ApiInvitationsKeyIndexRoute: typeof ApiInvitationsKeyIndexRoute
   ApiWorkspacesWorkspaceIdIndexRoute: typeof ApiWorkspacesWorkspaceIdIndexRoute
   ApiComputersPairRequestCodeRoute: typeof ApiComputersPairRequestCodeRoute
@@ -1010,6 +1051,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiComputersPairStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/computers/requests/': {
+      id: '/api/computers/requests/'
+      path: '/api/computers/requests'
+      fullPath: '/api/computers/requests/'
+      preLoaderRoute: typeof ApiComputersRequestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/computers/requests/$requestId': {
+      id: '/api/computers/requests/$requestId'
+      path: '/api/computers/requests/$requestId'
+      fullPath: '/api/computers/requests/$requestId'
+      preLoaderRoute: typeof ApiComputersRequestsRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/invitations/$key/': {
       id: '/api/invitations/$key/'
       path: '/api/invitations/$key'
@@ -1037,6 +1092,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/a/$agentId/c/$chatId'
       preLoaderRoute: typeof AppAAgentIdCChatIdRouteImport
       parentRoute: typeof AppAAgentIdRoute
+    }
+    '/api/computers/$computerId/agents/$agentId': {
+      id: '/api/computers/$computerId/agents/$agentId'
+      path: '/agents/$agentId'
+      fullPath: '/api/computers/$computerId/agents/$agentId'
+      preLoaderRoute: typeof ApiComputersComputerIdAgentsAgentIdRouteImport
+      parentRoute: typeof ApiComputersComputerIdRoute
     }
     '/api/computers/pair/request/$code': {
       id: '/api/computers/pair/request/$code'
@@ -1136,6 +1198,21 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiComputersComputerIdRouteChildren {
+  ApiComputersComputerIdAgentsAgentIdRoute: typeof ApiComputersComputerIdAgentsAgentIdRoute
+}
+
+const ApiComputersComputerIdRouteChildren: ApiComputersComputerIdRouteChildren =
+  {
+    ApiComputersComputerIdAgentsAgentIdRoute:
+      ApiComputersComputerIdAgentsAgentIdRoute,
+  }
+
+const ApiComputersComputerIdRouteWithChildren =
+  ApiComputersComputerIdRoute._addFileChildren(
+    ApiComputersComputerIdRouteChildren,
+  )
+
 interface ApiAgentsAgentIdConnectorsRouteChildren {
   ApiAgentsAgentIdConnectorsConnectorIdConnectRoute: typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
 }
@@ -1167,7 +1244,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscribeRoute: ApiTranscribeRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiComputersComputerIdRoute: ApiComputersComputerIdRoute,
+  ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,
   ApiConnectorsCallbackRoute: ApiConnectorsCallbackRoute,
   ApiPushRegisterRoute: ApiPushRegisterRoute,
   ApiPushUnregisterRoute: ApiPushUnregisterRoute,
@@ -1181,7 +1258,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiComputersPairConfirmRoute: ApiComputersPairConfirmRoute,
   ApiComputersPairPollRoute: ApiComputersPairPollRoute,
   ApiComputersPairStartRoute: ApiComputersPairStartRoute,
+  ApiComputersRequestsRequestIdRoute: ApiComputersRequestsRequestIdRoute,
   ApiInvitationsKeyAcceptRoute: ApiInvitationsKeyAcceptRoute,
+  ApiComputersRequestsIndexRoute: ApiComputersRequestsIndexRoute,
   ApiInvitationsKeyIndexRoute: ApiInvitationsKeyIndexRoute,
   ApiWorkspacesWorkspaceIdIndexRoute: ApiWorkspacesWorkspaceIdIndexRoute,
   ApiComputersPairRequestCodeRoute: ApiComputersPairRequestCodeRoute,
