@@ -102,6 +102,15 @@
   html.dark {
     color-scheme: dark;
   }
+  /*
+   * At the widths where a finger draws the sidebar out across the page, a browser that takes a
+   * swipe across the page as going back must not: it would do both.
+   */
+  @media (width < 48rem) {
+    html {
+      overscroll-behavior-x: none;
+    }
+  }
   body {
     @apply bg-background text-foreground antialiased;
   }

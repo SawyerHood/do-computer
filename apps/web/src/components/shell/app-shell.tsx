@@ -16,10 +16,14 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { agentPanelOpenAtom, sidebarOpenAtom } from "@/lib/atoms"
 import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
+import { useSwipe } from "@/lib/use-swipe"
 import { usePresence, useWorkspaces } from "@/lib/workspaces"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
 import { ResizeHandle } from "./resize-handle.tsx"
 import { Sidebar } from "./sidebar.tsx"
+
+/** The width from which the sidebar is beside the page. Narrower, it is a sheet over it. */
+const SIDEBAR_BESIDE = "(min-width: 48rem)"
 
 /**
  * Something that is open or shut and stays the way it was left: read from storage once, and
@@ -115,6 +119,13 @@ export function AppShell({
   // The panel's switch is in the strip, so what it was left as is kept from here.
   useRemembered(agentPanelOpenAtom, "dc-agent-panel")
   const [sheetOpen, setSheetOpen] = useState(false)
+  // On a narrow screen a finger also draws the sidebar out from the left, and pushes it back.
+  const [shell, setShell] = useState<HTMLElement | null>(null)
+  const [sheet, setSheet] = useState<HTMLElement | null>(null)
+  useSwipe(shell, "right", () => {
+    if (!matchMedia(SIDEBAR_BESIDE).matches) setSheetOpen(true)
+  })
+  useSwipe(sheet, "left", () => setSheetOpen(false))
   const page = useLocation({
     select: (location): AgentTab => {
       const last = location.pathname.split("/").at(-1)
@@ -123,7 +134,7 @@ export function AppShell({
   })
 
   return (
-    <div className="flex h-dvh min-h-0">
+    <div ref={setShell} className="flex h-dvh min-h-0">
       {/* The accent follows the open agent. Set on the root, so windows and menus have it too. */}
       {agent === undefined ? null : (
         <style>{`:root{--agent-color:${avatarLook(agent.avatar, agent.id).color}}`}</style>
@@ -185,7 +196,7 @@ export function AppShell({
       </main>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="left" className="w-80 p-0" showCloseButton={false}>
+        <SheetContent ref={setSheet} side="left" className="w-80 p-0" showCloseButton={false}>
           <SheetTitle className="sr-only">Agents</SheetTitle>
           <Sidebar
             workspace={workspace}

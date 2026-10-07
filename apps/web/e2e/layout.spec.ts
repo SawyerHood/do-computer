@@ -228,3 +228,73 @@ test("the layout works at phone width", async ({ page }) => {
   )
   expect(overflow).toBeLessThanOrEqual(0)
 })
+
+test("at phone width a finger draws the sidebar out from the left, and pushes it back", async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({
+    baseURL,
+    colorScheme: "dark",
+    viewport: { width: 400, height: 800 },
+    hasTouch: true,
+  })
+  const page = await context.newPage()
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  const finger = await context.newCDPSession(page)
+  /** A finger put down, drawn in a line to somewhere else, and lifted once it has come to rest. */
+  const swipe = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await finger.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [from] })
+    for (let step = 1; step <= 8; step++) {
+      const x = from.x + ((to.x - from.x) * step) / 8
+      const y = from.y + ((to.y - from.y) * step) / 8
+      await finger.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y }] })
+    }
+    // Lifted while still moving, what is under it would be flung on past its end.
+    await page.waitForTimeout(100)
+    await finger.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [to] })
+    await finger.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  }
+  const sheet = page.getByRole("dialog")
+
+  // Scrolling the chat is not a swipe, though the finger drifts across as it goes.
+  await swipe({ x: 120, y: 300 }, { x: 180, y: 600 })
+  // Nor is a finger going the other way.
+  await swipe({ x: 300, y: 400 }, { x: 60, y: 410 })
+  await expect(sheet).toHaveCount(0)
+
+  // On something that scrolls sideways, a finger across it is scrolling that.
+  await composer(page).fill(`Here:\n\n\`\`\`\n${"wide ".repeat(60)}\n\`\`\`\n`)
+  await composer(page).press("Enter")
+  const code = page.locator("pre").first()
+  // Once the reply has enough of it to be wider than the screen.
+  await expect
+    .poll(() => code.evaluate((pre) => pre.scrollWidth - pre.clientWidth))
+    .toBeGreaterThan(300)
+  const block = (await code.boundingBox())!
+  const middle = block.y + block.height / 2
+  await swipe({ x: block.x + 216, y: middle }, { x: block.x + 16, y: middle })
+  await expect.poll(() => code.evaluate((pre) => pre.scrollLeft)).toBeGreaterThan(150)
+  await swipe({ x: block.x + 16, y: middle }, { x: block.x + 136, y: middle })
+  await expect.poll(() => code.evaluate((pre) => pre.scrollLeft)).toBeLessThan(150)
+  await expect(sheet).toHaveCount(0)
+
+  // Across the page from the left, and the sidebar is there, as from its button.
+  await swipe({ x: 24, y: 400 }, { x: 220, y: 420 })
+  await expect(sheet.getByRole("link", { name: /Juniper/ })).toBeVisible()
+  await expect(async () => {
+    expect((await sheet.boundingBox())!.x).toBe(0)
+  }).toPass()
+  // Scrolling its list leaves it open, and a finger back across it puts it away.
+  await swipe({ x: 160, y: 300 }, { x: 150, y: 500 })
+  await expect(sheet).toBeVisible()
+  await swipe({ x: 260, y: 400 }, { x: 60, y: 390 })
+  await expect(sheet).toHaveCount(0)
+
+  // Where the sidebar is beside the page there is nothing to draw out.
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await swipe({ x: 500, y: 400 }, { x: 800, y: 410 })
+  await expect(sheet).toHaveCount(0)
+  await context.close()
+})
