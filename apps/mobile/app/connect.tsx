@@ -71,7 +71,7 @@ export default function Connect() {
             </Text>
             <Text tone="muted" size={14}>
               {mode === "sign-up"
-                ? "Then meet your agent: it gets its own name, memory and computer."
+                ? "Then meet your agent: it gets its own name and memory, and a computer to work on."
                 : "Sign in to pick up where you and your agent left off."}
             </Text>
           </View>

@@ -6,11 +6,8 @@ import {
   type ApprovalDecision,
   type ChatState,
   type ChatSummary,
-  BodyTooLarge,
   type ChatUsage,
   type ComputerKind,
-  declaredTooLarge,
-  readLimited,
   type CreateChatRequest,
   diffChat,
   DEFAULT_THINKING,
@@ -29,7 +26,7 @@ import {
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
-import type { Actor, ActorHost, ActorNamespace } from "@durable-computer/runtime"
+import type { Actor, ActorHost, ActorNamespace, ActorStub } from "@durable-computer/runtime"
 import type { Sandbox } from "@durable-computer/sandbox"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"
@@ -39,7 +36,6 @@ import {
   type Conversation,
   type ConversationId,
   createRegistry,
-  defineExtension,
   type Extension,
   Harness,
   UsageDoc,
@@ -54,29 +50,25 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
-import { ApprovalError, Approvals, ApprovalsDoc, MEMORY_SUBJECT } from "./approvals.ts"
+import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
-import { Computer, COMPUTER_EXTENSION, WithoutComputer } from "./computer.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
 import { type JudgeOptions, KeepGoing } from "./keep-going.ts"
 import { Log } from "./log.ts"
 import {
-  cleanLibraryPath,
-  Library,
-  LibraryConflict,
-  LibraryDoc,
-  LibraryError,
-  MAX_LIBRARY_FILE_BYTES,
-} from "./library.ts"
-import {
+  type AgentComputer,
   type ComputerAnswer,
   type ComputerDirectory,
+  Computers,
   ComputersDoc,
-  type PairedComputer,
-  PairedComputers,
-} from "./paired.ts"
+  isPaired,
+} from "./computers.ts"
+import { harnessDocs, Library, LibraryDoc, LibraryError, LibraryStore } from "./library.ts"
+import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
+import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
+import { routeLibrary, routeLibraryView } from "./library-routes.ts"
 import { parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
@@ -108,11 +100,12 @@ export type AgentActorOptions = {
   /** Extensions installed after the built-in ones. */
   readonly extensions?: readonly Extension[]
   /**
-   * The agent's computer, where every agent gets the same kind. Should be cheap to call and start
-   * nothing until used, as `lazySandbox` does: it is built whenever the actor loads.
+   * The machine an agent works on where there is one kind and nobody to say which machines
+   * there are: it gets one to itself. Should be cheap to call and start nothing until used, as
+   * `lazySandbox` does.
    */
   readonly sandbox?: (host: ActorHost) => Sandbox
-  /** The kinds of computer an agent can be given and moved between. Takes the place of `sandbox`. */
+  /** The kinds of machine there are, and how one is reached. Takes the place of `sandbox`. */
   readonly computers?: ComputerChoices
   /** Receives failures that did not fail a request. */
   readonly onReport?: (error: unknown) => void
@@ -121,10 +114,17 @@ export type AgentActorOptions = {
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
   readonly computerLinks?: ActorNamespace
   /**
-   * Which computers the agent could be connected to besides the ones it has, and how it asks for
-   * one. Without it, the agent has only the computers it was given. Needs `computerLinks`.
+   * Which computers the agent can use and could be connected to, and how it asks for one. Where
+   * it also says which machines the agent's workspace has (`machines`), the agent has no machine
+   * to itself and works on those. Without it, the agent has only the computers it was given.
    */
   readonly computerDirectory?: ComputerDirectory
+  /**
+   * The library of the workspace an agent is in, which it then shares with the other agents
+   * there. Asked each time, since an agent can be moved. Without it, an agent keeps a library of
+   * its own.
+   */
+  readonly library?: (agentId: string) => Promise<ActorStub | undefined>
   /**
    * Who the other agents of the agent's workspace are, and how a message reaches one. Without
    * it, the agent knows of no other agent.
@@ -162,11 +162,13 @@ export type ComputerChoices = {
   /** The kind an agent gets when none is asked for. One of `kinds`. */
   readonly default: string
   /**
-   * The computer of one kind for the agent behind `host`, or undefined for a kind that means
-   * having none. Should be cheap and start nothing until used, as for `sandbox`. The same kind
-   * and host must always lead to the same machine: that is how an agent finds its files again.
+   * The machine of one kind behind `key`, or undefined for a kind that means having none.
+   * Should be cheap and start nothing until used, as for `sandbox`. The same kind and key must
+   * always lead to the same machine: that is how the files on it are found again. `host` is the
+   * agent asking, for a kind whose files live with one agent; such a kind has no machine to
+   * give where no agent is asking.
    */
-  readonly create: (kind: string, host: ActorHost) => Sandbox | undefined
+  readonly create: (kind: string, key: string, host?: ActorHost) => Sandbox | undefined
 }
 
 export type AgentNotification = {
@@ -271,9 +273,6 @@ function eventStream(
   return new Response(stream, { headers: SSE_HEADERS })
 }
 
-/** Holds an extension's place in the registry while there is nothing to put there. */
-const absent = (name: string) => defineExtension({ name })
-
 /** What a message does that arrives while the agent is working, where the sender did not say. */
 const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
   identity.whenBusy ?? (identity.team ? "queue" : "steer")
@@ -302,12 +301,12 @@ export class AgentActor implements Actor {
   readonly #host: ActorHost
   readonly #options: AgentActorOptions
   readonly #choices: ComputerChoices
-  /** The agent's computer and its kind. Settled when the store opens; the owner can change it. */
-  #computer: Computer | undefined
-  #kind = ""
-  #registry: ReturnType<typeof createRegistry> | undefined
-  readonly #paired: PairedComputers | undefined
+  readonly #computers: Computers
   readonly #library: Library
+  /** The library the agent keeps for itself, where its workspace has none for it to share. */
+  readonly #ownLibrary: LibraryStore
+  /** The harness, once it is open, for what is built before it and needs it later. */
+  #opened: Harness | undefined
   #connectors: Connectors | undefined
   /** How many clients are following each chat right now. */
   readonly #watchers = new Map<string, number>()
@@ -326,35 +325,32 @@ export class AgentActor implements Actor {
     this.#choices = options.computers ?? {
       kinds: [],
       default: "",
-      create: (_kind, host) => options.sandbox?.(host),
+      create: (_kind, _key, host) => (host === undefined ? undefined : options.sandbox?.(host)),
     }
-    this.#library = new Library({
+    const report = (what: string) => (error: unknown) =>
+      options.onReport?.(
+        new Error(`${what}: ${error instanceof Error ? error.message : String(error)}`, {
+          cause: error,
+        }),
+      )
+    this.#ownLibrary = new LibraryStore({
+      docs: harnessDocs(() => {
+        if (this.#opened === undefined) throw new Error("The agent is not open yet")
+        return this.#opened
+      }),
       blobs: host.blobs,
       now: () => host.now(),
-      computer: () =>
-        this.#computer === undefined
-          ? undefined
-          : { sandbox: this.#computer.sandbox, key: this.#kind === "" ? "default" : this.#kind },
-      onProblem: (error) =>
-        options.onReport?.(
-          new Error(
-            `The agent's library folder could not be brought into step with its library: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            { cause: error },
-          ),
-        ),
     })
-    this.#paired =
-      options.computerLinks === undefined
-        ? undefined
-        : new PairedComputers(
-            options.computerLinks,
-            [this.#library.sendFileTool, this.#library.libraryTool],
-            options.computerDirectory === undefined
-              ? undefined
-              : { agentId: host.name, lookup: options.computerDirectory },
-          )
+    this.#library = new Library({
+      backend: async () => (await this.#sharedLibrary()) ?? this.#ownLibrary,
+      shared: options.library !== undefined,
+      ...(options.library === undefined ? {} : { agentId: host.name }),
+      hasMachine: async (c) =>
+        (await this.#computers.list(c)).some((computer) => !isPaired(computer)),
+      onProblem: report(
+        "A machine's library folder could not be brought into step with the library",
+      ),
+    })
     const skillFetch = guardedFetch(
       (input, init) => (options.fetch ?? fetch)(String(input), init),
       options.allowPrivateHosts === true,
@@ -362,12 +358,29 @@ export class AgentActor implements Actor {
     )
     this.#skills = new Skills({
       now: () => host.now(),
-      sandbox: () => this.#computer?.sandbox,
+      // A skill that needs real programs is for an agent that can come by a machine with them.
+      realPrograms: () =>
+        [...this.#choices.kinds.map((kind) => kind.id), ""].some(
+          (kind) => this.#choices.create(kind, host.name, host)?.capabilities.realBinaries === true,
+        ),
       // The agent can be talked into installing from any address, so this one is checked too.
       fetch: (url, init) => skillFetch(url, init),
     })
+    this.#computers = new Computers({
+      links: options.computerLinks,
+      machine: (kind, key) => this.#choices.create(kind, key, host),
+      extraTools: [this.#library.sendFileTool, this.#library.libraryTool],
+      // Loading a skill copies its files to where the agent is working, if it is anywhere.
+      optionalTools: [this.#skills.tool],
+      ...(options.computerDirectory === undefined
+        ? {}
+        : { directory: { agentId: host.name, lookup: options.computerDirectory } }),
+      around: this.#library.around,
+      onProblem: report("A machine could not be made ready for the agent"),
+    })
     this.#approvals = new Approvals({
       now: () => host.now(),
+      computerOf: (name, c) => this.#computers.peek(name, c),
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
       onRequest: (request) =>
@@ -445,76 +458,134 @@ export class AgentActor implements Actor {
     return this.#choices.kinds.some((offered) => offered.id === kind)
   }
 
-  /**
-   * Put the agent on its computer of one kind. Nothing is started by this: a machine is created or
-   * woken the first time the agent uses it.
-   */
-  #useComputer(harness: Harness, kind: string, movedAt: number | undefined): void {
-    const sandbox = this.#choices.create(kind, this.#host)
-    let computer: Computer | undefined
-    if (sandbox !== undefined) {
-      computer = new Computer(sandbox)
-      computer.movedAt = movedAt
-      computer.onProblem = (error) =>
-        this.#options.onReport?.(
-          new Error(
-            `The agent's identity files could not be kept in step with its computer: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            { cause: error },
-          ),
-        )
-      computer.identityEditable = async (c) =>
-        (await this.#approvals.ruleFor(MEMORY_SUBJECT, c)) === "allow"
-      computer.attach(harness)
-    }
-    this.#computer = computer
-    this.#kind = kind
-    this.#library.computerChanged()
-    // Installing under a name that is taken replaces what is there, where it stands.
-    // The file and shell tools are needed for paired computers even without one of its own.
-    this.#registry?.install(
-      computer !== undefined || this.#paired !== undefined ? CodingTools : absent(CodingTools.name),
-    )
-    this.#registry?.install(
-      computer?.extension ??
-        (this.#paired === undefined ? absent(COMPUTER_EXTENSION) : WithoutComputer),
-    )
+  /** Whether the agent's host says which machines there are, and so the agent has none to itself. */
+  get #hosted(): boolean {
+    return this.#options.computerDirectory?.machines !== undefined
   }
 
-  /** Settle which computer the agent is on, from what is stored and what is offered now. */
-  async #settleComputer(harness: Harness): Promise<void> {
-    const identity = await harness.snapshot(IdentityDoc, context)
-    const chosen = identity?.computer
-    // A kind that is no longer offered cannot be built. The choice is kept for when it is again.
-    const kind = chosen !== undefined && this.#offers(chosen) ? chosen : this.#choices.default
-    this.#useComputer(harness, kind, identity?.computerChangedAt)
-    if (identity === undefined || identity.ownerId === "" || this.#choices.kinds.length === 0) {
-      return
+  /** The library of the agent's workspace, where its host keeps one. */
+  async #libraryStub(): Promise<ActorStub | undefined> {
+    return this.#options.library?.(this.#host.name)
+  }
+
+  async #sharedLibrary(): Promise<RemoteLibrary | undefined> {
+    const stub = await this.#libraryStub()
+    return stub === undefined ? undefined : remoteLibrary(stub)
+  }
+
+  /** A machine the agent has to itself, where nobody says which machines there are. */
+  #ownMachine(kind: string): (AgentComputer & { id: string }) | undefined {
+    const sandbox = this.#choices.create(kind, this.#host.name, this.#host)
+    if (sandbox === undefined) return undefined
+    return {
+      // Named for the agent too: a library that several agents share tells machines apart by id.
+      id: `own:${this.#host.name}:${kind}`,
+      name: "computer",
+      kind,
+      machineKey: this.#host.name,
+      platform: "linux",
+      hostname: "",
+      home: sandbox.home,
+      folder: sandbox.home,
+      readOnly: false,
+      pairedAt: this.#host.now(),
     }
-    if (chosen !== undefined && identity.computers?.includes(kind) === true) return
-    // An agent from before there was a choice stays on what it has, whatever the default becomes.
+  }
+
+  /**
+   * An agent from before computers belonged to a workspace had a machine of its own, and one
+   * left behind for each kind it was moved away from. They are handed to its host, which says
+   * which of them the agent goes on using. That happens once.
+   */
+  async #adopt(harness: Harness): Promise<void> {
+    const identity = await harness.snapshot(IdentityDoc, context)
+    if (identity === undefined || identity.ownerId === "" || identity.adopted === true) return
+    const chosen = identity.computer
+    // A kind that is no longer offered cannot be reached, and is left where it is.
+    const current = chosen !== undefined && this.#offers(chosen) ? chosen : this.#choices.default
+    const kinds = [...new Set([current, ...(identity.computers ?? [])])].filter(
+      (kind) => kind === current || this.#offers(kind),
+    )
+    const machines = kinds.flatMap((kind) => {
+      const own = this.#ownMachine(kind)
+      return own === undefined ? [] : [{ ...own, current: kind === current }]
+    })
+    const directory = this.#options.computerDirectory
+    const mine =
+      directory?.adopt === undefined || !this.#hosted
+        ? machines.filter((machine) => machine.current).map(({ current: _current, ...own }) => own)
+        : await directory.adopt(
+            this.#host.name,
+            machines.map(({ kind, home, current }) => ({ kind: kind!, home, current })),
+            identity.name,
+          )
+    // Its memory was mirrored as files in the home directory of each machine it had to itself,
+    // and they are still there.
+    await this.#computers.setMachines(
+      mine.map((machine) => ({ ...machine, mirrored: machine.machineKey === this.#host.name })),
+      context,
+    )
+    // What each machine's library folder held was kept under the kind, and is now under the machine.
+    for (const machine of mine) {
+      const legacy = machine.kind === "" ? "default" : machine.kind
+      const base = legacy === undefined ? undefined : await this.#ownLibrary.base(legacy)
+      if (base === undefined) continue
+      await this.#ownLibrary.takeBase(machine.id, base)
+      await this.#ownLibrary.dropBase(legacy!)
+    }
     await harness.commit(async (tx) => {
       const doc = await tx.doc(IdentityDoc)
-      doc.computer ??= kind
-      if (doc.computers?.includes(kind) !== true) doc.computers = [...(doc.computers ?? []), kind]
+      doc.adopted = true
+      // Kept for an agent with machines to itself, which deletes them when it is deleted.
+      if (kinds.length > 0 && this.#choices.kinds.length > 0) doc.computers = kinds
     }, context)
+  }
+
+  /**
+   * An agent that kept a library for itself, in a workspace that now keeps one for all its
+   * agents: its files move there, with their history, and its own is left empty. Running it
+   * again after it was cut short moves what is left.
+   */
+  async #moveLibrary(): Promise<void> {
+    if (this.#options.library === undefined || this.#opened === undefined) return
+    const { files, deleted } = await this.#ownLibrary.everything()
+    if (files.length === 0 && deleted.length === 0) return
+    const shared = await this.#sharedLibrary()
+    if (shared === undefined) return
+    const identity = await this.#opened.snapshot(IdentityDoc, context)
+    for (const [id, entry] of [...files, ...deleted]) {
+      const revs = [entry.rev ?? 0, ...(entry.versions ?? []).map((version) => version.rev)]
+      for (const rev of revs) {
+        const bytes = await this.#ownLibrary.bytes({ id, rev })
+        if (bytes !== undefined) await shared.takeBytes(id, rev, bytes, entry.contentType)
+      }
+      await shared.take(id, entry, {
+        // Where another agent's file is in its place, it goes under a folder named for this one.
+        folder: identity?.name ?? "agent",
+        agentId: this.#host.name,
+      })
+    }
+    for (const computer of await this.#computers.list(context)) {
+      const base = await this.#ownLibrary.base(computer.id)
+      if (base === undefined) continue
+      await shared.takeBase(computer.id, base)
+      await this.#ownLibrary.dropBase(computer.id)
+    }
+    await this.#ownLibrary.empty()
   }
 
   #open(): Promise<Harness> {
     this.#harness ??= (async () => {
       const registry = createRegistry()
-      this.#registry = registry
       // For tools that read the harness they are installed in, once it exists.
       let opened: Harness | undefined
       registry.install(Persona)
       // First among the tool hooks: a call that is not allowed should cause nothing at all.
       registry.install(this.#approvals.extension)
-      // The agent's computer goes here. Which one is known once the store is open.
-      registry.install(absent(CodingTools.name))
-      registry.install(absent(COMPUTER_EXTENSION))
-      if (this.#paired !== undefined) registry.install(this.#paired.extension)
-      // Before the paired-computer wraps, which also apply to sending a file.
+      // The file and shell tools, which run on whichever computer a call is for.
+      registry.install(CodingTools)
+      registry.install(this.#computers.extension)
+      // Its tools take a computer too, as the wraps above say.
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
@@ -537,7 +608,6 @@ export class AgentActor implements Actor {
         {
           models: this.#options.models,
           registry,
-          env: ({ cwd }) => this.#computer?.env(cwd),
           now: () => this.#host.now(),
           onReport: (error) => this.#options.onReport?.(error),
           settings: { toolExecution: "parallel" },
@@ -545,16 +615,18 @@ export class AgentActor implements Actor {
         context,
       )
       opened = harness
+      this.#opened = harness
       this.#approvals.attach(harness)
       this.#keepGoing.attach(harness)
-      await this.#settleComputer(harness)
+      this.#computers.attach(harness)
       this.#scheduler.attach(harness)
       this.#subagents.attach(harness)
       this.#peers?.attach(harness)
       this.#skills.attach(harness)
-      this.#paired?.attach(harness)
-      this.#library.attach(harness)
-      await this.#library.upgrade(context)
+      await this.#ownLibrary.upgrade()
+      // Neither stops the agent opening: what could not be done now is tried the next time.
+      await this.#adopt(harness).catch((error) => this.#options.onReport?.(error))
+      await this.#moveLibrary().catch((error) => this.#options.onReport?.(error))
       // Connector tools come and go while the agent runs, so they are installed after opening.
       this.#connectors = new Connectors({
         sql: this.#host.sql,
@@ -565,7 +637,7 @@ export class AgentActor implements Actor {
         resolveHost: this.#options.resolveHost,
       })
       await this.#connectors.attach(harness, context)
-      // An agent that is still to be set up gets its skills then, once its computer is known.
+      // An agent that is still to be set up gets its skills then.
       if (((await harness.snapshot(IdentityDoc, context))?.ownerId ?? "") !== "") {
         await this.#skills.seed(context)
       }
@@ -639,41 +711,49 @@ export class AgentActor implements Actor {
   async close(): Promise<void> {
     const harness = this.#harness
     this.#harness = undefined
+    this.#opened = undefined
     await this.#connectors?.close()
     await (await harness)?.close(context)
   }
 
   /**
-   * Delete the agent: its computers, then everything it has stored. For the gateway, after the
-   * owner asked for it.
+   * Delete the agent and everything it has stored. For the gateway, after the owner asked for
+   * it. The machines of a workspace are not the agent's to delete. One that has machines to
+   * itself, because nobody says which there are, deletes those first.
    */
   async #destroy(harness: Harness): Promise<Response> {
-    // An agent that was moved left a computer behind each time, and those go too.
-    const had = (await harness.snapshot(IdentityDoc, context))?.computers ?? []
-    // The computers first, while nothing else is lost yet. If a provider cannot be reached the
-    // agent is left whole, so the owner can try again instead of paying for a machine nobody
-    // can find.
-    try {
-      await this.#computer?.sandbox.destroy?.()
-      for (const kind of had) {
-        if (kind === this.#kind) continue
-        if (this.#offers(kind)) await this.#choices.create(kind, this.#host)?.destroy?.()
-        else {
-          // Nothing here can reach it any more. Deleting the rest is still what was asked for.
-          this.#options.onReport?.(
-            new Error(
-              `An agent that was deleted had a computer of kind "${kind}", which this server no longer offers, so that computer was left where it is.`,
-            ),
-          )
+    if (!this.#hosted) {
+      // An agent that was moved left a machine behind each time, and those go too.
+      const had = new Set([
+        ...((await harness.snapshot(IdentityDoc, context))?.computers ?? []),
+        ...(await this.#computers.list(context)).flatMap((computer) =>
+          computer.id.startsWith("own:") && computer.kind !== undefined ? [computer.kind] : [],
+        ),
+      ])
+      // The machines first, while nothing else is lost yet. If a provider cannot be reached the
+      // agent is left whole, so the owner can try again instead of paying for a machine nobody
+      // can find.
+      try {
+        for (const kind of had) {
+          if (kind === "" || this.#offers(kind)) {
+            await this.#choices.create(kind, this.#host.name, this.#host)?.destroy?.()
+          } else {
+            // Nothing here can reach it any more. Deleting the rest is still what was asked for.
+            this.#options.onReport?.(
+              new Error(
+                `An agent that was deleted had a computer of kind "${kind}", which this server no longer offers, so that computer was left where it is.`,
+              ),
+            )
+          }
         }
+      } catch (error) {
+        throw new HttpError(
+          502,
+          `The agent's computer could not be deleted, so nothing was: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
       }
-    } catch (error) {
-      throw new HttpError(
-        502,
-        `The agent's computer could not be deleted, so nothing was: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      )
     }
     // Stop every run and release the database before the host removes it.
     await this.close()
@@ -722,9 +802,7 @@ export class AgentActor implements Actor {
     if (segments[0] === "init" && method === "POST") {
       return this.#init(
         harness,
-        await body<{ ownerId: string; team?: string | null; model?: string; computer?: string }>(
-          request,
-        ),
+        await body<{ ownerId: string; team?: string | null; model?: string }>(request),
       )
     }
     // Which team shares it, from the gateway, which is what knows.
@@ -746,14 +824,22 @@ export class AgentActor implements Actor {
       }
     }
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
-    if (segments[0] === "computers" && this.#paired !== undefined) {
+    if (segments[0] === "computers") {
       const computerId = segments[1]
       if (computerId === undefined && method === "GET") {
-        return json({ computers: await this.#paired.list(context) })
+        return json({ computers: await this.#computers.list(context) })
+      }
+      // Every machine of the workspace the agent can use, from its host, which is what knows.
+      if (computerId === undefined && method === "PUT") {
+        const { machines } = await body<{ machines?: (AgentComputer & { id: string })[] }>(request)
+        if (!Array.isArray(machines)) throw new HttpError(400, "machines is required")
+        await this.#computers.setMachines(machines, context)
+        this.#library.forget()
+        return json({ computers: await this.#computers.list(context) })
       }
       if (computerId !== undefined && segments[2] === "answer" && method === "POST") {
         const answer = await body<ComputerAnswer>(request)
-        const turn = await this.#paired.answered(computerId, answer, context)
+        const turn = await this.#computers.answered(computerId, answer, context)
         if (turn !== undefined && answer.chatId !== null) {
           const chatId = answer.chatId
           await harness.commit(async (tx) => {
@@ -766,11 +852,11 @@ export class AgentActor implements Actor {
         return json({ ok: true })
       }
       if (computerId !== undefined && method === "PUT") {
-        const computer = await body<PairedComputer>(request)
-        return json(await this.#paired.put(computerId, computer, context))
+        const computer = await body<AgentComputer>(request)
+        return json(await this.#computers.put(computerId, computer, context))
       }
       if (computerId !== undefined && method === "DELETE") {
-        await this.#paired.remove(computerId, context)
+        await this.#computers.remove(computerId, context)
         return json({ ok: true })
       }
     }
@@ -829,106 +915,24 @@ export class AgentActor implements Actor {
         return json({ ok: true })
       }
     }
-    if (segments[0] === "view" && segments[1] !== undefined && method === "GET") {
-      let path: string
-      try {
-        path = segments.slice(2).map(decodeURIComponent).join("/")
-      } catch {
-        throw new HttpError(404, "Not found")
+    if (segments[0] === "view" || segments[0] === "library") {
+      // A workspace's library answers for itself. The agent's own is answered for here.
+      const shared = await this.#libraryStub()
+      if (shared !== undefined) {
+        const forwarded = new Request(`http://library${url.pathname}${url.search}`, request)
+        forwarded.headers.set(LIBRARY_AGENT_HEADER, this.#host.name)
+        return shared.fetch(forwarded)
       }
-      const response = await this.#library.view(segments[1], path, request, context)
-      if (response === undefined) throw new HttpError(404, "Not found")
-      return response
-    }
-    if (segments[0] === "library") {
-      const library = this.#library
-      const fileId = segments[1]
-      const action = segments[2]
-      const missing = () => new HttpError(404, "File not found")
-      /** The request's body as a file's content, read only up to the size a file may be. */
-      const content = async () => {
-        const tooLarge = () => new HttpError(413, "That file is too large.")
-        if (declaredTooLarge(request.headers, MAX_LIBRARY_FILE_BYTES)) throw tooLarge()
-        // Counted as it arrives: the declared length is only what the sender says.
-        return readLimited(request.body, MAX_LIBRARY_FILE_BYTES).catch((error) => {
-          throw error instanceof BodyTooLarge ? tooLarge() : error
-        })
-      }
-      if (fileId === undefined && method === "GET") return json(await library.listing(context))
-      if (fileId === undefined && method === "POST") {
-        // The body is the file. Its name, and where it goes, are in the query: a `path` for a new
-        // document at exactly that place, or a `name` to go into `dir` or with the uploads.
-        const name = url.searchParams.get("name")
-        const path = url.searchParams.get("path")
-        if ((name === null || name === "") && (path === null || path === "")) {
-          throw new HttpError(400, "name is required")
-        }
-        const file = await library.add(
-          {
-            ...(path !== null && path !== ""
-              ? { path: cleanLibraryPath(path) ?? "" }
-              : { name: name!, dir: url.searchParams.get("dir") ?? undefined }),
-            bytes: await content(),
-            source: "user",
-            chatId: url.searchParams.get("chat"),
-            contentType: request.headers.get("content-type") ?? undefined,
-          },
-          context,
+      if (segments[0] === "view") {
+        // The page's own path is taken apart there, as it was sent.
+        return routeLibraryView(
+          this.#ownLibrary,
+          request,
+          url.pathname.split("/").filter(Boolean).slice(1),
         )
-        return json(file, 201)
       }
-      if (fileId === "deleted" && action !== undefined) {
-        if (segments[3] === "restore" && method === "POST") {
-          const file = await library.restore(action, context)
-          if (file === undefined) throw missing()
-          return json(file)
-        }
-        if (segments[3] === undefined && method === "DELETE") {
-          if (!(await library.forget(action, context))) throw missing()
-          return json({ ok: true })
-        }
-      }
-      if (fileId !== undefined && action === undefined) {
-        if (method === "GET") {
-          const response = await library.serve(fileId, request, context)
-          if (response === undefined) throw missing()
-          return response
-        }
-        if (method === "PUT") {
-          // New content for the file. With `rev`, only if it is still at that revision.
-          const rev = url.searchParams.get("rev")
-          try {
-            return json(
-              await library.write(fileId, await content(), "user", context, {
-                ifRev: rev === null ? undefined : Number(rev),
-              }),
-            )
-          } catch (error) {
-            if (error instanceof LibraryConflict)
-              throw new HttpError(409, error.message, "conflict")
-            throw error
-          }
-        }
-        if (method === "PATCH") {
-          const { path } = await body<{ path?: string }>(request)
-          if (typeof path !== "string") throw new HttpError(400, "path is required")
-          return json(await library.move(fileId, path, context))
-        }
-        if (method === "DELETE") {
-          if (!(await library.remove(fileId, "user", context))) throw missing()
-          return json({ ok: true })
-        }
-      }
-      if (fileId !== undefined && action === "versions" && method === "GET") {
-        const versions = await library.versions(fileId, context)
-        if (versions === undefined) throw missing()
-        return json({ versions })
-      }
-      if (fileId !== undefined && action === "revert" && method === "POST") {
-        const { rev } = await body<{ rev?: number }>(request)
-        if (typeof rev !== "number") throw new HttpError(400, "rev is required")
-        return json(await library.revert(fileId, rev, "user", context))
-      }
+      const response = await routeLibrary(this.#ownLibrary, request, segments.slice(1))
+      if (response !== undefined) return response
     }
     if (segments[0] === "skills") {
       const name = segments[1]
@@ -1090,15 +1094,15 @@ export class AgentActor implements Actor {
 
   async #init(
     harness: Harness,
-    input: { ownerId: string; team?: string | null; model?: string; computer?: string },
+    input: { ownerId: string; team?: string | null; model?: string },
   ): Promise<Response> {
     if (typeof input.ownerId !== "string" || input.ownerId === "") {
       throw new HttpError(400, "ownerId is required")
     }
     const model = input.model ?? this.#options.defaultModel
     this.#requireModel(model)
-    if (input.computer !== undefined) this.#requireKind(input.computer)
-    const computer = input.computer ?? this.#choices.default
+    // Where nobody says which machines there are, the agent gets one to itself.
+    const machine = this.#hosted ? undefined : this.#ownMachine(this.#choices.default)
     const outcome = await harness.commit(async (tx) => {
       const identity = await tx.doc(IdentityDoc)
       if (identity.ownerId !== "" && identity.ownerId !== input.ownerId) return "taken"
@@ -1109,23 +1113,19 @@ export class AgentActor implements Actor {
       if (typeof input.team === "string" && input.team !== "") identity.team = input.team
       identity.model = model
       identity.createdAt = this.#host.now()
-      if (this.#choices.kinds.length > 0) {
-        identity.computer = computer
-        identity.computers = [computer]
+      // There is nothing from before for its host to take over.
+      identity.adopted = true
+      if (machine !== undefined && this.#choices.kinds.length > 0) {
+        identity.computers = [this.#choices.default]
       }
       return "new"
     }, context)
     if (outcome === "taken") throw new HttpError(409, "Agent belongs to another account")
-    if (outcome === "new" && computer !== this.#kind)
-      this.#useComputer(harness, computer, undefined)
+    if (outcome === "new" && machine !== undefined) {
+      await this.#computers.setMachines([machine], context)
+    }
     await this.#skills.seed(context)
     return json(await this.#state(harness, await this.#identity(harness)))
-  }
-
-  #requireKind(kind: string): void {
-    if (!this.#offers(kind)) {
-      throw new HttpError(400, `This server has no computer of the kind "${kind}".`)
-    }
   }
 
   #requireModel(model: string): void {
@@ -1205,8 +1205,6 @@ export class AgentActor implements Actor {
     return {
       agent,
       timezone: identity.timezone ?? null,
-      // The kind it is on now. Null where the deployment gives no choice of one.
-      computer: this.#choices.kinds.length === 0 ? null : this.#kind,
       ownerId: identity.ownerId,
       // The team that shares it, by name, or null for one person's.
       team: identity.team ?? null,
@@ -1251,20 +1249,6 @@ export class AgentActor implements Actor {
     if (whenBusy !== undefined && whenBusy !== "steer" && whenBusy !== "queue") {
       throw new HttpError(400, "whenBusy must be steer or queue")
     }
-    const computer = text("computer", 40)
-    if (computer !== undefined) this.#requireKind(computer)
-    const moving = computer !== undefined && computer !== this.#kind
-    if (moving) {
-      // A command that is running would finish on one computer and report to the other.
-      const { tasks, submissions } = await harness.inspect(context)
-      if (tasks.length > 0 || submissions.length > 0) {
-        throw new HttpError(
-          409,
-          "The agent is in the middle of something. Wait for it to finish, or stop it, and then change its computer.",
-          "busy",
-        )
-      }
-    }
     const now = this.#host.now()
     let avatar: IdentityState["avatar"] | undefined
     if (input.avatar !== undefined) {
@@ -1285,25 +1269,12 @@ export class AgentActor implements Actor {
       if (input.hatched === true) identity.hatchedAt ??= now
       if (timezone !== undefined) identity.timezone = timezone
       if (whenBusy !== undefined) identity.whenBusy = whenBusy
-      if (computer !== undefined) identity.computer = computer
-      if (moving) {
-        identity.computerChangedAt = now
-        if (identity.computers?.includes(computer) !== true) {
-          identity.computers = [...(identity.computers ?? []), computer]
-        }
-      }
       // Chats pick this up on their next message.
       if (thinking !== undefined) identity.thinking = thinking
       if (model === undefined || model === identity.model) return []
       identity.model = model
       return Object.keys((await tx.doc(ChatsDoc)).chats)
     }, context)
-    if (moving) {
-      this.#useComputer(harness, computer, now)
-      // A skill that needs real programs arrives with the first computer that has them.
-      await this.#skills.seed(context)
-    }
-    this.#computer?.markStale()
     // A model change applies to existing chats from their next request.
     if (model !== undefined) {
       for (const id of chats) {
@@ -1587,6 +1558,9 @@ export class AgentActor implements Actor {
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
+      // A library the workspace shares changes without the agent having a hand in it.
+      const shared = await this.#sharedLibrary().catch(() => undefined)
+      const unwatch = shared?.watch(() => void changed("library")())
       await emit({ type: "ready" } satisfies AgentEvent)
       identity?.start(changed("identity"))
       chats?.start(changed("chats"))
@@ -1606,6 +1580,7 @@ export class AgentActor implements Actor {
         void library?.stop()
         void connectors?.stop()
         void approvals?.stop()
+        unwatch?.()
       }
     })
   }

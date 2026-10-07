@@ -1,6 +1,6 @@
 import type { SkillDetail, SkillSource, SkillSummary } from "@durable-computer/protocol"
-import type { Sandbox } from "@durable-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
+import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
 import { Type } from "@earendil-works/pi-ai"
 import {
   defineDoc,
@@ -10,6 +10,7 @@ import {
   type Extension,
   type Harness,
   section,
+  type ToolRegistration,
 } from "@earendil-works/pi-durable"
 import { BUNDLED_SKILLS } from "./bundled-skills.ts"
 import { fetchSkill } from "./skill-fetch.ts"
@@ -83,7 +84,7 @@ export type SkillsOptions = {
    * The agent's computer at the moment, where a loaded skill's files are copied so its scripts
    * can be run. Asked each time: an agent can be moved to another one.
    */
-  readonly sandbox?: () => Sandbox | undefined
+  readonly realPrograms?: () => boolean
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
 }
 
@@ -94,11 +95,14 @@ export type SkillsOptions = {
  */
 export class Skills {
   readonly extension: Extension
+  /** The agent's tool for its skills, for whatever gives its calls a computer to copy files to. */
+  readonly tool: ToolRegistration
   readonly #options: SkillsOptions
   #harness: Harness | undefined
 
   constructor(options: SkillsOptions) {
     this.#options = options
+    this.tool = this.#tool()
     this.extension = defineExtension({
       name: "dc.skills",
       sections: [
@@ -120,7 +124,7 @@ export class Skills {
           return `${INTRO}\n\n${lines.length === 0 ? "(No skills yet.)" : lines.join("\n")}`
         }),
       ],
-      tools: [this.#tool()],
+      tools: [this.tool],
     })
   }
 
@@ -140,7 +144,7 @@ export class Skills {
   async seed(context: Context): Promise<void> {
     const harness = this.#require()
     const index = await harness.snapshot(SkillsDoc, context)
-    const realComputer = this.#options.sandbox?.()?.capabilities.realBinaries === true
+    const realComputer = this.#options.realPrograms?.() === true
     const missing = BUNDLED_SKILLS.filter(
       (skill) =>
         (skill.needsRealComputer !== true || realComputer) &&
@@ -246,19 +250,24 @@ export class Skills {
     return this.save(fetched.name, fetched.files, "installed", url.trim(), context)
   }
 
-  /** Copy a skill's files into the workspace, so scripts it refers to can be run. */
-  async #materialize(skill: SkillDetail): Promise<string | undefined> {
-    const sandbox = this.#options.sandbox?.()
-    if (sandbox === undefined) return undefined
-    const directory = `${sandbox.home}/.agents/skills/${skill.name}`
-    const encoder = new TextEncoder()
+  /**
+   * Copy a skill's files to where the agent is working, so scripts it refers to can be run:
+   * into its own folder on the computer the call is for. Does nothing where there is none.
+   */
+  async #materialize(
+    skill: SkillDetail,
+    env: ExecutionEnv | undefined,
+    context: Context,
+  ): Promise<string | undefined> {
+    if (env === undefined) return undefined
+    const directory = await env.absolutePath(`.agents/skills/${skill.name}`, context)
+    if (!directory.ok) return undefined
     for (const [path, content] of Object.entries(skill.contents)) {
-      const target = `${directory}/${path}`
-      await sandbox.fs.mkdir(target.slice(0, target.lastIndexOf("/")), { recursive: true })
-      await sandbox.fs.writeFile(target, encoder.encode(content))
+      const written = await env.writeFile(`${directory.value}/${path}`, content, context)
+      // A computer that cannot be written to still lets the skill be read.
+      if (!written.ok) return undefined
     }
-    await sandbox.flush()
-    return directory
+    return directory.value
   }
 
   #tool() {
@@ -291,7 +300,7 @@ export class Skills {
         new_text: Type.Optional(Type.String()),
         url: Type.Optional(Type.String()),
       }),
-      execute: async (args, _api, context) => {
+      execute: async (args, api, context) => {
         const reply = (text: string, isError = false) => ({
           isError,
           content: [{ type: "text" as const, text }],
@@ -328,12 +337,12 @@ export class Skills {
                   true,
                 )
               }
-              const directory = await this.#materialize(skill)
+              const directory = await this.#materialize(skill, api.env, context)
               const others = skill.files.filter((file) => file !== path)
               const notes = [
                 others.length > 0 ? `Other files in this skill: ${others.join(", ")}.` : "",
                 directory !== undefined && skill.files.length > 1
-                  ? `Its files are in ${directory} on your computer.`
+                  ? `Its files are in ${directory} on the computer you are working on.`
                   : "",
               ].filter(Boolean)
               return reply(notes.length > 0 ? `${content}\n\n[${notes.join(" ")}]` : content)

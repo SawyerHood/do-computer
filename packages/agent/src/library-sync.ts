@@ -1,12 +1,11 @@
 import { type Sandbox, SandboxError } from "@durable-computer/sandbox"
-import type { Context } from "@earendil-works/chord"
 import {
   isLibraryPath,
-  type Library,
+  type LibraryBackend,
   LibraryError,
   MAX_LIBRARY_FILE_BYTES,
   sha256,
-} from "./library.ts"
+} from "./library-store.ts"
 
 /** A file in the folder, as a listing shows it. Enough to tell that it changed without reading it. */
 export type Listed = { readonly size: number; readonly mtimeMs: number }
@@ -141,18 +140,21 @@ const megabytes = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`
  * did: what was done before that is still recorded.
  */
 export async function syncFolder(input: {
-  library: Library
+  library: Pick<LibraryBackend, "stored" | "bytes" | "add" | "write" | "move" | "remove">
+  /** The pass this is, which the library is told with every change it makes. */
+  pass?: string
+  /** The agent doing it, which a file it brings in is put down to. */
+  agentId?: string
   sandbox: Sandbox
   folder: string
   base: Readonly<Record<string, Base>>
-  context: Context
 }): Promise<{
   base: Record<string, Base>
   changed: boolean
   problems: string[]
   failed?: unknown
 }> {
-  const { library, sandbox, folder, context } = input
+  const { library, sandbox, folder, pass } = input
   const base: Record<string, Base> = { ...input.base }
   const problems: string[] = []
   let changed = false
@@ -175,7 +177,7 @@ export async function syncFolder(input: {
         ],
       }
     }
-    const stored = await library.stored(context)
+    const stored = await library.stored()
     const actions = plan(listed, stored, base)
     if (actions.length === 0) return { base, changed, problems }
 
@@ -210,7 +212,7 @@ export async function syncFolder(input: {
         const kept = stored.get(path)
         let file: { id: string; rev: number }
         if (kept !== undefined) {
-          file = await library.write(kept.id, bytes, "agent", context, { quiet: true })
+          file = await library.write(kept.id, bytes, "agent", { pass })
         } else {
           // A file that appeared with the content of one that vanished was renamed, not replaced.
           const hash = await sha256(bytes)
@@ -218,15 +220,16 @@ export async function syncFolder(input: {
           if (from !== undefined) {
             dropping.delete(from)
             settle(from, undefined)
-            file = await library.move(stored.get(from)!.id, path, context, {
-              quiet: true,
-              exact: true,
-            })
+            file = await library.move(stored.get(from)!.id, path, { exact: true, pass })
           } else {
-            file = await library.add(
-              { path, bytes, source: "agent", chatId: null, quiet: true },
-              context,
-            )
+            file = await library.add({
+              path,
+              bytes,
+              source: "agent",
+              chatId: null,
+              agentId: input.agentId,
+              pass,
+            })
           }
         }
         settle(path, { id: file.id, rev: file.rev, size: there.size, mtimeMs: there.mtimeMs })
@@ -240,7 +243,7 @@ export async function syncFolder(input: {
       const { path } = action
       if (action.do === "forget") settle(path, undefined)
       if (action.do === "drop" && dropping.has(path)) {
-        await library.remove(stored.get(path)!.id, "agent", context, { quiet: true })
+        await library.remove(stored.get(path)!.id, "agent", { pass })
         settle(path, undefined)
       }
       if (action.do === "unlink") {

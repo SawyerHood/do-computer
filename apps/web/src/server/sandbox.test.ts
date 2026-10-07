@@ -78,9 +78,20 @@ describe("the kinds of computer a deployment offers", () => {
     const choices = computerChoices(readConfig({ DAYTONA_API_KEY: "key" }), "node", {})
     const host = { name: "agent-1", sql: {} } as never
     expect(choices.default).toBe("just-bash")
-    expect(choices.create("just-bash", host)?.id).toBe("just-bash:agent-1")
-    expect(choices.create("daytona", host)?.capabilities.realBinaries).toBe(true)
-    expect(choices.create("none", host)).toBeUndefined()
-    expect(choices.create("modal", host)).toBeUndefined()
+    expect(choices.create("just-bash", "agent-1", host)?.id).toBe("just-bash:agent-1")
+    expect(choices.create("daytona", "machine-1", host)?.capabilities.realBinaries).toBe(true)
+    expect(choices.create("none", "agent-1", host)).toBeUndefined()
+    expect(choices.create("modal", "machine-1", host)).toBeUndefined()
+  })
+
+  it("build a machine that agents share from its key alone, and the built-in shell only for an agent", () => {
+    const choices = computerChoices(readConfig({ DAYTONA_API_KEY: "key" }), "node", {})
+    // Whoever asks, the same key is the same machine: that is what lets agents share one.
+    expect(choices.create("daytona", "machine-1")?.id).toBe("daytona:machine-1")
+    expect(choices.create("daytona", "machine-1", { name: "agent-2", sql: {} } as never)?.id).toBe(
+      "daytona:machine-1",
+    )
+    // The built-in shell's files are with one agent, so there is none without an agent.
+    expect(choices.create("just-bash", "agent-1")).toBeUndefined()
   })
 })

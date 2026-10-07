@@ -25,14 +25,17 @@ export {
   parseModel,
 } from "./models.ts"
 export { Library, LIBRARY_FOLDER, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
+export { createLibraryActor, LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 export {
+  type AgentComputer,
   type ComputerAnswer,
   computerActorName,
   type ComputerDirectory,
+  Computers,
+  isPaired,
   type NearbyComputer,
-  type PairedComputer,
-  PairedComputers,
-} from "./paired.ts"
+  PAIRED,
+} from "./computers.ts"
 export { type AgentDirectory, type PeerAgent, type PeerMessage, type PeerReply } from "./peers.ts"
 export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"

@@ -193,9 +193,9 @@ describe("agent computer in a Durable Object", () => {
     expect(written?.status).toBe("done")
     expect(written?.output?.trim()).toBe("1500000")
 
-    const read = await run("cat data/note.txt && wc -c < data/big.txt && cat IDENTITY.md")
+    const read = await run("cat data/note.txt && wc -c < data/big.txt && pwd")
     expect(read?.output).toContain("hello\n1500000")
-    expect(read?.output).toContain("name:")
+    expect(read?.output).toContain("/workspace")
   })
 })
 

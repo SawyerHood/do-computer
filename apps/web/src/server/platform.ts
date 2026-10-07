@@ -1,3 +1,4 @@
+import type { ComputerChoices } from "@durable-computer/agent"
 import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
 
 /** Deployment settings, read from the environment of whichever runtime hosts the app. */
@@ -78,6 +79,10 @@ export type Platform = {
   readonly computers: ActorNamespace
   /** One actor per team, holding its members' connections and where each of them is. */
   readonly presence: ActorNamespace
+  /** One actor per workspace, keeping the library its agents share. Named by the workspace's id. */
+  readonly libraries: ActorNamespace
+  /** The kinds of machine there are, and how one is reached: to learn its home, and to delete it. */
+  readonly machines: ComputerChoices
 }
 
 function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): SandboxKind {

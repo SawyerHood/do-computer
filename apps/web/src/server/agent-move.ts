@@ -8,12 +8,14 @@ import {
   tellAgentItsTeam,
 } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
-import { removeMisfitComputersOf } from "./computers.ts"
+import { moveMachinesOf, removeMisfitComputersOf } from "./computers.ts"
 import { announce } from "./presence.ts"
 import { mayRemoveAgent, roleIn } from "./teams.ts"
 
 /**
- * Move an agent to another of the user's workspaces, with everything it has. Whoever could
+ * Move an agent to another of the user's workspaces, with what is its own: its memory, chats,
+ * skills and connectors, and the machines that only it can use. The library it wrote in stays
+ * with the workspace it leaves, and where it arrives it has that workspace's. Whoever could
  * delete it where it is can move it, to anywhere they are a member.
  */
 export async function moveAgent(
@@ -41,6 +43,7 @@ export async function moveAgent(
     return fail(502, "The agent could not be told. Try again.")
   }
   await db.run("UPDATE dc_agents SET workspace_id = ? WHERE id = ?", workspaceId, agentId)
+  await moveMachinesOf(agentId, workspaceId)
   // A computer connected to it served the people it was shared with then. One that belongs to
   // a team it has left, or to someone who is not among the people it is shared with now, stops.
   await removeMisfitComputersOf(agentId)

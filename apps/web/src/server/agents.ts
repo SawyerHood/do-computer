@@ -6,9 +6,10 @@ import {
   declaredTooLarge,
   readLimited,
 } from "@durable-computer/protocol"
-import { CALLER_HEADER, encodeCaller } from "@durable-computer/agent"
+import { CALLER_HEADER, encodeCaller, LIBRARY_AGENT_HEADER } from "@durable-computer/agent"
 import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/protocol"
 import { getAuth, getUser, type SessionUser } from "./auth.ts"
+import { provideFor } from "./computers.ts"
 import { announce } from "./presence.ts"
 import { defaultsFor } from "./settings.ts"
 import { type AgentAccess, agentAccess, roleIn, workspaceIdsOf } from "./teams.ts"
@@ -130,17 +131,19 @@ export async function createAgent(user: SessionUser, request: Request): Promise<
   const response = await callAgent(id, "/init", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    // A new agent starts on the model and the kind of computer its maker chose as defaults.
+    // A new agent starts on the model its maker chose as their default.
     body: JSON.stringify({
       ownerId: user.id,
       team: await teamName(workspaceId),
-      ...(await defaultsFor(user.id)),
+      model: (await defaultsFor(user.id)).model,
     }),
   })
   if (!response.ok) {
     await db.run("DELETE FROM dc_agents WHERE id = ?", id)
     return fail(502, "The agent could not be started")
   }
+  // It has no computer of its own. It works on its workspace's, which gets one if it has none.
+  await provideFor(id, workspaceId, user.id)
   const { agent } = (await response.json()) as { agent: AgentSummary }
   await announce(workspaceId)
   return json({ agent: { ...agent, workspaceId } }, 201)
@@ -153,7 +156,8 @@ export async function proxyToAgent(
   agentId: string,
   path: string,
 ): Promise<Response> {
-  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
+  const access = await agentFor(user, agentId)
+  if (access === undefined) return fail(404, "Agent not found")
   // The route as the actor will read it, which is after the address has been parsed: `..`, an
   // encoded dot, a backslash or a doubled slash each change what comes first, and judging the
   // path as it was sent would let any of them past.
@@ -187,6 +191,21 @@ export async function proxyToAgent(
   // So that a file the browser already has is not sent again.
   const cached = request.headers.get("if-none-match")
   if (cached !== null) headers["if-none-match"] = cached
+  // The library is its workspace's, which answers for itself. It is told which agent the
+  // request came through: a file's chat is that agent's.
+  if (route[0] === "library") {
+    return getPlatform()
+      .libraries.get(access.workspaceId)
+      .fetch(
+        // The path as it was parsed, which is as the library will read it.
+        new Request(`http://library/${route.join("/")}${url.search}`, {
+          method: request.method,
+          headers: { ...headers, [LIBRARY_AGENT_HEADER]: agentId },
+          body,
+          signal: request.signal,
+        }),
+      )
+  }
   return callAgent(agentId, `/${path}${url.search}`, {
     method: request.method,
     headers,
@@ -198,13 +217,13 @@ export async function proxyToAgent(
 /**
  * Serve a library file as a page, to whoever holds an address for it. There is no session here:
  * a page is shown in a frame that is kept apart from the app, and so apart from its cookies, and
- * the address itself carries the permission, which the agent checks.
+ * the address itself carries the permission, which the library checks.
  */
 export async function viewLibraryFile(request: Request, agentId: string): Promise<Response> {
   const missing = () => new Response("Not found", { status: 404 })
-  // Asking an agent that does not exist would create one.
-  const known = await getPlatform().db.get<{ id: string }>(
-    "SELECT id FROM dc_agents WHERE id = ?",
+  // The library is the one of the agent's workspace. An agent the record does not have has none.
+  const known = await getPlatform().db.get<{ owner_id: string; workspace_id: string | null }>(
+    "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
     agentId,
   )
   if (known === undefined) return missing()
@@ -215,8 +234,10 @@ export async function viewLibraryFile(request: Request, agentId: string): Promis
     const value = request.headers.get(name)
     if (value !== null) headers[name] = value
   }
-  const response = await callAgent(agentId, `/view/${rest}`, { headers, signal: request.signal })
-  // The agent answers in JSON, for the app. This is read by a browser.
+  const response = await getPlatform()
+    .libraries.get(known.workspace_id ?? personalWorkspaceId(known.owner_id))
+    .fetch(new Request(`http://library/view/${rest}`, { headers, signal: request.signal }))
+  // The library answers in JSON, for the app. This is read by a browser.
   return response.status === 404 ? missing() : response
 }
 

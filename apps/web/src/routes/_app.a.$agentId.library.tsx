@@ -102,8 +102,8 @@ function RecentCard({
 }
 
 /**
- * The agent's library: documents and files it has made, and ones the user has given it, as a
- * tree of folders beside whichever one is open.
+ * The library of the agent's workspace, which its agents share: documents and files they have
+ * made, and ones people have given them, as a tree of folders beside whichever one is open.
  */
 const DESKTOP = "(min-width: 48rem)"
 
@@ -243,8 +243,9 @@ function LibraryPage() {
                 <div className="max-w-xl">
                   <h1 className="text-xl font-semibold tracking-tight">Library</h1>
                   <p className="text-sm text-muted-foreground">
-                    Documents and files your agent has made, and ones you have given it. They are
-                    kept here whatever happens to its computer.
+                    Documents and files made by the agents of this workspace, and ones you have
+                    given them. Every agent in the workspace shares this library, and what is in it
+                    is kept here whatever happens to a computer.
                   </p>
                 </div>
                 <Button disabled={create.isPending} onClick={() => create.mutate()}>

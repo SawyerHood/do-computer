@@ -130,6 +130,11 @@ export function removeWorkspace(user: SessionUser, workspaceId: string): Promise
   return answer(async () => {
     await deleteWorkspace(getPlatform().db, user, workspaceId)
     await removeComputersOfWorkspace(workspaceId)
+    // Its library goes with it: there is nobody left whose it is.
+    await getPlatform()
+      .libraries.get(workspaceId)
+      .fetch(new Request("http://library/destroy", { method: "POST" }))
+      .catch(() => {})
     await announce(workspaceId)
   })
 }

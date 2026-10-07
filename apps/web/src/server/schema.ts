@@ -142,6 +142,26 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     "CREATE INDEX dc_computer_requests_by_agent ON dc_computer_requests (agent_id)",
   ],
+  [
+    // A computer is one somebody paired, or a machine the app made for a workspace. `kind` says
+    // which; every computer from before is a paired one.
+    "ALTER TABLE dc_computers ADD COLUMN kind TEXT NOT NULL DEFAULT 'paired'",
+    // What a machine is named after at its provider. A machine an agent had to itself, from
+    // before computers belonged to a workspace, is named after that agent.
+    "ALTER TABLE dc_computers ADD COLUMN machine_key TEXT",
+    // Who can use it: `open` to every agent of its workspace, or `chosen`, to the agents with a
+    // row in dc_computer_grants. A paired computer is always chosen.
+    "ALTER TABLE dc_computers ADD COLUMN access TEXT NOT NULL DEFAULT 'chosen'",
+    // The folder an agent has to itself on a machine, chosen when it first works there.
+    `CREATE TABLE dc_computer_folders (
+      computer_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (computer_id, agent_id)
+    )`,
+    "CREATE INDEX dc_computer_folders_by_agent ON dc_computer_folders (agent_id)",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

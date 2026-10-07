@@ -39,8 +39,9 @@ wait_for() { # wait_for <python expression over the chat state d> <description>
   echo "FAIL $2"; exit 1
 }
 TEXTS='" ".join(p.get("text","")+str(p.get("output","")) for m in d["messages"] for p in m["parts"])'
-tool '/tool bash {"command":"echo durable > proof.txt && cat proof.txt && ls"}'
-wait_for "not d['busy'] and 'durable' in $TEXTS and 'MEMORY.md' in $TEXTS" "agent ran a command on its computer"
+tool '/tool bash {"command":"echo durable > proof.txt && cat proof.txt && echo in $(pwd)"}'
+wait_for "not d['busy'] and 'durable' in $TEXTS and 'in /' in $TEXTS" "agent ran a command on a machine of its workspace"
+check "its workspace has a machine for it" "$(get /api/computers | field "['computers'][0]['agentIds'][0]")" "$AGENT"
 # Documents: what the agent writes into its library folder is in the library, a page is served
 # with what is beside it to whoever has its address, and what the user changes reaches the agent.
 tool '/tool bash {"command":"mkdir -p library/site && printf \"<link rel=stylesheet href=style.css><h1>hi</h1>\" > library/site/index.html && printf \"h1{color:teal}\" > library/site/style.css && echo written"}'
@@ -60,6 +61,8 @@ wait_for "any(p.get('kind')=='schedule' for m in d['messages'] for p in m['parts
 check "schedule recorded its run" "$(get "/api/agents/$AGENT/schedules" | field "['schedules'][0]['lastRun']['outcome']")" "delivered"
 # Pair this machine as one of the user's computers, with the real daemon, if it has been built.
 DAEMON="$(dirname "$0")/../apps/daemon/dist/daemon.cjs"
+# The computer somebody paired, among the machines of the workspace: `paired "['name']"`.
+paired() { python3 -c "import json,sys; d=json.load(sys.stdin); print([c for c in d['computers'] if c['kind']=='paired'][0]$1)" 2>/dev/null; }
 if [ -f "$DAEMON" ]; then
   LAPTOP=$(mktemp -d)
   echo "on the paired machine" > "$LAPTOP/proof.txt"
@@ -70,24 +73,24 @@ if [ -f "$DAEMON" ]; then
   CODE=$(grep -o 'code [A-Z0-9]\{4\}-[A-Z0-9]\{4\}' "$LAPTOP/daemon.log" | head -1 | cut -d' ' -f2)
   check "daemon is paired from its code" "$(post /api/computers/pair/confirm "{\"code\":\"$CODE\",\"agentIds\":[\"$AGENT\"]}" | field "['name']")" "smoke-laptop"
   for _ in $(seq 1 30); do
-    ONLINE=$(get /api/computers | field "['computers'][0]['online']")
+    ONLINE=$(get /api/computers | paired "['online']")
     [ "$ONLINE" = "True" ] && break
     sleep 0.5
   done
   check "paired computer is online" "$ONLINE" "True"
   tool '/tool bash {"command":"cat proof.txt","computer":"smoke-laptop"}'
   wait_for "not d['busy'] and 'on the paired machine' in $TEXTS" "agent ran a command on the paired computer"
-  COMPUTER=$(get /api/computers | field "['computers'][0]['id']")
+  COMPUTER=$(get /api/computers | paired "['id']")
   # The computer is taken from the agent, which asks for it back, and its owner says yes.
   curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/computers/$COMPUTER/agents/$AGENT" >/dev/null
-  check "a disconnected computer stays paired, with no agent" "$(get /api/computers | field "['computers'][0]['agentIds']")" "[]"
+  check "a disconnected computer stays paired, with no agent" "$(get /api/computers | paired "['agentIds']")" "[]"
   tool '/tool computers {"action":"request","name":"smoke-laptop","reason":"smoke"}'
   wait_for "not d['busy'] and 'Asked Smoke whether you may use' in $TEXTS" "agent asked for a computer it was not given"
   check "its owner is the one to answer" "$(get /api/computers/requests | field "['requests'][0]['canAnswer']")" "True"
   REQUEST=$(get /api/computers/requests | field "['requests'][0]['id']")
   post "/api/computers/requests/$REQUEST" '{"approve":true}' >/dev/null
   wait_for "not d['busy'] and any(p.get('kind')=='computer' and p.get('approved') for m in d['messages'] for p in m['parts'])" "agent was told the answer in the chat it asked from"
-  check "the agent has the computer again" "$(get /api/computers | field "['computers'][0]['agentIds'][0]")" "$AGENT"
+  check "the agent has the computer again" "$(get /api/computers | paired "['agentIds'][0]")" "$AGENT"
   tool '/tool bash {"command":"echo back on $(cat proof.txt)","computer":"smoke-laptop"}'
   wait_for "not d['busy'] and 'back on on the paired machine' in $TEXTS" "agent works there again"
   curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/computers/$COMPUTER" >/dev/null
@@ -116,21 +119,23 @@ check "always allowing lifts the rule" "$(get "/api/agents/$AGENT/approvals" | f
 wait_for "not d['busy'] and 'Approved: Run commands: echo needs-an-ok' in $TEXTS" "the answer reached the chat"
 tool '/tool bash {"command":"echo needs-an-ok"}'
 wait_for "not d['busy'] and any(p.get('output')=='needs-an-ok\\n' for m in d['messages'] for p in m['parts'])" "the command ran once it was allowed"
-# The agent's computer is one of the kinds on offer, and it can be moved between them.
+# An agent has no computer of its own: its workspace has machines, of the kinds on offer.
 DEFAULT_KIND=$(get /api/computer-kinds | field "['default']")
-check "the agent is on the default kind of computer" "$(get "/api/agents/$AGENT" | field "['computer']")" "$DEFAULT_KIND"
+MACHINE=$(get /api/computers | field "['computers'][0]['id']")
+check "the workspace's machine is of the default kind" "$(get /api/computers | field "['computers'][0]['kind']")" "$DEFAULT_KIND"
 check "no computer is on offer" "$(get /api/computer-kinds | field "['kinds'][-1]['id']")" "none"
-for _ in $(seq 1 20); do
-  MOVED=$(patch "/api/agents/$AGENT" '{"computer":"none"}')
-  case "$MOVED" in *'"code":"busy"'*) sleep 0.5;; *) break;; esac
-done
-check "the agent is moved to no computer" "$(echo "$MOVED" | field "['computer']")" "none"
-check "and back" "$(patch "/api/agents/$AGENT" "{\"computer\":\"$DEFAULT_KIND\"}" | field "['computer']")" "$DEFAULT_KIND"
-check "a kind that is not offered is refused" "$(patch "/api/agents/$AGENT" '{"computer":"mainframe"}' | field "['error']")" 'This server has no computer of the kind "mainframe".'
+check "a machine of a kind that is not offered is not added" "$(post /api/computers '{"kind":"mainframe"}' | field "['error']")" "This deployment has no machine of that kind to add."
+if [ "$DEFAULT_KIND" = "just-bash" ]; then
+  check "the built-in shell is its agent's alone" "$(get /api/computers | field "['computers'][0]['shareable']")" "False"
+  check "and cannot be opened to the workspace" "$(patch "/api/computers/$MACHINE" '{"access":"open"}' | field "['error']")" "Only a machine that agents can share can be opened to a workspace."
+else
+  check "the workspace's machine is open to its agents" "$(get /api/computers | field "['computers'][0]['access']")" "open"
+fi
 # Deleting an agent removes it and leaves the others alone.
 SECOND=$(post /api/agents | field "['agent']['id']")
 curl -sS -m 30 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/agents/$SECOND" >/dev/null
 check "a deleted agent is gone" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/api/agents/$SECOND")" "404"
+check "and left no machine behind" "$(get /api/computers | field "['computers'].__len__()")" "1"
 check "the first agent is untouched" "$(get /api/agents | field "['agents'][0]['id']")" "$AGENT"
 check "init is not exposed" "$(post "/api/agents/$AGENT/init" '{"ownerId":"x"}' | field "['error']")" "Not found"
 check "destroy is not exposed" "$(post "/api/agents/$AGENT/destroy" | field "['error']")" "Not found"

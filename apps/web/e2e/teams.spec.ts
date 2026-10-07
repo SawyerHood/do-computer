@@ -162,7 +162,7 @@ async function pairingCode(page: Page, name: string): Promise<string> {
   return ((await response.json()) as { code: string }).code
 }
 
-type Listed = { id: string; name: string; workspaceId: string; agentIds: string[] }
+type Listed = { id: string; name: string; kind: string; workspaceId: string; agentIds: string[] }
 const computersOf = async (page: Page) =>
   ((await (await page.request.get("/api/computers")).json()) as { computers: Listed[] }).computers
 
@@ -245,9 +245,12 @@ test("a member cannot run the team, and loses its agents when removed", async ()
   expect((await her.request.get(`/api/agents/${agentId}/chats/1`)).status()).toBe(404)
   // Her own computer is still hers, and no longer serves the team's agent. The team's computer
   // stays with the team, out of her sight.
-  expect((await computersOf(her)).map(({ name, agentIds }) => ({ name, agentIds }))).toEqual([
-    { name: "mayas-mac", agentIds: [] },
-  ])
+  expect(
+    (await computersOf(her))
+      // Her own agent's built-in shell is listed too, and is not what this is about.
+      .filter((computer) => computer.kind === "paired")
+      .map(({ name, agentIds }) => ({ name, agentIds })),
+  ).toEqual([{ name: "mayas-mac", agentIds: [] }])
   expect(
     (await computersOf(sawyer)).find((computer) => computer.name === "team-mini"),
   ).toMatchObject({ workspaceId: team, agentIds: [agentId] })
