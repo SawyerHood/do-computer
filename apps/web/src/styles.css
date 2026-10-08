@@ -288,6 +288,22 @@
   }
 }
 
+/* The same band, across something that is drawn and not written: it dims all but where it is. */
+.animate-shine-across {
+  mask-image: linear-gradient(90deg, rgb(0 0 0 / 0.4) 0%, #000 50%, rgb(0 0 0 / 0.4) 100%);
+  mask-size: 200% 100%;
+  animation: shine-across 2s linear infinite;
+}
+
+@keyframes shine-across {
+  from {
+    mask-position: 200% 0%;
+  }
+  to {
+    mask-position: -200% 0%;
+  }
+}
+
 /*
  * A placeholder for something that is on its way. It waits a moment before it shows, so that an
  * answer that comes quickly never flashes one.
@@ -349,6 +365,10 @@
   .animate-shine {
     background: none;
     -webkit-text-fill-color: currentColor;
+    animation: none;
+  }
+  .animate-shine-across {
+    mask-image: none;
     animation: none;
   }
 }

@@ -139,6 +139,40 @@ test("dictation without a model key says what is missing", async ({ browser, bas
   await context.close()
 })
 
+test("what is dictated can be thrown away, or sent as it is", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({
+    baseURL,
+    permissions: ["microphone"],
+    colorScheme: "dark",
+  })
+  const page = await context.newPage()
+  let heard = 0
+  await page.route("**/api/transcribe", async (route) => {
+    heard++
+    await route.fulfill({ json: { text: "said out loud" } })
+  })
+  await signIn(page)
+  await composer(page).fill("Typed first,")
+
+  // While it listens, the box gives way to what the microphone hears.
+  await page.getByRole("button", { name: "Dictate" }).click()
+  await expect(page.getByRole("status").filter({ hasText: "Listening" })).toBeAttached()
+  await expect(composer(page)).toBeHidden()
+  await page.waitForTimeout(600)
+  await page.getByRole("button", { name: "Cancel dictating" }).click()
+  await expect(composer(page)).toBeFocused()
+  await expect(composer(page)).toHaveValue("Typed first,")
+  expect(heard).toBe(0)
+
+  await page.getByRole("button", { name: "Dictate" }).click()
+  await page.waitForTimeout(600)
+  await page.getByRole("button", { name: "Send what you said" }).click()
+  await expect(page.getByText("Typed first, said out loud").first()).toBeVisible()
+  await expect(composer(page)).toHaveValue("")
+  expect(heard).toBe(1)
+  await context.close()
+})
+
 test("starting fresh keeps the earlier messages within reach", async ({ page }) => {
   await signIn(page)
   await newChat(page)
