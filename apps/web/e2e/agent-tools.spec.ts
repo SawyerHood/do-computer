@@ -75,9 +75,9 @@ test.describe("what an agent can do in the app by itself", () => {
     await openSettings(page, "Permissions")
     await expect(
       page
-        .getByRole("radiogroup", { name: "Add and change connectors" })
-        .getByRole("radio", { name: "Ask first" }),
-    ).toBeChecked()
+        .getByRole("group", { name: "Add and change connectors" })
+        .getByRole("button", { name: "Ask first", pressed: true }),
+    ).toBeVisible()
     await newChat(page)
     const chat = page.url()
     const transcript = page.getByRole("log")
@@ -110,9 +110,9 @@ test.describe("what an agent can do in the app by itself", () => {
   }) => {
     await signIn(page)
     await openSettings(page, "Permissions")
-    const rule = page.getByRole("radiogroup", { name: "Add and change connectors" })
-    await rule.getByRole("radio", { name: "Allow" }).click()
-    await expect(rule.getByRole("radio", { name: "Allow" })).toBeChecked()
+    const rule = page.getByRole("group", { name: "Add and change connectors" })
+    await rule.getByRole("button", { name: "Allow" }).click()
+    await expect(rule.getByRole("button", { name: "Allow", pressed: true })).toBeVisible()
     await newChat(page)
     const transcript = page.getByRole("log")
     await use(page, "connectors", {
