@@ -5,7 +5,7 @@ treats, opening the boxes it finds, and dressing it in what was inside. It is no
 and nothing here is imported by it. Everything in it is pretend.
 
 The owner approved the second pass, and it was built the same day (HANDOFF.md, section 5, item
-24). Where the app differs: a creature starts with one box and nothing to wear, where the mock-up
+25). Where the app differs: a creature starts with one box and nothing to wear, where the mock-up
 starts it with ten things; the box is opened in three.js on the creature's own stage, which the
 owner asked for after seeing the flat one here; the wardrobe shows only what has been found, with
 no switch to see the rest; and what was `src/wear.js` here is `packages/mascot/src/wardrobe.js`.

@@ -668,7 +668,33 @@ Since then, newest last:
       Workers runtime beyond its type check and the existing Workers tests. The mobile app shows
       none of the new cards.
 
-24. **Treats, boxes and a wardrobe for the creature** (2026-10-08; `packages/mascot/src/wardrobe.js`,
+24. **Automations that look before they start the agent** (2026-10-08;
+    `packages/agent/src/schedules.ts`). Every run of a schedule used to be a model run, and
+    `[SILENT]` only kept the message back. The owner asked for runs that are programmatic and
+    start the agent only when a condition is met, as Hermes does with its cron scripts.
+    - **A schedule can have a check:** a shell command, the computer it runs on, and what
+      starts the agent. "output": the command printed something. "change": it printed
+      something other than the time before; the first look is only taken note of.
+    - **A fire with a check makes no chat.** The run is pending with no chat, the command is
+      run on the machine with no model in it, and the chat is made only if there is something
+      to do, with what the check printed in front of the prompt. Otherwise the run ends as
+      "skipped". The check runs in the background, and the agent stays awake for it
+      (`Scheduler.working`), so a slow machine holds up nothing else.
+    - **A check that fails** (a non-zero exit, a minute gone by, a machine out of reach) starts
+      the agent once, to say so. While it stays broken the runs end as "check-failed" and the
+      agent is not started. Changing the check starts the count again.
+    - **A check answers to the rule for running commands.** Making or changing one is asked
+      about where commands are, and it is not run where they have been switched off since.
+      Only the `schedule` tool sets a check; the app's own request to change a schedule cannot.
+    - **A crash can run a check twice,** so a check only looks. What has been reported already
+      belongs in a file the check reads and the run writes. The agent is told this in the tool
+      and in the planning-automations skill, and can try a check with `schedule check`.
+    - **Left out:** a check that is the whole job with no agent at all, and watching an address
+      from the agent itself without a machine. A check still wakes the machine it runs on.
+    - **Not tried on a real provider.** The tests run it on the built-in shell. On Cloudflare
+      Containers, Daytona or Modal a check has not been run.
+
+25. **Treats, boxes and a wardrobe for the creature** (2026-10-08; `packages/mascot/src/wardrobe.js`,
     `packages/protocol/src/wardrobe.ts`, `prototypes/gamification`). The owner asked for a
     little gamification of the creature, chose from two rounds of a mock-up, and asked for it to
     be built. None of it changes what an agent can do.

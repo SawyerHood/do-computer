@@ -210,7 +210,10 @@ answering or someone stops the conversation.
   real Linux machine, see [Computers](#computers); where a deployment offers one, an agent also
   starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and
-  reports back to the chat you asked in; see and pause them under Automations.
+  reports back to the chat you asked in; see and pause them under Automations. A task that mostly
+  finds nothing to do ("tell me when the build breaks") can have a check: a shell command that
+  runs first each time, with no model. The agent is started only when the check prints
+  something, or when what it prints changes, so looking often costs no tokens.
 - **Hand work to sub-agents.** For a piece of work that stands on its own, the agent can start
   a sub-agent: a copy of itself, with its memory, skills and computers, working in the
   background in a conversation of its own while the agent stays free to talk. Several can work
@@ -267,8 +270,8 @@ share: start one from the workspace menu at the top of the sidebar.
 - **Sharing.** Every member can use every agent in the team, read all of its chats, write in
   them, and make new agents there. An agent of your own can be moved into a team, and back.
 - **One chat, several people.** A message from someone else has their face and name on it, and
-  the agent is told who is speaking. By default a message that arrives while the agent is
-  working waits its turn; that is a setting on each agent.
+  the agent is told who is speaking. A message that arrives while the agent is working joins
+  what it is doing; each agent has a setting to make it wait its turn instead.
 - **Who is where.** The list of agents shows who is with which agent, a chat shows who is in it
   and who is writing, and the team's page lists everyone who is here.
 - **Roles.** Members do all of the above. Admins also invite and remove people, rename the team,

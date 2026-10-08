@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ChatState, ChatSummary, ScheduleSummary } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
+import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -38,6 +39,7 @@ function open(directory: string, now?: () => number): World {
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
         keepAliveMs: 100,
+        sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
         onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
       }),
@@ -168,7 +170,7 @@ describe("schedules", () => {
     expect(after).toMatchObject({ enabled: false, nextRunAt: null, running: false, runCount: 1 })
     expect(after!.lastRun).toMatchObject({ outcome: "delivered" })
     // The run has its own chat, with the full transcript, kept apart from the user's chats.
-    const run = await chatState(world, after!.lastRun!.chatId)
+    const run = await chatState(world, after!.lastRun!.chatId!)
     expect(run.messages.at(-1)!.parts).toEqual([{ type: "text", text: "Sunny, 21°C." }])
     expect(after!.lastRun!.chatId).not.toBe(chat.id)
     // The report is announced once. (These tests poll rather than follow the chat, so the
@@ -262,7 +264,7 @@ describe("schedules", () => {
       () => schedules(world),
       ([schedule]) => schedule?.lastRun != null,
     )
-    const run = await chatState(world, done!.lastRun!.chatId)
+    const run = await chatState(world, done!.lastRun!.chatId!)
     const tool = run.messages.flatMap((m) => m.parts).find((part) => part.type === "tool")
     expect(tool).toMatchObject({
       status: "error",
@@ -392,6 +394,211 @@ describe("schedules", () => {
     ])
     await say(world, chat.id, "make 21 schedules")
     expect((await schedules(world)).length).toBe(20)
+  })
+})
+
+/** A model turn that uses one tool, then a closing turn. */
+const useTool = (name: string, args: Parameters<typeof fauxToolCall>[1], then = "Done.") => [
+  fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
+  fauxAssistantMessage(then),
+]
+const toolOutput = (state: ChatState) =>
+  state.messages
+    .flatMap((message) => message.parts)
+    .flatMap((part) => (part.type === "tool" ? [part] : []))
+    .at(-1)
+
+/** Run a schedule now and wait for that run to be over. */
+async function runNow(world: World, id: string): Promise<ScheduleSummary> {
+  const before = (await schedules(world)).find((schedule) => schedule.id === id)!.runCount
+  await call(world, `/schedules/${id}/run`, "POST")
+  const all = await until(
+    () => schedules(world),
+    (list) => {
+      const now = list.find((schedule) => schedule.id === id)
+      return now !== undefined && now.runCount > before && !now.running
+    },
+  )
+  return all.find((schedule) => schedule.id === id)!
+}
+
+describe("a schedule with a check", () => {
+  it("does not start the agent until the check prints something", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.faux.setResponses(
+      useTool("schedule", {
+        action: "create",
+        schedule: "every 6h",
+        prompt: "Say what broke.",
+        title: "Build watch",
+        check: "cat broken.txt 2>/dev/null || true",
+      }),
+    )
+    const made = toolOutput(await say(world, chat.id, "watch the build"))
+    expect(made).toMatchObject({ status: "done" })
+    expect(made!.output).toContain("Checked first on computer, and you are started if it prints")
+    const [created] = await schedules(world)
+    expect(created).toMatchObject({
+      check: {
+        command: "cat broken.txt 2>/dev/null || true",
+        computer: "computer",
+        wake: "output",
+      },
+      skipCount: 0,
+    })
+
+    // Nothing is queued for the model: asking it anything would fail the run.
+    world.faux.setResponses([])
+    const calls = world.faux.state.callCount
+    const quiet = await runNow(world, created!.id)
+    expect(quiet).toMatchObject({
+      lastRun: { outcome: "skipped", chatId: null },
+      runCount: 1,
+      skipCount: 1,
+    })
+    expect((await runNow(world, created!.id)).skipCount).toBe(2)
+    expect(world.faux.state.callCount).toBe(calls)
+    expect(world.reports.filter((notification) => notification.kind === "scheduled")).toEqual([])
+
+    world.faux.setResponses(
+      useTool("bash", { command: "echo 'tests failed on main' > broken.txt" }),
+    )
+    await say(world, chat.id, "break it")
+    world.faux.setResponses([fauxAssistantMessage("The tests are failing on main.")])
+    const woken = await runNow(world, created!.id)
+    expect(woken).toMatchObject({ lastRun: { outcome: "delivered" }, runCount: 3, skipCount: 2 })
+    const run = texts(await chatState(world, woken.lastRun!.chatId!))
+    expect(run[0]).toContain("was run first and printed what follows")
+    expect(run[0]).toContain("tests failed on main")
+    expect(run[0]).toContain("Say what broke.")
+    expect(texts(await chatState(world, chat.id)).at(-1)).toContain(
+      "The tests are failing on main.",
+    )
+  })
+
+  it("can start the agent only when what the check prints has changed", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.faux.setResponses([...useTool("bash", { command: "echo v1 > release.txt" }, "Written.")])
+    await say(world, chat.id, "note the release")
+    world.faux.setResponses(
+      useTool("schedule", {
+        action: "create",
+        schedule: "every 6h",
+        prompt: "Say which release is out.",
+        check: "cat release.txt",
+        wake_on: "change",
+      }),
+    )
+    await say(world, chat.id, "tell me about new releases")
+    const [created] = await schedules(world)
+    expect(created!.check).toMatchObject({ wake: "change" })
+
+    world.faux.setResponses([])
+    // The first look is only taken note of, and the same again is no change.
+    expect((await runNow(world, created!.id)).lastRun).toMatchObject({ outcome: "skipped" })
+    expect((await runNow(world, created!.id)).lastRun).toMatchObject({ outcome: "skipped" })
+
+    world.faux.setResponses(useTool("bash", { command: "echo v2 > release.txt" }, "Written."))
+    await say(world, chat.id, "release again")
+    world.faux.setResponses([fauxAssistantMessage("v2 is out.")])
+    const woken = await runNow(world, created!.id)
+    expect(woken).toMatchObject({ lastRun: { outcome: "delivered" }, skipCount: 2 })
+    const run = texts(await chatState(world, woken.lastRun!.chatId!))
+    expect(run[0]).toContain("- v1\n+ v2")
+
+    world.faux.setResponses([])
+    expect((await runNow(world, created!.id)).lastRun).toMatchObject({ outcome: "skipped" })
+  })
+
+  it("starts the agent once to say its check is broken, and not again while it stays broken", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.faux.setResponses(
+      useTool("schedule", {
+        action: "create",
+        schedule: "every 6h",
+        prompt: "Report the queue.",
+        check: "echo no such queue; exit 3",
+      }),
+    )
+    await say(world, chat.id, "watch the queue")
+    const [created] = await schedules(world)
+
+    world.faux.setResponses([fauxAssistantMessage("The check is failing: no such queue.")])
+    const first = await runNow(world, created!.id)
+    expect(first).toMatchObject({ lastRun: { outcome: "delivered" }, skipCount: 0 })
+    const run = texts(await chatState(world, first.lastRun!.chatId!))
+    expect(run[0]).toContain("could not be run")
+    expect(run[0]).toContain("It ended with exit code 3.\nno such queue")
+
+    world.faux.setResponses([])
+    const calls = world.faux.state.callCount
+    const second = await runNow(world, created!.id)
+    expect(second).toMatchObject({
+      lastRun: { outcome: "check-failed", chatId: null },
+      skipCount: 1,
+    })
+    expect(world.faux.state.callCount).toBe(calls)
+
+    // Trying it says the same, and mending it starts over.
+    world.faux.setResponses(useTool("schedule", { action: "check", id: created!.id }))
+    expect(toolOutput(await say(world, chat.id, "try it"))!.output).toContain("exit code 3")
+    world.faux.setResponses(
+      useTool("schedule", { action: "update", id: created!.id, check: "echo 4 waiting" }),
+    )
+    await say(world, chat.id, "mend it")
+    world.faux.setResponses(useTool("schedule", { action: "check", id: created!.id }))
+    const tried = toolOutput(await say(world, chat.id, "try it again"))!.output
+    expect(tried).toContain("4 waiting")
+    expect(tried).toContain("A run now would start you")
+    world.faux.setResponses([fauxAssistantMessage("Four are waiting.")])
+    expect((await runNow(world, created!.id)).lastRun).toMatchObject({ outcome: "delivered" })
+
+    // Without its check, it is a schedule like any other.
+    world.faux.setResponses(useTool("schedule", { action: "update", id: created!.id, check: "" }))
+    await say(world, chat.id, "drop the check")
+    expect((await schedules(world))[0]!.check).toBeNull()
+  })
+
+  it("does not run a check where running commands has been switched off", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.faux.setResponses(
+      useTool("schedule", {
+        action: "create",
+        schedule: "every 6h",
+        prompt: "Report.",
+        check: "echo ran > proof.txt; echo something",
+      }),
+    )
+    await say(world, chat.id, "watch")
+    const [created] = await schedules(world)
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "deny" })
+
+    world.faux.setResponses([fauxAssistantMessage("My check is switched off.")])
+    const ran = await runNow(world, created!.id)
+    const run = texts(await chatState(world, ran.lastRun!.chatId!))
+    expect(run[0]).toContain("has switched off running commands on computer")
+
+    // And a check cannot be made while it is: it is a command like any other.
+    world.faux.setResponses(
+      useTool("schedule", {
+        action: "create",
+        schedule: "every 6h",
+        prompt: "Report.",
+        check: "echo again",
+      }),
+    )
+    const refused = toolOutput(await say(world, chat.id, "another"))
+    expect(refused).toMatchObject({ status: "error" })
+    expect(refused!.output).toContain("switched this off")
+    expect((await schedules(world)).length).toBe(1)
+
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "allow" })
+    world.faux.setResponses(useTool("bash", { command: "ls proof.txt 2>&1" }))
+    expect(toolOutput(await say(world, chat.id, "look"))!.output).toContain("No such file")
   })
 })
 
