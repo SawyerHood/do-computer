@@ -217,17 +217,29 @@ export async function writeMeta(db: AppDatabase, key: string, value: string): Pr
 /**
  * Bring the app tables up to date. Each migration and its version bump land in one batch.
  * `upTo` stops at an earlier version, for testing what a migration does to rows from before it.
+ *
+ * Several requests may be doing this at once, each on its own: the first requests after a start,
+ * or two isolates. A migration that fails because another ran it meanwhile is passed over.
  */
 export async function migrateAppDatabase(db: AppDatabase, upTo = MIGRATIONS.length): Promise<void> {
   await db.run("CREATE TABLE IF NOT EXISTS dc_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-  const current = Number((await readMeta(db, VERSION_KEY)) ?? "0")
-  for (let version = current; version < Math.min(upTo, MIGRATIONS.length); version++) {
-    await db.batch([
-      ...MIGRATIONS[version]!.map((sql) => ({ sql })),
-      {
-        sql: "INSERT INTO dc_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-        params: [VERSION_KEY, String(version + 1)],
-      },
-    ])
+  const version = async () => Number((await readMeta(db, VERSION_KEY)) ?? "0")
+  const target = Math.min(upTo, MIGRATIONS.length)
+  let current = await version()
+  while (current < target) {
+    try {
+      await db.batch([
+        ...MIGRATIONS[current]!.map((sql) => ({ sql })),
+        {
+          sql: "INSERT INTO dc_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+          params: [VERSION_KEY, String(current + 1)],
+        },
+      ])
+      current++
+    } catch (error) {
+      const reached = await version()
+      if (reached <= current) throw error
+      current = reached
+    }
   }
 }
