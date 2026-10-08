@@ -292,6 +292,21 @@ export type LibraryListing = {
   view: string
 }
 
+/**
+ * A command a schedule runs at each of its times, before anything else and with no model in it.
+ * It decides whether the agent is started at all.
+ */
+export type ScheduleCheck = {
+  command: string
+  /** The computer it runs on, by name. */
+  computer: string
+  /**
+   * What starts the agent: "output" when the command prints anything, "change" when what it
+   * prints is not what it printed the time before.
+   */
+  wake: "output" | "change"
+}
+
 /** A task the agent runs on its own, once or on a repeating schedule. */
 export type ScheduleSummary = {
   id: string
@@ -309,11 +324,20 @@ export type ScheduleSummary = {
   running: boolean
   lastRun: {
     at: number
-    /** The chat holding the run's full transcript. */
-    chatId: string
-    outcome: "delivered" | "silent" | "failed"
+    /** The chat holding the run's full transcript, where the agent was started. */
+    chatId: string | null
+    /**
+     * "skipped": its check found nothing, and the agent was not started. "check-failed": its
+     * check could not be run, the agent has already been told, and it was not started again.
+     */
+    outcome: "delivered" | "silent" | "failed" | "skipped" | "check-failed"
   } | null
+  /** How many times its time has come. */
   runCount: number
+  /** What decides whether the agent is started when its time comes, where something does. */
+  check: ScheduleCheck | null
+  /** How many of those times went by without the agent being started. */
+  skipCount: number
 }
 
 export type UpdateScheduleRequest = {

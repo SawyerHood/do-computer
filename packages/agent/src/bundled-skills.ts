@@ -70,6 +70,20 @@ Write it as a complete brief to a capable stranger:
 
 If the task needs to compare with last time, say where to keep state, for example a file in the workspace, and tell the run to read and update it.
 
+## Checking first
+
+When most runs would find nothing to do ("tell me when the build breaks", "only if the price drops", "when a new release is out"), give the task a \`check\`: a shell command that is run first each time, with no model at all. You are started only when it says there is something to do, so a task can look every few minutes and cost nothing until it matters.
+
+- By default you are started when the check prints anything, and skipped when it prints nothing. What it printed is put in front of your prompt, so have it print the facts the run needs.
+- With \`wake_on\` "change" you are started when what it prints differs from the time before. The first run only takes note. Print only what matters and nothing that moves on its own, such as a time: \`curl -fsS https://example.com/status | jq -r .state\`, not the whole page.
+- It must end with exit code 0 whether or not it found something. \`grep\` ends with 1 when it finds nothing, so write \`grep … || true\`. A check that fails or runs longer than a minute counts as broken: you are started once to say so, and after that the task is skipped until it works.
+- It only looks. It can be run twice for one time, so it must not send, delete or mark anything. Keep "what I have already reported" in a file that the check reads and the run updates after it has reported.
+- Send errors you do not care about to /dev/null, or they count as something printed.
+
+Write the command, run it yourself with bash to see what it prints, then create the task with it and try it with the schedule tool's action "check".
+
+Without a check, every run starts you, and [SILENT] only keeps the message back.
+
 ## Choosing the schedule
 
 - "30m" or "2h": once, that long from now. Use for reminders.

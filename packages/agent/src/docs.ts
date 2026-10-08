@@ -1,4 +1,10 @@
-import type { Avatar, ChatKind, SubagentStatus, ThinkingLevel } from "@durable-computer/protocol"
+import type {
+  Avatar,
+  ChatKind,
+  ScheduleCheck,
+  SubagentStatus,
+  ThinkingLevel,
+} from "@durable-computer/protocol"
 import { defineDoc } from "@earendil-works/pi-durable"
 
 /**
@@ -194,10 +200,25 @@ export type ScheduleRecord = {
   createdAt: number
   /** The chat the schedule was created in, where its reports are delivered. */
   originChatId: string | null
-  /** A run that has fired and not been reported yet. */
-  pending: { chatId: string; firedAt: number } | null
-  lastRun: { at: number; chatId: string; outcome: "delivered" | "silent" | "failed" } | null
+  /**
+   * A run that has fired and not been reported yet. It has no chat until its check, where the
+   * schedule has one, has said the agent is to be started; `context` is what the check found.
+   */
+  pending: { chatId: string | null; firedAt: number; context?: string } | null
+  lastRun: {
+    at: number
+    chatId: string | null
+    outcome: "delivered" | "silent" | "failed" | "skipped" | "check-failed"
+  } | null
   runCount: number
+  /** A command that says, with no model run, whether a run has anything to do. */
+  check?: ScheduleCheck
+  /** What the check printed when it was last looked at, where it starts the agent on a change. */
+  seen?: { hash: string; output: string }
+  /** How many times in a row the check could not be run. */
+  checkFailures?: number
+  /** How many of its times went by without the agent being started. */
+  skipCount?: number
 }
 
 export type SchedulesState = {

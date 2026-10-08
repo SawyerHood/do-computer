@@ -24,10 +24,12 @@ import {
   SSE_HEARTBEAT,
   THINKING_LEVELS,
   type UpdateChatRequest,
+  type ScheduleCheck,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
 import type { Actor, ActorHost, ActorNamespace, ActorStub } from "@durable-computer/runtime"
 import type { Sandbox } from "@durable-computer/sandbox"
+import type { Context } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
@@ -73,7 +75,7 @@ import { routeLibrary, routeLibraryView } from "./library-routes.ts"
 import { parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
-import { ScheduleError, Scheduler } from "./schedules.ts"
+import { type CheckResult, ScheduleError, Scheduler } from "./schedules.ts"
 import { SecretError, Secrets, SecretsDoc } from "./secrets.ts"
 import { type SettingsChange, SettingsError, settingsExtension } from "./settings.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
@@ -92,6 +94,8 @@ const context = BACKGROUND_CONTEXT
  * reopens the store and resumes the run from its last checkpoint.
  */
 const KEEPALIVE_MS = 20_000
+/** How long an automation's check may run before it is stopped and counted as broken. */
+const CHECK_TIMEOUT_MS = 60_000
 const SSE_HEARTBEAT_MS = 15_000
 const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
@@ -451,6 +455,13 @@ export class AgentActor implements Actor {
     this.#scheduler = new Scheduler({
       now: () => host.now(),
       context,
+      checks: {
+        where: async (name, c) => {
+          const target = await this.#computers.resolve(name, c)
+          return typeof target === "string" ? target : { name: target.computer.name }
+        },
+        run: (check, c) => this.#runCheck(check, c),
+      },
       onReport: (report) =>
         void this.#notify({
           kind: "scheduled",
@@ -510,6 +521,48 @@ export class AgentActor implements Actor {
               options.modelOptions.find((option) => option.id === model)?.images === true,
             onError: (error) => options.onReport?.(error),
           })
+  }
+
+  /** Run an automation's check where it says to, as a command of the agent's own. */
+  async #runCheck(check: ScheduleCheck, c: Context): Promise<CheckResult> {
+    const target = await this.#computers.resolve(check.computer, c)
+    if (typeof target === "string") return { ok: false, error: target }
+    // It was allowed when the check was made, and may have been switched off since.
+    for (const subject of ["tool:bash", "tool:files", `computer:${target.id}`]) {
+      if ((await this.#approvals.ruleFor(subject, c)) === "deny") {
+        return {
+          ok: false,
+          error: `The user has switched off running commands on ${target.computer.name}, in your Permissions, so the check was not run.`,
+        }
+      }
+    }
+    if (target.computer.readOnly) {
+      return {
+        ok: false,
+        error: `${target.computer.name} is read-only: commands cannot be run there.`,
+      }
+    }
+    const outcome = await target.sandbox.exec(check.command, {
+      cwd: target.cwd,
+      timeoutMs: CHECK_TIMEOUT_MS,
+    })
+    await target.sandbox.flush()
+    const said = outcome.output.trim()
+    if (outcome.timedOut === true) {
+      return {
+        ok: false,
+        error: [`It was stopped after ${CHECK_TIMEOUT_MS / 1000} seconds.`, said]
+          .filter(Boolean)
+          .join("\n"),
+      }
+    }
+    if (outcome.exitCode !== 0) {
+      return {
+        ok: false,
+        error: [`It ended with exit code ${outcome.exitCode}.`, said].filter(Boolean).join("\n"),
+      }
+    }
+    return { ok: true, output: outcome.output }
   }
 
   /** A chat as a client would see it, or undefined if there is no such chat or nothing is open. */
@@ -815,6 +868,7 @@ export class AgentActor implements Actor {
       inspection.tasks.length > 0 ||
       inspection.submissions.length > 0 ||
       (await this.#subagents.working(context)) ||
+      (await this.#scheduler.working(context)) ||
       ((await this.#peers?.working(context)) ?? false) ||
       ((await this.#slack?.working(context)) ?? false)
     const keepAlive = live ? this.#host.now() + (this.#options.keepAliveMs ?? KEEPALIVE_MS) : null

@@ -58,6 +58,48 @@ test("automations can be paused, run on demand and deleted", async ({ page }) =>
   await expect(page.getByRole("listitem").filter({ hasText: "Stretch break" })).toHaveCount(0)
 })
 
+test("an automation with a check starts the agent only when the check finds something", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill(
+    '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Say what broke","title":"Build watch","check":"cat broken.txt 2>/dev/null || true"}',
+  )
+  await page.keyboard.press("Enter")
+  await expect(page.getByText(/Scheduled\./)).toBeVisible()
+
+  await tab(page, "Automations").click()
+  const card = page.getByRole("listitem").filter({ hasText: "Build watch" })
+  await expect(card.getByText("cat broken.txt 2>/dev/null || true")).toBeVisible()
+  await card.getByRole("button", { name: "Run now" }).click()
+  // Nothing was found, so there is no run to look at.
+  await expect(card.getByText(/the check found nothing, so the agent was not started/)).toBeVisible(
+    { timeout: 15_000 },
+  )
+  await expect(card.getByRole("link", { name: "View run" })).toHaveCount(0)
+  await expect(card.getByText("Checked once and never started the agent.")).toBeVisible()
+
+  await newChat(page)
+  await tool(
+    page,
+    "bash",
+    // Said in capitals, which the command itself is not, so this waits for it to have run.
+    { command: "echo the tests fail on main > broken.txt; tr a-z A-Z < broken.txt" },
+    /THE TESTS FAIL ON MAIN/,
+  )
+  await tab(page, "Automations").click()
+  await card.getByRole("button", { name: "Run now" }).click()
+  await expect(card.getByText(/reported back/)).toBeVisible({ timeout: 15_000 })
+  await expect(card.getByText("Checked 2 times and started the agent once.")).toBeVisible()
+  await card.getByRole("link", { name: "View run" }).click()
+  await expect(page.getByText(/the tests fail on main/).first()).toBeVisible()
+
+  await tab(page, "Automations").click()
+  await card.getByRole("button", { name: "Delete Build watch" }).click()
+  await expect(page.getByRole("listitem").filter({ hasText: "Build watch" })).toHaveCount(0)
+})
+
 test("scheduled runs are not among the side chats", async ({ page }) => {
   await signIn(page)
   await sideChats(page).click()

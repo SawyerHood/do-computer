@@ -83,7 +83,12 @@ type Ability = {
  * to the same rule, or the rule would only stop the agent that did not think of the other tool.
  */
 const ABILITIES: readonly Ability[] = [
-  { id: "tool:bash", label: "Run commands", tools: ["bash"] },
+  {
+    id: "tool:bash",
+    label: "Run commands",
+    hint: "Also applies to an automation's check, a command that is run each time before the agent is started.",
+    tools: ["bash"],
+  },
   {
     id: "tool:files",
     label: "Create and change files",
@@ -179,6 +184,12 @@ const TOOL_TITLES: Record<string, string> = {
 
 const actionOf = (call: ToolCall) => (call.arguments as { action?: unknown }).action
 
+/** Whether a call gives an automation a command to run first, each time its time comes. */
+const setsCheck = (call: ToolCall) => {
+  const check = (call.arguments as { check?: unknown }).check
+  return call.name === "schedule" && typeof check === "string" && check.trim() !== ""
+}
+
 /** The abilities a call exercises: its own, and any it could stand in for. */
 function abilitiesOf(call: ToolCall): string[] {
   const action = actionOf(call)
@@ -189,8 +200,10 @@ function abilitiesOf(call: ToolCall): string[] {
         (typeof action === "string" && ability.actions.includes(action))),
   ).map((ability) => ability.id)
   const copiesFile = call.name === "library" && action === "get"
+  // A check is a command the agent leaves to be run when nobody is there.
+  if (setsCheck(call)) ids.push("tool:bash")
   // A command can write any file, and so can a copy out of the library.
-  if (call.name === "bash" || copiesFile) ids.push("tool:files")
+  if (call.name === "bash" || copiesFile || setsCheck(call)) ids.push("tool:files")
   // A tool with no ability of its own can still be given a rule by name.
   return ids.length > 0 ? ids : [`tool:${call.name}`]
 }
@@ -257,6 +270,7 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
 const COMPUTER_TOOLS = new Set(["bash", "read", "write", "edit", "send_file", "request_secret"])
 const usesComputer = (call: ToolCall) =>
   COMPUTER_TOOLS.has(call.name) ||
+  setsCheck(call) ||
   (call.name === "library" && (call.arguments as { action?: unknown }).action === "get")
 
 const RULES: readonly ApprovalRule[] = ["allow", "ask", "deny"]

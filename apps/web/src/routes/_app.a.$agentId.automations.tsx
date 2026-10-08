@@ -39,10 +39,19 @@ const when = (at: number) =>
     minute: "2-digit",
   }).format(new Date(at))
 
+const times = (count: number) => (count === 1 ? "once" : `${count} times`)
+/** How often a check ran, and how often it led to the agent being started. */
+const tally = (checked: number, started: number) =>
+  started === 0
+    ? `Checked ${times(checked)} and never started the agent.`
+    : `Checked ${times(checked)} and started the agent ${times(started)}.`
+
 const OUTCOMES = {
   delivered: "reported back",
   silent: "had nothing to report",
   failed: "did not finish",
+  skipped: "the check found nothing, so the agent was not started",
+  "check-failed": "the check is still failing, so the agent was not started",
 } as const
 
 function status(schedule: ScheduleSummary): { label: string; tone: string } {
@@ -91,16 +100,37 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="line-clamp-3 whitespace-pre-wrap">{schedule.prompt}</p>
+          {schedule.check ? (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-muted-foreground">
+                Checks first on {schedule.check.computer}, and only starts the agent{" "}
+                {schedule.check.wake === "change"
+                  ? "when what this prints changes"
+                  : "if this prints something"}
+                :
+              </p>
+              <pre className="max-h-24 overflow-auto border bg-muted/50 px-2.5 py-2 font-mono text-[0.8125rem] break-all whitespace-pre-wrap">
+                {schedule.check.command}
+              </pre>
+            </div>
+          ) : null}
           {schedule.lastRun ? (
             <p className="text-muted-foreground">
               Last run {when(schedule.lastRun.at)}: {OUTCOMES[schedule.lastRun.outcome]}.{" "}
-              <Link
-                to="/a/$agentId/c/$chatId"
-                params={{ agentId, chatId: schedule.lastRun.chatId }}
-                className="text-foreground underline underline-offset-3"
-              >
-                View run
-              </Link>
+              {schedule.lastRun.chatId === null ? null : (
+                <Link
+                  to="/a/$agentId/c/$chatId"
+                  params={{ agentId, chatId: schedule.lastRun.chatId }}
+                  className="text-foreground underline underline-offset-3"
+                >
+                  View run
+                </Link>
+              )}
+            </p>
+          ) : null}
+          {schedule.check && schedule.runCount > 0 ? (
+            <p className="text-muted-foreground">
+              {tally(schedule.runCount, schedule.runCount - schedule.skipCount)}
             </p>
           ) : null}
         </CardContent>

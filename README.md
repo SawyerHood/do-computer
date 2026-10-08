@@ -206,7 +206,10 @@ answering or someone stops the conversation.
   real Linux machine, see [Computers](#computers); where a deployment offers one, an agent also
   starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and
-  reports back to the chat you asked in; see and pause them under Automations.
+  reports back to the chat you asked in; see and pause them under Automations. A task that mostly
+  finds nothing to do ("tell me when the build breaks") can have a check: a shell command that
+  runs first each time, with no model. The agent is started only when the check prints
+  something, or when what it prints changes, so looking often costs no tokens.
 - **Hand work to sub-agents.** For a piece of work that stands on its own, the agent can start
   a sub-agent: a copy of itself, with its memory, skills and computers, working in the
   background in a conversation of its own while the agent stays free to talk. Several can work

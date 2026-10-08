@@ -21,7 +21,16 @@ const OUTCOMES = {
   delivered: "reported back",
   silent: "had nothing to report",
   failed: "did not finish",
+  skipped: "the check found nothing, so the agent was not started",
+  "check-failed": "the check is still failing, so the agent was not started",
 } as const
+
+const times = (count: number) => (count === 1 ? "once" : `${count} times`)
+/** How often a check ran, and how often it led to the agent being started. */
+const tally = (checked: number, started: number) =>
+  started === 0
+    ? `Checked ${times(checked)} and never started the agent.`
+    : `Checked ${times(checked)} and started the agent ${times(started)}.`
 
 function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: ScheduleSummary }) {
   const router = useRouter()
@@ -59,7 +68,20 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
       <Text size={14} numberOfLines={3}>
         {schedule.prompt}
       </Text>
-      {schedule.lastRun ? (
+      {schedule.check ? (
+        <Text tone="muted" size={13}>
+          Checks first on {schedule.check.computer}, and only starts the agent{" "}
+          {schedule.check.wake === "change"
+            ? "when what this prints changes"
+            : "if this prints something"}
+          : {schedule.check.command}
+        </Text>
+      ) : null}
+      {schedule.lastRun === null ? null : schedule.lastRun.chatId === null ? (
+        <Text tone="muted" size={13}>
+          Last run {when(schedule.lastRun.at)}: {OUTCOMES[schedule.lastRun.outcome]}.
+        </Text>
+      ) : (
         <Text
           tone="muted"
           size={13}
@@ -67,6 +89,11 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
           onPress={() => router.push(`/chat/${schedule.lastRun!.chatId}`)}
         >
           Last run {when(schedule.lastRun.at)}: {OUTCOMES[schedule.lastRun.outcome]}. View run
+        </Text>
+      )}
+      {schedule.check && schedule.runCount > 0 ? (
+        <Text tone="muted" size={13}>
+          {tally(schedule.runCount, schedule.runCount - schedule.skipCount)}
         </Text>
       ) : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space(2) }}>
