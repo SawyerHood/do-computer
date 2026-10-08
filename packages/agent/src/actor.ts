@@ -9,20 +9,26 @@ import {
   type ChatUsage,
   type ComputerKind,
   type CreateChatRequest,
+  type CreatureState,
   diffChat,
   DEFAULT_THINKING,
   encodeSse,
+  hasEverything,
   isThinkingLevel,
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
   MESSAGE_IMAGE_TYPES,
   type MessageImage,
   type ModelOption,
+  NEW_CREATURE,
   parseAvatar,
+  parseOutfit,
+  rollItem,
   type SendMessageRequest,
   SSE_HEADERS,
   SSE_HEARTBEAT,
   THINKING_LEVELS,
+  TREATS_PER_BOX,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
@@ -45,6 +51,7 @@ import {
   ChatsDoc,
   type ChatRecord,
   DEFAULT_CHAT_TITLE,
+  CreatureDoc,
   IdentityDoc,
   type IdentityState,
   SchedulesDoc,
@@ -113,6 +120,8 @@ export type AgentActorOptions = {
   readonly computers?: ComputerChoices
   /** Receives failures that did not fail a request. */
   readonly onReport?: (error: unknown) => void
+  /** Chance, as numbers from 0 up to 1: what decides the thing in a box. `Math.random` if left out. */
+  readonly random?: () => number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
@@ -451,13 +460,16 @@ export class AgentActor implements Actor {
     this.#scheduler = new Scheduler({
       now: () => host.now(),
       context,
-      onReport: (report) =>
+      onReport: (report) => {
+        // A scheduled run that came to something is work done for someone, as an answer is.
+        void this.#earnTreat()
         void this.#notify({
           kind: "scheduled",
           heading: report.title,
           text: report.text,
           chatId: report.chatId,
-        }),
+        })
+      },
       onError: (error) => options.onReport?.(error),
     })
     this.#subagents = new Subagents({
@@ -774,7 +786,8 @@ export class AgentActor implements Actor {
         (await harness.snapshot(LibraryDoc, context)) === undefined ||
         (await harness.snapshot(ConnectorsDoc, context)) === undefined ||
         (await harness.snapshot(ApprovalsDoc, context)) === undefined ||
-        (await harness.snapshot(SecretsDoc, context)) === undefined
+        (await harness.snapshot(SecretsDoc, context)) === undefined ||
+        (await harness.snapshot(CreatureDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
@@ -784,6 +797,7 @@ export class AgentActor implements Actor {
           await tx.doc(ConnectorsDoc)
           await tx.doc(ApprovalsDoc)
           await tx.doc(SecretsDoc)
+          await tx.doc(CreatureDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -960,6 +974,14 @@ export class AgentActor implements Actor {
       }
     }
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
+    if (segments[0] === "creature") {
+      if (segments[1] === undefined && method === "GET") return json(await this.#creature(harness))
+      if (segments[1] === "feed" && method === "POST") return this.#feed(harness)
+      if (segments[1] === "open" && method === "POST") return this.#openBox(harness)
+      if (segments[1] === "outfit" && method === "PUT") {
+        return this.#wear(harness, await body<{ outfit?: unknown }>(request))
+      }
+    }
     if (segments[0] === "computers") {
       const computerId = segments[1]
       if (computerId === undefined && method === "GET") {
@@ -1380,6 +1402,7 @@ export class AgentActor implements Actor {
 
   async #state(harness: Harness, identity: Readonly<IdentityState>) {
     const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
+    const creature = await this.#creature(harness)
     const agent: AgentSummary = {
       id: this.#host.name,
       name: identity.name,
@@ -1390,6 +1413,7 @@ export class AgentActor implements Actor {
       thinking: identity.thinking ?? DEFAULT_THINKING,
       // An agent from before there were eggs has a name, and is not sent back into one.
       hatched: identity.hatchedAt !== undefined || identity.name !== null,
+      outfit: creature.outfit,
     }
     return {
       agent,
@@ -1406,6 +1430,79 @@ export class AgentActor implements Actor {
         .map(([id, record]) => summarize(id, record, main))
         .sort((a, b) => b.updatedAt - a.updatedAt),
     }
+  }
+
+  /** What its creature has been given and has on. One from before there was any of it has a box waiting. */
+  async #creature(harness: Harness): Promise<CreatureState> {
+    const creature = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
+    return { ...creature, owned: [...creature.owned], outfit: { ...creature.outfit } }
+  }
+
+  /** The agent answered someone, or a scheduled run of its came to something: a treat for its creature. */
+  async #earnTreat(): Promise<void> {
+    if (this.#harness === undefined) return
+    try {
+      await (
+        await this.#harness
+      ).commit(async (tx) => {
+        ;(await tx.doc(CreatureDoc)).treats++
+      }, context)
+    } catch (error) {
+      this.#options.onReport?.(error)
+    }
+  }
+
+  /** Give its creature one of its treats. Enough of them and it finds a box. */
+  async #feed(harness: Harness): Promise<Response> {
+    const fed = await harness.commit(async (tx) => {
+      const creature = await tx.doc(CreatureDoc)
+      if (creature.treats <= 0) return false
+      creature.treats--
+      creature.fed++
+      // Once everything is found there is nothing for another box to hold.
+      if (!hasEverything(creature.owned) && ++creature.joy >= TREATS_PER_BOX) {
+        creature.joy = 0
+        creature.boxes++
+      }
+      return true
+    }, context)
+    if (!fed) throw new HttpError(409, "It has no treats to be given", "no_treats")
+    return json(await this.#creature(harness))
+  }
+
+  /** Open one of its boxes: something to wear that it does not have yet, picked by chance. */
+  async #openBox(harness: Harness): Promise<Response> {
+    // Drawn before the transaction, which may be run more than once and must come out the same.
+    const random = this.#options.random ?? Math.random
+    const dealt = [random(), random()]
+    const found = await harness.commit(async (tx) => {
+      const creature = await tx.doc(CreatureDoc)
+      if (creature.boxes <= 0) return undefined
+      let at = 0
+      const item = rollItem(creature.owned, () => dealt[at++ % dealt.length]!)
+      if (item === undefined) {
+        creature.boxes = 0
+        return undefined
+      }
+      creature.boxes--
+      creature.owned.push(item.id)
+      return item.id
+    }, context)
+    if (found === undefined) throw new HttpError(409, "It has no box to open", "no_box")
+    return json({ item: found, creature: await this.#creature(harness) })
+  }
+
+  /** Dress its creature, in things it has. */
+  async #wear(harness: Harness, input: { outfit?: unknown }): Promise<Response> {
+    const problem = await harness.commit(async (tx) => {
+      const creature = await tx.doc(CreatureDoc)
+      const parsed = parseOutfit(input.outfit, creature.owned)
+      if ("error" in parsed) return parsed.error
+      creature.outfit = parsed.outfit
+      return undefined
+    }, context)
+    if (problem !== undefined) throw new HttpError(400, problem)
+    return json(await this.#creature(harness))
   }
 
   /** Mark a chat as having something new in it. */
@@ -1681,18 +1778,25 @@ export class AgentActor implements Actor {
     return sees ? images : []
   }
 
-  /** Tell the host when a run ends with an answer and no client is following the chat. */
+  /**
+   * What follows a run that ends with an answer: the creature earns a treat where the answer was
+   * to a person, and the host is told where no client is following the chat.
+   */
   async #notifyWhenUnseen(
     harness: Harness,
     chatId: string,
     submission: Awaited<ReturnType<Conversation["submit"]>>,
     caller: Caller | undefined,
   ): Promise<void> {
-    if (this.#options.onNotify === undefined) return
     try {
       const settled = await submission.wait(context)
       if (settled.status !== "done" || settled.type !== "input") return
-      if ((this.#watchers.get(chatId) ?? 0) > 0) return
+      // Whether anyone saw it is asked now, at the moment it ended, and not after what follows.
+      const seen = (this.#watchers.get(chatId) ?? 0) > 0
+      // What it says to another agent, or as a sub-agent of itself, is not an answer to anyone.
+      const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
+      if (kind === "chat" || kind === "slack") await this.#earnTreat()
+      if (seen || this.#options.onNotify === undefined) return
       const answer = await harness.commit((tx) => tx.entry(AssistantEntry, settled.answer), context)
       const message = answer?.model?.[0]
       const text =
@@ -1755,6 +1859,7 @@ export class AgentActor implements Actor {
       const connectors = await harness.watchDoc(ConnectorsDoc, context)
       const approvals = await harness.watchDoc(ApprovalsDoc, context)
       const secrets = await harness.watchDoc(SecretsDoc, context)
+      const creature = await harness.watchDoc(CreatureDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -1771,6 +1876,7 @@ export class AgentActor implements Actor {
       connectors?.start(changed("connectors"))
       approvals?.start(changed("approvals"))
       secrets?.start(changed("secrets"))
+      creature?.start(changed("creature"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -1782,6 +1888,7 @@ export class AgentActor implements Actor {
         void connectors?.stop()
         void approvals?.stop()
         void secrets?.stop()
+        void creature?.stop()
         unwatch?.()
       }
     })

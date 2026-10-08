@@ -1,4 +1,5 @@
 import type { ChatUsage } from "./chat.ts"
+import type { Outfit } from "./wardrobe.ts"
 
 /**
  * How an agent looks: a small creature whose features are grown from a seed, in a color that
@@ -50,6 +51,8 @@ export type AgentSummary = AgentIdentity & {
   thinking: ThinkingLevel
   /** Whether its owner has watched it hatch. Until then it is shown as an egg. */
   hatched: boolean
+  /** What its creature has on. Absent from an agent of before there were things to wear. */
+  outfit?: Outfit
   /** The workspace it lives in. Filled in by the gateway, which is what knows. */
   workspaceId?: string
 }
@@ -122,6 +125,7 @@ export type AgentEvent =
         | "library"
         | "memory"
         | "secrets"
+        | "creature"
     }
 
 export type ModelOption = {

@@ -48,6 +48,12 @@ export interface Orb {
    * how much of a stroke, 1 for a whole pat. It comes out of it by itself once left alone.
    */
   pet(x: number, amount?: number): void
+  /** A treat is held out to it, or taken away: its mouth opens for it and stays open. */
+  offer(on: boolean): void
+  /** It takes a bite of what it was offered. */
+  bite(): void
+  /** A pleased little hop, whatever it is doing. */
+  cheer(): void
   /** Point its attention at a place on the page; null lets go. */
   setPointer(clientX: number | null, clientY?: number): void
   /** The same without a page: a direction, and how strongly. */
@@ -63,6 +69,10 @@ export interface Orb {
   paused: boolean
   reduced: boolean
   notice: boolean
+  /** Draw its scene without it, for something else that is shown on its stage. */
+  hidden: boolean
+  /** What it has on, kept by the wardrobe. Not for a host to set. */
+  worn: { tick(seconds: number, time: number): void; fit(): void; dispose(): void } | null
   /** Called when it changes state by itself: `done` to `idle`, and after hatching. */
   onAuto: ((state: MascotState) => void) | null
   /** Its side in CSS pixels, and in pixels actually drawn. */

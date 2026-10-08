@@ -1,8 +1,15 @@
 import type { Orb } from "@durable-computer/mascot"
-import { type AgentSummary, type Avatar, avatarLook, avatarSvg } from "@durable-computer/protocol"
+import {
+  type AgentSummary,
+  type Avatar,
+  avatarLook,
+  avatarSvg,
+  type Outfit,
+} from "@durable-computer/protocol"
 import { useAtomValue } from "jotai"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  dressMascot,
   IDLE,
   isDark,
   loadMascot,
@@ -22,6 +29,7 @@ import { cn } from "@/lib/utils"
 export function AgentAvatar({
   avatar,
   seed,
+  outfit,
   className,
   mood = IDLE,
   hatched = true,
@@ -34,6 +42,8 @@ export function AgentAvatar({
   avatar: Avatar | null | undefined
   /** The agent's id: what the creature grows from unless it was given a seed of its own. */
   seed: string
+  /** What it has on. The picture that stands in for it wears nothing. */
+  outfit?: Outfit | null
   className?: string
   /** What it is doing. Idle when left out. */
   mood?: MascotMood
@@ -97,6 +107,12 @@ export function AgentAvatar({
     orb?.setColor(look.color)
   }, [orb, look])
 
+  // Named by what it is and not by which object says so, since each answer brings a new object.
+  const wearing = JSON.stringify(outfit ?? {})
+  useEffect(() => {
+    if (orb) dressMascot(orb, JSON.parse(wearing) as Outfit)
+  }, [orb, wearing])
+
   useEffect(() => {
     if (orb === undefined) return
     if (hatching) {
@@ -116,7 +132,7 @@ export function AgentAvatar({
   }, [orb, hatched, hatching, still, mood.state, mood.variant])
 
   // A picture of it: it is let move for a moment, to take up its pose, and then held there.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new look or a hatch is drawn again
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new look, a hatch or a change of clothes is drawn again
   useEffect(() => {
     if (orb === undefined || orb === null) return
     orb.paused = false
@@ -125,7 +141,7 @@ export function AgentAvatar({
       orb.paused = true
     }, 350)
     return () => clearTimeout(timer)
-  }, [orb, still, look, hatched])
+  }, [orb, still, look, hatched, wearing])
 
   return (
     <span
@@ -157,7 +173,7 @@ export function AgentAvatar({
 }
 
 /** A little heart, in the creature's own blocky style, that rises from the hand and fades. */
-function PetHeart({ heart, gone }: { heart: Heart; gone: (id: number) => void }) {
+export function PetHeart({ heart, gone }: { heart: Heart; gone: (id: number) => void }) {
   return (
     <svg
       aria-hidden
@@ -187,7 +203,7 @@ export function AgentFace({
   still,
   pettable,
 }: {
-  agent: Pick<AgentSummary, "id" | "avatar" | "hatched">
+  agent: Pick<AgentSummary, "id" | "avatar" | "hatched" | "outfit">
   className?: string
   quiet?: boolean
   still?: boolean
@@ -198,6 +214,7 @@ export function AgentFace({
     <AgentAvatar
       avatar={agent.avatar}
       seed={agent.id}
+      outfit={agent.outfit}
       className={className}
       mood={mood}
       hatched={agent.hatched}

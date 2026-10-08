@@ -101,6 +101,7 @@ function Hatchling({
     <AgentAvatar
       avatar={agent.avatar}
       seed={agent.id}
+      outfit={agent.outfit}
       className={className}
       mood={mood}
       hatched={hatch.phase === "out"}

@@ -14,10 +14,12 @@ import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
   FileIcon,
+  TShirtIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import { useMemo } from "react"
+import { CreatureCare } from "@/components/creature/care"
 import { RowsPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
@@ -26,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { agentPanelColumn } from "@/lib/columns"
+import { creatureWindowAtom } from "@/lib/creature"
 import { formatBytes, isViewable } from "@/lib/library"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
@@ -238,6 +241,7 @@ export function AgentPanel({
     mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
   )
   const width = useAtomValue(agentPanelColumn.width)
+  const openCreature = useSetAtom(creatureWindowAtom)
   // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
@@ -271,9 +275,24 @@ export function AgentPanel({
         </Button>
       )}
       <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
-        {face}
+        {/* Its treats and its box are beside the agent's own creature, not a sub-agent's. */}
+        {subagent === undefined ? <CreatureCare agent={agent}>{face}</CreatureCare> : face}
         {subagent === undefined ? <SubagentBrood agentId={agent.id} subagents={subagents} /> : null}
-        <h2 className="mt-3 text-lg font-medium">{name}</h2>
+        <div className="mt-3 flex items-center gap-0.5">
+          <h2 className="text-lg font-medium">{name}</h2>
+          {subagent !== undefined || !agent.hatched ? null : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`${name}'s wardrobe`}
+              title="Wardrobe"
+              onClick={() => openCreature("wardrobe")}
+              className="-mr-8 size-7 text-muted-foreground/70"
+            >
+              <TShirtIcon />
+            </Button>
+          )}
+        </div>
         {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
         {loading ? (
           // Not "Ready": nothing has been heard from it yet.

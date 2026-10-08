@@ -668,6 +668,69 @@ Since then, newest last:
       Workers runtime beyond its type check and the existing Workers tests. The mobile app shows
       none of the new cards.
 
+24. **Treats, boxes and a wardrobe for the creature** (2026-10-08; `packages/mascot/src/wardrobe.js`,
+    `packages/protocol/src/wardrobe.ts`, `prototypes/gamification`). The owner asked for a
+    little gamification of the creature, chose from two rounds of a mock-up, and asked for it to
+    be built. None of it changes what an agent can do.
+    - **The loop.** The creature earns a treat each time its agent answers someone in a chat or
+      in Slack, and each time a scheduled run reports. A treat is given by carrying it onto the
+      creature or pressing the pile; it opens its mouth, eats it in three bites and is pleased.
+      Four treats fill a box (`TREATS_PER_BOX`). A box holds one thing to wear that the creature
+      does not have yet: the rarity is drawn first (60, 25, 10, 4 and 1 in a hundred, among the
+      rarities that still have something to find), then a thing of it. Every creature starts
+      with one box waiting, as a welcome, including the agents from before this.
+    - **Where it is kept.** In the agent's own store, as `CreatureDoc` (`packages/agent/src/docs.ts`):
+      treats, how far the next box is filled, boxes waiting, what it has, what it has on. The
+      routes are `/creature`, `/creature/feed`, `/creature/open` and `/creature/outfit` on the
+      actor, reached through the usual proxy, so anyone who can use the agent can do all four.
+      What a box holds is decided there and not in the browser. The agent's summary carries
+      `outfit`, so every drawing of it is dressed; an agent event `creature` says when any of it
+      changed. The agent itself has no tool for any of this and is not told about it.
+    - **The hundred things** are named, placed and given a rarity in
+      `packages/protocol/src/wardrobe.ts` (41 for the head, 20 for the eyes, 20 for the face, 19
+      for the neck; 45 common, 29 uncommon, 18 rare, 6 epic, 2 legendary). Their shapes are in
+      `packages/mascot/src/wardrobe.js` under the same ids, and a test holds the two lists to
+      each other. To add one: a row in the first, an `item(...)` in the second.
+    - **Fitting.** Every creature is grown from a seed, so nothing is placed by a fixed number.
+      A stiff hat is open underneath and is lowered along its own axis until the head touches
+      its underside. A soft thing (a beanie, a scarf, a beard) is made out of the skin itself,
+      lifted a little, with a hole where a tail or an ear comes through. Ears in a small hat's
+      way flop out sideways and are smaller for it; under a wide brim or a cap they lie flat, as
+      a horn, a tuft or an antenna does, and all come back when the hat comes off. A last pass
+      moves anything that still has a corner in the body straight out. `Wardrobe.audit(orb)`
+      measures how far the deepest corner is inside the body; `apps/web/src/lib/wardrobe.test.ts`
+      holds it at nothing for all hundred things on sixty seeds.
+    - **In the core** (`orb-core.js`): `orb.offer()`, `orb.bite()` and `orb.cheer()` for eating,
+      `orb.hidden` to draw a creature's stage without it, and `orb.worn`, which the wardrobe
+      sets and the core calls after each update, after a change of size or seed, and on
+      dispose. The wardrobe is a second plain file handed the same three.js and the core, so
+      the core still stands alone for the playground and the mock-ups.
+    - **The box** is opened on the creature's own stage, by the same renderer, as the hatch is:
+      `Wardrobe.unwrap(orb)` shows a box in the creature's place. Pressed, it rattles while the
+      agent is asked what is inside; then it jolts once for each rarity up to the thing's own,
+      the light at its seam stepping through their colors, gathers itself, and bursts: the lid
+      is blown off, the walls fall open, confetti and rings fly, and the thing rises into a beam
+      and hangs there. The rarer the thing, the longer the wait. With reduced motion it is
+      simply open.
+    - **In the web app** (`apps/web/src/components/creature`): the treats and the box are two
+      small buttons at the creature's lower corners in its panel, and a shirt button by its name
+      opens the wardrobe. Nothing is added to the chat. The agent's picture at the top of its
+      pages is now a button of its own that opens the wardrobe, with a dot when a box is
+      waiting; its name beside it is still the way to another agent. On a narrow screen, where
+      there is no panel, the wardrobe window fills the screen and has the creature, its treats
+      and its box at its top, so that is where it is looked after. A thing not found yet is a
+      question mark in the color of its rarity.
+    - **In the Expo app** the creature wears what it has on, and that is all: there are no
+      treats, no box and no wardrobe there yet.
+    - **Checked:** the rules and the catalog (`packages/protocol/test/wardrobe.test.ts`); the
+      agent's routes, earning, and the event (`packages/agent/test/creature.test.ts`); fitting,
+      eating and the box's timeline without a browser (`wardrobe.test.ts`); and in a browser
+      with the echo model, earning, feeding, opening a box, wearing and the wardrobe
+      (`e2e/creature.spec.ts`). The drawing itself was judged from screenshots taken in headless
+      Chromium, which draws in software. **Not checked:** on a phone or in Safari (carrying a
+      treat by touch above all), the Workers runtime beyond its type check, the Expo app on a
+      device, and a team where two people feed or dress one creature at the same moment.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -715,6 +778,17 @@ is worked for alike, with no OK step for people without an account ("can we just
 the slack can message the bot", and "Everyone is trusted" when asked); and the agent is in
 Slack as its bot only, writing and reading there on its own, with the connector that acted as a
 person taken out ("I think I want this instead of the normal slack connection").
+
+The creature's game, decided on 2026-10-08 from two rounds of a mock-up
+(`prototypes/gamification`): treats and not food ("They're not necessarily like you know the food
+he needs to live"); a loot box once it is happy enough, holding one random thing, with rarity
+tiers; a hundred things in all, not a hundred of each kind; little room taken, since "This is
+mainly like a productivity app", with no bond level and the treats beside the creature; a page of
+its own for looking after it on a phone; hats that do not sit inside heads, whatever the seed;
+and the box opened with "a really juicy three.js opening animation like the hatching". Chosen for
+them and not confirmed: one treat for each answer, four treats to a box, the odds, that a box
+never repeats a thing, that every creature starts with a box, that ears flop or lie flat under a
+hat, and that a team shares one creature with one outfit.
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
 each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only

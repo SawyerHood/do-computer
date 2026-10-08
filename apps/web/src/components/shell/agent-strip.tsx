@@ -9,7 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
-import { useAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { useEffect } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { FaceStack } from "@/components/people"
@@ -25,6 +25,7 @@ import {
 import { agentPanelOpenAtom } from "@/lib/atoms"
 import { Skeleton } from "@/components/ui/skeleton"
 import { agentQuery, agentsCollection } from "@/lib/collections"
+import { creatureWindowAtom, useCreature } from "@/lib/creature"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
@@ -54,14 +55,38 @@ function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: W
     [workspace.id],
   )
   const name = agent.name ?? "New agent"
+  const openCreature = useSetAtom(creatureWindowAtom)
+  const creature = useCreature(agent.id, agent.hatched)
+  const waiting = (creature?.boxes ?? 0) > 0
   return (
     <DropdownMenu>
+      {/* Its picture is the way to its wardrobe, which on a narrow screen is also where it is looked after. */}
+      {agent.hatched ? (
+        <button
+          type="button"
+          aria-label={waiting ? `${name}'s wardrobe: a box is waiting` : `${name}'s wardrobe`}
+          title={waiting ? `${name} found a box` : `${name}'s wardrobe`}
+          onClick={() => openCreature("wardrobe")}
+          className="relative shrink-0 rounded-xl p-1 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+        >
+          <AgentFace agent={agent} className="size-7" still />
+          {waiting ? (
+            <span
+              aria-hidden
+              className="absolute top-0.5 right-0.5 size-2.5 rounded-full bg-amber-400 ring-2 ring-background"
+            />
+          ) : null}
+        </button>
+      ) : (
+        <span className="p-1">
+          <AgentFace agent={agent} className="size-7" still />
+        </span>
+      )}
       <DropdownMenuTrigger
         aria-label={`${name}: another agent`}
         title="Another agent"
-        className="flex min-w-0 items-center gap-2 rounded-xl py-1 pr-2 pl-1 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
+        className="flex min-w-0 items-center gap-2 rounded-xl py-1 pr-2 pl-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
       >
-        <AgentFace agent={agent} className="size-7" still />
         <span className="min-w-0 truncate text-[0.9375rem] font-semibold">{name}</span>
         <CaretDownIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -166,7 +191,7 @@ export function AgentStrip({
           <SidebarSimpleIcon />
         </Button>
       )}
-      <div className="flex h-12 min-w-0 items-center gap-1.5 md:h-full">
+      <div className="flex h-12 min-w-0 items-center md:h-full">
         {agent === undefined ? (
           <div data-loading aria-busy="true" className="flex items-center gap-2 py-1 pr-2 pl-1">
             <Skeleton className="size-7 rounded-full" />

@@ -1,5 +1,5 @@
-import { type Avatar, avatarLook, avatarSvg } from "@durable-computer/protocol"
-import { loadMascot } from "./mascot.ts"
+import { type Avatar, avatarLook, avatarSvg, type Outfit } from "@durable-computer/protocol"
+import { dressMascot, loadMascot } from "./mascot.ts"
 
 /** Slack asks for an app's icon to be square and between 512 and 2000 pixels a side. */
 const SIDE = 1024
@@ -24,6 +24,8 @@ function tint(hex: string, share: number): string {
 export async function agentPicture(
   avatar: Avatar | null | undefined,
   agentId: string,
+  /** What it has on, which it wears in its picture too. */
+  outfit?: Outfit | null,
 ): Promise<Blob> {
   const look = avatarLook(avatar, agentId)
   const canvas = document.createElement("canvas")
@@ -54,6 +56,7 @@ export async function agentPicture(
     })
     try {
       orb.setState("idle")
+      dressMascot(orb, outfit)
       for (let lived = 0; lived < SETTLE_SECONDS; lived += STEP_SECONDS) orb.update(STEP_SECONDS)
       orb.render()
       // It is drawn small and in blocks, and stays in blocks when it is made large.

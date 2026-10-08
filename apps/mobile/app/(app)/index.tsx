@@ -40,6 +40,7 @@ export default function Chats() {
           <Avatar
             avatar={state.agent.avatar}
             seed={state.agent.id}
+            outfit={state.agent.outfit}
             size={48}
             hatched={state.agent.hatched}
           />

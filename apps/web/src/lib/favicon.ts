@@ -1,6 +1,6 @@
 import { type AgentSummary, avatarLook, avatarSvg } from "@durable-computer/protocol"
 import { useEffect } from "react"
-import { isDark, loadMascot } from "@/lib/mascot"
+import { dressMascot, isDark, loadMascot } from "@/lib/mascot"
 
 /** The side of the picture, in pixels: a tab's icon at twice its size. */
 const SIDE = 32
@@ -36,7 +36,9 @@ function drawnSquare(canvas: HTMLCanvasElement): { x: number; y: number; side: n
  * A still of an agent's creature as it is drawn on the page, as an image address. Where it cannot
  * be drawn, the plain one in its color.
  */
-async function portrait(agent: Pick<AgentSummary, "id" | "avatar" | "hatched">): Promise<string> {
+async function portrait(
+  agent: Pick<AgentSummary, "id" | "avatar" | "hatched" | "outfit">,
+): Promise<string> {
   const core = await loadMascot()
   if (core !== null) {
     const drawn = document.createElement("canvas")
@@ -50,6 +52,7 @@ async function portrait(agent: Pick<AgentSummary, "id" | "avatar" | "hatched">):
     })
     try {
       if (!agent.hatched) orb.setState("egg")
+      else dressMascot(orb, agent.outfit)
       // It is let live for a moment, to take up its pose.
       for (let step = 0; step < 12; step++) orb.update(1 / 30)
       orb.render()
@@ -79,12 +82,13 @@ async function portrait(agent: Pick<AgentSummary, "id" | "avatar" | "hatched">):
 
 /** While an agent's pages are open, the tab's icon is its creature: in its egg until it hatches. */
 export function useAgentFavicon(
-  agent: Pick<AgentSummary, "id" | "avatar" | "hatched"> | undefined,
+  agent: Pick<AgentSummary, "id" | "avatar" | "hatched" | "outfit"> | undefined,
 ): void {
   const id = agent?.id
   const hatched = agent?.hatched ?? true
   const color = agent?.avatar?.color
   const seed = agent?.avatar?.seed
+  const wearing = JSON.stringify(agent?.outfit ?? {})
   useEffect(() => {
     // Not known yet: the tab keeps its usual picture.
     if (id === undefined) return
@@ -93,7 +97,7 @@ export function useAgentFavicon(
     const usual = { href: link.getAttribute("href") ?? "", type: link.type }
     let gone = false
     const avatar = color === undefined ? null : { color, ...(seed === undefined ? {} : { seed }) }
-    void portrait({ id, avatar, hatched }).then((href) => {
+    void portrait({ id, avatar, hatched, outfit: JSON.parse(wearing) }).then((href) => {
       if (gone) return
       link.type = href.startsWith("data:image/png") ? "image/png" : "image/svg+xml"
       link.href = href
@@ -103,5 +107,5 @@ export function useAgentFavicon(
       link.type = usual.type
       link.href = usual.href
     }
-  }, [id, color, seed, hatched])
+  }, [id, color, seed, hatched, wearing])
 }
