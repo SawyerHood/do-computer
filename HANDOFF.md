@@ -695,7 +695,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   is mentioned. Someone who is not one of the agent's people can still have it run commands on
   the workspace's machines, read the library, and search its other chats; only connectors and
   paired computers are held back. The tokens are kept as they are in the app database, as
-  connectors' are in the agent's. The mobile app does not list threads from Slack.
+  connectors' are in the agent's. Threads are listed in the agent's panel, which a narrow screen
+  does not have: there a thread is reached from a notification or its address. The mobile app
+  does not list them.
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.
 - **Machines:** agents on one machine are not walled off from each other, by the owner's
