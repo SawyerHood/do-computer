@@ -16,8 +16,6 @@ export const Route = createRootRoute({
       { name: "application-name", content: "Do Computer" },
       { name: "apple-mobile-web-app-title", content: "Do Computer" },
       { name: "mobile-web-app-capable", content: "yes" },
-      { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#121415" },
-      { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#f8fbfb" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

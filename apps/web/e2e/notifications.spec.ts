@@ -88,6 +88,16 @@ test("the app can be put on a phone's home screen", async ({ page, request }) =>
     expect(response.headers()["content-type"]).toBe("image/png")
   }
   expect((await request.get("/sw.js")).headers()["content-type"]).toContain("javascript")
+
+  // The color a phone tints its bars with is the theme's, whichever theme that is.
+  const tint = page.locator('meta[name="theme-color"]')
+  await expect(tint).toHaveCount(1)
+  await expect(tint).toHaveAttribute("content", "#121415")
+  await page.emulateMedia({ colorScheme: "light" })
+  await page.reload()
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
+  await expect(tint).toHaveCount(1)
+  await expect(tint).toHaveAttribute("content", "#f8fbfb")
 })
 
 test("notifications are turned on, tried and turned off again", async ({ page }) => {

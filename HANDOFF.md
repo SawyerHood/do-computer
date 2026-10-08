@@ -526,6 +526,10 @@ Since then, newest last:
       `routes/__root.tsx`. An iPhone only delivers notifications to a site added to the Home
       Screen, and the settings say so there. Opened that way the page ends above the phone's
       home bar (`styles.css`), which is why the frame is `h-full` of the body and not `h-dvh`.
+      The color a phone tints its bars with is one `theme-color` tag that the script in the
+      head adds and `setTheme` keeps in step (`lib/theme.ts`). Two tags with media queries do
+      not work: the router keeps one meta per name. A tag of React's own that the script
+      changes does not either: React adds a second beside it.
     - **The app is called Do Computer.** The owner said so when they saw "durable" under the
       home screen icon. That is the name wherever a person reads one: the page's title, the
       manifest, notifications, invitations, sign-in, the name given to connectors and to
