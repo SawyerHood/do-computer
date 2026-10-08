@@ -49,7 +49,24 @@ function fakeSlack(answers: Record<string, (args: Record<string, string>) => obj
     UDANA: { name: "dana", real_name: "Dana Whitfield", profile: { email: "dana@else.dev" } },
     UMAYA: { name: "maya", profile: { real_name: "Maya Okafor" } },
   }
+  /** What was sent to Slack's own addresses for files, and what was sent anywhere else. */
+  const files: { url: string; token: string | null; body: string }[] = []
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input))
+    if (url.hostname !== "slack.com") {
+      const token = new Headers(init?.headers).get("authorization")
+      const body = init?.body instanceof ArrayBuffer ? new TextDecoder().decode(init.body) : ""
+      files.push({ url: url.href, token, body })
+      // A file is handed over to the app that may read it. Anyone else is sent to sign in.
+      if (url.pathname === "/files-pri/notes.txt") {
+        return token === `Bearer ${TOKEN}`
+          ? new Response("the notes", { headers: { "content-type": "text/plain; charset=utf-8" } })
+          : new Response(null, { status: 302, headers: { location: "https://slack.com/signin" } })
+      }
+      return new Response(url.pathname === "/upload/v1/abc" ? "OK" : "", {
+        status: url.pathname === "/upload/v1/abc" ? 200 : 404,
+      })
+    }
     const method = String(input).split("/").at(-1)!
     const args = Object.fromEntries(new URLSearchParams(String(init?.body)))
     const token = new Headers(init?.headers).get("authorization")
@@ -89,7 +106,7 @@ function fakeSlack(answers: Record<string, (args: Record<string, string>) => obj
         return answer({ ok: true })
     }
   }) as typeof fetch
-  return { fetch: fetcher, calls, methods: () => calls.map((call) => call.method) }
+  return { fetch: fetcher, calls, files, methods: () => calls.map((call) => call.method) }
 }
 
 async function fresh() {
@@ -203,6 +220,32 @@ describe("what was written in Slack", () => {
     expect(of({ ...direct, bot_id: "B2" })).toBeUndefined()
     expect(of({ ...direct, subtype: "message_changed" })).toBeUndefined()
     expect(of({ ...direct, subtype: "file_share" })).toBeDefined()
+    // What was attached comes with it: where each file is, and the smaller copy of a picture.
+    expect(
+      of({
+        files: [
+          {
+            name: "shot.png",
+            mimetype: "image/png",
+            size: 2048,
+            url_private: "https://files.slack.com/files-pri/shot.png",
+            url_private_download: "https://files.slack.com/files-pri/download/shot.png",
+            thumb_360: "https://files.slack.com/files-tmb/shot_360.png",
+            thumb_720: "https://files.slack.com/files-tmb/shot_720.png",
+          },
+          { name: "no-address.txt" },
+        ],
+      })?.files,
+    ).toEqual([
+      {
+        name: "shot.png",
+        mimeType: "image/png",
+        size: 2048,
+        url: "https://files.slack.com/files-pri/download/shot.png",
+        thumb: "https://files.slack.com/files-tmb/shot_720.png",
+      },
+    ])
+    expect(of({})?.files).toBeUndefined()
   })
 })
 
@@ -232,6 +275,9 @@ describe("putting an agent in Slack", () => {
       request_url: "https://app.example/api/slack/events/agent-1",
       bot_events: ["app_mention", "message.im"],
     })
+    expect(manifest.oauth_config.scopes.bot).toEqual(
+      expect.arrayContaining(["app_mentions:read", "chat:write", "files:read", "files:write"]),
+    )
     expect(manifest.oauth_config.redirect_urls).toEqual([
       "https://app.example/api/connectors/callback",
     ])
@@ -462,6 +508,38 @@ describe("what an agent is told of a message", () => {
   })
 })
 
+describe("a file attached in Slack", () => {
+  it("is fetched as the Slack app, from Slack and from nowhere else", async () => {
+    const db = await fresh()
+    const slack = fakeSlack()
+    const deps = { fetch: slack.fetch }
+    const directory = slackDirectory(db, deps)
+    const url = "https://files.slack.com/files-pri/notes.txt"
+    expect(await directory.fetch!(AGENT, url)).toBeUndefined()
+    await connectSlack(db, deps, AGENT, "sawyer", { botToken: TOKEN, signingSecret: SECRET })
+    const fetched = await directory.fetch!(AGENT, url)
+    expect(fetched?.contentType).toBe("text/plain")
+    expect(new TextDecoder().decode(fetched?.bytes)).toBe("the notes")
+    // The token is the app's, and an address that is not Slack's is never sent it.
+    for (const other of [
+      "https://files.slack.com.example.com/files-pri/notes.txt",
+      "http://files.slack.com/files-pri/notes.txt",
+      "https://example.com/files-pri/notes.txt",
+      "not an address",
+    ]) {
+      expect(await directory.fetch!(AGENT, other)).toBeUndefined()
+    }
+    expect(slack.files.map((file) => file.url)).toEqual([url])
+    // What is not there, and what Slack sends on to its sign-in page, is not a file.
+    expect(await directory.fetch!(AGENT, "https://files.slack.com/files-pri/gone")).toBeUndefined()
+    const wrong = slackDirectory(db, {
+      fetch: (async (input: RequestInfo | URL) =>
+        slack.fetch(input, { headers: { authorization: "Bearer xoxb-other" } })) as typeof fetch,
+    })
+    expect(await wrong.fetch!(AGENT, url)).toBeUndefined()
+  })
+})
+
 describe("what an agent says in Slack", () => {
   const place = { channel: "C1", thread: "100.000100" }
 
@@ -516,6 +594,62 @@ describe("what an agent says in Slack", () => {
     await expect(directory.post(AGENT, place, "hi")).rejects.toThrow("limiting")
     error = "internal_error"
     await expect(directory.post(AGENT, place, "hi")).rejects.toThrow("internal_error")
+  })
+
+  it("can come with a file, which Slack takes in three steps", async () => {
+    const db = await fresh()
+    const slack = fakeSlack({
+      "files.getUploadURLExternal": () => ({
+        ok: true,
+        upload_url: "https://files.slack.com/upload/v1/abc",
+        file_id: "F1",
+      }),
+    })
+    const deps = { fetch: slack.fetch }
+    await connectSlack(db, deps, AGENT, "sawyer", { botToken: TOKEN, signingSecret: SECRET })
+    const file = { name: "report.txt", bytes: new TextEncoder().encode("all of it") }
+    expect(await slackDirectory(db, deps).upload!(AGENT, place, file)).toBe(true)
+    expect(slack.calls.slice(-2)).toEqual([
+      {
+        method: "files.getUploadURLExternal",
+        token: `Bearer ${TOKEN}`,
+        args: { filename: "report.txt", length: "9" },
+      },
+      {
+        method: "files.completeUploadExternal",
+        token: `Bearer ${TOKEN}`,
+        args: {
+          files: JSON.stringify([{ id: "F1", title: "report.txt" }]),
+          channel_id: "C1",
+          thread_ts: "100.000100",
+        },
+      },
+    ])
+    // The content goes to where Slack said, and the app's token does not go with it.
+    expect(slack.files).toEqual([
+      { url: "https://files.slack.com/upload/v1/abc", token: null, body: "all of it" },
+    ])
+
+    // An app that may not share files cannot, however often it is tried. Slack being busy is
+    // worth another try.
+    let error = "missing_scope"
+    const refusing = fakeSlack({ "files.getUploadURLExternal": () => ({ ok: false, error }) })
+    const directory = slackDirectory(db, { fetch: refusing.fetch })
+    expect(await directory.upload!(AGENT, place, file)).toBe(false)
+    error = "internal_error"
+    await expect(directory.upload!(AGENT, place, file)).rejects.toThrow("internal_error")
+    // Slack is not trusted to name any address at all as the place to send a file.
+    const elsewhere = fakeSlack({
+      "files.getUploadURLExternal": () => ({
+        ok: true,
+        upload_url: "https://files.example.com/upload",
+        file_id: "F1",
+      }),
+    })
+    await expect(
+      slackDirectory(db, { fetch: elsewhere.fetch }).upload!(AGENT, place, file),
+    ).rejects.toThrow()
+    expect(elsewhere.files).toEqual([])
   })
 
   it("is shown to be on its way, by a status where Slack has one and a mark where it has not", async () => {

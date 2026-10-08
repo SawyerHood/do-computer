@@ -40,6 +40,7 @@ export { type AgentDirectory, type PeerAgent, type PeerMessage, type PeerReply }
 export {
   type SlackContext,
   type SlackDirectory,
+  type SlackFile,
   type SlackMessage,
   type SlackPlace,
 } from "./slack.ts"

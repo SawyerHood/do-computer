@@ -145,6 +145,10 @@ export type SlackRecord = {
    * agent works for; for anyone else it asks before using a connector or a paired computer.
    */
   speaker?: { id: string; name: string; member: boolean }
+  /** The messages it has been given lately, by Slack's names for them, so that one is given once. */
+  told?: string[]
+  /** The files it sent that have been posted to the thread, by the calls that sent them. */
+  files?: string[]
   /** Set when someone asked for it to be stopped, until it has been. */
   stopping?: true
   /** How many times in a row an answer could not be posted. */

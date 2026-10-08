@@ -1,8 +1,10 @@
-import type {
-  SlackContext,
-  SlackDirectory,
-  SlackMessage,
-  SlackSender,
+import {
+  MAX_LIBRARY_FILE_BYTES,
+  type SlackContext,
+  type SlackDirectory,
+  type SlackFile,
+  type SlackMessage,
+  type SlackSender,
 } from "@durable-computer/agent"
 import {
   BodyTooLarge,
@@ -260,12 +262,17 @@ const USER_SCOPES = [
   "users:read.email",
 ]
 
-/** What the bot needs: to hear itself spoken to, read the thread it is in, and answer there. */
+/**
+ * What the bot needs: to hear itself spoken to, read the thread it is in and what was attached
+ * there, and answer, with a file where it made one.
+ */
 const BOT_SCOPES = [
   "app_mentions:read",
   "channels:history",
   "channels:read",
   "chat:write",
+  "files:read",
+  "files:write",
   "groups:history",
   "groups:read",
   "im:history",
@@ -459,6 +466,39 @@ type SlackEvent = {
   text?: string
   ts?: string
   thread_ts?: string
+  files?: {
+    name?: string
+    title?: string
+    mimetype?: string
+    size?: number
+    url_private?: string
+    url_private_download?: string
+    thumb_1024?: string
+    thumb_720?: string
+    thumb_480?: string
+    thumb_360?: string
+  }[]
+}
+
+/** How many files attached to one message are passed on. */
+const MAX_FILES = 10
+
+/** The files attached to a message, as far as each says where its content is. */
+function filesOf(event: SlackEvent): SlackFile[] {
+  return (Array.isArray(event.files) ? event.files : []).slice(0, MAX_FILES).flatMap((file) => {
+    const url = file.url_private_download ?? file.url_private
+    if (typeof url !== "string") return []
+    const thumb = file.thumb_1024 ?? file.thumb_720 ?? file.thumb_480 ?? file.thumb_360
+    return [
+      {
+        name: file.name || file.title || "file",
+        mimeType: file.mimetype ?? "application/octet-stream",
+        size: typeof file.size === "number" ? file.size : 0,
+        url,
+        ...(typeof thumb === "string" ? { thumb } : {}),
+      },
+    ]
+  })
 }
 
 /**
@@ -479,6 +519,7 @@ export function messageOf(
     return undefined
   }
   if (typeof event.channel !== "string" || typeof event.ts !== "string") return undefined
+  const files = filesOf(event)
   return {
     id: payload.event_id,
     channel: event.channel,
@@ -489,6 +530,7 @@ export function messageOf(
     ts: event.ts,
     user: event.user,
     text: typeof event.text === "string" ? event.text : "",
+    ...(files.length === 0 ? {} : { files }),
   }
 }
 
@@ -552,6 +594,26 @@ export async function slackEvent(
 }
 
 type SlackUser = { name: string; email: string | undefined }
+
+/**
+ * Whether an address is Slack's own, and so one the app's token may be sent to. The address of
+ * a file comes from Slack, signed, and is still checked: a token goes nowhere else. A test's
+ * stand-in for Slack counts as Slack.
+ */
+function isSlacks(url: string, deps: SlackDeps): URL | undefined {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+  const standIn = deps.apiUrl === undefined ? undefined : new URL(deps.apiUrl).origin
+  if (standIn !== undefined && parsed.origin === standIn) return parsed
+  const host = parsed.hostname
+  return parsed.protocol === "https:" && (host === "slack.com" || host.endsWith(".slack.com"))
+    ? parsed
+    : undefined
+}
 
 /**
  * How an agent reaches Slack. It runs where the agent does, so it is handed the database instead
@@ -690,6 +752,62 @@ export function slackDirectory(db: AppDatabase, deps: SlackDeps = {}): SlackDire
         throw new Error(`Slack would not post the message: ${answer.error ?? "no reason given"}`)
       }
       return true
+    },
+
+    async fetch(agentId, url) {
+      const row = await appOf(db, agentId)
+      const address = isSlacks(url, deps)
+      if (row === undefined || address === undefined) return undefined
+      // Not followed elsewhere: without leave to read files, Slack sends on to a sign-in page.
+      const response = await (deps.fetch ?? fetch)(address, {
+        headers: { authorization: `Bearer ${row.bot_token}` },
+        redirect: "manual",
+      })
+      if (!response.ok) return undefined
+      const contentType = (response.headers.get("content-type") ?? "application/octet-stream")
+        .split(";")[0]!
+        .trim()
+      try {
+        if (declaredTooLarge(response.headers, MAX_LIBRARY_FILE_BYTES)) return undefined
+        return { bytes: await readLimited(response.body, MAX_LIBRARY_FILE_BYTES), contentType }
+      } catch (error) {
+        if (error instanceof BodyTooLarge) return undefined
+        throw error
+      }
+    },
+
+    async upload(agentId, place, file) {
+      const row = await appOf(db, agentId)
+      if (row === undefined) return false
+      // Slack takes a file in three steps: ask where to send it, send it there, then say which
+      // conversation it is for.
+      const asked = await slack(deps, row.bot_token, "files.getUploadURLExternal", {
+        filename: file.name,
+        length: String(file.bytes.length),
+      })
+      const target =
+        typeof asked.upload_url === "string" ? isSlacks(asked.upload_url, deps) : undefined
+      if (!asked.ok || target === undefined || typeof asked.file_id !== "string") {
+        // Without leave to share files there is no sending this one, now or later.
+        if (!asked.ok && (asked.error === "missing_scope" || GONE.has(asked.error ?? ""))) {
+          return false
+        }
+        throw new Error(`Slack would not take the file: ${asked.error ?? "no reason given"}`)
+      }
+      const sent = await (deps.fetch ?? fetch)(target, {
+        method: "POST",
+        headers: { "content-type": "application/octet-stream" },
+        body: file.bytes.slice().buffer,
+      })
+      if (!sent.ok) throw new Error(`Slack answered ${sent.status} to the file`)
+      const done = await slack(deps, row.bot_token, "files.completeUploadExternal", {
+        files: JSON.stringify([{ id: asked.file_id, title: file.name }]),
+        channel_id: place.channel,
+        thread_ts: place.thread ?? undefined,
+      })
+      if (done.ok) return true
+      if (done.error === "missing_scope" || GONE.has(done.error ?? "")) return false
+      throw new Error(`Slack would not share the file: ${done.error ?? "no reason given"}`)
     },
 
     async working(agentId, place) {

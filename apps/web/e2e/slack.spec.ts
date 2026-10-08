@@ -188,6 +188,48 @@ test.describe("slack", () => {
     await expect.poll(() => slack.posts().at(-1)?.text).toContain("sum is 42")
   })
 
+  test("a file attached in Slack reaches the library, and one the agent sends reaches Slack", async ({
+    page,
+  }) => {
+    await withPanel(page)
+    await signIn(page)
+    const agentId = agentIdOf(page)
+    const before = slack.posts().length
+    const first = mention("USAWYER", "keep this for me", undefined, undefined, [
+      { name: "notes.txt", url: slack.notes },
+    ])
+    await say(page.request, agentId, first)
+    await expect.poll(() => slack.posts()).toHaveLength(before + 1)
+    // The message says what came with it, and the file is in the library, whole.
+    const row = page
+      .getByRole("list", { name: "From Slack" })
+      .getByRole("link", { name: /keep this for me/ })
+    await row.click()
+    await expect(page.getByRole("log").getByText("Attached: notes.txt").first()).toBeVisible()
+    const { files } = (await (await page.request.get(`/api/agents/${agentId}/library`)).json()) as {
+      files: { id: string; name: string; source: string }[]
+    }
+    const kept = files.find((file) => file.name === "notes.txt")
+    expect(kept).toMatchObject({ source: "user" })
+    const content = await page.request.get(`/api/agents/${agentId}/library/${kept!.id}`)
+    expect(await content.text()).toBe("the notes from Slack")
+
+    // The agent makes a file and sends it: it is put in the thread, and shown here too.
+    const write = '/tool write {"path":"report.txt","content":"all of it"}'
+    await say(page.request, agentId, mention("USAWYER", write, first.ts))
+    await expect.poll(() => slack.posts()).toHaveLength(before + 2)
+    await say(
+      page.request,
+      agentId,
+      mention("USAWYER", '/tool send_file {"path":"report.txt"}', first.ts),
+    )
+    await expect
+      .poll(() => slack.uploads)
+      .toEqual([{ name: "report.txt", thread: first.ts, text: "all of it" }])
+    await expect.poll(() => slack.posts()).toHaveLength(before + 3)
+    await expect(page.getByRole("log").getByText("report.txt").first()).toBeVisible()
+  })
+
   test("taken out of Slack, it no longer hears what is said there", async ({ page }) => {
     await withPanel(page)
     await signIn(page)
@@ -204,6 +246,6 @@ test.describe("slack", () => {
     expect(response.status()).toBe(404)
     // What was said before can still be read.
     await page.keyboard.press("Escape")
-    await expect(page.getByRole("list", { name: "From Slack" }).getByRole("link")).toHaveCount(3)
+    await expect(page.getByRole("list", { name: "From Slack" }).getByRole("link")).toHaveCount(4)
   })
 })

@@ -223,6 +223,13 @@ function FromSlack({
                 {part.text}
               </BubbleContent>
             </Bubble>
+          ) : part.type === "image" ? (
+            <img
+              key={index}
+              src={`data:${part.mimeType};base64,${part.data}`}
+              alt="Attached"
+              className="max-h-64 self-end rounded-2xl"
+            />
           ) : null,
         )}
       </MessageContent>

@@ -571,6 +571,16 @@ Since then, newest last:
       markup beside it, in pieces if it is long, and falls back to the plain words if Slack
       refuses the block. `working` shows "is thinking…" in the thread, or marks the message
       with eyes where Slack will not.
+    - **Files go both ways** (added the same day, when the owner asked for the agent to read
+      them). What is attached to a message comes with the event; the host fetches each as the
+      Slack app (`fetch`), and the agent keeps it in the library as an upload in that chat and
+      says "Attached: …" in the message, as the app does. A model that takes pictures is shown
+      the smaller copy Slack makes of one, since a message has to stay small and nothing on
+      the server scales a picture. A file the agent sends with `send_file` is put into the
+      thread (`upload`, Slack's three steps) before its words, once: the calls that sent files
+      already posted are kept on the chat's record. The app's token is only ever sent to an
+      address that is Slack's (`isSlacks`), though both addresses come from Slack. A message
+      Slack tells of twice is known by its id (`told`) before anything is fetched for it.
     - **Someone who is not one of the agent's people** is answered, and asked about. The note
       that travels with their message says so to the model, and `Approvals` treats a connector
       or a paired computer as "ask first" for a chat whose last speaker is such a guest,
@@ -687,8 +697,11 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   ended by stopping the conversation from its chat. Sub-agents and scheduled runs cannot send.
   Nothing on the sender's side shows that it is waiting to hear back. The native app shows the
   replies and cannot open the conversations.
-- **Slack:** only words go either way. A picture or file attached in Slack is not seen, and a
-  file the agent sends is not posted there. An answer is posted when it is finished, not as it
+- **Slack:** a picture attached there is looked at only by a model that takes pictures, and
+  only as the smaller copy Slack makes; at most five files of a message are taken in. A Slack
+  app made before files were added lacks the two permissions for them (`files:read`,
+  `files:write`): it has to be given them and installed again, and until then the agent says a
+  file could not be had. An answer is posted when it is finished, not as it
   is written. A thread cannot be answered from the app. A chat from Slack cannot send to
   another agent, and a scheduled report into one is not posted. The bot hears only mentions
   and direct messages: a reply in its thread that does not mention it is read the next time it
@@ -757,8 +770,10 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   events as it does (the signing is checked against the example in Slack's documentation). The
   one real thing tried: adding the Slack connector on a local server reached Slack's MCP
   server, which sent back a sign-in address at `slack.com/oauth/v2_user/authorize` carrying
-  the client id. Not tried: Slack accepting the app manifest, a real event, the markdown block
-  and the "thinking" status in a real channel, and a real sign-in to the connector. Expect the
+  the client id. Not tried: Slack accepting the app manifest, a real event (and whether a
+  mention carries its attached files, as a direct message does), fetching and sharing a real
+  file, the markdown block and the "thinking" status in a real channel, and a real sign-in to
+  the connector. Expect the
   first real run to turn something up (section 9).
 - **On the live site**, without the owner's session, only this could be checked: it answers, its
   pages and assets load, the GitHub sign-in button leads to GitHub with the right callback, and

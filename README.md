@@ -294,6 +294,9 @@ set on the deployment, which only needs an address Slack can reach.
 - **Speaking to it.** Mention the bot in a channel it has been added to, or write to it directly.
   It answers in the thread. Mention it again there and it carries on the same conversation,
   having been given what others said in between.
+- **Files.** A file attached to a message for the bot is kept in the library, as one attached
+  in the app is, and a picture is shown to a model that can look at one. A file the agent
+  sends in the thread's chat is posted to the thread, before the words that are about it.
 - **In the app.** Each Slack thread is a conversation of the agent's, listed in its panel under
   "From Slack". It is read there and written in from Slack. A teammate's messages have their
   face; they are found by the email address of their account.

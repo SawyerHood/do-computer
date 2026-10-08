@@ -1,8 +1,20 @@
-import { type ChatState, DEFAULT_THINKING, type SubagentStatus } from "@durable-computer/protocol"
+import {
+  bytesToBase64,
+  type ChatState,
+  DEFAULT_THINKING,
+  isSentFile,
+  type LibraryFile,
+  MAX_MESSAGE_IMAGE_CHARS,
+  MAX_MESSAGE_IMAGES,
+  MESSAGE_IMAGE_TYPES,
+  type MessageImage,
+  type SubagentStatus,
+} from "@durable-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import type { Conversation, ConversationId, Harness } from "@earendil-works/pi-durable"
 import { slackMeta, type SlackSender } from "./caller.ts"
 import { ChatsDoc, IdentityDoc, type SlackRecord } from "./docs.ts"
+import { MAX_LIBRARY_FILE_BYTES } from "./library-store.ts"
 import { parseModel } from "./models.ts"
 import { own } from "./own.ts"
 import { formatTime } from "./schedule.ts"
@@ -17,6 +29,22 @@ const MAX_EARLIER_CHARS = 2_000
 const MAX_POST_FAILURES = 5
 /** Slack drops the sign that an app is at work after two minutes, so it is shown again in time. */
 const WORKING_EVERY_MS = 60_000
+/** How many files attached to one message are taken in. */
+const MAX_FILES = 5
+/** How many of a thread's messages and sent files are remembered as dealt with. */
+const MAX_REMEMBERED = 50
+
+/** A file attached to a message in Slack. */
+export type SlackFile = {
+  name: string
+  /** What kind of file Slack says it is. */
+  mimeType: string
+  size: number
+  /** Where its content is fetched from, as the Slack app. */
+  url: string
+  /** For a picture: a smaller copy of it, which is the one a model is shown. */
+  thumb?: string
+}
 
 /** Something said to the agent in Slack, as Slack told its host. */
 export type SlackMessage = {
@@ -37,6 +65,8 @@ export type SlackMessage = {
   user: string
   /** Its words as Slack sent them, markup and all. */
   text: string
+  /** What was attached to it. */
+  files?: SlackFile[]
 }
 
 /** What the host found out about a message: who wrote it, where, and what came before it. */
@@ -70,6 +100,20 @@ export type SlackDirectory = {
   post(agentId: string, place: SlackPlace, text: string): Promise<boolean>
   /** Show in Slack that the agent is at work on a message. Nothing depends on it. */
   working?(agentId: string, place: SlackPlace & { ts: string }): Promise<void>
+  /** Fetch a file attached to a message. Undefined when it cannot be had. */
+  fetch?(
+    agentId: string,
+    url: string,
+  ): Promise<{ bytes: Uint8Array; contentType: string } | undefined>
+  /**
+   * Put a file the agent made into a thread. False when it cannot be: the Slack app may not
+   * share files, or is gone.
+   */
+  upload?(
+    agentId: string,
+    place: SlackPlace,
+    file: { name: string; bytes: Uint8Array },
+  ): Promise<boolean>
 }
 
 /** A problem the caller should be told about, as opposed to a bug. */
@@ -146,6 +190,17 @@ export type SlackChatsOptions = {
   readonly waiting: (chatId: string, context: Context) => Promise<boolean>
   /** Called when a thread was stopped, so that what it was waiting on is not left asking. */
   readonly onStopped?: (chatId: string, context: Context) => Promise<void>
+  /** Keeps a file that was attached in Slack, in the library, as an upload in that chat. */
+  readonly keep?: (file: {
+    name: string
+    bytes: Uint8Array
+    contentType?: string
+    chatId: string
+  }) => Promise<LibraryFile>
+  /** What is in a file the agent sent, for posting it to the thread. */
+  readonly contents?: (file: { id: string; rev: number }) => Promise<Uint8Array | undefined>
+  /** Whether a model can be shown pictures. */
+  readonly sees?: (model: string) => boolean
   readonly onError?: (error: unknown) => void
 }
 
@@ -156,6 +211,10 @@ export type SlackChatsOptions = {
  * A message from Slack goes into the conversation its thread already has, or a new one, so that
  * a second mention carries on from the first. The agent works there as it does anywhere. The
  * conversation can be read in the app and is written in only from Slack.
+ *
+ * A file attached to a message is kept in the library, as one attached in the app is, and a
+ * picture is shown to a model that can look at one. A file the agent sends in the thread's chat
+ * is posted to the thread with its answer.
  *
  * How a thread is getting on is kept on its chat's record, as a conversation with another agent
  * is. Slack has no way to say a thing once, so a crash between posting an answer and noting that
@@ -235,12 +294,16 @@ export class SlackChats {
       ([, chat]) => chat.slack?.channel === message.channel && chat.slack.thread === message.thread,
     )?.[0]
     const known = chatId === undefined ? undefined : own(chats, chatId)?.slack
+    // Slack sends a message again when it was not answered in time. It is here already.
+    if (chatId !== undefined && known?.told?.includes(message.id) === true) return { chatId }
     // Also one that was opened and then never given its message, which a crash can leave.
     const fresh = known?.woken === undefined
     const found = await directory.describe(agentId, message, known?.seen ?? null)
     if (found === undefined) throw new SlackError("The agent is not in Slack.")
-    const said = found.text.trim().slice(0, MAX_MESSAGE_CHARS)
-    if (said === "") throw new SlackError("A message needs something to say.")
+    const words = found.text.trim().slice(0, MAX_MESSAGE_CHARS)
+    const files = Array.isArray(message.files) ? message.files.slice(0, MAX_FILES) : []
+    if (words === "" && files.length === 0)
+      throw new SlackError("A message needs something to say.")
     const name = nameOf(found.from.name)
     const member = found.from.userId !== undefined
     const now = this.#options.now()
@@ -256,7 +319,7 @@ export class SlackChats {
           },
           init: async (tx, conversationId) => {
             ;(await tx.doc(ChatsDoc)).chats[String(conversationId)] = {
-              title: titleOf(said),
+              title: titleOf(words) || files[0]?.name || "A message in Slack",
               kind: "slack",
               createdAt: now,
               updatedAt: now,
@@ -283,6 +346,14 @@ export class SlackChats {
     if (conversation === undefined) throw new SlackError("That conversation is gone.")
     const place = { direct: message.direct, channelName: found.channelName }
     const before = earlierNote(found.earlier)
+    const attached = await this.#attached(chatId, files, identity.model)
+    // Said the way the app says it of a file attached there, which is how the agent knows it.
+    const said = [
+      words,
+      attached.names.length === 0 ? "" : `Attached: ${attached.names.join(", ")}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n")
     // Sent before it is marked as working: marked first, it could be seen at rest and answered
     // for before this reached it.
     await conversation.submit(
@@ -290,7 +361,16 @@ export class SlackChats {
         type: "input",
         requestId: `slack:${message.id}`,
         content: [
-          { type: "text", text: said },
+          ...(said === "" ? [] : [{ type: "text" as const, text: said }]),
+          ...attached.images.map((image) => ({ type: "image" as const, ...image })),
+          ...(attached.problems.length === 0
+            ? []
+            : [
+                {
+                  type: "text" as const,
+                  text: `<meta kind="slack-files">${attached.problems.join(" ")}</meta>`,
+                },
+              ]),
           ...(before === undefined ? [] : [{ type: "text" as const, text: before }]),
           {
             type: "text",
@@ -314,11 +394,77 @@ export class SlackChats {
       }
       slack.channelName = found.channelName ?? slack.channelName
       slack.url = found.url ?? slack.url
+      slack.told = [...(slack.told ?? []), message.id].slice(-MAX_REMEMBERED)
       delete slack.failures
     })
     this.#show(chatId, { channel: message.channel, thread: message.thread, ts: message.ts })
     await this.tick()
     return { chatId }
+  }
+
+  /**
+   * Take in the files attached to a message: each is kept in the library, and a picture is also
+   * made ready for a model that can look at one. A file that cannot be had is said to the
+   * model, so that it can say so in turn.
+   */
+  async #attached(
+    chatId: string,
+    files: readonly SlackFile[],
+    model: string,
+  ): Promise<{ names: string[]; images: MessageImage[]; problems: string[] }> {
+    const { agentId, directory, keep } = this.#options
+    const names: string[] = []
+    const images: MessageImage[] = []
+    const problems: string[] = []
+    const sees = this.#options.sees?.(model) === true
+    let room = MAX_MESSAGE_IMAGE_CHARS
+    for (const file of files) {
+      const name = nameOf(file.name)
+      if (directory.fetch === undefined || keep === undefined) {
+        problems.push(`A file was attached, ${name}, which cannot be fetched here.`)
+        continue
+      }
+      if (file.size > MAX_LIBRARY_FILE_BYTES) {
+        problems.push(
+          `A file was attached, ${name}, which is too large to take in: files up to ${MAX_LIBRARY_FILE_BYTES / (1024 * 1024)} MB can be.`,
+        )
+        continue
+      }
+      try {
+        const fetched = await directory.fetch(agentId, file.url)
+        if (fetched === undefined) {
+          problems.push(
+            `A file was attached, ${name}, which Slack would not hand over. The Slack app may lack the permission to read files.`,
+          )
+          continue
+        }
+        const kept = await keep({
+          name: file.name,
+          bytes: fetched.bytes,
+          contentType: file.mimeType || fetched.contentType,
+          chatId,
+        })
+        names.push(kept.name)
+        // A model is shown the smaller copy Slack makes of a picture: a message has to stay
+        // small, and nothing here can scale a picture down.
+        const picture = (MESSAGE_IMAGE_TYPES as readonly string[]).includes(file.mimeType)
+        if (!sees || !picture || images.length >= MAX_MESSAGE_IMAGES) continue
+        const small =
+          file.thumb === undefined ? fetched : await directory.fetch(agentId, file.thumb)
+        if (small === undefined) continue
+        const type = (MESSAGE_IMAGE_TYPES as readonly string[]).includes(small.contentType)
+          ? small.contentType
+          : file.mimeType
+        const data = bytesToBase64(small.bytes)
+        if (data.length > room) continue
+        room -= data.length
+        images.push({ mimeType: type as MessageImage["mimeType"], data })
+      } catch (error) {
+        this.#options.onError?.(error)
+        problems.push(`A file was attached, ${name}, which could not be fetched.`)
+      }
+    }
+    return { names, images, problems }
   }
 
   /** Stop a thread that is at work. Slack is told it was. */
@@ -433,6 +579,12 @@ export class SlackChats {
       }
     }
     if (text !== undefined) {
+      // What it sent as files goes first, so that its words come after what they are about.
+      const files = slack.stopping === true ? [] : await this.#sendFiles(id, slack, state, context)
+      if (files === "later") return
+      if (files.length > 0) {
+        text += `\n\n_I could not attach ${files.join(", ")} here._`
+      }
       const sent = await this.#post(id, slack, text, context)
       if (sent === "later") return
       // Words nobody could be given are not an answer that was given.
@@ -446,6 +598,55 @@ export class SlackChats {
       stored.replied = last?.id ?? stored.replied
       stored.replies += 1
     })
+  }
+
+  /**
+   * Post to the thread the files the agent sent in its chat and that are not there yet. Each is
+   * noted once it is dealt with, so that trying again posts only what is left. Resolves with the
+   * names of those that could not be posted, or `later` when one is worth another try.
+   */
+  async #sendFiles(
+    id: string,
+    slack: SlackRecord,
+    state: ChatState | undefined,
+    context: Context,
+  ): Promise<string[] | "later"> {
+    const { agentId, directory, contents } = this.#options
+    if (directory.upload === undefined || contents === undefined) return []
+    const posted = new Set(slack.files ?? [])
+    const missed: string[] = []
+    const parts = (state?.messages ?? []).flatMap((message) => message.parts.filter(isSentFile))
+    for (const part of parts) {
+      if (posted.has(part.toolCallId)) continue
+      const file = part.details as unknown as LibraryFile
+      try {
+        const bytes = await contents(file)
+        const sent =
+          bytes !== undefined &&
+          (await directory.upload(
+            agentId,
+            { channel: slack.channel, thread: slack.thread },
+            { name: file.name, bytes },
+          ))
+        // One that cannot be posted is let go, and the thread is told it is missing.
+        if (!sent) missed.push(file.name)
+      } catch (error) {
+        this.#options.onError?.(error)
+        const failures = (slack.failures ?? 0) + 1
+        if (failures < MAX_POST_FAILURES) {
+          await this.#change(id, context, (stored) => {
+            stored.failures = failures
+          })
+          return "later"
+        }
+        missed.push(file.name)
+      }
+      posted.add(part.toolCallId)
+      await this.#change(id, context, (stored) => {
+        stored.files = [...(stored.files ?? []), part.toolCallId].slice(-MAX_REMEMBERED)
+      })
+    }
+    return missed
   }
 
   /**

@@ -467,6 +467,10 @@ export class AgentActor implements Actor {
             waiting: async (chatId, c) =>
               (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
+            keep: (file) => this.#library.keep(file),
+            contents: (file) => this.#library.contents(file),
+            sees: (model) =>
+              options.modelOptions.find((option) => option.id === model)?.images === true,
             onError: (error) => options.onReport?.(error),
           })
   }

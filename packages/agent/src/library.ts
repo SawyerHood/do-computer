@@ -1,3 +1,4 @@
+import type { LibraryFile } from "@durable-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {
@@ -241,6 +242,31 @@ export class Library {
         }),
       ],
     })
+  }
+
+  /**
+   * Keep a file someone gave the agent somewhere other than the app, such as one attached to a
+   * message in Slack: with the uploads, as a file attached in a chat is.
+   */
+  async keep(file: {
+    name: string
+    bytes: Uint8Array
+    contentType?: string | undefined
+    chatId: string
+  }): Promise<LibraryFile> {
+    return (await this.#options.backend()).add({
+      name: file.name,
+      bytes: file.bytes,
+      source: "user",
+      chatId: file.chatId,
+      ...(this.#options.agentId === undefined ? {} : { agentId: this.#options.agentId }),
+      ...(file.contentType === undefined ? {} : { contentType: file.contentType }),
+    })
+  }
+
+  /** What is in a file of the library, as it was at the revision named. */
+  async contents(file: { id: string; rev: number }): Promise<Uint8Array | undefined> {
+    return (await this.#options.backend()).bytes(file)
   }
 
   #copy(computer: string): Copy {

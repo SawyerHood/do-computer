@@ -6,9 +6,11 @@ import type {
   ChatState,
   ChatSummary,
   ConnectorResult,
+  LibraryListing,
   ToolPart,
 } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
+import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
@@ -49,6 +51,12 @@ type World = {
   afters: (string | null)[]
   /** Called before something is posted; throwing makes the posting fail. */
   onPost: (text: string) => void
+  /** What is at each address a file of Slack's can be fetched from. */
+  files: Record<string, { bytes: Uint8Array; contentType: string }>
+  /** Every file put into a thread, in order. */
+  uploads: (SlackPlace & { name: string; text: string })[]
+  /** Whether the Slack app may share files. */
+  canUpload: boolean
 }
 const worlds: World[] = []
 
@@ -103,6 +111,12 @@ function directory(world: World): SlackDirectory {
     working: async (_agentId, place) => {
       world.shown.push({ channel: place.channel, thread: place.thread })
     },
+    fetch: async (_agentId, url) => world.files[url],
+    upload: async (_agentId, place, file) => {
+      if (!world.canUpload) return false
+      world.uploads.push({ ...place, name: file.name, text: new TextDecoder().decode(file.bytes) })
+      return true
+    },
   }
 }
 
@@ -126,6 +140,9 @@ function open(folder = mkdtempSync(join(tmpdir(), "dc-slack-")), keepAliveMs = 6
     shown: [],
     afters: [],
     onPost: () => {},
+    files: {},
+    uploads: [],
+    canUpload: true,
   }
   world.namespace = new NodeActorNamespace({
     directory: join(folder, "actors"),
@@ -135,8 +152,16 @@ function open(folder = mkdtempSync(join(tmpdir(), "dc-slack-")), keepAliveMs = 6
         models,
         defaultModel: "test/model",
         modelOptions: [
-          { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
+          {
+            id: "test/model",
+            name: "Test",
+            reasoning: false,
+            inputCost: 0,
+            outputCost: 0,
+            images: true,
+          },
         ],
+        sandbox: () => createLocalProcessSandbox(),
         // Long, so that an answer is posted because the agent came to rest and not on a wake-up.
         keepAliveMs,
         slackDirectory: directory(world),
@@ -360,6 +385,141 @@ describe("an agent in Slack", () => {
       (found) => found.every((thread) => thread.status !== "working"),
     )
     expect((await threads(world)).map((thread) => thread.status).sort()).toEqual(["done", "failed"])
+  })
+
+  it("keeps a file attached in Slack in the library, and looks at a picture", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    const bytes = (text: string) => new TextEncoder().encode(text)
+    world.files = {
+      "https://files.slack.com/notes": { bytes: bytes("the notes"), contentType: "text/plain" },
+      "https://files.slack.com/shot": { bytes: bytes("a large picture"), contentType: "image/png" },
+      "https://files.slack.com/shot-small": { bytes: bytes("small"), contentType: "image/png" },
+    }
+    let shown = ""
+    world.faux.setResponses([
+      (context) => {
+        shown = JSON.stringify(context.messages)
+        return fauxAssistantMessage("Got them.")
+      },
+      fauxAssistantMessage("Again."),
+    ])
+    const message = mention("look at these", {
+      files: [
+        {
+          name: "notes.txt",
+          mimeType: "text/plain",
+          size: 9,
+          url: "https://files.slack.com/notes",
+        },
+        {
+          name: "shot.png",
+          mimeType: "image/png",
+          size: 15,
+          url: "https://files.slack.com/shot",
+          thumb: "https://files.slack.com/shot-small",
+        },
+        {
+          name: "film.mov",
+          mimeType: "video/quicktime",
+          size: 30 * 1024 * 1024,
+          url: "https://files.slack.com/film",
+        },
+        {
+          name: "lost.pdf",
+          mimeType: "application/pdf",
+          size: 4,
+          url: "https://files.slack.com/x",
+        },
+      ],
+    })
+    const { chatId } = await say(world, message)
+    await posted(world, 1)
+
+    // The message says what came with it, the way one sent from the app does, and carries the
+    // smaller copy of the picture for the model to look at.
+    const state = await chatState(world, chatId)
+    expect(state.messages[0]!.parts).toEqual([
+      { type: "text", text: "look at these\n\nAttached: notes.txt, shot.png" },
+      { type: "image", mimeType: "image/png", data: btoa("small") },
+    ])
+    // What could not be had is said to the model, so that it can say so.
+    expect(shown).toContain("film.mov, which is too large to take in")
+    expect(shown).toContain("lost.pdf, which Slack would not hand over")
+    // Both are in the library as uploads in that chat, whole.
+    const { files } = await call<LibraryListing>(world, "/library")
+    expect(files.map((file) => [file.name, file.source, file.chatId, file.size]).sort()).toEqual([
+      ["notes.txt", "user", chatId, 9],
+      ["shot.png", "user", chatId, 15],
+    ])
+
+    // Told of the same message again, it keeps nothing twice.
+    await say(world, message)
+    expect((await call<LibraryListing>(world, "/library")).files).toHaveLength(2)
+    expect(world.posts).toHaveLength(1)
+
+    // A file with no words is still a message.
+    await say(
+      world,
+      mention("", {
+        thread: message.ts,
+        files: [
+          {
+            name: "more.txt",
+            mimeType: "text/plain",
+            size: 9,
+            url: "https://files.slack.com/notes",
+          },
+        ],
+      }),
+    )
+    await posted(world, 2)
+    expect((await chatState(world, chatId)).messages.at(-2)?.parts).toEqual([
+      { type: "text", text: "Attached: more.txt" },
+    ])
+    expect(world.errors).toEqual([])
+  })
+
+  it("posts a file it sends to the thread, once, before its words", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    const tool = (name: string, args: Record<string, string>) =>
+      fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" })
+    world.onPost = () => {
+      // The file is there before the words that are about it.
+      expect(world.uploads.length).toBeGreaterThan(0)
+    }
+    world.faux.setResponses([
+      tool("write", { path: "report.txt", content: "all of it" }),
+      tool("send_file", { path: "report.txt" }),
+      fauxAssistantMessage("Here is the report."),
+      fauxAssistantMessage("You are welcome."),
+    ])
+    const message = mention("write it up")
+    await say(world, message)
+    await posted(world, 1)
+    expect(world.uploads).toEqual([
+      { channel: "C1", thread: message.ts, name: "report.txt", text: "all of it" },
+    ])
+    expect(world.posts[0]!.text).toBe("Here is the report.")
+
+    // The next answer in the thread does not bring the file again.
+    await say(world, mention("thanks", { thread: message.ts }))
+    await posted(world, 2)
+    expect(world.uploads).toHaveLength(1)
+
+    // Where the Slack app may not share files, the thread is told what is missing.
+    world.canUpload = false
+    world.faux.setResponses([
+      tool("write", { path: "more.txt", content: "the rest" }),
+      tool("send_file", { path: "more.txt" }),
+      fauxAssistantMessage("And the rest."),
+    ])
+    await say(world, mention("and the rest?", { thread: message.ts }))
+    await posted(world, 3)
+    expect(world.posts[2]!.text).toBe("And the rest.\n\n_I could not attach more.txt here._")
+    expect(world.uploads).toHaveLength(1)
+    expect(world.errors).toEqual([])
   })
 
   it("is not reached once it is taken out of Slack", async () => {

@@ -17,9 +17,24 @@ export async function startFakeSlack(
   people: Record<string, { name: string; email: string }>,
 ) {
   const calls: Call[] = []
+  /** The files the bot has put into Slack: what each is called once shared, and what is in it. */
+  const uploads: { name: string; thread: string | undefined; text: string }[] = []
+  const pending = new Map<string, string>()
   const server = createServer((request, response) => {
     void (async () => {
-      const method = (request.url ?? "").split("/").at(-1)!
+      const path = request.url ?? ""
+      // A file someone attached, which only the app is handed.
+      if (path === "/files/notes.txt") {
+        const mine = request.headers.authorization === `Bearer ${BOT_TOKEN}`
+        response.writeHead(mine ? 200 : 302, mine ? { "content-type": "text/plain" } : {})
+        return response.end(mine ? "the notes from Slack" : "")
+      }
+      // Where the bot sends what is in a file it is sharing.
+      if (path.startsWith("/upload/")) {
+        pending.set(path.slice("/upload/".length), await read(request))
+        return response.end("OK")
+      }
+      const method = path.split("/").at(-1)!
       const args = Object.fromEntries(new URLSearchParams(await read(request)))
       calls.push({ method, args })
       const answer = (value: object) => {
@@ -48,6 +63,20 @@ export async function startFakeSlack(
                 user: { profile: { real_name: person.name, email: person.email } },
               })
         }
+        case "files.getUploadURLExternal": {
+          const id = `F${pending.size + uploads.length + 1}`
+          return answer({ ok: true, upload_url: `${address}/upload/${id}`, file_id: id })
+        }
+        case "files.completeUploadExternal": {
+          for (const file of JSON.parse(args.files ?? "[]") as { id: string; title: string }[]) {
+            uploads.push({
+              name: file.title,
+              thread: args.thread_ts,
+              text: pending.get(file.id) ?? "",
+            })
+          }
+          return answer({ ok: true })
+        }
         case "conversations.info":
           return answer({ ok: true, channel: { name: "launch" } })
         case "chat.getPermalink":
@@ -64,6 +93,9 @@ export async function startFakeSlack(
   await new Promise<void>((resolve) => server.listen(Number(port), hostname, resolve))
   return {
     calls,
+    uploads,
+    /** The address of the file that can be attached to a message here. */
+    notes: `${address}/files/notes.txt`,
     /** What the bot has posted, in order: where, and its words. */
     posts: () =>
       calls
@@ -83,13 +115,15 @@ let events = 0
 
 /**
  * Something said to the bot in a channel, as Slack would send it: signed with the app's secret.
- * Without `thread` it starts a thread; with one, it is said in that thread.
+ * Without `thread` it starts a thread; with one, it is said in that thread. `files` are what was
+ * attached to it, by where each is fetched from.
  */
 export function mention(
   user: string,
   text: string,
   thread?: string,
   secret = SIGNING_SECRET,
+  files: { name: string; url: string }[] = [],
 ): { body: string; headers: Record<string, string>; ts: string } {
   events += 1
   const ts = `17000000${String(events).padStart(2, "0")}.000100`
@@ -104,6 +138,16 @@ export function mention(
       ts,
       channel: "C1",
       ...(thread === undefined ? {} : { thread_ts: thread }),
+      ...(files.length === 0
+        ? {}
+        : {
+            files: files.map((file) => ({
+              name: file.name,
+              mimetype: "text/plain",
+              size: 20,
+              url_private_download: file.url,
+            })),
+          }),
     },
   })
   const timestamp = String(Math.floor(Date.now() / 1000))
