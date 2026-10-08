@@ -68,9 +68,10 @@ export function PermissionsSettings({ agentId }: { agentId: string }) {
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Permissions</h2>
         <p className="text-sm text-muted-foreground">
-          Your agent acts without asking unless you say otherwise here. With “Ask first” it stops,
-          tells you what it wants to do, and waits for your answer in the chat. Scheduled runs
-          follow the same rules, and wait the same way.
+          Your agent acts without asking unless you say otherwise here. A few things that cost money
+          or give it more reach start on “Ask first”. With “Ask first” it stops, tells you what it
+          wants to do, and waits for your answer in the chat. Scheduled runs follow the same rules,
+          and wait the same way.
         </p>
       </div>
       <Loads key={agentId} fallback={<RowsPlaceholder rows={4} />}>

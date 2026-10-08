@@ -16,7 +16,7 @@ import {
 } from "@earendil-works/pi-durable"
 import { ChatsDoc, IdentityDoc, type ScheduleRecord, SchedulesDoc } from "./docs.ts"
 import { parseModel } from "./models.ts"
-import { formatTime, nextRunAt, parseSchedule } from "./schedule.ts"
+import { formatTime, isValidTimezone, nextRunAt, parseSchedule } from "./schedule.ts"
 import { own } from "./own.ts"
 
 export const SILENT_MARKER = "[SILENT]"
@@ -74,6 +74,11 @@ export type SchedulerOptions = {
   /** Called when a scheduled task has something to tell the user. */
   readonly onReport?: (report: ScheduledReport) => void
   readonly onError?: (error: unknown) => void
+  /**
+   * What a run the agent starts itself runs under. It outlasts the tool call that set it off,
+   * whose own context ends with it. Absent: the tool call's.
+   */
+  readonly context?: Context
 }
 
 /**
@@ -188,8 +193,17 @@ export class Scheduler {
         }
         record.prompt = change.prompt.trim()
       }
-      const rescheduled = typeof change.schedule === "string" && change.schedule.trim() !== ""
-      if (rescheduled) record.schedule = change.schedule!.trim()
+      const moved = typeof change.timezone === "string" && change.timezone.trim() !== ""
+      if (moved) {
+        if (!isValidTimezone(change.timezone!.trim())) {
+          throw new ScheduleError(`"${change.timezone}" is not an IANA timezone.`)
+        }
+        record.timezone = change.timezone!.trim()
+      }
+      const retimed = typeof change.schedule === "string" && change.schedule.trim() !== ""
+      if (retimed) record.schedule = change.schedule!.trim()
+      // Read in another timezone, the same words mean another time.
+      const rescheduled = retimed || (moved && record.enabled)
       if (typeof change.enabled === "boolean") {
         if (change.enabled && !record.enabled) {
           const enabled = Object.values(schedules).filter((schedule) => schedule.enabled).length
@@ -439,7 +453,7 @@ export class Scheduler {
     return defineTool({
       name: "schedule",
       description:
-        'Manage tasks you run on your own later or repeatedly. action "create" needs `schedule` and `prompt`; "update", "pause", "resume" and "remove" need `id`; "list" shows them all. ' +
+        'Manage tasks you run on your own later or repeatedly. action "create" needs `schedule` and `prompt`; "update", "pause", "resume", "remove" and "run" need `id`; "list" shows them all. "run" runs one now, without changing when it next runs on its own: use it to try out a task you have just made. ' +
         '`schedule` is one of: "30m" (once, that long from now), "every 2h" (repeating), a 5-field cron expression such as "0 9 * * 1-5" (in the user\'s timezone), or an ISO 8601 timestamp. ' +
         "`prompt` is what you will be asked to do on each run, written so it makes sense with no other context. Each run starts fresh and its final reply is delivered to the user.",
       parameters: Type.Object({
@@ -450,6 +464,7 @@ export class Scheduler {
           Type.Literal("pause"),
           Type.Literal("resume"),
           Type.Literal("remove"),
+          Type.Literal("run"),
         ]),
         id: Type.Optional(Type.String()),
         schedule: Type.Optional(Type.String()),
@@ -510,6 +525,12 @@ export class Scheduler {
               if (!args.id) return reply('"remove" needs id.', true)
               await this.remove(args.id, context)
               return reply(`Removed schedule ${args.id}.`)
+            case "run":
+              if (!args.id) return reply('"run" needs id.', true)
+              await this.runNow(args.id, this.#options.context ?? context)
+              return reply(
+                `Started a run of schedule ${args.id}. It runs on its own, and what it reports is delivered where the schedule's reports go: do not wait for it.`,
+              )
             default: {
               if (!args.id) return reply(`"${args.action}" needs id.`, true)
               const change: UpdateScheduleRequest =
@@ -517,7 +538,12 @@ export class Scheduler {
                   ? { enabled: false }
                   : args.action === "resume"
                     ? { enabled: true }
-                    : { schedule: args.schedule, prompt: args.prompt, title: args.title }
+                    : {
+                        schedule: args.schedule,
+                        prompt: args.prompt,
+                        title: args.title,
+                        timezone: args.timezone,
+                      }
               return reply(`Updated. ${describe(await this.update(args.id, change, context))}`)
             }
           }

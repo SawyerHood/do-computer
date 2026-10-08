@@ -32,6 +32,7 @@ import { AgentPanel } from "./agent-panel.tsx"
 import { PeerFace, threadWords, useThreads } from "./agent-threads.tsx"
 import { PendingComputerRequests, useAgentsById } from "@/components/computer-requests"
 import { PendingApprovals } from "./approvals.tsx"
+import { PendingSecrets, PendingSignIns } from "./secrets.tsx"
 import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
@@ -455,6 +456,12 @@ export function ChatView({
             chatId={chatId}
           />
           <PendingComputerRequests agentId={agent.id} agentName={agent.name ?? "Your agent"} />
+          <PendingSignIns agentId={agent.id} agentName={agent.name ?? "Your agent"} />
+          <PendingSecrets
+            agentId={agent.id}
+            agentName={agent.name ?? "Your agent"}
+            chatId={chatId}
+          />
           {sub !== undefined ? (
             // Where the message box would be. Its agent is the one who talks to it.
             <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">

@@ -51,6 +51,7 @@ import {
 } from "./docs.ts"
 import { CodingTools } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
+import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
@@ -73,6 +74,8 @@ import { parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
+import { SecretError, Secrets, SecretsDoc } from "./secrets.ts"
+import { type SettingsChange, SettingsError, settingsExtension } from "./settings.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
@@ -154,6 +157,12 @@ export type AgentActorOptions = {
    * notification. Best effort: a reply that finishes after a restart is not announced.
    */
   readonly onNotify?: (notification: AgentNotification) => void
+  /**
+   * The address people reach the app at, such as `https://example.com`. With it the agent can
+   * hand a person a link to a screen, and can add a connector that has people sign in. Where it
+   * is not set, the address its gateway was last reached at stands in.
+   */
+  readonly appUrl?: string
 }
 
 export type ComputerChoices = {
@@ -187,6 +196,12 @@ export type AgentNotification = {
 
 /** Header in which the gateway tells the actor where a connector's sign-in should return to. */
 export const CONNECTOR_REDIRECT_HEADER = "x-dc-connector-redirect"
+
+/** Header in which the gateway tells the actor the address the app was reached at. */
+export const APP_ORIGIN_HEADER = "x-dc-origin"
+
+/** Where a service sends someone back after they sign in to a connector, under the app's address. */
+export const CONNECTOR_CALLBACK_PATH = "/api/connectors/callback"
 
 class HttpError extends Error {
   constructor(
@@ -315,8 +330,11 @@ export class AgentActor implements Actor {
   readonly #peers: Peers | undefined
   readonly #skills: Skills
   readonly #approvals: Approvals
+  readonly #secrets: Secrets
   readonly #keepGoing: KeepGoing
   #harness: Promise<Harness> | undefined
+  /** The address the app was last reached at, as its gateway said. */
+  #origin: string | undefined
 
   constructor(host: ActorHost, options: AgentActorOptions) {
     this.#host = host
@@ -377,6 +395,24 @@ export class AgentActor implements Actor {
         : { directory: { agentId: host.name, lookup: options.computerDirectory } }),
       around: this.#library.around,
       onProblem: report("A machine could not be made ready for the agent"),
+      appUrl: () => this.#appUrl(),
+    })
+    this.#secrets = new Secrets({
+      now: () => host.now(),
+      computer: (name, c) => this.#computers.resolve(name, c),
+      addConnector: async (input, c) => {
+        if (this.#connectors === undefined) throw new Error("The agent is not open yet")
+        // A token is sent with every request, so nobody signs in and nothing returns anywhere.
+        return this.#connectors.add(input, this.#connectorRedirect() ?? "", c)
+      },
+      onRequest: (request) =>
+        void this.#notify({
+          kind: "approval",
+          heading: "Needs something from you",
+          text:
+            request.purpose ?? `Asks for ${request.fields.map((field) => field.name).join(", ")}`,
+          chatId: request.chatId,
+        }),
     })
     this.#approvals = new Approvals({
       now: () => host.now(),
@@ -399,6 +435,7 @@ export class AgentActor implements Actor {
     })
     this.#scheduler = new Scheduler({
       now: () => host.now(),
+      context,
       onReport: (report) =>
         void this.#notify({
           kind: "scheduled",
@@ -452,6 +489,17 @@ export class AgentActor implements Actor {
     } finally {
       view.dispose()
     }
+  }
+
+  /** The address people reach the app at, where that is known. */
+  #appUrl(): string | undefined {
+    return (this.#options.appUrl ?? this.#origin)?.replace(/\/+$/, "")
+  }
+
+  /** Where a service sends someone back after they sign in to a connector. */
+  #connectorRedirect(): string | undefined {
+    const app = this.#appUrl()
+    return app === undefined ? undefined : `${app}${CONNECTOR_CALLBACK_PATH}`
   }
 
   #offers(kind: string): boolean {
@@ -591,6 +639,31 @@ export class AgentActor implements Actor {
       registry.install(this.#subagents.extension)
       if (this.#peers !== undefined) registry.install(this.#peers.extension)
       registry.install(this.#skills.extension)
+      registry.install(this.#secrets.extension)
+      registry.install(
+        settingsExtension({
+          models: this.#options.modelOptions,
+          state: async () => {
+            const identity = await this.#identity(await this.#open())
+            return {
+              model: identity.model,
+              thinking: identity.thinking ?? DEFAULT_THINKING,
+              whenBusy: whenBusyOf(identity),
+              timezone: identity.timezone ?? null,
+            }
+          },
+          update: async (change: SettingsChange) => {
+            try {
+              await this.#apply(await this.#open(), change as Record<string, unknown>)
+            } catch (error) {
+              if (error instanceof HttpError) throw new SettingsError(error.message)
+              throw error
+            }
+          },
+          usage: async () => this.#usage(await this.#open()),
+        }),
+      )
+      registry.install(appGuide({ agentId: this.#host.name, appUrl: () => this.#appUrl() }))
       registry.install(Log)
       registry.install(this.#keepGoing.extension)
       if (this.#options.webSearch !== undefined) {
@@ -623,6 +696,7 @@ export class AgentActor implements Actor {
       this.#subagents.attach(harness)
       this.#peers?.attach(harness)
       this.#skills.attach(harness)
+      this.#secrets.attach(harness)
       await this.#ownLibrary.upgrade()
       // Neither stops the agent opening: what could not be done now is tried the next time.
       await this.#adopt(harness).catch((error) => this.#options.onReport?.(error))
@@ -635,6 +709,22 @@ export class AgentActor implements Actor {
         fetch: this.#options.connectorFetch,
         allowPrivateHosts: this.#options.allowPrivateHosts,
         resolveHost: this.#options.resolveHost,
+        redirectUrl: () => this.#connectorRedirect(),
+        askToken: (input, c) =>
+          this.#secrets.ask(
+            {
+              chatId: input.chatId,
+              purpose: `The access token for the connector "${input.name}", so that I can use it.`,
+              fields: [
+                {
+                  name: "ACCESS_TOKEN",
+                  description: `The access token that ${new URL(input.url).host} issued you`,
+                },
+              ],
+              destination: { kind: "connector", name: input.name, url: input.url },
+            },
+            c,
+          ),
       })
       await this.#connectors.attach(harness, context)
       // An agent that is still to be set up gets its skills then.
@@ -647,7 +737,8 @@ export class AgentActor implements Actor {
         (await harness.snapshot(ComputersDoc, context)) === undefined ||
         (await harness.snapshot(LibraryDoc, context)) === undefined ||
         (await harness.snapshot(ConnectorsDoc, context)) === undefined ||
-        (await harness.snapshot(ApprovalsDoc, context)) === undefined
+        (await harness.snapshot(ApprovalsDoc, context)) === undefined ||
+        (await harness.snapshot(SecretsDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
@@ -656,6 +747,7 @@ export class AgentActor implements Actor {
           await tx.doc(LibraryDoc)
           await tx.doc(ConnectorsDoc)
           await tx.doc(ApprovalsDoc)
+          await tx.doc(SecretsDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -776,7 +868,8 @@ export class AgentActor implements Actor {
         error instanceof LibraryError ||
         error instanceof HistoryError ||
         error instanceof ApprovalError ||
-        error instanceof ConnectorError
+        error instanceof ConnectorError ||
+        error instanceof SecretError
       ) {
         return json({ error: error.message }, 400)
       }
@@ -797,6 +890,8 @@ export class AgentActor implements Actor {
     // Segments become ids and names. One that every object inherits is never either of those.
     if (segments.some(isInherited)) throw new HttpError(404, "Not found")
     const method = request.method
+    const origin = request.headers.get(APP_ORIGIN_HEADER)
+    if (origin !== null && /^https?:\/\/[^\s/]+$/.test(origin)) this.#origin = origin
     const harness = await this.#open()
 
     if (segments[0] === "init" && method === "POST") {
@@ -820,7 +915,8 @@ export class AgentActor implements Actor {
     if (segments.length === 0) {
       if (method === "GET") return json(await this.#state(harness, identity))
       if (method === "PATCH") {
-        return this.#update(harness, await body<Record<string, unknown>>(request))
+        await this.#apply(harness, await body<Record<string, unknown>>(request))
+        return json(await this.#state(harness, await this.#identity(harness)))
       }
     }
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
@@ -903,7 +999,18 @@ export class AgentActor implements Actor {
       if (connectorId !== undefined && action === "authorize" && method === "POST") {
         const { code } = await body<{ code?: string }>(request)
         if (typeof code !== "string" || code === "") throw new HttpError(400, "code is required")
-        return json(await connectors.authorize(connectorId, code, context))
+        const { turn, ...result } = await connectors.authorize(connectorId, code, context, caller)
+        // What the agent says about it is told like any other answer nobody was there for.
+        if (turn !== undefined && result.chatId !== undefined) {
+          await this.#touch(harness, result.chatId)
+          void this.#notifyWhenUnseen(harness, result.chatId, turn, undefined)
+        }
+        return json(result)
+      }
+      // Someone chose not to sign in to a connector the agent added.
+      if (connectorId !== undefined && action === "dismiss" && method === "POST") {
+        await connectors.dismiss(connectorId, context, caller)
+        return json({ ok: true })
       }
       if (connectorId !== undefined && action === undefined && method === "PATCH") {
         const { enabled } = await body<{ enabled?: boolean }>(request)
@@ -981,6 +1088,31 @@ export class AgentActor implements Actor {
         // with another agent likewise.
         await this.#subagents.tick()
         await this.#peers?.tick()
+        return json({ ok: true })
+      }
+    }
+    if (segments[0] === "secrets") {
+      const requestId = segments[1]
+      if (requestId === undefined && method === "GET") {
+        return json({ requests: await this.#secrets.pending(context) })
+      }
+      if (requestId !== undefined && method === "POST") {
+        const decline = segments[2] === "decline"
+        if (segments[2] !== undefined && !decline) throw new HttpError(404, "Not found")
+        // What was typed is read here and handed straight on. It is kept nowhere on the way.
+        const told = decline
+          ? await this.#secrets.decline(requestId, context, caller)
+          : await this.#secrets.answer(
+              requestId,
+              (await body<{ values?: unknown }>(request)).values,
+              context,
+              caller,
+            )
+        // What the agent says about it is told like any other answer nobody was there for.
+        if (told !== undefined) {
+          await this.#touch(harness, told.chatId)
+          void this.#notifyWhenUnseen(harness, told.chatId, told.turn, undefined)
+        }
         return json({ ok: true })
       }
     }
@@ -1219,7 +1351,16 @@ export class AgentActor implements Actor {
     }
   }
 
-  async #update(harness: Harness, input: Record<string, unknown>): Promise<Response> {
+  /** Mark a chat as having something new in it. */
+  async #touch(harness: Harness, chatId: string): Promise<void> {
+    await harness.commit(async (tx) => {
+      const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
+      if (chat !== undefined) chat.updatedAt = this.#host.now()
+    }, context)
+  }
+
+  /** Change what can be changed about the agent, each thing checked. Rejects with why not. */
+  async #apply(harness: Harness, input: Record<string, unknown>): Promise<void> {
     const text = (key: string, limit: number): string | undefined => {
       const value = input[key]
       if (value === undefined) return undefined
@@ -1282,7 +1423,6 @@ export class AgentActor implements Actor {
         await conversation?.configure({ model: parseModel(model) }, context)
       }
     }
-    return json(await this.#state(harness, await this.#identity(harness)))
   }
 
   async #chat(harness: Harness, chatId: string): Promise<Conversation> {
@@ -1442,6 +1582,8 @@ export class AgentActor implements Actor {
       const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
       if (chat === undefined) return
       chat.updatedAt = this.#host.now()
+      // Who the agent is answering, for what it does in their name.
+      if (caller !== undefined) chat.lastBy = caller.id
       if (chat.title === DEFAULT_CHAT_TITLE)
         chat.title = titleFrom(input.text) || DEFAULT_CHAT_TITLE
       if (timezone !== null && timezone !== identity.timezone) {
@@ -1555,6 +1697,7 @@ export class AgentActor implements Actor {
       const library = await harness.watchDoc(LibraryDoc, context)
       const connectors = await harness.watchDoc(ConnectorsDoc, context)
       const approvals = await harness.watchDoc(ApprovalsDoc, context)
+      const secrets = await harness.watchDoc(SecretsDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -1570,6 +1713,7 @@ export class AgentActor implements Actor {
       library?.start(changed("library"))
       connectors?.start(changed("connectors"))
       approvals?.start(changed("approvals"))
+      secrets?.start(changed("secrets"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -1580,6 +1724,7 @@ export class AgentActor implements Actor {
         void library?.stop()
         void connectors?.stop()
         void approvals?.stop()
+        void secrets?.stop()
         unwatch?.()
       }
     })

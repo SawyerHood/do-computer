@@ -37,6 +37,7 @@ import {
   readSse,
   reduceChat,
   type ScheduleSummary,
+  type SecretRequest,
   type SendMessageRequest,
   type SendMessageResponse,
   type SentInvitation,
@@ -462,6 +463,21 @@ export function createClient(options: ClientOptions) {
           patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
         removeConnector: (connectorId: string) =>
           request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
+        /** Say no, for now, to signing in to a connector the agent added. The agent is told. */
+        dismissConnector: (connectorId: string) =>
+          post<{ ok: true }>(`${base}/connectors/${connectorId}/dismiss`),
+        /** The secrets the agent has asked someone to type, and not been answered about. */
+        secretRequests: async () =>
+          (await request<{ requests: SecretRequest[] }>(`${base}/secrets`)).requests,
+        /**
+         * Give the secrets the agent asked for. They are saved where it asked and are never
+         * part of a chat: the agent is told only that they were saved.
+         */
+        answerSecretRequest: (requestId: string, values: Record<string, string>) =>
+          post<{ ok: true }>(`${base}/secrets/${encodeURIComponent(requestId)}`, { values }),
+        /** Say no to a request for secrets. The agent is told. */
+        declineSecretRequest: (requestId: string) =>
+          post<{ ok: true }>(`${base}/secrets/${encodeURIComponent(requestId)}/decline`),
         /** The agent's approval rules, what a rule can be set for, and what it is waiting on. */
         approvals: () => request<ApprovalsState>(`${base}/approvals`),
         /** Set rules by subject id. `allow` removes a rule. */

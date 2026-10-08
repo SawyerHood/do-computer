@@ -1,5 +1,10 @@
 import { getPlatform } from "#platform"
-import { type AgentComputer, type ComputerAnswer, computerActorName } from "@durable-computer/agent"
+import {
+  type AddableKind,
+  type AgentComputer,
+  type ComputerAnswer,
+  computerActorName,
+} from "@durable-computer/agent"
 import { linkStatus } from "@durable-computer/computers"
 import {
   type AddComputerRequest,
@@ -346,6 +351,8 @@ async function insertMachine(input: {
   /** What its files are kept under: itself, or the one agent a kind that is not shared is for. */
   key?: string
   access: "open" | "chosen"
+  /** The agent that is adding it, where one is. */
+  agentId?: string
 }): Promise<ComputerRow> {
   const { db, machines } = getPlatform()
   const id = crypto.randomUUID()
@@ -355,8 +362,8 @@ async function insertMachine(input: {
   await db.run(
     `INSERT INTO dc_computers
        (id, owner_id, workspace_id, name, platform, hostname, home, read_only, token_hash,
-        created_at, kind, machine_key, access)
-     VALUES (?, ?, ?, ?, 'linux', '', ?, 0, NULL, ?, ?, ?, ?)`,
+        created_at, kind, machine_key, access, added_by_agent)
+     VALUES (?, ?, ?, ?, 'linux', '', ?, 0, NULL, ?, ?, ?, ?, ?)`,
     id,
     input.by,
     input.workspaceId,
@@ -366,8 +373,109 @@ async function insertMachine(input: {
     input.kind,
     key,
     input.access,
+    input.agentId ?? null,
   )
   return (await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", id))!
+}
+
+/** The kinds of machine that can be added to a workspace: every kind that agents can share. */
+export function addableKinds(): AddableKind[] {
+  return deploymentComputers().kinds.filter(
+    (kind) => kind.id !== "none" && !UNSHARED_KINDS.includes(kind.id),
+  )
+}
+
+/** The workspace an agent is in, and who made it. */
+async function placeOf(
+  agentId: string,
+): Promise<{ workspaceId: string; ownerId: string } | undefined> {
+  const row = await getPlatform().db.get<{ owner_id: string; workspace_id: string | null }>(
+    "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
+    agentId,
+  )
+  return row === undefined
+    ? undefined
+    : { workspaceId: row.workspace_id ?? personalWorkspaceId(row.owner_id), ownerId: row.owner_id }
+}
+
+/**
+ * An agent adds a machine to its workspace, as someone in it could from the app, within the
+ * same limits. `by` is who it was working for: the machine is theirs, where they are still in
+ * the workspace, and otherwise whoever made the agent's. Resolves with the machine, or with why
+ * it could not be added, in words for the agent.
+ */
+export async function addMachineFor(
+  agentId: string,
+  input: { kind?: string; name?: string; by?: string },
+): Promise<{ id: string; name: string; kind: string } | { error: string }> {
+  const { db } = getPlatform()
+  const place = await placeOf(agentId)
+  if (place === undefined) return { error: "This agent is not in a workspace any more." }
+  const { workspaceId } = place
+  const by =
+    input.by !== undefined && (await roleIn(db, input.by, workspaceId)) !== undefined
+      ? input.by
+      : place.ownerId
+  const kinds = addableKinds()
+  if (kinds.length === 0) {
+    return { error: "This deployment has no kind of machine that can be added." }
+  }
+  const usual = (await defaultsFor(by)).computer
+  const kind = input.kind ?? (kinds.some((offered) => offered.id === usual) ? usual : kinds[0]!.id)
+  if (!kinds.some((offered) => offered.id === kind)) {
+    return {
+      error: `There is no kind of machine "${kind}" to add. The kinds are: ${kinds.map((offered) => offered.id).join(", ")}.`,
+    }
+  }
+  const count = await db.get<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM dc_computers WHERE workspace_id = ? AND kind != ?",
+    workspaceId,
+    PAIRED_COMPUTER,
+  )
+  if ((count?.n ?? 0) >= MAX_MACHINES_PER_WORKSPACE) {
+    return {
+      error: `The workspace already has ${MAX_MACHINES_PER_WORKSPACE} machines, which is the most it can have. One has to be removed first.`,
+    }
+  }
+  const row = await insertMachine({
+    workspaceId,
+    by,
+    kind,
+    name: slug(text(input.name, 60) ?? "computer"),
+    access: "open",
+    agentId,
+  })
+  await tellWorkspace(workspaceId)
+  return { id: row.id, name: row.name, kind: row.kind }
+}
+
+/**
+ * An agent deletes a machine it added, with everything on it. Only one it added: the rest are
+ * for the people they belong to. As from the app, it is forgotten only once it is gone at its
+ * provider.
+ */
+export async function removeMachineFor(
+  agentId: string,
+  computerId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const { db } = getPlatform()
+  const place = await placeOf(agentId)
+  const row = await db.get<ComputerRow>("SELECT * FROM dc_computers WHERE id = ?", computerId)
+  if (place === undefined || row === undefined || row.workspace_id !== place.workspaceId) {
+    return { error: "There is no such machine in your workspace." }
+  }
+  if (!isMachine(row) || !shareable(row) || row.added_by_agent !== agentId) {
+    return {
+      error: `You can only remove a machine you added, and "${row.name}" is not one. Whoever it belongs to can remove it from Computers, in the workspace settings of the app.`,
+    }
+  }
+  const problem = await destroyMachine(row)
+  if (problem !== undefined) {
+    return { error: `The machine could not be deleted, so it was kept: ${problem}` }
+  }
+  await revokeComputer(row)
+  await tellWorkspace(row.workspace_id)
+  return { ok: true }
 }
 
 /**

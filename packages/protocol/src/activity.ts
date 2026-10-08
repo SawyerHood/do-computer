@@ -78,6 +78,31 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return args.action === "get"
         ? withDetail("Getting a file from your library", text(args.file))
         : "Looking in your library"
+    case "computers": {
+      const name = text(args.name)
+      if (args.action === "add") return withDetail("Adding a machine", name)
+      if (args.action === "remove") return withDetail("Removing a machine", name)
+      if (args.action === "request") return withDetail("Asking to use a computer", name)
+      return "Looking at the computers"
+    }
+    case "connectors": {
+      const name = text(args.name)
+      if (args.action === "add") return withDetail("Adding a connector", name)
+      if (args.action === "remove") return withDetail("Removing a connector", name)
+      if (args.action === "list") return "Looking at its connectors"
+      return withDetail("Updating a connector", name)
+    }
+    case "request_secret":
+      return "Asking you for a secret"
+    case "settings":
+      return args.action === "set" ? "Updating its settings" : "Checking its settings"
+    case "agents":
+      if (args.action === "create") return withDetail("Making a new agent", text(args.name))
+      if (args.action === "message") {
+        const to = text(args.to)
+        return to === undefined ? "Writing to another agent" : `Writing to ${clip(to)}`
+      }
+      return "Looking at the other agents"
     default: {
       // A connector's tool is named `<connector>__<tool>`.
       const [connector, tool] = part.name.split("__")
@@ -109,6 +134,9 @@ const PAST: Record<string, string> = {
   Noting: "Noted",
   Starting: "Started",
   Stopping: "Stopped",
+  Adding: "Added",
+  Asking: "Asked",
+  Making: "Made",
 }
 
 /**
@@ -171,6 +199,7 @@ export function toolKind(name: string): WorkKind {
     case "set_identity":
     case "schedule":
     case "log":
+    case "settings":
       return "memory"
     default:
       // A connector's tool, named `<connector>__<tool>`, reaches out to another service.

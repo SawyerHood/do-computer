@@ -22,18 +22,36 @@ import {
   type McpOAuthState,
 } from "@earendil-works/pi-mcp/oauth"
 import {
+  type Conversation,
+  type ConversationId,
   defineDoc,
   defineExtension,
+  defineTool,
   type Extension,
   type Harness,
+  section,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
+import type { Caller } from "./caller.ts"
+import { ChatsDoc } from "./docs.ts"
 import { own } from "./own.ts"
 
 export const MAX_CONNECTORS = 20
 /** Tools past this many per connector are not offered: every tool costs prompt space each turn. */
 const MAX_TOOLS_PER_CONNECTOR = 60
 const EXTENSION_NAME = "dc.connectors"
+const TOOL = "connectors"
+/** How many of a connector's tools are named when the agent lists its connectors. */
+const MAX_TOOLS_NAMED = 12
+
+/** Entry kind of how a sign-in the agent asked for went, in the chat that asked. */
+export const CONNECTOR_ENTRY = "dc.connector"
+
+/** What the agent is told to set it going on an answer. Not shown in the chat. */
+const NUDGE =
+  '<meta kind="connector">Word about a connector you asked for is above. Carry on with what you wanted it for, or tell the user where things stand.</meta>'
+
+type Turn = Awaited<ReturnType<Conversation["submit"]>>
 const CLIENT = { name: "durable-computer", version: "0.1.0" }
 
 type ConnectorRecord = Omit<ConnectorSummary, "id">
@@ -84,6 +102,45 @@ export type ConnectorsOptions = {
   readonly allowPrivateHosts?: boolean
   /** Looks a host name up, where the runtime can, so a name pointing inside is refused too. */
   readonly resolveHost?: (hostname: string) => Promise<readonly string[]>
+  /**
+   * Where a service sends someone back after they sign in, when the app's address is known.
+   * Without it the agent cannot add or reconnect a connector itself: only the app can.
+   */
+  readonly redirectUrl?: () => string | undefined
+  /**
+   * Ask the person, from a chat, to type the access token of a connector that is reached with
+   * one. It is added once they have. Absent: the agent cannot add such a connector.
+   */
+  readonly askToken?: (
+    input: { chatId: string; name: string; url: string },
+    context: Context,
+  ) => Promise<{ fresh: boolean }>
+}
+
+const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+
+/** A name as it is written into a note for the model, which it must not be able to end. */
+const personOf = (caller: Caller | undefined) =>
+  (caller?.name ?? "")
+    .replace(/[<>\[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || "The person"
+
+const toolsOf = (connector: ConnectorSummary) => {
+  const names = connector.tools.map((tool) => connectorToolName(connector.name, tool.name))
+  const named = names.slice(0, MAX_TOOLS_NAMED).join(", ")
+  return names.length > MAX_TOOLS_NAMED
+    ? `${named} and ${names.length - MAX_TOOLS_NAMED} more`
+    : named
+}
+
+/** How a connector is doing, in a few words. */
+function stateOf(connector: ConnectorSummary): string {
+  if (!connector.enabled) return "turned off"
+  if (connector.status === "needs_auth") return "waiting for someone to sign in"
+  if (connector.status === "error") return `not connected: ${connector.error ?? "no answer"}`
+  return `connected, ${connector.tools.length} tool${connector.tools.length === 1 ? "" : "s"}`
 }
 
 /**
@@ -92,6 +149,8 @@ export type ConnectorsOptions = {
  * the model's context or on the agent's computer.
  */
 export class Connectors {
+  /** The tool the agent sees and changes its connectors with, and what it is told of them. */
+  readonly extension: Extension
   readonly #options: ConnectorsOptions
   readonly #fetch: McpFetch
   readonly #clients = new Map<string, Promise<McpClient>>()
@@ -105,11 +164,28 @@ export class Connectors {
       options.allowPrivateHosts === true,
       { resolve: options.resolveHost },
     )
+    this.extension = defineExtension({
+      name: "dc.connectors.manage",
+      tools: [this.#manage()],
+      sections: [
+        section("connectors", async (input, context) => {
+          const connectors = Object.values(
+            (await input.read.snapshot(ConnectorsDoc, context))?.connectors ?? {},
+          ).sort((a, b) => a.addedAt - b.addedAt)
+          const how = `A connector is another service whose tools become yours: a calendar, an issue tracker, a database. The \`${TOOL}\` tool lists yours and adds one from the address of its MCP server.`
+          if (connectors.length === 0) return `${how} You have none yet.`
+          return `${how}\n${connectors
+            .map((connector) => `- ${connector.name}: ${stateOf({ id: "", ...connector })}`)
+            .join("\n")}`
+        }),
+      ],
+    })
   }
 
   /** Attach to the harness and offer the tools remembered from last time. */
   async attach(harness: Harness, context: Context): Promise<void> {
     this.#harness = harness
+    this.#options.install(this.extension)
     await this.#prepare()
     await this.#reinstall(context)
   }
@@ -226,11 +302,15 @@ export class Connectors {
     return found
   }
 
-  /** Add a connector and try to connect. `redirectUrl` is where a sign-in sends the user back. */
+  /**
+   * Add a connector and try to connect. `redirectUrl` is where a sign-in sends the user back.
+   * `askedIn` is the chat the agent added it from, where it is told how a sign-in went.
+   */
   async add(
     input: AddConnectorRequest,
     redirectUrl: string,
     context: Context,
+    askedIn?: string,
   ): Promise<ConnectorResult> {
     const name = input.name?.trim()
     if (!name || name.length > 60)
@@ -270,11 +350,19 @@ export class Connectors {
     await this.#saveSecrets(id, () =>
       token ? { headers: { authorization: `Bearer ${token}` } } : { redirectUrl },
     )
-    return this.connect(id, redirectUrl, context)
+    return this.connect(id, redirectUrl, context, askedIn)
   }
 
-  /** Connect, or reconnect, and refresh the tools. Says where to send the user if they must sign in. */
-  async connect(id: string, redirectUrl: string, context: Context): Promise<ConnectorResult> {
+  /**
+   * Connect, or reconnect, and refresh the tools. Says where to send the user if they must sign
+   * in. `askedIn` is the chat the agent did this from, which waits there for a sign-in.
+   */
+  async connect(
+    id: string,
+    redirectUrl: string,
+    context: Context,
+    askedIn?: string,
+  ): Promise<ConnectorResult> {
     const connector = await this.#get(id, context)
     this.#drop(id)
     await this.#saveSecrets(id, (secrets) =>
@@ -308,6 +396,9 @@ export class Connectors {
       if (record === undefined) return
       record.status = outcome.status
       record.error = outcome.error
+      // Someone is waited for only while there is a sign-in to wait for.
+      if (outcome.status !== "needs_auth") delete record.askedIn
+      else if (askedIn !== undefined) record.askedIn = askedIn
       record.tools = tools.map((tool) => ({
         name: tool.name,
         description: (tool.description ?? tool.title ?? "").slice(0, 300),
@@ -322,9 +413,19 @@ export class Connectors {
     return (await this.#secrets(id)).oauth?.oauthState
   }
 
-  /** Finish a sign-in with the code the service sent the user back with, then connect. */
-  async authorize(id: string, code: string, context: Context): Promise<ConnectorResult> {
+  /**
+   * Finish a sign-in with the code the service sent the user back with, then connect. Where the
+   * agent asked for the connector from a chat, it is told there how it went, and `chatId` and
+   * `turn` are that chat and the turn it is given.
+   */
+  async authorize(
+    id: string,
+    code: string,
+    context: Context,
+    by?: Caller,
+  ): Promise<ConnectorResult & { chatId?: string; turn?: Turn }> {
     const connector = await this.#get(id, context)
+    const askedIn = connector.askedIn
     const { redirectUrl } = await this.#secrets(id)
     if (redirectUrl === undefined)
       throw new ConnectorError("That connector is not waiting for a sign-in.")
@@ -342,7 +443,95 @@ export class Connectors {
         `The sign-in could not be completed: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
-    return this.connect(id, redirectUrl, context)
+    const result = await this.connect(id, redirectUrl, context)
+    if (askedIn === undefined) return result
+    const who = personOf(by)
+    const now = result.connector
+    const turn = await this.#tell(
+      askedIn,
+      `signed-in:${id}:${this.#options.now()}`,
+      {
+        name: now.name,
+        connected: now.status === "connected",
+        by: who,
+        text:
+          now.status === "connected"
+            ? `${who} signed in to the connector "${now.name}". It is connected and offers ${now.tools.length} tool${now.tools.length === 1 ? "" : "s"}${now.tools.length === 0 ? "" : `: ${toolsOf(now)}`}. They are yours to use from your next step.`
+            : `${who} signed in to the connector "${now.name}", but it is still not connected: ${now.error ?? "it wants another sign-in"}.`,
+        ...(now.status === "connected"
+          ? {}
+          : { problem: now.error ?? "It wants another sign-in." }),
+      },
+      context,
+    )
+    return { ...result, chatId: askedIn, ...(turn === undefined ? {} : { turn }) }
+  }
+
+  /**
+   * The person chose not to sign in to a connector the agent asked for. It stops being offered
+   * beside the chat, and the agent is told. Resolves with the turn it is given, if any.
+   */
+  async dismiss(id: string, context: Context, by?: Caller): Promise<Turn | undefined> {
+    const asked = await this.#require().commit(async (tx) => {
+      const record = own((await tx.doc(ConnectorsDoc)).connectors, id)
+      if (record === undefined) throw new ConnectorError("There is no such connector.")
+      const chatId = record.askedIn
+      delete record.askedIn
+      return chatId === undefined ? undefined : { chatId, name: record.name }
+    }, context)
+    if (asked === undefined) return undefined
+    const who = personOf(by)
+    return this.#tell(
+      asked.chatId,
+      `dismissed:${id}:${this.#options.now()}`,
+      {
+        name: asked.name,
+        connected: false,
+        by: who,
+        text: `${who} chose not to sign in to the connector "${asked.name}" for now. It stays added and is not connected. Do not ask again unless they bring it up; carry on without it.`,
+      },
+      context,
+    )
+  }
+
+  /** Say in a chat how a connector the agent asked for there got on, and give it a turn. */
+  async #tell(
+    chatId: string,
+    key: string,
+    told: { name: string; connected: boolean; by: string; text: string; problem?: string },
+    context: Context,
+  ): Promise<Turn | undefined> {
+    const harness = this.#require()
+    if (!/^\d+$/.test(chatId)) return undefined
+    const chat = own((await harness.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)
+    const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
+    if (chat === undefined || conversation === undefined) return undefined
+    await conversation.submit(
+      {
+        type: "write",
+        requestId: `connector-note:${key}`,
+        entry: {
+          kind: CONNECTOR_ENTRY,
+          model: [{ role: "user", content: `[${told.text}]`, timestamp: Date.now() }],
+          data: {
+            name: told.name,
+            connected: told.connected,
+            by: told.by,
+            ...(told.problem === undefined ? {} : { problem: told.problem }),
+          },
+        },
+      },
+      context,
+    )
+    return conversation.submit(
+      {
+        type: "input",
+        requestId: `connector-turn:${key}`,
+        content: [{ type: "text", text: NUDGE }],
+        whenBusy: "followUp",
+      },
+      context,
+    )
   }
 
   async setEnabled(id: string, enabled: boolean, context: Context): Promise<ConnectorSummary> {
@@ -382,6 +571,171 @@ export class Connectors {
       }
     }
     this.#options.install(defineExtension({ name: EXTENSION_NAME, tools }))
+  }
+
+  /** The tool the agent sees and changes its connectors with. */
+  #manage() {
+    return defineTool({
+      name: TOOL,
+      description:
+        "See and change your connectors: other services, reached as MCP servers, whose tools become yours. " +
+        'action "list" shows each one, how it is doing and the tools it gives you. "add" needs `name` (what to call it) and `url` (the address of its MCP server, which the person or its documentation gives you). ' +
+        "If the service has people sign in, a Sign in button appears for the person beside the chat, and you are told here once they have. If it is reached with an access token instead, pass `needs_token: true`: the person is asked to type it into a form, and you never see it. Never ask for a token in the chat. " +
+        '"reconnect" tries one again; "enable" and "disable" turn one on and off; "remove" deletes it. Each of those needs `name`, from the list.',
+      parameters: Type.Object({
+        action: Type.Union([
+          Type.Literal("list"),
+          Type.Literal("add"),
+          Type.Literal("reconnect"),
+          Type.Literal("enable"),
+          Type.Literal("disable"),
+          Type.Literal("remove"),
+        ]),
+        name: Type.Optional(Type.String({ description: "The connector: its name or id" })),
+        url: Type.Optional(Type.String({ description: "For add: the address of its MCP server" })),
+        needs_token: Type.Optional(
+          Type.Boolean({
+            description: "For add: the service is reached with an access token the person has",
+          }),
+        ),
+      }),
+      execute: async (args, api, context) => {
+        const reply = (text: string, connector?: ConnectorSummary) => ({
+          content: [{ type: "text" as const, text }],
+          ...(connector === undefined
+            ? {}
+            : {
+                details: {
+                  connectorId: connector.id,
+                  name: connector.name,
+                  status: connector.status,
+                },
+              }),
+        })
+        const connectors = await this.list(context)
+        if (args.action === "list") {
+          return reply(
+            connectors.length === 0
+              ? 'You have no connectors. "add" one from the address of its MCP server.'
+              : connectors
+                  .map(
+                    (connector) =>
+                      `- ${connector.name} (id ${connector.id}, ${connector.url}): ${stateOf(connector)}${
+                        connector.enabled &&
+                        connector.status === "connected" &&
+                        connector.tools.length > 0
+                          ? `. Tools: ${toolsOf(connector)}`
+                          : ""
+                      }`,
+                  )
+                  .join("\n"),
+          )
+        }
+        const chatId = String(api.conversationId)
+        const kind = own((await api.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind
+        if (kind !== "chat") {
+          return fail("Only a conversation with the user can change connectors.")
+        }
+        const wanted = (args.name ?? "").trim()
+        if (wanted === "") return fail(`"${args.action}" needs name.`)
+        try {
+          if (args.action === "add") {
+            const url = (args.url ?? "").trim()
+            if (url === "") return fail('"add" needs url, the address of the MCP server.')
+            if (args.needs_token === true) {
+              const ask = this.#options.askToken
+              if (ask === undefined) {
+                return fail(
+                  "A connector that needs an access token can only be added from the app, under Connectors.",
+                )
+              }
+              // Checked now, so that the person is not asked for a token that has nowhere to go.
+              try {
+                checkAddress(url, this.#options.allowPrivateHosts === true)
+              } catch (error) {
+                return fail(
+                  error instanceof BlockedAddressError ? error.message : `"${url}" is not a URL.`,
+                )
+              }
+              if (connectors.some((other) => slug(other.name) === slug(wanted))) {
+                return fail(`There is already a connector called "${wanted}".`)
+              }
+              const { fresh } = await ask({ chatId, name: wanted, url }, context)
+              return reply(
+                fresh
+                  ? `Asked the person for the access token of "${wanted}". A form is in front of them, above their message box; the connector is added once they fill it in, and you are told here. Do not wait for it or ask again, and do not ask them to paste the token into the chat.`
+                  : `You have already asked for the access token of "${wanted}", and the person has not answered yet. Do not ask again.`,
+              )
+            }
+            const redirectUrl = this.#options.redirectUrl?.()
+            if (redirectUrl === undefined) {
+              return fail(
+                "A connector cannot be added from here, because the address of the app is not known. The person can add it under Connectors.",
+              )
+            }
+            const { connector } = await this.add(
+              { name: wanted, url },
+              redirectUrl,
+              context,
+              chatId,
+            )
+            return reply(this.#outcome("Added", connector), connector)
+          }
+          const matches = connectors.filter(
+            (connector) =>
+              connector.id === wanted || connector.name.toLowerCase() === wanted.toLowerCase(),
+          )
+          if (matches.length !== 1) {
+            return fail(
+              connectors.length === 0
+                ? `There is no connector "${wanted}": you have none.`
+                : `There is no connector "${wanted}". You have: ${connectors.map((connector) => connector.name).join(", ")}.`,
+            )
+          }
+          const found = matches[0]!
+          switch (args.action) {
+            case "reconnect": {
+              const redirectUrl = this.#options.redirectUrl?.()
+              if (redirectUrl === undefined) {
+                return fail(
+                  "A connector cannot be reconnected from here, because the address of the app is not known. The person can do it under Connectors.",
+                )
+              }
+              const { connector } = await this.connect(found.id, redirectUrl, context, chatId)
+              return reply(this.#outcome("Tried", connector), connector)
+            }
+            case "enable":
+            case "disable": {
+              const connector = await this.setEnabled(found.id, args.action === "enable", context)
+              return reply(
+                args.action === "enable"
+                  ? `Turned on "${connector.name}": ${stateOf(connector)}.`
+                  : `Turned off "${connector.name}". Its tools are no longer yours until it is turned on again.`,
+                connector,
+              )
+            }
+            case "remove":
+              await this.remove(found.id, context)
+              return reply(`Removed the connector "${found.name}", and its tools with it.`)
+          }
+        } catch (error) {
+          if (error instanceof ConnectorError) return fail(error.message)
+          throw error
+        }
+      },
+    })
+  }
+
+  /** What to tell the agent about a connector it has just added or tried again. */
+  #outcome(did: "Added" | "Tried", connector: ConnectorSummary): string {
+    const lead = did === "Added" ? `Added the connector "${connector.name}"` : `"${connector.name}"`
+    if (connector.status === "connected") {
+      return `${lead}${did === "Added" ? ". It" : ""} is connected and offers ${connector.tools.length} tool${connector.tools.length === 1 ? "" : "s"}${connector.tools.length === 0 ? "" : `: ${toolsOf(connector)}`}. They are yours to use from your next step.`
+    }
+    if (connector.status === "needs_auth") {
+      return `${lead}${did === "Added" ? ". It" : ""} needs the person to sign in to the service. A Sign in button is in front of them, above their message box. You will be told here once they have, which may take a while: do not wait for it or try again. Tell them in a sentence what you added and why.`
+    }
+    return `${lead}${did === "Added" ? ", but it" : ""} could not be connected: ${connector.error ?? "it did not answer"}. If the address is wrong, remove it and add it again with the right one. If it needs an access token, remove it and add it again with needs_token.`
   }
 
   #tool(connector: ConnectorSummary, tool: McpTool): ToolRegistration {

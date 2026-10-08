@@ -42,6 +42,8 @@ export type ComputerRow = {
   machine_key: string | null
   /** `open` or `chosen`. Only a machine is ever open. */
   access: string
+  /** The agent that added it, where one did. Null or absent where a person did. */
+  added_by_agent?: string | null
 }
 
 /** Whether a computer is a machine the app made, as opposed to one somebody paired. */

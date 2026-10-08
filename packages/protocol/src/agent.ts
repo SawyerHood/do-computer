@@ -109,6 +109,7 @@ export type AgentEvent =
         | "approvals"
         | "library"
         | "memory"
+        | "secrets"
     }
 
 export type ModelOption = {
@@ -178,6 +179,11 @@ export type ConnectorSummary = {
   /** The tools it offers, as the agent sees them. */
   tools: { name: string; description: string }[]
   addedAt: number
+  /**
+   * The chat the agent added or reconnected it from, while it waits there for someone to sign
+   * in. The app offers the sign-in beside that chat, and the agent is told there how it went.
+   */
+  askedIn?: string
 }
 
 export type AddConnectorRequest = {
@@ -268,6 +274,8 @@ export type UpdateScheduleRequest = {
   title?: string
   prompt?: string
   schedule?: string
+  /** IANA timezone a cron expression is read in. */
+  timezone?: string
   enabled?: boolean
 }
 
@@ -357,6 +365,8 @@ export type ApprovalRequest = {
   /** The specifics: the command, the file, the arguments. */
   detail: string
   createdAt: number
+  /** It is asked about every time: "always" is not an answer that can be given. */
+  onceOnly?: boolean
 }
 
 export type ApprovalDecision = "once" | "always" | "deny"
@@ -367,6 +377,42 @@ export type ApprovalsState = {
   subjects: ApprovalSubject[]
   pending: ApprovalRequest[]
 }
+
+/** One secret an agent asked for: the name it is saved under, and what it is. */
+export type SecretField = {
+  /** The variable it is saved as, such as `OPENAI_API_KEY`. */
+  name: string
+  /** What it is, for whoever is asked to type it. */
+  description: string | null
+}
+
+/**
+ * Something secret the agent asked a person to type: an API key, a password, a token. The app
+ * shows a form above the message box. What is typed goes to where it is kept and nowhere else:
+ * it is never part of a chat, and the agent is told only that it was saved.
+ */
+export type SecretRequest = {
+  id: string
+  /** The chat the agent asked from. */
+  chatId: string
+  /** What the secrets are for, in the agent's words. */
+  purpose: string | null
+  fields: SecretField[]
+  /** Where they are saved: a dotenv file on a computer, or the access token of a connector. */
+  destination:
+    | { kind: "dotenv"; computer: string; path: string }
+    | { kind: "connector"; name: string; url: string }
+  createdAt: number
+}
+
+/** How large one secret can be, in characters. */
+export const MAX_SECRET_CHARS = 16 * 1024
+
+/** What a secret can be saved under: the name of an environment variable. */
+export const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/
+
+/** The answer to a request for secrets: a value for every field. */
+export type AnswerSecretRequest = { values: Record<string, string> }
 
 /** One kind of computer an agent can work on, as a deployment offers it. */
 export type ComputerKind = {

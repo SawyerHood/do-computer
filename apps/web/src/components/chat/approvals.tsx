@@ -69,14 +69,16 @@ function RequestCard({
         <Button size="sm" disabled={answer.isPending} onClick={() => answer.mutate("once")}>
           Allow once
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={answer.isPending}
-          onClick={() => answer.mutate("always")}
-        >
-          Always allow
-        </Button>
+        {request.onceOnly ? null : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={answer.isPending}
+            onClick={() => answer.mutate("always")}
+          >
+            Always allow
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"

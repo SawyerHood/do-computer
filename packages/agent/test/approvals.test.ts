@@ -113,6 +113,14 @@ async function setup(world: World): Promise<ChatSummary> {
 }
 
 type ToolArguments = Record<string, string | number | { oldText: string; newText: string }[]>
+/** The abilities that ask until someone says otherwise, as the rules report them. */
+const ASKS = {
+  "tool:machines": "ask",
+  "tool:connectors_change": "ask",
+  "tool:settings_change": "ask",
+  "tool:agents_create": "ask",
+} as const
+
 const useTool = (name: string, args: ToolArguments, then = "Done.") => [
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
   fauxAssistantMessage(then),
@@ -127,7 +135,7 @@ describe("approval rules", () => {
     const world = open()
     const chat = await setup(world)
     const initial = await call<ApprovalsState>(world, "/approvals")
-    expect(initial.rules).toEqual({})
+    expect(initial.rules).toEqual(ASKS)
     expect(initial.pending).toEqual([])
     expect(initial.subjects.map((subject) => subject.id)).toContain("tool:bash")
 
@@ -205,6 +213,7 @@ describe("approval rules", () => {
     await settled(world, chat.id)
     // Only the rule that asked is lifted.
     expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual({
+      ...ASKS,
       "tool:schedule": "ask",
     })
 
@@ -328,7 +337,7 @@ describe("approval rules", () => {
     world.faux.setResponses(useTool("bash", { command: "touch made.txt" }))
     await call(world, `/approvals/${state.pending[0]!.id}`, "POST", { decision: "always" })
     await settled(world, chat.id)
-    expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual({})
+    expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual(ASKS)
   })
 
   it("reject rules for things that cannot have one", async () => {
@@ -343,7 +352,7 @@ describe("approval rules", () => {
     expect(
       (await call<ApprovalsState>(world, "/approvals/rules", "PATCH", { "tool:bash": "allow" }))
         .rules,
-    ).toEqual({})
+    ).toEqual(ASKS)
   })
 
   it("tell open clients when a request appears", async () => {

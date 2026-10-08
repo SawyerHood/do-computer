@@ -23,13 +23,27 @@ export type NoticePart = {
    * `schedule` heads the report of a scheduled task; its text is the task's title. `subagent` is
    * word from a sub-agent; its text is the sub-agent's title. `computer` is the answer to the
    * agent's asking to use a computer; its text is the computer's name. `agent` is another
-   * agent's reply to a message; its text is that agent's name.
+   * agent's reply to a message; its text is that agent's name. `secret` is the answer to the
+   * agent's asking for secrets; its text is where they were to be saved. `connector` is how a
+   * sign-in the agent asked for went; its text is the connector's name.
    */
-  kind: "reset" | "compaction" | "error" | "schedule" | "subagent" | "computer" | "agent"
+  kind:
+    | "reset"
+    | "compaction"
+    | "error"
+    | "schedule"
+    | "subagent"
+    | "computer"
+    | "agent"
+    | "secret"
+    | "connector"
   text: string
-  /** For `computer`: whether the agent was let in. */
+  /**
+   * For `computer`: whether the agent was let in. For `secret`: whether they were saved. For
+   * `connector`: whether it is connected now.
+   */
   approved?: boolean
-  /** For `computer`: who answered. */
+  /** For `computer`, `secret` and `connector`: who answered. */
   by?: string
   /** For `subagent`: the sub-agent's own chat. For `agent`: the conversation on the other agent. */
   chatId?: string
@@ -37,7 +51,10 @@ export type NoticePart = {
   agentId?: string
   /** For `subagent` and `agent`: what the word is. */
   outcome?: "reported" | "failed" | "stopped"
-  /** For `subagent` and `agent`: what it reported, or why it failed. */
+  /**
+   * For `subagent` and `agent`: what it reported, or why it failed. For `secret`: the names that
+   * were asked for, never their values. For `connector`: what went wrong, if something did.
+   */
   detail?: string
 }
 

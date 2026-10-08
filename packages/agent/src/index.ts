@@ -2,7 +2,9 @@ export {
   AgentActor,
   type AgentActorOptions,
   type AgentNotification,
+  APP_ORIGIN_HEADER,
   type ComputerChoices,
+  CONNECTOR_CALLBACK_PATH,
   CONNECTOR_REDIRECT_HEADER,
   createAgentActor,
 } from "./actor.ts"
@@ -27,6 +29,7 @@ export {
 export { Library, LIBRARY_FOLDER, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 export { createLibraryActor, LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 export {
+  type AddableKind,
   type AgentComputer,
   type ComputerAnswer,
   computerActorName,
@@ -45,3 +48,5 @@ export { parseFrontmatter, renderSkill, SkillError, validateSkill } from "./skil
 export { Skills } from "./skills.ts"
 export { projectChat } from "./project.ts"
 export { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
+export { DotenvError, reconcileDotenv } from "./dotenv.ts"
+export { SecretError, Secrets } from "./secrets.ts"

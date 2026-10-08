@@ -17,6 +17,8 @@ import {
   CaretRightIcon,
   ClockIcon,
   DesktopIcon,
+  KeyIcon,
+  PlugsConnectedIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useContext, useEffect, useState } from "react"
@@ -205,6 +207,42 @@ function MessageView({
           <span>
             {part.by ?? "Someone"} {part.approved ? "said yes to" : "said no to"} using{" "}
             <span className="font-mono font-medium text-foreground">{part.text}</span>
+          </span>
+        </div>
+      )
+    }
+    if (part?.type === "notice" && part.kind === "secret") {
+      // The answer to the agent's asking for secrets: which, and where they went. Never what.
+      return (
+        <div className="flex items-center gap-2 border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
+          <KeyIcon className="size-4 shrink-0" />
+          <span className="min-w-0 wrap-anywhere">
+            {part.by ?? "Someone"} {part.approved ? "gave" : "chose not to give"}{" "}
+            <span className="font-mono font-medium text-foreground">{part.detail}</span>
+            {part.approved && part.text !== "" ? (
+              <>
+                , saved to <span className="font-mono">{part.text}</span>
+              </>
+            ) : null}
+            {part.approved ? null : part.text === "" ? null : (
+              <>
+                {" "}
+                for <span className="font-mono">{part.text}</span>
+              </>
+            )}
+          </span>
+        </div>
+      )
+    }
+    if (part?.type === "notice" && part.kind === "connector") {
+      // How a sign-in to a connector the agent asked for went.
+      return (
+        <div className="flex items-center gap-2 border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
+          <PlugsConnectedIcon className="size-4 shrink-0" />
+          <span className="min-w-0 wrap-anywhere">
+            {part.by ?? "Someone"} {part.approved ? "connected" : "did not connect"}{" "}
+            <span className="font-medium text-foreground">{part.text}</span>
+            {part.detail ? `: ${part.detail}` : null}
           </span>
         </div>
       )
