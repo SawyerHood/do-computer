@@ -340,6 +340,30 @@ describe("approval rules", () => {
     expect((await call<ApprovalsState>(world, "/approvals")).rules).toEqual(ASKS)
   })
 
+  it("asks about an automation's check as it asks about a command", async () => {
+    const world = open()
+    const chat = await setup(world)
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
+    // An automation that runs no command of its own is not a command.
+    world.faux.setResponses(
+      useTool("schedule", { action: "create", schedule: "every 6h", prompt: "Stretch." }),
+    )
+    expect(tools(await say(world, chat.id, "remind me")).at(-1)).toMatchObject({ status: "done" })
+    world.faux.setResponses(
+      useTool(
+        "schedule",
+        { action: "create", schedule: "every 6h", prompt: "Report.", check: "cat inbox.txt" },
+        "May I?",
+      ),
+    )
+    expect(tools(await say(world, chat.id, "watch my inbox")).at(-1)).toMatchObject({
+      status: "error",
+    })
+    const state = await call<ApprovalsState>(world, "/approvals")
+    expect(state.pending).toMatchObject([{ title: "Create or change an automation" }])
+    expect(state.pending[0]!.detail).toContain("cat inbox.txt")
+  })
+
   it("reject rules for things that cannot have one", async () => {
     const world = open()
     await setup(world)
