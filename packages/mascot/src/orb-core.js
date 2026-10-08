@@ -19,6 +19,9 @@
    orb.pet(x, amount)                   a hand on it: x from -1 (its left edge) to 1, amount 0..1 of a pat
    orb.setPointer(clientX, clientY)     point its attention there (null lets go);
                                         orb.attend(x, y, strength) is the raw, DOM-free form
+   orb.offer(true | false)              a treat is held out to it: it opens its mouth for it, until told otherwise
+   orb.bite()                           it takes a bite of what it was offered
+   orb.cheer()                          a pleased little hop, whatever it is doing
    orb.hatch({ onDone })                play the hatch; orb.skipHatch() jumps to its end
    orb.paused = true                    stop updating and drawing this one;
                                         Runner.stop() / Runner.start() pause and resume all of them
@@ -26,6 +29,9 @@
    orb.resize(size)                     new css size (or re-measure the canvas)
    orb.dispose()                        remove it and free its materials
    orb.onAuto = fn(state)               called when it changes state by itself (done -> idle, hatch -> idle)
+   orb.hidden = true                    draw its scene without it: for something else shown on its stage
+   orb.worn                             null, or what it has on (see wardrobe.js): { tick(dt, t), fit(), dispose() },
+                                        called after each update, after its size or seed changes, and when it goes
 
    Where the core touches the page (all guarded, nothing at load time):
      Stage.get      lets THREE.WebGLRenderer create its own canvas, unless Stage.provide(key, renderer)
@@ -975,6 +981,8 @@ function Orb(canvas, opts) {
   this.state = 'idle'; this.variant = 'command';
   this.stateT = 0;
   this.onAuto = null;
+  this.hidden = false;
+  this.worn = null;
   this.visible = true;
   this.pending = 0;
   this.w = {}; this.wv = {}; this.p = {}; this.e = {};
@@ -1005,6 +1013,8 @@ function Orb(canvas, opts) {
   // egg and hatching
   this.eggMode = 'none'; this.hatchT = 0; this.hatchDur = 5.3; this.hatchPh = 0; this.onHatched = null;
   this.born = 1; this.bornY = 0; this.joy = 0; this.petK = 0; this.petX = 0; this.eggWait = 1.5; this.eggYc = 0;
+  // eating: how wide its mouth is held open for a treat, where that is heading, and the snap of a bite
+  this.gape = 0; this.gapeTo = 0; this.chew = 0;
   this.E = { roll: 0, squash: 0, crack: 0, burst: 0, fade: 1, jolt: 0, rockT: 9, rockA: 0 };
   this.eo = { use: false, close: 0, up: 0, gx: 0, gy: 0, fade: 1 };
   this.text = { x: 0.1, y: -0.7 };
@@ -1250,6 +1260,8 @@ Orb.prototype._lod = function () {
   else { ue.uPat.value.set(0, 0, 0, 1); ue.uPatP.value.set(3.4, 3, 1, 1); ue.uEggM.value.set(px >= 28 ? 1 : 0, 0.82); }
   b.uDetail.value = this.detail;
   this.uP.uPx.value = px * 0.5;
+  // what it wears was fitted to the body it had
+  if (this.worn) this.worn.fit();
 };
 
 Orb.prototype.resize = function (size) {
@@ -1301,7 +1313,7 @@ Orb.prototype.setState = function (state, variant) {
 Orb.prototype._calm = function () {
   this.state = 'idle'; this.stateT = 0;
   for (var i = 0; i < STATES.length; i++) this.w[STATES[i]] = STATES[i] === 'idle' ? 1 : 0;
-  this.flash = 0; this.swell = 0; this.gulp = 0; this.tick = 0;
+  this.flash = 0; this.swell = 0; this.gulp = 0; this.tick = 0; this.gapeTo = 0; this.chew = 0;
 };
 Orb.prototype._endEgg = function (tell) {
   var was = this.eggMode;
@@ -1422,6 +1434,21 @@ Orb.prototype.pet = function (x, amount) {
   this.petX = x;
 };
 
+// A treat is held out to it, or taken away again: its mouth opens for it and stays open. An egg has no mouth.
+Orb.prototype.offer = function (on) { this.gapeTo = on && this.eggMode === 'none' ? 1 : 0; };
+// It takes a bite: the mouth snaps wide and shut, and the whole of it bobs with the effort.
+Orb.prototype.bite = function () {
+  if (this.eggMode !== 'none') return;
+  this.gapeTo = 0; this.chew = 1;
+  if (!this.reduced) this.sp.squash.v -= 1.1;
+};
+// A pleased little hop with its eyes shut, whatever else it is doing.
+Orb.prototype.cheer = function () {
+  if (this.eggMode !== 'none') return;
+  this.joy = 1;
+  if (!this.reduced) { this.sp.lift.v += this.retro ? 1.35 : 1; this.sp.squash.v += 1.2; }
+};
+
 // Point its attention at a place on screen (client coordinates); it lets go by itself after a moment. null lets go now.
 Orb.prototype.setPointer = function (x, y) {
   if (x == null) { this.ptr.t = -1e9; this.attn.target = 0; return; }
@@ -1474,6 +1501,8 @@ Orb.prototype.update = function (dt) {
   // --- impulses decay ---
   this.flash *= decay(dt, 0.42); this.tick *= decay(dt, this.reduced ? 0.24 : 0.10); this.swell *= decay(dt, 0.55); this.gulp *= decay(dt, 0.30);
   this.flowBoost *= decay(dt, 1.1); this.keyPulse *= decay(dt, 0.13); this.nod *= decay(dt, 0.22); this.joy *= decay(dt, 0.45); this.petK *= decay(dt, 0.6);
+  this.chew *= decay(dt, 0.1); this.gape += (this.gapeTo - this.gape) * (1 - decay(dt, 0.07));
+  var agape = Math.max(this.gape, this.chew);
   var pet = smooth(0.08, 0.6, this.petK);
 
   // --- breathing ---
@@ -1740,7 +1769,7 @@ Orb.prototype.update = function (dt) {
   b.uAccP.value.set(cmdStep, fileX, this.cmdCycle % 97, this.tick);
 
   // --- the face ---
-  var upv = e.up + eo.up + voice * 0.12 + this.keyPulse * 0.04 * w.listening + this.swell * 0.08 * w.waiting + aSearch * 0.2 - aMem * 0.12;
+  var upv = e.up + eo.up + voice * 0.12 + this.keyPulse * 0.04 * w.listening + this.swell * 0.08 * w.waiting + aSearch * 0.2 - aMem * 0.12 + this.gape * 0.14;
   var esz = this.eyeScale * (1 + 0.10 * Math.max(0, upv - 1));
   var eA = g.eyeSize * esz, eB = eA * g.eyeAspect;
   b.uEye.value.set(Math.max(g.eyeSize + g.eyeGap, eA + (R ? 1.1 * (2 / this.px) / S : 0.035)), g.eyeY, eA, eB);
@@ -1769,8 +1798,9 @@ Orb.prototype.update = function (dt) {
   b.uPup.value.set(px, py, pz, cursor);
   b.uEyeK.value.set(lerp(R ? 0.16 : 0.24, R ? 0.075 : 0.065, this.detail), R ? smooth(0.2, 0.6, this.detail) * 0.95 : 0.92, g.eyeHi2 && this.detail > 0.4 ? 1 : 0, (this.cmd % 1) < 0.55 ? 1 : 0.2);
   if (R) {
-    var mW = 0.085 * g.mouthW * e.mw * lerp(1.3, 1, this.detail);
-    var mO = clamp(e.mo + voice * 0.95 + this.flash * 0.25, 0, 1.2);
+    // a mouth held open for a treat is wider as well as taller
+    var mW = 0.085 * g.mouthW * e.mw * lerp(1.3, 1, this.detail) * (1 + 0.9 * agape);
+    var mO = clamp(e.mo + voice * 0.95 + this.flash * 0.25 + agape * 1.15, 0, 1.6);
     b.uMouth.value.set(g.eyeY - eB - lerp(0.20, 0.15, this.detail), mW * (1 + 0.25 * pet), mO * 0.75, lerp(e.mc, 0.9, pet) + dizzy * 0.25 * Math.sin(t * 13));
     b.uMouthK.value.set(1, w.thinking * g.side * 0.05 + sp.ex.x * 0.03, lerp(0.34, 0.2, this.detail));
   } else b.uMouthK.value.set(0, 0, 0.2);
@@ -1815,10 +1845,12 @@ Orb.prototype.update = function (dt) {
 
   // --- the egg: it sits on the shadow, rocks about its base, and has the stage until the blob is out ---
   var out = this.born > 0, E = this.E, eg = this.eggMesh;
-  this.body.visible = out;
-  this.ring.visible = this.showRing && out && eo.fade > 0.99;
-  this.points.visible = this.showPoints && out && eo.fade > 0.99;
-  eg.visible = this.eggMode !== 'none' && E.fade > 0.01 && E.burst < 1.3;
+  this.body.visible = out && !this.hidden;
+  this.halo.visible = !this.hidden;
+  this.ring.visible = this.showRing && out && eo.fade > 0.99 && !this.hidden;
+  this.points.visible = this.showPoints && out && eo.fade > 0.99 && !this.hidden;
+  eg.visible = this.eggMode !== 'none' && E.fade > 0.01 && E.burst < 1.3 && !this.hidden;
+  if (this.worn) this.worn.tick(dt, t);
   if (eg.visible) {
     var ue = this.uE, es = ue.uEggS.value, Se = this.fill * 0.92;
     var qy = 1 + E.squash, qx = 1 / Math.sqrt(qy), hE = Se * es.y * qy;
@@ -1840,6 +1872,7 @@ Orb.prototype.update = function (dt) {
 
 Orb.prototype.render = function () { Stage.draw(this); };
 Orb.prototype.dispose = function () {
+  if (this.worn) { this.worn.dispose(); this.worn = null; }
   Runner.remove(this);
   this.halo.material.dispose(); this.body.material.dispose(); this.eggMesh.material.dispose(); this.ring.material.dispose(); this.points.material.dispose();
   Stage.sweep(Runner.orbs);

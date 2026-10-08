@@ -56,7 +56,7 @@ function BotPicture({ agent, name }: { agent: AgentSummary; name: string }) {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "") || "agent"
-      download(await agentPicture(agent.avatar, agent.id), `${file}.png`)
+      download(await agentPicture(agent.avatar, agent.id, agent.outfit), `${file}.png`)
     },
   })
   return (

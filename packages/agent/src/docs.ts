@@ -1,9 +1,11 @@
-import type {
-  Avatar,
-  ChatKind,
-  ScheduleCheck,
-  SubagentStatus,
-  ThinkingLevel,
+import {
+  type Avatar,
+  type ChatKind,
+  type CreatureState,
+  NEW_CREATURE,
+  type ScheduleCheck,
+  type SubagentStatus,
+  type ThinkingLevel,
 } from "@durable-computer/protocol"
 import { defineDoc } from "@earendil-works/pi-durable"
 
@@ -75,6 +77,18 @@ export const IdentityDoc = defineDoc<IdentityState>({
     createdAt: 0,
     timezone: null,
   }),
+})
+
+/**
+ * What the agent's creature has been given and has on: its treats, its boxes, and the things to
+ * wear that came out of them. Apart from who the agent is, since none of it is the agent's to
+ * know or to change.
+ */
+export const CreatureDoc = defineDoc<CreatureState>({
+  kind: "dc.creature",
+  version: 1,
+  scope: "session",
+  initial: () => ({ ...NEW_CREATURE, owned: [], outfit: {} }),
 })
 
 /** What is kept about a sub-agent, on its chat. */

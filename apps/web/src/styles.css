@@ -372,3 +372,99 @@
     animation: none;
   }
 }
+
+/* The creature's treats and its box: in steps, as the creature itself moves. */
+.creature-pile {
+  animation: creature-land 0.35s steps(4, end);
+}
+@keyframes creature-land {
+  40% {
+    transform: scale(1.22);
+  }
+}
+.creature-fill {
+  transition: height 0.4s steps(5, end);
+}
+.creature-box-ready {
+  animation: creature-hop 0.9s steps(4, end) infinite;
+}
+@keyframes creature-hop {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+.creature-twinkle {
+  animation: creature-twinkle 1.1s steps(3, end) infinite;
+}
+@keyframes creature-twinkle {
+  50% {
+    opacity: 0.15;
+    transform: scale(0.6);
+  }
+}
+.creature-treat {
+  filter: drop-shadow(0 3px 0 rgb(0 0 0 / 0.25));
+}
+.creature-treat-eaten {
+  transition:
+    left 0.2s ease-out,
+    top 0.2s ease-out,
+    transform 0.1s;
+}
+.creature-crumb {
+  animation: creature-crumb 0.55s ease-out forwards;
+}
+@keyframes creature-crumb {
+  to {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy));
+  }
+}
+/* The light behind a box that has been opened, in the color of what was in it. */
+.creature-glow {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--tier) 34%, transparent),
+    transparent 72%
+  );
+  animation: creature-glow 0.5s steps(5, end);
+}
+@keyframes creature-glow {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+/* The instant a box bursts. */
+.creature-flash {
+  background: radial-gradient(closest-side, #fff, transparent 70%);
+  animation: creature-flash 0.4s steps(6, end) forwards;
+  pointer-events: none;
+}
+@keyframes creature-flash {
+  from {
+    opacity: 0.95;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creature-flash {
+    display: none;
+  }
+  .creature-pile,
+  .creature-box-ready,
+  .creature-twinkle,
+  .creature-glow {
+    animation: none;
+  }
+  .creature-fill,
+  .creature-treat-eaten {
+    transition: none;
+  }
+}

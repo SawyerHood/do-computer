@@ -1,11 +1,18 @@
 import {
   AgentOrbCore,
+  AgentOrbWardrobe,
   type MascotCore,
   type MascotState,
   type MascotVariant,
   type Orb,
+  type Wardrobe,
 } from "@durable-computer/mascot"
-import { type Avatar as AvatarSpec, avatarLook, avatarSvg } from "@durable-computer/protocol"
+import {
+  type Avatar as AvatarSpec,
+  avatarLook,
+  avatarSvg,
+  type Outfit,
+} from "@durable-computer/protocol"
 import { type ExpoWebGLRenderingContext, GLView } from "expo-gl"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AccessibilityInfo, PixelRatio, useColorScheme, View } from "react-native"
@@ -24,12 +31,15 @@ const FRAME_MS = 1000 / 30
 const POSE_FRAMES = 12
 
 let core: MascotCore | null | undefined
+/** What a creature can wear. Built with the drawing code, and absent where that could not be. */
+let wardrobe: Wardrobe | undefined
 
 /** The creature's drawing code, built once. Null if this device cannot run it. */
 function mascots(): MascotCore | null {
   if (core === undefined) {
     try {
       core = AgentOrbCore(THREE)
+      wardrobe = AgentOrbWardrobe(THREE, core)
     } catch {
       core = null
     }
@@ -70,6 +80,7 @@ function canvasFor(gl: ExpoWebGLRenderingContext) {
 export function Avatar({
   avatar,
   seed,
+  outfit,
   size = 36,
   mood = IDLE,
   hatched = true,
@@ -80,6 +91,8 @@ export function Avatar({
   avatar: AvatarSpec | null | undefined
   /** The agent's id: what the creature grows from unless it was given a seed of its own. */
   seed: string
+  /** What it has on. The picture that stands in for it wears nothing. */
+  outfit?: Outfit | null
   size?: number
   mood?: Mood
   /** False while it is still in its egg. */
@@ -237,6 +250,11 @@ export function Avatar({
     orb?.setColor(look.color)
   }, [orb, look])
   useEffect(() => orb?.setTheme(dark), [orb, dark])
+  // Named by what it is and not by which object says so, since each answer brings a new object.
+  const wearing = JSON.stringify(outfit ?? {})
+  useEffect(() => {
+    if (orb) wardrobe?.dress(orb, JSON.parse(wearing) as Outfit)
+  }, [orb, wearing])
 
   useEffect(() => {
     if (orb === undefined) return
@@ -258,7 +276,7 @@ export function Avatar({
 
   // A picture of it is drawn again when what it shows has changed, or when it may move again.
   // biome-ignore lint/correctness/useExhaustiveDependencies: these are what a picture shows
-  useEffect(() => wake.current?.(), [orb, still, look, hatched, dark])
+  useEffect(() => wake.current?.(), [orb, still, look, hatched, dark, wearing])
 
   const spill = (size * (SPILL - 1)) / 2
   return (

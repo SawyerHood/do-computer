@@ -194,6 +194,10 @@ answering or someone stops the conversation.
   at a command or a file or a search, speaking as its answer arrives, and dozing when nothing
   has happened for a while. `pnpm --filter @durable-computer/mascot demo` builds a page for
   trying every state and look.
+- **Be looked after, a little.** The creature earns a treat each time its agent answers you.
+  Give it a few and it finds a box; inside is one of a hundred things to wear, from common to
+  legendary, which it then wears wherever it is shown. It changes nothing about what the agent
+  can do.
 - **Think with the model you choose.** Each agent can be set to any OpenRouter model that can
   call tools (about 400), from a searchable list on its page, and Settings holds the default your
   new agents start on.
@@ -406,7 +410,8 @@ pnpm mobile              # Expo dev server; open in a development build
 Push notifications and the microphone need a development build, not Expo Go. The app's screens
 are tested through its web build; they have not yet been run on a device from this repository.
 That includes the agent's creature, which is drawn with `expo-gl`: on a device that cannot run
-it, a still picture is shown instead.
+it, a still picture is shown instead. There it wears what it was dressed in on the web; its treats, boxes
+and wardrobe are not in the mobile app yet.
 
 ## Development
 

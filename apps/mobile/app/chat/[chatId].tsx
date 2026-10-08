@@ -58,6 +58,7 @@ function Welcome({ agent }: { agent: AgentSummary }) {
     <Avatar
       avatar={agent.avatar}
       seed={agent.id}
+      outfit={agent.outfit}
       size={176}
       hatched={phase === "out"}
       hatching={phase === "hatching"}
@@ -155,6 +156,7 @@ function Chat({ agentId, chatId }: { agentId: string; chatId: string }) {
           <Avatar
             avatar={agent.avatar}
             seed={agent.id}
+            outfit={agent.outfit}
             size={36}
             mood={mood}
             hatched={agent.hatched}

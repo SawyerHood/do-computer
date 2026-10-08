@@ -1,4 +1,11 @@
-import type { MascotCore, MascotState, MascotVariant, Orb } from "@durable-computer/mascot"
+import type {
+  MascotCore,
+  MascotState,
+  MascotVariant,
+  Orb,
+  Wardrobe,
+} from "@durable-computer/mascot"
+import type { Outfit } from "@durable-computer/protocol"
 import { atom } from "jotai"
 
 /** What an agent's creature is doing right now. */
@@ -19,6 +26,8 @@ export function mascotMoodAtom(agentId: string) {
 }
 
 let loading: Promise<MascotCore | null> | undefined
+/** What a creature can wear, and the box a new thing comes in. Here once the drawing code is. */
+let wardrobe: Wardrobe | undefined
 
 /**
  * The creature's drawing code with three.js, fetched once, when the first one is about to be
@@ -27,13 +36,14 @@ let loading: Promise<MascotCore | null> | undefined
 export function loadMascot(): Promise<MascotCore | null> {
   loading ??= (async () => {
     try {
-      const [three, { AgentOrbCore }] = await Promise.all([
+      const [three, { AgentOrbCore, AgentOrbWardrobe }] = await Promise.all([
         import("three"),
         import("@durable-computer/mascot"),
       ])
       const core = AgentOrbCore(three)
       // No WebGL here, or none to spare.
       if (core.Stage.get("px") === null) return null
+      wardrobe = AgentOrbWardrobe(three, core)
       follow(core)
       return core
     } catch {
@@ -41,6 +51,14 @@ export function loadMascot(): Promise<MascotCore | null> {
     }
   })()
   return loading
+}
+
+/** The wardrobe that goes with the drawing code, once `loadMascot` has answered with it. */
+export const mascotWardrobe = (): Wardrobe | undefined => wardrobe
+
+/** Put on a creature what its agent has on, in place of whatever it wore. */
+export function dressMascot(orb: Orb, outfit: Outfit | null | undefined): void {
+  wardrobe?.dress(orb, outfit)
 }
 
 /** Things every creature on the page reacts to: the pointer, the theme, and a wish for less motion. */
@@ -94,5 +112,24 @@ export function feedMascot(agentId: string, kind: "token" | "key"): void {
 export function petMascot(agentId: string, x: number, amount?: number): void {
   for (const orb of shown.get(agentId) ?? []) {
     if (!orb.paused) orb.pet(x, amount)
+  }
+}
+
+/** A treat is held out to the agent's creature, or taken away: it opens its mouth for it. */
+export function offerMascot(agentId: string, on: boolean): void {
+  for (const orb of shown.get(agentId) ?? []) orb.offer(on)
+}
+
+/** The agent's creature takes a bite of what it was offered. */
+export function biteMascot(agentId: string): void {
+  for (const orb of shown.get(agentId) ?? []) {
+    if (!orb.paused) orb.bite()
+  }
+}
+
+/** The agent's creature is pleased: a little hop, whatever it is doing. */
+export function cheerMascot(agentId: string): void {
+  for (const orb of shown.get(agentId) ?? []) {
+    if (!orb.paused) orb.cheer()
   }
 }

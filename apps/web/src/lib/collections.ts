@@ -14,6 +14,7 @@ export const computersKey = ["computers"] as const
 /** Under the computers' key, so that whatever refreshes those refreshes these. */
 export const computerRequestsKey = ["computers", "requests"] as const
 export const usageKey = (agentId: string) => ["agents", agentId, "usage"] as const
+export const creatureKey = (agentId: string) => ["agents", agentId, "creature"] as const
 export const modelsKey = ["models"] as const
 export const settingsKey = ["settings"] as const
 export const computerKindsKey = ["computer-kinds"] as const
@@ -43,6 +44,13 @@ export const meQuery = queryOptions({
 /** One agent's state: what it is, and its chats. */
 export const agentQuery = (agentId: string) =>
   queryOptions({ queryKey: agentKey(agentId), queryFn: () => client.agent(agentId).state() })
+
+/** What an agent's creature has been given and has on. */
+export const creatureQuery = (agentId: string) =>
+  queryOptions({
+    queryKey: creatureKey(agentId),
+    queryFn: () => client.agent(agentId).creature(),
+  })
 
 export const agentsQuery = queryOptions({ queryKey: agentsKey, queryFn: () => client.listAgents() })
 
@@ -136,6 +144,12 @@ export function refreshAgent(agentId: string, what: string): void {
   if (what === "computers") {
     void queryClient.invalidateQueries({ queryKey: computersKey })
     void queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
+    return
+  }
+  if (what === "creature") {
+    void queryClient.invalidateQueries({ queryKey: creatureKey(agentId) })
+    // What it has on is part of what every drawing of the agent is given.
+    void queryClient.invalidateQueries({ queryKey: agentsKey, exact: true })
     return
   }
   if (what === "skills") {

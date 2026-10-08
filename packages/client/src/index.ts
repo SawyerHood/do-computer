@@ -23,6 +23,7 @@ import {
   type ConnectSlackRequest,
   type CreateChatRequest,
   type CreateWorkspaceRequest,
+  type CreatureState,
   EMPTY_CHAT,
   type Invitation,
   type InvitationPreview,
@@ -32,6 +33,7 @@ import {
   type LibraryListing,
   type LibraryVersion,
   type ModelOption,
+  type Outfit,
   PING_FRAME,
   type PresenceEvent,
   type PresenceUpdate,
@@ -496,6 +498,18 @@ export function createClient(options: ClientOptions) {
           post<{ ok: true }>(`${base}/approvals/${requestId}`, { decision }),
         /** What the agent has spent on models so far. */
         usage: () => request<AgentUsage>(`${base}/usage`),
+        /** What its creature has been given and has on: its treats, its boxes and its things. */
+        creature: () => request<CreatureState>(`${base}/creature`),
+        /** Give its creature one of its treats. */
+        feedCreature: () => post<CreatureState>(`${base}/creature/feed`),
+        /** Open one of its creature's boxes. Answers with the id of what was inside. */
+        openBox: () => post<{ item: string; creature: CreatureState }>(`${base}/creature/open`),
+        /** Dress its creature, in things it has. */
+        wear: (outfit: Outfit) =>
+          request<CreatureState>(`${base}/creature/outfit`, {
+            method: "PUT",
+            body: JSON.stringify({ outfit }),
+          }),
         library: async () => (await request<LibraryListing>(`${base}/library`)).files,
         /** The files, the deleted ones that can be brought back, and where files are viewed. */
         libraryListing: () => request<LibraryListing>(`${base}/library`),

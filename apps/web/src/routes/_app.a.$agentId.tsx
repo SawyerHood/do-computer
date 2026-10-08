@@ -2,6 +2,7 @@ import type { AgentSummary } from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect } from "react"
+import { CreatureWindows } from "@/components/creature/windows"
 import { AppShell } from "@/components/shell/app-shell"
 import { mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
@@ -74,6 +75,7 @@ function AgentPages({ agentId, agent }: { agentId: string; agent: AgentSummary |
   return (
     <AppShell agentId={agentId} agent={agent}>
       <Outlet />
+      {agent === undefined ? null : <CreatureWindows agent={agent} />}
     </AppShell>
   )
 }

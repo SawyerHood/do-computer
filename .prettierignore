@@ -4,5 +4,6 @@ dist
 routeTree.gen.ts
 *.generated.ts
 packages/mascot/src/orb-core.js
+packages/mascot/src/wardrobe.js
 packages/mascot/demo
 prototypes
