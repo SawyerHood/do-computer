@@ -296,7 +296,7 @@ function eventStream(
 
 /** What a message does that arrives while the agent is working, where the sender did not say. */
 const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
-  identity.whenBusy ?? (identity.team ? "queue" : "steer")
+  identity.whenBusy ?? "steer"
 
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
   const { subagent, peer, slack, ...chat } = record
