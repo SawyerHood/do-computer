@@ -537,18 +537,18 @@ Since then, newest last:
       at a fake push service. **Not checked:** a real phone, Apple's and Google's push services,
       and how the installed app looks on iOS.
 
-22. **An agent in Slack, and Slack as a connector** (2026-10-08; `packages/agent/src/slack.ts`,
+22. **An agent in Slack** (2026-10-08; `packages/agent/src/slack.ts`,
     `apps/web/src/server/slack.ts`, `prototypes/slack`). The owner asked for a bot that can be
     mentioned in Slack, for the Slack chat to be readable in the agent, and for agents to search
     and write in Slack through a connector. They approved a written plan, then asked for a
     mock-up before the build, and said of it: "I love all of this ship it please".
     - **One Slack app for each agent**, made by whoever adds it, so the bot has the agent's
       name. Nothing is set on the deployment. `slackManifest` fills in Slack's "create an app"
-      page: scopes, the Messages tab, MCP switched on, and where events go
+      page: the bot's scopes, the Messages tab, and where events go
       (`/api/slack/events/<agent>`). What is pasted back is a row in `dc_slack_apps`: the bot
-      token and signing secret, and optionally the app's client id and secret. The token is
-      tried on Slack (`auth.test`) before it is kept, which also says the workspace and the
-      bot's name. None of the four is ever sent back to a browser.
+      token and signing secret. The token is tried on Slack (`auth.test`) before it is kept,
+      which also says the workspace and the bot's name. Neither is ever sent back to a
+      browser.
     - **What Slack sends** (`slackEvent`) is taken only when signed with the app's secret within
       five minutes. The one exception is Slack trying the address, which it does when the app
       is made and before the secret can be here: that is answered with Slack's own word, which
@@ -581,15 +581,34 @@ Since then, newest last:
       already posted are kept on the chat's record. The app's token is only ever sent to an
       address that is Slack's (`isSlacks`), though both addresses come from Slack. A message
       Slack tells of twice is known by its id (`told`) before anything is fetched for it.
-    - **Someone who is not one of the agent's people** is answered, and asked about. The note
-      that travels with their message says so to the model, and `Approvals` treats a connector
-      or a paired computer as "ask first" for a chat whose last speaker is such a guest,
-      whatever the rules say (`guest`). The request names them, has no "Always allow", and is
-      answered on the thread's page in the app; the answer sets the agent going in the thread.
-    - **The connector** is Slack's own MCP server (`https://mcp.slack.com/mcp`), which lets no
-      app register itself. A connector can now be given a client id and secret
-      (`AddConnectorRequest`), which the gateway adds from the agent's Slack app for "Connect
-      Slack as you". It acts as whoever signed in.
+    - **Everyone in the Slack workspace is someone the agent works for** (changed the same day,
+      once it had run against Slack for real). It was first built to treat someone whose Slack
+      address was not an account's in the agent's workspace as a guest: answered, but with
+      connectors and paired computers asked about first, whatever the rules said. The owner's
+      own Slack address was not their account's, so they were the guest, the agent was guarded
+      with them, and nothing in the app could fix it. They asked for it to go ("can we just say
+      anyone in the slack can message the bot"), and chose "Everyone is trusted" when the cost
+      was put to them. The guest rule is gone from `Approvals`; the note with a message says
+      everyone there is someone to work for; the match by email is kept only to put a
+      teammate's face on their messages. A rule the agent's people set still holds in a
+      thread, and is answered on the thread's page.
+    - **The agent goes to Slack unasked** (asked for the same day: "can the bot proactively post
+      to slack?", then "I think I want this instead of the normal slack connection"). The
+      `slack` tool, in every conversation of an agent that is in Slack: `channels` (the ones
+      the bot was added to), `read` (a channel's latest, or a thread, oldest first) and `post`
+      (to a channel, a thread or `@` a person, with a file of the library). The host does it
+      as the bot (`whoami`, `channels`, `read`, `say`), so it reaches only where the bot has
+      been added, and says in words the agent can act on why something could not be done.
+      Posting is an ability of its own in Permissions (`tool:slack_post`), allowed unless set
+      otherwise. The first time the agent hears of a thread it is given its own earlier words
+      there too, since the thread may be one it started.
+    - **Slack as a connector is gone from the Slack section.** It was Slack's own MCP server,
+      signed in to as a person with the Slack app's client id and secret. The owner wanted the
+      bot instead, so the app is no longer asked for anything as a person: no user scopes, no
+      MCP, no redirect address in `slackManifest`, no client fields in the settings, and the
+      two columns are dropped from `dc_slack_apps`. What stays is general: any connector can
+      still be given a client id and secret (`AddConnectorRequest`), for a service that lets
+      no app register itself, so Slack's server can still be added by hand under Connectors.
     - **In the app:** a Slack section in the agent's settings, "From Slack" in its panel, a
       thread's page with a line under the strip and no message box (`slack-threads.tsx`), and
       who wrote each message with "in Slack" beside it. Threads are not in the sidebar.
@@ -689,10 +708,13 @@ switch to allow it and no cap on how long an exchange runs.
 
 Slack, decided on 2026-10-08 from a plan and then a mock-up (`prototypes/slack`): one Slack app
 for each agent; threads in the agent's panel and not the sidebar, opening in the middle; a
-thread is read in the app and answered only from Slack; no switches for who may use the bot,
-with the two rules stated in settings; teammates matched by email, and everyone else needing an
-OK for connectors and paired computers; a thread in a private channel or a direct message being
-readable by everyone in the workspace.
+thread is read in the app and answered only from Slack; no switches for who may use the bot; a
+thread in a private channel or a direct message being readable by everyone in the workspace.
+Changed the same day, once they had used it in their own Slack: everyone in the Slack workspace
+is worked for alike, with no OK step for people without an account ("can we just say anyone in
+the slack can message the bot", and "Everyone is trusted" when asked); and the agent is in
+Slack as its bot only, writing and reading there on its own, with the connector that acted as a
+person taken out ("I think I want this instead of the normal slack connection").
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
 each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only
@@ -760,10 +782,12 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   is written. A thread cannot be answered from the app. A chat from Slack cannot send to
   another agent, and a scheduled report into one is not posted. The bot hears only mentions
   and direct messages: a reply in its thread that does not mention it is read the next time it
-  is mentioned. Someone who is not one of the agent's people can still have it run commands on
-  the workspace's machines, read the library, and search its other chats; only connectors and
-  paired computers are held back. The tokens are kept as they are in the app database, as
-  connectors' are in the agent's. Threads are listed in the agent's panel, which a narrow screen
+  is mentioned. Anyone in the Slack workspace has the agent as its own people do, connectors
+  and paired computers included, by the owner's choice; only its Permissions limit it. The bot
+  cannot search Slack: it reads the latest of a channel or a thread, and only where it has
+  been added. Writing to a person needs a permission (`im:write`) that a Slack app made
+  before 2026-10-08 lacks; the agent is told so when it tries. The tokens are kept as they are
+  in the app database, as connectors' are in the agent's. Threads are listed in the agent's panel, which a narrow screen
   does not have: there a thread is reached from a notification or its address. The mobile app
   does not list them.
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
@@ -827,15 +851,13 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   Node server with the echo model. On Workers, where an agent reaches another through
   its own Durable Object namespace, that has run only in the tests' local runtime with the echo
   model.
-- **Slack has never been run against Slack.** The tests stand in for its Web API and sign
-  events as it does (the signing is checked against the example in Slack's documentation). The
-  one real thing tried: adding the Slack connector on a local server reached Slack's MCP
-  server, which sent back a sign-in address at `slack.com/oauth/v2_user/authorize` carrying
-  the client id. Not tried: Slack accepting the app manifest, a real event (and whether a
-  mention carries its attached files, as a direct message does), fetching and sharing a real
-  file, the markdown block and the "thinking" status in a real channel, and a real sign-in to
-  the connector. Expect the
-  first real run to turn something up (section 9).
+- **Slack against Slack itself.** The owner made the Slack app from the link, installed it,
+  and on 2026-10-08 wrote to their agent on the live site: it answered, twice, in one
+  conversation, which showed in the app. So the manifest, the signing, an event and a posted
+  answer work for real. Everything else has only met the tests' stand-in for Slack's Web API:
+  whether a mention carries its attached files as a direct message does, fetching and sharing
+  a real file, the "thinking" status, and all of the `slack` tool (listing the bot's channels,
+  reading one, writing unasked, writing to a person).
 - **On the live site**, without the owner's session, only this could be checked: it answers, its
   pages and assets load, the GitHub sign-in button leads to GitHub with the right callback, and
   the daemon downloaded from it starts pairing. The owner has since paired a computer, pasted

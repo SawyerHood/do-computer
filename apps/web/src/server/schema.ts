@@ -192,6 +192,12 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     // working for when it did is the machine's owner, as if they had added it themselves.
     "ALTER TABLE dc_computers ADD COLUMN added_by_agent TEXT",
   ],
+  [
+    // A Slack app's client id and secret were what a connector signed in to Slack with as a
+    // person. An agent now goes to Slack as its bot alone, so they are no longer kept.
+    "ALTER TABLE dc_slack_apps DROP COLUMN client_id",
+    "ALTER TABLE dc_slack_apps DROP COLUMN client_secret",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

@@ -57,11 +57,6 @@ function RequestCard({
           )}
         </div>
       </div>
-      {request.guest === undefined ? null : (
-        <p className="text-xs text-muted-foreground">
-          Asked for by {request.guest} in Slack, who is not in this workspace.
-        </p>
-      )}
       {request.detail === "" ? null : (
         <pre className="max-h-40 overflow-auto rounded-lg bg-muted px-3 py-2 text-xs whitespace-pre-wrap">
           {request.detail}
@@ -76,8 +71,8 @@ function RequestCard({
         <Button size="sm" disabled={answer.isPending} onClick={() => answer.mutate("once")}>
           Allow once
         </Button>
-        {/* Asked on a guest's account, or asked about every time, "always" changes nothing. */}
-        {request.onceOnly || request.guest !== undefined ? null : (
+        {/* Asked about every time, "always" changes nothing. */}
+        {request.onceOnly ? null : (
           <Button
             size="sm"
             variant="outline"

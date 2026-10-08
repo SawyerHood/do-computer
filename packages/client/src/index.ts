@@ -486,11 +486,6 @@ export function createClient(options: ClientOptions) {
         connectSlack: (input: ConnectSlackRequest) =>
           request<SlackState>(`${base}/slack`, { method: "PUT", body: JSON.stringify(input) }),
         disconnectSlack: () => request<{ ok: true }>(`${base}/slack`, { method: "DELETE" }),
-        /**
-         * Add Slack as a connector, signed in to with the agent's Slack app. If `authorizationUrl`
-         * comes back, send the user there to sign in.
-         */
-        addSlackConnector: () => post<ConnectorResult>(`${base}/slack/connector`),
         /** The agent's approval rules, what a rule can be set for, and what it is waiting on. */
         approvals: () => request<ApprovalsState>(`${base}/approvals`),
         /** Set rules by subject id. `allow` removes a rule. */

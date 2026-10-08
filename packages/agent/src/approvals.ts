@@ -36,8 +36,6 @@ type StoredRequest = {
   title: string
   detail: string
   status: "pending" | "approved" | "denied"
-  /** Who it is for, where it is asked because they are not one of the agent's people. */
-  guest?: string
   createdAt: number
   resolvedAt: number | null
   /** One of its subjects is asked about every time, so "always" is not an answer. */
@@ -94,6 +92,13 @@ const ABILITIES: readonly Ability[] = [
   },
   { id: "tool:send_file", label: "Send you files", tools: ["send_file"] },
   { id: "tool:web_search", label: "Search the web", tools: ["web_search"] },
+  {
+    id: "tool:slack_post",
+    label: "Write in Slack unasked",
+    hint: "Answering where it is spoken to in Slack is not a part of this.",
+    tools: ["slack"],
+    actions: ["post"],
+  },
   { id: "tool:schedule", label: "Create and change automations", tools: ["schedule"] },
   { id: "tool:skill", label: "Save and change skills", tools: ["skill"] },
   {
@@ -169,6 +174,7 @@ const TOOL_TITLES: Record<string, string> = {
   request_secret: "Ask you for a secret",
   settings: "See its settings",
   agents: "Work with the other agents",
+  slack: "Read Slack",
 }
 
 const actionOf = (call: ToolCall) => (call.arguments as { action?: unknown }).action
@@ -211,6 +217,12 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
     return {
       title: `Delete the machine ${name || "it named"}, with everything on it`,
       detail: "",
+    }
+  }
+  if (call.name === "slack" && action === "post") {
+    return {
+      title: "Write in Slack",
+      detail: [word(args.channel), word(args.text)].filter(Boolean).join(": "),
     }
   }
   if (call.name === "connectors" && typeof action === "string") {
@@ -280,13 +292,7 @@ export type ApprovalsOptions = {
   readonly computerOf?: (
     name: string | undefined,
     context: Context,
-  ) => Promise<{ id: string; name: string; paired?: boolean } | undefined>
-  /**
-   * Who a chat is working for, by name, where that is someone who is not one of the agent's
-   * people, such as someone who wrote to it in Slack. For them a connector, or a computer one
-   * of its people paired, is asked about first, whatever the rules say.
-   */
-  readonly guest?: (chatId: string, context: Context) => Promise<string | undefined>
+  ) => Promise<{ id: string; name: string } | undefined>
   /** Called when the agent has asked for something, to tell the user wherever they are. */
   readonly onRequest?: (request: ApprovalRequest) => void
 }
@@ -304,9 +310,6 @@ const KIND_WORDS: Record<string, string> = {
  * or for one of the user's own computers: allow, ask first, or never. With no rules, which is the
  * default, the agent is trusted with everything but the few abilities that ask first until
  * someone says otherwise: the ones that spend money or give it more reach.
- *
- * One limit is not opt-in. Work done for someone who is not one of the agent's people asks before
- * it uses a connector or a paired computer: those are its people's, and act as them.
  *
  * "Ask" does not hold the agent's work open while the user is away. The call is refused with an
  * explanation, the request is shown to the user, and their answer is sent to the chat, where an
@@ -343,10 +346,8 @@ export class Approvals {
   async #subjects(
     call: ToolCall,
     context: Context,
-  ): Promise<{ subjects: ApprovalSubject[]; title: string; theirs: Set<string> }> {
+  ): Promise<{ subjects: ApprovalSubject[]; title: string }> {
     const subjects: ApprovalSubject[] = []
-    // The subjects that are the agent's people's own: a connector, and a computer they paired.
-    const theirs = new Set<string>()
     let title = asked(call)?.title ?? TOOL_TITLES[call.name] ?? `Use ${call.name}`
     const connector = await this.#options.connectorOf(call.name, context)
     if (connector !== undefined) {
@@ -355,7 +356,6 @@ export class Approvals {
         label: `Use ${connector.name}`,
         kind: "connector",
       })
-      theirs.add(`connector:${connector.id}`)
       title = `Use ${connector.name}`
     } else {
       for (const id of abilitiesOf(call)) {
@@ -377,12 +377,11 @@ export class Approvals {
           label: `Work on ${match.name}`,
           kind: "computer",
         })
-        if (match.paired === true) theirs.add(`computer:${match.id}`)
         // Said where the call says it: a call that names none means the one machine there is.
         if (named) title = `${title} on ${match.name}`
       }
     }
-    return { subjects, title, theirs }
+    return { subjects, title }
   }
 
   async #check(
@@ -393,23 +392,16 @@ export class Approvals {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
     const rules = state?.rules ?? {}
-    const guest = await this.#options.guest?.(chatId, context)
-    // No rules, nobody from outside, and nothing that asks unless told otherwise: nothing to
-    // look up, which is nearly every call on a default agent.
+    // No rules, and nothing that asks unless told otherwise: nothing to look up, which is nearly
+    // every call on a default agent.
     if (
-      guest === undefined &&
       Object.keys(rules).length === 0 &&
       abilitiesOf(call).every((id) => defaultRule(id) === "allow")
     ) {
       return undefined
     }
-    const { subjects, title: what, theirs } = await this.#subjects(call, context)
-    const set = (subject: ApprovalSubject) => ruleOf(rules, subject.id)
-    // Asked on the guest's account alone: no rule of the user's own asks for it.
-    const forGuest = (subject: ApprovalSubject) =>
-      guest !== undefined && set(subject) === "allow" && theirs.has(subject.id)
-    const holds = (subject: ApprovalSubject): ApprovalRule =>
-      forGuest(subject) ? "ask" : set(subject)
+    const { subjects, title: what } = await this.#subjects(call, context)
+    const holds = (subject: ApprovalSubject): ApprovalRule => ruleOf(rules, subject.id)
     const governed = subjects.filter((subject) => holds(subject) !== "allow")
     const decision = strictest(governed.map(holds))
     if (decision === "allow") return undefined
@@ -462,7 +454,6 @@ export class Approvals {
         title: what,
         detail: asked(call)?.detail ?? describe(call.arguments as Record<string, unknown>),
         status: "pending",
-        ...(guest !== undefined && governed.some(forGuest) ? { guest } : {}),
         createdAt: now,
         resolvedAt: null,
         ...(onceOnly ? { onceOnly: true as const } : {}),
@@ -498,7 +489,6 @@ export class Approvals {
         chatKind: own(chats, request.chatId)?.kind ?? "chat",
         title: request.title,
         detail: request.detail,
-        ...(request.guest === undefined ? {} : { guest: request.guest }),
         createdAt: request.createdAt,
         ...(request.onceOnly === true ? { onceOnly: true } : {}),
       }))

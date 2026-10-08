@@ -432,7 +432,6 @@ export class AgentActor implements Actor {
       computerOf: (name, c) => this.#computers.peek(name, c),
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
-      guest: async (chatId, c) => this.#slack?.guest(chatId, c),
       onRequest: (request) =>
         void this.#notify({
           kind: "approval",
@@ -506,6 +505,7 @@ export class AgentActor implements Actor {
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
             keep: (file) => this.#library.keep(file),
             contents: (file) => this.#library.contents(file),
+            libraryFile: (name) => this.#library.named(name),
             sees: (model) =>
               options.modelOptions.find((option) => option.id === model)?.images === true,
             onError: (error) => options.onReport?.(error),
@@ -672,6 +672,7 @@ export class AgentActor implements Actor {
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
       if (this.#peers !== undefined) registry.install(this.#peers.extension)
+      if (this.#slack !== undefined) registry.install(this.#slack.extension)
       registry.install(this.#skills.extension)
       registry.install(this.#secrets.extension)
       registry.install(

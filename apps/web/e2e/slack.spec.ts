@@ -3,7 +3,7 @@ import type { APIRequestContext, Page } from "@playwright/test"
 import { FIXED_TOKEN, startFakeMcp } from "./fake-mcp-server.ts"
 import { BOT_TOKEN, mention, SIGNING_SECRET, startFakeSlack } from "./fake-slack-server.ts"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, openSettings, owner, signIn } from "./helpers.ts"
+import { asOwner, composer, openSettings, owner, signIn, tool } from "./helpers.ts"
 
 asOwner()
 
@@ -79,14 +79,15 @@ test.describe("slack", () => {
 
     await dialog.getByLabel("Bot token").fill(BOT_TOKEN)
     await dialog.getByRole("button", { name: "Connect", exact: true }).click()
-    await expect(dialog.getByText("@juniper")).toBeVisible()
+    await expect(dialog.getByText("@juniper", { exact: true })).toBeVisible()
     await expect(dialog.getByText("In Slack", { exact: true })).toBeVisible()
     await expect(dialog.getByRole("link", { name: "tidewater.slack.com" })).toBeVisible()
-    // The connector signs in as the Slack app, whose id and secret were not given.
-    await expect(dialog.getByText(/needs the Slack app's Client ID/)).toBeVisible()
+    // What it does there is said, and is not a set of switches.
+    await expect(dialog.getByText("Works for everyone in the Slack workspace")).toBeVisible()
+    await expect(dialog.getByText("/invite @juniper")).toBeVisible()
     // Neither secret is shown again, or sent back to the page.
     await page.reload()
-    await expect(dialog.getByText("@juniper")).toBeVisible()
+    await expect(dialog.getByText("@juniper", { exact: true })).toBeVisible()
     const state = await (await page.request.get(`/api/agents/${agentId}/slack`)).text()
     expect(state).not.toContain(BOT_TOKEN)
     expect(state).not.toContain(SIGNING_SECRET)
@@ -150,7 +151,7 @@ test.describe("slack", () => {
     await expect(page.getByRole("log").getByText("when is the launch?")).toHaveCount(0)
   })
 
-  test("someone who is only in Slack is answered, and a connector waits for an OK here", async ({
+  test("anyone in the Slack workspace is worked for alike, and the agent writes there unasked", async ({
     page,
   }) => {
     await withPanel(page)
@@ -161,41 +162,42 @@ test.describe("slack", () => {
     })
     expect(added.status()).toBe(201)
     const before = slack.posts().length
-    const add = '/tool sums__add {"a":19,"b":23}'
 
-    // One of the agent's people is not asked about: nothing is set to ask.
-    await say(page.request, agentId, mention("USAWYER", add))
+    // Dana has no account here. The agent uses its connector for her as it would for anyone,
+    // and nothing waits for an OK.
+    await say(page.request, agentId, mention("UDANA", '/tool sums__add {"a":19,"b":23}'))
     await expect.poll(() => slack.posts().at(-1)?.text).toContain("sum is 42")
     expect(slack.posts()).toHaveLength(before + 1)
-
-    const asked = mention("UDANA", add)
-    await say(page.request, agentId, asked)
-    await expect.poll(() => slack.posts()).toHaveLength(before + 2)
-    // The call did not run. Slack is told why, and the app says what is waiting.
-    expect(slack.posts().at(-1)?.text).toContain("needs the user's approval first")
     const threads = page.getByRole("list", { name: "From Slack" })
-    const row = threads.getByRole("link").filter({ hasText: "waiting for your ok" })
-    await expect(row).toHaveCount(1)
-    await row.click()
+    await threads.getByRole("link", { name: /sums__add/ }).click()
     const transcript = page.getByRole("log")
     await expect(transcript.getByText("Dana Whitfield")).toBeVisible()
-    await expect(transcript.getByText("in Slack · not in this workspace")).toBeVisible()
-    const waiting = page.getByRole("list", { name: "Waiting for your OK" })
-    await expect(waiting.getByText("Juniper wants to: Use Sums")).toBeVisible()
-    await expect(
-      waiting.getByText("Asked for by Dana Whitfield in Slack, who is not in this workspace."),
-    ).toBeVisible()
-    // It is asked on her account, so there is no allowing it for good.
-    await expect(waiting.getByRole("button", { name: "Always allow" })).toHaveCount(0)
+    await expect(transcript.getByText("in Slack", { exact: true })).toBeVisible()
+    await expect(page.getByRole("list", { name: "Waiting for your OK" })).toHaveCount(0)
 
-    await waiting.getByRole("button", { name: "Allow once" }).click()
-    await expect(waiting).toHaveCount(0)
-    // The answer sets the agent going again in the thread, and what it says goes to Slack.
-    await expect.poll(() => slack.posts()).toHaveLength(before + 3)
-    expect(slack.posts().at(-1)?.thread).toBe(asked.ts)
-    // The echo model does not act on being told; a real one would. Her next try is let through.
-    await say(page.request, agentId, mention("UDANA", add, asked.ts))
-    await expect.poll(() => slack.posts().at(-1)?.text).toContain("sum is 42")
+    // From its main chat the agent goes to Slack itself: it sees where it has been added, and
+    // writes there as the bot, outside any thread.
+    await page.getByRole("link", { name: "Main chat", exact: true }).click()
+    await tool(page, "slack", { action: "channels" }, /#launch/)
+    await tool(
+      page,
+      "slack",
+      { action: "post", channel: "#launch", text: "Shipping at **noon**." },
+      /Posted in #launch\./,
+    )
+    expect(slack.posts().at(-1)).toEqual({
+      channel: "C1",
+      thread: undefined,
+      text: "Shipping at *noon*.",
+    })
+    // A channel it has not been added to is not written in, and it is told how to be added.
+    await tool(
+      page,
+      "slack",
+      { action: "post", channel: "#general", text: "hello" },
+      /You are not in #general\. Someone there has to add you first/,
+    )
+    expect(slack.posts()).toHaveLength(before + 2)
   })
 
   test("a file attached in Slack reaches the library, and one the agent sends reaches Slack", async ({
@@ -262,6 +264,6 @@ test.describe("slack", () => {
     expect(response.status()).toBe(404)
     // What was said before can still be read.
     await page.keyboard.press("Escape")
-    await expect(page.getByRole("list", { name: "From Slack" }).getByRole("link")).toHaveCount(4)
+    await expect(page.getByRole("list", { name: "From Slack" }).getByRole("link")).toHaveCount(3)
   })
 })
