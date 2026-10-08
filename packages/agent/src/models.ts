@@ -15,7 +15,7 @@ import type { WebSearchOptions } from "./web-search.ts"
 const CURATED = [
   "anthropic/claude-sonnet-5.5",
   "anthropic/claude-opus-5.5",
-  "anthropic/claude-haiku-4.5",
+  "anthropic/claude-haiku-5.5",
   "openai/gpt-5.1",
   "google/gemini-3.8-flash",
   "moonshotai/kimi-k3",
