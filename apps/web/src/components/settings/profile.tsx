@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -31,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -354,40 +354,19 @@ function WhenBusy({ agentId, state }: { agentId: string; state: AgentState }) {
     onSuccess: (next) => queryClient.setQueryData(agentKey(agentId), next),
   })
   const chosen = save.isPending ? save.variables : (state.whenBusy ?? "steer")
-  const options = [
-    ["queue", "Wait its turn", "It finishes what it is doing, then answers the new message."],
-    [
-      "steer",
-      "Join in",
-      "It takes the new message into what it is doing, as a correction would be.",
-    ],
-  ] as const
   return (
     <Section
       title="When a message arrives while it is working"
-      hint={
-        state.team
-          ? "In a team the next message is often someone else's, so it waits unless you say otherwise."
-          : "Whether a message you send mid-answer changes the answer or waits for it."
-      }
+      hint="It takes the new message into what it is doing, as a correction would be. It can be made to finish first instead."
     >
-      <RadioGroup
-        aria-label="When it is busy"
-        value={chosen}
-        disabled={save.isPending}
-        onValueChange={(next) => save.mutate(next as "steer" | "queue")}
-        className="gap-2"
-      >
-        {options.map(([value, label, words]) => (
-          <label key={value} className="flex items-start gap-3 rounded-xl border px-3 py-2.5">
-            <RadioGroupItem value={value} className="mt-0.5" />
-            <span>
-              <span className="block text-sm font-medium">{label}</span>
-              <span className="block text-sm text-muted-foreground">{words}</span>
-            </span>
-          </label>
-        ))}
-      </RadioGroup>
+      <Label className="font-normal">
+        <Switch
+          checked={chosen === "queue"}
+          disabled={save.isPending}
+          onCheckedChange={(next) => save.mutate(next ? "queue" : "steer")}
+        />
+        Wait until it has finished
+      </Label>
       {save.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {save.error.message}

@@ -31,8 +31,7 @@ export type IdentityState = {
   team?: string | null
   /**
    * What a message does that arrives while it is working: `steer` joins the work, `queue` waits
-   * for it to finish. Absent: steer for one person, queue for a team, where the message is
-   * likely someone else's.
+   * for it to finish. Absent: steer.
    */
   whenBusy?: "steer" | "queue"
   createdAt: number

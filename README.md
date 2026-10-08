@@ -266,8 +266,8 @@ share: start one from the workspace menu at the top of the sidebar.
 - **Sharing.** Every member can use every agent in the team, read all of its chats, write in
   them, and make new agents there. An agent of your own can be moved into a team, and back.
 - **One chat, several people.** A message from someone else has their face and name on it, and
-  the agent is told who is speaking. By default a message that arrives while the agent is
-  working waits its turn; that is a setting on each agent.
+  the agent is told who is speaking. A message that arrives while the agent is working joins
+  what it is doing; each agent has a setting to make it wait its turn instead.
 - **Who is where.** The list of agents shows who is with which agent, a chat shows who is in it
   and who is writing, and the team's page lists everyone who is here.
 - **Roles.** Members do all of the above. Admins also invite and remove people, rename the team,

@@ -197,7 +197,7 @@ describe("an agent a team shares", () => {
     expect(seen[1]).toContain("Maya &quot;M&quot; Okafor")
 
     const agent = await call<AgentView>(world, "/")
-    expect(agent).toMatchObject({ team: "Tidewater", whenBusy: "queue" })
+    expect(agent).toMatchObject({ team: "Tidewater", whenBusy: "steer" })
     expect(agent.chats[0]).toMatchObject({ createdBy: "user-maya" })
     // An answer nobody was there to read is for the one it answered.
     world.faux.setResponses([fauxAssistantMessage("You are welcome.")])
@@ -207,7 +207,7 @@ describe("an agent a team shares", () => {
       .toContain("user-jon")
   })
 
-  it("has a teammate's message wait its turn, unless it is set to take it at once", async () => {
+  it("takes a teammate's message at once, unless it is set to have it wait its turn", async () => {
     const world = open(150)
     await call(world, "/init", "POST", { ownerId: "user-maya", team: "Tidewater" })
     const chat = await call<ChatSummary>(world, "/chats", "POST", {}, maya)
@@ -222,18 +222,18 @@ describe("an agent a team shares", () => {
     await send(world, chat.id, "first", maya)
     await follow(world, chat.id, streaming)
     await send(world, chat.id, "second", jon)
-    const waiting = await follow(world, chat.id, (state) => state.queued.length > 0)
-    expect(waiting.queued).toMatchObject([{ mode: "followUp", text: "second" }])
+    const joining = await follow(world, chat.id, (state) => state.queued.length > 0)
+    expect(joining.queued).toMatchObject([{ mode: "steer", text: "second" }])
     await follow(world, chat.id, answered(2))
 
-    expect(await call<AgentView>(world, "/", "PATCH", { whenBusy: "steer" })).toMatchObject({
-      whenBusy: "steer",
+    expect(await call<AgentView>(world, "/", "PATCH", { whenBusy: "queue" })).toMatchObject({
+      whenBusy: "queue",
     })
     await send(world, chat.id, "third", maya)
     await follow(world, chat.id, streaming)
     await send(world, chat.id, "fourth", jon)
-    const joining = await follow(world, chat.id, (state) => state.queued.length > 0)
-    expect(joining.queued).toMatchObject([{ mode: "steer", text: "fourth" }])
+    const waiting = await follow(world, chat.id, (state) => state.queued.length > 0)
+    expect(waiting.queued).toMatchObject([{ mode: "followUp", text: "fourth" }])
     await follow(world, chat.id, answered(4))
     await expect(call(world, "/", "PATCH", { whenBusy: "never" })).rejects.toThrow("400")
   })
