@@ -33,7 +33,16 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
   switch (part.name) {
     case "bash": {
       const command = text(args.command)
-      return command === undefined ? `Running a command${on}` : `Running${on}: ${clip(command)}`
+      const how = args.run_in_background === true ? "Starting in the background" : "Running"
+      return command === undefined
+        ? `${how === "Running" ? "Running a command" : "Starting a command in the background"}${on}`
+        : `${how}${on}: ${clip(command)}`
+    }
+    case "background": {
+      const id = text(args.id)
+      if (args.action === "stop") return `Stopping ${id ?? "a background command"}`
+      if (args.action === "output") return `Reading what ${id ?? "a background command"} printed`
+      return "Checking its background commands"
     }
     case "read":
       return path === undefined ? `Reading a file${on}` : `Reading ${fileName(path)}${on}`

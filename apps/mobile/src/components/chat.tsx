@@ -7,6 +7,7 @@ import {
   isSentFile,
   isShownPart,
   isVisibleMessage,
+  jobOutcome,
   type LibraryFile,
   type MessagePart,
 } from "@durable-computer/protocol"
@@ -159,6 +160,25 @@ function Message({
           </Text>
           {notice.detail === undefined ? null : (
             <Text tone="muted" size={13}>
+              {notice.detail}
+            </Text>
+          )}
+        </View>
+      )
+    }
+    if (notice?.kind === "command") {
+      // The end of a command the agent left running in the background.
+      const command = notice.text.split("\n")[0]
+      const ended = notice.job === undefined ? "Ended" : jobOutcome(notice.job)
+      return (
+        <View style={{ gap: space(1), paddingHorizontal: space(1) }}>
+          <Text tone="muted" size={14}>
+            {notice.job?.status === "stopped"
+              ? `You stopped ${command}`
+              : `${command}: ${ended.charAt(0).toLowerCase()}${ended.slice(1)}`}
+          </Text>
+          {notice.detail === undefined ? null : (
+            <Text tone="muted" size={12} numberOfLines={12}>
               {notice.detail}
             </Text>
           )}

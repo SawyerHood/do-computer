@@ -1,5 +1,14 @@
 export { SandboxEnv } from "./env.ts"
 export { createJustBashSandbox, type JustBashOptions, justBashSandbox } from "./just-bash/index.ts"
+export {
+  JOB_LOG_CAP_BYTES,
+  type JobFollowed,
+  type JobFollowOptions,
+  type JobStart,
+  type JobState,
+  type SandboxJobs,
+  shellJobs,
+} from "./jobs.ts"
 export { lazySandbox, type LazySandboxOptions } from "./lazy.ts"
 export { shellFs } from "./shell-fs.ts"
 

@@ -208,8 +208,8 @@ export type ComputerTarget = {
   readonly machine: boolean
 }
 
-/** What a tool that runs on a machine of the workspace runs against. It says which machine. */
-export class MachineEnv extends SandboxEnv {
+/** What a tool that runs on a computer runs against. It says which computer. */
+export class ComputerEnv extends SandboxEnv {
   readonly target: ComputerTarget
 
   constructor(target: ComputerTarget) {
@@ -217,6 +217,9 @@ export class MachineEnv extends SandboxEnv {
     this.target = target
   }
 }
+
+/** What a tool that runs on a machine of the workspace runs against. */
+export class MachineEnv extends ComputerEnv {}
 
 /** Something to do before and after every call that runs on a machine of the workspace. */
 export type AroundMachine = {
@@ -299,7 +302,7 @@ export class Computers {
             rest as never,
             {
               ...api,
-              env: found.machine ? new MachineEnv(found) : new SandboxEnv(found.sandbox, found.cwd),
+              env: found.machine ? new MachineEnv(found) : new ComputerEnv(found),
             },
             context,
           )

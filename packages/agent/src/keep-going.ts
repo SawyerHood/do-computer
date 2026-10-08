@@ -107,6 +107,11 @@ export type KeepGoingOptions = {
   readonly judge?: JudgeOptions
   /** The chat as a client would see it. */
   readonly chat: (chatId: string) => Promise<ChatState | undefined>
+  /**
+   * Whether something a chat set going will give the agent a turn there by itself, such as a
+   * command running in the background. Stopping to wait for that is not stopping by accident.
+   */
+  readonly waiting?: (chatId: string) => Promise<boolean>
   /** What writing down a judgment's cost runs under: it outlives the run that set it off. */
   readonly context: Context
   readonly onError: (error: unknown) => void
@@ -210,6 +215,7 @@ export class KeepGoing {
       message.parts.filter((part): part is ToolPart => part.type === "tool"),
     )
     if (!mightBeMidway(said, steps.length)) return false
+    if ((await this.#options.waiting?.(chatId)) === true) return false
 
     const nudged = this.#nudged.get(chatId)
     const count = nudged?.since === asked.id ? nudged.count : 0

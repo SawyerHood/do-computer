@@ -163,6 +163,7 @@ const ruleOf = (rules: Readonly<Record<string, ApprovalRule>>, subject: string):
 /** What each built-in tool does, for naming a request. */
 const TOOL_TITLES: Record<string, string> = {
   bash: "Run commands",
+  background: "Look in on commands it left running",
   write: "Create or overwrite a file",
   edit: "Edit a file",
   read: "Read files",

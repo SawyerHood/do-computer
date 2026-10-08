@@ -1,3 +1,5 @@
+import type { JobStatus } from "./jobs.ts"
+
 /** JSON as it travels between server and clients. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
@@ -25,7 +27,8 @@ export type NoticePart = {
    * agent's asking to use a computer; its text is the computer's name. `agent` is another
    * agent's reply to a message; its text is that agent's name. `secret` is the answer to the
    * agent's asking for secrets; its text is where they were to be saved. `connector` is how a
-   * sign-in the agent asked for went; its text is the connector's name.
+   * sign-in the agent asked for went; its text is the connector's name. `command` is the end of
+   * a command the agent left running in the background; its text is the command.
    */
   kind:
     | "reset"
@@ -37,6 +40,7 @@ export type NoticePart = {
     | "agent"
     | "secret"
     | "connector"
+    | "command"
   text: string
   /**
    * For `computer`: whether the agent was let in. For `secret`: whether they were saved. For
@@ -54,8 +58,11 @@ export type NoticePart = {
   /**
    * For `subagent` and `agent`: what it reported, or why it failed. For `secret`: the names that
    * were asked for, never their values. For `connector`: what went wrong, if something did.
+   * For `command`: the last of what it printed.
    */
   detail?: string
+  /** For `command`: which one it was, where it ran, how it ended and how long it took. */
+  job?: { id: string; computer: string; status: JobStatus; exitCode?: number; ms: number }
 }
 
 export type MessagePart = TextPart | ThinkingPart | ToolPart | ImagePart | NoticePart
