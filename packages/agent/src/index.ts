@@ -6,7 +6,7 @@ export {
   CONNECTOR_REDIRECT_HEADER,
   createAgentActor,
 } from "./actor.ts"
-export { type Caller, CALLER_HEADER, encodeCaller, readCaller } from "./caller.ts"
+export { type Caller, CALLER_HEADER, encodeCaller, readCaller, type SlackSender } from "./caller.ts"
 export type { JudgeOptions } from "./keep-going.ts"
 export { ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
 export {
@@ -37,6 +37,13 @@ export {
   PAIRED,
 } from "./computers.ts"
 export { type AgentDirectory, type PeerAgent, type PeerMessage, type PeerReply } from "./peers.ts"
+export {
+  type SlackContext,
+  type SlackDirectory,
+  type SlackFile,
+  type SlackMessage,
+  type SlackPlace,
+} from "./slack.ts"
 export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"
 export { type ScheduledReport, Scheduler, SILENT_MARKER } from "./schedules.ts"

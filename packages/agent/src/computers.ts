@@ -448,9 +448,11 @@ export class Computers {
   async peek(
     name: string | undefined,
     context: Context,
-  ): Promise<{ id: string; name: string } | undefined> {
+  ): Promise<{ id: string; name: string; paired: boolean } | undefined> {
     const found = await this.#find(name, context)
-    return typeof found === "string" ? undefined : { id: found.id, name: found.computer.name }
+    return typeof found === "string"
+      ? undefined
+      : { id: found.id, name: found.computer.name, paired: isPaired(found.computer) }
   }
 
   /** The computer a call is for, checked and ready to work on, or why there is none. */

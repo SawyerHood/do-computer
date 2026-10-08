@@ -20,6 +20,7 @@ import {
   type ConfirmPairingRequest,
   type ConnectorResult,
   type ConnectorSummary,
+  type ConnectSlackRequest,
   type CreateChatRequest,
   type CreateWorkspaceRequest,
   EMPTY_CHAT,
@@ -42,6 +43,7 @@ import {
   type SentInvitation,
   type SkillDetail,
   type SkillSummary,
+  type SlackState,
   type ThinkingLevel,
   type UpdateChatRequest,
   type UpdateScheduleRequest,
@@ -462,6 +464,17 @@ export function createClient(options: ClientOptions) {
           patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
         removeConnector: (connectorId: string) =>
           request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
+        /** The agent's place in Slack, and what is needed to put it there. */
+        slack: () => request<SlackState>(`${base}/slack`),
+        /** Put the agent in Slack as the app these are the credentials of. */
+        connectSlack: (input: ConnectSlackRequest) =>
+          request<SlackState>(`${base}/slack`, { method: "PUT", body: JSON.stringify(input) }),
+        disconnectSlack: () => request<{ ok: true }>(`${base}/slack`, { method: "DELETE" }),
+        /**
+         * Add Slack as a connector, signed in to with the agent's Slack app. If `authorizationUrl`
+         * comes back, send the user there to sign in.
+         */
+        addSlackConnector: () => post<ConnectorResult>(`${base}/slack/connector`),
         /** The agent's approval rules, what a rule can be set for, and what it is waiting on. */
         approvals: () => request<ApprovalsState>(`${base}/approvals`),
         /** Set rules by subject id. `allow` removes a rule. */

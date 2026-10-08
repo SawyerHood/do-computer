@@ -168,6 +168,25 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     "ALTER TABLE dc_push_tokens ADD COLUMN p256dh TEXT",
     "ALTER TABLE dc_push_tokens ADD COLUMN auth TEXT",
   ],
+  [
+    // The Slack app an agent is in Slack as, made by whoever put it there: which workspace it
+    // was installed to, what the bot is called, the token it acts with and the secret Slack
+    // signs with. The client id and secret are what the Slack connector signs in as.
+    `CREATE TABLE dc_slack_apps (
+      agent_id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL,
+      team_name TEXT NOT NULL,
+      team_url TEXT,
+      bot_user_id TEXT NOT NULL,
+      bot_name TEXT NOT NULL,
+      bot_token TEXT NOT NULL,
+      signing_secret TEXT NOT NULL,
+      client_id TEXT,
+      client_secret TEXT,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

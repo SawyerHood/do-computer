@@ -71,9 +71,10 @@ export async function tellAgentItsTeam(agentId: string, team: string | null): Pr
 /**
  * Actor routes only the gateway may call. `computers` is the agent's record of what is paired to
  * it, which must only ever say what the pairing table says. `peers` is where another agent's
- * messages arrive, which must only ever come from an agent of the same workspace.
+ * messages arrive, which must only ever come from an agent of the same workspace. `slack` is
+ * where what was said in Slack arrives, which must only ever be what Slack signed.
  */
-const INTERNAL = ["init", "destroy", "computers", "team", "peers"]
+const INTERNAL = ["init", "destroy", "computers", "team", "peers", "slack"]
 
 /** The largest body forwarded to an agent: a library upload, and everything else. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024

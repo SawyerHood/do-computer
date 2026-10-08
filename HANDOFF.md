@@ -537,6 +537,63 @@ Since then, newest last:
       at a fake push service. **Not checked:** a real phone, Apple's and Google's push services,
       and how the installed app looks on iOS.
 
+22. **An agent in Slack, and Slack as a connector** (2026-10-08; `packages/agent/src/slack.ts`,
+    `apps/web/src/server/slack.ts`, `prototypes/slack`). The owner asked for a bot that can be
+    mentioned in Slack, for the Slack chat to be readable in the agent, and for agents to search
+    and write in Slack through a connector. They approved a written plan, then asked for a
+    mock-up before the build, and said of it: "I love all of this ship it please".
+    - **One Slack app for each agent**, made by whoever adds it, so the bot has the agent's
+      name. Nothing is set on the deployment. `slackManifest` fills in Slack's "create an app"
+      page: scopes, the Messages tab, MCP switched on, and where events go
+      (`/api/slack/events/<agent>`). What is pasted back is a row in `dc_slack_apps`: the bot
+      token and signing secret, and optionally the app's client id and secret. The token is
+      tried on Slack (`auth.test`) before it is kept, which also says the workspace and the
+      bot's name. None of the four is ever sent back to a browser.
+    - **What Slack sends** (`slackEvent`) is taken only when signed with the app's secret within
+      five minutes. The one exception is Slack trying the address, which it does when the app
+      is made and before the secret can be here: that is answered with Slack's own word, which
+      gives nothing away. A mention in a channel (`app_mention`) or a direct message
+      (`message.im`) from a person is handed to the agent at `/slack/message`, a route the
+      gateway keeps for itself. Slack wants an answer in three seconds and sends again without
+      one, so the request ends once the agent has the message, and the agent takes a message it
+      was told of twice as one (`requestId`).
+    - **A thread is a chat of kind `slack`** (`SlackChats`), kept and looked in on the way a
+      conversation with another agent is (item 17): what is known of it is on its chat's record
+      (`SlackRecord`), and each time the agent comes to rest there its last reply is posted.
+      Slack has no way to say a thing once, so a crash between posting and noting it can post
+      twice; nothing else can. A mention outside a thread starts one under itself; a direct
+      message is one conversation for the whole channel unless it was in a thread.
+    - **The host reaches Slack.** `slackDirectory` is handed to the actor as an option, as the
+      other directories are. `describe` says who wrote a message (name, and the user of the
+      app they are, matched by email among the people of the agent's workspace), the channel's
+      name, the thread's address, and what others said in the thread since the agent was last
+      given it. `post` sends the answer as a markdown block with the same words in Slack's own
+      markup beside it, in pieces if it is long, and falls back to the plain words if Slack
+      refuses the block. `working` shows "is thinking…" in the thread, or marks the message
+      with eyes where Slack will not.
+    - **Files go both ways** (added the same day, when the owner asked for the agent to read
+      them). What is attached to a message comes with the event; the host fetches each as the
+      Slack app (`fetch`), and the agent keeps it in the library as an upload in that chat and
+      says "Attached: …" in the message, as the app does. A model that takes pictures is shown
+      the smaller copy Slack makes of one, since a message has to stay small and nothing on
+      the server scales a picture. A file the agent sends with `send_file` is put into the
+      thread (`upload`, Slack's three steps) before its words, once: the calls that sent files
+      already posted are kept on the chat's record. The app's token is only ever sent to an
+      address that is Slack's (`isSlacks`), though both addresses come from Slack. A message
+      Slack tells of twice is known by its id (`told`) before anything is fetched for it.
+    - **Someone who is not one of the agent's people** is answered, and asked about. The note
+      that travels with their message says so to the model, and `Approvals` treats a connector
+      or a paired computer as "ask first" for a chat whose last speaker is such a guest,
+      whatever the rules say (`guest`). The request names them, has no "Always allow", and is
+      answered on the thread's page in the app; the answer sets the agent going in the thread.
+    - **The connector** is Slack's own MCP server (`https://mcp.slack.com/mcp`), which lets no
+      app register itself. A connector can now be given a client id and secret
+      (`AddConnectorRequest`), which the gateway adds from the agent's Slack app for "Connect
+      Slack as you". It acts as whoever signed in.
+    - **In the app:** a Slack section in the agent's settings, "From Slack" in its panel, a
+      thread's page with a line under the strip and no message box (`slack-threads.tsx`), and
+      who wrote each message with "in Slack" beside it. Threads are not in the sidebar.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -574,6 +631,13 @@ mirrored as files, which was put to them as the cost of this and accepted. Secti
 Agents writing to each other, decided on 2026-10-07: "maybe we don't need the permissions and
 agent can message any other agent in a workspace. I'm not worried about loops". So there is no
 switch to allow it and no cap on how long an exchange runs.
+
+Slack, decided on 2026-10-08 from a plan and then a mock-up (`prototypes/slack`): one Slack app
+for each agent; threads in the agent's panel and not the sidebar, opening in the middle; a
+thread is read in the app and answered only from Slack; no switches for who may use the bot,
+with the two rules stated in settings; teammates matched by email, and everyone else needing an
+OK for connectors and paired computers; a thread in a private channel or a direct message being
+readable by everyone in the workspace.
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
 each run, and on 2026-10-07 asked for those to go: the agent writes the list itself, and only
@@ -633,6 +697,20 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   ended by stopping the conversation from its chat. Sub-agents and scheduled runs cannot send.
   Nothing on the sender's side shows that it is waiting to hear back. The native app shows the
   replies and cannot open the conversations.
+- **Slack:** a picture attached there is looked at only by a model that takes pictures, and
+  only as the smaller copy Slack makes; at most five files of a message are taken in. A Slack
+  app made before files were added lacks the two permissions for them (`files:read`,
+  `files:write`): it has to be given them and installed again, and until then the agent says a
+  file could not be had. An answer is posted when it is finished, not as it
+  is written. A thread cannot be answered from the app. A chat from Slack cannot send to
+  another agent, and a scheduled report into one is not posted. The bot hears only mentions
+  and direct messages: a reply in its thread that does not mention it is read the next time it
+  is mentioned. Someone who is not one of the agent's people can still have it run commands on
+  the workspace's machines, read the library, and search its other chats; only connectors and
+  paired computers are held back. The tokens are kept as they are in the app database, as
+  connectors' are in the agent's. Threads are listed in the agent's panel, which a narrow screen
+  does not have: there a thread is reached from a notification or its address. The mobile app
+  does not list them.
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
   own chats cannot be opened there, and nothing shows that one is at work.
 - **Machines:** agents on one machine are not walled off from each other, by the owner's
@@ -688,6 +766,15 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   Node server with the echo model. On Workers, where an agent reaches another through
   its own Durable Object namespace, that has run only in the tests' local runtime with the echo
   model.
+- **Slack has never been run against Slack.** The tests stand in for its Web API and sign
+  events as it does (the signing is checked against the example in Slack's documentation). The
+  one real thing tried: adding the Slack connector on a local server reached Slack's MCP
+  server, which sent back a sign-in address at `slack.com/oauth/v2_user/authorize` carrying
+  the client id. Not tried: Slack accepting the app manifest, a real event (and whether a
+  mention carries its attached files, as a direct message does), fetching and sharing a real
+  file, the markdown block and the "thinking" status in a real channel, and a real sign-in to
+  the connector. Expect the
+  first real run to turn something up (section 9).
 - **On the live site**, without the owner's session, only this could be checked: it answers, its
   pages and assets load, the GitHub sign-in button leads to GitHub with the right callback, and
   the daemon downloaded from it starts pairing. The owner has since paired a computer, pasted

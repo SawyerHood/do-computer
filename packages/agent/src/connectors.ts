@@ -54,6 +54,8 @@ type Secrets = {
   oauth?: McpOAuthState
   /** Where the service sends the user back after they sign in; fixed for a sign-in attempt. */
   redirectUrl?: string
+  /** An app registered with the service by hand, for one that does not let an app register itself. */
+  client?: { id: string; secret?: string }
   tools?: McpTool[]
 }
 
@@ -144,11 +146,23 @@ export class Connectors {
     )
   }
 
-  #oauth(id: string, url: string, redirectUrl: string, onRedirect: (url: URL) => void) {
+  #oauth(
+    id: string,
+    url: string,
+    redirectUrl: string,
+    client: Secrets["client"],
+    onRedirect: (url: URL) => void,
+  ) {
     return new McpOAuthProvider({
       serverUrl: url,
       redirectUrl,
       clientMetadata: { client_name: "Do Computer" },
+      ...(client === undefined
+        ? {}
+        : {
+            clientId: client.id,
+            ...(client.secret === undefined ? {} : { clientSecret: client.secret }),
+          }),
       store: {
         load: async () => (await this.#secrets(id)).oauth,
         save: (state) => this.#saveSecrets(id, (secrets) => ({ ...secrets, oauth: state })),
@@ -174,7 +188,9 @@ export class Connectors {
         openGetStream: false,
         authProvider:
           secrets.headers === undefined && secrets.redirectUrl !== undefined
-            ? adaptOAuthProvider(this.#oauth(id, url, secrets.redirectUrl, onRedirect))
+            ? adaptOAuthProvider(
+                this.#oauth(id, url, secrets.redirectUrl, secrets.client, onRedirect),
+              )
             : undefined,
       }),
     )
@@ -267,8 +283,17 @@ export class Connectors {
       }
     }, context)
     const token = input.token?.trim()
+    const clientId = input.clientId?.trim()
+    const clientSecret = input.clientSecret?.trim()
     await this.#saveSecrets(id, () =>
-      token ? { headers: { authorization: `Bearer ${token}` } } : { redirectUrl },
+      token
+        ? { headers: { authorization: `Bearer ${token}` } }
+        : {
+            redirectUrl,
+            ...(clientId
+              ? { client: { id: clientId, ...(clientSecret ? { secret: clientSecret } : {}) } }
+              : {}),
+          },
     )
     return this.connect(id, redirectUrl, context)
   }
@@ -325,12 +350,12 @@ export class Connectors {
   /** Finish a sign-in with the code the service sent the user back with, then connect. */
   async authorize(id: string, code: string, context: Context): Promise<ConnectorResult> {
     const connector = await this.#get(id, context)
-    const { redirectUrl } = await this.#secrets(id)
+    const { redirectUrl, client } = await this.#secrets(id)
     if (redirectUrl === undefined)
       throw new ConnectorError("That connector is not waiting for a sign-in.")
     try {
       await authorizeMcp(
-        this.#oauth(id, connector.url, redirectUrl, () => {}),
+        this.#oauth(id, connector.url, redirectUrl, client, () => {}),
         {
           serverUrl: connector.url,
           authorizationCode: code,

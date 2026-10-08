@@ -133,12 +133,23 @@ function AddForm({ agentId }: { agentId: string }) {
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
   const [token, setToken] = useState("")
+  const [clientId, setClientId] = useState("")
+  const [clientSecret, setClientSecret] = useState("")
   const add = useMutation({
-    mutationFn: () => client.agent(agentId).addConnector({ name, url, token: token || undefined }),
+    mutationFn: () =>
+      client.agent(agentId).addConnector({
+        name,
+        url,
+        token: token || undefined,
+        clientId: clientId || undefined,
+        clientSecret: clientSecret || undefined,
+      }),
     onSuccess: (result) => {
       setName("")
       setUrl("")
       setToken("")
+      setClientId("")
+      setClientSecret("")
       follow(result)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
@@ -190,6 +201,33 @@ function AddForm({ agentId }: { agentId: string }) {
           the agent.
         </p>
       </div>
+      {/* For the few services whose sign-in does not let an app introduce itself. */}
+      <details className="text-sm">
+        <summary className="cursor-default text-muted-foreground">
+          The service gave me a client ID
+        </summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="connector-client-id">Client ID</Label>
+            <Input
+              id="connector-client-id"
+              autoComplete="off"
+              value={clientId}
+              onChange={(event) => setClientId(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="connector-client-secret">Client secret</Label>
+            <Input
+              id="connector-client-secret"
+              type="password"
+              autoComplete="off"
+              value={clientSecret}
+              onChange={(event) => setClientSecret(event.target.value)}
+            />
+          </div>
+        </div>
+      </details>
       {add.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {add.error.message}
