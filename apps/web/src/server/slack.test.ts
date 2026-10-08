@@ -14,7 +14,6 @@ import {
   isFromSlack,
   messageOf,
   readSlackText,
-  slackClient,
   slackDirectory,
   slackEvent,
   slackManifest,
@@ -102,6 +101,42 @@ function fakeSlack(answers: Record<string, (args: Record<string, string>) => obj
             { user: "UDANA", text: "<@UBOT> and where?", ts: "103.000100" },
           ],
         })
+      case "users.conversations":
+        return answer({
+          ok: true,
+          channels: [
+            { id: "C0LAUNCH1", name: "launch", is_private: false },
+            { id: "G0LEADERS", name: "leadership", is_private: true },
+          ],
+        })
+      case "conversations.history":
+        // As Slack gives a channel: newest first.
+        return answer({
+          ok: true,
+          messages: [
+            { user: "UBOT", bot_id: "B1", text: "Shipping at noon.", ts: "202.000100" },
+            {
+              user: "UJON",
+              text: "Are we still on for <!here>?",
+              ts: "201.000100",
+              reply_count: 2,
+            },
+          ],
+        })
+      case "users.list":
+        return answer({
+          ok: true,
+          members: [
+            { id: "UJON", name: "jon", profile: { display_name: "Jon" } },
+            { id: "UMAYA", name: "maya", real_name: "Maya Okafor" },
+            { id: "UGONE", name: "jon", deleted: true },
+            { id: "UBOT", name: "pip", is_bot: true },
+          ],
+        })
+      case "conversations.open":
+        return answer({ ok: true, channel: { id: `D0${args.users}` } })
+      case "chat.postMessage":
+        return answer({ ok: true, ts: "300.000100" })
       default:
         return answer({ ok: true })
     }
@@ -276,11 +311,16 @@ describe("putting an agent in Slack", () => {
       bot_events: ["app_mention", "message.im"],
     })
     expect(manifest.oauth_config.scopes.bot).toEqual(
-      expect.arrayContaining(["app_mentions:read", "chat:write", "files:read", "files:write"]),
+      expect.arrayContaining([
+        "app_mentions:read",
+        "chat:write",
+        "files:read",
+        "files:write",
+        "im:write",
+      ]),
     )
-    expect(manifest.oauth_config.redirect_urls).toEqual([
-      "https://app.example/api/connectors/callback",
-    ])
+    // It is a bot and nothing more: it asks for nothing to be done as a person.
+    expect(manifest.oauth_config).toEqual({ scopes: { bot: expect.any(Array) } })
     expect(slackManifest(null, "https://app.example", AGENT).features.bot_user.display_name).toBe(
       "do-computer",
     )
@@ -305,7 +345,6 @@ describe("putting an agent in Slack", () => {
       )
     expect(await refused({ botToken: "xoxp-a-user-token", signingSecret: SECRET })).toBe(400)
     expect(await refused({ botToken: TOKEN })).toBe(400)
-    expect(await refused({ botToken: TOKEN, signingSecret: SECRET, clientId: "1.2" })).toBe(400)
     expect(await refused({ botToken: "xoxb-wrong", signingSecret: SECRET })).toBe(400)
     expect((await slackState(db, AGENT, "Pip", "https://app.example")).app).toBeNull()
 
@@ -317,27 +356,21 @@ describe("putting an agent in Slack", () => {
       team: "Tidewater",
       teamUrl: "https://tidewater.slack.com/",
       bot: "pip",
-      hasClient: false,
       connectedAt: NOW,
     })
     const state = await slackState(db, AGENT, "Pip", "https://app.example")
     expect(state.app).toEqual(app)
     expect(JSON.stringify(state)).not.toContain(TOKEN)
     expect(JSON.stringify(state)).not.toContain(SECRET)
-    expect(await slackClient(db, AGENT)).toBeUndefined()
+    // The agent is told where it is and what it is called there, and nothing secret.
+    expect(await slackDirectory(db, deps).whoami!(AGENT)).toEqual({ team: "Tidewater", bot: "pip" })
 
-    // Adding it again replaces what was there, and can bring what the connector signs in with.
-    await connectSlack(db, deps, AGENT, "sawyer", {
-      botToken: TOKEN,
-      signingSecret: SECRET,
-      clientId: "1.2",
-      clientSecret: "shh",
-    })
-    expect((await slackState(db, AGENT, "Pip", "https://app.example")).app?.hasClient).toBe(true)
-    expect(await slackClient(db, AGENT)).toEqual({ clientId: "1.2", clientSecret: "shh" })
+    // Adding it again replaces what was there.
+    await connectSlack(db, deps, AGENT, "sawyer", { botToken: TOKEN, signingSecret: SECRET })
 
     await disconnectSlack(db, AGENT)
     expect((await slackState(db, AGENT, "Pip", "https://app.example")).app).toBeNull()
+    expect(await slackDirectory(db, deps).whoami!(AGENT)).toBeUndefined()
   })
 })
 
@@ -445,19 +478,21 @@ describe("what an agent is told of a message", () => {
       text: "and where?",
       channelName: "launch",
       url: "https://tidewater.slack.com/p100.000100",
-      // The agent's own answer is left out: it has that already. So is the message itself.
+      // The first it hears of a thread, it is given all of it but the message itself: its own
+      // words too, since the thread may be one it started unasked.
       earlier: [
         { name: "Jon", text: "@pip when is the launch?" },
+        { name: "You", text: "March 3." },
         { name: "Maya Okafor", text: "It moved, ask @Dana Whitfield & see #leadership" },
       ],
     })
-    // Having been given the thread up to a point, it is told only what came after.
-    const later = await directory.describe(AGENT, message, "101.000100")
+    // Having been given the thread up to a point, it is told only what others said after.
+    const later = await directory.describe(AGENT, message, "100.000100")
     expect(later?.earlier.map((said) => said.name)).toEqual(["Maya Okafor"])
     expect(slack.calls.findLast((call) => call.method === "conversations.replies")?.args).toEqual({
       channel: "C1",
       ts: "100.000100",
-      oldest: "101.000100",
+      oldest: "100.000100",
       limit: "50",
     })
   })
@@ -505,6 +540,45 @@ describe("what an agent is told of a message", () => {
         earlier: [],
       },
     )
+  })
+})
+
+describe("what is said in Slack", () => {
+  it("can be read by the agent where it has been added: a channel, or one thread of it", async () => {
+    const db = await fresh()
+    const slack = fakeSlack()
+    const deps = { fetch: slack.fetch }
+    const directory = slackDirectory(db, deps)
+    await connectSlack(db, deps, AGENT, "sawyer", { botToken: TOKEN, signingSecret: SECRET })
+    // Oldest first, with names for ids, its own words marked as its own, and which messages
+    // have a thread under them.
+    expect(await directory.read!(AGENT, { channel: "#launch", limit: 500 })).toEqual({
+      channel: "#launch",
+      messages: [
+        { ts: "201.000100", name: "Jon", text: "Are we still on for @here?", replies: 2 },
+        { ts: "202.000100", name: "You", text: "Shipping at noon." },
+      ],
+    })
+    expect(slack.calls.findLast((call) => call.method === "conversations.history")?.args).toEqual({
+      channel: "C0LAUNCH1",
+      limit: "100",
+    })
+    const thread = await directory.read!(AGENT, { channel: "launch", thread: "100.000100" })
+    expect("messages" in thread && thread.messages.map((said) => said.name)).toEqual([
+      "Jon",
+      "You",
+      "Maya Okafor",
+      "Dana Whitfield",
+    ])
+    expect(await directory.read!(AGENT, { channel: "#general" })).toMatchObject({
+      problem: expect.stringContaining("You are not in #general"),
+    })
+    const refusing = fakeSlack({
+      "conversations.history": () => ({ ok: false, error: "missing_scope" }),
+    })
+    expect(
+      await slackDirectory(db, { fetch: refusing.fetch }).read!(AGENT, { channel: "#launch" }),
+    ).toEqual({ problem: "Slack would not show #launch: missing_scope." })
   })
 })
 
@@ -650,6 +724,85 @@ describe("what an agent says in Slack", () => {
       slackDirectory(db, { fetch: elsewhere.fetch }).upload!(AGENT, place, file),
     ).rejects.toThrow()
     expect(elsewhere.files).toEqual([])
+  })
+
+  it("can be said unasked, in a channel it was added to or to one person", async () => {
+    const db = await fresh()
+    const slack = fakeSlack()
+    const deps = { fetch: slack.fetch }
+    const directory = slackDirectory(db, deps)
+    expect(await directory.say!(AGENT, { channel: "#launch" }, "hello")).toEqual({
+      problem: "You are not in Slack.",
+    })
+    expect(await directory.channels!(AGENT)).toBeUndefined()
+    await connectSlack(db, deps, AGENT, "sawyer", { botToken: TOKEN, signingSecret: SECRET })
+    expect(await directory.channels!(AGENT)).toEqual([
+      { id: "C0LAUNCH1", name: "launch", private: false },
+      { id: "G0LEADERS", name: "leadership", private: true },
+    ])
+
+    // A channel by its name, however it is written, and where it went.
+    expect(await directory.say!(AGENT, { channel: "#Launch" }, "**Shipping** at noon.")).toEqual({
+      channel: "#launch",
+      url: "https://tidewater.slack.com/p300.000100",
+    })
+    expect(slack.calls.find((call) => call.method === "chat.postMessage")?.args).toMatchObject({
+      channel: "C0LAUNCH1",
+      text: "*Shipping* at noon.",
+    })
+    // In a thread there.
+    await directory.say!(AGENT, { channel: "launch", thread: "201.000100" }, "Yes.")
+    expect(slack.calls.findLast((call) => call.method === "chat.postMessage")?.args).toMatchObject({
+      channel: "C0LAUNCH1",
+      thread_ts: "201.000100",
+    })
+    // A channel it has not been added to is not written in, and the agent is told how to be.
+    const outside = await directory.say!(AGENT, { channel: "#general" }, "hello")
+    expect(outside).toEqual({
+      problem:
+        "You are not in #general. Someone there has to add you first, by typing /invite @pip in it. You are in: #launch, #leadership.",
+    })
+
+    // A person, by their name as Slack shows it. Someone who has left is not found.
+    expect(await directory.say!(AGENT, { channel: "@jon" }, "Done.")).toMatchObject({
+      channel: "@Jon",
+    })
+    expect(slack.calls.findLast((call) => call.method === "chat.postMessage")?.args.channel).toBe(
+      "D0UJON",
+    )
+    expect(await directory.say!(AGENT, { channel: "@Maya Okafor" }, "Done.")).toMatchObject({
+      channel: "@Maya Okafor",
+    })
+    expect(await directory.say!(AGENT, { channel: "@nobody" }, "hi")).toMatchObject({
+      problem: expect.stringContaining('nobody called "nobody"'),
+    })
+    // An app from before it could write to people says what it is missing.
+    const older = fakeSlack({ "conversations.open": () => ({ ok: false, error: "missing_scope" }) })
+    expect(
+      await slackDirectory(db, { fetch: older.fetch }).say!(AGENT, { channel: "@jon" }, "hi"),
+    ).toMatchObject({ problem: expect.stringContaining("im:write") })
+  })
+
+  it("can be said with a file, which then carries the words", async () => {
+    const db = await fresh()
+    const slack = fakeSlack({
+      "files.getUploadURLExternal": () => ({
+        ok: true,
+        upload_url: "https://files.slack.com/upload/v1/abc",
+        file_id: "F1",
+      }),
+    })
+    const deps = { fetch: slack.fetch }
+    await connectSlack(db, deps, AGENT, "sawyer", { botToken: TOKEN, signingSecret: SECRET })
+    const file = { name: "report.txt", bytes: new TextEncoder().encode("all of it") }
+    expect(
+      await slackDirectory(db, deps).say!(AGENT, { channel: "#launch" }, "The **report**.", file),
+    ).toEqual({ channel: "#launch", url: null })
+    expect(slack.calls.at(-1)).toMatchObject({
+      method: "files.completeUploadExternal",
+      args: { channel_id: "C0LAUNCH1", initial_comment: "The *report*." },
+    })
+    expect(slack.methods()).not.toContain("chat.postMessage")
   })
 
   it("is shown to be on its way, by a status where Slack has one and a mark where it has not", async () => {

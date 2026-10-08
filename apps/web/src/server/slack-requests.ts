@@ -1,16 +1,10 @@
 import { getPlatform } from "#platform"
-import {
-  type AgentSummary,
-  type ConnectSlackRequest,
-  SLACK_MCP_URL,
-} from "@durable-computer/protocol"
+import type { AgentSummary, ConnectSlackRequest } from "@durable-computer/protocol"
 import { agentFor, callAgent, fail, json } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
-import { connectConnector } from "./connectors.ts"
 import {
   connectSlack,
   disconnectSlack,
-  slackClient,
   type SlackDeps,
   slackEvent,
   SlackRefusal,
@@ -58,30 +52,6 @@ export async function removeFromSlack(user: SessionUser, agentId: string): Promi
   if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
   await disconnectSlack(getPlatform().db, agentId)
   return json({ ok: true })
-}
-
-/**
- * Add Slack as a connector: Slack's own MCP server, signed in to as the agent's Slack app. The
- * app's id and secret are added here, so that they never pass through a browser again.
- */
-export async function addSlackConnector(
-  user: SessionUser,
-  request: Request,
-  agentId: string,
-): Promise<Response> {
-  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
-  const client = await slackClient(getPlatform().db, agentId)
-  if (client === undefined) {
-    return fail(
-      409,
-      "That needs the Slack app's client ID and client secret. Remove the agent from Slack and add it again with both.",
-    )
-  }
-  return connectConnector(user, request, agentId, undefined, {
-    name: "Slack",
-    url: SLACK_MCP_URL,
-    ...client,
-  })
 }
 
 /** What Slack sends when the agent is spoken to. There is no session: Slack's signature is the check. */

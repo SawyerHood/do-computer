@@ -79,6 +79,11 @@ export async function startFakeSlack(
         }
         case "conversations.info":
           return answer({ ok: true, channel: { name: "launch" } })
+        // The one channel the bot has been added to.
+        case "users.conversations":
+          return answer({ ok: true, channels: [{ id: "C1", name: "launch", is_private: false }] })
+        case "chat.postMessage":
+          return answer({ ok: true, ts: `18000000${String(calls.length).padStart(2, "0")}.000100` })
         case "chat.getPermalink":
           return answer({
             ok: true,
@@ -100,7 +105,11 @@ export async function startFakeSlack(
     posts: () =>
       calls
         .filter((call) => call.method === "chat.postMessage")
-        .map((call) => ({ thread: call.args.thread_ts, text: call.args.text ?? "" })),
+        .map((call) => ({
+          channel: call.args.channel,
+          thread: call.args.thread_ts,
+          text: call.args.text ?? "",
+        })),
     close: () => new Promise((resolve) => server.close(resolve)),
   }
 }

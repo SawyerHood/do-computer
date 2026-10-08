@@ -1,9 +1,12 @@
 import {
   MAX_LIBRARY_FILE_BYTES,
+  type SlackChannel,
   type SlackContext,
   type SlackDirectory,
   type SlackFile,
   type SlackMessage,
+  type SlackPlace,
+  type SlackProblem,
   type SlackSender,
 } from "@durable-computer/agent"
 import {
@@ -39,6 +42,12 @@ const MAX_THREAD_MESSAGES = 50
 const MAX_EVENT_BYTES = 1024 * 1024
 /** How many people's names are looked up for one message. The rest are called by their id. */
 const MAX_NAMES = 8
+/** How many pages of a list of Slack's are read: two hundred channels or people to a page. */
+const MAX_PAGES = 5
+/** How many messages of a channel or a thread an agent can be shown at once. */
+const MAX_READ = 100
+
+const NOT_IN_SLACK: SlackProblem = { problem: "You are not in Slack." }
 
 export type SlackDeps = {
   /** Where Slack's Web API is. Only a test's stand-in is anywhere else. */
@@ -66,8 +75,6 @@ type AppRow = {
   bot_name: string
   bot_token: string
   signing_secret: string
-  client_id: string | null
-  client_secret: string | null
   created_by: string
   created_at: number
 }
@@ -226,45 +233,9 @@ export function slackPieces(text: string, limit = MAX_POST_CHARS): string[] {
 }
 
 /**
- * What the agent's connector may do as whoever signs in: everything Slack's MCP server offers,
- * since signing in to it asks for all of that, and Slack refuses what an app does not list.
- */
-const USER_SCOPES = [
-  "canvases:read",
-  "canvases:write",
-  "channels:history",
-  "channels:read",
-  "channels:write",
-  "chat:write",
-  "emoji:read",
-  "files:read",
-  "files:write",
-  "groups:history",
-  "groups:read",
-  "groups:write",
-  "im:history",
-  "im:read",
-  "im:write",
-  "lists:read",
-  "lists:write",
-  "mpim:history",
-  "mpim:read",
-  "mpim:write",
-  "reactions:read",
-  "reactions:write",
-  "search:read.files",
-  "search:read.im",
-  "search:read.mpim",
-  "search:read.private",
-  "search:read.public",
-  "search:read.users",
-  "users:read",
-  "users:read.email",
-]
-
-/**
- * What the bot needs: to hear itself spoken to, read the thread it is in and what was attached
- * there, and answer, with a file where it made one.
+ * What the bot needs: to hear itself spoken to, read the channels it is in and what was attached
+ * there, and write, in answer or unasked, to a channel or to one person, with a file where it
+ * made one.
  */
 const BOT_SCOPES = [
   "app_mentions:read",
@@ -276,6 +247,7 @@ const BOT_SCOPES = [
   "groups:history",
   "groups:read",
   "im:history",
+  "im:write",
   "mpim:history",
   "reactions:write",
   "users:read",
@@ -312,17 +284,12 @@ export function slackManifest(agentName: string | null, origin: string, agentId:
         messages_tab_read_only_enabled: false,
       },
     },
-    oauth_config: {
-      redirect_urls: [`${origin}/api/connectors/callback`],
-      scopes: { bot: BOT_SCOPES, user: USER_SCOPES },
-    },
+    oauth_config: { scopes: { bot: BOT_SCOPES } },
     settings: {
       event_subscriptions: {
         request_url: slackEventsUrl(origin, agentId),
         bot_events: ["app_mention", "message.im"],
       },
-      // What lets the connector sign in to Slack's MCP server as this app.
-      is_mcp_enabled: true,
       org_deploy_enabled: false,
       socket_mode_enabled: false,
       token_rotation_enabled: false,
@@ -334,7 +301,6 @@ const summaryOf = (row: AppRow): SlackApp => ({
   team: row.team_name,
   teamUrl: row.team_url,
   bot: row.bot_name,
-  hasClient: row.client_id !== null && row.client_secret !== null,
   connectedAt: row.created_at,
 })
 
@@ -352,7 +318,6 @@ export async function slackState(
       JSON.stringify(slackManifest(agentName, origin, agentId)),
     )}`,
     eventsUrl: slackEventsUrl(origin, agentId),
-    redirectUrl: `${origin}/api/connectors/callback`,
   }
 }
 
@@ -370,8 +335,6 @@ export async function connectSlack(
   const field = (value: unknown) => (typeof value === "string" ? value.trim() : "")
   const botToken = field(input?.botToken)
   const signingSecret = field(input?.signingSecret)
-  const clientId = field(input?.clientId)
-  const clientSecret = field(input?.clientSecret)
   if (!botToken.startsWith("xoxb-")) {
     throw new SlackRefusal(
       400,
@@ -383,9 +346,6 @@ export async function connectSlack(
       400,
       "The signing secret is under Basic Information on the app's page in Slack.",
     )
-  }
-  if ((clientId === "") !== (clientSecret === "")) {
-    throw new SlackRefusal(400, "The client ID and the client secret go together: give both.")
   }
   let answer: Answer
   try {
@@ -408,20 +368,17 @@ export async function connectSlack(
     bot_name: typeof answer.user === "string" ? answer.user : "bot",
     bot_token: botToken,
     signing_secret: signingSecret,
-    client_id: clientId === "" ? null : clientId,
-    client_secret: clientSecret === "" ? null : clientSecret,
     created_by: userId,
     created_at: (deps.now ?? Date.now)(),
   }
   await db.run(
     `INSERT INTO dc_slack_apps (agent_id, team_id, team_name, team_url, bot_user_id, bot_name,
-       bot_token, signing_secret, client_id, client_secret, created_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       bot_token, signing_secret, created_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (agent_id) DO UPDATE SET team_id = excluded.team_id,
        team_name = excluded.team_name, team_url = excluded.team_url,
        bot_user_id = excluded.bot_user_id, bot_name = excluded.bot_name,
        bot_token = excluded.bot_token, signing_secret = excluded.signing_secret,
-       client_id = excluded.client_id, client_secret = excluded.client_secret,
        created_by = excluded.created_by, created_at = excluded.created_at`,
     row.agent_id,
     row.team_id,
@@ -431,8 +388,6 @@ export async function connectSlack(
     row.bot_name,
     row.bot_token,
     row.signing_secret,
-    row.client_id,
-    row.client_secret,
     row.created_by,
     row.created_at,
   )
@@ -442,17 +397,6 @@ export async function connectSlack(
 /** Take an agent out of Slack. What was said there stays readable in the app. */
 export async function disconnectSlack(db: AppDatabase, agentId: string): Promise<void> {
   await db.run("DELETE FROM dc_slack_apps WHERE agent_id = ?", agentId)
-}
-
-/** The id and secret the Slack connector signs in with, where the agent's app has them. */
-export async function slackClient(
-  db: AppDatabase,
-  agentId: string,
-): Promise<{ clientId: string; clientSecret: string } | undefined> {
-  const row = await appOf(db, agentId)
-  return row === undefined || row.client_id === null || row.client_secret === null
-    ? undefined
-    : { clientId: row.client_id, clientSecret: row.client_secret }
 }
 
 /** One event as Slack sends it, as far as this reads it. */
@@ -466,6 +410,8 @@ type SlackEvent = {
   text?: string
   ts?: string
   thread_ts?: string
+  /** On a message that started a thread: how many answers it has. */
+  reply_count?: number
   files?: {
     name?: string
     title?: string
@@ -654,6 +600,190 @@ export function slackDirectory(db: AppDatabase, deps: SlackDeps = {}): SlackDire
     return found?.id
   }
 
+  /**
+   * Post words as the bot, in pieces if they are long. Resolves with how Slack names the first
+   * piece, or with undefined where the bot can no longer write there.
+   */
+  const write = async (
+    row: AppRow,
+    place: SlackPlace,
+    text: string,
+  ): Promise<string | undefined> => {
+    let first: string | undefined
+    for (const piece of slackPieces(text)) {
+      const to = { channel: place.channel, thread_ts: place.thread ?? undefined }
+      const plain = toSlackMarkup(piece)
+      // The words as markdown, which Slack draws as the agent wrote them, with the same in
+      // its own markup beside it for a notification, and for a workspace that cannot draw it.
+      let answer = await slack(deps, row.bot_token, "chat.postMessage", {
+        ...to,
+        text: plain,
+        blocks: JSON.stringify([{ type: "markdown", text: piece }]),
+      })
+      if (!answer.ok && typeof answer.error === "string" && answer.error.startsWith("invalid_")) {
+        if (GONE.has(answer.error)) return undefined
+        answer = await slack(deps, row.bot_token, "chat.postMessage", { ...to, text: plain })
+      }
+      if (!answer.ok) {
+        if (GONE.has(answer.error ?? "")) return undefined
+        throw new Error(`Slack would not post the message: ${answer.error ?? "no reason given"}`)
+      }
+      first ??= typeof answer.ts === "string" ? answer.ts : ""
+    }
+    return first ?? ""
+  }
+
+  /**
+   * Put a file somewhere as the bot, with words beside it if there are any. Slack takes a file
+   * in three steps: ask where to send it, send it there, then say which conversation it is for.
+   * False where the bot may not share files, or can no longer write there.
+   */
+  const share = async (
+    row: AppRow,
+    place: SlackPlace,
+    file: { name: string; bytes: Uint8Array; comment?: string },
+  ): Promise<boolean> => {
+    const asked = await slack(deps, row.bot_token, "files.getUploadURLExternal", {
+      filename: file.name,
+      length: String(file.bytes.length),
+    })
+    const target =
+      typeof asked.upload_url === "string" ? isSlacks(asked.upload_url, deps) : undefined
+    if (!asked.ok || target === undefined || typeof asked.file_id !== "string") {
+      // Without leave to share files there is no sending this one, now or later.
+      if (!asked.ok && (asked.error === "missing_scope" || GONE.has(asked.error ?? ""))) {
+        return false
+      }
+      throw new Error(`Slack would not take the file: ${asked.error ?? "no reason given"}`)
+    }
+    const sent = await (deps.fetch ?? fetch)(target, {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream" },
+      body: file.bytes.slice().buffer,
+    })
+    if (!sent.ok) throw new Error(`Slack answered ${sent.status} to the file`)
+    const done = await slack(deps, row.bot_token, "files.completeUploadExternal", {
+      files: JSON.stringify([{ id: asked.file_id, title: file.name }]),
+      channel_id: place.channel,
+      thread_ts: place.thread ?? undefined,
+      initial_comment: file.comment ? toSlackMarkup(file.comment) : undefined,
+    })
+    if (done.ok) return true
+    if (done.error === "missing_scope" || GONE.has(done.error ?? "")) return false
+    throw new Error(`Slack would not share the file: ${done.error ?? "no reason given"}`)
+  }
+
+  /** The channels the bot has been added to, which are the ones it can read and write in. */
+  const joined = async (token: string): Promise<SlackChannel[]> => {
+    const found: SlackChannel[] = []
+    let cursor: string | undefined
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const answer = await slack(deps, token, "users.conversations", {
+        types: "public_channel,private_channel",
+        exclude_archived: "true",
+        limit: "200",
+        cursor,
+      })
+      if (!answer.ok || !Array.isArray(answer.channels)) {
+        throw new Error(`Slack would not list the channels: ${answer.error ?? "no reason given"}`)
+      }
+      for (const channel of answer.channels as {
+        id?: string
+        name?: string
+        is_private?: boolean
+      }[]) {
+        if (typeof channel.id !== "string" || typeof channel.name !== "string") continue
+        found.push({ id: channel.id, name: channel.name, private: channel.is_private === true })
+      }
+      cursor = (answer.response_metadata as { next_cursor?: string } | undefined)?.next_cursor
+      if (!cursor) break
+    }
+    return found
+  }
+
+  /** The person in the Slack workspace an agent means by a name, as their id. */
+  const personNamed = async (
+    token: string,
+    wanted: string,
+  ): Promise<{ id: string; name: string } | SlackProblem> => {
+    const matches: { id: string; name: string }[] = []
+    let cursor: string | undefined
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const answer = await slack(deps, token, "users.list", { limit: "200", cursor })
+      if (!answer.ok || !Array.isArray(answer.members)) {
+        return { problem: `Slack would not list its people: ${answer.error ?? "no reason given"}.` }
+      }
+      for (const member of answer.members as {
+        id?: string
+        name?: string
+        real_name?: string
+        deleted?: boolean
+        is_bot?: boolean
+        profile?: { display_name?: string; real_name?: string }
+      }[]) {
+        if (typeof member.id !== "string" || member.deleted === true || member.is_bot === true) {
+          continue
+        }
+        const called = [
+          member.profile?.display_name,
+          member.profile?.real_name,
+          member.real_name,
+          member.name,
+        ].filter((name): name is string => typeof name === "string" && name !== "")
+        if (called.some((name) => name.toLowerCase() === wanted)) {
+          matches.push({ id: member.id, name: called[0]! })
+        }
+      }
+      cursor = (answer.response_metadata as { next_cursor?: string } | undefined)?.next_cursor
+      if (!cursor) break
+    }
+    if (matches.length === 1) return matches[0]!
+    return {
+      problem:
+        matches.length === 0
+          ? `There is nobody called "${wanted}" in the Slack workspace. Use their name as Slack shows it.`
+          : `More than one person in the Slack workspace is called "${wanted}".`,
+    }
+  }
+
+  /**
+   * The place an agent means: a channel by its name, a person by `@` and their name, or either
+   * by the id Slack gave. A channel has to be one the bot was added to.
+   */
+  const placeOf = async (
+    row: AppRow,
+    wanted: string,
+  ): Promise<{ id: string; name: string } | SlackProblem> => {
+    const asked = wanted.trim()
+    if (/^[CGD][A-Z0-9]{6,}$/.test(asked)) return { id: asked, name: asked }
+    if (asked.startsWith("@")) {
+      const who = await personNamed(row.bot_token, asked.slice(1).trim().toLowerCase())
+      if ("problem" in who) return who
+      const opened = await slack(deps, row.bot_token, "conversations.open", { users: who.id })
+      const id = (opened.channel as { id?: string } | undefined)?.id
+      if (!opened.ok || typeof id !== "string") {
+        return {
+          problem:
+            opened.error === "missing_scope"
+              ? "The Slack app may not write to people directly. It needs the im:write permission, which someone has to add on the app's page in Slack before installing it again."
+              : `Slack would not open a conversation with ${who.name}: ${opened.error ?? "no reason given"}.`,
+        }
+      }
+      return { id, name: `@${who.name}` }
+    }
+    const name = asked.replace(/^#/, "").toLowerCase()
+    const channels = await joined(row.bot_token)
+    const found = channels.find((channel) => channel.name.toLowerCase() === name)
+    if (found !== undefined) return { id: found.id, name: `#${found.name}` }
+    return {
+      problem: `You are not in #${name}. Someone there has to add you first, by typing /invite @${row.bot_name} in it. ${
+        channels.length === 0
+          ? "You are in no channels yet."
+          : `You are in: ${channels.map((channel) => `#${channel.name}`).join(", ")}.`
+      }`,
+    }
+  }
+
   return {
     async describe(agentId, message, after): Promise<SlackContext | undefined> {
       const row = await appOf(db, agentId)
@@ -691,7 +821,9 @@ export function slackDirectory(db: AppDatabase, deps: SlackDeps = {}): SlackDire
           typeof said.ts === "string" &&
           typeof said.text === "string" &&
           said.text !== "" &&
-          said.user !== row.bot_user_id &&
+          // Its own words there are in its conversation already, unless this is the first it
+          // hears of the thread: then it may be one it started itself, unasked.
+          (after === null || said.user !== row.bot_user_id) &&
           Number(said.ts) < Number(message.ts) &&
           (after === null || Number(said.ts) > Number(after)),
       )
@@ -724,7 +856,7 @@ export function slackDirectory(db: AppDatabase, deps: SlackDeps = {}): SlackDire
         channelName: channel?.ok === true && typeof named === "string" ? named : null,
         url: link?.ok === true && typeof link.permalink === "string" ? link.permalink : null,
         earlier: before.map((said) => ({
-          name: names.get(said.user ?? "") ?? "Someone",
+          name: said.user === row.bot_user_id ? "You" : (names.get(said.user ?? "") ?? "Someone"),
           text: readSlackText(said.text ?? "", names),
         })),
       }
@@ -732,26 +864,89 @@ export function slackDirectory(db: AppDatabase, deps: SlackDeps = {}): SlackDire
 
     async post(agentId, place, text) {
       const row = await appOf(db, agentId)
-      if (row === undefined) return false
-      for (const piece of slackPieces(text)) {
-        const to = { channel: place.channel, thread_ts: place.thread ?? undefined }
-        const plain = toSlackMarkup(piece)
-        // The words as markdown, which Slack draws as the agent wrote them, with the same in
-        // its own markup beside it for a notification, and for a workspace that cannot draw it.
-        let answer = await slack(deps, row.bot_token, "chat.postMessage", {
-          ...to,
-          text: plain,
-          blocks: JSON.stringify([{ type: "markdown", text: piece }]),
-        })
-        if (!answer.ok && typeof answer.error === "string" && answer.error.startsWith("invalid_")) {
-          if (GONE.has(answer.error)) return false
-          answer = await slack(deps, row.bot_token, "chat.postMessage", { ...to, text: plain })
-        }
-        if (answer.ok) continue
-        if (GONE.has(answer.error ?? "")) return false
-        throw new Error(`Slack would not post the message: ${answer.error ?? "no reason given"}`)
+      return row !== undefined && (await write(row, place, text)) !== undefined
+    },
+
+    async whoami(agentId) {
+      const row = await appOf(db, agentId)
+      return row === undefined ? undefined : { team: row.team_name, bot: row.bot_name }
+    },
+
+    async channels(agentId) {
+      const row = await appOf(db, agentId)
+      return row === undefined ? undefined : joined(row.bot_token)
+    },
+
+    async read(agentId, where) {
+      const row = await appOf(db, agentId)
+      if (row === undefined) return NOT_IN_SLACK
+      const at = await placeOf(row, where.channel)
+      if ("problem" in at) return at
+      const limit = String(Math.min(Math.max(Math.round(where.limit ?? 30), 1), MAX_READ))
+      const answer =
+        where.thread === undefined
+          ? await slack(deps, row.bot_token, "conversations.history", { channel: at.id, limit })
+          : await slack(deps, row.bot_token, "conversations.replies", {
+              channel: at.id,
+              ts: where.thread,
+              limit,
+            })
+      if (!answer.ok || !Array.isArray(answer.messages)) {
+        return { problem: `Slack would not show ${at.name}: ${answer.error ?? "no reason given"}.` }
       }
-      return true
+      const said = (answer.messages as SlackEvent[]).filter(
+        (entry) => typeof entry.ts === "string" && typeof entry.text === "string",
+      )
+      // A channel comes newest first, a thread oldest first. Both are handed over oldest first.
+      if (where.thread === undefined) said.reverse()
+      const names = new Map<string, string>([[row.bot_user_id, row.bot_name]])
+      const ids = new Set(said.flatMap((entry) => (entry.user === undefined ? [] : [entry.user])))
+      ids.delete(row.bot_user_id)
+      await Promise.all(
+        [...ids].slice(0, MAX_NAMES * 2).map(async (id) => {
+          const found = await person(row.bot_token, id)
+          if (found !== undefined) names.set(id, found.name)
+        }),
+      )
+      return {
+        channel: at.name,
+        messages: said.map((entry) => ({
+          ts: entry.ts!,
+          name: entry.user === row.bot_user_id ? "You" : (names.get(entry.user ?? "") ?? "Someone"),
+          text: readSlackText(entry.text ?? "", names),
+          ...(typeof entry.reply_count === "number" && entry.reply_count > 0
+            ? { replies: entry.reply_count }
+            : {}),
+        })),
+      }
+    },
+
+    async say(agentId, to, text, file) {
+      const row = await appOf(db, agentId)
+      if (row === undefined) return NOT_IN_SLACK
+      const at = await placeOf(row, to.channel)
+      if ("problem" in at) return at
+      const place = { channel: at.id, thread: to.thread ?? null }
+      let ts: string | undefined
+      if (file === undefined) {
+        ts = await write(row, place, text)
+        if (ts === undefined) return { problem: `Slack would not let you write in ${at.name}.` }
+      } else if (!(await share(row, place, { ...file, comment: text }))) {
+        return {
+          problem: `Slack would not take the file. The Slack app may lack the permission to share files (files:write).`,
+        }
+      }
+      const link =
+        ts === undefined
+          ? undefined
+          : await slack(deps, row.bot_token, "chat.getPermalink", {
+              channel: at.id,
+              message_ts: ts,
+            }).catch(() => undefined)
+      return {
+        channel: at.name,
+        url: link?.ok === true && typeof link.permalink === "string" ? link.permalink : null,
+      }
     },
 
     async fetch(agentId, url) {
@@ -778,36 +973,7 @@ export function slackDirectory(db: AppDatabase, deps: SlackDeps = {}): SlackDire
 
     async upload(agentId, place, file) {
       const row = await appOf(db, agentId)
-      if (row === undefined) return false
-      // Slack takes a file in three steps: ask where to send it, send it there, then say which
-      // conversation it is for.
-      const asked = await slack(deps, row.bot_token, "files.getUploadURLExternal", {
-        filename: file.name,
-        length: String(file.bytes.length),
-      })
-      const target =
-        typeof asked.upload_url === "string" ? isSlacks(asked.upload_url, deps) : undefined
-      if (!asked.ok || target === undefined || typeof asked.file_id !== "string") {
-        // Without leave to share files there is no sending this one, now or later.
-        if (!asked.ok && (asked.error === "missing_scope" || GONE.has(asked.error ?? ""))) {
-          return false
-        }
-        throw new Error(`Slack would not take the file: ${asked.error ?? "no reason given"}`)
-      }
-      const sent = await (deps.fetch ?? fetch)(target, {
-        method: "POST",
-        headers: { "content-type": "application/octet-stream" },
-        body: file.bytes.slice().buffer,
-      })
-      if (!sent.ok) throw new Error(`Slack answered ${sent.status} to the file`)
-      const done = await slack(deps, row.bot_token, "files.completeUploadExternal", {
-        files: JSON.stringify([{ id: asked.file_id, title: file.name }]),
-        channel_id: place.channel,
-        thread_ts: place.thread ?? undefined,
-      })
-      if (done.ok) return true
-      if (done.error === "missing_scope" || GONE.has(done.error ?? "")) return false
-      throw new Error(`Slack would not share the file: ${done.error ?? "no reason given"}`)
+      return row !== undefined && (await share(row, place, file))
     },
 
     async working(agentId, place) {

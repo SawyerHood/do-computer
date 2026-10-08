@@ -1,22 +1,10 @@
-import {
-  type AgentSummary,
-  type ConnectorSummary,
-  SLACK_MCP_URL,
-  type SlackApp,
-  type SlackState,
-} from "@durable-computer/protocol"
-import {
-  ArrowSquareOutIcon,
-  DownloadSimpleIcon,
-  PlugsIcon,
-  SlackLogoIcon,
-} from "@phosphor-icons/react"
-import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
+import type { AgentSummary, SlackApp, SlackState } from "@durable-computer/protocol"
+import { ArrowSquareOutIcon, DownloadSimpleIcon, SlackLogoIcon } from "@phosphor-icons/react"
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { SlackMark } from "@/components/chat/slack-threads"
 import { Loads } from "@/components/loads"
-import { FaceStack } from "@/components/people"
 import { FormPlaceholder } from "@/components/placeholders"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,11 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { agentPicture, download } from "@/lib/agent-picture"
 import { client } from "@/lib/client"
-import { connectorsKey, slackKey } from "@/lib/collections"
+import { slackKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
-import { useSettings } from "@/lib/settings"
-import { cn } from "@/lib/utils"
-import { usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
 
 const good = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
 const heading = "pb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase"
@@ -109,16 +94,8 @@ function AddToSlack({
   const agentId = agent.id
   const [botToken, setBotToken] = useState("")
   const [signingSecret, setSigningSecret] = useState("")
-  const [clientId, setClientId] = useState("")
-  const [clientSecret, setClientSecret] = useState("")
   const connect = useMutation({
-    mutationFn: () =>
-      client.agent(agentId).connectSlack({
-        botToken,
-        signingSecret,
-        clientId: clientId || undefined,
-        clientSecret: clientSecret || undefined,
-      }),
+    mutationFn: () => client.agent(agentId).connectSlack({ botToken, signingSecret }),
     onSuccess: (next) => queryClient.setQueryData(slackKey(agentId), next),
   })
   return (
@@ -181,29 +158,6 @@ function AddToSlack({
                 <p className="text-xs text-muted-foreground">Under Basic Information</p>
               </div>
             </div>
-            <p className={cn(heading, "pt-1 pb-0")}>Only for searching Slack as you · optional</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="slack-client-id">Client ID</Label>
-                <Input
-                  id="slack-client-id"
-                  autoComplete="off"
-                  className="font-mono"
-                  value={clientId}
-                  onChange={(event) => setClientId(event.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="slack-client-secret">Client secret</Label>
-                <Input
-                  id="slack-client-secret"
-                  type="password"
-                  autoComplete="off"
-                  value={clientSecret}
-                  onChange={(event) => setClientSecret(event.target.value)}
-                />
-              </div>
-            </div>
             {connect.isError ? (
               <p role="alert" className="text-sm text-destructive">
                 {connect.error.message}
@@ -231,30 +185,11 @@ const host = (url: string | null) => {
   }
 }
 
-/** What the agent is in Slack, who it works for there, and the connector that goes with it. */
+/** What the agent is in Slack: what it is called there, its picture, and what it does. */
 function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app: SlackApp }) {
-  const api = client.agent(agent.id)
-  const { openAgent } = useSettings()
-  const workspace = useWorkspaceOfAgent(agent.id)
-  const team = workspace?.kind === "team" ? workspace : undefined
-  const people = [...usePeople(team).values()]
   const remove = useMutation({
-    mutationFn: () => api.disconnectSlack(),
+    mutationFn: () => client.agent(agent.id).disconnectSlack(),
     onSettled: () => queryClient.invalidateQueries({ queryKey: slackKey(agent.id) }),
-  })
-  // Asked for beside the rest, not waited for: the section is about the bot first.
-  const { data: connectors } = useQuery({
-    queryKey: connectorsKey(agent.id),
-    queryFn: () => api.connectors(),
-  })
-  const connector = connectors?.find((entry: ConnectorSummary) => entry.url === SLACK_MCP_URL)
-  const asYou = useMutation({
-    mutationFn: () => api.addSlackConnector(),
-    onSuccess: (result) => {
-      // Slack's own sign-in is reached by leaving this page for it.
-      if (result.authorizationUrl) window.location.assign(result.authorizationUrl)
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agent.id) }),
   })
   const teamHost = host(app.teamUrl)
   return (
@@ -308,84 +243,25 @@ function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app:
         </div>
       </section>
 
-      <section aria-label="Who it works for there">
-        <h3 className={heading}>Who it works for there</h3>
+      <section aria-label="What it does there">
+        <h3 className={heading}>What it does there</h3>
         <ul className="divide-y rounded-2xl border">
-          <li className="flex items-center gap-3 p-3.5">
-            {people.length > 0 ? <FaceStack people={people} className="size-6.5" /> : null}
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">{team === undefined ? "You" : `People in ${team.name}`}</p>
-              <p className="text-sm text-muted-foreground">
-                Found by {team === undefined ? "your" : "their"} email address. {name} works for{" "}
-                {team === undefined ? "you" : "them"} in Slack as it does here.
-              </p>
-            </div>
+          <li className="p-3.5">
+            <p className="font-medium">Works for everyone in the Slack workspace</p>
+            <p className="text-sm text-muted-foreground">
+              Anyone there can mention {name} or write to it, and it works for them as it does for
+              you here, with everything it knows and can do.
+            </p>
           </li>
-          <li className="flex items-center gap-3 p-3.5">
-            <SlackMark className="size-6.5 rounded-full" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">Everyone else in the Slack workspace</p>
-              <p className="text-sm text-muted-foreground">
-                {name} answers them. Using a connector or one of your own computers for them waits
-                for an OK here.
-              </p>
-            </div>
+          <li className="p-3.5">
+            <p className="font-medium">Writes and reads on its own</p>
+            <p className="text-sm text-muted-foreground">
+              From any chat or automation, {name} can read the channels it has been added to and
+              write in them, or to one person. Add it to a channel by typing{" "}
+              <span className="font-mono text-xs">/invite @{app.bot}</span> there.
+            </p>
           </li>
         </ul>
-      </section>
-
-      <section aria-label="Search and write as you">
-        <h3 className={heading}>Search and write as you</h3>
-        <div className="flex items-center gap-3 rounded-2xl border p-3.5">
-          <PlugsIcon className="size-4.5 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 font-medium">
-              Slack connector
-              {connector?.status === "connected" ? (
-                <Badge variant="secondary" className={good}>
-                  Connected
-                </Badge>
-              ) : connector?.status === "needs_auth" ? (
-                <Badge
-                  variant="secondary"
-                  className="bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                >
-                  Needs sign-in
-                </Badge>
-              ) : connector !== undefined ? (
-                <Badge variant="secondary" className="bg-destructive/15 text-destructive">
-                  Not connected
-                </Badge>
-              ) : null}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {connector?.status === "connected"
-                ? `${name} can search Slack, read channels and send messages as whoever signed in.`
-                : app.hasClient || connector !== undefined
-                  ? `Lets ${name} search Slack, read channels and send messages as whoever signs in.`
-                  : `This needs the Slack app's Client ID and Client secret. Remove ${name} from Slack and add it again with both.`}
-            </p>
-            {asYou.isError ? (
-              <p role="alert" className="pt-1 text-sm text-destructive">
-                {asYou.error.message}
-              </p>
-            ) : null}
-          </div>
-          {connector !== undefined ? (
-            <Button size="sm" variant="outline" onClick={() => openAgent("connectors")}>
-              Open in Connectors
-            </Button>
-          ) : app.hasClient ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={asYou.isPending}
-              onClick={() => asYou.mutate()}
-            >
-              Connect Slack as you
-            </Button>
-          ) : null}
-        </div>
       </section>
     </>
   )

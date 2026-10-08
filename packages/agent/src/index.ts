@@ -41,11 +41,15 @@ export {
 } from "./computers.ts"
 export { type AgentDirectory, type PeerAgent, type PeerMessage, type PeerReply } from "./peers.ts"
 export {
+  type SlackChannel,
   type SlackContext,
   type SlackDirectory,
   type SlackFile,
   type SlackMessage,
   type SlackPlace,
+  type SlackProblem,
+  type SlackRead,
+  type SlackSaid,
 } from "./slack.ts"
 export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"
