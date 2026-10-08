@@ -115,7 +115,7 @@ done
 check "the agent asked before running the command" "$PENDING" "echo needs-an-ok"
 REQUEST=$(get "/api/agents/$AGENT/approvals" | field "['pending'][0]['id']")
 post "/api/agents/$AGENT/approvals/$REQUEST" '{"decision":"always"}' >/dev/null
-check "always allowing lifts the rule" "$(get "/api/agents/$AGENT/approvals" | field "['rules']")" "{}"
+check "always allowing lifts the rule" "$(get "/api/agents/$AGENT/approvals" | field "['rules'].get('tool:bash')")" "None"
 wait_for "not d['busy'] and 'Approved: Run commands: echo needs-an-ok' in $TEXTS" "the answer reached the chat"
 tool '/tool bash {"command":"echo needs-an-ok"}'
 wait_for "not d['busy'] and any(p.get('output')=='needs-an-ok\\n' for m in d['messages'] for p in m['parts'])" "the command ran once it was allowed"

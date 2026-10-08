@@ -81,26 +81,51 @@ function authOptions(platform: Platform) {
 
 type Auth = ReturnType<typeof betterAuth<ReturnType<typeof authOptions>>>
 
-let ready: Promise<Auth> | undefined
+let built: Auth | undefined
 
-/** The auth instance, with the app and auth tables migrated. Memoized per process or isolate. */
-export function getAuth(): Promise<Auth> {
-  ready ??= (async () => {
-    const platform = getPlatform()
-    await migrateAppDatabase(platform.db)
-    const options = authOptions(platform)
-    // Migrate before building the instance, which checks for its tables as it starts.
-    if ((await readMeta(platform.db, AUTH_SCHEMA_KEY)) !== AUTH_SCHEMA) {
+/** How many times the auth tables are tried when another request is making them too. */
+const AUTH_MIGRATION_TRIES = 3
+
+/**
+ * Bring Better Auth's tables up to date. Several requests may be doing this at once, each on its
+ * own, and one then fails on a table another has just made. What is left to do is worked out
+ * again from the tables as they are.
+ */
+async function migrateAuthTables(platform: Platform, options: ReturnType<typeof authOptions>) {
+  for (let tries = 1; ; tries++) {
+    if ((await readMeta(platform.db, AUTH_SCHEMA_KEY)) === AUTH_SCHEMA) return
+    try {
       const { runMigrations } = await getMigrations(options)
       await runMigrations()
       await writeMeta(platform.db, AUTH_SCHEMA_KEY, AUTH_SCHEMA)
+      return
+    } catch (error) {
+      if (tries >= AUTH_MIGRATION_TRIES) throw error
     }
-    return betterAuth(options)
-  })()
-  ready.catch(() => {
-    ready = undefined
-  })
-  return ready
+  }
+}
+
+/**
+ * The auth instance, with the app and auth tables migrated. Kept per process or isolate once it
+ * is built.
+ *
+ * What is kept is the instance and never the promise of one. On Workers what a request starts
+ * belongs to that request: when it ends early, as when a browser goes away, nothing it was
+ * waiting for arrives, and a promise it left behind never settles. Every later request in that
+ * isolate would wait on it for good. So a request that finds no instance builds its own, and the
+ * first to finish is kept.
+ */
+export async function getAuth(): Promise<Auth> {
+  if (built !== undefined) return built
+  const platform = getPlatform()
+  await migrateAppDatabase(platform.db)
+  const options = authOptions(platform)
+  // Migrate before building the instance, which checks for its tables as it starts.
+  await migrateAuthTables(platform, options)
+  const auth = betterAuth(options)
+  // It finishes setting itself up after it is returned, which is the same kind of promise.
+  await auth.$context
+  return (built ??= auth)
 }
 
 export type SessionUser = {
