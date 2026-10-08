@@ -1,11 +1,15 @@
 import type { Context } from "@earendil-works/chord"
 import {
+  type BinaryReader,
+  type DirReader,
   type ExecutionEnv,
   ExecutionError,
   err,
   FileError,
   type FileErrorCode,
   type FileInfo,
+  type FileWatcher,
+  LineScanner,
   ok,
   type Result,
   type ShellExecOptions,
@@ -44,6 +48,13 @@ function fileError(error: unknown, path: string): FileError {
 function info(path: string, stat: FileStat): FileInfo {
   return { name: basename(path), path, kind: stat.kind, size: stat.size, mtimeMs: stat.mtimeMs }
 }
+
+const aborted = (path: string) => new FileError("aborted", "The operation was aborted", path)
+
+const isCount = (value: number) => Number.isSafeInteger(value) && value >= 0
+
+/** One word of a shell command that reaches the program exactly as given. */
+const quote = (word: string) => `'${word.replaceAll("'", `'\\''`)}'`
 
 function splitLines(text: string): { text: string; terminated: boolean }[] {
   const lines: { text: string; terminated: boolean }[] = []
@@ -139,6 +150,77 @@ export class SandboxEnv implements ExecutionEnv {
     return this.#file(path, (absolute) => this.#sandbox.fs.readFile(absolute))
   }
 
+  /** The file at `path` and what it is, following a symbolic link there unless told not to. */
+  async #entry(absolute: string, noFollow = false): Promise<{ path: string; stat: FileStat }> {
+    const missing = () => new SandboxError("not_found", `No such file: ${absolute}`)
+    const stat = await this.#sandbox.fs.stat(absolute)
+    if (stat === undefined) throw missing()
+    if (stat.kind !== "symlink") return { path: absolute, stat }
+    if (noFollow) throw new SandboxError("invalid", `Is a symbolic link: ${absolute}`)
+    const path = await this.#sandbox.fs.realpath(absolute)
+    const target = await this.#sandbox.fs.stat(path)
+    if (target === undefined) throw missing()
+    return { path, stat: target }
+  }
+
+  /**
+   * A sandbox reads whole files, so the reader holds the file as it was when opened: that is
+   * the one file every later call sees, whatever is renamed or written at its path meanwhile.
+   */
+  async openBinaryReader(
+    path: string,
+    options: { noFollow?: boolean } | undefined,
+    context: Context,
+  ): Promise<Result<BinaryReader, FileError>> {
+    const absolute = this.#resolve(path)
+    if (context.abortSignal?.aborted) return err(aborted(absolute))
+    const opened = await this.#file(path, async () => {
+      const { path: target, stat } = await this.#entry(absolute, options?.noFollow)
+      if (stat.kind === "directory") {
+        throw new SandboxError("is_directory", `Is a directory: ${absolute}`)
+      }
+      return { bytes: await this.#sandbox.fs.readFile(target), mtimeMs: stat.mtimeMs }
+    })
+    if (!opened.ok) return opened
+    const { bytes, mtimeMs } = opened.value
+    let closed = false
+    const check = (context: Context): FileError | undefined =>
+      closed
+        ? new FileError("invalid", "The reader is closed", absolute)
+        : context.abortSignal?.aborted
+          ? aborted(absolute)
+          : undefined
+    return ok({
+      info: async (context) => {
+        const error = check(context)
+        if (error !== undefined) return err(error)
+        return ok(info(absolute, { kind: "file", size: bytes.length, mtimeMs }))
+      },
+      read: async (offset, length, context) => {
+        const error = check(context)
+        if (error !== undefined) return err(error)
+        if (!isCount(offset) || !isCount(length)) {
+          return err(new FileError("invalid", "Invalid offset or length", absolute))
+        }
+        return ok(bytes.slice(offset, offset + length))
+      },
+      scanLines: async (options, context) => {
+        const error = check(context)
+        if (error !== undefined) return err(error)
+        try {
+          const scanner = new LineScanner(options.startLine, options.endLine)
+          scanner.push(bytes)
+          return ok(scanner.finish())
+        } catch (error) {
+          return err(new FileError("invalid", toError(error).message, absolute))
+        }
+      },
+      close: async () => {
+        closed = true
+      },
+    })
+  }
+
   /** Missing parent directories are created, as the write tool promises. */
   writeFile(path: string, content: string | Uint8Array): Promise<Result<void, FileError>> {
     return this.#file(path, async (absolute) => {
@@ -201,6 +283,56 @@ export class SandboxEnv implements ExecutionEnv {
     )
   }
 
+  /**
+   * A sandbox lists a directory in one go, so the first page asks for the listing and later pages
+   * are cut from it.
+   */
+  async openDirReader(path: string, context: Context): Promise<Result<DirReader, FileError>> {
+    const absolute = this.#resolve(path)
+    if (context.abortSignal?.aborted) return err(aborted(absolute))
+    const opened = await this.#file(path, async () => {
+      const { path: target, stat } = await this.#entry(absolute)
+      if (stat.kind !== "directory") {
+        throw new SandboxError("not_directory", `Not a directory: ${absolute}`)
+      }
+      return target
+    })
+    if (!opened.ok) return opened
+    let entries: FileInfo[] | undefined
+    let closed = false
+    return ok({
+      next: async (maxEntries, context) => {
+        if (closed) return err(new FileError("invalid", "The reader is closed", absolute))
+        if (context.abortSignal?.aborted) return err(aborted(absolute))
+        if (!Number.isSafeInteger(maxEntries) || maxEntries <= 0) {
+          return err(new FileError("invalid", "Invalid number of entries", absolute))
+        }
+        if (entries === undefined) {
+          try {
+            entries = (await this.#sandbox.fs.list(opened.value)).map((entry) =>
+              info(resolvePosix(absolute, entry.name), entry),
+            )
+          } catch (error) {
+            return err(fileError(error, absolute))
+          }
+        }
+        const page = entries.splice(0, maxEntries)
+        return ok({ entries: page, done: entries.length === 0 })
+      },
+      close: async () => {
+        closed = true
+      },
+    })
+  }
+
+  /**
+   * Not offered: a sandbox cannot say that a file changed, and comparing listings of a remote
+   * machine on a timer would keep it awake. Nothing here loads its resources from a watched tree.
+   */
+  async watch(): Promise<Result<FileWatcher, FileError>> {
+    return err(new FileError("not_supported", "This computer cannot be watched for file changes"))
+  }
+
   canonicalPath(path: string): Promise<Result<string, FileError>> {
     return this.#file(path, (absolute) => this.#sandbox.fs.realpath(absolute))
   }
@@ -259,11 +391,33 @@ export class SandboxEnv implements ExecutionEnv {
     })
   }
 
+  /**
+   * A sandbox runs shell commands only, so a command given as its program and arguments is run
+   * with every word quoted: the shell hands them on unparsed.
+   */
   async exec(
-    command: string,
+    command: string | readonly string[],
     options: ShellExecOptions | undefined,
     context: Context,
   ): Promise<Result<ShellExecResult, ExecutionError>> {
+    if (typeof command !== "string") {
+      const [program] = command
+      if (program === undefined) {
+        return err(new ExecutionError("spawn_error", "Empty argv: no program to run"))
+      }
+      const result = await this.exec(command.map(quote).join(" "), options, context)
+      // 127 is what a shell answers for a program it cannot find, and what a program may answer
+      // for itself.
+      if (!result.ok || result.value.exitCode !== 127) return result
+      const found = await this.exec(
+        `command -v ${quote(program)}`,
+        { cwd: options?.cwd, env: options?.env },
+        context,
+      )
+      return found.ok && found.value.exitCode !== 0
+        ? err(new ExecutionError("spawn_error", `No such program: ${program}`))
+        : result
+    }
     const timeout = options?.timeout
     if (timeout !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) {
       return err(
@@ -284,7 +438,8 @@ export class SandboxEnv implements ExecutionEnv {
           lines += text.split("\n").length - 1
           if (callbackError !== undefined || options?.onOutput === undefined) return
           try {
-            options.onOutput(text, context)
+            // A sandbox reports what a command printed as one stream.
+            options.onOutput(text, context, { stream: "stdout" })
           } catch (error) {
             callbackError = toError(error)
           }

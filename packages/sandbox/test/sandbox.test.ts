@@ -1,4 +1,5 @@
 import { openNodeSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/node"
+import { registerEnvConformance } from "@earendil-works/pi-durable/testing"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { describe, expect, it } from "vitest"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
@@ -12,6 +13,26 @@ registerSandboxConformance({ describe, it, expect }, "just-bash", async () =>
 registerSandboxConformance({ describe, it, expect }, "shell (real coreutils)", async () =>
   createLocalProcessSandbox(),
 )
+
+// pi-durable's own environment suite, less what a sandbox does not offer: it cannot be watched
+// for file changes, and it reports what a command printed as one stream.
+const offered = (name: string) =>
+  !name.startsWith("watch ") && name !== "exec reports the stream of every chunk in both forms"
+const environmentRunner = {
+  describe,
+  expect,
+  it: (name: string, test: () => Promise<void>, timeoutMs?: number) =>
+    offered(name) ? it(name, test, timeoutMs) : it.skip(name, test),
+}
+
+registerEnvConformance(environmentRunner, "just-bash: environment", async (use) => {
+  const database = await openNodeSqliteDatabase(":memory:")
+  await use(new SandboxEnv(await createJustBashSandbox({ id: "test", database })))
+})
+
+registerEnvConformance(environmentRunner, "shell (real coreutils): environment", async (use) => {
+  await use(new SandboxEnv(createLocalProcessSandbox()))
+})
 
 describe("just-bash: durability", () => {
   const context = BACKGROUND_CONTEXT
