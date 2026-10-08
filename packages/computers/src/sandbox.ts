@@ -4,6 +4,10 @@ import {
   type ExecOptions,
   type ExecOutcome,
   type FileStat,
+  type JobFollowed,
+  type JobFollowOptions,
+  type JobState,
+  JobsUnsupported,
   type Sandbox,
   SandboxError,
   type SandboxErrorCode,
@@ -42,6 +46,7 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
     if (response.ok) return response
     const failure = (await response.json().catch(() => ({}))) as { error?: string; code?: string }
     const message = failure.error ?? `The computer answered with an error (${response.status}).`
+    if (failure.code === "unsupported") throw new JobsUnsupported(message)
     const code = failure.code === undefined ? undefined : CODES[failure.code]
     if (code !== undefined && file !== undefined) throw new SandboxError(code, message, file)
     throw new ComputerUnavailable(message)
@@ -84,6 +89,44 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
     capabilities: { realBinaries: true, network: true },
     fs,
     flush: async () => {},
+    // The daemon keeps jobs itself, and nothing of what one prints arrives before the answer.
+    jobs(scope) {
+      const ask = async <T>(request: Record<string, unknown>): Promise<T> =>
+        ((await (await post("/job", { scope, ...request })).json()) as { value: T }).value
+      const following = (follow: JobFollowOptions) => ({
+        waitMs: follow.waitMs,
+        ...(follow.removeUnder === undefined ? {} : { removeUnder: follow.removeUnder }),
+      })
+      const told = (follow: JobFollowOptions) => (followed: JobFollowed) => {
+        if (followed.output !== "") follow.onOutput?.(followed.output)
+        return followed
+      }
+      return {
+        start: (job, follow) =>
+          ask<JobFollowed>({
+            op: "start",
+            job: job.id,
+            command: job.command,
+            cwd: job.cwd,
+            env: job.env,
+            lifeMs: job.lifeMs,
+            ...following(follow),
+          }).then(told(follow)),
+        follow: (id, follow) =>
+          ask<JobFollowed>({ op: "follow", job: id, from: follow.from, ...following(follow) }).then(
+            told(follow),
+          ),
+        stop: async (id) => void (await ask({ op: "stop", job: id })),
+        check: (ids) =>
+          ids.length === 0
+            ? Promise.resolve({})
+            : ask<Record<string, JobState & { size: number }>>({ op: "check", jobs: [...ids] }),
+        remove: async (ids) =>
+          void (ids.length > 0 && (await ask({ op: "remove", jobs: [...ids] }))),
+        log: (id) =>
+          `${options.home}/.do-computer/jobs/${scope.replace(/[^A-Za-z0-9_-]/g, "_")}/${id}/output.log`,
+      }
+    },
     async exec(command: string, execOptions: ExecOptions = {}): Promise<ExecOutcome> {
       const response = await post("/exec", {
         command,

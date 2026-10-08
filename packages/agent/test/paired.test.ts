@@ -62,7 +62,7 @@ afterAll(async () => {
 })
 
 /** Run a daemon for computer `id` on a fresh home directory, connected to its link in memory. */
-async function startDaemon(id: string, readOnly = false): Promise<string> {
+async function startDaemon(id: string, readOnly = false, current = false): Promise<string> {
   const home = mkdtempSync(join(tmpdir(), "dc-laptop-"))
   const listeners = {
     message: [] as ((data: unknown, binary: boolean) => void)[],
@@ -88,6 +88,13 @@ async function startDaemon(id: string, readOnly = false): Promise<string> {
   )
   toDaemon.push((data) => daemon.onFrame(data))
   await links.connect(computerActorName(id), like, new Request("http://link/connect"))
+  // A daemon of today says what it is, and that it can keep a command running.
+  if (current) {
+    const hello = { t: "hello", platform: "linux", hostname: id, home, readOnly, version: "test" }
+    listeners.message.forEach((listener) =>
+      listener(JSON.stringify({ ...hello, jobs: true }), false),
+    )
+  }
   daemon.onOpen()
   return home
 }
@@ -480,5 +487,71 @@ describe("computers the agent was not given", () => {
       by: "Jon",
     })
     expect(told).toContain('[Jon said no to your request to use the computer \\"build-box\\".')
+  })
+})
+
+describe("a command left running on a paired computer", () => {
+  it("is refused with the reason where the daemon is too old, and still runs when waited for", async () => {
+    const chat = await call<ChatSummary>("/chats", "POST", {})
+    faux.setResponses(
+      useTool("bash", { command: "echo hi", computer: "laptop", run_in_background: true } as never),
+    )
+    const refused = lastTool(await say(chat.id, "start it on my laptop"))
+    expect(refused.status).toBe("error")
+    expect(refused.output).toContain("is too old")
+    faux.setResponses(useTool("bash", { command: "echo hi", computer: "laptop" }))
+    expect(lastTool(await say(chat.id, "then wait for it")).output).toBe("hi\n")
+  })
+
+  it("carries on there, and the agent is told when it ends", async () => {
+    const chat = await call<ChatSummary>("/chats", "POST", {})
+    const home = await startDaemon("c20", false, true)
+    await call("/computers/c20", "PUT", {
+      name: "desk",
+      platform: "linux",
+      hostname: "desk",
+      home,
+      readOnly: false,
+      pairedAt: 3,
+    })
+    let told = ""
+    faux.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxToolCall("bash", {
+            command: "echo begun; sleep 2.5; echo built",
+            computer: "desk",
+            run_in_background: true,
+          }),
+        ],
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage("Started."),
+      (context) => {
+        told = JSON.stringify(context)
+        return fauxAssistantMessage("It built.")
+      },
+    ])
+    const started = lastTool(await say(chat.id, "build it on my desk"))
+    expect(started.output).toContain('Started in the background as b1 on "desk"')
+    expect(started.output).toContain(join(home, ".do-computer/jobs/agent-1"))
+
+    const deadline = Date.now() + 10_000
+    let state = await call<ChatState>(`/chats/${chat.id}`)
+    while (state.busy || state.messages.at(-1)?.role !== "assistant" || told === "") {
+      if (Date.now() > deadline) throw new Error("the command's end was never told")
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      state = await call<ChatState>(`/chats/${chat.id}`)
+    }
+    expect(told).toContain("Your background command b1")
+    expect(told).toContain("finished with exit code 0")
+    expect(state.messages.flatMap((message) => message.parts)).toContainEqual(
+      expect.objectContaining({
+        type: "notice",
+        kind: "command",
+        detail: "begun\nbuilt",
+        job: expect.objectContaining({ id: "b1", computer: "desk", status: "done" }),
+      }),
+    )
   })
 })

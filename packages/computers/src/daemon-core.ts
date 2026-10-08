@@ -6,11 +6,13 @@ import {
   EXEC_STDIO_CAP,
   type FsFrame,
   type HostFrame,
+  type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
   REMOTE_FILE_CAP,
   type RemoteFileStat,
 } from "@durable-computer/protocol"
+import type { SandboxJobs } from "@durable-computer/sandbox"
 
 /** What the daemon does to its machine, injected: Node in the real daemon, fakes in tests. */
 export interface DaemonIO {
@@ -31,6 +33,11 @@ export interface DaemonIO {
   mkdir(path: string, recursive: boolean): Promise<void>
   remove(path: string, options: { recursive: boolean; force: boolean }): Promise<void>
   rename(from: string, to: string): Promise<void>
+  /**
+   * Commands the daemon keeps going by itself, kept apart by `scope` for each agent that works
+   * on the machine. Absent: the daemon cannot, and says so.
+   */
+  jobs?(scope: string): SandboxJobs
   /** Record one thing the agent did on this machine. */
   audit(entry: Record<string, unknown>): void
 }
@@ -168,6 +175,11 @@ export class DaemonCore {
         }
         void this.#fs(frame)
         return
+      case "job":
+        // Looking at a job and stopping one change nothing a read-only computer protects.
+        if (this.#readOnly && frame.op === "start") return this.#refuse(frame.id, "run commands")
+        void this.#job(frame)
+        return
       case "revoked":
         // The transport reacts to the close code; nothing to do here.
         return
@@ -209,6 +221,61 @@ export class DaemonCore {
         exitCode: result.exitCode,
       }),
     )
+  }
+
+  async #job(frame: JobFrame): Promise<void> {
+    const jobs = this.#io.jobs?.(frame.scope)
+    if (jobs === undefined) {
+      return this.#error(frame.id, "bad_request", "This computer cannot keep a command running.")
+    }
+    const follow = {
+      waitMs: Math.min(Math.max(0, frame.waitMs ?? 0), MAX_EXEC_TIMEOUT_MS),
+      ...(frame.removeUnder === undefined ? {} : { removeUnder: frame.removeUnder }),
+    }
+    try {
+      let value: unknown = true
+      switch (frame.op) {
+        case "start": {
+          if (frame.job === undefined || frame.command === undefined) {
+            return this.#error(frame.id, "bad_request", "start needs a job and a command.")
+          }
+          this.#io.audit({ ts: this.#now(), kind: "job", command: frame.command })
+          value = await jobs.start(
+            {
+              id: frame.job,
+              command: frame.command,
+              ...(frame.cwd === undefined ? {} : { cwd: frame.cwd }),
+              ...(frame.env === undefined ? {} : { env: frame.env }),
+              lifeMs: frame.lifeMs ?? DEFAULT_EXEC_TIMEOUT_MS,
+            },
+            follow,
+          )
+          break
+        }
+        case "follow":
+          if (frame.job === undefined) {
+            return this.#error(frame.id, "bad_request", "follow needs a job.")
+          }
+          value = await jobs.follow(frame.job, { ...follow, from: frame.from ?? 0 })
+          break
+        case "stop":
+          if (frame.job === undefined) {
+            return this.#error(frame.id, "bad_request", "stop needs a job.")
+          }
+          this.#io.audit({ ts: this.#now(), kind: "job_stop", job: frame.job })
+          await jobs.stop(frame.job)
+          break
+        case "check":
+          value = await jobs.check(frame.jobs ?? [])
+          break
+        case "remove":
+          await jobs.remove(frame.jobs ?? [])
+          break
+      }
+      this.#sendOrBuffer(JSON.stringify({ t: "job_result", id: frame.id, value }))
+    } catch (error) {
+      this.#error(frame.id, errorCode(error), (error as Error)?.message ?? String(error))
+    }
   }
 
   async #read(id: string, path: string, maxBytes: number): Promise<void> {

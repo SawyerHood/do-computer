@@ -3,6 +3,7 @@ import {
   JOB_LOG_CAP_BYTES,
   type JobFollowed,
   type JobState,
+  JobsUnsupported,
   type SandboxJobs,
   shellJobs,
 } from "@durable-computer/sandbox"
@@ -44,6 +45,12 @@ const REPORT_BYTES = 16 * 1024
 /** A command is looked at on every wake-up at first, and this often once it has run a while. */
 const SETTLED_AFTER_MS = 10 * 60_000
 const SETTLED_EVERY_MS = 60_000
+/**
+ * How soon a running command is looked at again without waiting for a wake-up, by how long it
+ * has run: a short one should not seem to take longer than it did.
+ */
+const lookAgainMs = (age: number) =>
+  age < 2 * 60_000 ? 5_000 : age < SETTLED_AFTER_MS ? 15_000 : SETTLED_EVERY_MS
 /** A command that is over is forgotten after this long. Its folder goes at the same age. */
 const FORGET_AFTER_MS = 7 * 24 * 60 * 60_000
 /** One follow of a job may wait this long; a longer wait is made of several. */
@@ -175,6 +182,8 @@ export class Jobs {
   #ticking: Promise<void> = Promise.resolve()
   /** When each running job was last looked at. */
   readonly #looked = new Map<string, number>()
+  /** The next look that is not a wake-up's, while there is one to come. */
+  #again: ReturnType<typeof setTimeout> | undefined
 
   constructor(options: JobsOptions) {
     this.#options = options
@@ -186,7 +195,7 @@ export class Jobs {
         section(
           "background",
           () =>
-            `A command that takes long does not have to hold you up. Pass \`run_in_background\` to \`bash\` for a server, a watcher, or a build, install or test run likely to take more than a minute: the call returns at once, and when the command ends you get a message and a turn. A command you did not start that way and that is still running after ${Math.round((options.foregroundMs ?? FOREGROUND_MS) / 1000)} seconds is moved to the background by itself. Either way, do not sleep, poll or run it again while you wait: carry on with other work, or say what you started and end your turn. The \`background\` tool lists these commands, shows what one has printed and stops one; stop what is no longer needed. This works on the machines of your workspace, not on a computer somebody connected.`,
+            `A command that takes long does not have to hold you up. Pass \`run_in_background\` to \`bash\` for a server, a watcher, or a build, install or test run likely to take more than a minute: the call returns at once, and when the command ends you get a message and a turn. A command you did not start that way and that is still running after ${Math.round((options.foregroundMs ?? FOREGROUND_MS) / 1000)} seconds is moved to the background by itself. Either way, do not sleep, poll or run it again while you wait: carry on with other work, or say what you started and end your turn. The \`background\` tool lists these commands, shows what one has printed and stops one; stop what is no longer needed. A lightweight shell has no background to run things in, and \`bash\` says so there.`,
         ),
       ],
     })
@@ -196,13 +205,40 @@ export class Jobs {
     this.#harness = harness
   }
 
+  /** Stop looking. What is running runs on, and is found again by whoever opens the agent. */
+  close(): void {
+    clearTimeout(this.#again)
+    this.#again = undefined
+    this.#harness = undefined
+  }
+
+  /**
+   * Look again soon, without waiting for a wake-up. The wake-ups are what a restart leaves; a
+   * timer is gone with the process, and this only makes word of an ending come sooner.
+   */
+  #soon(age: number): void {
+    if (this.#again !== undefined || this.#harness === undefined) return
+    const timer = setTimeout(() => {
+      this.#again = undefined
+      if (this.#harness !== undefined) void this.tick()
+    }, lookAgainMs(age))
+    // Nothing should be kept alive only to look at a command.
+    ;(timer as { unref?: () => void }).unref?.()
+    this.#again = timer
+  }
+
   #require(): Harness {
     if (this.#harness === undefined) throw new Error("Jobs are not attached to a harness")
     return this.#harness
   }
 
-  /** What keeps commands going on a computer, or undefined where nothing can. */
+  /**
+   * What keeps commands going on a computer, or undefined where nothing can. A computer
+   * somebody connected keeps them itself; a Linux machine of the workspace is given the means.
+   */
   #runner(target: ComputerTarget): SandboxJobs | undefined {
+    const own = target.sandbox.jobs?.(this.#options.agentId)
+    if (own !== undefined) return own
     return target.machine && target.sandbox.capabilities.realBinaries
       ? shellJobs(target.sandbox, this.#options.agentId)
       : undefined
@@ -323,6 +359,14 @@ export class Jobs {
     return stopped
   }
 
+  /** Stop the commands a chat left running, when the chat itself was stopped. Nothing is said. */
+  async stopFor(chatId: string, context: Context): Promise<void> {
+    for (const [id, job] of Object.entries(await this.#jobs(context))) {
+      if (job.status !== "running" || job.chatId !== chatId) continue
+      await this.stop(id, "agent", context).catch((error) => this.#options.onError?.(error))
+    }
+  }
+
   /** Stop every running command, as well as can be done, for an agent that is being deleted. */
   async stopAll(context: Context): Promise<void> {
     for (const [id, job] of Object.entries(await this.#jobs(context))) {
@@ -358,8 +402,16 @@ export class Jobs {
   tick(): Promise<void> {
     const context = this.#options.context
     const run = async () => {
+      if (this.#harness === undefined) return
       try {
         await this.#look(context)
+        const now = this.#options.now()
+        const running = Object.values(await this.#jobs(context)).filter(
+          (job) => job.status === "running",
+        )
+        if (running.length > 0) {
+          this.#soon(Math.min(...running.map((job) => now - job.startedAt)))
+        }
       } catch (error) {
         this.#options.onError?.(error)
       }
@@ -399,9 +451,9 @@ export class Jobs {
           runner = this.#runner(target)
           stands = (await runner?.check(mine.map(([, job]) => job.folder))) ?? {}
         }
-      } catch (error) {
-        // A machine that cannot be reached right now is asked again at the next wake-up.
-        this.#options.onError?.(error)
+      } catch {
+        // A machine that cannot be reached right now is asked again at the next look. A laptop
+        // that is asleep is not worth a report each time.
       }
       for (const [id, job] of mine) {
         this.#looked.set(id, now)
@@ -533,6 +585,7 @@ export class Jobs {
       return id
     }, context)
     this.#options.onStarted?.()
+    this.#soon(0)
     return id
   }
 
@@ -568,20 +621,20 @@ export class Jobs {
         }
         const target = api.env instanceof ComputerEnv ? api.env.target : undefined
         const runner = target === undefined ? undefined : this.#runner(target)
-        if (target === undefined || runner === undefined) {
-          if (background === true) {
-            return fail(
-              target === undefined || target.machine
-                ? "This computer cannot run commands in the background: it is a lightweight shell that runs one command at a time. Run it without run_in_background."
-                : `"${target.computer.name}" is a computer somebody connected, and commands cannot be left running in the background there yet. Run it without run_in_background, with a timeout long enough for it.`,
-            )
-          }
-          // As it was before there were jobs: the call is the command.
-          return this.#plain.execute(
+        // As it was before there were jobs: the call is the command.
+        const plainly = () =>
+          this.#plain.execute(
             { command, ...(timeout === undefined ? {} : { timeout }) },
             api as never,
             context,
           )
+        if (target === undefined || runner === undefined) {
+          if (background === true) {
+            return fail(
+              "This computer cannot run commands in the background: it is a lightweight shell that runs one command at a time. Run it without run_in_background.",
+            )
+          }
+          return plainly()
         }
         if (background === true) {
           const running = Object.values(await this.#jobs(context)).filter(
@@ -633,7 +686,14 @@ export class Jobs {
             })
           }
         } catch (error) {
-          if (signal?.aborted) await runner.stop(folder).catch(() => {})
+          if (error instanceof JobsUnsupported) {
+            if (background !== true) return plainly()
+            return fail(
+              `"${target.computer.name}" cannot run commands in the background: the program that connects it is too old. Whoever it belongs to can update it by running the install command from Computers again. Until then, run it without run_in_background, with a timeout long enough for it.`,
+            )
+          }
+          // Whoever made the call is told it failed, so the command is not left running unseen.
+          await runner.stop(folder).catch(() => {})
           throw error
         } finally {
           signal?.removeEventListener("abort", abort)

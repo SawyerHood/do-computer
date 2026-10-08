@@ -30,7 +30,7 @@ type World = {
 }
 const worlds: World[] = []
 
-function open(directory: string, options: { shell?: "light" } = {}): World {
+function open(directory: string, options: { shell?: "light"; foregroundMs?: number } = {}): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -53,7 +53,7 @@ function open(directory: string, options: { shell?: "light" } = {}): World {
             : machine,
         // Short, so that a command left running is looked at soon after it ends.
         keepAliveMs: 150,
-        foregroundMs: 400,
+        foregroundMs: options.foregroundMs ?? 400,
         onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
       }),
@@ -342,6 +342,63 @@ describe("background commands", () => {
     expect((await world.machine.exec("ls .do-computer/jobs/agent-1 | wc -l")).output.trim()).toBe(
       "0",
     )
+    expect(world.errors).toEqual([])
+  })
+
+  it("stops the command when the turn that waits for it is stopped", async () => {
+    const world = open(temporary(), { foregroundMs: 20_000 })
+    const chat = await setup(world)
+    script(world, (turn) =>
+      afterTool(turn)
+        ? fauxAssistantMessage("Done.")
+        : use("bash", { command: "echo $$ > pid; echo waiting; sleep 300" }),
+    )
+    await send(world, chat.id, "run it")
+    await until(
+      () => chatState(world, chat.id),
+      (state) => tools(state)[0]?.output?.includes("waiting") === true,
+    )
+    const started = Date.now()
+    await call(world, `/chats/${chat.id}/abort`, "POST")
+    await until(
+      () => chatState(world, chat.id),
+      (state) => !state.busy,
+    )
+    expect(Date.now() - started < 5_000).toBe(true)
+    await until(
+      () => world.machine.exec("kill -0 $(cat pid) 2>/dev/null; echo $?"),
+      (outcome) => outcome.output.trim() === "1",
+    )
+    expect(await jobs(world)).toEqual([])
+  })
+
+  it("keeps a sub-agent from reporting until the command it left running has ended", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    script(world, (turn) => {
+      if (turn.seen.includes("You are working as a sub-agent")) {
+        if (turn.last.includes(NUDGED)) return fauxAssistantMessage("It built.")
+        if (afterTool(turn)) return fauxAssistantMessage("Building, more soon.")
+        return use("bash", { command: "sleep 2.5; echo built", run_in_background: true })
+      }
+      if (afterTool(turn)) return fauxAssistantMessage("Handed over.")
+      if (turn.last.includes("A sub-agent of yours has sent word")) {
+        return fauxAssistantMessage("The build is in.")
+      }
+      return use("subagent", { action: "start", title: "Build", task: "Build the site." })
+    })
+    await send(world, chat.id, "have it built")
+    const reported = await until(
+      () => chatState(world, chat.id),
+      (state) => !state.busy && said(state).includes("The build is in."),
+    )
+    // One report, and it is what the sub-agent said once its command had ended.
+    const words = reported.messages.flatMap((message) =>
+      message.parts.filter(
+        (part): part is NoticePart => part.type === "notice" && part.kind === "subagent",
+      ),
+    )
+    expect(words.map((word) => word.detail)).toEqual(["It built."])
     expect(world.errors).toEqual([])
   })
 

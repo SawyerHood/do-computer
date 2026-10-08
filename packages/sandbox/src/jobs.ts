@@ -1,3 +1,4 @@
+import { JOB_LOG_CAP_BYTES } from "@durable-computer/protocol"
 import type { ExecOptions, ExecOutcome } from "./index.ts"
 import { quote } from "./shell-fs.ts"
 
@@ -46,6 +47,9 @@ export type JobStart = {
   readonly lifeMs: number
 }
 
+/** The computer cannot keep a command going by itself, where one of its kind usually can. */
+export class JobsUnsupported extends Error {}
+
 /**
  * Commands that outlive the call that started them. A job runs in a session of its own with
  * what it prints going to a log in its folder, so it can be left, looked in on, and stopped.
@@ -65,8 +69,6 @@ export interface SandboxJobs {
   log(id: string): string
 }
 
-/** A job prints at most this much. Past it, its next write ends it. */
-export const JOB_LOG_CAP_BYTES = 100 * 1024 * 1024
 /** A folder left behind is removed this long after its job ended. */
 const KEEP_DAYS = 7
 /** Past this much unread output, only the end of it is sent. */

@@ -149,6 +149,11 @@ export type PeersOptions = {
   readonly chat: (chatId: string) => Promise<ChatState | undefined>
   /** Whether a chat has asked the user for something and not been answered. */
   readonly waiting: (chatId: string, context: Context) => Promise<boolean>
+  /**
+   * Whether something a chat left running will give the agent a turn there when it ends, such
+   * as a command in the background. Until then the chat has not come to rest.
+   */
+  readonly running?: (chatId: string, context: Context) => Promise<boolean>
   /** Called when a conversation was stopped, so that what it was waiting on is not left asking. */
   readonly onStopped?: (chatId: string, context: Context) => Promise<void>
   readonly onError?: (error: unknown) => void
@@ -465,6 +470,8 @@ export class Peers {
       })
       return
     }
+    // What it left running will set it going again, and its reply is what it says then.
+    if (await this.#options.running?.(id, context)) return
     // It stopped to ask the user for something. Their answer sets it going again.
     if (await this.#options.waiting(id, context)) {
       if (peer.status !== "waiting") {

@@ -1,7 +1,11 @@
 # Background commands: plan
 
-**Status:** proposed on 2026-10-08. Nothing is built. Section 8 lists the choices in here that
-the owner has not made himself, and section 9 what has not been checked.
+**Status:** the server side was built on 2026-10-08, for the machines of a workspace and for
+paired computers. HANDOFF.md section 5 item 26 says how, and where the build departed from this
+plan. What the user sees (section 5 here) is drawn in `prototypes/background-commands` and not
+built, apart from the entry in the chat when a command ends. Section 8 lists the choices in here
+that the owner has not made himself, and section 9 what had not been checked when this was
+written.
 
 An agent that runs a slow command today can do nothing else until it ends, and neither can the
 person talking to it. This plan lets a command run in the background: the agent starts it, gets

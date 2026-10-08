@@ -515,7 +515,12 @@ export class AgentActor implements Actor {
       chat: (chatId) => this.#chatState(chatId),
       waiting: async (chatId, c) =>
         (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
-      onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
+      running: (chatId, c) => this.#jobs.waiting(chatId, c),
+      onStopped: async (chatId, c) => {
+        await this.#approvals.withdraw(chatId, c)
+        // What a stopped sub-agent left running would only set it going again.
+        await this.#jobs.stopFor(chatId, c)
+      },
       // What the agent says about a report is told like any other answer nobody was there for.
       onReport: (report) => {
         if (report.turn === undefined || this.#harness === undefined) return
@@ -537,6 +542,7 @@ export class AgentActor implements Actor {
             chat: (chatId) => this.#chatState(chatId),
             waiting: async (chatId, c) =>
               (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+            running: (chatId, c) => this.#jobs.waiting(chatId, c),
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
             onError: (error) => options.onReport?.(error),
           })
@@ -551,6 +557,7 @@ export class AgentActor implements Actor {
             chat: (chatId) => this.#chatState(chatId),
             waiting: async (chatId, c) =>
               (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+            running: (chatId, c) => this.#jobs.waiting(chatId, c),
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
             keep: (file) => this.#library.keep(file),
             contents: (file) => this.#library.contents(file),
@@ -956,6 +963,7 @@ export class AgentActor implements Actor {
     const harness = this.#harness
     this.#harness = undefined
     this.#opened = undefined
+    this.#jobs.close()
     await this.#connectors?.close()
     await (await harness)?.close(context)
   }

@@ -80,6 +80,8 @@ if [ -f "$DAEMON" ]; then
   check "paired computer is online" "$ONLINE" "True"
   tool '/tool bash {"command":"cat proof.txt","computer":"smoke-laptop"}'
   wait_for "not d['busy'] and 'on the paired machine' in $TEXTS" "agent ran a command on the paired computer"
+  tool '/tool bash {"command":"sleep 3; echo late on the paired machine","computer":"smoke-laptop","run_in_background":true}'
+  wait_for "any(p.get('kind')=='command' and 'late on the paired machine' in p.get('detail','') for m in d['messages'] for p in m['parts'])" "a command left running on the paired computer was reported when it ended"
   COMPUTER=$(get /api/computers | paired "['id']")
   # The computer is taken from the agent, which asks for it back, and its owner says yes.
   curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -X DELETE "$BASE/api/computers/$COMPUTER/agents/$AGENT" >/dev/null
@@ -130,6 +132,8 @@ if [ "$DEFAULT_KIND" = "just-bash" ]; then
   check "and cannot be opened to the workspace" "$(patch "/api/computers/$MACHINE" '{"access":"open"}' | field "['error']")" "Only a machine that agents can share can be opened to a workspace."
 else
   check "the workspace's machine is open to its agents" "$(get /api/computers | field "['computers'][0]['access']")" "open"
+  tool '/tool bash {"command":"sleep 3; echo late on the machine","run_in_background":true}'
+  wait_for "any(p.get('kind')=='command' and 'late on the machine' in p.get('detail','') for m in d['messages'] for p in m['parts'])" "a command left running on the machine was reported when it ended"
 fi
 # Deleting an agent removes it and leaves the others alone.
 SECOND=$(post /api/agents | field "['agent']['id']")

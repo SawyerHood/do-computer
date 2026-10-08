@@ -57,3 +57,6 @@ export function jobOutcome(job: {
       return `Lost with its computer after ${span}`
   }
 }
+
+/** A background command prints at most this much. Past it, it is stopped. */
+export const JOB_LOG_CAP_BYTES = 100 * 1024 * 1024

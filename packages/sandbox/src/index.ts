@@ -1,11 +1,14 @@
+import type { SandboxJobs } from "./jobs.ts"
+
 export { SandboxEnv } from "./env.ts"
 export { createJustBashSandbox, type JustBashOptions, justBashSandbox } from "./just-bash/index.ts"
+export { JOB_LOG_CAP_BYTES } from "@durable-computer/protocol"
 export {
-  JOB_LOG_CAP_BYTES,
   type JobFollowed,
   type JobFollowOptions,
   type JobStart,
   type JobState,
+  JobsUnsupported,
   type SandboxJobs,
   shellJobs,
 } from "./jobs.ts"
@@ -83,6 +86,12 @@ export interface Sandbox {
   readonly capabilities: { readonly realBinaries: boolean; readonly network: boolean }
   readonly fs: SandboxFs
   exec(command: string, options?: ExecOptions): Promise<ExecOutcome>
+  /**
+   * Commands that outlive the call that started them, kept apart by `scope` for whoever shares
+   * the computer. Absent where the computer has no way of its own: a Linux machine with a shell
+   * is given one by `shellJobs`.
+   */
+  jobs?(scope: string): SandboxJobs
   /** Make everything written so far durable. A no-op where writes already are. */
   flush(): Promise<void>
   /**
