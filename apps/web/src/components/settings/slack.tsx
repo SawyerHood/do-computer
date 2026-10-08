@@ -5,9 +5,15 @@ import {
   type SlackApp,
   type SlackState,
 } from "@durable-computer/protocol"
-import { ArrowSquareOutIcon, PlugsIcon, SlackLogoIcon } from "@phosphor-icons/react"
+import {
+  ArrowSquareOutIcon,
+  DownloadSimpleIcon,
+  PlugsIcon,
+  SlackLogoIcon,
+} from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useState } from "react"
+import { AgentFace } from "@/components/agent-avatar"
 import { SlackMark } from "@/components/chat/slack-threads"
 import { Loads } from "@/components/loads"
 import { FaceStack } from "@/components/people"
@@ -16,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { agentPicture, download } from "@/lib/agent-picture"
 import { client } from "@/lib/client"
 import { connectorsKey, slackKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -52,16 +59,54 @@ function Step({
   )
 }
 
+/**
+ * The agent's face for Slack. Slack lets nobody but a person set an app's icon, so the picture
+ * is handed over as a file, to be put on the app's page by hand.
+ */
+function BotPicture({ agent, name }: { agent: AgentSummary; name: string }) {
+  const save = useMutation({
+    mutationFn: async () => {
+      const file =
+        name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "agent"
+      download(await agentPicture(agent.avatar, agent.id), `${file}.png`)
+    },
+  })
+  return (
+    <div className="flex items-center gap-3">
+      <AgentFace agent={agent} className="size-10" still />
+      <div className="min-w-0 flex-1 text-sm text-muted-foreground">
+        <p>
+          To give it {name}'s face, set this picture as the app's icon: on the app's page in Slack,
+          Basic Information, then Display Information.
+        </p>
+        {save.isError ? (
+          <p role="alert" className="text-destructive">
+            {save.error.message}
+          </p>
+        ) : null}
+      </div>
+      <Button size="sm" variant="outline" disabled={save.isPending} onClick={() => save.mutate()}>
+        <DownloadSimpleIcon data-icon="inline-start" />
+        Download picture
+      </Button>
+    </div>
+  )
+}
+
 /** The three steps, and the box the Slack app's credentials are pasted into. */
 function AddToSlack({
-  agentId,
+  agent,
   name,
   state,
 }: {
-  agentId: string
+  agent: AgentSummary
   name: string
   state: SlackState
 }) {
+  const agentId = agent.id
   const [botToken, setBotToken] = useState("")
   const [signingSecret, setSigningSecret] = useState("")
   const [clientId, setClientId] = useState("")
@@ -93,6 +138,7 @@ function AddToSlack({
             Create {name}'s Slack app
             <ArrowSquareOutIcon data-icon="inline-end" />
           </Button>
+          <BotPicture agent={agent} name={name} />
         </Step>
         <Step number={2} title="Install it">
           <p className="text-sm text-muted-foreground">
@@ -255,6 +301,13 @@ function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app:
         </p>
       </div>
 
+      <section aria-label="Its picture">
+        <h3 className={heading}>Its picture</h3>
+        <div className="rounded-2xl border p-3.5">
+          <BotPicture agent={agent} name={name} />
+        </div>
+      </section>
+
       <section aria-label="Who it works for there">
         <h3 className={heading}>Who it works for there</h3>
         <ul className="divide-y rounded-2xl border">
@@ -344,7 +397,7 @@ function Section({ agent, name }: { agent: AgentSummary; name: string }) {
     queryFn: () => client.agent(agent.id).slack(),
   })
   return state.app === null ? (
-    <AddToSlack agentId={agent.id} name={name} state={state} />
+    <AddToSlack agent={agent} name={name} state={state} />
   ) : (
     <InSlack agent={agent} name={name} app={state.app} />
   )

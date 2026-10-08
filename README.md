@@ -289,7 +289,8 @@ the team's agents, and removes the computers they paired for the team, since tho
 An agent can be put in Slack as a bot under its own name, from **Slack** in its settings. Each
 agent is a Slack app of its own, which you make: the settings open Slack's page for that already
 filled in, and you paste back the bot token and signing secret Slack gives the app. Nothing is
-set on the deployment, which only needs an address Slack can reach.
+set on the deployment, which only needs an address Slack can reach. The same settings give you
+the agent's picture as a file, to set as the app's icon in Slack.
 
 - **Speaking to it.** Mention the bot in a channel it has been added to, or write to it directly.
   It answers in the thread. Mention it again there and it carries on the same conversation,

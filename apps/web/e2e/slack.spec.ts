@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises"
 import type { APIRequestContext, Page } from "@playwright/test"
 import { FIXED_TOKEN, startFakeMcp } from "./fake-mcp-server.ts"
 import { BOT_TOKEN, mention, SIGNING_SECRET, startFakeSlack } from "./fake-slack-server.ts"
@@ -55,6 +56,15 @@ test.describe("slack", () => {
     expect(manifest.settings.event_subscriptions.request_url).toMatch(
       new RegExp(`/api/slack/events/${agentId}$`),
     )
+
+    // The agent's picture comes as a file, for the app's icon: a square PNG as large as Slack asks.
+    const downloading = page.waitForEvent("download")
+    await dialog.getByRole("button", { name: "Download picture" }).click()
+    const picture = await downloading
+    expect(picture.suggestedFilename()).toBe("juniper.png")
+    const bytes = await readFile(await picture.path())
+    expect(bytes.subarray(1, 4).toString()).toBe("PNG")
+    expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([1024, 1024])
 
     // Slack tries that address when the app is made, before anything has been pasted here.
     const tried = await page.request.post(`/api/slack/events/${agentId}`, {
@@ -236,6 +246,12 @@ test.describe("slack", () => {
     const agentId = agentIdOf(page)
     await openSettings(page, "Slack")
     const dialog = page.getByRole("dialog")
+    // Its picture is still to be had once it is there, for an app that was made without one.
+    await expect(
+      dialog.getByRole("region", { name: "Its picture" }).getByRole("button", {
+        name: "Download picture",
+      }),
+    ).toBeVisible()
     await dialog.getByRole("button", { name: "Remove from Slack" }).click()
     await expect(dialog.getByRole("button", { name: "Connect", exact: true })).toBeVisible()
     const said = mention("USAWYER", "anyone there?")

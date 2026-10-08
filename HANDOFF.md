@@ -593,6 +593,13 @@ Since then, newest last:
     - **In the app:** a Slack section in the agent's settings, "From Slack" in its panel, a
       thread's page with a line under the strip and no message box (`slack-threads.tsx`), and
       who wrote each message with "in Slack" beside it. Threads are not in the sidebar.
+    - **The bot's picture** (asked for the same day: "We should also give you an image of your
+      bot to add to slack"). Slack lets nobody but a person set an app's icon, so the Slack
+      section hands the agent's creature over as a file, `<name>.png`, with where to put it.
+      `lib/agent-picture.ts` draws it in the browser: a creature of its own on no page, stepped
+      to its pose and drawn once, as the tab's icon is (`lib/favicon.ts`), then made large in
+      whole blocks on a ground of its own color, 1024 pixels a side. Where the creature cannot
+      be drawn, the plain one that stands in for it is.
 
 ## 6. What the owner has said they want
 
