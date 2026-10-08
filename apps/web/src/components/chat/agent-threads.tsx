@@ -54,7 +54,8 @@ export function PeerFace({
   )
 }
 
-function StatusMark({ status }: { status: SubagentStatus | undefined }) {
+/** How a conversation that is only read here is getting on, as a mark at the end of its row. */
+export function StatusMark({ status }: { status: SubagentStatus | undefined }) {
   const tone = "size-4 shrink-0 text-muted-foreground"
   switch (status) {
     case "working":

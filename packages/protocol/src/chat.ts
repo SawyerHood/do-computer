@@ -74,6 +74,8 @@ export type ChatMessage = {
   author?: { id: string; name: string }
   /** The agent that sent a user message, where it came from another agent and not a person. */
   agent?: { id: string; name: string }
+  /** Who wrote a user message in Slack, by their id and name there. */
+  slack?: { id: string; name: string }
 }
 
 export type QueuedInput = {

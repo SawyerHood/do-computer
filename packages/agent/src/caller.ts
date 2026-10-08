@@ -79,3 +79,37 @@ export function agentSenderOf(meta: string): Caller | undefined {
   if (id === undefined || name === undefined) return undefined
   return { id: unescapeAttribute(id), name: unescapeAttribute(name) }
 }
+
+/** Someone who wrote to the agent in Slack. */
+export type SlackSender = {
+  /** Their id in Slack. */
+  id: string
+  name: string
+  /** The user of the app they are, where they are one of the people the agent works for. */
+  userId?: string
+}
+
+/**
+ * The note that travels with a message written in Slack, for the model: who wrote it, when, and
+ * what to make of it. A name in Slack is its owner's to choose, so it is written as an
+ * attribute's value and cannot end the tag.
+ */
+export function slackMeta(sentAt: string, from: SlackSender, note: string): string {
+  const member = from.userId === undefined ? "" : ` from_id="${escapeAttribute(from.userId)}"`
+  return `<meta kind="slack" sent_at="${escapeAttribute(sentAt)}" from="${escapeAttribute(from.name)}" from_slack="${escapeAttribute(from.id)}"${member}>${note}</meta>`
+}
+
+/** Who wrote a message in Slack, read back out of the note that travelled with it. */
+export function slackSenderOf(meta: string): SlackSender | undefined {
+  if (!meta.startsWith('<meta kind="slack" ')) return undefined
+  const head = meta.slice(0, meta.indexOf(">"))
+  const id = / from_slack="([^"]*)"/.exec(head)?.[1]
+  const name = / from="([^"]*)"/.exec(head)?.[1]
+  const userId = / from_id="([^"]*)"/.exec(head)?.[1]
+  if (id === undefined || name === undefined) return undefined
+  return {
+    id: unescapeAttribute(id),
+    name: unescapeAttribute(name),
+    ...(userId === undefined ? {} : { userId: unescapeAttribute(userId) }),
+  }
+}

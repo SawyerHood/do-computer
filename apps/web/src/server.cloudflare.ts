@@ -26,6 +26,7 @@ import { createPresenceActor } from "./server/presence-actor.ts"
 import { readConfig } from "./server/platform.ts"
 import { notifyPeople } from "./server/push.ts"
 import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
+import { slackDirectory } from "./server/slack.ts"
 import { computerChoices } from "./server/sandbox.ts"
 
 export { SandboxObject } from "./server/sandbox.cloudflare.ts"
@@ -57,6 +58,7 @@ export const AgentObject = createDurableActorClass<Env>({
         createAgentBeside,
       ),
       appUrl: config.baseUrl,
+      slackDirectory: slackDirectory(d1Database(env.DB), { apiUrl: config.slackApiUrl }),
       onNotify: (notification) =>
         void notifyPeople(
           d1Database(env.DB),

@@ -13,6 +13,7 @@ import {
 import { agentDirectory } from "./agent-directory.ts"
 import { createAgentBeside } from "./agents.ts"
 import { addableKinds, addMachineFor, removeMachineFor } from "./computers.ts"
+import { slackDirectory } from "./slack.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { libraryDirectory } from "./library-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
@@ -84,6 +85,7 @@ function create(): NodePlatform {
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
         appUrl: config.baseUrl,
+        slackDirectory: slackDirectory(app, { apiUrl: config.slackApiUrl }),
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),

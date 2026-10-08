@@ -284,6 +284,31 @@ team's agent can see the team's computers and its members' own, and ask for any 
 Removing someone from a team ends their access at once, disconnects their own computers from
 the team's agents, and removes the computers they paired for the team, since those run as them.
 
+## Slack
+
+An agent can be put in Slack as a bot under its own name, from **Slack** in its settings. Each
+agent is a Slack app of its own, which you make: the settings open Slack's page for that already
+filled in, and you paste back the bot token and signing secret Slack gives the app. Nothing is
+set on the deployment, which only needs an address Slack can reach.
+
+- **Speaking to it.** Mention the bot in a channel it has been added to, or write to it directly.
+  It answers in the thread. Mention it again there and it carries on the same conversation,
+  having been given what others said in between.
+- **Files.** A file attached to a message for the bot is kept in the library, as one attached
+  in the app is, and a picture is shown to a model that can look at one. A file the agent
+  sends in the thread's chat is posted to the thread, before the words that are about it.
+- **In the app.** Each Slack thread is a conversation of the agent's, listed in its panel under
+  "From Slack". It is read there and written in from Slack. A teammate's messages have their
+  face; they are found by the email address of their account.
+- **Everyone else.** Anyone in the Slack workspace can speak to the bot. For someone who is not
+  one of the agent's people, using a connector or a computer one of you paired waits for an OK
+  in the app, whatever the agent's permissions say.
+- **Slack as a connector.** Separately, an agent can search Slack, read channels and send
+  messages as a person, through Slack's own MCP server. Give the Slack app's client ID and
+  secret when adding the agent to Slack, then press "Connect Slack as you". Slack's server does
+  not let an app register itself, which is why the app's own id is needed; any connector can be
+  given a client ID and secret the same way.
+
 ## Trust
 
 Agents act without asking first. That is the default on purpose, and it means a prompt injection
@@ -331,6 +356,12 @@ paired computer. What limits the damage:
   message from another agent is marked as that agent's and not yours, and the agent that gets it
   is held to its own permissions. It does mean that what one agent was talked into by something
   it read can be passed on to another.
+- **Slack is a wider room.** What Slack sends is taken in only when it is signed with the Slack
+  app's secret, and recently. The bot's token and that secret are kept on the server and never
+  sent back to a browser. Anyone in the Slack workspace can then speak to the agent, which
+  answers with what it knows and can do: its memory, its chats, its workspace's machines. Only
+  connectors and paired computers are held back for people who are not the agent's own, so an
+  agent that knows things not everyone in your Slack should hear is not one to put there.
 - **Asking for a computer changes nothing by itself.** An agent can see which computers the
   people it works for have paired, by name, owner and whether they are online, and nothing else
   about them. It gets one only when someone the computer belongs to says yes.

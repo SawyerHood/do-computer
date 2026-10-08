@@ -8,6 +8,7 @@ export const AGENT_SECTIONS = [
   "model",
   "skills",
   "connectors",
+  "slack",
   "permissions",
   "usage",
   "manage",

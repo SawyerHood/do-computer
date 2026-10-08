@@ -37,6 +37,7 @@ import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
 import { SideChat, SideChatBar, SideChatWelcome } from "./side-chat.tsx"
+import { SlackBar, SlackFoot, useSlackThreads } from "./slack-threads.tsx"
 import {
   isAtWork,
   SubagentFace,
@@ -173,8 +174,11 @@ export function ChatView({
   const agents = useAgentsById()
   const peer = thread?.peer === undefined ? undefined : agents.get(thread.peer.agentId)
   const peerName = peer?.name ?? thread?.peer?.name ?? "the other agent"
+  // So is a thread in Slack the agent was spoken to in: it is written in from there.
+  const slack = chat?.kind === "slack" ? chat : undefined
+  const slackThreads = useSlackThreads(agent.id)
   // Whether this chat is the user's to write in.
-  const own = sub === undefined && thread === undefined
+  const own = sub === undefined && thread === undefined && slack === undefined
 
   // In a team: who else has this chat open, and who is writing in it.
   const { me } = useRouteContext({ from: "/_app" })
@@ -255,6 +259,9 @@ export function ChatView({
       <div className="flex min-w-0 flex-1 flex-col">
         {aside === undefined || main === undefined ? null : (
           <SideChatBar agent={agent} chat={aside} main={main} />
+        )}
+        {slack === undefined ? null : (
+          <SlackBar agent={agent} chat={slack} main={main} onStop={stop} />
         )}
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <div
@@ -493,6 +500,8 @@ export function ChatView({
                 Back to {peerName}
               </Link>
             </div>
+          ) : slack !== undefined ? (
+            <SlackFoot chat={slack} />
           ) : (
             <>
               {typing.length === 0 ? null : (
@@ -556,6 +565,8 @@ export function ChatView({
           }
           subagents={subagents}
           threads={threads}
+          slack={slackThreads}
+          chatId={chatId}
           presence={
             team === undefined ? undefined : (
               <section aria-label="Here now" className="shrink-0 border-t px-5 pt-4 pb-3.5">

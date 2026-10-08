@@ -20,6 +20,7 @@ export const computerKindsKey = ["computer-kinds"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const secretsKey = (agentId: string) => ["agents", agentId, "secrets"] as const
+export const slackKey = (agentId: string) => ["agents", agentId, "slack"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
 /** A library file's text at one revision. Kept apart from the listing, which changes; this never does. */
 export const libraryTextKey = (agentId: string, fileId: string, rev: number) =>

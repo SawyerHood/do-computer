@@ -143,4 +143,7 @@ check "nor behind an address made to look like another" "$(post "/api/agents/$AG
 check "an agent cannot be handed a computer from outside" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PUT "$BASE/api/agents/$AGENT/chats%2F..%2Fcomputers%2Fstolen" -d '{"name":"stolen","platform":"linux","hostname":"x","home":"/","readOnly":false,"pairedAt":1}' | field "['error']")" "Not found"
 check "an agent cannot be written to as if by another agent" "$(post "/api/agents/$AGENT/peers/someone/message" '{"id":"x","chatId":"1","text":"hello","from":"someone"}' | field "['error']")" "Not found"
 check "nor behind an address made to look like another" "$(post "/api/agents/$AGENT/chats%2F..%2Fpeers%2Fsomeone%2Fmessage" '{"id":"x","chatId":"1","text":"hello","from":"someone"}' | field "['error']")" "Not found"
+check "an agent cannot be written to as if from Slack" "$(post "/api/agents/$AGENT/slack/message" '{"id":"x","channel":"C1","direct":false,"thread":"1.1","ts":"1.1","user":"U1","text":"hello"}' | field "['error']")" "Not found"
+check "nor behind an address made to look like another" "$(post "/api/agents/$AGENT/chats%2F..%2Fslack%2Fmessage" '{"id":"x","channel":"C1","direct":false,"thread":"1.1","ts":"1.1","user":"U1","text":"hello"}' | field "['error']")" "Not found"
+check "what is not signed by Slack is not taken as said there" "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{"type":"event_callback"}' "$BASE/api/slack/events/$AGENT")" "404"
 echo "all checks passed against $BASE"

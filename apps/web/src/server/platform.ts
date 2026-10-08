@@ -51,6 +51,8 @@ export type Config = {
   readonly allowPrivateHosts: boolean
   /** OpenRouter speech-to-text model used for dictation. */
   readonly transcriptionModel: string
+  /** Where Slack's Web API is. Only a test's stand-in is anywhere but at Slack. */
+  readonly slackApiUrl: string | undefined
   /** For sending invitations by email, through Resend. Without both, invitations are links only. */
   readonly email: {
     readonly resendApiKey: string | undefined
@@ -147,6 +149,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     },
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
+    slackApiUrl: optional("DC_SLACK_API_URL"),
     email: { resendApiKey: optional("RESEND_API_KEY"), from: optional("DC_EMAIL_FROM") },
   }
 }

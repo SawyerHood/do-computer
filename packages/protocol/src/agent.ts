@@ -56,10 +56,10 @@ export type AgentSummary = AgentIdentity & {
 
 /**
  * `chat` is one the user talks in. A scheduled run and a sub-agent each have a chat of their own,
- * and so does each conversation another agent has with this one (`agent`). Those can be read and
- * not written in.
+ * and so does each conversation another agent has with this one (`agent`) and each thread in
+ * Slack the agent was spoken to in (`slack`). Those can be read and not written in.
  */
-export type ChatKind = "chat" | "schedule" | "subagent" | "agent"
+export type ChatKind = "chat" | "schedule" | "subagent" | "agent" | "slack"
 
 /**
  * How a sub-agent is getting on. `waiting` is for the user's OK; `done` is once it has reported
@@ -85,13 +85,25 @@ export type ChatSummary = {
   createdBy?: string
   /** For a sub-agent: the chat it was started in, where its reports go. */
   parentId?: string
-  /** For a sub-agent, and for a conversation with another agent. */
+  /** For a sub-agent, for a conversation with another agent, and for a thread in Slack. */
   status?: SubagentStatus
   /**
    * For a conversation with another agent: the agent whose messages these are, and the chat of
    * its own that it writes them from.
    */
   peer?: { agentId: string; name: string; chatId: string }
+  /** For a thread in Slack: where it is. */
+  slack?: SlackPlace
+}
+
+/** Where in Slack a conversation is held. */
+export type SlackPlace = {
+  /** The channel's name without its `#`, or null for a direct message or a name not learned. */
+  channel: string | null
+  /** Whether it is a direct message to the agent. */
+  direct: boolean
+  /** The address of the thread in Slack, where that could be learned. */
+  url: string | null
 }
 
 /** What changed on an agent, sent on its event stream so clients know what to refetch. */
@@ -191,6 +203,50 @@ export type AddConnectorRequest = {
   url: string
   /** A fixed access token, for services that issue one instead of asking the user to sign in. */
   token?: string
+  /**
+   * The id and secret of an app registered with the service by hand, for a service whose sign-in
+   * does not let an app register itself. Slack's is one.
+   */
+  clientId?: string
+  clientSecret?: string
+}
+
+/** The address of Slack's own MCP server, which the Slack connector connects to. */
+export const SLACK_MCP_URL = "https://mcp.slack.com/mcp"
+
+/** The Slack app an agent is in Slack as, without its secrets. */
+export type SlackApp = {
+  /** The Slack workspace it was installed to. */
+  team: string
+  /** That workspace's address, such as `https://acme.slack.com/`. */
+  teamUrl: string | null
+  /** What the bot is called there. */
+  bot: string
+  /** Whether the app's client id and secret were given, which the Slack connector signs in with. */
+  hasClient: boolean
+  connectedAt: number
+}
+
+/** An agent's place in Slack, for its settings. */
+export type SlackState = {
+  /** Null while the agent is not in Slack. */
+  app: SlackApp | null
+  /** Opens Slack's page for making an app, filled in for this agent. */
+  createUrl: string
+  /** Where Slack sends what is said to the agent. */
+  eventsUrl: string
+  /** Where Slack sends someone back after they sign in, for the connector. */
+  redirectUrl: string
+}
+
+/** What is pasted from the Slack app's pages to put an agent in Slack. */
+export type ConnectSlackRequest = {
+  /** The "Bot User OAuth Token", which begins `xoxb-`. */
+  botToken: string
+  signingSecret: string
+  /** Only needed for the Slack connector. */
+  clientId?: string
+  clientSecret?: string
 }
 
 /** The answer to adding or reconnecting a connector: where to send the user if they must sign in. */
@@ -364,6 +420,11 @@ export type ApprovalRequest = {
   title: string
   /** The specifics: the command, the file, the arguments. */
   detail: string
+  /**
+   * Who it is for, by name, where that is someone who is not one of the agent's people, such as
+   * someone who wrote to it in Slack. It is asked because of them, whatever the rules say.
+   */
+  guest?: string
   createdAt: number
   /** It is asked about every time: "always" is not an answer that can be given. */
   onceOnly?: boolean

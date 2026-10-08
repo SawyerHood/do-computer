@@ -5,7 +5,7 @@ import {
   CONNECTOR_REDIRECT_HEADER,
   encodeCaller,
 } from "@durable-computer/agent"
-import type { ConnectorResult } from "@durable-computer/protocol"
+import type { AddConnectorRequest, ConnectorResult } from "@durable-computer/protocol"
 import { agentFor, fail, json } from "./agents.ts"
 import { getUser, type SessionUser } from "./auth.ts"
 
@@ -24,6 +24,8 @@ export async function connectConnector(
   request: Request,
   agentId: string,
   connectorId?: string,
+  /** The connector to add, where it is not what the request itself asks for. */
+  adding?: AddConnectorRequest,
 ): Promise<Response> {
   if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
   const { db, agents } = getPlatform()
@@ -35,7 +37,12 @@ export async function connectConnector(
         "content-type": "application/json",
         [CONNECTOR_REDIRECT_HEADER]: `${origin(request)}${CALLBACK_PATH}`,
       },
-      body: connectorId === undefined ? await request.text() : "{}",
+      body:
+        connectorId !== undefined
+          ? "{}"
+          : adding === undefined
+            ? await request.text()
+            : JSON.stringify(adding),
     }),
   )
   if (!response.ok) return response
