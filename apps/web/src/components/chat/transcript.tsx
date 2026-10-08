@@ -186,8 +186,9 @@ function FromAgent({
 
 /**
  * A message someone wrote in Slack, in the thread's conversation here: who wrote it and that it
- * came from there. One of the agent's people has their face. Anyone else is known only from
- * Slack, and the Slack mark stands where a face would be.
+ * came from there. Someone whose address in Slack is an account's here has their face. Anyone
+ * else is known only from Slack, and the Slack mark stands where a face would be. Nothing else
+ * differs between them.
  */
 function FromSlack({
   message,
@@ -214,7 +215,7 @@ function FromSlack({
           {message.createdAt === undefined ? null : clock.format(message.createdAt)}
           <span className="flex items-center gap-1">
             <SlackLogoIcon className="size-3" />
-            in Slack{person === undefined ? " · not in this workspace" : ""}
+            in Slack
           </span>
         </span>
         {message.parts.map((part, index) =>

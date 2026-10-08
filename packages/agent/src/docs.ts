@@ -140,11 +140,6 @@ export type SlackRecord = {
   woken?: number
   /** The newest message of the thread the agent was given, as Slack names it. */
   seen?: string
-  /**
-   * Who wrote the message it is answering. `member` is whether they are one of the people the
-   * agent works for; for anyone else it asks before using a connector or a paired computer.
-   */
-  speaker?: { id: string; name: string; member: boolean }
   /** The messages it has been given lately, by Slack's names for them, so that one is given once. */
   told?: string[]
   /** The files it sent that have been posted to the thread, by the calls that sent them. */

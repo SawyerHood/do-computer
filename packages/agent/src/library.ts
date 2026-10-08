@@ -264,6 +264,18 @@ export class Library {
     })
   }
 
+  /** A file of the library by its path or its name, with what is in it. The newest of a name. */
+  async named(wanted: string): Promise<{ name: string; bytes: Uint8Array } | undefined> {
+    const backend = await this.#options.backend()
+    const lower = wanted.toLowerCase()
+    const files = await backend.list()
+    const file =
+      files.find((entry) => entry.id === wanted || entry.path.toLowerCase() === lower) ??
+      files.find((entry) => entry.name.toLowerCase() === lower)
+    const bytes = file === undefined ? undefined : await backend.bytes(file)
+    return file === undefined || bytes === undefined ? undefined : { name: file.name, bytes }
+  }
+
   /** What is in a file of the library, as it was at the revision named. */
   async contents(file: { id: string; rev: number }): Promise<Uint8Array | undefined> {
     return (await this.#options.backend()).bytes(file)

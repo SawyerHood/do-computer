@@ -63,7 +63,6 @@ import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invita
 import { Route as ApiSlackEventsAgentIdRouteImport } from './routes/api/slack/events.$agentId'
 import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
-import { Route as ApiAgentsAgentIdSlackConnectorRouteImport } from './routes/api/agents/$agentId.slack.connector'
 import { Route as ApiComputersComputerIdAgentsAgentIdRouteImport } from './routes/api/computers/$computerId.agents.$agentId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
@@ -344,12 +343,6 @@ const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
   path: '/c/$chatId',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
-const ApiAgentsAgentIdSlackConnectorRoute =
-  ApiAgentsAgentIdSlackConnectorRouteImport.update({
-    id: '/connector',
-    path: '/connector',
-    getParentRoute: () => ApiAgentsAgentIdSlackRoute,
-  } as any)
 const ApiComputersComputerIdAgentsAgentIdRoute =
   ApiComputersComputerIdAgentsAgentIdRouteImport.update({
     id: '/agents/$agentId',
@@ -428,7 +421,7 @@ export interface FileRoutesByFullPath {
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
-  '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRouteWithChildren
+  '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
@@ -441,7 +434,6 @@ export interface FileRoutesByFullPath {
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
-  '/api/agents/$agentId/slack/connector': typeof ApiAgentsAgentIdSlackConnectorRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
@@ -488,7 +480,7 @@ export interface FileRoutesByTo {
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
-  '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRouteWithChildren
+  '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
@@ -501,7 +493,6 @@ export interface FileRoutesByTo {
   '/api/invitations/$key': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
-  '/api/agents/$agentId/slack/connector': typeof ApiAgentsAgentIdSlackConnectorRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
@@ -552,7 +543,7 @@ export interface FileRoutesById {
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
-  '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRouteWithChildren
+  '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
@@ -565,7 +556,6 @@ export interface FileRoutesById {
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
-  '/api/agents/$agentId/slack/connector': typeof ApiAgentsAgentIdSlackConnectorRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
@@ -629,7 +619,6 @@ export interface FileRouteTypes {
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/a/$agentId/c/$chatId'
-    | '/api/agents/$agentId/slack/connector'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
@@ -689,7 +678,6 @@ export interface FileRouteTypes {
     | '/api/invitations/$key'
     | '/api/workspaces/$workspaceId'
     | '/a/$agentId/c/$chatId'
-    | '/api/agents/$agentId/slack/connector'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
@@ -752,7 +740,6 @@ export interface FileRouteTypes {
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/_app/a/$agentId/c/$chatId'
-    | '/api/agents/$agentId/slack/connector'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
@@ -790,7 +777,7 @@ export interface RootRouteChildren {
   ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
   ApiAgentsAgentIdConnectorsRoute: typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   ApiAgentsAgentIdMoveRoute: typeof ApiAgentsAgentIdMoveRoute
-  ApiAgentsAgentIdSlackRoute: typeof ApiAgentsAgentIdSlackRouteWithChildren
+  ApiAgentsAgentIdSlackRoute: typeof ApiAgentsAgentIdSlackRoute
   ApiComputersPairConfirmRoute: typeof ApiComputersPairConfirmRoute
   ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
   ApiComputersPairStartRoute: typeof ApiComputersPairStartRoute
@@ -1186,13 +1173,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAAgentIdCChatIdRouteImport
       parentRoute: typeof AppAAgentIdRoute
     }
-    '/api/agents/$agentId/slack/connector': {
-      id: '/api/agents/$agentId/slack/connector'
-      path: '/connector'
-      fullPath: '/api/agents/$agentId/slack/connector'
-      preLoaderRoute: typeof ApiAgentsAgentIdSlackConnectorRouteImport
-      parentRoute: typeof ApiAgentsAgentIdSlackRoute
-    }
     '/api/computers/$computerId/agents/$agentId': {
       id: '/api/computers/$computerId/agents/$agentId'
       path: '/agents/$agentId'
@@ -1328,19 +1308,6 @@ const ApiAgentsAgentIdConnectorsRouteWithChildren =
     ApiAgentsAgentIdConnectorsRouteChildren,
   )
 
-interface ApiAgentsAgentIdSlackRouteChildren {
-  ApiAgentsAgentIdSlackConnectorRoute: typeof ApiAgentsAgentIdSlackConnectorRoute
-}
-
-const ApiAgentsAgentIdSlackRouteChildren: ApiAgentsAgentIdSlackRouteChildren = {
-  ApiAgentsAgentIdSlackConnectorRoute: ApiAgentsAgentIdSlackConnectorRoute,
-}
-
-const ApiAgentsAgentIdSlackRouteWithChildren =
-  ApiAgentsAgentIdSlackRoute._addFileChildren(
-    ApiAgentsAgentIdSlackRouteChildren,
-  )
-
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   DaemonDotjsRoute: DaemonDotjsRoute,
@@ -1370,7 +1337,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
   ApiAgentsAgentIdConnectorsRoute: ApiAgentsAgentIdConnectorsRouteWithChildren,
   ApiAgentsAgentIdMoveRoute: ApiAgentsAgentIdMoveRoute,
-  ApiAgentsAgentIdSlackRoute: ApiAgentsAgentIdSlackRouteWithChildren,
+  ApiAgentsAgentIdSlackRoute: ApiAgentsAgentIdSlackRoute,
   ApiComputersPairConfirmRoute: ApiComputersPairConfirmRoute,
   ApiComputersPairPollRoute: ApiComputersPairPollRoute,
   ApiComputersPairStartRoute: ApiComputersPairStartRoute,

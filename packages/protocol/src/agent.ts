@@ -205,14 +205,11 @@ export type AddConnectorRequest = {
   token?: string
   /**
    * The id and secret of an app registered with the service by hand, for a service whose sign-in
-   * does not let an app register itself. Slack's is one.
+   * does not let an app register itself.
    */
   clientId?: string
   clientSecret?: string
 }
-
-/** The address of Slack's own MCP server, which the Slack connector connects to. */
-export const SLACK_MCP_URL = "https://mcp.slack.com/mcp"
 
 /** The Slack app an agent is in Slack as, without its secrets. */
 export type SlackApp = {
@@ -222,8 +219,6 @@ export type SlackApp = {
   teamUrl: string | null
   /** What the bot is called there. */
   bot: string
-  /** Whether the app's client id and secret were given, which the Slack connector signs in with. */
-  hasClient: boolean
   connectedAt: number
 }
 
@@ -235,8 +230,6 @@ export type SlackState = {
   createUrl: string
   /** Where Slack sends what is said to the agent. */
   eventsUrl: string
-  /** Where Slack sends someone back after they sign in, for the connector. */
-  redirectUrl: string
 }
 
 /** What is pasted from the Slack app's pages to put an agent in Slack. */
@@ -244,9 +237,6 @@ export type ConnectSlackRequest = {
   /** The "Bot User OAuth Token", which begins `xoxb-`. */
   botToken: string
   signingSecret: string
-  /** Only needed for the Slack connector. */
-  clientId?: string
-  clientSecret?: string
 }
 
 /** The answer to adding or reconnecting a connector: where to send the user if they must sign in. */
@@ -420,11 +410,6 @@ export type ApprovalRequest = {
   title: string
   /** The specifics: the command, the file, the arguments. */
   detail: string
-  /**
-   * Who it is for, by name, where that is someone who is not one of the agent's people, such as
-   * someone who wrote to it in Slack. It is asked because of them, whatever the rules say.
-   */
-  guest?: string
   createdAt: number
   /** It is asked about every time: "always" is not an answer that can be given. */
   onceOnly?: boolean

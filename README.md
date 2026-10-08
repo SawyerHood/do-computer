@@ -299,16 +299,20 @@ the agent's picture as a file, to set as the app's icon in Slack.
   in the app is, and a picture is shown to a model that can look at one. A file the agent
   sends in the thread's chat is posted to the thread, before the words that are about it.
 - **In the app.** Each Slack thread is a conversation of the agent's, listed in its panel under
-  "From Slack". It is read there and written in from Slack. A teammate's messages have their
-  face; they are found by the email address of their account.
-- **Everyone else.** Anyone in the Slack workspace can speak to the bot. For someone who is not
-  one of the agent's people, using a connector or a computer one of you paired waits for an OK
-  in the app, whatever the agent's permissions say.
-- **Slack as a connector.** Separately, an agent can search Slack, read channels and send
-  messages as a person, through Slack's own MCP server. Give the Slack app's client ID and
-  secret when adding the agent to Slack, then press "Connect Slack as you". Slack's server does
-  not let an app register itself, which is why the app's own id is needed; any connector can be
-  given a client ID and secret the same way.
+  "From Slack". It is read there and written in from Slack. Someone whose address in Slack is
+  an account's here has their face on their messages.
+- **Everyone in the Slack workspace.** Anyone there can speak to the bot, and it works for them
+  as it does for you in the app, with everything it knows and can do. The agent's Permissions
+  hold there as they do anywhere.
+- **On its own.** From any chat or automation the agent can go to Slack unasked: see which
+  channels it has been added to, read one, and write in one or to a person, with a file from
+  the library if it has one. It does this as the bot, so it reads and writes only where the bot
+  has been added (`/invite @name` in a channel). "Write in Slack unasked" is one of its
+  Permissions.
+
+The bot is all an agent is in Slack: it does nothing there as a person. A connector to another
+service can still be given a client ID and secret, for a service whose sign-in lets no app
+register itself.
 
 ## Trust
 
@@ -359,10 +363,11 @@ paired computer. What limits the damage:
   it read can be passed on to another.
 - **Slack is a wider room.** What Slack sends is taken in only when it is signed with the Slack
   app's secret, and recently. The bot's token and that secret are kept on the server and never
-  sent back to a browser. Anyone in the Slack workspace can then speak to the agent, which
-  answers with what it knows and can do: its memory, its chats, its workspace's machines. Only
-  connectors and paired computers are held back for people who are not the agent's own, so an
-  agent that knows things not everyone in your Slack should hear is not one to put there.
+  sent back to a browser. Anyone in the Slack workspace can then speak to the agent, and it
+  works for them as it does for its own people: its memory, its chats, its machines, its
+  connectors and the computers you paired. Nothing is held back for someone because they have
+  no account here; only the agent's Permissions limit it. So an agent that knows or can reach
+  things not everyone in your Slack should have is not one to put there.
 - **Asking for a computer changes nothing by itself.** An agent can see which computers the
   people it works for have paired, by name, owner and whether they are online, and nothing else
   about them. It gets one only when someone the computer belongs to says yes.
