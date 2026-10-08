@@ -7,6 +7,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react"
 import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -18,10 +19,23 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { client } from "@/lib/client"
 import { invitationsKey } from "@/lib/workspaces"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
+
+const ROLES = [
+  { value: "member", label: "Member" },
+  { value: "admin", label: "Admin" },
+] as const
 
 const isEmail = (entry: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry)
 
@@ -53,9 +67,10 @@ export function WhoInput({
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-input p-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
       {who.map((entry) => (
-        <span
+        <Badge
           key={entry}
-          className="flex h-7 items-center gap-1.5 rounded-md bg-accent pr-1 pl-2 text-sm"
+          variant="secondary"
+          className="h-7 gap-1.5 bg-accent pr-1 pl-2 text-sm font-normal"
         >
           {isEmail(entry) ? (
             <EnvelopeSimpleIcon className="size-3.5 text-muted-foreground" />
@@ -65,15 +80,16 @@ export function WhoInput({
           <span className={cn(!isEmail(entry) && "font-mono text-[0.8125rem]")}>
             {isEmail(entry) ? entry : entry.replace(/^@/, "")}
           </span>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             aria-label={`Remove ${entry}`}
             onClick={() => onChange(who.filter((other) => other !== entry))}
-            className="rounded-sm p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+            className="size-5 text-muted-foreground"
           >
-            <XIcon className="size-3" />
-          </button>
-        </span>
+            <XIcon />
+          </Button>
+        </Badge>
       ))}
       <input
         aria-label={label}
@@ -251,15 +267,26 @@ export function InviteDialog({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="invite-role">Role</Label>
-                  <select
-                    id="invite-role"
+                  <Select
+                    items={ROLES}
                     value={role}
-                    onChange={(event) => setRole(event.target.value as "member" | "admin")}
-                    className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+                    onValueChange={(next) => {
+                      if (next !== null) setRole(next)
+                    }}
                   >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                    <SelectTrigger id="invite-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {ROLES.map((entry) => (
+                          <SelectItem key={entry.value} value={entry.value}>
+                            {entry.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               {error === undefined ? null : (

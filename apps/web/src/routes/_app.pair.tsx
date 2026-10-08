@@ -3,7 +3,10 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { client } from "@/lib/client"
 import { agentsKey, computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -16,6 +19,9 @@ export const Route = createFileRoute("/_app/pair")({
   }),
   component: PairPage,
 })
+
+/** What the choice of one's own workspace is called among the choices of a team. */
+const MINE = "mine"
 
 /**
  * Where the link a daemon prints leads: the user agrees to pair that computer, and says whose it
@@ -111,48 +117,53 @@ function PairPage() {
               <dt className="text-muted-foreground">Home</dt>
               <dd className="truncate font-mono text-xs leading-5">{pairing.data.home}</dd>
             </dl>
-            <div className="flex gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-              <WarningIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <p>
+            {/* It is there from the start, so it is a note and not something to announce. */}
+            <Alert
+              role="note"
+              className="rounded-2xl border-amber-500/40 bg-amber-500/10 p-4 *:[svg]:text-amber-600 dark:*:[svg]:text-amber-400"
+            >
+              <WarningIcon />
+              <AlertDescription className="text-foreground">
                 {pairing.data.readOnly
                   ? "An agent connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
                   : "An agent connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
-              </p>
-            </div>
+              </AlertDescription>
+            </Alert>
             {teams.length === 0 ? null : (
               <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 text-sm font-medium">Whose computer is it?</legend>
-                {[own, ...teams].map((workspace) => {
-                  if (workspace === undefined) return null
-                  const id = workspace.kind === "personal" ? undefined : workspace.id
-                  return (
-                    <label
-                      key={workspace.id}
-                      className={cn(
-                        "flex cursor-pointer items-start gap-3 rounded-xl border p-2.5 text-sm",
-                        teamId === id && "border-primary bg-primary/10",
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="owner"
-                        className="mt-0.5 size-4 shrink-0 accent-primary"
-                        checked={teamId === id}
-                        onChange={() => setTeamId(id)}
-                      />
-                      <span>
-                        <span className="font-medium">
-                          {workspace.kind === "personal" ? "Mine" : workspace.name}
+                <RadioGroup
+                  // One's own workspace is meant by naming no team.
+                  value={teamId ?? MINE}
+                  onValueChange={(next) => setTeamId(next === MINE ? undefined : (next as string))}
+                  className="gap-2"
+                >
+                  {[own, ...teams].map((workspace) => {
+                    if (workspace === undefined) return null
+                    const id = workspace.kind === "personal" ? undefined : workspace.id
+                    return (
+                      <label
+                        key={workspace.id}
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 rounded-xl border p-2.5 text-sm",
+                          teamId === id && "border-primary bg-primary/10",
+                        )}
+                      >
+                        <RadioGroupItem value={id ?? MINE} className="mt-0.5" />
+                        <span>
+                          <span className="font-medium">
+                            {workspace.kind === "personal" ? "Mine" : workspace.name}
+                          </span>
+                          <span className="block text-muted-foreground">
+                            {workspace.kind === "personal"
+                              ? "Only you decide which agents use it, in any of your workspaces."
+                              : `Anyone in ${workspace.name} can connect its agents to it.`}
+                          </span>
                         </span>
-                        <span className="block text-muted-foreground">
-                          {workspace.kind === "personal"
-                            ? "Only you decide which agents use it, in any of your workspaces."
-                            : `Anyone in ${workspace.name} can connect its agents to it.`}
-                        </span>
-                      </span>
-                    </label>
-                  )
-                })}
+                      </label>
+                    )
+                  })}
+                </RadioGroup>
               </fieldset>
             )}
             <fieldset className="flex flex-col gap-2">
@@ -165,13 +176,11 @@ function PairPage() {
                     agentIds.includes(agent.id) && "border-primary bg-primary/10",
                   )}
                 >
-                  <input
-                    type="checkbox"
-                    className="size-4 shrink-0 accent-primary"
+                  <Checkbox
                     checked={agentIds.includes(agent.id)}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       setChosen(
-                        event.target.checked
+                        checked
                           ? [...agentIds, agent.id]
                           : agentIds.filter((id) => id !== agent.id),
                       )

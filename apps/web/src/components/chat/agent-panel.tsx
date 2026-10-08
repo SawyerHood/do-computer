@@ -13,7 +13,6 @@ import {
 import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
-  CircleNotchIcon,
   FileIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
@@ -21,7 +20,10 @@ import { useAtomValue } from "jotai"
 import { useMemo } from "react"
 import { RowsPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { agentPanelColumn } from "@/lib/columns"
 import { formatBytes, isViewable } from "@/lib/library"
@@ -74,8 +76,8 @@ function Step({ part }: { part: ToolPart }) {
   const output = part.output?.trim() ?? ""
   return (
     <li>
-      <details className="group/step">
-        <summary className="flex cursor-default list-none items-start gap-2 rounded-lg px-2 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+      <Collapsible className="group/step">
+        <CollapsibleTrigger className="flex w-full cursor-default items-start gap-2 rounded-lg px-2 py-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40">
           <span
             aria-hidden
             className={cn(
@@ -84,14 +86,16 @@ function Step({ part }: { part: ToolPart }) {
               going && "animate-pulse",
             )}
           />
-          <span className="line-clamp-1 min-w-0 flex-1 break-all group-open/step:line-clamp-none">
+          <span className="line-clamp-1 min-w-0 flex-1 break-all group-data-open/step:line-clamp-none">
             {going ? toolActivity(part) : toolSummary(part)}
           </span>
-        </summary>
-        <pre className="mt-1 mb-1.5 ml-5 max-h-56 overflow-auto rounded-lg bg-background p-2 text-xs whitespace-pre-wrap break-words text-muted-foreground">
-          {output === "" ? (going ? "Still going." : "It returned nothing.") : output}
-        </pre>
-      </details>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <pre className="mt-1 mb-1.5 ml-5 max-h-56 overflow-auto rounded-lg bg-background p-2 text-xs whitespace-pre-wrap break-words text-muted-foreground">
+            {output === "" ? (going ? "Still going." : "It returned nothing.") : output}
+          </pre>
+        </CollapsibleContent>
+      </Collapsible>
     </li>
   )
 }
@@ -101,21 +105,21 @@ function Work({ run }: { run: ChatRun }) {
   const summary = run.entry
   return (
     <li>
-      <details className="group rounded-xl open:bg-surface">
+      <Collapsible className="group rounded-xl data-open:bg-surface">
         {/* Only the title, so the list can be taken in at a glance. The rest is inside. */}
-        <summary className="flex cursor-default list-none items-center gap-2.5 rounded-xl px-2.5 py-2 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40 [&::-webkit-details-marker]:hidden">
+        <CollapsibleTrigger className="flex w-full cursor-default items-center gap-2.5 rounded-xl px-2.5 py-2 text-left outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40">
           {run.status === "working" ? (
-            <CircleNotchIcon className="size-4 shrink-0 animate-spin text-muted-foreground" />
+            <Spinner className="shrink-0 text-muted-foreground" />
           ) : run.status === "failed" ? (
             <WarningCircleIcon className="size-4 shrink-0 text-destructive" />
           ) : (
             <CheckCircleIcon className="size-4 shrink-0 text-muted-foreground" />
           )}
-          <span className="min-w-0 flex-1 truncate text-sm group-open:font-medium group-open:whitespace-normal">
+          <span className="min-w-0 flex-1 truncate text-sm group-data-open:font-medium group-data-open:whitespace-normal">
             {summary.title}
           </span>
-        </summary>
-        <div className="flex flex-col gap-1.5 px-2.5 pb-2.5 pl-9">
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex flex-col gap-1.5 px-2.5 pb-2.5 pl-9">
           <p className="text-sm break-words text-muted-foreground">{summary.outcome}</p>
           <p className="text-xs text-muted-foreground">
             {run.at === undefined ? "" : `${clock.format(run.at)} · `}
@@ -126,8 +130,8 @@ function Work({ run }: { run: ChatRun }) {
               <Step key={part.toolCallId} part={part} />
             ))}
           </ol>
-        </div>
-      </details>
+        </CollapsibleContent>
+      </Collapsible>
     </li>
   )
 }
@@ -254,16 +258,17 @@ export function AgentPanel({
       <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
       {/* Rarely wanted, so it is out of the way in the corner. */}
       {startFresh === undefined ? null : (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           aria-label="Start fresh"
           title={startFresh.title}
           disabled={startFresh.disabled}
           onClick={startFresh.run}
-          className="absolute top-2.5 right-2.5 rounded-md p-1.5 text-muted-foreground/60 outline-none hover:bg-surface hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40"
+          className="absolute top-2.5 right-2.5 size-7 text-muted-foreground/60"
         >
-          <ArrowsClockwiseIcon className="size-4" />
-        </button>
+          <ArrowsClockwiseIcon />
+        </Button>
       )}
       <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
         {face}

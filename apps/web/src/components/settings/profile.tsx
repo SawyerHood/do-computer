@@ -17,10 +17,31 @@ import { Loads } from "@/components/loads"
 import { ModelPicker } from "@/components/model-picker"
 import { FormPlaceholder, RowsPlaceholder } from "@/components/placeholders"
 import { ThinkingPicker } from "@/components/thinking-picker"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import {
   agentKey,
@@ -115,39 +136,14 @@ function Counted({
   )
 }
 
-function Choice({
-  selected,
-  label,
-  onClick,
-  children,
-}: {
-  selected: boolean
-  label: string
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={selected}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        "rounded-full border-2 border-transparent p-0.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
-        selected && "border-primary",
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 /** Who the agent is and what it remembers. The agent edits the same fields itself, in chat. */
 const tokens = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 })
 /** Small amounts keep their cents' cents: a chat can cost a fraction of one. */
 const dollars = (cost: number) =>
   cost === 0 ? "$0" : cost < 0.01 ? "under $0.01" : `$${cost.toFixed(cost < 10 ? 2 : 0)}`
+
+/** A column's heading in the table of usage: quieter and lower than a table's usual one. */
+const HEAD = "h-auto py-1 font-normal text-muted-foreground"
 
 /** What the agent has spent on models. Read-only: it is a record, not a setting. */
 function Usage({ agentId }: { agentId: string }) {
@@ -194,27 +190,31 @@ function UsageNumbers({ agentId }: { agentId: string }) {
               </dd>
             </div>
           </dl>
-          <table className="w-full text-sm">
-            <caption className="sr-only">Usage by model</caption>
-            <thead className="text-left text-muted-foreground">
-              <tr>
-                <th className="py-1 font-normal">Model</th>
-                <th className="py-1 text-right font-normal">Tokens</th>
-                <th className="py-1 text-right font-normal">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableCaption className="sr-only">Usage by model</TableCaption>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={cn(HEAD, "pl-0")}>Model</TableHead>
+                <TableHead className={cn(HEAD, "text-right")}>Tokens</TableHead>
+                <TableHead className={cn(HEAD, "pr-0 text-right")}>Cost</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {usage.models.map((entry) => (
-                <tr key={entry.model} className="border-t">
-                  <td className="py-1.5 break-all">{entry.model}</td>
-                  <td className="py-1.5 text-right tabular-nums">
+                <TableRow key={entry.model} className="hover:bg-transparent">
+                  <TableCell className="py-1.5 pl-0 break-all whitespace-normal">
+                    {entry.model}
+                  </TableCell>
+                  <TableCell className="py-1.5 text-right tabular-nums">
                     {tokens.format(entry.inputTokens + entry.outputTokens)}
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums">{dollars(entry.cost)}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="py-1.5 pr-0 text-right tabular-nums">
+                    {dollars(entry.cost)}
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {usage.scheduled.inputTokens + usage.scheduled.outputTokens > 0 ? (
             <p className="text-xs text-muted-foreground">
               Scheduled runs account for {dollars(usage.scheduled.cost)} of the cost and{" "}
@@ -283,12 +283,11 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
           {alone.length > 0 ? (
             <div className="flex flex-col gap-1">
               <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                <Checkbox
+                  className="mt-0.5"
                   checked={withComputers}
                   disabled={remove.isPending}
-                  onChange={(event) => setWithComputers(event.target.checked)}
+                  onCheckedChange={setWithComputers}
                 />
                 <span>
                   Also delete{" "}
@@ -372,24 +371,23 @@ function WhenBusy({ agentId, state }: { agentId: string; state: AgentState }) {
           : "Whether a message you send mid-answer changes the answer or waits for it."
       }
     >
-      <div role="radiogroup" aria-label="When it is busy" className="flex flex-col gap-2">
+      <RadioGroup
+        aria-label="When it is busy"
+        value={chosen}
+        disabled={save.isPending}
+        onValueChange={(next) => save.mutate(next as "steer" | "queue")}
+        className="gap-2"
+      >
         {options.map(([value, label, words]) => (
           <label key={value} className="flex items-start gap-3 rounded-xl border px-3 py-2.5">
-            <input
-              type="radio"
-              name="when-busy"
-              checked={chosen === value}
-              disabled={save.isPending}
-              onChange={() => save.mutate(value)}
-              className="mt-1 accent-primary"
-            />
+            <RadioGroupItem value={value} className="mt-0.5" />
             <span>
               <span className="block text-sm font-medium">{label}</span>
               <span className="block text-sm text-muted-foreground">{words}</span>
             </span>
           </label>
         ))}
-      </div>
+      </RadioGroup>
       {save.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {save.error.message}
@@ -436,19 +434,24 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="Move to"
-            value={target}
-            onChange={(event) => setTarget(event.target.value)}
-            className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+          <Select
+            items={elsewhere.map((entry) => ({ value: entry.id, label: entry.name }))}
+            value={target === "" ? null : target}
+            onValueChange={(next) => setTarget(next ?? "")}
           >
-            <option value="">Move to…</option>
-            {elsewhere.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-label="Move to">
+              <SelectValue placeholder="Move to…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {elsewhere.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
           <Button
             type="button"
             variant="outline"
@@ -460,11 +463,13 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
         </div>
       )}
       {to === undefined ? null : (
-        <p role="note" className="rounded-xl bg-muted px-3 py-2 text-sm">
-          {to.kind === "team"
-            ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other agents stay behind, and it can work on the ones ${to.name} has open to every agent.`
-            : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other agents stay with the team.`}
-        </p>
+        <Alert role="note" className="border-transparent bg-muted px-3 py-2">
+          <AlertDescription className="text-foreground">
+            {to.kind === "team"
+              ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other agents stay behind, and it can work on the ones ${to.name} has open to every agent.`
+              : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other agents stay with the team.`}
+          </AlertDescription>
+        </Alert>
       )}
       {move.isError ? (
         <p role="alert" className="text-sm text-destructive">
@@ -529,13 +534,13 @@ function Computers({ agentId }: { agentId: string }) {
       )}
       <p className="text-sm text-muted-foreground">
         Computers are added, removed and shared under{" "}
-        <button
-          type="button"
-          className="font-medium text-foreground underline underline-offset-4"
+        <Button
+          variant="link"
+          className="h-auto p-0 align-baseline text-foreground underline"
           onClick={() => openWorkspace("computers")}
         >
           Computers
-        </button>{" "}
+        </Button>{" "}
         in the workspace settings.
       </p>
     </Section>
@@ -655,21 +660,32 @@ export function ProfileSettings({
           title="Look"
           hint="Its shape and face were not chosen: they grew from a roll of the dice. Pick its color, or roll again for a different creature."
         >
-          <div className="flex flex-wrap gap-1.5">
+          <ToggleGroup
+            aria-label="Color"
+            value={[form.avatar.color]}
+            // Pressing the color it has leaves it that color: a creature always has one.
+            onValueChange={([next]) => {
+              const color = AVATAR_COLORS.find((entry) => entry.id === next)
+              if (color !== undefined) set("avatar", { ...form.avatar, color: color.id })
+            }}
+            spacing={1.5}
+            className="flex-wrap"
+          >
             {AVATAR_COLORS.map((color) => (
-              <Choice
+              <ToggleGroupItem
                 key={color.id}
-                label={color.label}
-                selected={form.avatar.color === color.id}
-                onClick={() => set("avatar", { ...form.avatar, color: color.id })}
+                value={color.id}
+                aria-label={color.label}
+                title={color.label}
+                className="size-auto min-w-0 rounded-full border-2 border-transparent p-0.5 hover:bg-transparent aria-pressed:border-primary aria-pressed:bg-transparent"
               >
                 <span
                   className="block size-7 rounded-full"
                   style={{ backgroundColor: color.hex }}
                 />
-              </Choice>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
           <Button
             type="button"
             size="sm"

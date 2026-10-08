@@ -6,12 +6,12 @@ asOwner()
 test("an agent told to ask first waits for an answer before it acts", async ({ page }) => {
   await signIn(page)
   await openSettings(page, "Permissions")
-  const commands = page.getByRole("radiogroup", { name: "Run commands" })
-  await expect(commands.getByRole("radio", { name: "Allow" })).toBeChecked()
-  await commands.getByRole("radio", { name: "Ask first" }).click()
-  await expect(commands.getByRole("radio", { name: "Ask first" })).toBeChecked()
+  const commands = page.getByRole("group", { name: "Run commands" })
+  await expect(commands.getByRole("button", { name: "Allow", pressed: true })).toBeVisible()
+  await commands.getByRole("button", { name: "Ask first" }).click()
+  await expect(commands.getByRole("button", { name: "Ask first", pressed: true })).toBeVisible()
   await page.reload()
-  await expect(commands.getByRole("radio", { name: "Ask first" })).toBeChecked()
+  await expect(commands.getByRole("button", { name: "Ask first", pressed: true })).toBeVisible()
 
   await newChat(page)
   const transcript = page.getByRole("log")
@@ -46,8 +46,8 @@ test("an agent told to ask first waits for an answer before it acts", async ({ p
 
   // Back to trusting it, as the other tests expect.
   await openSettings(page, "Permissions")
-  await commands.getByRole("radio", { name: "Allow" }).click()
-  await expect(commands.getByRole("radio", { name: "Allow" })).toBeChecked()
+  await commands.getByRole("button", { name: "Allow" }).click()
+  await expect(commands.getByRole("button", { name: "Allow", pressed: true })).toBeVisible()
 })
 
 test("a reply that fails is said plainly, with the provider's answer behind Details", async ({

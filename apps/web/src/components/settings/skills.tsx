@@ -5,7 +5,19 @@ import { useEffect, useState } from "react"
 import { Loads } from "@/components/loads"
 import { CardsPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { client } from "@/lib/client"
 import { skillsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -36,70 +48,67 @@ function SkillCard({ agentId, skill }: { agentId: string; skill: SkillSummary })
   })
 
   return (
-    <li
-      className={cn(
-        "flex flex-col gap-3 rounded-2xl border bg-surface p-4",
-        !enabled && "opacity-70",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate font-mono text-[0.9375rem] font-medium">{skill.name}</h2>
-          <p className="text-xs text-muted-foreground">
+    <li>
+      <Card className={cn(!enabled && "opacity-70")}>
+        <CardHeader>
+          <CardTitle className="font-mono text-[0.9375rem]">
+            <h2 className="truncate">{skill.name}</h2>
+          </CardTitle>
+          <CardDescription className="text-xs">
             {SOURCES[skill.source]}
             {skill.origin ? ` from ${skill.origin}` : ""}
             {skill.files.length > 1 ? ` · ${skill.files.length} files` : ""}
-          </p>
-        </div>
-        <label className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => {
-              // Show the new state at once; the refetch then confirms or reverts it.
-              setEnabled(event.target.checked)
-              toggle.mutate(event.target.checked)
-            }}
-            aria-label={`Use ${skill.name}`}
-            className="size-4 accent-primary"
-          />
-          In use
-        </label>
-      </div>
-      <p className="text-sm">{skill.description}</p>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-        >
-          <CaretRightIcon className={cn("transition-transform", open && "rotate-90")} />
-          {open ? "Hide" : "Read"}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto text-muted-foreground"
-          disabled={remove.isPending}
-          aria-label={`Delete ${skill.name}`}
-          onClick={() => remove.mutate()}
-        >
-          <TrashIcon /> Delete
-        </Button>
-      </div>
-      {open && detail.data ? (
-        <div className="flex flex-col gap-3">
-          {Object.entries(detail.data.contents).map(([path, content]) => (
-            <div key={path} className="flex flex-col gap-1">
-              <p className="font-mono text-xs text-muted-foreground">{path}</p>
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border bg-background p-3 font-mono text-xs">
-                {content}
-              </pre>
-            </div>
-          ))}
-        </div>
-      ) : null}
+          </CardDescription>
+          <CardAction>
+            <Label className="font-normal text-muted-foreground">
+              <Switch
+                size="sm"
+                checked={enabled}
+                onCheckedChange={(next) => {
+                  // Show the new state at once; the refetch then confirms or reverts it.
+                  setEnabled(next)
+                  toggle.mutate(next)
+                }}
+                aria-label={`Use ${skill.name}`}
+              />
+              In use
+            </Label>
+          </CardAction>
+        </CardHeader>
+        <CardContent>{skill.description}</CardContent>
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CardFooter className="gap-2">
+            <CollapsibleTrigger render={<Button size="sm" variant="outline" />}>
+              <CaretRightIcon className={cn("transition-transform", open && "rotate-90")} />
+              {open ? "Hide" : "Read"}
+            </CollapsibleTrigger>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto text-muted-foreground"
+              disabled={remove.isPending}
+              aria-label={`Delete ${skill.name}`}
+              onClick={() => remove.mutate()}
+            >
+              <TrashIcon /> Delete
+            </Button>
+          </CardFooter>
+          <CollapsibleContent>
+            {detail.data ? (
+              <CardContent className="flex flex-col gap-3 pt-3">
+                {Object.entries(detail.data.contents).map(([path, content]) => (
+                  <div key={path} className="flex flex-col gap-1">
+                    <p className="font-mono text-xs text-muted-foreground">{path}</p>
+                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border bg-background p-3 font-mono text-xs">
+                      {content}
+                    </pre>
+                  </div>
+                ))}
+              </CardContent>
+            ) : null}
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
     </li>
   )
 }

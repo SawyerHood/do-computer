@@ -1,5 +1,6 @@
 import type { ComputerKind } from "@durable-computer/protocol"
 import { useId } from "react"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 /**
  * A choice among the few kinds of computer a deployment offers. Each is shown with what it is,
@@ -23,22 +24,23 @@ export function ComputerPicker({
 }) {
   const id = useId()
   return (
-    <fieldset className="flex flex-col gap-2" disabled={disabled}>
-      <legend className="sr-only">{label}</legend>
+    <RadioGroup
+      aria-label={label}
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => onChange(next as string)}
+      className="gap-2"
+    >
       {kinds.map((kind) => (
         <label
           key={kind.id}
-          className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm has-checked:border-primary has-disabled:cursor-default has-disabled:opacity-60 has-focus-visible:ring-3 has-focus-visible:ring-ring/30"
+          className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm has-data-checked:border-primary has-data-disabled:cursor-default has-data-disabled:opacity-60"
         >
-          <input
-            type="radio"
-            name={id}
+          <RadioGroupItem
             value={kind.id}
-            checked={kind.id === value}
             aria-labelledby={`${id}-${kind.id}-label`}
             aria-describedby={`${id}-${kind.id}-about`}
-            className="mt-0.5 size-4 shrink-0 accent-primary outline-none"
-            onChange={() => onChange(kind.id)}
+            className="mt-0.5"
           />
           <span className="min-w-0">
             <span className="flex flex-wrap items-baseline gap-x-2">
@@ -55,6 +57,6 @@ export function ComputerPicker({
           </span>
         </label>
       ))}
-    </fieldset>
+    </RadioGroup>
   )
 }

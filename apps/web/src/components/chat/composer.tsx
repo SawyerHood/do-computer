@@ -5,17 +5,12 @@ import {
   type QueuedInput,
   randomId,
 } from "@durable-computer/protocol"
-import {
-  ArrowUpIcon,
-  CircleNotchIcon,
-  MicrophoneIcon,
-  PaperclipIcon,
-  StopIcon,
-  XIcon,
-} from "@phosphor-icons/react"
+import { ArrowUpIcon, MicrophoneIcon, PaperclipIcon, StopIcon, XIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useEffect, useRef, useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { draftAtom } from "@/lib/atoms"
 import { pictureFor } from "@/lib/pictures"
 import { type DictationEnd, type DictationState, useDictation } from "@/lib/use-dictation"
@@ -191,26 +186,26 @@ export function Composer({
       {attached.length > 0 || uploading > 0 ? (
         <ul aria-label="Attached files" className="flex flex-wrap gap-1.5 px-2">
           {attached.map((file) => (
-            <li
-              key={file.id}
-              className="flex items-center gap-1 rounded-md border bg-surface py-1 pr-1 pl-2.5 text-xs"
-            >
-              <span className="max-w-48 truncate">{file.name}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${file.name}`}
-                className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  setAttached((current) => current.filter((other) => other.id !== file.id))
-                }
-              >
-                <XIcon className="size-3" />
-              </button>
+            <li key={file.id}>
+              <Badge variant="outline" className="h-6 bg-surface pr-0.5 pl-2.5 font-normal">
+                <span className="max-w-48 truncate">{file.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Remove ${file.name}`}
+                  className="size-5 text-muted-foreground"
+                  onClick={() =>
+                    setAttached((current) => current.filter((other) => other.id !== file.id))
+                  }
+                >
+                  <XIcon />
+                </Button>
+              </Badge>
             </li>
           ))}
           {uploading > 0 ? (
             <li className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-              <CircleNotchIcon className="size-3 animate-spin" /> Attaching…
+              <Spinner className="size-3" /> Attaching…
             </li>
           ) : null}
           {!sees && attached.some((file) => file.image !== undefined) ? (
@@ -384,7 +379,7 @@ function Dictating({
         title="Stop, and put it in the message"
       >
         {transcribing && end === "draft" ? (
-          <CircleNotchIcon className="animate-spin" />
+          <Spinner />
         ) : (
           <StopIcon weight="fill" className={cn(transcribing && "opacity-50")} />
         )}
@@ -399,7 +394,7 @@ function Dictating({
         title="Send"
       >
         {transcribing && end === "send" ? (
-          <CircleNotchIcon className="animate-spin" />
+          <Spinner />
         ) : (
           <ArrowUpIcon
             weight="bold"

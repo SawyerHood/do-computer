@@ -97,7 +97,7 @@ test.describe("pairing a computer", () => {
     await card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }).click()
     await expect(card.getByText("None yet")).toHaveCount(0)
     await expect(
-      card.getByRole("combobox", { name: "Connect an agent to test-laptop" }),
+      card.getByRole("button", { name: "Connect an agent to test-laptop" }),
     ).toBeVisible()
 
     // The computer is still paired, and the agent can no longer touch it.
@@ -219,6 +219,7 @@ test.describe("the machines of a workspace", () => {
     await expect(card.getByText("Wren", { exact: true })).toBeVisible()
     // There is no one to open it to, and no agent to connect or disconnect. Nor is it ever offline.
     await expect(card.getByRole("combobox")).toHaveCount(0)
+    await expect(card.getByRole("button", { name: /^Connect an agent/ })).toHaveCount(0)
     await expect(card.getByRole("button", { name: /^Disconnect/ })).toHaveCount(0)
     await expect(card.getByText(/^(Online|Offline)$/)).toHaveCount(0)
     // This server has no kind of machine that can be added by hand.

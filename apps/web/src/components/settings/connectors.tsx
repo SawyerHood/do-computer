@@ -1,10 +1,23 @@
 import type { ConnectorResult, ConnectorSummary } from "@durable-computer/protocol"
-import { TrashIcon } from "@phosphor-icons/react"
+import { CaretRightIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Loads } from "@/components/loads"
 import { CardsPlaceholder } from "@/components/placeholders"
 import { client } from "@/lib/client"
@@ -55,76 +68,78 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
   const error = toggle.error ?? reconnect.error ?? remove.error
 
   return (
-    <li
-      className={cn(
-        "flex flex-col gap-3 rounded-2xl border bg-surface p-4",
-        !enabled && "opacity-70",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate font-medium">{connector.name}</h2>
-          <p className="truncate text-sm text-muted-foreground">{new URL(connector.url).host}</p>
-        </div>
-        <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-xs font-medium", status.tone)}>
-          {status.label}
-        </span>
-      </div>
-      {connector.status === "connected" ? (
-        <p className="text-sm text-muted-foreground">
-          {connector.tools.length === 0
-            ? "It offers no tools."
-            : `${connector.tools.length} tools: ${connector.tools.map((tool) => tool.name).join(", ")}`}
-        </p>
-      ) : connector.status === "needs_auth" ? (
-        <p className="text-sm text-muted-foreground">
-          Sign in to the service to let your agent use it.
-        </p>
-      ) : (
-        <p className="text-sm text-destructive">{connector.error}</p>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant={connector.status === "connected" ? "outline" : "default"}
-          disabled={reconnect.isPending}
-          onClick={() => reconnect.mutate()}
-        >
-          {connector.status === "needs_auth"
-            ? "Sign in"
-            : connector.status === "connected"
-              ? "Refresh"
-              : "Try again"}
-        </Button>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={enabled}
-            aria-label={`Use ${connector.name}`}
-            className="size-4 accent-primary"
-            onChange={(event) => {
-              setEnabled(event.target.checked)
-              toggle.mutate(event.target.checked)
-            }}
-          />
-          In use
-        </label>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto text-muted-foreground"
-          disabled={remove.isPending}
-          aria-label={`Remove ${connector.name}`}
-          onClick={() => remove.mutate()}
-        >
-          <TrashIcon /> Remove
-        </Button>
-      </div>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error.message}
-        </p>
-      ) : null}
+    <li>
+      <Card className={cn(!enabled && "opacity-70")}>
+        <CardHeader>
+          <CardTitle>
+            <h2 className="truncate">{connector.name}</h2>
+          </CardTitle>
+          <CardDescription className="truncate">{new URL(connector.url).host}</CardDescription>
+          <CardAction>
+            <Badge variant="secondary" className={status.tone}>
+              {status.label}
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {connector.status === "connected" ? (
+            <p className="text-muted-foreground">
+              {connector.tools.length === 0
+                ? "It offers no tools."
+                : `${connector.tools.length} tools: ${connector.tools.map((tool) => tool.name).join(", ")}`}
+            </p>
+          ) : connector.status === "needs_auth" ? (
+            <p className="text-muted-foreground">
+              Sign in to the service to let your agent use it.
+            </p>
+          ) : (
+            <p className="text-destructive">{connector.error}</p>
+          )}
+        </CardContent>
+        <CardFooter className="flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={connector.status === "connected" ? "outline" : "default"}
+            disabled={reconnect.isPending}
+            onClick={() => reconnect.mutate()}
+          >
+            {connector.status === "needs_auth"
+              ? "Sign in"
+              : connector.status === "connected"
+                ? "Refresh"
+                : "Try again"}
+          </Button>
+          <Label className="font-normal text-muted-foreground">
+            <Switch
+              size="sm"
+              checked={enabled}
+              aria-label={`Use ${connector.name}`}
+              onCheckedChange={(next) => {
+                setEnabled(next)
+                toggle.mutate(next)
+              }}
+            />
+            In use
+          </Label>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto text-muted-foreground"
+            disabled={remove.isPending}
+            aria-label={`Remove ${connector.name}`}
+            onClick={() => remove.mutate()}
+          >
+            <TrashIcon /> Remove
+          </Button>
+        </CardFooter>
+        {error ? (
+          <CardContent>
+            <p role="alert" className="text-destructive">
+              {error.message}
+            </p>
+          </CardContent>
+        ) : null}
+      </Card>
     </li>
   )
 }
@@ -202,11 +217,24 @@ function AddForm({ agentId }: { agentId: string }) {
         </p>
       </div>
       {/* For the few services whose sign-in does not let an app introduce itself. */}
-      <details className="text-sm">
-        <summary className="cursor-default text-muted-foreground">
+      <Collapsible>
+        <CollapsibleTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="group/more -ml-2 h-7 px-2 font-normal text-muted-foreground"
+            />
+          }
+        >
+          <CaretRightIcon
+            data-icon="inline-start"
+            className="transition-transform group-data-panel-open/more:rotate-90"
+          />
           The service gave me a client ID
-        </summary>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        </CollapsibleTrigger>
+        <CollapsibleContent className="grid gap-3 pt-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="connector-client-id">Client ID</Label>
             <Input
@@ -226,8 +254,8 @@ function AddForm({ agentId }: { agentId: string }) {
               onChange={(event) => setClientSecret(event.target.value)}
             />
           </div>
-        </div>
-      </details>
+        </CollapsibleContent>
+      </Collapsible>
       {add.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {add.error.message}
@@ -259,12 +287,9 @@ export function ConnectorsSettings({
         </p>
       </div>
       {search.connector_error ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm"
-        >
-          {search.connector_error}
-        </p>
+        <Alert className="border-destructive/40 bg-destructive/10">
+          <AlertDescription className="text-foreground">{search.connector_error}</AlertDescription>
+        </Alert>
       ) : null}
       <Loads key={agentId} fallback={<CardsPlaceholder cards={1} />}>
         <Connected
@@ -287,12 +312,11 @@ function Connected({ agentId, connected }: { agentId: string; connected: string 
   return (
     <>
       {justConnected ? (
-        <p
-          role="status"
-          className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm"
-        >
-          {justConnected.name} is connected.
-        </p>
+        <Alert role="status" className="border-emerald-500/40 bg-emerald-500/10">
+          <AlertDescription className="text-foreground">
+            {justConnected.name} is connected.
+          </AlertDescription>
+        </Alert>
       ) : null}
       {connectors.length > 0 ? (
         <ul className="flex flex-col gap-3">

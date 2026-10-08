@@ -12,6 +12,7 @@ import { SlackMark } from "@/components/chat/slack-threads"
 import { Loads } from "@/components/loads"
 import { FaceStack } from "@/components/people"
 import { FormPlaceholder } from "@/components/placeholders"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,7 +23,6 @@ import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
 
-const badge = "shrink-0 rounded-md px-2 py-0.5 text-xs font-medium"
 const good = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
 const heading = "pb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase"
 
@@ -219,7 +219,9 @@ function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app:
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-medium">
               <span className="truncate">@{app.bot}</span>
-              <span className={cn(badge, good)}>In Slack</span>
+              <Badge variant="secondary" className={good}>
+                In Slack
+              </Badge>
             </p>
             <p className="truncate text-sm text-muted-foreground">
               {app.team}
@@ -287,15 +289,20 @@ function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app:
             <p className="flex items-center gap-2 font-medium">
               Slack connector
               {connector?.status === "connected" ? (
-                <span className={cn(badge, good)}>Connected</span>
+                <Badge variant="secondary" className={good}>
+                  Connected
+                </Badge>
               ) : connector?.status === "needs_auth" ? (
-                <span className={cn(badge, "bg-amber-500/15 text-amber-700 dark:text-amber-300")}>
+                <Badge
+                  variant="secondary"
+                  className="bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                >
                   Needs sign-in
-                </span>
+                </Badge>
               ) : connector !== undefined ? (
-                <span className={cn(badge, "bg-destructive/15 text-destructive")}>
+                <Badge variant="secondary" className="bg-destructive/15 text-destructive">
                   Not connected
-                </span>
+                </Badge>
               ) : null}
             </p>
             <p className="text-sm text-muted-foreground">
