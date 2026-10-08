@@ -18,6 +18,7 @@ import {
 import { Link } from "@tanstack/react-router"
 import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { type Folder, formatBytes, formatWhen, kindOf, treeOf } from "@/lib/library"
 import { cn } from "@/lib/utils"
@@ -92,11 +93,13 @@ function FolderRows({
       {folder.folders.map((child) => {
         const open = !closed.has(child.path)
         return (
-          <li key={child.path}>
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => toggle(child.path)}
+          <Collapsible
+            key={child.path}
+            open={open}
+            onOpenChange={() => toggle(child.path)}
+            render={<li />}
+          >
+            <CollapsibleTrigger
               className={cn(ROW, "text-foreground", dir === child.path && "bg-accent/60")}
               style={{ paddingLeft: 8 + depth * 14 }}
             >
@@ -111,21 +114,19 @@ function FolderRows({
                 <FolderIcon className="size-4 shrink-0" />
               )}
               <span className="truncate">{child.name}</span>
-            </button>
-            {open ? (
-              <ul>
-                <FolderRows
-                  agentId={agentId}
-                  folder={child}
-                  depth={depth + 1}
-                  selected={selected}
-                  closed={closed}
-                  toggle={toggle}
-                  dir={dir}
-                />
-              </ul>
-            ) : null}
-          </li>
+            </CollapsibleTrigger>
+            <CollapsibleContent render={<ul />}>
+              <FolderRows
+                agentId={agentId}
+                folder={child}
+                depth={depth + 1}
+                selected={selected}
+                closed={closed}
+                toggle={toggle}
+                dir={dir}
+              />
+            </CollapsibleContent>
+          </Collapsible>
         )
       })}
       {folder.files.map((file) => (
@@ -174,7 +175,6 @@ export function LibraryTree({
   const [query, setQuery] = useState("")
   // Folders start open: a library is small, and what is in it is the point.
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set())
-  const [showDeleted, setShowDeleted] = useState(false)
   const tree = useMemo(() => treeOf(files), [files])
   const toggle = (path: string) => {
     onDir(path)
@@ -286,43 +286,39 @@ export function LibraryTree({
           </span>
         </p>
         {deleted.length === 0 ? null : (
-          <>
-            <button
-              type="button"
-              aria-expanded={showDeleted}
-              onClick={() => setShowDeleted((shown) => !shown)}
-              className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left hover:text-foreground"
-            >
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-left outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40">
               <TrashIcon className="size-4 shrink-0" />
               Recently deleted · {deleted.length}
-            </button>
-            {showDeleted ? (
-              <ul aria-label="Recently deleted" className="max-h-44 overflow-y-auto">
-                {deleted.map((file) => (
-                  <li key={file.id} className="flex items-center gap-1 py-0.5 pl-1">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-foreground" title={file.path}>
-                        {file.path}
-                      </span>
-                      <span>
-                        {file.deletedBy === "agent" ? "by an agent" : "by you"} ·{" "}
-                        {formatWhen(file.deletedAt)}
-                      </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent
+              render={<ul aria-label="Recently deleted" />}
+              className="max-h-44 overflow-y-auto"
+            >
+              {deleted.map((file) => (
+                <li key={file.id} className="flex items-center gap-1 py-0.5 pl-1">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-foreground" title={file.path}>
+                      {file.path}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Restore ${file.name}`}
-                      title="Restore"
-                      onClick={() => onRestore(file.id)}
-                    >
-                      <ArrowCounterClockwiseIcon />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </>
+                    <span>
+                      {file.deletedBy === "agent" ? "by an agent" : "by you"} ·{" "}
+                      {formatWhen(file.deletedAt)}
+                    </span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Restore ${file.name}`}
+                    title="Restore"
+                    onClick={() => onRestore(file.id)}
+                  >
+                    <ArrowCounterClockwiseIcon />
+                  </Button>
+                </li>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </div>
     </div>

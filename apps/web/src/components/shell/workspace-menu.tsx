@@ -8,6 +8,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 import { FaceStack, PersonFace, WorkspaceTile } from "@/components/people"
 import { NewTeamDialog } from "@/components/team/new-team"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,12 +104,12 @@ export function WorkspaceMenu({ workspace, me }: { workspace: WorkspaceSummary; 
           <span className="min-w-0 truncate text-sm font-semibold">{workspace.name}</span>
           <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           {(state?.invitations.length ?? 0) > 0 ? (
-            <span
+            <Badge
               aria-label={`${state!.invitations.length} invitations`}
-              className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-primary px-1 text-[0.625rem] font-bold text-primary-foreground"
+              className="h-4 min-w-4 rounded-full px-1 text-[0.625rem] font-bold"
             >
               {state!.invitations.length}
-            </span>
+            </Badge>
           ) : null}
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="start" className="w-76">
@@ -143,9 +144,7 @@ export function WorkspaceMenu({ workspace, me }: { workspace: WorkspaceSummary; 
                         from {invitation.invitedBy.name}
                       </span>
                     </span>
-                    <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
-                      View
-                    </span>
+                    <Badge>View</Badge>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuGroup>

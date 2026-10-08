@@ -25,8 +25,10 @@ import {
 import { useContext, useEffect, useState } from "react"
 import { useAgentsById } from "@/components/computer-requests"
 import { PersonFace } from "@/components/people"
+import { Badge } from "@/components/ui/badge"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { Message, MessageContent } from "@/components/ui/message"
 import {
@@ -102,42 +104,39 @@ function ReplyError({
       <div className="min-w-0 flex-1">
         <div className="font-medium">{view.title}</div>
         {hint === "" ? null : <div className="text-muted-foreground">{hint}</div>}
-        {(onRetry !== undefined && view.retryable) || hasDetails ? (
-          <div className="mt-2 -ml-0.5 flex items-center gap-1.5">
-            {onRetry !== undefined && view.retryable ? (
-              <Button variant="outline" size="xs" onClick={onRetry}>
-                <ArrowClockwiseIcon data-icon="inline-start" />
-                Try again
-              </Button>
-            ) : null}
-            {hasDetails ? (
-              <Button
-                variant="ghost"
-                size="xs"
-                className="text-muted-foreground"
-                aria-expanded={open}
-                onClick={() => setOpen(!open)}
-              >
-                <CaretRightIcon
-                  data-icon="inline-start"
-                  className={cn("transition-transform", open && "rotate-90")}
-                />
-                Details
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        {open ? (
-          <>
+        <Collapsible open={open} onOpenChange={setOpen}>
+          {(onRetry !== undefined && view.retryable) || hasDetails ? (
+            <div className="mt-2 -ml-0.5 flex items-center gap-1.5">
+              {onRetry !== undefined && view.retryable ? (
+                <Button variant="outline" size="xs" onClick={onRetry}>
+                  <ArrowClockwiseIcon data-icon="inline-start" />
+                  Try again
+                </Button>
+              ) : null}
+              {hasDetails ? (
+                <CollapsibleTrigger
+                  render={<Button variant="ghost" size="xs" className="text-muted-foreground" />}
+                >
+                  <CaretRightIcon
+                    data-icon="inline-start"
+                    className={cn("transition-transform", open && "rotate-90")}
+                  />
+                  Details
+                </CollapsibleTrigger>
+              ) : null}
+            </div>
+          ) : null}
+          <CollapsibleContent>
             {view.facts.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {view.facts.map((fact) => (
-                  <span
+                  <Badge
                     key={fact}
-                    className="rounded-sm bg-muted px-1.5 font-mono text-[0.6875rem] text-muted-foreground"
+                    variant="secondary"
+                    className="h-auto rounded-sm bg-muted px-1.5 py-0 font-mono text-[0.6875rem] font-normal text-muted-foreground"
                   >
                     {fact}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             ) : null}
@@ -146,8 +145,8 @@ function ReplyError({
                 {view.detail}
               </pre>
             )}
-          </>
-        ) : null}
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   )

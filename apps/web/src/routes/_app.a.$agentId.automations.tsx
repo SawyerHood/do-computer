@@ -5,11 +5,20 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { AgentAside } from "@/components/chat/agent-aside"
 import { Loads } from "@/components/loads"
 import { CardsPlaceholder } from "@/components/placeholders"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { client } from "@/lib/client"
 import { agentQuery, schedulesKey, schedulesQuery } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
-import { cn } from "@/lib/utils"
 import { useListedAgent } from "@/lib/workspaces"
 
 export const Route = createFileRoute("/_app/a/$agentId/automations")({
@@ -62,71 +71,79 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
   const error = toggle.error ?? run.error ?? remove.error
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate font-medium">{schedule.title}</h2>
-          <p className="text-sm text-muted-foreground">
+    <li>
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2 className="truncate">{schedule.title}</h2>
+          </CardTitle>
+          <CardDescription>
             <span className="font-mono text-[0.8125rem]">{schedule.schedule}</span>
             {schedule.enabled && schedule.nextRunAt !== null
               ? ` · next ${when(schedule.nextRunAt)}`
               : null}
-          </p>
-        </div>
-        <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-xs font-medium", tone)}>
-          {label}
-        </span>
-      </div>
-      <p className="line-clamp-3 whitespace-pre-wrap text-sm">{schedule.prompt}</p>
-      {schedule.lastRun ? (
-        <p className="text-sm text-muted-foreground">
-          Last run {when(schedule.lastRun.at)}: {OUTCOMES[schedule.lastRun.outcome]}.{" "}
-          <Link
-            to="/a/$agentId/c/$chatId"
-            params={{ agentId, chatId: schedule.lastRun.chatId }}
-            className="text-foreground underline underline-offset-3"
-          >
-            View run
-          </Link>
-        </p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        {label === "Done" ? null : (
-          // A one-off that has run has nothing to pause or resume.
+          </CardDescription>
+          <CardAction>
+            <Badge variant="secondary" className={tone}>
+              {label}
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="line-clamp-3 whitespace-pre-wrap">{schedule.prompt}</p>
+          {schedule.lastRun ? (
+            <p className="text-muted-foreground">
+              Last run {when(schedule.lastRun.at)}: {OUTCOMES[schedule.lastRun.outcome]}.{" "}
+              <Link
+                to="/a/$agentId/c/$chatId"
+                params={{ agentId, chatId: schedule.lastRun.chatId }}
+                className="text-foreground underline underline-offset-3"
+              >
+                View run
+              </Link>
+            </p>
+          ) : null}
+        </CardContent>
+        <CardFooter className="flex-wrap gap-2">
+          {label === "Done" ? null : (
+            // A one-off that has run has nothing to pause or resume.
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={toggle.isPending}
+              onClick={() => toggle.mutate()}
+            >
+              {schedule.enabled ? <PauseIcon /> : <PlayIcon />}
+              {schedule.enabled ? "Pause" : "Resume"}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
-            disabled={toggle.isPending}
-            onClick={() => toggle.mutate()}
+            disabled={schedule.running || run.isPending}
+            onClick={() => run.mutate()}
           >
-            {schedule.enabled ? <PauseIcon /> : <PlayIcon />}
-            {schedule.enabled ? "Pause" : "Resume"}
+            <ClockIcon /> Run now
           </Button>
-        )}
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={schedule.running || run.isPending}
-          onClick={() => run.mutate()}
-        >
-          <ClockIcon /> Run now
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto text-muted-foreground"
-          disabled={remove.isPending}
-          aria-label={`Delete ${schedule.title}`}
-          onClick={() => remove.mutate()}
-        >
-          <TrashIcon /> Delete
-        </Button>
-      </div>
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error.message}
-        </p>
-      ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto text-muted-foreground"
+            disabled={remove.isPending}
+            aria-label={`Delete ${schedule.title}`}
+            onClick={() => remove.mutate()}
+          >
+            <TrashIcon /> Delete
+          </Button>
+        </CardFooter>
+        {error ? (
+          <CardContent>
+            <p role="alert" className="text-destructive">
+              {error.message}
+            </p>
+          </CardContent>
+        ) : null}
+      </Card>
     </li>
   )
 }

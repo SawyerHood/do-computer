@@ -8,7 +8,9 @@ import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { FaceStack, names, PersonFace } from "@/components/people"
 import { TranscriptPlaceholder } from "@/components/placeholders"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Separator } from "@/components/ui/separator"
 import { agentPanelOpenAtom, chatKey } from "@/lib/atoms"
 import { isSideChat, mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
@@ -167,7 +169,6 @@ export function ChatView({
   const sub = chat?.kind === "subagent" ? chat : undefined
   const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
   const subagents = useSubagents(agent.id, chatId)
-  const [subagentsOpen, setSubagentsOpen] = useState(false)
   // A conversation another agent is having with this one is read here too, and not written in.
   const thread = chat?.kind === "agent" ? chat : undefined
   const threads = useThreads(agent.id)
@@ -284,7 +285,10 @@ export function ChatView({
                   <ArrowLeftIcon className="size-4 shrink-0" />
                   <span className="max-w-40 truncate">{parent?.title ?? name}</span>
                 </Link>
-                <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+                <Separator
+                  orientation="vertical"
+                  className="data-vertical:h-5 data-vertical:self-center"
+                />
                 <SubagentFace
                   agentId={agent.id}
                   chatId={chatId}
@@ -296,14 +300,15 @@ export function ChatView({
                   {subagentWords(sub.status)}
                 </span>
                 {isAtWork(sub.status) ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="font-normal text-muted-foreground hover:text-destructive"
                     onClick={stop}
-                    className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
                   >
-                    <StopIcon className="size-3" />
+                    <StopIcon />
                     Stop
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -322,20 +327,24 @@ export function ChatView({
                   {/* On a narrow screen the face says who, and the title keeps the room. */}
                   <span className="hidden max-w-40 truncate sm:inline">{peerName}</span>
                 </Link>
-                <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+                <Separator
+                  orientation="vertical"
+                  className="data-vertical:h-5 data-vertical:self-center"
+                />
                 <span className="min-w-0 truncate text-sm font-medium">{thread.title}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {threadWords(thread.status)}
                 </span>
                 {isAtWork(thread.status) ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="font-normal text-muted-foreground hover:text-destructive"
                     onClick={stop}
-                    className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
                   >
-                    <StopIcon className="size-3" />
+                    <StopIcon />
                     Stop
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -372,37 +381,42 @@ export function ChatView({
                   <span className="pr-1 text-xs text-muted-foreground">reconnecting…</span>
                 ) : null}
                 {canStartFresh ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     aria-label="Start fresh"
                     title={startFreshTitle}
                     disabled={live.state.busy}
                     onClick={startFresh}
-                    className="rounded-md p-1 text-muted-foreground hover:text-foreground disabled:opacity-40 max-md:hidden"
+                    className="text-muted-foreground max-md:hidden"
                   >
                     <ArrowsClockwiseIcon className="size-4" />
-                  </button>
+                  </Button>
                 ) : null}
                 {/* Without the panel, this is the way to the chat's sub-agents. */}
                 {subagents.length === 0 ? null : (
-                  <>
-                    <button
-                      type="button"
-                      aria-expanded={subagentsOpen}
-                      onClick={() => setSubagentsOpen(!subagentsOpen)}
-                      className="rounded-md border px-2.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          className="font-normal text-muted-foreground"
+                        />
+                      }
                     >
                       {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
                       {subagents.some((entry) => isAtWork(entry.status))
                         ? ` · ${subagents.filter((entry) => isAtWork(entry.status)).length} at work`
                         : ""}
-                    </button>
-                    {subagentsOpen ? (
-                      <div className="absolute top-full left-1/2 mt-2 max-h-80 w-72 max-w-[90vw] -translate-x-1/2 overflow-y-auto rounded-2xl border bg-popover p-1.5 shadow-lg">
-                        <SubagentRows agentId={agent.id} subagents={subagents} />
-                      </div>
-                    ) : null}
-                  </>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      sideOffset={12}
+                      className="max-h-80 max-w-[90vw] gap-0 overflow-y-auto p-1.5"
+                    >
+                      <SubagentRows agentId={agent.id} subagents={subagents} />
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
             </div>
@@ -479,7 +493,11 @@ export function ChatView({
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
-                className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+                // A link, in the clothes of a button: it leads somewhere.
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "font-normal text-foreground",
+                )}
               >
                 Back to {name}
               </Link>
@@ -495,7 +513,11 @@ export function ChatView({
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId: thread.peer.agentId, chatId: thread.peer.chatId }}
-                className="shrink-0 rounded-lg border px-3 py-1.5 text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+                // A link, in the clothes of a button: it leads somewhere.
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "font-normal text-foreground",
+                )}
               >
                 Back to {peerName}
               </Link>
@@ -573,13 +595,14 @@ export function ChatView({
                 <h3 className="flex items-center justify-between pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Here now
                   {team.role === "member" ? null : (
-                    <button
-                      type="button"
+                    <Button
+                      variant="link"
+                      size="xs"
                       onClick={() => openWorkspace("team")}
-                      className="rounded-sm text-xs font-medium tracking-normal text-primary normal-case outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40 dark:text-[oklch(0.78_0.09_195)]"
+                      className="h-auto px-0 tracking-normal normal-case dark:text-[oklch(0.78_0.09_195)]"
                     >
                       Invite
-                    </button>
+                    </Button>
                   )}
                 </h3>
                 <div className="flex items-center gap-1.5 [--face-ring:var(--rail)]">

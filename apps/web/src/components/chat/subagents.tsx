@@ -3,7 +3,6 @@ import type { ChatSummary, NoticePart, SubagentStatus, ToolPart } from "@durable
 import {
   CaretRightIcon,
   CheckCircleIcon,
-  CircleNotchIcon,
   StopCircleIcon,
   WarningCircleIcon,
   XIcon,
@@ -13,6 +12,9 @@ import { Link } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
 import { useContext, useMemo } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { agentKey } from "@/lib/collections"
 import { IDLE, type MascotMood, mascotMoodAtom } from "@/lib/mascot"
@@ -90,7 +92,7 @@ function StatusMark({ status }: { status: SubagentStatus | undefined }) {
   const tone = "size-4 shrink-0 text-muted-foreground"
   switch (status) {
     case "working":
-      return <CircleNotchIcon className={cn(tone, "animate-spin")} />
+      return <Spinner className={tone} />
     case "waiting":
       return <span className="mx-1 size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
     case "stopped":
@@ -169,15 +171,16 @@ export function SubagentRows({
             <StatusMark status={subagent.status} />
           </Link>
           {isAtWork(subagent.status) ? (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               aria-label={`Stop ${subagent.title}`}
               title="Stop"
               onClick={() => void stopSubagent(agentId, subagent.id)}
-              className="mr-1.5 rounded-md p-1 text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
+              className="mr-1.5 text-muted-foreground hover:text-destructive"
             >
               <XIcon className="size-3.5" />
-            </button>
+            </Button>
           ) : null}
         </li>
       ))}
@@ -276,14 +279,28 @@ export function SubagentWord({ part }: { part: NoticePart }) {
         )}
       </div>
       {part.detail === undefined ? null : (
-        <details className="mt-1">
-          <summary className="cursor-default">
+        <Collapsible className="mt-1">
+          <CollapsibleTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="group/more -ml-2 h-7 px-2 font-normal text-muted-foreground"
+              />
+            }
+          >
+            <CaretRightIcon
+              data-icon="inline-start"
+              className="transition-transform group-data-panel-open/more:rotate-90"
+            />
             {part.outcome === "failed" ? "What went wrong" : "What it reported"}
-          </summary>
-          <div className="mt-1.5 rounded-xl bg-surface px-3 py-2 text-foreground">
-            <Markdown text={part.detail} />
-          </div>
-        </details>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-1.5 rounded-xl bg-surface px-3 py-2 text-foreground">
+              <Markdown text={part.detail} />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   )

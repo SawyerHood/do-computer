@@ -5,11 +5,13 @@ import type {
   Person,
   WorkspaceSummary,
 } from "@durable-computer/protocol"
-import { ChatsIcon, CircleNotchIcon, PlusIcon } from "@phosphor-icons/react"
+import { ChatsIcon, PlusIcon } from "@phosphor-icons/react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
 import { isAtWork } from "@/components/chat/subagents"
 import { FaceStack } from "@/components/people"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Spinner } from "@/components/ui/spinner"
 import { chatKey, liveChatAtom } from "@/lib/atoms"
 import { mainChatOf, sideChatsOf, useNewSideChat, useOpenSideChat } from "@/lib/chats"
 import { cn } from "@/lib/utils"
@@ -59,7 +62,7 @@ function SideChatItem({
       <span className="flex min-w-6 shrink-0 items-center justify-end gap-1 text-xs text-muted-foreground">
         {working ? (
           <>
-            <CircleNotchIcon aria-label="Working" className="size-3 animate-spin" />
+            <Spinner aria-label="Working" className="size-3" />
             {subagentsAtWork > 0 ? subagentsAtWork : null}
           </>
         ) : (
@@ -110,21 +113,26 @@ export function SideChats({
       <DropdownMenuTrigger
         aria-label={`${name}'s side chats`}
         title={`${name}'s side chats`}
-        className={cn(
-          "flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent aria-expanded:text-foreground",
-          chats.some(onScreen) && "bg-accent text-foreground",
-        )}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "gap-1.5 px-2 text-[0.8125rem] text-muted-foreground",
+              chats.some(onScreen) && "bg-accent text-foreground",
+            )}
+          />
+        }
       >
-        {working ? (
-          <CircleNotchIcon aria-label="Working" className="size-4 animate-spin" />
-        ) : (
-          <ChatsIcon className="size-4" />
-        )}
+        {working ? <Spinner aria-label="Working" /> : <ChatsIcon />}
         <span className="hidden lg:inline">Side chats</span>
         {chats.length === 0 ? null : (
-          <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-secondary px-1 text-[0.6875rem] font-semibold">
+          <Badge
+            variant="secondary"
+            className="h-4.5 min-w-4.5 rounded-full px-1 text-[0.6875rem] font-semibold"
+          >
             {chats.length}
-          </span>
+          </Badge>
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent

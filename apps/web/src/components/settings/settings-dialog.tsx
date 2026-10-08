@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
@@ -56,20 +57,20 @@ export function SettingsDialog<Id extends string>({
           </div>
           <div className="flex gap-0.5 overflow-x-auto sm:flex-col sm:overflow-visible">
             {sections.map((entry) => (
-              <button
+              <Button
                 key={entry.id}
-                type="button"
+                variant="ghost"
                 aria-current={entry.id === section ? "page" : undefined}
                 onClick={() => onSection(entry.id)}
                 className={cn(
-                  "flex h-8.5 shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-left text-sm whitespace-nowrap text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&_svg]:size-4 [&_svg]:shrink-0",
-                  entry.id === section && "bg-accent text-foreground",
-                  entry.danger && "text-destructive hover:text-destructive sm:mt-3",
+                  "h-8.5 justify-start gap-2.5 px-2.5 font-normal text-muted-foreground hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-foreground",
+                  entry.danger &&
+                    "text-destructive hover:text-destructive aria-[current=page]:text-destructive sm:mt-3",
                 )}
               >
                 {entry.icon}
                 {entry.label}
-              </button>
+              </Button>
             ))}
           </div>
         </nav>

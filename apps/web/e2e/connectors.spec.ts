@@ -91,9 +91,9 @@ test.describe("connectors", () => {
   test("a connector switched off is no longer offered to the agent", async ({ page }) => {
     await openConnectors(page)
     const card = page.getByRole("listitem").filter({ hasText: "Sums" })
-    await card.getByRole("checkbox", { name: "Use Sums" }).uncheck()
+    await card.getByRole("switch", { name: "Use Sums" }).uncheck()
     await page.reload()
-    await expect(card.getByRole("checkbox", { name: "Use Sums" })).not.toBeChecked()
+    await expect(card.getByRole("switch", { name: "Use Sums" })).not.toBeChecked()
 
     await newChat(page)
     await composer(page).fill('/tool sums__add {"a":1,"b":1}')
@@ -162,7 +162,7 @@ test.describe("choosing a model", () => {
     const list = page.getByRole("listbox", { name: "Model" })
     // Not all hundred and fifty at once, and it says there are more.
     await expect(list.getByRole("option")).toHaveCount(60)
-    await expect(list).toContainText("92 more. Type to narrow them down.")
+    await expect(page.getByText("92 more. Type to narrow them down.")).toBeVisible()
     await expect(list.getByRole("option", { selected: true })).toContainText("Echo")
 
     // Words in any order, against the name and the id.
@@ -173,7 +173,7 @@ test.describe("choosing a model", () => {
     await picker.fill("maker-3/")
     await expect(list.getByRole("option").first()).toContainText("Maker 3: Model 3")
     await picker.fill("nothing like this")
-    await expect(list).toContainText("No model matches.")
+    await expect(page.getByText("No model matches.")).toBeVisible()
 
     // Escape puts the choice back as it was.
     await picker.press("Escape")
@@ -200,6 +200,10 @@ test.describe("choosing a model", () => {
     await picker.fill("echo")
     await list.getByRole("option", { name: /Echo/ }).click()
     await expect(picker).toHaveValue("Echo (no model key configured)")
+
+    // With its list closed, Escape is the settings window's again.
+    await picker.press("Escape")
+    await expect(page.getByRole("dialog")).toHaveCount(0)
   })
 
   test("how hard an agent thinks is chosen under its model", async ({ page }) => {
@@ -208,7 +212,7 @@ test.describe("choosing a model", () => {
     const thinking = page.getByRole("group", { name: "Thinking" })
     // The echo model does not reason, so there is nothing to choose.
     await expect(thinking).toContainText("does not think")
-    await expect(thinking.getByRole("radio")).toHaveCount(0)
+    await expect(thinking.getByRole("button")).toHaveCount(0)
 
     // Say that it can, with levels of its own, and those are what is offered.
     await page.route("**/api/models", (route) =>
@@ -228,9 +232,9 @@ test.describe("choosing a model", () => {
       }),
     )
     await page.reload()
-    await expect(thinking.getByRole("radio")).toHaveCount(3)
+    await expect(thinking.getByRole("button")).toHaveCount(3)
     // The agent is on medium, which this model lacks; it would use the next one up.
-    await expect(thinking.getByRole("radio", { name: "High" })).toBeChecked()
+    await expect(thinking.getByRole("button", { name: "High", pressed: true })).toBeVisible()
     // Choosing moves nothing: the form stays where it was.
     const save = page.getByRole("button", { name: "Save changes" })
     const before = await save.boundingBox()
@@ -239,7 +243,7 @@ test.describe("choosing a model", () => {
     await page.getByRole("button", { name: "Save changes" }).click()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible()
     await page.reload()
-    await expect(thinking.getByRole("radio", { name: "Max" })).toBeChecked()
+    await expect(thinking.getByRole("button", { name: "Max", pressed: true })).toBeVisible()
   })
 
   test("the default for new agents is set once, under Settings", async ({ page }) => {

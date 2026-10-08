@@ -3,7 +3,6 @@ import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
   ArrowSquareOutIcon,
-  CaretRightIcon,
   CheckIcon,
   ClockCounterClockwiseIcon,
   CodeIcon,
@@ -19,8 +18,17 @@ import {
 } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { DocPlaceholder } from "@/components/placeholders"
+import { Badge } from "@/components/ui/badge"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,7 +39,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import { libraryKey, libraryVersionsKey } from "@/lib/collections"
 import { formatBytes, formatFull, formatWhen, kindOf } from "@/lib/library"
@@ -57,23 +74,26 @@ function Segmented<T extends string>({
   label: string
 }) {
   return (
-    <div role="group" aria-label={label} className="flex shrink-0 rounded-lg bg-accent p-0.5">
+    <ToggleGroup
+      aria-label={label}
+      value={[value]}
+      // Pressing the one that is chosen leaves it chosen: a file is always shown some way.
+      onValueChange={([next]) => {
+        if (next !== undefined) onChange(next as T)
+      }}
+      className="shrink-0 gap-0 rounded-lg bg-accent p-0.5"
+    >
       {options.map(([option, text, icon]) => (
-        <button
+        <ToggleGroupItem
           key={option}
-          type="button"
-          aria-pressed={option === value}
-          onClick={() => onChange(option)}
-          className={cn(
-            "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/40 [&_svg]:size-3.5",
-            option === value && "bg-background text-foreground shadow-sm",
-          )}
+          value={option}
+          className="h-7 min-w-0 gap-1.5 rounded-md px-2.5 text-xs font-normal text-muted-foreground hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:hover:bg-background"
         >
           {icon}
           <span className="hidden sm:inline">{text}</span>
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   )
 }
 
@@ -193,16 +213,17 @@ function Editor({
       {markdown ? (
         <div className="flex shrink-0 items-center gap-0.5 border-b px-3 py-1.5">
           {FORMATS.map(([label, title, before, after]) => (
-            <button
+            <Button
               key={title}
-              type="button"
+              variant="ghost"
+              size="xs"
               title={title}
               aria-label={title}
               onClick={() => format(before, after)}
-              className="h-7 min-w-7 rounded-md px-1.5 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="h-7 min-w-7 px-1.5 font-semibold text-muted-foreground"
             >
               {label}
-            </button>
+            </Button>
           ))}
           <span className="ml-auto pr-1 text-xs text-muted-foreground">
             {text.split(/\s+/).filter(Boolean).length} words
@@ -265,12 +286,13 @@ function PageView({
           <LockIcon className="size-3.5 shrink-0" />
           <span className="truncate">{file.path}</span>
         </p>
-        <span
-          className="hidden shrink-0 rounded-md border px-2 py-0.5 text-[0.6875rem] text-muted-foreground sm:inline"
+        <Badge
+          variant="outline"
+          className="hidden text-[0.6875rem] font-normal text-muted-foreground sm:inline-flex"
           title="A page runs on its own, apart from the app and your account. It can load what is in the library beside it."
         >
           sandboxed
-        </span>
+        </Badge>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -290,14 +312,6 @@ function PageView({
         sandbox="allow-scripts allow-popups allow-forms allow-modals"
         className="min-h-0 w-full flex-1 bg-white"
       />
-    </div>
-  )
-}
-
-function Notice({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid h-full place-items-center p-8 text-center text-sm text-muted-foreground">
-      <div className="flex max-w-xs flex-col items-center gap-3">{children}</div>
     </div>
   )
 }
@@ -335,7 +349,15 @@ function TextBody({
   if (kind === "page" && mode === "read") {
     return <PageView agentId={agentId} file={file} view={view} stamp={stamp} onOpen={onOpen} />
   }
-  if (document.failed) return <Notice>This file could not be read. Try again.</Notice>
+  if (document.failed) {
+    return (
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyDescription>This file could not be read. Try again.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
   if (document.text === undefined) return <DocPlaceholder />
   const { text } = document
 
@@ -466,38 +488,41 @@ export function Viewer({
           </Button>
         )}
         {renaming === undefined ? (
-          <nav
-            aria-label="Where this file is"
-            className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"
-          >
-            <Link
-              to="/a/$agentId/library"
-              params={{ agentId }}
-              search={{}}
-              className={cn("hidden hover:text-foreground", !compact && "md:inline")}
-            >
-              Library
-            </Link>
-            {parts.map((part, index) => (
-              <span
-                key={`${index}:${part}`}
-                className={cn(
-                  "flex min-w-0 items-center gap-1",
-                  index < parts.length - 1 && (compact ? "hidden" : "hidden md:flex"),
-                )}
-              >
-                <CaretRightIcon className={cn("hidden size-3 shrink-0", !compact && "md:block")} />
-                {index === parts.length - 1 ? (
-                  // Not a heading: a document brings its own, and this is only its file name.
-                  <span aria-current="page" className="truncate font-medium text-foreground">
-                    {part}
-                  </span>
-                ) : (
-                  <span className="truncate">{part}</span>
-                )}
-              </span>
-            ))}
-          </nav>
+          <Breadcrumb aria-label="Where this file is" className="min-w-0">
+            {/* On a narrow screen, and beside a chat, only the file's own name is shown. */}
+            <BreadcrumbList className="flex-nowrap gap-1 sm:gap-1">
+              <BreadcrumbItem className={cn("hidden", !compact && "md:inline-flex")}>
+                <BreadcrumbLink
+                  render={<Link to="/a/$agentId/library" params={{ agentId }} search={{}} />}
+                >
+                  Library
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              {parts.map((part, index) => {
+                const last = index === parts.length - 1
+                return (
+                  <Fragment key={`${index}:${part}`}>
+                    <BreadcrumbSeparator
+                      className={cn("hidden [&>svg]:size-3", !compact && "md:block")}
+                    />
+                    <BreadcrumbItem
+                      className={cn(
+                        "min-w-0",
+                        !last && (compact ? "hidden" : "hidden md:inline-flex"),
+                      )}
+                    >
+                      {last ? (
+                        // Not a heading: a document brings its own, and this is only its file name.
+                        <BreadcrumbPage className="truncate font-medium">{part}</BreadcrumbPage>
+                      ) : (
+                        <span className="truncate">{part}</span>
+                      )}
+                    </BreadcrumbItem>
+                  </Fragment>
+                )
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
         ) : (
           <form
             className="flex min-w-0 flex-1 items-center gap-2"
@@ -544,9 +569,9 @@ export function Viewer({
             value={mode === "source" ? "read" : mode}
             onChange={onMode}
             options={[
-              ["read", "Read", <EyeIcon key="i" />],
-              ["edit", "Edit", <PencilSimpleIcon key="i" />],
-              ["split", "Split", <ColumnsIcon key="i" />],
+              ["read", "Read", <EyeIcon key="i" className="size-3.5" />],
+              ["edit", "Edit", <PencilSimpleIcon key="i" className="size-3.5" />],
+              ["split", "Split", <ColumnsIcon key="i" className="size-3.5" />],
             ]}
           />
         ) : kind === "page" ? (
@@ -555,8 +580,8 @@ export function Viewer({
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
             options={[
-              ["read", "Page", <GlobeIcon key="i" />],
-              ["source", "Source", <CodeIcon key="i" />],
+              ["read", "Page", <GlobeIcon key="i" className="size-3.5" />],
+              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
             ]}
           />
         ) : null}
@@ -595,17 +620,25 @@ export function Viewer({
             />
           </div>
         ) : kind === "other" ? (
-          <Notice>
-            <FileIcon className="size-10" />
-            <p className="text-base font-medium text-foreground">{file.name}</p>
-            <p>{formatBytes(file.size)} · This kind of file cannot be shown here yet.</p>
-            <Button
-              variant="outline"
-              render={<a href={api.libraryFileUrl(file.id)} download={file.name} />}
-            >
-              <DownloadSimpleIcon /> Download
-            </Button>
-          </Notice>
+          <Empty className="h-full">
+            <EmptyHeader>
+              <EmptyMedia className="text-muted-foreground">
+                <FileIcon className="size-10" />
+              </EmptyMedia>
+              <EmptyTitle className="text-base">{file.name}</EmptyTitle>
+              <EmptyDescription>
+                {formatBytes(file.size)} · This kind of file cannot be shown here yet.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                render={<a href={api.libraryFileUrl(file.id)} download={file.name} />}
+              >
+                <DownloadSimpleIcon /> Download
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
           <TextBody
             // A different file is a different edit: nothing typed carries over.

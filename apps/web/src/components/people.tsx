@@ -1,4 +1,12 @@
 import { AVATAR_COLORS, type Person, workspaceColor } from "@durable-computer/protocol"
+import {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 
 /** A color for someone with no picture, the same every time for the same person. */
@@ -32,33 +40,28 @@ export function PersonFace({
   title?: string
 }) {
   return (
-    <span
+    <Avatar
       role="img"
       aria-label={person.name}
       title={title ?? person.name}
-      className={cn(
-        "relative inline-grid size-6 shrink-0 place-items-center rounded-full text-[0.625rem] leading-none font-semibold text-white select-none [container-type:inline-size]",
-        className,
-      )}
-      style={person.image ? undefined : { backgroundColor: colorOf(person.id) }}
+      // No hairline around it: a face is a flat disc of its own color.
+      className={cn("inline-flex size-6 [container-type:inline-size] after:hidden", className)}
     >
-      {person.image ? (
-        <img
-          src={person.image}
-          alt=""
-          referrerPolicy="no-referrer"
-          className="size-full rounded-full object-cover"
-        />
-      ) : (
-        <span className="text-[40cqw]">{initials(person.name)}</span>
-      )}
+      {person.image ? <AvatarImage src={person.image} alt="" referrerPolicy="no-referrer" /> : null}
+      {/* Their initials, which also stand in while a picture is on its way or cannot be had. */}
+      <AvatarFallback
+        className="text-[40cqw] leading-none font-semibold text-white"
+        style={{ backgroundColor: colorOf(person.id) }}
+      >
+        {initials(person.name)}
+      </AvatarFallback>
       {here ? (
-        <span
+        <AvatarBadge
           aria-hidden
-          className="absolute -right-px -bottom-px size-[32%] min-h-1.5 min-w-1.5 rounded-full bg-[oklch(0.7_0.16_150)] ring-2 ring-(--face-ring,var(--background))"
+          className="-right-px -bottom-px size-[32%]! min-h-1.5 min-w-1.5 bg-[oklch(0.7_0.16_150)] ring-(--face-ring,var(--background))"
         />
       ) : null}
-    </span>
+    </Avatar>
   )
 }
 
@@ -77,24 +80,20 @@ export function FaceStack({
   const shown = people.slice(0, max)
   const more = people.length - shown.length
   return (
-    <span
-      className="inline-flex shrink-0 items-center"
+    <AvatarGroup
+      className="inline-flex shrink-0 items-center -space-x-1 *:data-[slot=avatar]:ring-(--face-ring,var(--background))"
       title={people.map((person) => person.name).join(", ")}
     >
-      {shown.map((person, index) => (
-        <PersonFace
-          key={person.id}
-          person={person}
-          title=""
-          className={cn(
-            "ring-2 ring-(--face-ring,var(--background))",
-            index > 0 && "-ml-1",
-            className,
-          )}
-        />
+      {shown.map((person) => (
+        <PersonFace key={person.id} person={person} title="" className={className} />
       ))}
-      {more > 0 ? <span className="ml-1 text-xs text-muted-foreground">+{more}</span> : null}
-    </span>
+      {more > 0 ? (
+        // Words beside the faces, not one more disc among them.
+        <AvatarGroupCount className="ml-2 size-auto rounded-none bg-transparent text-xs ring-0">
+          +{more}
+        </AvatarGroupCount>
+      ) : null}
+    </AvatarGroup>
   )
 }
 

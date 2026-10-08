@@ -9,7 +9,6 @@ import type {
 import {
   CaretRightIcon,
   CheckCircleIcon,
-  CircleNotchIcon,
   StopCircleIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
@@ -18,6 +17,9 @@ import { Link } from "@tanstack/react-router"
 import { useMemo } from "react"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { useAgentsById } from "@/components/computer-requests"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { agentKey } from "@/lib/collections"
 import { cn } from "@/lib/utils"
@@ -59,7 +61,7 @@ export function StatusMark({ status }: { status: SubagentStatus | undefined }) {
   const tone = "size-4 shrink-0 text-muted-foreground"
   switch (status) {
     case "working":
-      return <CircleNotchIcon className={cn(tone, "animate-spin")} />
+      return <Spinner className={tone} />
     case "waiting":
       return <span className="mx-1 size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
     case "stopped":
@@ -176,14 +178,28 @@ export function AgentWord({ part }: { part: NoticePart }) {
         )}
       </div>
       {part.detail === undefined ? null : (
-        <details className="mt-1">
-          <summary className="cursor-default">
+        <Collapsible className="mt-1">
+          <CollapsibleTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="group/more -ml-2 h-7 px-2 font-normal text-muted-foreground"
+              />
+            }
+          >
+            <CaretRightIcon
+              data-icon="inline-start"
+              className="transition-transform group-data-panel-open/more:rotate-90"
+            />
             {part.outcome === "failed" ? "What went wrong" : "What it said"}
-          </summary>
-          <div className="mt-1.5 rounded-xl bg-surface px-3 py-2 text-foreground">
-            <Markdown text={part.detail} />
-          </div>
-        </details>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-1.5 rounded-xl bg-surface px-3 py-2 text-foreground">
+              <Markdown text={part.detail} />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   )
