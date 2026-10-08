@@ -76,6 +76,15 @@ export type AgentDirectory = {
    * gone, has moved elsewhere, or no longer has the chat it asked from.
    */
   reply(agentId: string, to: string, reply: PeerReply): Promise<boolean>
+  /**
+   * Make a new agent in the workspace of `agentId`, as someone could from the app. `by` is the
+   * person the agent is working for when it asks: the new agent is made as theirs would be.
+   * Resolves with the agent, or with why it could not be made. Absent: none can be made.
+   */
+  create?(
+    agentId: string,
+    input: { name: string; tagline?: string; personality?: string; by?: string },
+  ): Promise<{ id: string; name: string } | { error: string }>
 }
 
 /** A problem the caller should be told about, as opposed to a bug. */
@@ -563,13 +572,26 @@ export class Peers {
       description:
         "Work with the other agents in this workspace: each is an agent like you, with a name, memory, skills and computer of its own, working for the same people. " +
         'action "list" shows who they are; "message" needs `to` (a name or id from the list) and `message`. ' +
+        (this.#options.directory.create === undefined
+          ? ""
+          : '"create" makes a new agent in the workspace, when the person asks for one: it needs `name`, and takes `tagline` (one line on what it is for), `personality` (how it should work and what it should know, written to it as "You are...") and `message` (the first thing you want from it, sent as "message" would be). The person meets it in the app like any other agent. ') +
         "The other agent knows nothing of this conversation, so write the message to stand on its own: what you want, and what to send back. " +
         "Sending returns at once. Its reply reaches you later as a message and gives you a turn then, so do not wait for it or send the same thing again. " +
         "What you send to one agent from this conversation carries on one conversation with it, which the user can open and read.",
       parameters: Type.Object({
-        action: Type.Union([Type.Literal("list"), Type.Literal("message")]),
+        action: Type.Union([Type.Literal("list"), Type.Literal("message"), Type.Literal("create")]),
         to: Type.Optional(Type.String({ description: "An agent's name or id, from list" })),
         message: Type.Optional(Type.String({ description: "What to say to it" })),
+        name: Type.Optional(Type.String({ description: "For create: the new agent's name" })),
+        tagline: Type.Optional(
+          Type.String({ description: "For create: one line on what the new agent is for" }),
+        ),
+        personality: Type.Optional(
+          Type.String({
+            description:
+              'For create: how the new agent should work and what it should know, written to it in the second person ("You are...")',
+          }),
+        ),
       }),
       execute: async (args, api, context) => {
         const reply = (
@@ -596,6 +618,59 @@ export class Peers {
                       `${peer.name ?? `(${UNNAMED})`} (id ${peer.id})${peer.tagline ? `: ${peer.tagline}` : ""}`,
                   )
                   .join("\n"),
+          )
+        }
+        if (args.action === "create") {
+          const create = directory.create
+          if (create === undefined) {
+            return fail("An agent cannot be made from here. The person can make one in the app.")
+          }
+          const chatId = String(api.conversationId)
+          const chat = own((await api.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)
+          if (chat?.kind !== "chat") {
+            return fail("Only a conversation with the user can make a new agent.")
+          }
+          const name = (args.name ?? "").trim()
+          if (name === "") return fail('"create" needs name.')
+          if (name.length > 40) return fail("A name can be at most 40 characters.")
+          if (peers.some((peer) => peer.name?.toLowerCase() === name.toLowerCase())) {
+            return fail(`There is already an agent called "${name}" in this workspace.`)
+          }
+          const first = (args.message ?? "").trim()
+          if (first.length > MAX_MESSAGE_CHARS) {
+            return fail(`A message can be at most ${MAX_MESSAGE_CHARS} characters.`)
+          }
+          const identity = await api.snapshot(IdentityDoc, context)
+          const made = await create.call(directory, agentId, {
+            name,
+            ...(args.tagline?.trim() ? { tagline: args.tagline.trim().slice(0, 120) } : {}),
+            ...(args.personality?.trim()
+              ? { personality: args.personality.trim().slice(0, 4000) }
+              : {}),
+            by: chat.lastBy ?? chat.createdBy ?? identity?.ownerId,
+          })
+          if ("error" in made) return fail(made.error)
+          const told = `Made the agent "${made.name}" (id ${made.id}). The person finds it with the other agents in the app.`
+          if (first === "")
+            return reply(`${told} Write to it with "message" when you want something from it.`)
+          try {
+            const sent = await directory.send(agentId, made.id, {
+              id: `${agentId}:${chatId}:${api.callId}`,
+              chatId,
+              text: first,
+              from: identity?.name ?? null,
+            })
+            if (sent !== undefined) {
+              return reply(
+                `${told} Your message was sent to it. Its reply will reach you as a message when it is ready: do not wait for it or send it again.`,
+                { agentId: made.id, name: made.name, chatId: sent.threadId },
+              )
+            }
+          } catch {
+            // Said below: the agent is there, and can be written to again.
+          }
+          return reply(
+            `${told} Your message could not be handed to it; send it again with "message".`,
           )
         }
         const wanted = (args.to ?? "").trim()

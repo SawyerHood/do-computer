@@ -560,7 +560,8 @@ describe("an agent in Slack", () => {
     expect(world.mcp.calls).toHaveLength(1)
     expect(tools(await chatState(world, chatId))[0]!.output).toContain("(Use Calculator)")
     const { pending, rules } = await call<ApprovalsState>(world, "/approvals")
-    expect(rules).toEqual({})
+    // No rule was set for the connector: it is asked about for the guest alone.
+    expect(Object.keys(rules).filter((id) => id.startsWith("connector:"))).toEqual([])
     expect(pending).toMatchObject([
       { chatId, chatKind: "slack", title: "Use Calculator", guest: "Dana Whitfield" },
     ])

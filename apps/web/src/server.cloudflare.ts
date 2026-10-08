@@ -9,9 +9,17 @@ import {
 } from "@durable-computer/runtime/cloudflare"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { agentDirectory } from "./server/agent-directory.ts"
+import { createAgentBeside } from "./server/agents.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
-import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
+import {
+  addableKinds,
+  addMachineFor,
+  authenticateDaemon,
+  computerActorName,
+  CONNECT_PATH,
+  removeMachineFor,
+} from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
 import { createPresenceActor } from "./server/presence-actor.ts"
@@ -40,9 +48,16 @@ export const AgentObject = createDurableActorClass<Env>({
       computerDirectory: computerDirectory(
         d1Database(env.DB),
         durableObjectNamespace(env.COMPUTER),
+        undefined,
+        { kinds: addableKinds, add: addMachineFor, remove: removeMachineFor },
       ),
       library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
-      agentDirectory: agentDirectory(d1Database(env.DB), () => durableObjectNamespace(env.AGENT)),
+      agentDirectory: agentDirectory(
+        d1Database(env.DB),
+        () => durableObjectNamespace(env.AGENT),
+        createAgentBeside,
+      ),
+      appUrl: config.baseUrl,
       slackDirectory: slackDirectory(d1Database(env.DB), { apiUrl: config.slackApiUrl }),
       onNotify: (notification) =>
         void notifyPeople(

@@ -11,6 +11,8 @@ import {
   type SocketLike,
 } from "@durable-computer/runtime/node"
 import { agentDirectory } from "./agent-directory.ts"
+import { createAgentBeside } from "./agents.ts"
+import { addableKinds, addMachineFor, removeMachineFor } from "./computers.ts"
 import { slackDirectory } from "./slack.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { libraryDirectory } from "./library-directory.ts"
@@ -74,10 +76,15 @@ function create(): NodePlatform {
         allowPrivateHosts: config.allowPrivateHosts,
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
-        computerDirectory: computerDirectory(app, links),
+        computerDirectory: computerDirectory(app, links, undefined, {
+          kinds: addableKinds,
+          add: addMachineFor,
+          remove: removeMachineFor,
+        }),
         library: libraryDirectory(app, libraries),
         // The agents reach each other through the namespace they are all in.
-        agentDirectory: agentDirectory(app, () => agents),
+        agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
+        appUrl: config.baseUrl,
         slackDirectory: slackDirectory(app, { apiUrl: config.slackApiUrl }),
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),

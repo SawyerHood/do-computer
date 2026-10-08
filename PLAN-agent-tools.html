@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Do Computer: what the agent can do, and what to add</title>
+<style>
+  :root {
+    --bg: #f6f8f9; --panel: #ffffff; --ink: #17232b; --soft: #55656f; --line: #dde4e8;
+    --teal: #1d7a7d; --teal-soft: #e3f1f1; --warn: #a8590f; --warn-soft: #fbeedd;
+    --no: #9b2f3a; --no-soft: #f9e4e6; --ok: #2f6b3c; --ok-soft: #e4f1e6; --grey-soft: #eceff1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10171b; --panel: #172127; --ink: #e6edf0; --soft: #9aabb5; --line: #2a373f;
+      --teal: #5cc4c6; --teal-soft: #173638; --warn: #e6a660; --warn-soft: #3a2c1a;
+      --no: #ee8f99; --no-soft: #3b1f23; --ok: #86cf95; --ok-soft: #1c3322; --grey-soft: #222e35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; margin: 44px 0 6px; padding-top: 12px; border-top: 2px solid var(--teal); }
+  h3 { font-size: 16px; margin: 0 0 6px; }
+  p { margin: 8px 0; }
+  .lead { color: var(--soft); font-size: 16px; max-width: 760px; }
+  .note { color: var(--soft); font-size: 13.5px; }
+  code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--grey-soft);
+    padding: 1px 5px; border-radius: 4px; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+  nav a { color: var(--teal); text-decoration: none; border: 1px solid var(--line);
+    background: var(--panel); padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 24px 0 0; }
+  .summary div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .summary b { display: block; font-size: 13px; color: var(--teal); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--soft); background: var(--grey-soft); }
+  tr:last-child td { border-bottom: 0; }
+  tr.area td { background: var(--teal-soft); font-weight: 600; color: var(--teal); }
+  .pill { display: inline-block; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+  .yes { background: var(--ok-soft); color: var(--ok); }
+  .part { background: var(--warn-soft); color: var(--warn); }
+  .none { background: var(--no-soft); color: var(--no); }
+  .add { background: var(--teal); color: var(--panel); }
+  .later { background: var(--teal-soft); color: var(--teal); }
+  .keep { background: var(--grey-soft); color: var(--soft); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+  .card .tag { float: right; margin-left: 12px; }
+  .card ul { margin: 6px 0 0; padding-left: 20px; }
+  .card li { margin: 3px 0; }
+  .where { color: var(--soft); font-size: 13px; margin-top: 8px; }
+  ol.steps { padding-left: 20px; } ol.steps li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>What the agent can do in Do Computer, and what to add</h1>
+  <p class="lead">An audit of every action a person can take in the web app, set against the tools the agent
+    has. It ends with the tools to add, in the order to build them, and the decisions that are yours.</p>
+  <p class="note">Written 8 October 2026 from the code on <code>main</code> (after PR #17).</p>
+  <div class="card">
+    <span class="pill yes tag">Built 8 October 2026</span>
+    <h3>Status</h3>
+    <p>Groups A and B below are built, with one addition you asked for: a <code>request_secret</code> tool.
+      The agent asks for API keys or passwords, a form opens above the message box, and what is typed is saved
+      to a dotenv file on its computer without entering the conversation. A connector that needs an access token
+      uses the same form, which replaces the "link to the Connectors form" idea in A2.</p>
+    <p>The "Later" list is not built. <code>HANDOFF.md</code>, section 5 item 23, says how each part works
+      and what was and was not checked.</p>
+  </div>
+
+  <div class="summary">
+    <div><b>Works well today</b>Files and commands on a computer, automations, skills, its own name and memory,
+      sub-agents, messaging other agents, searching past chats.</div>
+    <div><b>Biggest gaps</b>The agent cannot add a machine and cannot add, fix or even see its connectors.
+      Both are things you asked about.</div>
+    <div><b>Smaller gaps</b>Run an automation now, change its own model, see its cost, make another agent,
+      point a person at the right screen.</div>
+    <div><b>Should stay with people</b>Permissions, approvals, team members and roles, deleting or moving
+      agents, notifications.</div>
+  </div>
+
+  <nav>
+    <a href="#today">1. Tools today</a>
+    <a href="#coverage">2. Coverage by area</a>
+    <a href="#add">3. What to add</a>
+    <a href="#keep">4. Leave to people</a>
+    <a href="#build">5. How it fits the code</a>
+    <a href="#decide">6. Decisions for you</a>
+  </nav>
+
+  <h2 id="today">1. The tools the agent has today</h2>
+  <div class="wrap"><table>
+    <tr><th>Tool</th><th>What it does</th><th>Where</th></tr>
+    <tr><td><code>read</code> <code>write</code> <code>edit</code> <code>bash</code></td>
+      <td>Files and commands on a computer, named with <code>computer</code> when there is more than one.</td>
+      <td><code>packages/agent/src/computers.ts</code></td></tr>
+    <tr><td><code>computers</code></td><td><code>list</code> the computers near it; <code>request</code> one it cannot use yet, which a person answers.</td>
+      <td><code>computers.ts:716</code></td></tr>
+    <tr><td><code>send_file</code>, <code>library</code></td><td>Show a file in the chat; <code>list</code> the library and <code>get</code> a file onto a computer.
+      On a workspace machine the folder <code>~/library</code> is the library, kept in step both ways.</td>
+      <td><code>library.ts:99</code></td></tr>
+    <tr><td><code>schedule</code></td><td><code>create</code>, <code>list</code>, <code>update</code>, <code>pause</code>, <code>resume</code>, <code>remove</code> automations.</td>
+      <td><code>schedules.ts:438</code></td></tr>
+    <tr><td><code>skill</code></td><td><code>view</code>, <code>list</code>, <code>create</code>, <code>write_file</code>, <code>patch</code>, <code>remove_file</code>, <code>delete</code>, <code>install</code> from a URL.</td>
+      <td><code>skills.ts:273</code></td></tr>
+    <tr><td><code>set_identity</code>, <code>memory</code></td><td>Its name, tagline, personality and color; its notes and what it knows about the person.</td>
+      <td><code>persona.ts:62</code></td></tr>
+    <tr><td><code>subagent</code></td><td><code>start</code>, <code>message</code>, <code>stop</code>, <code>list</code> background copies of itself.</td>
+      <td><code>subagents.ts:468</code></td></tr>
+    <tr><td><code>agents</code></td><td><code>list</code> and <code>message</code> the other agents of its workspace.</td>
+      <td><code>peers.ts:560</code></td></tr>
+    <tr><td><code>history</code></td><td><code>search</code> and <code>read</code> its other chats.</td><td><code>history.ts:186</code></td></tr>
+    <tr><td><code>web_search</code></td><td>Search the web, where the deployment has a key for it.</td><td><code>web-search.ts:41</code></td></tr>
+    <tr><td><code>progress</code>, <code>log</code></td><td>Post an update without ending its turn; add to the list of what it did.</td>
+      <td><code>keep-going.ts:69</code>, <code>log.ts:10</code></td></tr>
+    <tr><td>Connector tools</td><td>Every tool of each connector that is on and connected. The agent has no tool
+      about the connectors themselves.</td><td><code>connectors.ts:387</code></td></tr>
+  </table></div>
+
+  <h2 id="coverage">2. Coverage by area</h2>
+  <p class="note">"In the app" is the web app. <span class="pill add">Add</span> is in the plan below,
+    <span class="pill later">Later</span> is worth doing after it, <span class="pill keep">Leave</span> should stay with people.</p>
+  <div class="wrap"><table>
+    <tr><th>Action</th><th>In the app</th><th>Agent today</th><th>Plan</th></tr>
+
+    <tr class="area"><td colspan="4">Computers</td></tr>
+    <tr><td>See the machines and connected computers</td><td>Workspace settings, Computers</td><td><span class="pill yes">Yes</span> <code>computers list</code></td><td></td></tr>
+    <tr><td>Ask to use a computer</td><td>A person answers the request</td><td><span class="pill yes">Yes</span> <code>computers request</code></td><td></td></tr>
+    <tr><td>Add a machine to the workspace (kind and name, up to 10)</td><td>"Add computer"</td><td><span class="pill none">No</span> It tells the person to do it in settings</td><td><span class="pill add">Add</span> A1</td></tr>
+    <tr><td>Remove a machine, with everything on it</td><td>Whoever added it, or a team admin</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> A1, limited</td></tr>
+    <tr><td>Connect a person's own computer (run a command there, confirm a code)</td><td>"Connect a computer of your own", then <code>/pair</code></td><td><span class="pill none">No</span> It does not know the command</td><td><span class="pill add">Add</span> A1: hand over the command and link</td></tr>
+    <tr><td>Open a machine to every agent, or to chosen ones</td><td>"Open to" / "Chosen agents"</td><td><span class="pill none">No</span></td><td><span class="pill later">Later</span></td></tr>
+    <tr><td>Connect or disconnect another agent</td><td>"Connect an agent…"</td><td><span class="pill part">Itself only</span> by asking</td><td><span class="pill keep">Leave</span></td></tr>
+    <tr><td>Move a paired computer between you and a team</td><td>"Belongs to"</td><td><span class="pill none">No</span></td><td><span class="pill keep">Leave</span></td></tr>
+
+    <tr class="area"><td colspan="4">Connectors (MCP servers)</td></tr>
+    <tr><td>See connectors, their state and their tools</td><td>Connectors page</td><td><span class="pill part">Partly</span> Sees only the tools of working ones. Learns one needs sign-in when a call fails</td><td><span class="pill add">Add</span> A2</td></tr>
+    <tr><td>Add a connector (name, server address, sign in if asked)</td><td>"Add connector"</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> A2</td></tr>
+    <tr><td>Reconnect one that failed or needs sign-in</td><td>"Try again"</td><td><span class="pill none">No</span> It says "reconnect it under Connectors"</td><td><span class="pill add">Add</span> A2</td></tr>
+    <tr><td>Turn one on or off</td><td>Switch</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> A2</td></tr>
+    <tr><td>Remove one</td><td>Remove</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> A2, asks first</td></tr>
+
+    <tr class="area"><td colspan="4">Automations</td></tr>
+    <tr><td>Create one</td><td>No form: only the agent can</td><td><span class="pill yes">Yes</span></td><td></td></tr>
+    <tr><td>Edit, pause, resume, remove</td><td>Automations page</td><td><span class="pill yes">Yes</span></td><td></td></tr>
+    <tr><td>Run one now</td><td>"Run now"</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B1</td></tr>
+    <tr><td>Change its timezone after it is made</td><td>No</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B1</td></tr>
+
+    <tr class="area"><td colspan="4">Skills</td></tr>
+    <tr><td>Read, write, change, delete, install from a URL</td><td>Skills page (install, read, remove)</td><td><span class="pill yes">Yes</span> More than the app</td><td></td></tr>
+    <tr><td>Turn a skill on or off</td><td>Switch</td><td><span class="pill none">No</span></td><td><span class="pill keep">Leave</span> It is the person's switch</td></tr>
+
+    <tr class="area"><td colspan="4">Identity, memory and settings</td></tr>
+    <tr><td>Name, tagline, personality, color</td><td>Profile</td><td><span class="pill yes">Yes</span> <code>set_identity</code></td><td></td></tr>
+    <tr><td>Memory and what it knows about you or the team</td><td>Profile</td><td><span class="pill yes">Yes</span> <code>memory</code></td><td></td></tr>
+    <tr><td>Model and how hard it thinks</td><td>Model pickers</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B2</td></tr>
+    <tr><td>What a message does while it is busy (join in, or wait)</td><td>Profile</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B2</td></tr>
+    <tr><td>Timezone</td><td>Set by the client</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B2</td></tr>
+    <tr><td>See what it has cost, by model</td><td>Profile, Usage</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B2, read only</td></tr>
+
+    <tr class="area"><td colspan="4">Library</td></tr>
+    <tr><td>List, read, write, move and delete files</td><td>Library page</td><td><span class="pill part">Mostly</span> Through <code>~/library</code> on a workspace machine. With no machine it can only list</td><td><span class="pill later">Later</span></td></tr>
+    <tr><td>Put back an older version, bring back a deleted file</td><td>History, Recently deleted</td><td><span class="pill none">No</span></td><td><span class="pill later">Later</span></td></tr>
+
+    <tr class="area"><td colspan="4">Chats and other agents</td></tr>
+    <tr><td>Search past chats</td><td>Search</td><td><span class="pill yes">Yes</span> <code>history</code></td><td></td></tr>
+    <tr><td>Start a side chat, rename, archive, start fresh, stop</td><td>Chat screen</td><td><span class="pill none">No</span></td><td><span class="pill keep">Leave</span> Rename could come later</td></tr>
+    <tr><td>Start and stop sub-agents</td><td>Read and stop</td><td><span class="pill yes">Yes</span></td><td></td></tr>
+    <tr><td>Message another agent</td><td>Read the conversation</td><td><span class="pill yes">Yes</span> <code>agents message</code></td><td></td></tr>
+    <tr><td>Make a new agent (up to 20 in a workspace)</td><td>"New agent"</td><td><span class="pill none">No</span></td><td><span class="pill add">Add</span> B3, if you want it</td></tr>
+    <tr><td>Move an agent to a team, delete an agent</td><td>Agent settings</td><td><span class="pill none">No</span></td><td><span class="pill keep">Leave</span></td></tr>
+
+    <tr class="area"><td colspan="4">People and account</td></tr>
+    <tr><td>Permission rules, answering "Needs your OK"</td><td>Permissions, chat</td><td><span class="pill none">No</span></td><td><span class="pill keep">Leave</span></td></tr>
+    <tr><td>Create a team, invite, roles, remove people, rename, delete</td><td>Workspace settings</td><td><span class="pill none">No</span> It knows the team's name and who is speaking, not who else is in it</td><td><span class="pill keep">Leave</span> A read-only list of people could come later</td></tr>
+    <tr><td>Notifications, default model and computer for new agents</td><td>User menu, Settings</td><td><span class="pill none">No</span></td><td><span class="pill keep">Leave</span></td></tr>
+  </table></div>
+
+  <h2 id="add">3. What to add</h2>
+  <p>Group A is what you asked for and comes first. Group B is small and can follow in any order.</p>
+
+  <div class="card">
+    <span class="pill add tag">A0 · first</span>
+    <h3>A way for some actions to ask first by default</h3>
+    <p>Today every ability is allowed until a person sets a rule (<code>approvals.ts:160</code>). Adding a machine
+      costs money and adding a connector gives the agent new powers from an address it may have read on a web page,
+      so both should ask first unless the person says otherwise. The other new actions below reuse this.</p>
+    <ul>
+      <li>Give each entry in <code>ABILITIES</code> a default rule, and keep an explicit "allow" instead of deleting it
+        (<code>approvals.ts:381</code> and <code>:418</code> delete a rule on allow).</li>
+      <li>New abilities: "Add and remove machines", "Add and change connectors", "Change its model and settings",
+        "Make new agents". They appear on the Permissions page with the others.</li>
+    </ul>
+    <p class="where">Also needed by A1 and A2: the actor has to know the app's address, to hand a person a link.
+      It is passed today only as a header for connector sign-in.</p>
+  </div>
+
+  <div class="card">
+    <span class="pill add tag">A1</span>
+    <h3>Machines: add, remove, and help connect a person's own</h3>
+    <p>New actions on the existing <code>computers</code> tool.</p>
+    <ul>
+      <li><code>add</code> with <code>kind</code> and <code>name</code>. Same checks as the app's "Add computer": a kind the
+        deployment offers, not the built-in shell, at most 10 in a workspace. The machine is open to the workspace's
+        agents, as it is from the app. A machine is only made at its provider when first used, so adding returns at once
+        and the agent can work on it in its next call.</li>
+      <li><code>list</code> also says which kinds can be added.</li>
+      <li><code>remove</code> with <code>name</code>. Deleting a machine deletes everything on it, so I would limit it
+        to machines this agent added, and have it ask every time whatever the rule says.</li>
+      <li><code>connect_own</code> returns the one-line install command (<code>curl -fsSL &lt;app&gt;/install.sh | sh</code>)
+        for the person to run on their computer. They still confirm the code at <code>/pair</code>; the agent cannot
+        and should not do that part.</li>
+    </ul>
+    <p class="where">Where: extend <code>ComputerDirectory</code> with <code>add</code> and <code>remove</code>
+      (<code>apps/web/src/server/computer-directory.ts</code>), reusing <code>insertMachine</code>,
+      <code>destroyMachine</code> and <code>tellWorkspace</code> in <code>server/computers.ts</code>. To know which
+      machines an agent added, <code>dc_computers</code> needs a column for the agent beside the person.</p>
+  </div>
+
+  <div class="card">
+    <span class="pill add tag">A2</span>
+    <h3>Connectors: a <code>connectors</code> tool</h3>
+    <ul>
+      <li><code>list</code>: each connector, whether it is on, connected, needs sign-in or failed and why, and how many tools it has.</li>
+      <li><code>add</code> with <code>name</code> and <code>url</code>. If the server needs no sign-in, its tools are there
+        from the agent's next step. If it does, the reply carries a sign-in link and the chat shows a "Sign in to …" card.
+        When the person finishes, the agent is told in the chat, the way it is told when a computer request is answered.</li>
+      <li><code>reconnect</code>, <code>enable</code>, <code>disable</code>, <code>remove</code>.</li>
+    </ul>
+    <p>Three things need care:</p>
+    <ul>
+      <li><b>Sign-in is tied to a person.</b> The callback only accepts the user who started it
+        (<code>server/connectors.ts:80</code>). From a tool, that is the person whose message the agent is answering.</li>
+      <li><b>Access tokens must not go through the chat.</b> The form in the app takes an optional access token, but one typed into a chat
+        stays in the transcript and in <code>history</code>. For a service that needs one, the agent should hand the
+        person a link to the Connectors form with the name and address filled in.</li>
+      <li><b>To check:</b> whether tools installed during a turn are offered to the model in that same turn
+        (<code>connectors.ts:376</code>), or only from the next message.</li>
+    </ul>
+    <p class="where">Where: the tool calls the same <code>Connectors</code> methods the routes do
+      (<code>connectors.ts:229</code> onward). The host gives the actor a way to record the sign-in state in
+      <code>dc_oauth_states</code>. The callback returns the person to the chat instead of the Connectors page.</p>
+  </div>
+
+  <div class="card">
+    <span class="pill later tag">B1</span>
+    <h3>Automations: run now, and timezone</h3>
+    <ul>
+      <li><code>schedule run</code> with <code>id</code>: what "Run now" does in the app. Useful right after creating one, to test it.</li>
+      <li>Let <code>update</code> take <code>timezone</code>. It is accepted on create and dropped on update
+        (<code>schedules.ts:520</code>; <code>UpdateScheduleRequest</code> has no such field).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <span class="pill later tag">B2</span>
+    <h3>Its own settings and cost: a <code>settings</code> tool</h3>
+    <ul>
+      <li><code>get</code>: model, thinking level, the models on offer, what a message does while it is busy, timezone, and cost so far by model.</li>
+      <li><code>set</code>: model, thinking, when busy, timezone. The same checks as the app (<code>actor.ts:1222</code>). Asks first by default, since a model change changes cost.</li>
+    </ul>
+    <p class="note">This lets "use a cheaper model from now on" or "how much have you cost me?" work in the chat.</p>
+  </div>
+
+  <div class="card">
+    <span class="pill later tag">B3</span>
+    <h3>Make a new agent</h3>
+    <p><code>agents create</code> with a first message for it. The new agent appears in the workspace as an egg, gets
+      the workspace's machine like any other, and the first message reaches it through the existing agent-to-agent
+      conversation. Same limit as the app, 20 in a workspace. Asks first by default.</p>
+    <p class="where">Where: add <code>create</code> to <code>AgentDirectory</code>
+      (<code>server/agent-directory.ts</code>), reusing <code>createAgent</code> and <code>provideFor</code>.</p>
+  </div>
+
+  <div class="card">
+    <span class="pill later tag">B4</span>
+    <h3>Knowing its way around the app</h3>
+    <p>When the agent cannot do something, it should send the person to the right screen with a link. Today it has a few
+      loose phrases ("under Automations", "Computers, in the workspace settings"). A short bundled skill, or a prompt
+      section, listing the screens and their addresses would cover it: <code>/a/&lt;agent&gt;/connectors</code>,
+      <code>/automations</code>, <code>/skills</code>, <code>/permissions</code>, <code>/library</code>,
+      <code>/computers</code>, <code>/profile</code>, <code>/settings</code>, and the workspace settings.</p>
+  </div>
+
+  <div class="card">
+    <span class="pill later tag">Later</span>
+    <h3>Smaller things</h3>
+    <ul>
+      <li>Library: bring back a deleted file or an older version; write a document when the agent has no machine.</li>
+      <li>Computers: open a machine to all agents or to chosen ones.</li>
+      <li>Rename the chat it is in.</li>
+      <li>A read-only list of who is in the team.</li>
+    </ul>
+  </div>
+
+  <h2 id="keep">4. What should stay with people</h2>
+  <div class="wrap"><table>
+    <tr><th>Action</th><th>Why</th></tr>
+    <tr><td>Permission rules, and answering "Needs your OK"</td><td>These are the limits on the agent. An agent that can change them has none.</td></tr>
+    <tr><td>Answering a request to use a computer; confirming a pairing code</td><td>The answer is the owner's consent.</td></tr>
+    <tr><td>Turning a skill off or on</td><td>A person turned it off for a reason the agent may not know.</td></tr>
+    <tr><td>Teams: invite, roles, remove people, rename, delete</td><td>Who is in a team decides who can read every chat in it.</td></tr>
+    <tr><td>Delete or move an agent</td><td>Deleting cannot be undone, and moving changes who can read its chats.</td></tr>
+    <tr><td>Connecting other agents to a computer; moving a paired computer</td><td>The agent can already ask for itself. The rest is about other people's machines.</td></tr>
+    <tr><td>Notifications, account defaults, sign-in</td><td>Per person and per browser, not the agent's.</td></tr>
+  </table></div>
+
+  <h2 id="build">5. How it fits the code</h2>
+  <ol class="steps">
+    <li><b>State the agent keeps itself</b> (connectors, automations, skills, identity, settings): the new tool
+      action calls the same method as the HTTP route in <code>packages/agent/src/actor.ts</code>, so the app and the
+      agent cannot drift apart.</li>
+    <li><b>State in the app's database</b> (computers, agents): the agent reaches it through the directories the
+      host passes in, <code>ComputerDirectory</code> and <code>AgentDirectory</code>. New actions are new methods
+      there, with the same limits the routes apply.</li>
+    <li><b>Only from a chat with a person.</b> Sub-agents and scheduled runs are refused, as <code>schedule</code>
+      and <code>computers request</code> already do (<code>schedules.ts:480</code>), so that there is someone to ask
+      and somewhere for the answer to go.</li>
+    <li><b>Who did it.</b> Each change records the agent and the person whose message it was answering.</li>
+    <li><b>The app updates itself.</b> Each change sends the existing "changed" event (<code>connectors</code>,
+      <code>computers</code>, <code>schedules</code>) or calls <code>tellWorkspace</code>, so open screens refresh.</li>
+    <li><b>Cards in the chat.</b> Tool results carry <code>details</code>, as <code>subagent</code> does, for a
+      "Machine added" card and a "Sign in to …" card. These are new UI, so a mock-up in <code>prototypes/</code>
+      should come before the build.</li>
+    <li><b>Tests.</b> Each tool gets cases beside <code>packages/agent/test/connectors.test.ts</code> and
+      <code>machines.test.ts</code>, and one end-to-end case each in <code>apps/web/e2e/computers.spec.ts</code> and
+      <code>connectors.spec.ts</code> (the fake MCP server there already has a sign-in path).</li>
+  </ol>
+  <p><b>Order:</b> A0, then A1 and A2 (independent of each other), then B1, B2 and B4 in any order, then B3 if wanted.</p>
+
+  <h2 id="decide">6. Decisions for you</h2>
+  <div class="wrap"><table>
+    <tr><th>Question</th><th>What I would do</th></tr>
+    <tr><td>Should adding a machine ask first?</td><td>Yes by default, with the usual "always allow" on the card. You can set it to allow on the Permissions page.</td></tr>
+    <tr><td>May the agent delete machines?</td><td>Only ones it added, and it asks every time.</td></tr>
+    <tr><td>How should a connector that needs a token be added?</td><td>Never through the chat. The agent hands over a link to the form with the rest filled in.</td></tr>
+    <tr><td>May the agent change its own model?</td><td>Yes, asking first, limited to the models the deployment offers.</td></tr>
+    <tr><td>May the agent make new agents?</td><td>Your call. It is cheap to build and easy to leave out.</td></tr>
+    <tr><td>In a team, may any member's request make the agent add a machine or connector?</td><td>Yes: any member can already do both in the app. The approval card goes to the person who asked.</td></tr>
+  </table></div>
+</main>
+</body>
+</html>

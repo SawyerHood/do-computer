@@ -41,7 +41,15 @@ export async function areBeside(db: AppDatabase, one: string, other: string): Pr
  * agents instead of finding the platform. Who is beside whom is looked up each time something is
  * handed over, so an agent that was moved or deleted is not reached by what it was told before.
  */
-export function agentDirectory(db: AppDatabase, agents: () => ActorNamespace): AgentDirectory {
+export function agentDirectory(
+  db: AppDatabase,
+  agents: () => ActorNamespace,
+  /**
+   * How an agent makes another in its workspace. It needs what makes an agent from the app,
+   * which whoever starts the agents has. Without it, an agent cannot.
+   */
+  create?: NonNullable<AgentDirectory["create"]>,
+): AgentDirectory {
   const call = (agentId: string, path: string, body?: unknown) =>
     agents()
       .get(agentId)
@@ -58,6 +66,7 @@ export function agentDirectory(db: AppDatabase, agents: () => ActorNamespace): A
     return new Error(error ?? `The agent answered ${response.status}`)
   }
   return {
+    ...(create === undefined ? {} : { create }),
     async list(agentId) {
       const ids = await agentsBeside(db, agentId)
       const found = await Promise.all(

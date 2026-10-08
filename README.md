@@ -316,6 +316,18 @@ Agents act without asking first. That is the default on purpose, and it means a 
 in something an agent reads can use whatever that agent can reach, including its connectors and a
 paired computer. What limits the damage:
 
+- **A few things ask first from the start**, because they cost money or give the agent more
+  reach: adding a machine to the workspace, adding or changing a connector, changing its own
+  model and settings, and making another agent. Each can be set to Allow under Permissions.
+  Removing a machine asks every time, and an agent can only remove one it added. Only a
+  conversation with a person can do any of these: a sub-agent or a scheduled run cannot.
+- **Secrets are typed into a form, not into the chat.** When an agent needs an API key or a
+  password it asks with its `request_secret` tool. A form appears above the message box, and what
+  is typed is written to a dotenv file on the agent's computer (or kept as a connector's access
+  token) without passing through the conversation: the agent is told which names were saved and
+  nothing else. The file is on a computer the agent works on, so this keeps a secret out of
+  transcripts, search and the model's context, not out of reach of a command the agent runs.
+
 - **Permissions.** For each thing the agent can do, each connector and each of your computers,
   choose Allow, Ask first or Never. With Ask first the agent stops, a request with the exact
   command or arguments appears above the composer and as a notification, and nothing happens until

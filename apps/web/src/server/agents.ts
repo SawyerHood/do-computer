@@ -6,7 +6,12 @@ import {
   declaredTooLarge,
   readLimited,
 } from "@durable-computer/protocol"
-import { CALLER_HEADER, encodeCaller, LIBRARY_AGENT_HEADER } from "@durable-computer/agent"
+import {
+  APP_ORIGIN_HEADER,
+  CALLER_HEADER,
+  encodeCaller,
+  LIBRARY_AGENT_HEADER,
+} from "@durable-computer/agent"
 import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/protocol"
 import { getAuth, getUser, type SessionUser } from "./auth.ts"
 import { provideFor } from "./computers.ts"
@@ -109,23 +114,37 @@ export async function createAgent(user: SessionUser, request: Request): Promise<
   const workspaceId =
     typeof input?.workspaceId === "string" ? input.workspaceId : personalWorkspaceId(user.id)
   if ((await roleIn(db, user.id, workspaceId)) === undefined) return fail(404, "Team not found")
+  const made = await makeAgent(user.id, workspaceId)
+  if ("error" in made) return fail(made.status, made.error)
+  return json({ agent: { ...made.agent, workspaceId } }, 201)
+}
+
+/**
+ * Make an agent in a workspace, as `ownerId`, who is in it. Resolves with the agent, or with why
+ * there is none.
+ */
+async function makeAgent(
+  ownerId: string,
+  workspaceId: string,
+): Promise<{ agent: AgentSummary } | { status: number; error: string }> {
+  const { db } = getPlatform()
   const count = await db.get<{ n: number }>(
     "SELECT COUNT(*) AS n FROM dc_agents WHERE workspace_id = ?",
     workspaceId,
   )
   if ((count?.n ?? 0) >= MAX_AGENTS_PER_WORKSPACE) {
-    return fail(
-      409,
-      isPersonalWorkspace(workspaceId)
+    return {
+      status: 409,
+      error: isPersonalWorkspace(workspaceId)
         ? `An account can have at most ${MAX_AGENTS_PER_WORKSPACE} agents`
         : `A team can have at most ${MAX_AGENTS_PER_WORKSPACE} agents`,
-    )
+    }
   }
   const id = crypto.randomUUID()
   await db.run(
     "INSERT INTO dc_agents (id, owner_id, workspace_id, created_at) VALUES (?, ?, ?, ?)",
     id,
-    user.id,
+    ownerId,
     workspaceId,
     Date.now(),
   )
@@ -134,20 +153,72 @@ export async function createAgent(user: SessionUser, request: Request): Promise<
     headers: { "content-type": "application/json" },
     // A new agent starts on the model its maker chose as their default.
     body: JSON.stringify({
-      ownerId: user.id,
+      ownerId,
       team: await teamName(workspaceId),
-      model: (await defaultsFor(user.id)).model,
+      model: (await defaultsFor(ownerId)).model,
     }),
   })
   if (!response.ok) {
     await db.run("DELETE FROM dc_agents WHERE id = ?", id)
-    return fail(502, "The agent could not be started")
+    return { status: 502, error: "The agent could not be started" }
   }
   // It has no computer of its own. It works on its workspace's, which gets one if it has none.
-  await provideFor(id, workspaceId, user.id)
+  await provideFor(id, workspaceId, ownerId)
   const { agent } = (await response.json()) as { agent: AgentSummary }
   await announce(workspaceId)
-  return json({ agent: { ...agent, workspaceId } }, 201)
+  return { agent }
+}
+
+/**
+ * An agent makes another in its own workspace, as someone in it could from the app, within the
+ * same limit. `by` is who it was working for: the new agent is made as theirs, where they are
+ * still in the workspace, and otherwise as whoever made the first one's. It is given the name
+ * and character it was asked to have, so it starts as someone and not as a blank.
+ */
+export async function createAgentBeside(
+  agentId: string,
+  input: { name: string; tagline?: string; personality?: string; by?: string },
+): Promise<{ id: string; name: string } | { error: string }> {
+  const { db } = getPlatform()
+  const row = await db.get<AgentRow>(
+    "SELECT id, owner_id, workspace_id, created_at FROM dc_agents WHERE id = ?",
+    agentId,
+  )
+  if (row === undefined) return { error: "This agent is not in a workspace any more." }
+  const workspaceId = row.workspace_id ?? personalWorkspaceId(row.owner_id)
+  const ownerId =
+    input.by !== undefined && (await roleIn(db, input.by, workspaceId)) !== undefined
+      ? input.by
+      : row.owner_id
+  if ((await roleIn(db, ownerId, workspaceId)) === undefined) {
+    return { error: "Nobody this agent works for is in its workspace any more." }
+  }
+  const made = await makeAgent(ownerId, workspaceId)
+  if ("error" in made) {
+    return {
+      error:
+        made.status === 409
+          ? `The workspace already has ${MAX_AGENTS_PER_WORKSPACE} agents, which is the most it can have.`
+          : made.error,
+    }
+  }
+  const named = await callAgent(made.agent.id, "/", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: input.name,
+      ...(input.tagline === undefined ? {} : { tagline: input.tagline }),
+      ...(input.personality === undefined ? {} : { soul: input.personality }),
+    }),
+  })
+  if (!named.ok) {
+    const { error } = (await named.json().catch(() => ({}))) as { error?: string }
+    return {
+      error: `The agent was made but could not be given its name: ${error ?? "it did not answer"}. The person can name it in the app.`,
+    }
+  }
+  await announce(workspaceId)
+  return { id: made.agent.id, name: input.name }
 }
 
 /** Forward a request to one of the user's agents. `path` is what follows the agent id. */
@@ -188,6 +259,8 @@ export async function proxyToAgent(
   const headers: Record<string, string> = {
     "content-type": request.headers.get("content-type") ?? "application/json",
     [CALLER_HEADER]: encodeCaller({ id: user.id, name: user.name }),
+    // Where the app is, for a link the agent hands someone.
+    [APP_ORIGIN_HEADER]: getPlatform().config.baseUrl ?? url.origin,
   }
   // So that a file the browser already has is not sent again.
   const cached = request.headers.get("if-none-match")

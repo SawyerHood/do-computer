@@ -19,6 +19,7 @@ export const settingsKey = ["settings"] as const
 export const computerKindsKey = ["computer-kinds"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
+export const secretsKey = (agentId: string) => ["agents", agentId, "secrets"] as const
 export const slackKey = (agentId: string) => ["agents", agentId, "slack"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
 /** A library file's text at one revision. Kept apart from the listing, which changes; this never does. */
@@ -113,6 +114,12 @@ export function refreshAgent(agentId: string, what: string): void {
   }
   if (what === "approvals") {
     void queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
+    return
+  }
+  if (what === "secrets") {
+    void queryClient.invalidateQueries({ queryKey: secretsKey(agentId) })
+    // Giving an access token adds a connector.
+    void queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) })
     return
   }
   if (what === "connectors") {

@@ -40,6 +40,8 @@ type StoredRequest = {
   guest?: string
   createdAt: number
   resolvedAt: number | null
+  /** One of its subjects is asked about every time, so "always" is not an answer. */
+  onceOnly?: true
 }
 
 type Grant = { chatId: string; subjects: string[]; expiresAt: number }
@@ -61,12 +63,28 @@ export const ApprovalsDoc = defineDoc<State>({
 
 export class ApprovalError extends Error {}
 
+type Ability = {
+  id: string
+  label: string
+  hint?: string
+  tools: string[]
+  /** The actions of those tools it covers. Absent: all of them. */
+  actions?: string[]
+  /**
+   * Asked about until someone says otherwise, where everything else is allowed until someone
+   * says otherwise: it spends money, or gives the agent more reach than it had.
+   */
+  ask?: true
+  /** Asked about every time, whatever anyone said: it cannot be undone. No rule can be set. */
+  locked?: true
+}
+
 /**
  * What a rule can be set for among the agent's own abilities, and the tools each one is made of.
  * A rule is about what happens, not which tool does it: tools that can do the same thing answer
  * to the same rule, or the rule would only stop the agent that did not think of the other tool.
  */
-const ABILITIES: readonly { id: string; label: string; hint?: string; tools: string[] }[] = [
+const ABILITIES: readonly Ability[] = [
   { id: "tool:bash", label: "Run commands", tools: ["bash"] },
   {
     id: "tool:files",
@@ -83,7 +101,55 @@ const ABILITIES: readonly { id: string; label: string; hint?: string; tools: str
     label: "Change its memory and identity",
     tools: ["memory", "set_identity"],
   },
+  {
+    id: "tool:machines",
+    label: "Add machines to the workspace",
+    hint: "A machine costs money to keep. Removing one always asks first.",
+    tools: ["computers"],
+    actions: ["add"],
+    ask: true,
+  },
+  {
+    id: "tool:machines_remove",
+    label: "Remove a machine",
+    tools: ["computers"],
+    actions: ["remove"],
+    locked: true,
+  },
+  {
+    id: "tool:connectors_change",
+    label: "Add and change connectors",
+    hint: "A connector gives the agent the tools of another service.",
+    tools: ["connectors"],
+    actions: ["add", "reconnect", "enable", "disable", "remove"],
+    ask: true,
+  },
+  {
+    id: "tool:settings_change",
+    label: "Change its model and settings",
+    tools: ["settings"],
+    actions: ["set"],
+    ask: true,
+  },
+  {
+    id: "tool:agents_create",
+    label: "Make new agents",
+    tools: ["agents"],
+    actions: ["create"],
+    ask: true,
+  },
 ]
+
+const abilityOf = (id: string) => ABILITIES.find((ability) => ability.id === id)
+
+/** The rule for a subject that nobody has set one for. */
+const defaultRule = (subject: string): ApprovalRule =>
+  abilityOf(subject)?.ask === true || abilityOf(subject)?.locked === true ? "ask" : "allow"
+
+/** The rule a subject answers to: the one set for it, or its default. One that is locked asks. */
+const ruleOf = (rules: Readonly<Record<string, ApprovalRule>>, subject: string): ApprovalRule =>
+  abilityOf(subject)?.locked === true ? "ask" : (own(rules, subject) ?? defaultRule(subject))
+
 /** What each built-in tool does, for naming a request. */
 const TOOL_TITLES: Record<string, string> = {
   bash: "Run commands",
@@ -99,23 +165,84 @@ const TOOL_TITLES: Record<string, string> = {
   history: "Search your chats",
   library: "Use your library",
   computers: "See your computers, and ask to use one",
+  connectors: "See its connectors",
+  request_secret: "Ask you for a secret",
+  settings: "See its settings",
+  agents: "Work with the other agents",
 }
+
+const actionOf = (call: ToolCall) => (call.arguments as { action?: unknown }).action
 
 /** The abilities a call exercises: its own, and any it could stand in for. */
 function abilitiesOf(call: ToolCall): string[] {
-  const ids = ABILITIES.filter((ability) => ability.tools.includes(call.name)).map(
-    (ability) => ability.id,
-  )
-  const copiesFile =
-    call.name === "library" && (call.arguments as { action?: unknown }).action === "get"
+  const action = actionOf(call)
+  const ids = ABILITIES.filter(
+    (ability) =>
+      ability.tools.includes(call.name) &&
+      (ability.actions === undefined ||
+        (typeof action === "string" && ability.actions.includes(action))),
+  ).map((ability) => ability.id)
+  const copiesFile = call.name === "library" && action === "get"
   // A command can write any file, and so can a copy out of the library.
   if (call.name === "bash" || copiesFile) ids.push("tool:files")
   // A tool with no ability of its own can still be given a rule by name.
   return ids.length > 0 ? ids : [`tool:${call.name}`]
 }
 
+const word = (value: unknown) =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 200) : ""
+
+/**
+ * What a call that changes the app is asking to do, in words a person can say yes or no to.
+ * Undefined for the rest, which are named after their tool and shown by their arguments.
+ */
+function asked(call: ToolCall): { title: string; detail: string } | undefined {
+  const args = call.arguments as Record<string, unknown>
+  const action = actionOf(call)
+  const name = word(args.name)
+  if (call.name === "computers" && action === "add") {
+    const kind = word(args.kind)
+    return {
+      title: "Add a machine to the workspace",
+      detail: [name || "computer", kind === "" ? "" : `(${kind})`].filter(Boolean).join(" "),
+    }
+  }
+  if (call.name === "computers" && action === "remove") {
+    return {
+      title: `Delete the machine ${name || "it named"}, with everything on it`,
+      detail: "",
+    }
+  }
+  if (call.name === "connectors" && typeof action === "string") {
+    const url = word(args.url)
+    if (action === "add") {
+      return { title: "Add a connector", detail: [name, url].filter(Boolean).join(": ") }
+    }
+    const verb: Record<string, string> = {
+      reconnect: "Reconnect the connector",
+      enable: "Turn on the connector",
+      disable: "Turn off the connector",
+      remove: "Remove the connector",
+    }
+    return verb[action] === undefined ? undefined : { title: `${verb[action]} ${name}`, detail: "" }
+  }
+  if (call.name === "settings" && action === "set") {
+    const changes = ["model", "thinking", "when_busy", "timezone"].flatMap((key) =>
+      word(args[key]) === "" ? [] : [`${key.replace("_", " ")}: ${word(args[key])}`],
+    )
+    return { title: "Change its settings", detail: changes.join("\n") }
+  }
+  if (call.name === "agents" && action === "create") {
+    return {
+      title: "Make a new agent",
+      detail: [name, word(args.tagline)].filter(Boolean).join(": "),
+    }
+  }
+  return undefined
+}
+
 /** The tools that always run on a computer, whether or not the call names one. */
-const COMPUTER_TOOLS = new Set(["bash", "read", "write", "edit", "send_file"])
+const COMPUTER_TOOLS = new Set(["bash", "read", "write", "edit", "send_file", "request_secret"])
 const usesComputer = (call: ToolCall) =>
   COMPUTER_TOOLS.has(call.name) ||
   (call.name === "library" && (call.arguments as { action?: unknown }).action === "get")
@@ -164,10 +291,19 @@ export type ApprovalsOptions = {
   readonly onRequest?: (request: ApprovalRequest) => void
 }
 
+/** What a sub-agent, a scheduled run or a conversation between agents is called, for the agent. */
+const KIND_WORDS: Record<string, string> = {
+  schedule: "A scheduled run",
+  subagent: "A sub-agent",
+  agent: "A conversation with another agent",
+  slack: "A conversation in Slack",
+}
+
 /**
- * Opt-in limits on what the agent does without asking. With no rules, which is the default, the
- * agent is fully trusted and this does nothing. A rule can be set for a tool, for a connector, or
- * for one of the user's own computers: allow, ask first, or never.
+ * Limits on what the agent does without asking. A rule can be set for a tool, for a connector,
+ * or for one of the user's own computers: allow, ask first, or never. With no rules, which is the
+ * default, the agent is trusted with everything but the few abilities that ask first until
+ * someone says otherwise: the ones that spend money or give it more reach.
  *
  * One limit is not opt-in. Work done for someone who is not one of the agent's people asks before
  * it uses a connector or a paired computer: those are its people's, and act as them.
@@ -211,7 +347,7 @@ export class Approvals {
     const subjects: ApprovalSubject[] = []
     // The subjects that are the agent's people's own: a connector, and a computer they paired.
     const theirs = new Set<string>()
-    let title = TOOL_TITLES[call.name] ?? `Use ${call.name}`
+    let title = asked(call)?.title ?? TOOL_TITLES[call.name] ?? `Use ${call.name}`
     const connector = await this.#options.connectorOf(call.name, context)
     if (connector !== undefined) {
       subjects.push({
@@ -223,8 +359,7 @@ export class Approvals {
       title = `Use ${connector.name}`
     } else {
       for (const id of abilitiesOf(call)) {
-        const ability = ABILITIES.find((entry) => entry.id === id)
-        subjects.push({ id, label: ability?.label ?? `Use ${call.name}`, kind: "tool" })
+        subjects.push({ id, label: abilityOf(id)?.label ?? `Use ${call.name}`, kind: "tool" })
       }
     }
     const target = (call.arguments as { computer?: unknown }).computer
@@ -257,20 +392,26 @@ export class Approvals {
   ): Promise<{ block: string } | undefined> {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
+    const rules = state?.rules ?? {}
     const guest = await this.#options.guest?.(chatId, context)
-    // No rules: nothing to look up, which is every call on a default agent.
-    if (guest === undefined && (state === undefined || Object.keys(state.rules).length === 0)) {
+    // No rules, nobody from outside, and nothing that asks unless told otherwise: nothing to
+    // look up, which is nearly every call on a default agent.
+    if (
+      guest === undefined &&
+      Object.keys(rules).length === 0 &&
+      abilitiesOf(call).every((id) => defaultRule(id) === "allow")
+    ) {
       return undefined
     }
     const { subjects, title: what, theirs } = await this.#subjects(call, context)
-    const set = (subject: ApprovalSubject) => own(state?.rules, subject.id) ?? "allow"
+    const set = (subject: ApprovalSubject) => ruleOf(rules, subject.id)
     // Asked on the guest's account alone: no rule of the user's own asks for it.
     const forGuest = (subject: ApprovalSubject) =>
       guest !== undefined && set(subject) === "allow" && theirs.has(subject.id)
-    const ruleOf = (subject: ApprovalSubject): ApprovalRule =>
+    const holds = (subject: ApprovalSubject): ApprovalRule =>
       forGuest(subject) ? "ask" : set(subject)
-    const governed = subjects.filter((subject) => ruleOf(subject) !== "allow")
-    const decision = strictest(governed.map(ruleOf))
+    const governed = subjects.filter((subject) => holds(subject) !== "allow")
+    const decision = strictest(governed.map(holds))
     if (decision === "allow") return undefined
     if (decision === "deny") {
       return {
@@ -278,7 +419,19 @@ export class Approvals {
       }
     }
 
+    // What changes the app is for a person to ask for, and there is nobody in these to ask.
+    const kind = own((await harness.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind
+    if (
+      kind !== undefined &&
+      kind !== "chat" &&
+      governed.some((subject) => defaultRule(subject.id) === "ask")
+    ) {
+      return {
+        block: `${KIND_WORDS[kind] ?? "This conversation"} cannot do this (${what}): it changes the app, and only a conversation with the user can ask for that. Say in your answer what you would have done.`,
+      }
+    }
     const asking = governed.map((subject) => subject.id).sort()
+    const onceOnly = asking.some((subject) => abilityOf(subject)?.locked === true)
     const callKey = `${call.name}:${JSON.stringify(call.arguments)}`
     const now = this.#options.now()
     const outcome = await harness.commit(async (tx) => {
@@ -307,11 +460,12 @@ export class Approvals {
         callKey,
         subjects: asking,
         title: what,
-        detail: describe(call.arguments as Record<string, unknown>),
+        detail: asked(call)?.detail ?? describe(call.arguments as Record<string, unknown>),
         status: "pending",
         ...(guest !== undefined && governed.some(forGuest) ? { guest } : {}),
         createdAt: now,
         resolvedAt: null,
+        ...(onceOnly ? { onceOnly: true as const } : {}),
       }
       return { allowed: false as const, id, isNew: true }
     }, context)
@@ -325,10 +479,10 @@ export class Approvals {
     }
   }
 
-  /** The rule set for one subject. `allow` when there is none. */
+  /** The rule one subject answers to: the one set for it, or its default. */
   async ruleFor(subject: string, context: Context): Promise<ApprovalRule> {
     const state = await this.#require().snapshot(ApprovalsDoc, context)
-    return own(state?.rules, subject) ?? "allow"
+    return ruleOf(state?.rules ?? {}, subject)
   }
 
   async pending(context: Context): Promise<ApprovalRequest[]> {
@@ -346,6 +500,7 @@ export class Approvals {
         detail: request.detail,
         ...(request.guest === undefined ? {} : { guest: request.guest }),
         createdAt: request.createdAt,
+        ...(request.onceOnly === true ? { onceOnly: true } : {}),
       }))
       .sort((a, b) => a.createdAt - b.createdAt)
   }
@@ -369,12 +524,15 @@ export class Approvals {
     const state = await harness.snapshot(ApprovalsDoc, context)
     const computers = (await harness.snapshot(ComputersDoc, context))?.computers ?? {}
     const subjects: ApprovalSubject[] = [
-      ...ABILITIES.map(({ id, label, hint }): ApprovalSubject => ({
-        id,
-        label,
-        ...(hint === undefined ? {} : { hint }),
-        kind: "tool",
-      })),
+      // One that is asked about every time has no rule to set.
+      ...ABILITIES.filter((ability) => ability.locked !== true).map(
+        ({ id, label, hint }): ApprovalSubject => ({
+          id,
+          label,
+          ...(hint === undefined ? {} : { hint }),
+          kind: "tool",
+        }),
+      ),
       ...(await this.#options.connectors(context)).map((connector): ApprovalSubject => ({
         id: `connector:${connector.id}`,
         label: `Use ${connector.name}`,
@@ -386,10 +544,16 @@ export class Approvals {
         kind: "computer",
       })),
     ]
-    return { rules: { ...state?.rules }, subjects, pending: await this.pending(context) }
+    // What is said here is what holds: the rules that were set, and the defaults that ask.
+    const rules: Record<string, ApprovalRule> = {}
+    for (const id of new Set([...Object.keys(state?.rules ?? {}), ...subjects.map((s) => s.id)])) {
+      const rule = ruleOf(state?.rules ?? {}, id)
+      if (rule !== "allow") rules[id] = rule
+    }
+    return { rules, subjects, pending: await this.pending(context) }
   }
 
-  /** Set rules by subject id. `allow` removes a rule, since allowing is the default. */
+  /** Set rules by subject id. A rule that is the subject's default is not kept. */
   async setRules(change: Record<string, unknown>, context: Context): Promise<ApprovalsState> {
     for (const [subject, rule] of Object.entries(change)) {
       if (!/^(tool|connector|computer):[\w.-]{1,80}$/.test(subject)) {
@@ -398,11 +562,14 @@ export class Approvals {
       if (!RULES.includes(rule as ApprovalRule)) {
         throw new ApprovalError(`A rule is one of: ${RULES.join(", ")}.`)
       }
+      if (abilityOf(subject)?.locked === true) {
+        throw new ApprovalError("That is asked about every time, and no rule can be set for it.")
+      }
     }
     await this.#require().commit(async (tx) => {
       const doc = await tx.doc(ApprovalsDoc)
       for (const [subject, rule] of Object.entries(change)) {
-        if (rule === "allow") delete doc.rules[subject]
+        if (rule === defaultRule(subject)) delete doc.rules[subject]
         else doc.rules[subject] = rule as ApprovalRule
       }
     }, context)
@@ -439,13 +606,24 @@ export class Approvals {
           expiresAt: now + GRANT_TTL_MS,
         }
       }
-      if (decision === "always") for (const subject of found.subjects) delete doc.rules[subject]
+      if (decision === "always") {
+        for (const subject of found.subjects) {
+          // Allowed from here on: said outright where the default would ask again.
+          if (defaultRule(subject) === "allow") delete doc.rules[subject]
+          else if (abilityOf(subject)?.locked !== true) doc.rules[subject] = "allow"
+        }
+      }
       // Keep a short record of what was answered; drop the oldest beyond it.
       const resolved = Object.entries(doc.requests)
         .filter(([, entry]) => entry.status !== "pending")
         .sort(([, a], [, b]) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0))
       for (const [old] of resolved.slice(MAX_RESOLVED)) delete doc.requests[old]
-      return { chatId: found.chatId, title: found.title, detail: found.detail }
+      return {
+        chatId: found.chatId,
+        title: found.title,
+        detail: found.detail,
+        onceOnly: found.onceOnly === true,
+      }
     }, context)
     if (request === undefined) throw new ApprovalError("That request has already been answered.")
 
@@ -461,7 +639,9 @@ export class Approvals {
       decision === "deny"
         ? `<meta kind="approval">${who} said no to this. Do not do it, and do not do the same thing another way. Carry on without it, or ask what they would prefer.</meta>`
         : `<meta kind="approval">${who} approved this${
-            decision === "always" ? ", and you no longer need to ask for it" : ""
+            decision === "always" && !request.onceOnly
+              ? ", and you no longer need to ask for it"
+              : ""
           }. Do it now, exactly as you asked, and carry on with what you were doing.</meta>`
     await conversation.submit(
       {

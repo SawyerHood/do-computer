@@ -601,6 +601,54 @@ Since then, newest last:
       whole blocks on a ground of its own color, 1024 pixels a side. Where the creature cannot
       be drawn, the plain one that stands in for it is.
 
+23. **The agent can do in the app what a person can** (2026-10-08). The owner asked for an audit
+    of what can be done in the app against the agent's tools (`PLAN-agent-tools.html`), agreed
+    to all of it, and asked for one more thing: a way for the agent to ask for a secret that is
+    typed into a form and saved to a file without entering its context, as a plugin of `bb` does.
+    - **Some abilities ask first by default** (`approvals.ts`). An entry in `ABILITIES` can cover
+      some actions of a tool (`actions`), start on Ask first (`ask`), or ask every time with no
+      rule to set (`locked`). The rules the app is told are the ones that hold, defaults
+      included, so the Permissions page needed no change. These are refused outright outside a
+      conversation with a person. An ability's id must not be a tool's name: a call with no
+      ability of its own answers to `tool:<name>`, and `connectors list` was asking first until
+      the ability was renamed `tool:connectors_change`.
+    - **`computers`** gained `add`, `remove` and `connect_own`. Adding goes through
+      `ComputerDirectory.add`, which the server answers with `addMachineFor` in
+      `server/computers.ts`: the same checks as "Add computer". The machine belongs to whoever
+      the agent was answering (`ChatRecord.lastBy`, set on every message) and remembers the agent
+      that added it (`dc_computers.added_by_agent`), which is the only agent that can remove it.
+    - **`connectors`** is a new tool: `list`, `add`, `reconnect`, `enable`, `disable`, `remove`.
+      A connector the agent added that wants a sign-in records the chat it was added from
+      (`askedIn`); the app shows a Sign in card above the message box, which starts the sign-in
+      the same way the Connectors page does, so the state is tied to whoever pressed it. When
+      they come back the agent is told in that chat (`dc.connector` entry) and the callback
+      returns them to it. For a service with an access token the agent passes `needs_token` and
+      the token is asked for in the secrets form. The agent needs the app's address for this:
+      `appUrl` (from `DC_BASE_URL`), or else the address its gateway was last reached at, which
+      the gateway sends with every request (`x-dc-origin`).
+    - **`request_secret`** (`secrets.ts`, `dotenv.ts`, `components/chat/secrets.tsx`). The
+      request is kept in the agent's store with the names and the destination, never the values.
+      The form posts to `/secrets/<id>`; the actor checks the values, merges them into the dotenv
+      file on the computer (an assignment that is there is changed in place, the rest of the
+      file is untouched, mode 0600), and writes a `dc.secret` entry that names what was saved.
+      A file under the library folder is refused, since that folder is copied off the machine.
+    - **Smaller ones:** `schedule run` and a timezone on `schedule update`; `settings` (`get`
+      and `set` for model, thinking, when busy and timezone, with cost so far); `agents create`
+      (`createAgentBeside` in `server/agents.ts`); and a section of the prompt that names the
+      app's screens with links (`app-guide.ts`).
+    - **A run the agent starts itself must not use the tool call's context.** `schedule run`
+      first left the run "running" for ever: the run was submitted under the context of the tool
+      call, which ends with it. The scheduler is now given the actor's own.
+    - **Checked:** unit tests of each tool against a stand-in host (`app-tools.test.ts`), the
+      server's side against a real database with stand-in agents and machines
+      (`agent-requests.test.ts`), and in a browser with the echo model: the secrets form, a
+      sign-in started from the chat, a token asked for in the form, and the approval cards
+      (`e2e/agent-tools.spec.ts`). **Not checked:** adding or deleting a machine at a real
+      provider from the tool (the test server offers only the built-in shell, which cannot be
+      added), a real model using any of these tools, a sign-in against a real service, and the
+      Workers runtime beyond its type check and the existing Workers tests. The mobile app shows
+      none of the new cards.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -727,6 +775,12 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   point at files in the library it left, and open only if they are also in the new one. The
   move of an agent's own library into its workspace's runs once, when the agent is next
   opened, and cannot be undone.
+- **What the agent can do in the app:** the form for secrets, the Sign in card and the notes
+  about them are in the web app only. A secret the agent asked for is in a file on a computer it
+  works on, so it is kept out of the conversation and not out of the agent's reach. In a thread
+  from Slack the agent can do none of this, since the cards that go with it are in the app. Left for
+  later from the audit: putting back a deleted library file or an older version, opening a
+  machine to chosen agents, renaming a chat, and a list of who is in the team.
 - **Mobile** has no model picker, connectors, permissions or file attaching, and
   no agent panel. Its creature is checked only through the app's web build. It shows the answer
   to an agent's request for a computer but cannot give one: the notification opens the chat,

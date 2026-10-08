@@ -187,6 +187,11 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       created_at INTEGER NOT NULL
     )`,
   ],
+  [
+    // The agent that added a machine, where one did: it may remove it again. Whoever it was
+    // working for when it did is the machine's owner, as if they had added it themselves.
+    "ALTER TABLE dc_computers ADD COLUMN added_by_agent TEXT",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

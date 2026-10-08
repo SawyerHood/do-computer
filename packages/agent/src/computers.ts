@@ -89,7 +89,12 @@ export type NearbyComputer = {
   connected: boolean
   /** The agent asked for it and nobody has answered yet. */
   asked: boolean
+  /** A machine this agent added itself, and so may remove. */
+  mine?: boolean
 }
+
+/** A kind of machine that can be added to the agent's workspace. */
+export type AddableKind = { id: string; label: string; description: string }
 
 /**
  * What the agent's host knows about computers beyond the ones connected to the agent: those of
@@ -135,6 +140,22 @@ export type ComputerDirectory = {
     machines: readonly { kind: string; home: string; current: boolean }[],
     agentName: string | null,
   ): Promise<(AgentComputer & { id: string })[]>
+  /** The kinds of machine that can be added to the agent's workspace. Absent: none can. */
+  kinds?(agentId: string): Promise<AddableKind[]>
+  /**
+   * Add a machine to the agent's workspace, for its agents to share, as someone could from the
+   * app. `by` is the person the agent is working for when it asks: the machine is theirs to
+   * remove. Resolves with the machine, or with why it could not be added.
+   */
+  add?(
+    agentId: string,
+    input: { kind?: string; name?: string; by?: string },
+  ): Promise<{ id: string; name: string; kind: string } | { error: string }>
+  /**
+   * Delete a machine this agent added, with everything on it. Resolves with why it could not
+   * be done, where it could not.
+   */
+  remove?(agentId: string, computerId: string): Promise<{ ok: true } | { error: string }>
 }
 
 /** The answer to a request, as the gateway tells the agent. */
@@ -224,6 +245,8 @@ export type ComputersOptions = {
   readonly around?: AroundMachine
   /** Told when something about a machine could not be put right, which did not fail a call. */
   readonly onProblem?: (error: unknown) => void
+  /** The address of the app, where it is known: what a person is sent to. */
+  readonly appUrl?: () => string | undefined
 }
 
 const fail = (text: string): ToolExecutionResult => ({
@@ -317,7 +340,10 @@ export class Computers {
     const lines: string[] = []
     if (machines.length === 0) {
       lines.push(
-        "You have no computer of your own, and there is no machine in your workspace that you can use. The read, write, edit and bash tools work only on a computer named in `computer`, and fail without one. When a task needs files or commands and there is nowhere to run them, say so, and that a computer can be added from Computers, in the workspace settings of the app.",
+        "You have no computer of your own, and there is no machine in your workspace that you can use. The read, write, edit and bash tools work only on a computer named in `computer`, and fail without one. When a task needs files or commands and there is nowhere to run them, " +
+          (this.#directory?.lookup.add === undefined
+            ? "say so, and that a computer can be added from Computers, in the workspace settings of the app."
+            : `say so, and offer to add a machine with the \`${TOOL}\` tool. The person can also add one from Computers, in the workspace settings of the app.`),
       )
     } else {
       lines.push(
@@ -375,6 +401,11 @@ export class Computers {
           ? `The people you work for may have computers you are not connected to: the \`${TOOL}\` tool lists them, and asks whoever one belongs to whether you may use it.`
           : `There may be others you are not connected to: the \`${TOOL}\` tool lists them, and asks whoever one belongs to whether you may use it.`,
       )
+      if (this.#directory.lookup.add !== undefined) {
+        lines.push(
+          `The same tool adds a machine to your workspace when the work needs one that is not there, and tells a person how to connect a computer of their own. A machine costs money to keep, so add one for a reason and say what it is.`,
+        )
+      }
       if (asked.length > 0) {
         lines.push(
           `You have asked to use ${asked.join(", ")} and have not been answered yet. The answer will reach you as a message; do not ask again.`,
@@ -428,7 +459,11 @@ export class Computers {
         return `You can use more than one machine, so say which in \`computer\`: ${machines.map(([, computer]) => computer.name).join(", ")}.`
       }
       return names.length === 0
-        ? "There is no computer for you to work on: your workspace has no machine you can use, and nobody has connected one of theirs. Tell the user, who can add one from Computers, in the workspace settings of the app."
+        ? `There is no computer for you to work on: your workspace has no machine you can use, and nobody has connected one of theirs. ${
+            this.#directory?.lookup.add === undefined
+              ? "Tell the user, who can add one from Computers, in the workspace settings of the app."
+              : `You can add a machine with the \`${TOOL}\` tool, or the user can from Computers, in the workspace settings of the app.`
+          }`
         : `Your workspace has no machine you can use, so name the computer to do this on in \`computer\`: ${names.join(", ")}.`
     }
     const wanted = name.trim().toLowerCase()
@@ -721,20 +756,87 @@ export class Computers {
       description:
         "See the computers there are for you to work on: the machines of your workspace, and the computers that the people you work for have connected to this app. Ask to use one you cannot use yet. " +
         'action "list" shows each one: what it is called, whose it is, whether it is online, and whether you can use it. "request" needs `name`, a computer from the list, and takes `reason`, a sentence for whoever it belongs to about what you want it for. ' +
-        "Asking returns at once and the answer reaches you later as a message, perhaps much later: say that you asked, do not wait or ask again, and carry on with whatever does not need that computer. Once someone says yes, pass the computer's name as `computer` to read, write, edit or bash.",
+        "Asking returns at once and the answer reaches you later as a message, perhaps much later: say that you asked, do not wait or ask again, and carry on with whatever does not need that computer. Once someone says yes, pass the computer's name as `computer` to read, write, edit or bash." +
+        (this.#directory?.lookup.add === undefined
+          ? ""
+          : ' "add" adds a machine to your workspace, for you and its other agents to work on: it takes `name` and `kind`, one of the kinds "list" names. A machine costs money to keep, so add one only when the work needs it. "remove" needs `name` and deletes a machine you added, with everything on it; it cannot be undone. "connect_own" gives you what to tell a person who wants to connect a computer of their own.'),
       parameters: Type.Object({
-        action: Type.Union([Type.Literal("list"), Type.Literal("request")]),
+        action: Type.Union([
+          Type.Literal("list"),
+          Type.Literal("request"),
+          Type.Literal("add"),
+          Type.Literal("remove"),
+          Type.Literal("connect_own"),
+        ]),
         name: Type.Optional(
-          Type.String({ description: "The computer to ask for: its name or id, from list" }),
+          Type.String({
+            description:
+              "For request and remove: the computer's name or id, from list. For add: what to call the new machine",
+          }),
         ),
         reason: Type.Optional(
           Type.String({ description: "What you want it for, for whoever it belongs to" }),
+        ),
+        kind: Type.Optional(
+          Type.String({
+            description: "For add: the kind of machine, from list. Default: the usual one",
+          }),
         ),
       }),
       execute: async (args, api, context) => {
         const reply = (text: string) => ({ content: [{ type: "text" as const, text }] })
         const fail = (text: string) => ({ isError: true, ...reply(text) })
         const { agentId, lookup } = this.#directory!
+        const chatId = String(api.conversationId)
+        const chat = own((await api.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)
+        if (args.action === "connect_own") {
+          const app = this.#options.appUrl?.()
+          return reply(
+            `A person connects a computer of their own by running one command on it (macOS or Linux, with Node.js 20 or newer):\n\n${
+              app === undefined
+                ? 'the command shown under Computers in the workspace settings of the app, at "Connect a computer of your own"'
+                : `curl -fsSL ${app}/install.sh | sh`
+            }\n\nIt prints a short code and a link. They open the link, check the code, and choose which agents may use the computer: that part is theirs to do, and you cannot do it for them. Until they choose you, ask for it with "request". Give them the command as it is, in a code block.`,
+          )
+        }
+        if (args.action === "add") {
+          if (lookup.add === undefined || lookup.kinds === undefined) {
+            return fail(
+              "A machine cannot be added from here. The user can add one from Computers, in the workspace settings of the app.",
+            )
+          }
+          if (chat?.kind !== "chat") {
+            return fail("Only a conversation with the user can add a machine.")
+          }
+          const kinds = await lookup.kinds(agentId)
+          if (kinds.length === 0) {
+            return fail(
+              'This deployment has no kind of machine that can be added. The user can connect a computer of their own instead: "connect_own" says how.',
+            )
+          }
+          const kind = (args.kind ?? "").trim().toLowerCase()
+          if (kind !== "" && !kinds.some((offered) => offered.id === kind)) {
+            return fail(
+              `There is no kind of machine "${args.kind}". The kinds that can be added: ${kinds.map((offered) => `${offered.id} (${offered.label})`).join(", ")}.`,
+            )
+          }
+          const identity = await api.snapshot(IdentityDoc, context)
+          const added = await lookup.add(agentId, {
+            ...(kind === "" ? {} : { kind }),
+            ...((args.name ?? "").trim() === "" ? {} : { name: args.name!.trim() }),
+            by: chat.lastBy ?? chat.createdBy ?? identity?.ownerId,
+          })
+          if ("error" in added) return fail(added.error)
+          await this.refresh(context)
+          const mine = (await api.snapshot(ComputersDoc, context))?.computers ?? {}
+          const name = own(mine, added.id)?.name ?? added.name
+          return {
+            ...reply(
+              `Added the machine "${name}" (${added.kind}) to the workspace. It is made the first time something runs on it, so your first call there may take a little longer. Pass "${name}" as \`computer\` to read, write, edit or bash.`,
+            ),
+            details: { computerId: added.id, name, kind: added.kind },
+          }
+        }
         const nearby = await lookup.list(agentId)
         const mine = (await api.snapshot(ComputersDoc, context))?.computers ?? {}
         // A computer the agent has is known to it by the name it was given here.
@@ -752,10 +854,15 @@ export class Computers {
             : computer.team
               ? `belongs to the team ${computer.owner}`
               : `${computer.owner}'s`
+        const kinds = (await lookup.kinds?.(agentId)) ?? []
+        const addable =
+          lookup.add === undefined || kinds.length === 0
+            ? ""
+            : `Kinds of machine you can add with "add": ${kinds.map((kind) => `${kind.id} (${kind.label}: ${kind.description})`).join("; ")}`
         if (args.action === "list") {
           if (named.length === 0) {
             return reply(
-              "There is no computer: your workspace has no machine, and nobody you work for has connected one of theirs. Either can be done from Computers, in the workspace settings of the app.",
+              `There is no computer: your workspace has no machine, and nobody you work for has connected one of theirs. Either can be done from Computers, in the workspace settings of the app.${addable === "" ? "" : `\n${addable}`}`,
             )
           }
           const shared = (name: string) =>
@@ -770,13 +877,16 @@ export class Computers {
                       : computer.asked
                         ? "You asked to use it and have not been answered."
                         : 'You cannot use it yet; "request" asks for it.'
-                  }`,
+                  }${computer.mine === true ? " You added it, and can remove it." : ""}`,
               )
+              .concat(addable === "" ? [] : [addable])
               .join("\n"),
           )
         }
         const wanted = (args.name ?? "").trim().toLowerCase()
-        if (wanted === "") return fail('"request" needs the name of a computer, from "list".')
+        if (wanted === "") {
+          return fail(`"${args.action}" needs the name of a computer, from "list".`)
+        }
         const matches = named.filter(
           (computer) => computer.id === wanted || computer.name.toLowerCase() === wanted,
         )
@@ -793,13 +903,31 @@ export class Computers {
           )
         }
         const computer = matches[0]!
+        if (args.action === "remove") {
+          if (lookup.remove === undefined) {
+            return fail(
+              "A machine cannot be removed from here. The user can remove it from Computers, in the workspace settings of the app.",
+            )
+          }
+          if (chat?.kind !== "chat") {
+            return fail("Only a conversation with the user can remove a machine.")
+          }
+          if (computer.mine !== true) {
+            return fail(
+              `You can only remove a machine you added, and "${computer.name}" is not one. Whoever it belongs to can remove it from Computers, in the workspace settings of the app.`,
+            )
+          }
+          const removed = await lookup.remove(agentId, computer.id)
+          if ("error" in removed) return fail(removed.error)
+          await this.refresh(context)
+          return reply(`Deleted the machine "${computer.name}", and everything that was on it.`)
+        }
         if (computer.connected) {
           return reply(
             `You can already use "${computer.name}": pass that name as \`computer\` to read, write, edit or bash.`,
           )
         }
-        const chatId = String(api.conversationId)
-        if (own((await api.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind !== "chat") {
+        if (chat?.kind !== "chat") {
           return fail(
             "Only a conversation with the user can ask for a computer: the answer has to have somewhere to arrive.",
           )

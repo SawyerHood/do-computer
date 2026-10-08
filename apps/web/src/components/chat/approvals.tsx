@@ -76,8 +76,8 @@ function RequestCard({
         <Button size="sm" disabled={answer.isPending} onClick={() => answer.mutate("once")}>
           Allow once
         </Button>
-        {/* Asked on a guest's account, it would be asked again whatever is answered here. */}
-        {request.guest !== undefined ? null : (
+        {/* Asked on a guest's account, or asked about every time, "always" changes nothing. */}
+        {request.onceOnly || request.guest !== undefined ? null : (
           <Button
             size="sm"
             variant="outline"

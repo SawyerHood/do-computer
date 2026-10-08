@@ -245,7 +245,11 @@ describe("paired computers", () => {
       await new Promise((resolve) => setTimeout(resolve, 30))
     }
     expect(lastTool(await call<ChatState>(`/chats/${chat.id}`)).output).toContain("second draft")
-    expect((await call<ApprovalsState>("/approvals")).rules).toEqual({})
+    expect(
+      Object.keys((await call<ApprovalsState>("/approvals")).rules).filter((id) =>
+        id.startsWith("computer:"),
+      ),
+    ).toEqual([])
   })
 
   it("explain an unknown, offline or removed computer instead of failing obscurely", async () => {

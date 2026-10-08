@@ -163,6 +163,8 @@ export type ChatRecord = {
   archived: boolean
   /** The user who started it. Absent on a chat from before agents were shared, and on runs. */
   createdBy?: string
+  /** The user who last wrote in it, where that is known: who the agent is answering. */
+  lastBy?: string
   /** Present on a sub-agent's chat. */
   subagent?: SubagentRecord
   /** Present on a conversation with another agent. */

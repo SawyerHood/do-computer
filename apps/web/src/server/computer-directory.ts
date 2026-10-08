@@ -1,4 +1,8 @@
-import { computerActorName, type ComputerDirectory } from "@durable-computer/agent"
+import {
+  type AddableKind,
+  computerActorName,
+  type ComputerDirectory,
+} from "@durable-computer/agent"
 import { linkStatus } from "@durable-computer/computers"
 import { isPersonalWorkspace } from "@durable-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
@@ -29,6 +33,16 @@ export function computerDirectory(
   db: AppDatabase,
   links: ActorNamespace,
   fetcher?: typeof fetch,
+  /**
+   * How an agent adds a machine to its workspace and removes one it added. These need the
+   * providers the machines are made at, which whoever starts the agents has. Without them, an
+   * agent can do neither.
+   */
+  machines?: {
+    kinds(): AddableKind[]
+    add: NonNullable<ComputerDirectory["add"]>
+    remove: NonNullable<ComputerDirectory["remove"]>
+  },
 ): ComputerDirectory {
   /** Whose computers these are, in words an agent can repeat: a person's name, or a team's. */
   const owners = async (rows: readonly ComputerRow[]) => {
@@ -73,6 +87,7 @@ export function computerDirectory(
             online: status?.online ?? false,
             connected: connected.has(row.id),
             asked: asked.has(row.id),
+            ...(row.added_by_agent === agentId ? { mine: true } : {}),
           }
         }),
       )
@@ -93,6 +108,13 @@ export function computerDirectory(
       }
     },
     adopt: (agentId, machines, agentName) => adoptMachines(db, agentId, machines, agentName),
+    ...(machines === undefined
+      ? {}
+      : {
+          kinds: async () => machines.kinds(),
+          add: (agentId, input) => machines.add(agentId, input),
+          remove: (agentId, computerId) => machines.remove(agentId, computerId),
+        }),
     async request(agentId, input) {
       const row = (await computersNear(db, agentId)).find(
         (computer) => computer.id === input.computerId,

@@ -1,12 +1,17 @@
 import { getPlatform } from "#platform"
-import { CONNECTOR_REDIRECT_HEADER } from "@durable-computer/agent"
+import {
+  CALLER_HEADER,
+  CONNECTOR_CALLBACK_PATH,
+  CONNECTOR_REDIRECT_HEADER,
+  encodeCaller,
+} from "@durable-computer/agent"
 import type { AddConnectorRequest, ConnectorResult } from "@durable-computer/protocol"
 import { agentFor, fail, json } from "./agents.ts"
 import { getUser, type SessionUser } from "./auth.ts"
 
 /** How long a user has to finish signing in to a service. */
 const STATE_TTL_MS = 15 * 60_000
-const CALLBACK_PATH = "/api/connectors/callback"
+const CALLBACK_PATH = CONNECTOR_CALLBACK_PATH
 
 const origin = (request: Request) => getPlatform().config.baseUrl ?? new URL(request.url).origin
 
@@ -102,7 +107,10 @@ export async function connectorCallback(request: Request): Promise<Response> {
   const response = await agents.get(row.agent_id).fetch(
     new Request(`http://agent/connectors/${row.connector_id}/authorize`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        [CALLER_HEADER]: encodeCaller({ id: user.id, name: user.name }),
+      },
       body: JSON.stringify({ code }),
     }),
   )
@@ -111,6 +119,11 @@ export async function connectorCallback(request: Request): Promise<Response> {
     return back(row.agent_id, {
       connector_error: failure.error ?? "The sign-in could not be completed.",
     })
+  }
+  // Where the agent asked for it from a chat, that chat is where the answer is.
+  const { chatId } = (await response.json().catch(() => ({}))) as { chatId?: string }
+  if (typeof chatId === "string" && /^\d+$/.test(chatId)) {
+    return Response.redirect(`${origin(request)}/a/${row.agent_id}/c/${chatId}`, 302)
   }
   return back(row.agent_id, { connected: row.connector_id })
 }

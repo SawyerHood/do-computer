@@ -297,6 +297,53 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         createdAt: first?.role === "user" ? first.timestamp : undefined,
       }
     }
+    case "dc.secret": {
+      // The answer to the agent's asking for secrets, in the chat it asked from. Names only.
+      const answer = entry.data as
+        { where?: string; to?: string; names?: string[]; saved?: boolean; by?: string } | undefined
+      const token = answer?.to === "connector"
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "secret",
+            text: token ? `the connector ${answer?.where ?? ""}`.trim() : (answer?.where ?? ""),
+            approved: answer?.saved === true,
+            ...(answer?.by ? { by: answer.by } : {}),
+            detail: token
+              ? "its access token"
+              : Array.isArray(answer?.names)
+                ? answer.names.join(", ")
+                : "the secrets",
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.connector": {
+      // How a sign-in to a connector the agent asked for went, in the chat it asked from.
+      const word = entry.data as
+        { name?: string; connected?: boolean; by?: string; problem?: string } | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "connector",
+            text: word?.name ?? "a connector",
+            approved: word?.connected === true,
+            ...(word?.by ? { by: word.by } : {}),
+            ...(word?.problem ? { detail: word.problem } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
     default:
       return undefined
   }
@@ -396,6 +443,23 @@ export function entryText(
       return {
         role: "assistant",
         text: `${answer?.by ?? "Someone"} ${answer?.approved === true ? "let the agent use" : "did not let the agent use"} the computer ${answer?.name ?? ""}`.trim(),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.secret": {
+      const answer = entry.data as
+        { where?: string; names?: string[]; saved?: boolean; by?: string } | undefined
+      return {
+        role: "assistant",
+        text: `${answer?.by ?? "Someone"} ${answer?.saved === true ? "gave" : "did not give"} the secrets ${(answer?.names ?? []).join(", ")} ${answer?.where ?? ""}`.trim(),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.connector": {
+      const word = entry.data as { name?: string; connected?: boolean; by?: string } | undefined
+      return {
+        role: "assistant",
+        text: `${word?.by ?? "Someone"} ${word?.connected === true ? "signed in to" : "did not sign in to"} the connector ${word?.name ?? ""}`.trim(),
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }
