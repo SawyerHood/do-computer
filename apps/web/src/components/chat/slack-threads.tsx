@@ -4,6 +4,7 @@ import { ArrowSquareOutIcon, CaretLeftIcon, SlackLogoIcon, StopIcon } from "@pho
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { useMemo } from "react"
+import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { agentKey } from "@/lib/collections"
 import { cn } from "@/lib/utils"
@@ -150,14 +151,15 @@ export function SlackBar({
         {threadWords(chat.status)}
       </span>
       {isAtWork(chat.status) ? (
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="xs"
+          className="font-normal text-muted-foreground hover:text-destructive"
           onClick={onStop}
-          className="flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40"
         >
-          <StopIcon className="size-3" />
+          <StopIcon />
           Stop
-        </button>
+        </Button>
       ) : null}
       <OpenInSlack chat={chat} />
     </div>

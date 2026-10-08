@@ -297,7 +297,13 @@ function AgentMenu({
       <DropdownMenuTrigger
         aria-label={`${name}'s pages`}
         title={`${name}'s pages`}
-        className="mr-1.5 rounded-md p-1.5 text-muted-foreground opacity-0 outline-none hover:text-foreground focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/40 group-hover/agent:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="mr-1.5 size-7 text-muted-foreground opacity-0 group-hover/agent:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 [@media(hover:none)]:opacity-100"
+          />
+        }
       >
         <DotsThreeIcon weight="bold" className="size-4" />
       </DropdownMenuTrigger>

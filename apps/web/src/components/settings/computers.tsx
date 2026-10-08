@@ -16,18 +16,40 @@ import {
   useComputerRequests,
 } from "@/components/computer-requests"
 import { ComputerPicker } from "@/components/computer-picker"
+import { useConfirm } from "@/components/confirm"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { CardsPlaceholder } from "@/components/placeholders"
 import { client } from "@/lib/client"
 import { computerKindsKey, computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 import { useWorkspaces } from "@/lib/workspaces"
-
-const SELECT =
-  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
 
 const PLATFORMS: Record<string, string> = { darwin: "macOS", linux: "Linux", win32: "Windows" }
 
@@ -108,12 +130,23 @@ function ComputerCard({
     disconnect.isPending ||
     remove.isPending ||
     share.isPending
+  const [confirm, confirming] = useConfirm()
+  const owners = workspaces.map((workspace) => ({
+    value: workspace.id,
+    label: workspace.kind === "personal" ? "You" : workspace.name,
+  }))
+  const open = [
+    { value: "open", label: everyone },
+    { value: "chosen", label: "Chosen agents" },
+  ]
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate font-mono text-[0.9375rem] font-medium">{computer.name}</h2>
-          <p className="text-sm text-muted-foreground">
+    <li>
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-mono text-[0.9375rem]">
+            <h2 className="truncate">{computer.name}</h2>
+          </CardTitle>
+          <CardDescription>
             {machine ? (
               (kinds.find((kind) => kind.id === computer.kind)?.label ?? computer.kind)
             ) : (
@@ -122,205 +155,252 @@ function ComputerCard({
                 {computer.readOnly ? " · read-only" : ""}
               </>
             )}
-          </p>
-        </div>
-        {/* A machine is started when an agent works on it, so it is never offline. */}
-        {machine ? null : (
-          <span
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium",
-              computer.online
-                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                computer.online ? "bg-emerald-500" : "bg-muted-foreground",
-              )}
-            />
-            {computer.online ? "Online" : "Offline"}
-          </span>
-        )}
-      </div>
+          </CardDescription>
+          {/* A machine is started when an agent works on it, so it is never offline. */}
+          {machine ? null : (
+            <CardAction>
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "gap-1.5",
+                  computer.online
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    computer.online ? "bg-emerald-500" : "bg-muted-foreground",
+                  )}
+                />
+                {computer.online ? "Online" : "Offline"}
+              </Badge>
+            </CardAction>
+          )}
+        </CardHeader>
 
-      <dl className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-2.5 text-sm">
-        <dt className="text-muted-foreground">Belongs to</dt>
-        <dd className="min-w-0">
-          {!machine && mine && teams.length > 0 ? (
-            // Whoever paired it says whose it is: it is their account there that agents act as.
-            <select
-              aria-label={`Who ${computer.name} belongs to`}
-              value={computer.workspaceId}
-              disabled={busy}
-              onChange={(event) => {
-                const to = workspaces.find((workspace) => workspace.id === event.target.value)
-                if (to === undefined) return
-                const losing = computer.agentIds.filter(
-                  (id) => to.kind === "team" && agents.get(id)?.workspaceId !== to.id,
+        <CardContent>
+          <dl className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-2.5 text-sm">
+            <dt className="text-muted-foreground">Belongs to</dt>
+            <dd className="min-w-0">
+              {!machine && mine && teams.length > 0 ? (
+                // Whoever paired it says whose it is: it is their account there that agents act as.
+                <Select
+                  items={owners}
+                  value={computer.workspaceId}
+                  disabled={busy}
+                  onValueChange={async (next) => {
+                    const to = workspaces.find((workspace) => workspace.id === next)
+                    if (to === undefined || to.id === computer.workspaceId) return
+                    const losing = computer.agentIds.filter(
+                      (id) => to.kind === "team" && agents.get(id)?.workspaceId !== to.id,
+                    )
+                    if (
+                      losing.length > 0 &&
+                      !(await confirm({
+                        title: `Give ${computer.name} to ${to.name}?`,
+                        description: `Agents outside ${to.name} will be disconnected from it.`,
+                        action: `Give to ${to.name}`,
+                      }))
+                    ) {
+                      return
+                    }
+                    move.mutate(to.id)
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    aria-label={`Who ${computer.name} belongs to`}
+                    className="max-w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {owners.map((owner) => (
+                        <SelectItem key={owner.value} value={owner.value}>
+                          {owner.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : personal ? (
+                "You"
+              ) : (
+                <>
+                  {team?.name ?? "A team"}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {machine ? "added" : "paired"} by {mine ? "you" : computer.pairedBy.name}
+                  </span>
+                </>
+              )}
+            </dd>
+            {machine && computer.shareable ? (
+              <>
+                <dt className="text-muted-foreground">Open to</dt>
+                <dd className="min-w-0">
+                  <Select
+                    items={open}
+                    value={computer.access}
+                    disabled={busy}
+                    onValueChange={(next) => share.mutate(next === "open" ? "open" : "chosen")}
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      aria-label={`Who can use ${computer.name}`}
+                      className="max-w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {open.map((choice) => (
+                          <SelectItem key={choice.value} value={choice.value}>
+                            {choice.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </dd>
+              </>
+            ) : null}
+            <dt className="self-start pt-1 text-muted-foreground">Agents</dt>
+            <dd className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {computer.agentIds.map((id) => {
+                const agent = agents.get(id)
+                const name = agent?.name ?? "New agent"
+                const folder = computer.folders.find((entry) => entry.agentId === id)?.path
+                return (
+                  <span
+                    key={id}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border bg-background py-0.5 pl-1.5",
+                      chosen ? "pr-0.5" : "min-h-7 pr-2",
+                    )}
+                  >
+                    {agent === undefined ? null : (
+                      <AgentFace agent={agent} className="size-5" still />
+                    )}
+                    <span className="max-w-40 truncate">{name}</span>
+                    {folder === undefined ? null : (
+                      <span
+                        title={`${name}’s folder on ${computer.name}`}
+                        className="max-w-48 truncate font-mono text-xs text-muted-foreground"
+                      >
+                        {folder}
+                      </span>
+                    )}
+                    {chosen ? (
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="size-6 text-muted-foreground"
+                        disabled={busy}
+                        aria-label={`Disconnect ${name} from ${computer.name}`}
+                        onClick={() => disconnect.mutate(id)}
+                      >
+                        <XIcon />
+                      </Button>
+                    ) : null}
+                  </span>
                 )
+              })}
+              {connectable.length > 0 ? (
+                // Not a choice that is kept: each agent picked is connected, and leaves the list.
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="font-normal text-muted-foreground"
+                        disabled={busy}
+                        aria-label={`Connect an agent to ${computer.name}`}
+                      />
+                    }
+                  >
+                    <PlusIcon />
+                    {computer.agentIds.length === 0 ? "Connect an agent…" : "Connect another…"}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-auto max-w-72">
+                    {connectable.map((agent) => (
+                      <DropdownMenuItem key={agent.id} onClick={() => connect.mutate(agent.id)}>
+                        <AgentFace agent={agent} className="size-5" still />
+                        <span className="min-w-0 flex-1 truncate">{agent.name ?? "New agent"}</span>
+                        {personal && teams.length > 0 ? (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {workspaces.find((workspace) => workspace.id === agent.workspaceId)
+                              ?.name ?? ""}
+                          </span>
+                        ) : null}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : computer.agentIds.length === 0 ? (
+                <span className="text-muted-foreground">None yet</span>
+              ) : null}
+            </dd>
+          </dl>
+        </CardContent>
+
+        <CardFooter className="gap-2">
+          <p className="text-sm text-muted-foreground">
+            {machine && !computer.shareable
+              ? "It keeps its files with its agent, so no other agent can work on it."
+              : machine && computer.access === "open"
+                ? `${everyone} can work on it, each in a folder of its own.`
+                : computer.online
+                  ? computer.agentIds.length === 0
+                    ? "No agent can work on it until one is connected. An agent can also ask."
+                    : "Its agents can work on it now."
+                  : computer.lastSeenAt
+                    ? `Last connected ${ago(computer.lastSeenAt)}. Start the daemon there to bring it back.`
+                    : "Its daemon has not connected yet."}
+          </p>
+          {/* One whose files are with its agent goes when the agent is deleted, and not before. */}
+          {computer.canManage && (!machine || computer.shareable) ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto shrink-0 text-muted-foreground"
+              disabled={busy}
+              aria-label={`Remove ${computer.name}`}
+              onClick={async () => {
+                // Removing a paired computer only ends access to it. Removing a machine ends the
+                // machine.
                 if (
-                  losing.length > 0 &&
-                  !confirm(
-                    `Give ${computer.name} to ${to.name}? Agents outside ${to.name} will be disconnected from it.`,
-                  )
+                  machine &&
+                  !(await confirm({
+                    title: `Delete ${computer.name}?`,
+                    description:
+                      "The machine and everything on it is deleted. This cannot be undone.",
+                    action: "Delete",
+                    destructive: true,
+                  }))
                 ) {
                   return
                 }
-                move.mutate(to.id)
+                remove.mutate()
               }}
-              className={SELECT}
             >
-              {workspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.kind === "personal" ? "You" : workspace.name}
-                </option>
-              ))}
-            </select>
-          ) : personal ? (
-            "You"
-          ) : (
-            <>
-              {team?.name ?? "A team"}
-              <span className="text-muted-foreground">
-                {" "}
-                · {machine ? "added" : "paired"} by {mine ? "you" : computer.pairedBy.name}
-              </span>
-            </>
-          )}
-        </dd>
-        {machine && computer.shareable ? (
-          <>
-            <dt className="text-muted-foreground">Open to</dt>
-            <dd className="min-w-0">
-              <select
-                aria-label={`Who can use ${computer.name}`}
-                value={computer.access}
-                disabled={busy}
-                onChange={(event) =>
-                  share.mutate(event.target.value === "open" ? "open" : "chosen")
-                }
-                className={SELECT}
-              >
-                <option value="open">{everyone}</option>
-                <option value="chosen">Chosen agents</option>
-              </select>
-            </dd>
-          </>
-        ) : null}
-        <dt className="self-start pt-1 text-muted-foreground">Agents</dt>
-        <dd className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {computer.agentIds.map((id) => {
-            const agent = agents.get(id)
-            const name = agent?.name ?? "New agent"
-            const folder = computer.folders.find((entry) => entry.agentId === id)?.path
-            return (
-              <span
-                key={id}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-lg border bg-background py-0.5 pl-1.5",
-                  chosen ? "pr-0.5" : "min-h-7 pr-2",
-                )}
-              >
-                {agent === undefined ? null : <AgentFace agent={agent} className="size-5" still />}
-                <span className="max-w-40 truncate">{name}</span>
-                {folder === undefined ? null : (
-                  <span
-                    title={`${name}’s folder on ${computer.name}`}
-                    className="max-w-48 truncate font-mono text-xs text-muted-foreground"
-                  >
-                    {folder}
-                  </span>
-                )}
-                {chosen ? (
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    className="size-6 text-muted-foreground"
-                    disabled={busy}
-                    aria-label={`Disconnect ${name} from ${computer.name}`}
-                    onClick={() => disconnect.mutate(id)}
-                  >
-                    <XIcon />
-                  </Button>
-                ) : null}
-              </span>
-            )
-          })}
-          {connectable.length > 0 ? (
-            <select
-              aria-label={`Connect an agent to ${computer.name}`}
-              value=""
-              disabled={busy}
-              onChange={(event) => {
-                if (event.target.value !== "") connect.mutate(event.target.value)
-              }}
-              className={cn(SELECT, "text-muted-foreground")}
-            >
-              <option value="">
-                {computer.agentIds.length === 0 ? "Connect an agent…" : "Connect another…"}
-              </option>
-              {connectable.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name ?? "New agent"}
-                  {personal && teams.length > 0
-                    ? ` · ${workspaces.find((workspace) => workspace.id === agent.workspaceId)?.name ?? ""}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          ) : computer.agentIds.length === 0 ? (
-            <span className="text-muted-foreground">None yet</span>
+              <TrashIcon /> Remove
+            </Button>
           ) : null}
-        </dd>
-      </dl>
-
-      <div className="flex items-center gap-2">
-        <p className="text-sm text-muted-foreground">
-          {machine && !computer.shareable
-            ? "It keeps its files with its agent, so no other agent can work on it."
-            : machine && computer.access === "open"
-              ? `${everyone} can work on it, each in a folder of its own.`
-              : computer.online
-                ? computer.agentIds.length === 0
-                  ? "No agent can work on it until one is connected. An agent can also ask."
-                  : "Its agents can work on it now."
-                : computer.lastSeenAt
-                  ? `Last connected ${ago(computer.lastSeenAt)}. Start the daemon there to bring it back.`
-                  : "Its daemon has not connected yet."}
-        </p>
-        {/* One whose files are with its agent goes when the agent is deleted, and not before. */}
-        {computer.canManage && (!machine || computer.shareable) ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto shrink-0 text-muted-foreground"
-            disabled={busy}
-            aria-label={`Remove ${computer.name}`}
-            onClick={() => {
-              // Removing a paired computer only ends access to it. Removing a machine ends the
-              // machine.
-              if (
-                machine &&
-                !confirm(
-                  `Delete ${computer.name}? The machine and everything on it is deleted. This cannot be undone.`,
-                )
-              ) {
-                return
-              }
-              remove.mutate()
-            }}
-          >
-            <TrashIcon /> Remove
-          </Button>
+        </CardFooter>
+        {problem ? (
+          <CardContent>
+            <p role="alert" className="text-sm text-destructive">
+              {problem.message}
+            </p>
+          </CardContent>
         ) : null}
-      </div>
-      {problem ? (
-        <p role="alert" className="text-sm text-destructive">
-          {problem.message}
-        </p>
-      ) : null}
+      </Card>
+      {confirming}
     </li>
   )
 }
@@ -408,6 +488,10 @@ function AddComputer({
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: computersKey }),
   })
+  const owners = workspaces.map((workspace) => ({
+    value: workspace.id,
+    label: workspace.kind === "personal" ? "You" : workspace.name,
+  }))
   if (!open) {
     return (
       <Button variant="outline" className="self-start" onClick={() => setOpen(true)}>
@@ -462,19 +546,25 @@ function AddComputer({
       {workspaceId === undefined && workspaces.length > 1 ? (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="add-computer-workspace">For</Label>
-          <select
-            id="add-computer-workspace"
-            value={to}
+          <Select
+            items={owners}
+            value={to ?? null}
             disabled={add.isPending}
-            onChange={(event) => setPicked(event.target.value)}
-            className={cn(SELECT, "self-start")}
+            onValueChange={(next) => setPicked(next ?? undefined)}
           >
-            {workspaces.map((workspace) => (
-              <option key={workspace.id} value={workspace.id}>
-                {workspace.kind === "personal" ? "You" : workspace.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="add-computer-workspace" size="sm" className="max-w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {owners.map((owner) => (
+                  <SelectItem key={owner.value} value={owner.value}>
+                    {owner.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       ) : null}
       {add.isError ? (

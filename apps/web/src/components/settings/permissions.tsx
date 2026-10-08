@@ -2,10 +2,10 @@ import type { ApprovalRule, ApprovalsState, ApprovalSubject } from "@durable-com
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { Loads } from "@/components/loads"
 import { RowsPlaceholder } from "@/components/placeholders"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import { approvalsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
-import { cn } from "@/lib/utils"
 
 const CHOICES: { rule: ApprovalRule; label: string }[] = [
   { rule: "allow", label: "Allow" },
@@ -36,27 +36,25 @@ function SubjectRow({
         </span>
         {subject.hint ? <p className="text-xs text-muted-foreground">{subject.hint}</p> : null}
       </div>
-      <div
-        role="radiogroup"
+      <ToggleGroup
         aria-labelledby={`subject-${subject.id}`}
-        className="flex rounded-lg border p-0.5"
+        value={[rule]}
+        // Pressing the rule that holds leaves it holding: there is always one.
+        onValueChange={([next]) => {
+          if (next !== undefined) onChange(next as ApprovalRule)
+        }}
+        className="gap-0 rounded-lg border p-0.5"
       >
         {CHOICES.map((choice) => (
-          <button
+          <ToggleGroupItem
             key={choice.rule}
-            type="button"
-            role="radio"
-            aria-checked={rule === choice.rule}
-            onClick={() => onChange(choice.rule)}
-            className={cn(
-              "rounded-md px-3 py-1 text-xs text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
-              rule === choice.rule && "bg-accent font-medium text-foreground",
-            )}
+            value={choice.rule}
+            className="h-6 min-w-0 px-3 text-xs font-normal text-muted-foreground hover:bg-transparent aria-pressed:bg-accent aria-pressed:font-medium aria-pressed:text-foreground aria-pressed:hover:bg-accent"
           >
             {choice.label}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
     </li>
   )
 }

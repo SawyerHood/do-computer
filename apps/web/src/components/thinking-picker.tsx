@@ -1,5 +1,5 @@
 import { nearestThinking, type ThinkingLevel } from "@durable-computer/protocol"
-import { useId } from "react"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const LABELS: Record<ThinkingLevel, string> = {
   off: "Off",
@@ -29,32 +29,31 @@ export function ThinkingPicker({
   value: ThinkingLevel
   onChange: (level: ThinkingLevel) => void
 }) {
-  const id = useId()
   const chosen = nearestThinking(levels, value)
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className="mb-1.5 text-sm font-medium">{label}</legend>
       {levels.length > 0 ? (
-        <div className="flex gap-1 rounded-lg border border-input p-1">
+        <ToggleGroup
+          value={chosen === undefined ? [] : [chosen]}
+          // Pressing the level that is chosen leaves it chosen: there is always one.
+          onValueChange={([level]) => {
+            if (level !== undefined) onChange(level as ThinkingLevel)
+          }}
+          size="sm"
+          spacing={1}
+          className="w-full rounded-lg border border-input p-1"
+        >
           {levels.map((level) => (
-            <label
+            <ToggleGroupItem
               key={level}
-              className="relative min-w-0 flex-1 cursor-pointer truncate rounded-md px-2 py-1.5 text-center text-sm has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/30"
+              value={level}
+              className="min-w-0 flex-1 px-2 font-normal aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground"
             >
-              <input
-                type="radio"
-                name={id}
-                value={level}
-                checked={level === chosen}
-                // Kept inside its label. Left to sit wherever the page put it, focusing it scrolls
-                // the whole app to reach it.
-                className="absolute inset-0 cursor-pointer opacity-0"
-                onChange={() => onChange(level)}
-              />
-              {LABELS[level]}
-            </label>
+              <span className="truncate">{LABELS[level]}</span>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       ) : null}
       <p className="px-1 text-xs text-muted-foreground">
         {levels.length === 0

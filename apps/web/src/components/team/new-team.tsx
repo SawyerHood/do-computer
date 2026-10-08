@@ -10,6 +10,7 @@ import { useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { WorkspaceTile } from "@/components/people"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -20,10 +21,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import { agentsCollection } from "@/lib/collections"
 import { refreshWorkspaces } from "@/lib/workspaces"
-import { cn } from "@/lib/utils"
 import { entered, InviteOutcome, WhoInput } from "./invite.tsx"
 
 /** Start a team: name it, optionally bring agents of your own along, and ask people to join. */
@@ -118,30 +119,30 @@ export function NewTeamDialog({
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Color</Label>
-                <div role="radiogroup" aria-label="Color" className="flex gap-2">
+                <Label id="new-team-color">Color</Label>
+                <ToggleGroup
+                  aria-labelledby="new-team-color"
+                  value={[color]}
+                  // Pressing the color that is chosen leaves it chosen: a team always has one.
+                  onValueChange={([next]) => {
+                    if (next !== undefined) setColor(next as string)
+                  }}
+                >
                   {WORKSPACE_COLORS.map((option) => (
-                    <button
+                    <ToggleGroupItem
                       key={option.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={color === option.id}
+                      value={option.id}
                       aria-label={option.label}
                       title={option.label}
-                      onClick={() => setColor(option.id)}
                       style={{ backgroundColor: option.hex }}
-                      className={cn(
-                        "grid size-7 place-items-center rounded-lg text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
-                        color === option.id &&
-                          "ring-2 ring-foreground ring-offset-2 ring-offset-popover",
-                      )}
+                      className="size-7 min-w-0 rounded-lg p-0 text-white hover:text-white aria-pressed:ring-2 aria-pressed:ring-foreground aria-pressed:ring-offset-2 aria-pressed:ring-offset-popover"
                     >
                       {color === option.id ? (
                         <CheckIcon weight="bold" className="size-3.5" />
                       ) : null}
-                    </button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
               </div>
               {(mine ?? []).length === 0 ? null : (
                 <div className="flex flex-col gap-2">
@@ -151,17 +152,15 @@ export function NewTeamDialog({
                       key={agent.id}
                       className="flex items-center gap-3 rounded-xl border px-3 py-2.5"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={moving.includes(agent.id)}
-                        onChange={(event) =>
+                        onCheckedChange={(checked) =>
                           setMoving(
-                            event.target.checked
+                            checked
                               ? [...moving, agent.id]
                               : moving.filter((id) => id !== agent.id),
                           )
                         }
-                        className="size-4 accent-primary"
                       />
                       <AgentFace agent={agent} className="size-8" still />
                       <span className="min-w-0 flex-1">

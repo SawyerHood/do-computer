@@ -9,10 +9,20 @@ import { EnvelopeSimpleIcon, GithubLogoIcon, PlusIcon } from "@phosphor-icons/re
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate, useRouteContext } from "@tanstack/react-router"
 import { useState } from "react"
+import { useConfirm } from "@/components/confirm"
 import { PersonFace, WorkspaceTile } from "@/components/people"
 import { InviteDialog } from "@/components/team/invite"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { client } from "@/lib/client"
 import { queryClient } from "@/lib/query"
 import { invitationsKey, refreshWorkspaces, useHere, whoIs } from "@/lib/workspaces"
@@ -23,6 +33,10 @@ const ROLE_WORDS: Record<WorkspaceRole, string> = {
   admin: "Admin",
   member: "Member",
 }
+const ROLES = (["member", "admin", "owner"] as const).map((role) => ({
+  value: role,
+  label: ROLE_WORDS[role],
+}))
 const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
 
 /** Run something that changes the team, and say what went wrong if it did not work. */
@@ -116,6 +130,7 @@ function MemberRow({
     !mine &&
     member.role !== "owner" &&
     (workspace.role === "owner" || (workspace.role === "admin" && member.role === "member"))
+  const [confirm, confirming] = useConfirm()
   return (
     <li className="flex items-center gap-3 border-t px-3.5 py-2.5 first:border-t-0">
       <PersonFace person={member} here={here} className={here ? "size-8" : "size-8 opacity-70"} />
@@ -127,37 +142,55 @@ function MemberRow({
         <p className="truncate text-xs text-muted-foreground">{member.email}</p>
       </div>
       {canSetRole ? (
-        <select
-          aria-label={`Role of ${member.name}`}
+        <Select
+          items={ROLES}
           value={member.role}
-          onChange={(event) => {
-            const role = event.target.value as WorkspaceRole
+          onValueChange={async (role) => {
+            if (role === null || role === member.role) return
             if (
               role === "owner" &&
-              !confirm(`Hand ${workspace.name} to ${member.name}? You will become an admin.`)
+              !(await confirm({
+                title: `Hand ${workspace.name} to ${member.name}?`,
+                description: "You will become an admin.",
+                action: "Hand it over",
+              }))
             ) {
               return
             }
             void change(() => api.setRole(member.id, role))
           }}
-          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
         >
-          <option value="member">Member</option>
-          <option value="admin">Admin</option>
-          <option value="owner">Owner</option>
-        </select>
+          <SelectTrigger size="sm" aria-label={`Role of ${member.name}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {ROLES.map((role) => (
+                <SelectItem key={role.value} value={role.value}>
+                  {role.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
       ) : (
-        <span className="rounded-md bg-accent px-2 py-0.5 text-xs text-muted-foreground">
+        <Badge variant="secondary" className="bg-accent font-normal text-muted-foreground">
           {ROLE_WORDS[member.role]}
-        </span>
+        </Badge>
       )}
       {canRemove ? (
         <Button
           variant="ghost"
           size="sm"
           className="text-destructive"
-          onClick={() => {
-            if (confirm(`Remove ${member.name} from ${workspace.name}?`)) {
+          onClick={async () => {
+            if (
+              await confirm({
+                title: `Remove ${member.name} from ${workspace.name}?`,
+                action: "Remove",
+                destructive: true,
+              })
+            ) {
               void change(() => api.removeMember(member.id))
             }
           }}
@@ -169,9 +202,17 @@ function MemberRow({
           variant="ghost"
           size="sm"
           className="text-destructive"
-          onClick={() => {
-            if (!confirm(`Leave ${workspace.name}? You will lose its agents and their chats.`))
+          onClick={async () => {
+            if (
+              !(await confirm({
+                title: `Leave ${workspace.name}?`,
+                description: "You will lose its agents and their chats.",
+                action: "Leave",
+                destructive: true,
+              }))
+            ) {
               return
+            }
             void change(async () => {
               await api.removeMember(member.id)
               await navigate({ to: "/" })
@@ -181,6 +222,7 @@ function MemberRow({
           Leave
         </Button>
       ) : null}
+      {confirming}
     </li>
   )
 }
@@ -278,6 +320,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
   const admin = workspace.role !== "member"
   const [inviting, setInviting] = useState(false)
   const [error, change] = useChange()
+  const [confirm, confirming] = useConfirm()
   const hereIds = whoIs(useHere(workspace.id), () => true)
   const { data: invitations } = useQuery({
     queryKey: invitationsKey(workspace.id),
@@ -355,8 +398,16 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
             <Button
               variant="outline"
               className="text-destructive"
-              onClick={() => {
-                if (!confirm(`Delete ${workspace.name} for everyone in it?`)) return
+              onClick={async () => {
+                if (
+                  !(await confirm({
+                    title: `Delete ${workspace.name} for everyone in it?`,
+                    action: "Delete",
+                    destructive: true,
+                  }))
+                ) {
+                  return
+                }
                 void change(async () => {
                   await client.workspace(workspace.id).remove()
                   await navigate({ to: "/" })
@@ -369,6 +420,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
         ) : null}
       </div>
       <InviteDialog workspace={workspace} open={inviting} onOpenChange={setInviting} />
+      {confirming}
     </div>
   )
 }

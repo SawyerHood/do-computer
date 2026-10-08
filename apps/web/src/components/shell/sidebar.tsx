@@ -186,15 +186,16 @@ export function Sidebar({
           </div>
         )}
         {others.length > 0 ? (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             aria-label={`${others.length} here now: ${names(others)}`}
             title={`Here now: ${names(others)}`}
             onClick={() => openWorkspace("team")}
-            className="flex h-8 shrink-0 items-center rounded-lg px-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+            className="px-1.5"
           >
             <FaceStack people={others} className="size-[1.125rem]" />
-          </button>
+          </Button>
         ) : null}
         {onCollapse === undefined ? null : (
           <Button

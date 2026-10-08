@@ -181,7 +181,9 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   const mini = her.getByRole("listitem").filter({ hasText: "team-mini" })
   await expect(mini.getByText("paired by Sawyer")).toBeVisible()
   await expect(mini.getByRole("button", { name: "Remove team-mini" })).toHaveCount(0)
-  await mini.getByRole("combobox", { name: "Connect an agent to team-mini" }).selectOption(agentId)
+  // The team has the one agent, so it is the one there is to connect.
+  await mini.getByRole("button", { name: "Connect an agent to team-mini" }).click()
+  await her.getByRole("menuitem").click()
   await expect(mini.getByRole("button", { name: /^Disconnect .* from team-mini$/ })).toBeVisible()
 
   // A computer of her own is hers alone: he does not see it, and the team's agent cannot use it.
@@ -238,8 +240,8 @@ test("a member cannot run the team, and loses its agents when removed", async ()
   expect((await her.request.delete(`/api/agents/${agentId}`)).status()).toBe(403)
 
   await sawyer.goto(`/w/${team}/people`)
-  sawyer.once("dialog", (dialog) => void dialog.accept())
   await sawyer.getByRole("button", { name: "Remove" }).click()
+  await sawyer.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click()
   await expect(sawyer.getByRole("heading", { name: "Members · 1" })).toBeVisible()
   expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(404)
   expect((await her.request.get(`/api/agents/${agentId}/chats/1`)).status()).toBe(404)
