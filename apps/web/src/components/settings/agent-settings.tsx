@@ -6,6 +6,7 @@ import {
   LightningIcon,
   PlugsIcon,
   ShieldCheckIcon,
+  SlackLogoIcon,
   TrashIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react"
@@ -17,6 +18,7 @@ import { PermissionsSettings } from "./permissions.tsx"
 import { type ProfileSection, ProfileSettings } from "./profile.tsx"
 import { SettingsDialog, type SettingsSection } from "./settings-dialog.tsx"
 import { SkillsSettings } from "./skills.tsx"
+import { SlackSettings } from "./slack.tsx"
 
 const SECTIONS: readonly SettingsSection<AgentSection>[] = [
   { id: "identity", label: "Identity", icon: <UserCircleIcon /> },
@@ -24,6 +26,7 @@ const SECTIONS: readonly SettingsSection<AgentSection>[] = [
   { id: "model", label: "Model and computer", icon: <CpuIcon /> },
   { id: "skills", label: "Skills", icon: <LightningIcon /> },
   { id: "connectors", label: "Connectors", icon: <PlugsIcon /> },
+  { id: "slack", label: "Slack", icon: <SlackLogoIcon /> },
   { id: "permissions", label: "Permissions", icon: <ShieldCheckIcon /> },
   { id: "usage", label: "Usage", icon: <ChartBarIcon /> },
   { id: "manage", label: "Move or delete", icon: <TrashIcon />, danger: true },
@@ -64,6 +67,7 @@ export function AgentSettings({ agent }: { agent: AgentSummary }) {
       />
       {section === "skills" ? <SkillsSettings agentId={agent.id} /> : null}
       {section === "connectors" ? <ConnectorsSettings agentId={agent.id} search={search} /> : null}
+      {section === "slack" ? <SlackSettings agent={agent} /> : null}
       {section === "permissions" ? <PermissionsSettings agentId={agent.id} /> : null}
     </SettingsDialog>
   )

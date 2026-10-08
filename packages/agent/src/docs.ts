@@ -113,6 +113,44 @@ export type PeerRecord = {
   failures?: number
 }
 
+/** What is kept about a thread in Slack, on its chat. */
+export type SlackRecord = {
+  /** The channel's id in Slack. */
+  channel: string
+  /** Its name without the `#`, where that could be learned. Null for a direct message. */
+  channelName: string | null
+  /** Whether it is a direct message to the agent. */
+  direct: boolean
+  /**
+   * The message that started the thread, which is how Slack names a thread. Null for a direct
+   * message outside any thread, where the answers are not threaded either.
+   */
+  thread: string | null
+  /** The thread's address in Slack, where that could be learned. */
+  url: string | null
+  status: SubagentStatus
+  /** The message last posted as an answer, so that one answer is posted once. */
+  replied: string | null
+  /** How many times something has been posted to the thread. */
+  replies: number
+  /**
+   * How many times it has been given something to answer. Looking in on it takes a while, and
+   * this tells whether more arrived meanwhile.
+   */
+  woken?: number
+  /** The newest message of the thread the agent was given, as Slack names it. */
+  seen?: string
+  /**
+   * Who wrote the message it is answering. `member` is whether they are one of the people the
+   * agent works for; for anyone else it asks before using a connector or a paired computer.
+   */
+  speaker?: { id: string; name: string; member: boolean }
+  /** Set when someone asked for it to be stopped, until it has been. */
+  stopping?: true
+  /** How many times in a row an answer could not be posted. */
+  failures?: number
+}
+
 export type ChatRecord = {
   title: string
   kind: ChatKind
@@ -125,6 +163,8 @@ export type ChatRecord = {
   subagent?: SubagentRecord
   /** Present on a conversation with another agent. */
   peer?: PeerRecord
+  /** Present on a thread in Slack. */
+  slack?: SlackRecord
 }
 
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */

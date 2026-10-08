@@ -11,6 +11,7 @@ import {
   type SocketLike,
 } from "@durable-computer/runtime/node"
 import { agentDirectory } from "./agent-directory.ts"
+import { slackDirectory } from "./slack.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { libraryDirectory } from "./library-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
@@ -77,6 +78,7 @@ function create(): NodePlatform {
         library: libraryDirectory(app, libraries),
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents),
+        slackDirectory: slackDirectory(app, { apiUrl: config.slackApiUrl }),
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),

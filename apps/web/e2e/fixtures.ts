@@ -12,7 +12,13 @@ import { test as base } from "@playwright/test"
  * tests inside a file still run in order and build on each other. Without a model key the server
  * answers with its built-in echo model, so the tests need no network.
  */
-type Server = { file: string; url: string; stop: () => void }
+type Server = {
+  file: string
+  url: string
+  /** Where this server looks for Slack. Nothing is there unless a file's tests put it there. */
+  slack: string
+  stop: () => void
+}
 
 const entry = fileURLToPath(new URL("../server.node.mjs", import.meta.url))
 
@@ -27,6 +33,7 @@ async function freePort(): Promise<number> {
 
 async function start(file: string): Promise<Server> {
   const url = `http://127.0.0.1:${await freePort()}`
+  const slack = `http://127.0.0.1:${await freePort()}`
   const data = mkdtempSync(join(tmpdir(), "dc-e2e-"))
   let errors = ""
   const child: ChildProcess = spawn("node", [entry], {
@@ -41,6 +48,8 @@ async function start(file: string): Promise<Server> {
       DC_ALLOWED_EMAILS: "mobile@example.com",
       // The connector tests run their MCP server on this machine.
       DC_ALLOW_PRIVATE_HOSTS: "1",
+      // The Slack tests stand in for Slack on this machine too.
+      DC_SLACK_API_URL: `${slack}/api`,
     },
   })
   child.stderr!.on("data", (chunk) => {
@@ -64,7 +73,7 @@ async function start(file: string): Promise<Server> {
       (response) => response.ok,
       () => false,
     )
-    if (up) return { file, url, stop }
+    if (up) return { file, url, slack, stop }
     if (Date.now() > deadline) {
       stop()
       throw new Error(`The server did not come up at ${url}.\n${errors}`)
@@ -74,7 +83,11 @@ async function start(file: string): Promise<Server> {
 }
 
 type WorkerFixtures = {
-  servers: { for: (file: string) => Promise<string> }
+  servers: {
+    for: (file: string) => Promise<string>
+    /** The address a file's server calls Slack at, for a stand-in to listen on. */
+    slackFor: (file: string) => Promise<string>
+  }
   /** Whether the agent's creature is drawn live. Set with `test.use` by the tests that are about it. */
   creature: boolean
 }
@@ -95,15 +108,17 @@ export const test = base.extend<object, WorkerFixtures>({
     // Playwright reads what a fixture needs from this pattern, so it has to be one.
     async ({}, use) => {
       let server: Server | undefined
+      // A worker runs one file at a time. When it moves on to the next, that one starts clean.
+      const serverFor = async (file: string) => {
+        if (server?.file !== file) {
+          server?.stop()
+          server = await start(file)
+        }
+        return server
+      }
       await use({
-        // A worker runs one file at a time. When it moves on to the next, that one starts clean.
-        for: async (file) => {
-          if (server?.file !== file) {
-            server?.stop()
-            server = await start(file)
-          }
-          return server.url
-        },
+        for: async (file) => (await serverFor(file)).url,
+        slackFor: async (file) => (await serverFor(file)).slack,
       })
       server?.stop()
     },

@@ -36,6 +36,8 @@ type StoredRequest = {
   title: string
   detail: string
   status: "pending" | "approved" | "denied"
+  /** Who it is for, where it is asked because they are not one of the agent's people. */
+  guest?: string
   createdAt: number
   resolvedAt: number | null
 }
@@ -151,7 +153,13 @@ export type ApprovalsOptions = {
   readonly computerOf?: (
     name: string | undefined,
     context: Context,
-  ) => Promise<{ id: string; name: string } | undefined>
+  ) => Promise<{ id: string; name: string; paired?: boolean } | undefined>
+  /**
+   * Who a chat is working for, by name, where that is someone who is not one of the agent's
+   * people, such as someone who wrote to it in Slack. For them a connector, or a computer one
+   * of its people paired, is asked about first, whatever the rules say.
+   */
+  readonly guest?: (chatId: string, context: Context) => Promise<string | undefined>
   /** Called when the agent has asked for something, to tell the user wherever they are. */
   readonly onRequest?: (request: ApprovalRequest) => void
 }
@@ -160,6 +168,9 @@ export type ApprovalsOptions = {
  * Opt-in limits on what the agent does without asking. With no rules, which is the default, the
  * agent is fully trusted and this does nothing. A rule can be set for a tool, for a connector, or
  * for one of the user's own computers: allow, ask first, or never.
+ *
+ * One limit is not opt-in. Work done for someone who is not one of the agent's people asks before
+ * it uses a connector or a paired computer: those are its people's, and act as them.
  *
  * "Ask" does not hold the agent's work open while the user is away. The call is refused with an
  * explanation, the request is shown to the user, and their answer is sent to the chat, where an
@@ -196,8 +207,10 @@ export class Approvals {
   async #subjects(
     call: ToolCall,
     context: Context,
-  ): Promise<{ subjects: ApprovalSubject[]; title: string }> {
+  ): Promise<{ subjects: ApprovalSubject[]; title: string; theirs: Set<string> }> {
     const subjects: ApprovalSubject[] = []
+    // The subjects that are the agent's people's own: a connector, and a computer they paired.
+    const theirs = new Set<string>()
     let title = TOOL_TITLES[call.name] ?? `Use ${call.name}`
     const connector = await this.#options.connectorOf(call.name, context)
     if (connector !== undefined) {
@@ -206,6 +219,7 @@ export class Approvals {
         label: `Use ${connector.name}`,
         kind: "connector",
       })
+      theirs.add(`connector:${connector.id}`)
       title = `Use ${connector.name}`
     } else {
       for (const id of abilitiesOf(call)) {
@@ -228,11 +242,12 @@ export class Approvals {
           label: `Work on ${match.name}`,
           kind: "computer",
         })
+        if (match.paired === true) theirs.add(`computer:${match.id}`)
         // Said where the call says it: a call that names none means the one machine there is.
         if (named) title = `${title} on ${match.name}`
       }
     }
-    return { subjects, title }
+    return { subjects, title, theirs }
   }
 
   async #check(
@@ -242,13 +257,20 @@ export class Approvals {
   ): Promise<{ block: string } | undefined> {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
+    const guest = await this.#options.guest?.(chatId, context)
     // No rules: nothing to look up, which is every call on a default agent.
-    if (state === undefined || Object.keys(state.rules).length === 0) return undefined
-    const { subjects, title: what } = await this.#subjects(call, context)
-    const governed = subjects.filter(
-      (subject) => (own(state.rules, subject.id) ?? "allow") !== "allow",
-    )
-    const decision = strictest(governed.map((subject) => state.rules[subject.id]!))
+    if (guest === undefined && (state === undefined || Object.keys(state.rules).length === 0)) {
+      return undefined
+    }
+    const { subjects, title: what, theirs } = await this.#subjects(call, context)
+    const set = (subject: ApprovalSubject) => own(state?.rules, subject.id) ?? "allow"
+    // Asked on the guest's account alone: no rule of the user's own asks for it.
+    const forGuest = (subject: ApprovalSubject) =>
+      guest !== undefined && set(subject) === "allow" && theirs.has(subject.id)
+    const ruleOf = (subject: ApprovalSubject): ApprovalRule =>
+      forGuest(subject) ? "ask" : set(subject)
+    const governed = subjects.filter((subject) => ruleOf(subject) !== "allow")
+    const decision = strictest(governed.map(ruleOf))
     if (decision === "allow") return undefined
     if (decision === "deny") {
       return {
@@ -287,6 +309,7 @@ export class Approvals {
         title: what,
         detail: describe(call.arguments as Record<string, unknown>),
         status: "pending",
+        ...(guest !== undefined && governed.some(forGuest) ? { guest } : {}),
         createdAt: now,
         resolvedAt: null,
       }
@@ -321,6 +344,7 @@ export class Approvals {
         chatKind: own(chats, request.chatId)?.kind ?? "chat",
         title: request.title,
         detail: request.detail,
+        ...(request.guest === undefined ? {} : { guest: request.guest }),
         createdAt: request.createdAt,
       }))
       .sort((a, b) => a.createdAt - b.createdAt)

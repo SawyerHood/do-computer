@@ -29,6 +29,7 @@ import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
 import { ThreadRows } from "./agent-threads.tsx"
+import { SlackRows } from "./slack-threads.tsx"
 import { SubagentBrood, SubagentRows, subagentSeed, subagentWords } from "./subagents.tsx"
 
 /** How many of the latest pieces of work are listed. */
@@ -190,6 +191,8 @@ export function AgentPanel({
   subagent,
   subagents,
   threads = [],
+  slack = [],
+  chatId,
   presence,
   onOpenFile,
   chatless = false,
@@ -214,6 +217,10 @@ export function AgentPanel({
   subagents: ChatSummary[]
   /** The conversations other agents have had with it, newest first. */
   threads?: ChatSummary[]
+  /** The threads in Slack it has been spoken to in, newest first. */
+  slack?: ChatSummary[]
+  /** The chat the panel is beside, so that a thread which is open is marked in its list. */
+  chatId?: string
   /** In a team: who is in this chat right now. Shown above what the agent did. */
   presence?: React.ReactNode
   /** Opens a file the agent sent beside the chat, by its id. Without it the files are not listed. */
@@ -296,6 +303,16 @@ export function AgentPanel({
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
             <ThreadRows agentId={agent.id} threads={threads} />
+          </div>
+        </div>
+      )}
+      {subagent !== undefined || slack.length === 0 ? null : (
+        <div className="flex max-h-[30%] shrink-0 flex-col border-t">
+          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            From Slack
+          </h3>
+          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
+            <SlackRows agentId={agent.id} threads={slack} current={chatId} />
           </div>
         </div>
       )}

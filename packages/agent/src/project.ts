@@ -22,7 +22,7 @@ import type {
   LiveState,
   UsageState,
 } from "@earendil-works/pi-durable"
-import { agentSenderOf, type Caller, senderOf } from "./caller.ts"
+import { agentSenderOf, type Caller, senderOf, type SlackSender, slackSenderOf } from "./caller.ts"
 
 type UserContent = UserMessage["content"]
 
@@ -46,6 +46,17 @@ function contentAgent(content: UserContent): Caller | undefined {
   for (const block of content) {
     if (block.type !== "text" || !isMeta(block.text)) continue
     const sender = agentSenderOf(block.text)
+    if (sender !== undefined) return sender
+  }
+  return undefined
+}
+
+/** Who wrote a message in Slack, where it came from there. */
+function contentSlack(content: UserContent): SlackSender | undefined {
+  if (typeof content === "string") return undefined
+  for (const block of content) {
+    if (block.type !== "text" || !isMeta(block.text)) continue
+    const sender = slackSenderOf(block.text)
     if (sender !== undefined) return sender
   }
   return undefined
@@ -167,7 +178,14 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       const parts = contentParts(first.content)
       // A note to the model alone, such as being set going again, is not something anyone said.
       if (parts.length === 0) return undefined
-      const author = contentAuthor(first.content)
+      const slack = contentSlack(first.content)
+      // Someone in Slack who is also one of the agent's people is shown as who they are here.
+      const author =
+        slack === undefined
+          ? contentAuthor(first.content)
+          : slack.userId === undefined
+            ? undefined
+            : { id: slack.userId, name: slack.name }
       const agent = contentAgent(first.content)
       return {
         id,
@@ -177,6 +195,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         createdAt: first.timestamp,
         ...(author === undefined ? {} : { author }),
         ...(agent === undefined ? {} : { agent }),
+        ...(slack === undefined ? {} : { slack: { id: slack.id, name: slack.name } }),
       }
     }
     case "pi.assistant": {

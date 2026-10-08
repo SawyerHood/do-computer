@@ -1,0 +1,75 @@
+/* ---------- Slack mock-up: added to the two mock-ups' styles above ---------- */
+
+/* The Slack mark, where a face would be: a thread, or someone who is only known from Slack. */
+.slk{--s:32px;width:var(--s);height:var(--s);border-radius:calc(var(--s)*.3);background:var(--secondary);color:var(--muted-foreground);display:inline-grid;place-items:center;flex:none}
+.slk.who{border-radius:99px}
+.m .who .via{display:inline-flex;align-items:center;gap:4px}
+
+/* The Slack section of an agent's settings: three steps, then what it is once it is there. */
+.steps{display:flex;flex-direction:column;gap:22px;margin:0;padding:0;list-style:none}
+.step{display:flex;gap:14px}
+.step .num{width:26px;height:26px;border-radius:99px;border:1px solid var(--input);display:grid;place-items:center;font-size:12.5px;font-weight:600;flex:none;margin-top:1px}
+.step h3{font-size:14.5px;font-weight:500}
+.step p{font-size:13px;color:var(--muted-foreground);margin:2px 0 10px}
+.two-f{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two-f label,.one-f label{display:block;font-size:12.5px;font-weight:500;margin:0 0 5px!important}
+.two-f small,.one-f small{display:block;font-size:11.5px;color:var(--muted-foreground);margin-top:4px}
+.aside-l{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);margin:16px 0 8px}
+.kv{font-family:var(--mono);font-size:11.5px;color:var(--muted-foreground);margin-top:22px;padding-top:14px;border-top:1px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv b{font-family:Inter,sans-serif;font-weight:500;margin-right:6px}
+.ok-t{font-size:12px;font-weight:500;padding:2px 8px;border-radius:6px;background:color-mix(in oklch,var(--here) 18%,transparent);color:var(--here);white-space:nowrap}
+.card-c{border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:16px;display:flex;flex-direction:column;gap:10px}
+.card-c+.card-c{margin-top:12px}
+.card-c h2{font-size:14.5px;font-weight:500}
+.card-c .d{font-size:13px;color:var(--muted-foreground)}
+.card-c .r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* Threads from Slack in the agent's panel. */
+.frm{display:flex;gap:10px;padding:7px 10px;border-radius:12px;align-items:center;width:100%}
+.frm:hover,.frm.sel{background:var(--surface)}
+.frm .t{font-size:13.5px}
+.frm .s{font-size:12px;color:var(--muted-foreground);margin-top:1px}
+.frm .s.hot{color:var(--foreground)}
+
+/* A thread from Slack, open in the app: read here, written in there. */
+.subbar .place{display:inline-flex;align-items:center;gap:6px;color:var(--muted-foreground);white-space:nowrap}
+.subbar a,.readonly a{color:var(--teal-text);font-weight:500;display:inline-flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
+.subbar .st{color:var(--muted-foreground);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.readonly{border:1px dashed var(--input);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--muted-foreground)}
+.foot .ask{max-width:none;margin-bottom:10px;background:var(--surface)}
+.ask .from{font-size:12.5px;color:var(--muted-foreground)}
+.said{border-left:2px solid var(--border);padding-left:12px;font-size:13.5px;color:var(--muted-foreground)}
+.said b{color:var(--foreground);font-weight:500}
+
+/* Slack itself, drawn plainly: it is somebody else's app, and only here to show both ends. */
+.sl{flex:1;display:flex;min-width:0;background:#1a1d21;color:#d1d2d3;font-size:14.5px;--sl-line:#35373b;--sl-mut:#9b9c9e}
+.sl-side{width:232px;flex:none;background:#19171d;border-right:1px solid var(--sl-line);padding:14px 10px;display:flex;flex-direction:column;gap:1px}
+.sl-side h2{font-size:16px;font-weight:700;color:#fff;padding:0 8px 14px}
+.sl-side .lb{font-size:12.5px;color:var(--sl-mut);padding:12px 8px 4px}
+.sl-ch{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:6px;color:var(--sl-mut)}
+.sl-ch.on{background:#1164a3;color:#fff}
+.sl-ch.b{color:#fff;font-weight:600}
+.sl-main{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--sl-line)}
+.sl-thread{width:400px;flex:none;display:flex;flex-direction:column}
+.sl-h{height:50px;flex:none;border-bottom:1px solid var(--sl-line);display:flex;align-items:center;gap:8px;padding:0 18px;font-weight:700;color:#fff;font-size:16px}
+.sl-h span{font-weight:400;font-size:13px;color:var(--sl-mut)}
+.sl-body{flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:16px;justify-content:flex-end}
+.sl-thread .sl-body{justify-content:flex-start}
+.sl-m{display:flex;gap:10px}
+.sl-av{width:36px;height:36px;border-radius:7px;background:var(--c);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center;flex:none;overflow:hidden}
+.sl-av.bot{background:#2b2d31}
+.sl-m .n{font-weight:700;color:#fff}
+.sl-m .n small{font-weight:400;font-size:12px;color:var(--sl-mut);margin-left:6px}
+.sl-m .app{font-size:10px;font-weight:700;background:#35373b;color:#b9babd;border-radius:3px;padding:1px 4px;margin-left:6px;vertical-align:1px}
+.sl-m p{line-height:1.5}
+.sl-m ul{margin:4px 0 0;padding-left:20px;line-height:1.5}
+.sl-at{background:rgb(29 155 209/.2);color:#1d9bd1;border-radius:3px;padding:0 2px}
+.sl-rep{display:inline-flex;align-items:center;gap:7px;margin-top:6px;font-size:13px;font-weight:700;color:#1d9bd1;border:1px solid transparent;border-radius:6px;padding:3px 6px 3px 3px;cursor:pointer}
+.sl-rep:hover{border-color:var(--sl-line);background:#222529}
+.sl-rep span{font-weight:400;color:var(--sl-mut)}
+.sl-rep .sl-av{width:22px;height:22px;border-radius:5px}
+.sl-think{font-size:13px;color:var(--sl-mut);display:flex;align-items:center;gap:8px;padding-left:46px}
+.sl-div{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--sl-mut)}
+.sl-div::after{content:"";flex:1;border-top:1px solid var(--sl-line)}
+.sl-box{margin:0 18px 18px;border:1px solid #565856;border-radius:8px;padding:10px 12px;color:var(--sl-mut);font-size:14px}
+.sl-back{position:absolute;right:16px;top:10px;z-index:3;height:30px;padding:0 12px;border-radius:8px;background:#fff;color:#1a1d21;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}

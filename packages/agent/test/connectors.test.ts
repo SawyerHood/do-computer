@@ -4,6 +4,7 @@ import { join } from "node:path"
 import type {
   ChatState,
   ChatSummary,
+  AddConnectorRequest,
   ConnectorResult,
   ConnectorSummary,
   ToolPart,
@@ -78,7 +79,7 @@ async function call<T>(
 }
 
 const fromApp = { [CONNECTOR_REDIRECT_HEADER]: REDIRECT }
-const add = (world: World, input: { name: string; url: string; token?: string }) =>
+const add = (world: World, input: AddConnectorRequest) =>
   call<ConnectorResult & { state?: string }>(world, "/connectors", "POST", input, fromApp)
 const connectors = async (world: World) =>
   (await call<{ connectors: ConnectorSummary[] }>(world, "/connectors")).connectors
@@ -217,6 +218,37 @@ describe("connectors", () => {
     expect(done.connector).toMatchObject({ status: "connected" })
     expect(done.connector.tools.length).toBe(3)
 
+    world.faux.setResponses(useTool("notes__whoami", {}))
+    expect(lastTool(await say(world, chat.id, "who am I there?")).output).toBe(
+      "caller with Bearer access-token-1",
+    )
+  })
+
+  it("sign in as an app registered by hand, where the service lets none register itself", async () => {
+    const client = { id: "app-1", secret: "app-secret" }
+    // Without the app's id there is nobody to sign in as.
+    const { world: alone } = await setup({ oauth: true, client })
+    expect((await add(alone, { name: "Notes", url: alone.mcp.url })).connector.status).toBe("error")
+
+    const { world, chat } = await setup({ oauth: true, client })
+    const pending = await add(world, {
+      name: "Notes",
+      url: world.mcp.url,
+      clientId: client.id,
+      clientSecret: client.secret,
+    })
+    expect(pending.connector.status).toBe("needs_auth")
+    expect(new URL(pending.authorizationUrl!).searchParams.get("client_id")).toBe("app-1")
+    expect(world.mcp.requests).not.toContain("POST https://auth.test/register")
+    const done = await call<ConnectorResult>(
+      world,
+      `/connectors/${pending.connector.id}/authorize`,
+      "POST",
+      { code: GOOD_CODE },
+    )
+    expect(done.connector).toMatchObject({ status: "connected" })
+    // Neither the id nor the secret is in what a client is told of the connector.
+    expect(JSON.stringify(done)).not.toContain("app-secret")
     world.faux.setResponses(useTool("notes__whoami", {}))
     expect(lastTool(await say(world, chat.id, "who am I there?")).output).toBe(
       "caller with Bearer access-token-1",

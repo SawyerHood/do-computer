@@ -7,6 +7,11 @@ export type FakeMcpOptions = {
   token?: string
   /** Require an OAuth access token, issued by the fake authorization server. */
   oauth?: boolean
+  /**
+   * The one app the authorization server knows. It then lets no app register itself, as Slack's
+   * does not, and gives a token only to this id and secret.
+   */
+  client?: { id: string; secret: string }
 }
 
 const MCP_URL = "https://mcp.test/mcp"
@@ -56,14 +61,16 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
           issuer: ISSUER,
           authorization_endpoint: `${ISSUER}/authorize`,
           token_endpoint: `${ISSUER}/token`,
-          registration_endpoint: `${ISSUER}/register`,
+          ...(options.client === undefined ? { registration_endpoint: `${ISSUER}/register` } : {}),
           response_types_supported: ["code"],
           grant_types_supported: ["authorization_code", "refresh_token"],
           code_challenge_methods_supported: ["S256"],
-          token_endpoint_auth_methods_supported: ["none"],
+          token_endpoint_auth_methods_supported: [
+            options.client === undefined ? "none" : "client_secret_post",
+          ],
         })
       }
-      if (url.pathname === "/register" && method === "POST") {
+      if (url.pathname === "/register" && method === "POST" && options.client === undefined) {
         const metadata = JSON.parse(String(init?.body))
         return json({ ...metadata, client_id: "client-1", client_id_issued_at: 1 }, 201)
       }
@@ -71,6 +78,13 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
         const form = new URLSearchParams(String(init?.body))
         if (form.get("code") !== GOOD_CODE || !form.get("code_verifier")) {
           return json({ error: "invalid_grant" }, 400)
+        }
+        if (
+          options.client !== undefined &&
+          (form.get("client_id") !== options.client.id ||
+            form.get("client_secret") !== options.client.secret)
+        ) {
+          return json({ error: "invalid_client" }, 401)
         }
         return json({
           access_token: ACCESS_TOKEN,

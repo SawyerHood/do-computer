@@ -74,6 +74,7 @@ import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { ScheduleError, Scheduler } from "./schedules.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
+import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
@@ -130,6 +131,11 @@ export type AgentActorOptions = {
    * it, the agent knows of no other agent.
    */
   readonly agentDirectory?: AgentDirectory
+  /**
+   * How the agent reaches Slack, where it has been put there as a bot. Without it, nothing said
+   * in Slack arrives.
+   */
+  readonly slackDirectory?: SlackDirectory
   /** Used to reach connectors (remote MCP servers). Default: the global `fetch`. */
   readonly connectorFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>
   /**
@@ -278,7 +284,7 @@ const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
   identity.whenBusy ?? (identity.team ? "queue" : "steer")
 
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
-  const { subagent, peer, ...chat } = record
+  const { subagent, peer, slack, ...chat } = record
   return {
     id,
     ...chat,
@@ -289,6 +295,12 @@ function summarize(id: string, record: ChatRecord, main: string | undefined): Ch
       : {
           status: peer.status,
           peer: { agentId: peer.agentId, name: peer.name, chatId: peer.chatId },
+        }),
+    ...(slack === undefined
+      ? {}
+      : {
+          status: slack.status,
+          slack: { channel: slack.channelName, direct: slack.direct, url: slack.url },
         }),
   }
 }
@@ -313,6 +325,7 @@ export class AgentActor implements Actor {
   readonly #scheduler: Scheduler
   readonly #subagents: Subagents
   readonly #peers: Peers | undefined
+  readonly #slack: SlackChats | undefined
   readonly #skills: Skills
   readonly #approvals: Approvals
   readonly #keepGoing: KeepGoing
@@ -383,12 +396,15 @@ export class AgentActor implements Actor {
       computerOf: (name, c) => this.#computers.peek(name, c),
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
+      guest: async (chatId, c) => this.#slack?.guest(chatId, c),
       onRequest: (request) =>
         void this.#notify({
           kind: "approval",
           heading: "Needs your OK",
           text: request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
-          chatId: request.chatKind === "chat" ? request.chatId : null,
+          // A thread in Slack is answered for in the app, on the thread's own page.
+          chatId:
+            request.chatKind === "chat" || request.chatKind === "slack" ? request.chatId : null,
         }),
     })
     this.#keepGoing = new KeepGoing({
@@ -431,6 +447,20 @@ export class AgentActor implements Actor {
         : new Peers({
             agentId: host.name,
             directory: options.agentDirectory,
+            now: () => host.now(),
+            context,
+            chat: (chatId) => this.#chatState(chatId),
+            waiting: async (chatId, c) =>
+              (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+            onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
+            onError: (error) => options.onReport?.(error),
+          })
+    this.#slack =
+      options.slackDirectory === undefined
+        ? undefined
+        : new SlackChats({
+            agentId: host.name,
+            directory: options.slackDirectory,
             now: () => host.now(),
             context,
             chat: (chatId) => this.#chatState(chatId),
@@ -622,6 +652,7 @@ export class AgentActor implements Actor {
       this.#scheduler.attach(harness)
       this.#subagents.attach(harness)
       this.#peers?.attach(harness)
+      this.#slack?.attach(harness)
       this.#skills.attach(harness)
       await this.#ownLibrary.upgrade()
       // Neither stops the agent opening: what could not be done now is tried the next time.
@@ -681,12 +712,14 @@ export class AgentActor implements Actor {
     const harness = await this.#harness
     const inspection = await harness.inspect(context)
     // A sub-agent that has finished and not yet reported has nothing live, and still needs a
-    // look. So does a conversation with another agent whose answer is still to be handed back.
+    // look. So does a conversation with another agent whose answer is still to be handed back,
+    // and a thread in Slack whose answer is still to be posted.
     const live =
       inspection.tasks.length > 0 ||
       inspection.submissions.length > 0 ||
       (await this.#subagents.working(context)) ||
-      ((await this.#peers?.working(context)) ?? false)
+      ((await this.#peers?.working(context)) ?? false) ||
+      ((await this.#slack?.working(context)) ?? false)
     const keepAlive = live ? this.#host.now() + (this.#options.keepAliveMs ?? KEEPALIVE_MS) : null
     const scheduled = await this.#scheduler.nextWake(context)
     const wake =
@@ -704,6 +737,7 @@ export class AgentActor implements Actor {
     await this.#scheduler.tick(context)
     await this.#subagents.tick()
     await this.#peers?.tick()
+    await this.#slack?.tick()
     await this.#rearm()
   }
 
@@ -772,6 +806,7 @@ export class AgentActor implements Actor {
         error instanceof ScheduleError ||
         error instanceof SubagentError ||
         error instanceof PeerError ||
+        error instanceof SlackError ||
         error instanceof SkillError ||
         error instanceof LibraryError ||
         error instanceof HistoryError ||
@@ -876,6 +911,16 @@ export class AgentActor implements Actor {
         return json({ ok: true })
       }
     }
+    // Something said to the agent in Slack, which the host has checked came from Slack.
+    if (
+      segments[0] === "slack" &&
+      segments[1] === "message" &&
+      segments[2] === undefined &&
+      this.#slack !== undefined &&
+      method === "POST"
+    ) {
+      return json(await this.#slack.receive(await body<SlackMessage>(request), context))
+    }
     if (segments[0] === "connectors" && this.#connectors !== undefined) {
       const connectors = this.#connectors
       const connectorId = segments[1]
@@ -978,9 +1023,10 @@ export class AgentActor implements Actor {
           identity.team ? caller : undefined,
         )
         // The answer sets a sub-agent that was waiting for it going again, and a conversation
-        // with another agent likewise.
+        // with another agent or a thread in Slack likewise.
         await this.#subagents.tick()
         await this.#peers?.tick()
+        await this.#slack?.tick()
         return json({ ok: true })
       }
     }
@@ -1064,12 +1110,18 @@ export class AgentActor implements Actor {
         if (thread && (rest === "messages" || rest === "reset") && method === "POST") {
           throw new HttpError(409, "Only the two agents write in this conversation.", "agent")
         }
+        // A thread in Slack is written in from Slack, and read here.
+        const slack = kind === "slack"
+        if (slack && (rest === "messages" || rest === "reset") && method === "POST") {
+          throw new HttpError(409, "This conversation is written in from Slack.", "slack")
+        }
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request), caller)
         }
         if (rest === "abort" && method === "POST") {
           if (subagent) await this.#subagents.stop(chatId, "user", context)
           else if (thread && this.#peers !== undefined) await this.#peers.stop(chatId, context)
+          else if (slack && this.#slack !== undefined) await this.#slack.stop(chatId, context)
           else await conversation.abort(context)
           return json({ ok: true })
         }

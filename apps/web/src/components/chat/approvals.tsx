@@ -43,7 +43,9 @@ function RequestCard({
                   ? "From the sub-agent "
                   : request.chatKind === "agent"
                     ? "In a conversation with another agent "
-                    : "In the chat "}
+                    : request.chatKind === "slack"
+                      ? "In the Slack thread "
+                      : "In the chat "}
               <Link
                 to="/a/$agentId/c/$chatId"
                 params={{ agentId, chatId: request.chatId }}
@@ -55,6 +57,11 @@ function RequestCard({
           )}
         </div>
       </div>
+      {request.guest === undefined ? null : (
+        <p className="text-xs text-muted-foreground">
+          Asked for by {request.guest} in Slack, who is not in this workspace.
+        </p>
+      )}
       {request.detail === "" ? null : (
         <pre className="max-h-40 overflow-auto rounded-lg bg-muted px-3 py-2 text-xs whitespace-pre-wrap">
           {request.detail}
@@ -69,14 +76,17 @@ function RequestCard({
         <Button size="sm" disabled={answer.isPending} onClick={() => answer.mutate("once")}>
           Allow once
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={answer.isPending}
-          onClick={() => answer.mutate("always")}
-        >
-          Always allow
-        </Button>
+        {/* Asked on a guest's account, it would be asked again whatever is answered here. */}
+        {request.guest !== undefined ? null : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={answer.isPending}
+            onClick={() => answer.mutate("always")}
+          >
+            Always allow
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
