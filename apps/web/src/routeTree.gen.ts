@@ -53,6 +53,7 @@ import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$
 import { Route as ApiAgentsAgentIdConnectorsRouteImport } from './routes/api/agents/$agentId.connectors'
 import { Route as ApiAgentsAgentIdMoveRouteImport } from './routes/api/agents/$agentId.move'
 import { Route as ApiAgentsAgentIdSlackRouteImport } from './routes/api/agents/$agentId.slack'
+import { Route as ApiComputersComputerIdUpdateRouteImport } from './routes/api/computers/$computerId.update'
 import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
 import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers/pair.poll'
 import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
@@ -290,6 +291,12 @@ const ApiAgentsAgentIdSlackRoute = ApiAgentsAgentIdSlackRouteImport.update({
   path: '/api/agents/$agentId/slack',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiComputersComputerIdUpdateRoute =
+  ApiComputersComputerIdUpdateRouteImport.update({
+    id: '/update',
+    path: '/update',
+    getParentRoute: () => ApiComputersComputerIdRoute,
+  } as any)
 const ApiComputersPairConfirmRoute = ApiComputersPairConfirmRouteImport.update({
   id: '/api/computers/pair/confirm',
   path: '/api/computers/pair/confirm',
@@ -422,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
   '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
+  '/api/computers/$computerId/update': typeof ApiComputersComputerIdUpdateRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
@@ -481,6 +489,7 @@ export interface FileRoutesByTo {
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
   '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
+  '/api/computers/$computerId/update': typeof ApiComputersComputerIdUpdateRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
@@ -544,6 +553,7 @@ export interface FileRoutesById {
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
   '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
+  '/api/computers/$computerId/update': typeof ApiComputersComputerIdUpdateRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
@@ -607,6 +617,7 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/connectors'
     | '/api/agents/$agentId/move'
     | '/api/agents/$agentId/slack'
+    | '/api/computers/$computerId/update'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
@@ -666,6 +677,7 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/connectors'
     | '/api/agents/$agentId/move'
     | '/api/agents/$agentId/slack'
+    | '/api/computers/$computerId/update'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
@@ -728,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/connectors'
     | '/api/agents/$agentId/move'
     | '/api/agents/$agentId/slack'
+    | '/api/computers/$computerId/update'
     | '/api/computers/pair/confirm'
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
@@ -1103,6 +1116,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentsAgentIdSlackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/computers/$computerId/update': {
+      id: '/api/computers/$computerId/update'
+      path: '/update'
+      fullPath: '/api/computers/$computerId/update'
+      preLoaderRoute: typeof ApiComputersComputerIdUpdateRouteImport
+      parentRoute: typeof ApiComputersComputerIdRoute
+    }
     '/api/computers/pair/confirm': {
       id: '/api/computers/pair/confirm'
       path: '/api/computers/pair/confirm'
@@ -1279,11 +1299,13 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface ApiComputersComputerIdRouteChildren {
+  ApiComputersComputerIdUpdateRoute: typeof ApiComputersComputerIdUpdateRoute
   ApiComputersComputerIdAgentsAgentIdRoute: typeof ApiComputersComputerIdAgentsAgentIdRoute
 }
 
 const ApiComputersComputerIdRouteChildren: ApiComputersComputerIdRouteChildren =
   {
+    ApiComputersComputerIdUpdateRoute: ApiComputersComputerIdUpdateRoute,
     ApiComputersComputerIdAgentsAgentIdRoute:
       ApiComputersComputerIdAgentsAgentIdRoute,
   }
