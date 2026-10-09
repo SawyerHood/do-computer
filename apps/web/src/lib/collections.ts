@@ -16,6 +16,13 @@ export const computerRequestsKey = ["computers", "requests"] as const
 export const usageKey = (agentId: string) => ["agents", agentId, "usage"] as const
 export const creatureKey = (agentId: string) => ["agents", agentId, "creature"] as const
 export const modelsKey = ["models"] as const
+/**
+ * The models an agent in one workspace can be set to: the deployment's and those of the
+ * providers the workspace is signed in to. Under the models' key, so that whatever refreshes
+ * those refreshes these.
+ */
+export const workspaceModelsKey = (workspaceId: string | undefined) =>
+  ["models", workspaceId ?? "any"] as const
 export const settingsKey = ["settings"] as const
 export const computerKindsKey = ["computer-kinds"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const

@@ -148,7 +148,7 @@ test.describe("choosing a model", () => {
       },
       ...others,
     ]
-    await page.route("**/api/models", (route) => route.fulfill({ json: { models } }))
+    await page.route(/\/api\/models(\?|$)/, (route) => route.fulfill({ json: { models } }))
   }
 
   test("an agent's model is picked from a list that narrows as you type", async ({ page }) => {
@@ -215,7 +215,7 @@ test.describe("choosing a model", () => {
     await expect(thinking.getByRole("button")).toHaveCount(0)
 
     // Say that it can, with levels of its own, and those are what is offered.
-    await page.route("**/api/models", (route) =>
+    await page.route(/\/api\/models(\?|$)/, (route) =>
       route.fulfill({
         json: {
           models: [

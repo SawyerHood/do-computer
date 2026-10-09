@@ -926,10 +926,10 @@ Since then, newest last:
       browser, and the gateway has no route to the one address that returns one.
     - **When it is gone.** An agent set to a model of a provider its workspace is not signed
       in to gets a failed reply that says so (`signIn` in `chat-error.ts`).
-    - **Not built:** the Models section, the sign-in window, the picker saying where a model
-      comes from, and the picker asking for one workspace's models (it asks for all the
-      user's, which is right only for someone with one workspace). Web search, the judge and
-      dictation still run on the deployment's OpenRouter key and are absent without it.
+    - **Not built:** the Models section, the sign-in window, and the picker saying where a
+      model comes from. The picker already asks for the models of the agent's own workspace.
+      Web search, the judge and dictation still run on the deployment's OpenRouter key and
+      are absent without it.
     - **pi-claude-bridge** (the owner asked whether it could be supported) cannot be loaded.
       It is an extension for the pi coding agent, which this app does not run, and it works by
       starting Claude Code as a process on the same machine with the login in `~/.claude`.

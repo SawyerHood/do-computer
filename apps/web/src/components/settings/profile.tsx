@@ -49,7 +49,7 @@ import {
   agentsKey,
   computerKindsKey,
   computersKey,
-  modelsKey,
+  workspaceModelsKey,
   usageKey,
 } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
@@ -546,10 +546,11 @@ export function ProfileSettings({
     queryKey: agentKey(agentId),
     queryFn: () => client.agent(agentId).state(),
   })
-  // The same list for every agent, and it only changes with the deployment.
+  // What its workspace offers: the deployment's models, and those of the providers the
+  // workspace is signed in to.
   const { data: models } = useQuery({
-    queryKey: modelsKey,
-    queryFn: () => client.models(),
+    queryKey: workspaceModelsKey(workspace?.id),
+    queryFn: () => client.models(workspace?.id),
     staleTime: Number.POSITIVE_INFINITY,
   })
   const [form, setForm] = useState<Form>()
