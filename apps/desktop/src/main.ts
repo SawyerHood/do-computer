@@ -38,6 +38,8 @@ import { headline } from "./status.ts"
 declare const DEFAULT_SERVER: string
 
 const NAME = "Do Computer"
+/** How long a deployment has to say that it is one, when its address is entered. */
+const HEALTH_TIMEOUT_MS = 10_000
 const MAC = process.platform === "darwin"
 const here = (...parts: string[]) => path.join(__dirname, ...parts)
 const page = (name: string) => here("pages", `${name}.html`)
@@ -302,8 +304,9 @@ function listen(): void {
     own(async (choice: { server?: unknown; share?: unknown; openAtLogin?: unknown }) => {
       const server = serverAddress(typeof choice?.server === "string" ? choice.server : "")
       if (server === undefined) return "That is not an address."
+      // An address nothing answers at can take a system a long while to give up on.
       const healthy = await net
-        .fetch(`${server}/api/health`)
+        .fetch(`${server}/api/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) })
         .then(async (response) => response.ok && (await response.json())?.ok === true)
         .catch(() => false)
       if (!healthy) return `There is no Do Computer at ${server}, or it cannot be reached.`

@@ -130,7 +130,10 @@ test("a first run asks which Do Computer to use, and says so when there is none 
 
   await welcome.getByLabel("Server").fill("http://127.0.0.1:9")
   await welcome.getByRole("button", { name: "Continue" }).click()
-  await expect(welcome.getByRole("alert")).toContainText("There is no Do Computer at")
+  // Windows takes its time over an address nothing listens at, and the app gives it ten seconds.
+  await expect(welcome.getByRole("alert")).toContainText("There is no Do Computer at", {
+    timeout: 20_000,
+  })
 
   await welcome.getByLabel("Server").fill(url)
   await welcome.getByRole("button", { name: "Continue" }).click()
