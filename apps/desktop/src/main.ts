@@ -93,7 +93,8 @@ const FAKE_SCREEN = process.env.DC_DESKTOP_FAKE_SCREEN === "1"
  * Where the driver's packages are. They are programs for one system, which cannot be run from
  * inside the one file the app is packed into, so a packed app keeps them beside that file.
  */
-const driverDir = () => (app.isPackaged ? path.join(process.resourcesPath, "driver") : here("driver"))
+const driverDir = () =>
+  app.isPackaged ? path.join(process.resourcesPath, "driver") : here("driver")
 const screenUnavailable = () => (FAKE_SCREEN ? undefined : driverMissing(driverDir()))
 
 /** What macOS has let the app do, of the two things using the screen takes. */
@@ -144,8 +145,14 @@ async function probeDriver(): Promise<void> {
 function screenOf(): ScreenService {
   if (screenService !== undefined) return screenService
   const using = new UseState({ what: "the screen" })
-  overlay = createOverlay({ state: using, pagesDir: here("pages"), preload: here("overlay-preload.cjs") })
-  screenDriver = FAKE_SCREEN ? fakeDriver(process.env.DC_DESKTOP_FAKE_SCREEN_LOG) : cuaDriver(driverDir())
+  overlay = createOverlay({
+    state: using,
+    pagesDir: here("pages"),
+    preload: here("overlay-preload.cjs"),
+  })
+  screenDriver = FAKE_SCREEN
+    ? fakeDriver(process.env.DC_DESKTOP_FAKE_SCREEN_LOG)
+    : cuaDriver(driverDir())
   screenService = new ScreenService({
     state: using,
     driver: screenDriver,

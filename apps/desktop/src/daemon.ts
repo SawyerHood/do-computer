@@ -181,7 +181,10 @@ export class DaemonRunner {
       void answering
         .catch((error: unknown): AppAnswer => ({
           id: call.id,
-          error: { refused: false, message: error instanceof Error ? error.message : String(error) },
+          error: {
+            refused: false,
+            message: error instanceof Error ? error.message : String(error),
+          },
         }))
         .then((answer) => {
           // A daemon that has gone since has nobody waiting, and the one after it never asked.

@@ -24,23 +24,39 @@ export function readDevToolsActivePort(text: string): Endpoint | null {
  * The user-data folders of the browsers a person may have open, where each keeps them unless
  * told otherwise: Chrome, Chrome Beta, Chromium, Brave, Edge.
  */
-export function ownDataDirs(platform: string, home: string, env: Record<string, string | undefined>): string[] {
+export function ownDataDirs(
+  platform: string,
+  home: string,
+  env: Record<string, string | undefined>,
+): string[] {
   if (platform === "darwin") {
     const base = join(home, "Library", "Application Support")
-    return ["Google/Chrome", "Google/Chrome Beta", "Chromium", "BraveSoftware/Brave-Browser", "Microsoft Edge"].map(
-      (name) => join(base, name),
-    )
+    return [
+      "Google/Chrome",
+      "Google/Chrome Beta",
+      "Chromium",
+      "BraveSoftware/Brave-Browser",
+      "Microsoft Edge",
+    ].map((name) => join(base, name))
   }
   if (platform === "win32") {
     const base = env.LOCALAPPDATA ?? win32.join(home, "AppData", "Local")
-    return ["Google\\Chrome", "Google\\Chrome Beta", "Chromium", "BraveSoftware\\Brave-Browser", "Microsoft\\Edge"].map(
-      (name) => win32.join(base, name, "User Data"),
-    )
+    return [
+      "Google\\Chrome",
+      "Google\\Chrome Beta",
+      "Chromium",
+      "BraveSoftware\\Brave-Browser",
+      "Microsoft\\Edge",
+    ].map((name) => win32.join(base, name, "User Data"))
   }
   const base = env.XDG_CONFIG_HOME || join(home, ".config")
-  return ["google-chrome", "google-chrome-beta", "chromium", "BraveSoftware/Brave-Browser", "microsoft-edge"].map(
-    (name) => join(base, name),
-  )
+  return [
+    "google-chrome",
+    "google-chrome-beta",
+    "chromium",
+    "BraveSoftware/Brave-Browser",
+    "microsoft-edge",
+  ].map((name) => join(base, name))
 }
 
 /** Whether something is listening on a port of this machine. */
@@ -60,7 +76,9 @@ export function listening(port: number, waitMs = 500): Promise<boolean> {
 /** The browser answering DevTools' own question on a port, where one is. */
 async function askVersion(port: number): Promise<Endpoint | null> {
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(500) })
+    const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+      signal: AbortSignal.timeout(500),
+    })
     if (!response.ok) return null
     const answer = (await response.json()) as { webSocketDebuggerUrl?: unknown }
     if (typeof answer.webSocketDebuggerUrl !== "string") return null
@@ -134,7 +152,10 @@ export function installedChrome(devBrowserHome: string): string | null {
  * A Chrome to launch for agents, found the way dev-browser finds one: the one `DEV_BROWSER_CHROME`
  * names, one dev-browser installed, one installed on the machine, one in Playwright's cache.
  */
-export function findChrome(devBrowserHome: string, env: NodeJS.ProcessEnv = process.env): string | null {
+export function findChrome(
+  devBrowserHome: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
   if (env.DEV_BROWSER_CHROME && runnable(env.DEV_BROWSER_CHROME)) return env.DEV_BROWSER_CHROME
   const installed = installedChrome(devBrowserHome)
   if (installed) return installed
@@ -152,17 +173,33 @@ export function findChrome(devBrowserHome: string, env: NodeJS.ProcessEnv = proc
   } else if (process.platform === "win32") {
     for (const root of [env.PROGRAMFILES, env["PROGRAMFILES(X86)"], env.LOCALAPPDATA]) {
       if (!root) continue
-      for (const rel of ["Google\\Chrome\\Application\\chrome.exe", "Chromium\\Application\\chrome.exe", "Microsoft\\Edge\\Application\\msedge.exe"]) {
+      for (const rel of [
+        "Google\\Chrome\\Application\\chrome.exe",
+        "Chromium\\Application\\chrome.exe",
+        "Microsoft\\Edge\\Application\\msedge.exe",
+      ]) {
         candidates.push(win32.join(root, rel))
       }
     }
   } else {
     const dirs = (env.PATH ?? "").split(delimiter).filter(Boolean)
-    for (const name of ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "chrome"]) {
+    for (const name of [
+      "google-chrome",
+      "google-chrome-stable",
+      "chromium",
+      "chromium-browser",
+      "microsoft-edge",
+      "microsoft-edge-stable",
+      "brave-browser",
+      "chrome",
+    ]) {
       for (const dir of dirs) candidates.push(join(dir, name))
     }
   }
-  const cache = process.platform === "darwin" ? join(home, "Library/Caches/ms-playwright") : join(home, ".cache/ms-playwright")
+  const cache =
+    process.platform === "darwin"
+      ? join(home, "Library/Caches/ms-playwright")
+      : join(home, ".cache/ms-playwright")
   let builds: string[] = []
   try {
     builds = readdirSync(cache)
@@ -172,7 +209,10 @@ export function findChrome(devBrowserHome: string, env: NodeJS.ProcessEnv = proc
   for (const build of builds) {
     const inside =
       process.platform === "darwin"
-        ? ["chrome-mac/Chromium.app/Contents/MacOS/Chromium", "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium"]
+        ? [
+            "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+            "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium",
+          ]
         : process.platform === "win32"
           ? ["chrome-win64\\chrome.exe", "chrome-win\\chrome.exe"]
           : ["chrome-linux64/chrome", "chrome-linux/chrome"]

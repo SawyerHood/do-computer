@@ -69,7 +69,10 @@ export class ScreenService {
     try {
       return { id: call.id, value: await this.#do(call) }
     } catch (error) {
-      return { id: call.id, error: { refused: error instanceof UseRefused, message: message(error) } }
+      return {
+        id: call.id,
+        error: { refused: error instanceof UseRefused, message: message(error) },
+      }
     }
   }
 
@@ -89,7 +92,11 @@ export class ScreenService {
     return acting
   }
 
-  async #act(agent: NonNullable<AppCall["agent"]>, action: ScreenAction, say: string | undefined): Promise<ScreenActed> {
+  async #act(
+    agent: NonNullable<AppCall["agent"]>,
+    action: ScreenAction,
+    say: string | undefined,
+  ): Promise<ScreenActed> {
     const { state, driver, pointer } = this.#options
     await state.enter(agent, say)
     if (action.do === "wait") {
@@ -98,7 +105,8 @@ export class ScreenService {
       while (this.#now() < until && !state.stopped) await sleep(Math.min(250, until - this.#now()))
     } else if (action.do !== "screenshot") {
       if ("x" in action) {
-        const click = action.do === "click" || action.do === "double_click" || action.do === "right_click"
+        const click =
+          action.do === "click" || action.do === "double_click" || action.do === "right_click"
         pointer.point(this.#onDisplay(action), click)
         this.#pointer = { x: action.x, y: action.y }
         if (click) state.clicks += 1

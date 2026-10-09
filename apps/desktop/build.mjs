@@ -2,7 +2,15 @@
 // one CommonJS file, the app's own pages, and the daemon it brings with it. Electron is the
 // only thing left outside; it is the program that runs all of this.
 import { execFileSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import * as path from "node:path"
 import { build } from "esbuild"

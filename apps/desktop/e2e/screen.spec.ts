@@ -3,7 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { _electron as electron, type ElectronApplication, expect, type Page, test } from "@playwright/test"
+import {
+  _electron as electron,
+  type ElectronApplication,
+  expect,
+  type Page,
+  test,
+} from "@playwright/test"
 
 // The app with a screen that is only pretended and a stand-in for its daemon, so that what is
 // tried is the app's own part: its switches, what it tells the daemon it starts, and what it
@@ -42,7 +48,11 @@ process.stdin.on("end", () => process.exit(0))
 type Heard = {
   screen?: string
   browser?: string
-  answers: { id: string; value?: Record<string, any>; error?: { refused: boolean; message: string } }[]
+  answers: {
+    id: string
+    value?: Record<string, any>
+    error?: { refused: boolean; message: string }
+  }[]
 }
 const heard = (): Heard | undefined => {
   try {
@@ -51,7 +61,8 @@ const heard = (): Heard | undefined => {
     return undefined
   }
 }
-const settings = () => JSON.parse(readFileSync(join(data, "settings.json"), "utf8")) as Record<string, unknown>
+const settings = () =>
+  JSON.parse(readFileSync(join(data, "settings.json"), "utf8")) as Record<string, unknown>
 
 let app: ElectronApplication
 
@@ -66,7 +77,9 @@ async function computer(): Promise<Page> {
       }),
     )
     .toBe(true)
-  await expect.poll(() => app.windows().some((page) => page.url().includes("computer.html"))).toBe(true)
+  await expect
+    .poll(() => app.windows().some((page) => page.url().includes("computer.html")))
+    .toBe(true)
   return app.windows().find((page) => page.url().includes("computer.html"))!
 }
 
@@ -107,9 +120,16 @@ test("a daemon that asks for the screen has it used, and is given a picture of i
   expect(acted!.error).toBeUndefined()
   expect(acted!.value!.shot).toMatchObject({ mimeType: "image/jpeg", width: 640, height: 480 })
   // A JPEG begins with these bytes, whatever it is a picture of.
-  expect(Buffer.from(acted!.value!.shot.data, "base64").subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]))
+  expect(Buffer.from(acted!.value!.shot.data, "base64").subarray(0, 3)).toEqual(
+    Buffer.from([0xff, 0xd8, 0xff]),
+  )
   expect(acted!.value!.pointer).toEqual({ x: 40, y: 30 })
-  expect(view!.value).toMatchObject({ active: true, clicks: 1, say: "Clicking Save", agent: { name: "Pip" } })
+  expect(view!.value).toMatchObject({
+    active: true,
+    clicks: 1,
+    say: "Clicking Save",
+    agent: { name: "Pip" },
+  })
   expect(readFileSync(done, "utf8")).toBe('{"do":"click","x":40,"y":30}\n')
 })
 
@@ -125,14 +145,18 @@ test("switching the screen off is remembered, and the daemon starts again withou
   const browser = page.getByRole("switch", { name: /A browser/ })
   await expect(screen).toBeChecked()
   await expect(browser).toBeChecked()
-  await expect(page.getByText("An agent cannot change these. They are kept on this computer.")).toBeVisible()
+  await expect(
+    page.getByText("An agent cannot change these. They are kept on this computer."),
+  ).toBeVisible()
 
   await screen.click()
   await expect(screen).not.toBeChecked()
   await expect.poll(() => settings().screen).toBe(false)
   // Started again, it is told nothing of a screen, and what it asks for is refused.
   await expect
-    .poll(() => heard()?.screen === undefined && heard()?.answers[0]?.error?.refused, { timeout: 20_000 })
+    .poll(() => heard()?.screen === undefined && heard()?.answers[0]?.error?.refused, {
+      timeout: 20_000,
+    })
     .toBe(true)
   expect(heard()!.answers[0]!.error!.message).toContain("does not let agents use its screen")
 })

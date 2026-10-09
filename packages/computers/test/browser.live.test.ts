@@ -29,7 +29,8 @@ let server: Server
 let pageUrl = ""
 let ownChrome: ChildProcess | undefined
 
-const isJpeg = (data: string) => Buffer.from(data, "base64").subarray(0, 3).toString("hex") === "ffd8ff"
+const isJpeg = (data: string) =>
+  Buffer.from(data, "base64").subarray(0, 3).toString("hex") === "ffd8ff"
 
 /** Whether nothing is listening on a port, found by listening on it for a moment. */
 const free = (port: number) =>
@@ -75,7 +76,10 @@ describe.skipIf(!live)("the browser, for real", () => {
        await page.shot();`,
       { timeoutMs: 60_000, say: "Pressing the button" },
     )
-    console.log({ ...ran, shots: ran.shots.map((shot) => ({ ...shot, data: `${shot.data.length} chars` })) })
+    console.log({
+      ...ran,
+      shots: ran.shots.map((shot) => ({ ...shot, data: `${shot.data.length} chars` })),
+    })
     expect(ran.error).toBeUndefined()
     expect(ran.output).toContain("the title is clicked")
     expect(ran.shots).toHaveLength(1)
@@ -89,7 +93,10 @@ describe.skipIf(!live)("the browser, for real", () => {
 
   it("shows whoever watches the page, and where the agent's pointer was when it clicked", async () => {
     const view = await io.view(0, 5_000)
-    console.log({ ...view, shot: view.shot && { ...view.shot, data: `${view.shot.data.length} chars` } })
+    console.log({
+      ...view,
+      shot: view.shot && { ...view.shot, data: `${view.shot.data.length} chars` },
+    })
     expect(view.active).toBe(true)
     expect(view.seq).toBeGreaterThan(0)
     expect(view.shot?.mimeType).toBe("image/jpeg")
@@ -108,7 +115,9 @@ describe.skipIf(!live)("the browser, for real", () => {
   }, 30_000)
 
   it("says why a script failed, without failing itself", async () => {
-    const ran = await io.run(agent, `console.log("before"); throw new Error("no such thing")`, { timeoutMs: 30_000 })
+    const ran = await io.run(agent, `console.log("before"); throw new Error("no such thing")`, {
+      timeoutMs: 30_000,
+    })
     console.log(ran)
     expect(ran.output).toContain("before")
     expect(ran.error).toContain("no such thing")
@@ -128,7 +137,14 @@ describe.skipIf(!live)("the browser, for real", () => {
     expect(chrome).not.toBeNull()
     ownChrome = spawn(
       chrome as string,
-      ["--headless=new", "--no-sandbox", `--remote-debugging-port=${port}`, `--user-data-dir=${join(dir, "own-profile")}`, "--no-first-run", "about:blank"],
+      [
+        "--headless=new",
+        "--no-sandbox",
+        `--remote-debugging-port=${port}`,
+        `--user-data-dir=${join(dir, "own-profile")}`,
+        "--no-first-run",
+        "about:blank",
+      ],
       { stdio: "ignore" },
     )
     for (let tries = 0; tries < 100; tries++) {

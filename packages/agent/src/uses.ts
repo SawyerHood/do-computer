@@ -132,7 +132,10 @@ export function screenAction(args: {
       const direction = args.direction
       if (
         place === undefined ||
-        (direction !== "up" && direction !== "down" && direction !== "left" && direction !== "right")
+        (direction !== "up" &&
+          direction !== "down" &&
+          direction !== "left" &&
+          direction !== "right")
       ) {
         return "scroll needs x and y to scroll at, and a direction: up, down, left or right."
       }
@@ -309,7 +312,9 @@ export class Uses {
         direction: Type.Optional(
           StringEnum(["up", "down", "left", "right"], { description: "For scroll" }),
         ),
-        amount: Type.Optional(Type.Number({ description: "For scroll: wheel notches, 3 if left out" })),
+        amount: Type.Optional(
+          Type.Number({ description: "For scroll: wheel notches, 3 if left out" }),
+        ),
         text: Type.Optional(Type.String({ description: "For type: the text" })),
         keys: Type.Optional(Type.String({ description: "For key: keys joined with +" })),
         seconds: Type.Optional(Type.Number({ description: "For wait: how long, 10 at most" })),
@@ -371,10 +376,10 @@ export class Uses {
       name: BROWSER_TOOL,
       description:
         "Run a short script in a browser on somebody's own computer, with dev-browser. It is their own Chrome when that is open and lets itself be used (then you are signed in wherever they are, and `browser.listPages()` shows their tabs: leave those alone unless asked), and otherwise a browser kept for agents. " +
-        "The script is the body of an async function with real Puppeteer objects; what it logs and the value of its last expression come back. End lines with semicolons. Pages are named and stay open between calls: `const page = await browser.getPage(\"main\"); await page.goto(\"https://example.com\");`. " +
-        "Look with `await page.snapshot({ interactive: true })`, an outline of the page with a ref on each thing, and act by ref: `await page.click(\"ref/e12\")`, `await page.fill(\"ref/e7\", \"text\")`, `await page.type(\"ref/e7\", \"text\")`, `await page.keyboard.press(\"Enter\")`. Refs change when the page does: look again. " +
+        'The script is the body of an async function with real Puppeteer objects; what it logs and the value of its last expression come back. End lines with semicolons. Pages are named and stay open between calls: `const page = await browser.getPage("main"); await page.goto("https://example.com");`. ' +
+        'Look with `await page.snapshot({ interactive: true })`, an outline of the page with a ref on each thing, and act by ref: `await page.click("ref/e12")`, `await page.fill("ref/e7", "text")`, `await page.type("ref/e7", "text")`, `await page.keyboard.press("Enter")`. Refs change when the page does: look again. ' +
         "`page.click` does not wait: `await page.waitForSelector(sel, { visible: true })` or `await page.waitForLoad()` first where something may not be there yet. `await page.shot()` takes a picture, which you are shown. `page.url()`, `page.title()` and `page.evaluate(() => …)` are as in Puppeteer. " +
-        "One decision to a call: look, or act and check. Prefer the outline to a picture: it is cheaper and exact. `await browser.closePage(\"main\")` when a page is done with.",
+        'One decision to a call: look, or act and check. Prefer the outline to a picture: it is cheaper and exact. `await browser.closePage("main")` when a page is done with.',
       parameters: Type.Object({
         script: Type.String({ description: "The script to run" }),
         timeout: Type.Optional(
@@ -408,7 +413,13 @@ export class Uses {
         try {
           // Scripts on one page would get in each other's way, so they take turns as well.
           ran = (await this.#inTurn(`${target.id}/browser`, () =>
-            target.sandbox.use!("browser", { op: "run", agent, script: args.script, timeoutMs, say }),
+            target.sandbox.use!("browser", {
+              op: "run",
+              agent,
+              script: args.script,
+              timeoutMs,
+              say,
+            }),
           )) as BrowserRan
         } catch (error) {
           return fail(error instanceof Error ? error.message : String(error))

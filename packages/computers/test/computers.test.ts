@@ -527,9 +527,7 @@ describe("a screen and a browser, asked for through the link", () => {
       screen: false,
       browser: false,
     })
-    await expect(sandbox.use!("screen", act)).rejects.toThrow(
-      /does not let agents use its screen/,
-    )
+    await expect(sandbox.use!("screen", act)).rejects.toThrow(/does not let agents use its screen/)
     await expect(sandbox.use!("browser", { op: "run", agent, script: "1" })).rejects.toThrow(
       /does not let agents use a browser/,
     )

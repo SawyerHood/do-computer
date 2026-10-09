@@ -25,7 +25,12 @@ export type PreviewTiming = {
   settleMs: number
 }
 
-export const PREVIEW_TIMING: PreviewTiming = { frameIntervalMs: 250, idleMs: 15_000, reconnectMs: 1_000, settleMs: 1_000 }
+export const PREVIEW_TIMING: PreviewTiming = {
+  frameIntervalMs: 250,
+  idleMs: 15_000,
+  reconnectMs: 1_000,
+  settleMs: 1_000,
+}
 
 export type PreviewOptions = {
   /** Counts everything shown. Shared, so that the count goes on when the browser changes. */
@@ -80,7 +85,9 @@ export const POINTER_SCRIPT = `(() => {
 })()`
 
 /** What the page said through the binding: which of the three it was, and where. */
-export function readPointer(payload: unknown): { kind: "m" | "d" | "c"; x: number; y: number } | null {
+export function readPointer(
+  payload: unknown,
+): { kind: "m" | "d" | "c"; x: number; y: number } | null {
   if (typeof payload !== "string") return null
   const match = /^([mdc]),(-?\d+),(-?\d+)$/.exec(payload)
   if (!match) return null
@@ -92,11 +99,13 @@ const MAX_FRAME_CHARS = 1_400_000
 const BLANK = new Set(["", "about:blank"])
 
 type Json = Record<string, unknown>
-const obj = (value: unknown): Json => (typeof value === "object" && value !== null ? (value as Json) : {})
+const obj = (value: unknown): Json =>
+  typeof value === "object" && value !== null ? (value as Json) : {}
 
 export function createPreview(connectionUrl: string, options: PreviewOptions): Preview {
   const timing = options.timing ?? PREVIEW_TIMING
-  const openSocket = options.openSocket ?? ((url: string) => new WebSocket(url) as unknown as PreviewSocket)
+  const openSocket =
+    options.openSocket ?? ((url: string) => new WebSocket(url) as unknown as PreviewSocket)
   const seq = options.seq
   const targets = new Map<string, { url: string; title: string; activity: number }>()
   const calls = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
@@ -121,14 +130,21 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
     for (const waiter of [...waiters]) waiter()
   }
 
-  function send(connection: PreviewSocket, method: string, params: Json, sessionId?: string): Promise<unknown> {
+  function send(
+    connection: PreviewSocket,
+    method: string,
+    params: Json,
+    sessionId?: string,
+  ): Promise<unknown> {
     if (connection !== socket || connection.readyState !== SOCKET_OPEN) {
       return Promise.reject(new Error("The browser's live view is not connected."))
     }
     const id = ++nextCallId
     return new Promise((resolve, reject) => {
       calls.set(id, { resolve, reject })
-      connection.send(JSON.stringify({ id, method, params, ...(sessionId === undefined ? {} : { sessionId }) }))
+      connection.send(
+        JSON.stringify({ id, method, params, ...(sessionId === undefined ? {} : { sessionId }) }),
+      )
     })
   }
 
@@ -139,7 +155,8 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
     if (settleTimer) clearTimeout(settleTimer)
     settleTimer = null
     targets.clear()
-    for (const call of calls.values()) call.reject(new Error("The browser's live view is not connected."))
+    for (const call of calls.values())
+      call.reject(new Error("The browser's live view is not connected."))
     calls.clear()
     if (connection && connection.readyState <= SOCKET_OPEN) connection.close()
   }
@@ -166,10 +183,14 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
         cast = null
         if (previous) {
           await send(connection, "Page.stopScreencast", {}, previous.sessionId).catch(() => {})
-          await send(connection, "Target.detachFromTarget", { sessionId: previous.sessionId }).catch(() => {})
+          await send(connection, "Target.detachFromTarget", {
+            sessionId: previous.sessionId,
+          }).catch(() => {})
         }
         if (targetId === null) return
-        const attached = obj(await send(connection, "Target.attachToTarget", { targetId, flatten: true }))
+        const attached = obj(
+          await send(connection, "Target.attachToTarget", { targetId, flatten: true }),
+        )
         const sessionId = String(attached.sessionId)
         cast = { targetId, sessionId }
         const target = targets.get(targetId)
@@ -179,12 +200,25 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
         await send(connection, "Page.enable", {}, sessionId)
         await send(connection, "Runtime.enable", {}, sessionId)
         await send(connection, "Runtime.addBinding", { name: POINTER_BINDING }, sessionId)
-        await send(connection, "Page.addScriptToEvaluateOnNewDocument", { source: POINTER_SCRIPT }, sessionId)
-        await send(connection, "Runtime.evaluate", { expression: POINTER_SCRIPT }, sessionId).catch(() => {})
+        await send(
+          connection,
+          "Page.addScriptToEvaluateOnNewDocument",
+          { source: POINTER_SCRIPT },
+          sessionId,
+        )
+        await send(connection, "Runtime.evaluate", { expression: POINTER_SCRIPT }, sessionId).catch(
+          () => {},
+        )
         await send(
           connection,
           "Page.startScreencast",
-          { format: "jpeg", quality: 60, maxWidth: SHOT_EDGE, maxHeight: SHOT_EDGE, everyNthFrame: 1 },
+          {
+            format: "jpeg",
+            quality: 60,
+            maxWidth: SHOT_EDGE,
+            maxHeight: SHOT_EDGE,
+            everyNthFrame: 1,
+          },
           sessionId,
         )
       })
@@ -200,7 +234,11 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
     const title = typeof info.title === "string" ? info.title : ""
     const known = targets.get(info.targetId)
     if (known && known.url === url && known.title === title) return
-    targets.set(info.targetId, { url, title, activity: known && known.url === url ? known.activity : ++activityClock })
+    targets.set(info.targetId, {
+      url,
+      title,
+      activity: known && known.url === url ? known.activity : ++activityClock,
+    })
     if (cast?.targetId === info.targetId) {
       page = { url, title }
       bump()
@@ -236,7 +274,8 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
         break
       case "Runtime.bindingCalled": {
         // Between scripts the mouse in the owner's own Chrome is the owner's, and is not shown.
-        if (!running || message.sessionId !== cast?.sessionId || params.name !== POINTER_BINDING) return
+        if (!running || message.sessionId !== cast?.sessionId || params.name !== POINTER_BINDING)
+          return
         const said = readPointer(params.payload)
         if (!said) return
         pointer = { x: said.x, y: said.y }
@@ -250,7 +289,12 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
         const metadata = obj(params.metadata)
         const width = Number(metadata.deviceWidth)
         const height = Number(metadata.deviceHeight)
-        if (typeof params.data === "string" && params.data.length <= MAX_FRAME_CHARS && width > 0 && height > 0) {
+        if (
+          typeof params.data === "string" &&
+          params.data.length <= MAX_FRAME_CHARS &&
+          width > 0 &&
+          height > 0
+        ) {
           // The size is the page's own, in the pixels the mouse is said in, not the JPEG's.
           shot = { mimeType: "image/jpeg", data: params.data, width, height }
           bump()
@@ -271,7 +315,12 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
         const ackAt = Math.max(Date.now(), nextAckAt) + timing.frameIntervalMs
         nextAckAt = ackAt
         const ack = setTimeout(() => {
-          void send(connection, "Page.screencastFrameAck", { sessionId: params.sessionId }, sessionId).catch(() => {})
+          void send(
+            connection,
+            "Page.screencastFrameAck",
+            { sessionId: params.sessionId },
+            sessionId,
+          ).catch(() => {})
         }, ackAt - Date.now())
         ack.unref()
         break

@@ -48,7 +48,11 @@ const EXEC_GRACE_MS = 10_000
 /** How long past a watcher's wait a picture of a screen or a page may still arrive. */
 const USE_GRACE_MS = 20_000
 
-export type LinkCoreOptions = { execGraceMs?: number; fileOpTimeoutMs?: number; useGraceMs?: number }
+export type LinkCoreOptions = {
+  execGraceMs?: number
+  fileOpTimeoutMs?: number
+  useGraceMs?: number
+}
 
 /**
  * The host side of the daemon protocol, independent of any transport: it owns the requests that
@@ -225,9 +229,7 @@ export class LinkCore {
    * for as long as the agent may be kept paused, and for a script as long as it may run.
    * Looking on waits only as long as a picture is waited for.
    */
-  async use(
-    request: Omit<ScreenFrame, "id"> | Omit<BrowserFrame, "id">,
-  ): Promise<unknown> {
+  async use(request: Omit<ScreenFrame, "id"> | Omit<BrowserFrame, "id">): Promise<unknown> {
     const id = this.#nextId()
     const doing = request.op === "act" || request.op === "run"
     const waitMs = doing

@@ -59,7 +59,11 @@ export function readFrames(ndjson: string): RanFrames {
       }
       case "image":
         if (typeof frame.path === "string" && Number(frame.width) > 0 && Number(frame.height) > 0) {
-          images.push({ path: frame.path, width: Number(frame.width), height: Number(frame.height) })
+          images.push({
+            path: frame.path,
+            width: Number(frame.width),
+            height: Number(frame.height),
+          })
         }
         break
       case "done":
@@ -71,7 +75,9 @@ export function readFrames(ndjson: string): RanFrames {
     }
   }
   // Each piece is given a line of its own, as a terminal would show them.
-  const output = text.map((piece) => (piece === "" || piece.endsWith("\n") ? piece : `${piece}\n`)).join("")
+  const output = text
+    .map((piece) => (piece === "" || piece.endsWith("\n") ? piece : `${piece}\n`))
+    .join("")
   return {
     output: output.trimEnd(),
     ...(error === undefined ? {} : { error }),

@@ -507,7 +507,8 @@ export function createClient(options: ClientOptions) {
             `${base}/jobs/${encodeURIComponent(jobId)}/output${from === undefined ? "" : `?from=${from}`}`,
           ),
         /** The address of the picture the agent kept of how a step on a screen or in a browser ended. */
-        shotUrl: (shotId: string) => `${options.baseUrl}${base}/shots/${encodeURIComponent(shotId)}`,
+        shotUrl: (shotId: string) =>
+          `${options.baseUrl}${base}/shots/${encodeURIComponent(shotId)}`,
         /**
          * How a computer's screen, or the browser on it, looks now, while the agent is using it.
          * Waits a few seconds for a picture newer than number `after`. Nothing is shown of one

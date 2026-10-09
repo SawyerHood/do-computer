@@ -117,9 +117,9 @@ describe("the screen of a paired computer", () => {
 
   it("is looked at but not used on a computer that may only be read", async () => {
     const { link } = wire(io({ screen: fakeScreen() }), { readOnly: true })
-    await expect(
-      link.use({ t: "screen", op: "act", agent: pip, action: click }),
-    ).rejects.toThrow(/read-only, so it will not use the screen/)
+    await expect(link.use({ t: "screen", op: "act", agent: pip, action: click })).rejects.toThrow(
+      /read-only, so it will not use the screen/,
+    )
     expect(await link.use({ t: "screen", op: "view", after: 0, waitMs: 0 })).toMatchObject({
       active: false,
     })
@@ -230,7 +230,9 @@ describe("who is using a screen", () => {
   it("tells an agent that stays paused that it is, and does not keep it for ever", async () => {
     const state = new UseState({ what: "the browser", heldWaitMs: 80 })
     state.hold(true)
-    await expect(state.enter(pip, undefined)).rejects.toThrow(/paused you before you could use the browser/)
+    await expect(state.enter(pip, undefined)).rejects.toThrow(
+      /paused you before you could use the browser/,
+    )
   })
 
   it("says so whenever something about it changes", async () => {

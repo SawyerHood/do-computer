@@ -36,7 +36,10 @@ export function parseEvent(line: string): DaemonEvent | undefined {
  * the daemon prints, as events are. The app answers with one line of JSON on the daemon's
  * input: an `AppAnswer`.
  */
-export type AppCall = { id: string } & Omit<import("@durable-computer/protocol").ScreenFrame, "t" | "id">
+export type AppCall = { id: string } & Omit<
+  import("@durable-computer/protocol").ScreenFrame,
+  "t" | "id"
+>
 
 /** The app's answer to a call: what it resolves with, or why not. */
 export type AppAnswer = {

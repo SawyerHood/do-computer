@@ -30,7 +30,10 @@ function service(options: { inPictures?: boolean; forbidden?: () => string | und
   const screen = new ScreenService({
     state,
     driver,
-    pointer: { point: (at, click) => pointed.push({ ...at, click }), inPictures: options.inPictures === true },
+    pointer: {
+      point: (at, click) => pointed.push({ ...at, click }),
+      inPictures: options.inPictures === true,
+    },
     // Twice the size of the pretend screen's pictures, which are 640 by 480.
     display: () => ({ width: 1280, height: 960 }),
     toJpeg: (png, quality) => Buffer.from(`jpeg ${quality} of ${png.length}`),
@@ -44,7 +47,13 @@ function service(options: { inPictures?: boolean; forbidden?: () => string | und
 describe("an agent using the screen", () => {
   it("is given a picture of the screen once what it asked is done", async () => {
     const { screen, driver, state } = service()
-    const answer = await screen.answer({ id: "1", op: "act", agent: pip, say: "Opening the sheet", action: { do: "type", text: "hello" } })
+    const answer = await screen.answer({
+      id: "1",
+      op: "act",
+      agent: pip,
+      say: "Opening the sheet",
+      action: { do: "type", text: "hello" },
+    })
     const acted = answer.value as ScreenActed
     expect(answer).toMatchObject({ id: "1" })
     expect(answer.error).toBeUndefined()
@@ -60,7 +69,12 @@ describe("an agent using the screen", () => {
   it("has its pointer put where it clicks, on the display and in the picture", async () => {
     const { screen, pointed, state } = service()
     await screen.answer({ id: "1", op: "act", agent: pip, action: { do: "screenshot" } })
-    const answer = await screen.answer({ id: "2", op: "act", agent: pip, action: { do: "click", x: 100, y: 50 } })
+    const answer = await screen.answer({
+      id: "2",
+      op: "act",
+      agent: pip,
+      action: { do: "click", x: 100, y: 50 },
+    })
     expect(pointed).toEqual([{ x: 200, y: 100, click: true }])
     expect((answer.value as ScreenActed).pointer).toEqual({ x: 100, y: 50 })
     expect(state.clicks).toBe(1)
@@ -77,9 +91,19 @@ describe("an agent using the screen", () => {
   })
 
   it("is refused, in words for its owner, when the system does not allow it", async () => {
-    const { screen, driver, state } = service({ forbidden: () => "Allow Do Computer under Accessibility." })
-    const answer = await screen.answer({ id: "1", op: "act", agent: pip, action: { do: "click", x: 1, y: 1 } })
-    expect(answer).toEqual({ id: "1", error: { refused: true, message: "Allow Do Computer under Accessibility." } })
+    const { screen, driver, state } = service({
+      forbidden: () => "Allow Do Computer under Accessibility.",
+    })
+    const answer = await screen.answer({
+      id: "1",
+      op: "act",
+      agent: pip,
+      action: { do: "click", x: 1, y: 1 },
+    })
+    expect(answer).toEqual({
+      id: "1",
+      error: { refused: true, message: "Allow Do Computer under Accessibility." },
+    })
     expect(driver.done).toEqual([])
     expect(state.active).toBe(false)
   })
@@ -88,7 +112,12 @@ describe("an agent using the screen", () => {
     const { screen, driver, state } = service()
     await screen.answer({ id: "1", op: "act", agent: pip, action: { do: "screenshot" } })
     state.stop()
-    const answer = await screen.answer({ id: "2", op: "act", agent: pip, action: { do: "click", x: 1, y: 1 } })
+    const answer = await screen.answer({
+      id: "2",
+      op: "act",
+      agent: pip,
+      action: { do: "click", x: 1, y: 1 },
+    })
     expect(answer.error?.refused).toBe(true)
     expect(answer.error?.message).toMatch(/stopped you/)
     expect(driver.done).toEqual([])
@@ -97,7 +126,12 @@ describe("an agent using the screen", () => {
   it("waits while it is paused, and carries on when let", async () => {
     const { screen, driver } = service()
     await screen.answer({ id: "1", op: "hold", held: true })
-    const acting = screen.answer({ id: "2", op: "act", agent: pip, action: { do: "key", keys: "enter" } })
+    const acting = screen.answer({
+      id: "2",
+      op: "act",
+      agent: pip,
+      action: { do: "key", keys: "enter" },
+    })
     await new Promise((resolve) => setTimeout(resolve, 30))
     expect(driver.done).toEqual([])
     await screen.answer({ id: "3", op: "hold", held: false })
@@ -110,7 +144,12 @@ describe("an agent using the screen", () => {
     driver.act = async () => {
       throw new Error("No such key.")
     }
-    const answer = await screen.answer({ id: "1", op: "act", agent: pip, action: { do: "key", keys: "f99" } })
+    const answer = await screen.answer({
+      id: "1",
+      op: "act",
+      agent: pip,
+      action: { do: "key", keys: "f99" },
+    })
     expect(answer).toEqual({ id: "1", error: { refused: false, message: "No such key." } })
   })
 })
@@ -118,15 +157,32 @@ describe("an agent using the screen", () => {
 describe("someone watching the screen", () => {
   it("is shown nothing of a screen no agent is using, and no picture is taken", async () => {
     const { screen, pictures } = service()
-    expect((await screen.answer({ id: "1", op: "view", waitMs: 50 })).value).toEqual({ active: false, seq: 0 })
+    expect((await screen.answer({ id: "1", op: "view", waitMs: 50 })).value).toEqual({
+      active: false,
+      seq: 0,
+    })
     expect(pictures()).toBe(0)
   })
 
   it("is shown the screen, the agent, and where its pointer is", async () => {
     const { screen } = service()
-    await screen.answer({ id: "1", op: "act", agent: pip, say: "Clicking Save", action: { do: "click", x: 30, y: 40 } })
+    await screen.answer({
+      id: "1",
+      op: "act",
+      agent: pip,
+      say: "Clicking Save",
+      action: { do: "click", x: 30, y: 40 },
+    })
     const view = (await screen.answer({ id: "2", op: "view" })).value as LiveView
-    expect(view).toMatchObject({ active: true, seq: 1, pointer: { x: 30, y: 40 }, clicks: 1, say: "Clicking Save", held: false, agent: pip })
+    expect(view).toMatchObject({
+      active: true,
+      seq: 1,
+      pointer: { x: 30, y: 40 },
+      clicks: 1,
+      say: "Clicking Save",
+      held: false,
+      agent: pip,
+    })
     expect(Buffer.from(view.shot!.data, "base64").toString()).toMatch(/^jpeg 50 of/)
   })
 
@@ -142,7 +198,8 @@ describe("someone watching the screen", () => {
     const { screen, pictures } = service()
     await screen.answer({ id: "1", op: "act", agent: pip, action: { do: "screenshot" } })
     const first = (await screen.answer({ id: "2", op: "view" })).value as LiveView
-    const same = (await screen.answer({ id: "3", op: "view", after: first.seq, waitMs: 0 })).value as LiveView
+    const same = (await screen.answer({ id: "3", op: "view", after: first.seq, waitMs: 0 }))
+      .value as LiveView
     expect(same.seq).toBe(first.seq)
     const taken = pictures()
     const [next, other] = (await Promise.all([
@@ -167,9 +224,18 @@ describe("the driver", () => {
   })
 
   it("is asked to act on the whole screen, in the places the agent gave", () => {
-    expect(driverCall({ do: "click", x: 3, y: 4 })).toEqual({ tool: "click", args: { scope: "desktop", x: 3, y: 4, button: "left", count: 1 } })
-    expect(driverCall({ do: "scroll", x: 3, y: 4, direction: "down" })?.args).toMatchObject({ amount: 3, direction: "down" })
-    expect(driverCall({ do: "key", keys: "cmd+s" })).toEqual({ tool: "press_key", args: { scope: "desktop", key: "s", modifiers: ["cmd"] } })
+    expect(driverCall({ do: "click", x: 3, y: 4 })).toEqual({
+      tool: "click",
+      args: { scope: "desktop", x: 3, y: 4, button: "left", count: 1 },
+    })
+    expect(driverCall({ do: "scroll", x: 3, y: 4, direction: "down" })?.args).toMatchObject({
+      amount: 3,
+      direction: "down",
+    })
+    expect(driverCall({ do: "key", keys: "cmd+s" })).toEqual({
+      tool: "press_key",
+      args: { scope: "desktop", key: "s", modifiers: ["cmd"] },
+    })
     expect(driverCall({ do: "move", x: 1, y: 1 })).toBeUndefined()
   })
 

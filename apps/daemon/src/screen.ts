@@ -12,10 +12,7 @@ import { type AppAnswer, type AppCall, formatCall, parseAnswer } from "./events.
  * The screen as the app that runs this daemon has it. Each thing asked is one line printed for
  * the app, which answers with one line on the daemon's input.
  */
-export function appScreen(
-  print: (line: string) => void,
-  input: NodeJS.ReadableStream,
-): ScreenIO {
+export function appScreen(print: (line: string) => void, input: NodeJS.ReadableStream): ScreenIO {
   const waiting = new Map<string, (answer: AppAnswer) => void>()
   let counter = 0
   let rest = ""

@@ -39,16 +39,29 @@ function runner(options: {
   const dir = mkdtempSync(join(tmpdir(), "dc-calls-"))
   const script = join(dir, "daemon.cjs")
   writeFileSync(script, STAND_IN)
-  running = new DaemonRunner({ script, dir, node: process.execPath, env: () => ({ ...process.env }), onChange: () => {}, onRevoked: () => {}, ...options })
+  running = new DaemonRunner({
+    script,
+    dir,
+    node: process.execPath,
+    env: () => ({ ...process.env }),
+    onChange: () => {},
+    onRevoked: () => {},
+    ...options,
+  })
   const heard = () => {
     try {
-      return JSON.parse(readFileSync(join(dir, "heard.json"), "utf8")) as { screen?: string; browser?: string; answers: AppAnswer[] }
+      return JSON.parse(readFileSync(join(dir, "heard.json"), "utf8")) as {
+        screen?: string
+        browser?: string
+        answers: AppAnswer[]
+      }
     } catch {
       return undefined
     }
   }
   const until = async (met: () => boolean) => {
-    for (let tries = 0; tries < 200 && !met(); tries++) await new Promise((resolve) => setTimeout(resolve, 25))
+    for (let tries = 0; tries < 200 && !met(); tries++)
+      await new Promise((resolve) => setTimeout(resolve, 25))
     expect(met()).toBe(true)
   }
   return { runner: running, heard, until }
@@ -57,7 +70,11 @@ function runner(options: {
 describe("what the daemon asks of the app", () => {
   it("is answered on the daemon's input, a line each, and kept out of what its owner reads", async () => {
     const calls: AppCall[] = []
-    const { runner: daemon, heard, until } = runner({
+    const {
+      runner: daemon,
+      heard,
+      until,
+    } = runner({
       onCall: async (call) => {
         calls.push(call)
         return { id: call.id, value: { done: true } }
@@ -71,14 +88,20 @@ describe("what the daemon asks of the app", () => {
   })
 
   it("is answered with what went wrong when the app could not do it", async () => {
-    const { runner: daemon, heard, until } = runner({
+    const {
+      runner: daemon,
+      heard,
+      until,
+    } = runner({
       onCall: async () => {
         throw new Error("The screen fell over.")
       },
     })
     daemon.start("https://do.example", false)
     await until(() => heard()?.answers.length === 1)
-    expect(heard()?.answers).toEqual([{ id: "c1", error: { refused: false, message: "The screen fell over." } }])
+    expect(heard()?.answers).toEqual([
+      { id: "c1", error: { refused: false, message: "The screen fell over." } },
+    ])
   })
 
   it("is refused by an app that has no screen to offer", async () => {

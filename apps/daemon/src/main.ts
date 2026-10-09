@@ -204,9 +204,9 @@ function audit(entry: Record<string, unknown>): void {
             ? `${String(entry.agent)} used the screen: ${String((entry.action as { do?: unknown })?.do)}`
             : entry.kind === "browser"
               ? `${String(entry.agent)} ran in a browser: ${String(entry.script).replace(/\s+/g, " ").slice(0, 200)}`
-          : entry.kind === "job_stop"
-            ? "stopped a command it had started"
-            : `${String(entry.kind)} ${String(entry.path ?? "")}`
+              : entry.kind === "job_stop"
+                ? "stopped a command it had started"
+                : `${String(entry.kind)} ${String(entry.path ?? "")}`
   log(what)
 }
 

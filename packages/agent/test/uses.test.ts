@@ -45,7 +45,14 @@ const agents = new NodeActorNamespace({
       models,
       defaultModel: "test/model",
       modelOptions: [
-        { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0, images: true },
+        {
+          id: "test/model",
+          name: "Test",
+          reasoning: false,
+          inputCost: 0,
+          outputCost: 0,
+          images: true,
+        },
         { id: "test/blind", name: "Blind", reasoning: false, inputCost: 0, outputCost: 0 },
       ],
       keepAliveMs: 100,
@@ -110,8 +117,17 @@ async function startDaemon(id: string, things: { screen: boolean; browser: boole
   )
   toDaemon.push((data) => daemon.onFrame(data))
   await links.connect(computerActorName(id), like, new Request("http://link/connect"))
-  const hello = { t: "hello", platform: "darwin", hostname: id, home, readOnly: false, version: "t" }
-  listeners.forEach((listener) => listener(JSON.stringify({ ...hello, jobs: true, ...things }), false))
+  const hello = {
+    t: "hello",
+    platform: "darwin",
+    hostname: id,
+    home,
+    readOnly: false,
+    version: "t",
+  }
+  listeners.forEach((listener) =>
+    listener(JSON.stringify({ ...hello, jobs: true, ...things }), false),
+  )
   daemon.onOpen()
   return home
 }
@@ -203,7 +219,11 @@ describe("the screen of somebody's own computer", () => {
     // The picture each step ended with is kept, for the chat to show afterwards.
     const kept = await ask(`/shots/${useOf(last!).shot}`)
     expect(kept.headers.get("content-type")).toBe("image/png")
-    expect(Buffer.from(await kept.arrayBuffer()).subarray(1, 4).toString()).toBe("PNG")
+    expect(
+      Buffer.from(await kept.arrayBuffer())
+        .subarray(1, 4)
+        .toString(),
+    ).toBe("PNG")
     expect((await ask("/shots/nothing.png")).status).toBe(404)
   })
 
@@ -258,9 +278,12 @@ describe("the screen of somebody's own computer", () => {
   it("is not for a model that cannot see pictures", async () => {
     await call("", "PATCH", { model: "test/blind" })
     faux.setResponses([
-      fauxAssistantMessage([fauxToolCall("screen", { computer: "MacBook", action: "screenshot" })], {
-        stopReason: "toolUse",
-      }),
+      fauxAssistantMessage(
+        [fauxToolCall("screen", { computer: "MacBook", action: "screenshot" })],
+        {
+          stopReason: "toolUse",
+        },
+      ),
       fauxAssistantMessage("done"),
     ])
     const blind = tools(await say(chat.id, "look at my screen")).at(-1)!
@@ -324,7 +347,11 @@ describe("a browser on somebody's own computer", () => {
 
 describe("what a call of the screen tool asks for", () => {
   it("is read from its arguments, with places as whole pixels", () => {
-    expect(screenAction({ action: "click", x: 10.4, y: 20.6 })).toEqual({ do: "click", x: 10, y: 21 })
+    expect(screenAction({ action: "click", x: 10.4, y: 20.6 })).toEqual({
+      do: "click",
+      x: 10,
+      y: 21,
+    })
     expect(screenAction({ action: "drag", x: 1, y: 2, to_x: 30, to_y: 40 })).toEqual({
       do: "drag",
       x: 1,
@@ -346,7 +373,9 @@ describe("what a call of the screen tool asks for", () => {
   it("is refused in words where something it needs is missing", () => {
     expect(screenAction({ action: "click" })).toMatch(/needs x and y/)
     expect(screenAction({ action: "type" })).toMatch(/needs the text/)
-    expect(screenAction({ action: "scroll", x: 1, y: 1, direction: "sideways" })).toMatch(/direction/)
+    expect(screenAction({ action: "scroll", x: 1, y: 1, direction: "sideways" })).toMatch(
+      /direction/,
+    )
     expect(screenAction({ action: "swipe" })).toMatch(/There is no action "swipe"/)
   })
 })

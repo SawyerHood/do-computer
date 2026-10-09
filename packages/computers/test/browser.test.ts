@@ -6,7 +6,12 @@ import { nodeBrowserIO } from "../src/browser/index.ts"
 import { DEV_BROWSER, assetName, assetUrl } from "../src/browser/binary.ts"
 import { keptChromeArgs, ownDataDirs, readDevToolsActivePort } from "../src/browser/chrome.ts"
 import { isJpeg, keepEnd, readFrames } from "../src/browser/frames.ts"
-import { POINTER_BINDING, createPreview, readPointer, type PreviewSocket } from "../src/browser/preview.ts"
+import {
+  POINTER_BINDING,
+  createPreview,
+  readPointer,
+  type PreviewSocket,
+} from "../src/browser/preview.ts"
 
 const line = (frame: unknown) => `${JSON.stringify(frame)}\n`
 
@@ -97,13 +102,19 @@ describe("the owner's own Chrome", () => {
   })
 
   it("is looked for where each browser keeps its things", () => {
-    expect(ownDataDirs("darwin", "/Users/ada", {})).toContain("/Users/ada/Library/Application Support/Google/Chrome")
-    expect(ownDataDirs("darwin", "/Users/ada", {})).toContain("/Users/ada/Library/Application Support/Microsoft Edge")
-    expect(ownDataDirs("linux", "/home/ada", {})).toContain("/home/ada/.config/google-chrome")
-    expect(ownDataDirs("linux", "/home/ada", { XDG_CONFIG_HOME: "/cfg" })).toContain("/cfg/chromium")
-    expect(ownDataDirs("win32", "C:\\Users\\ada", { LOCALAPPDATA: "C:\\Users\\ada\\AppData\\Local" })).toContain(
-      "C:\\Users\\ada\\AppData\\Local\\Google\\Chrome\\User Data",
+    expect(ownDataDirs("darwin", "/Users/ada", {})).toContain(
+      "/Users/ada/Library/Application Support/Google/Chrome",
     )
+    expect(ownDataDirs("darwin", "/Users/ada", {})).toContain(
+      "/Users/ada/Library/Application Support/Microsoft Edge",
+    )
+    expect(ownDataDirs("linux", "/home/ada", {})).toContain("/home/ada/.config/google-chrome")
+    expect(ownDataDirs("linux", "/home/ada", { XDG_CONFIG_HOME: "/cfg" })).toContain(
+      "/cfg/chromium",
+    )
+    expect(
+      ownDataDirs("win32", "C:\\Users\\ada", { LOCALAPPDATA: "C:\\Users\\ada\\AppData\\Local" }),
+    ).toContain("C:\\Users\\ada\\AppData\\Local\\Google\\Chrome\\User Data")
     expect(ownDataDirs("win32", "C:\\Users\\ada", {})).toContain(
       "C:\\Users\\ada\\AppData\\Local\\BraveSoftware\\Brave-Browser\\User Data",
     )
@@ -124,7 +135,12 @@ describe("the browser kept for agents", () => {
 
 /** A DevTools socket that answers what the live view asks, and can be made to say things. */
 function fakeChrome() {
-  const sent: { id: number; method: string; params: Record<string, unknown>; sessionId?: string }[] = []
+  const sent: {
+    id: number
+    method: string
+    params: Record<string, unknown>
+    sessionId?: string
+  }[] = []
   const listeners: Record<string, ((event: { data: unknown }) => void)[]> = {}
   const say = (message: unknown) => {
     for (const listener of listeners.message ?? []) listener({ data: JSON.stringify(message) })
@@ -135,11 +151,21 @@ function fakeChrome() {
       const call = JSON.parse(data)
       sent.push(call)
       queueMicrotask(() => {
-        say({ id: call.id, result: call.method === "Target.attachToTarget" ? { sessionId: "s1" } : {} })
+        say({
+          id: call.id,
+          result: call.method === "Target.attachToTarget" ? { sessionId: "s1" } : {},
+        })
         if (call.method === "Target.setDiscoverTargets") {
           say({
             method: "Target.targetCreated",
-            params: { targetInfo: { targetId: "t1", type: "page", url: "https://example.com/", title: "Example" } },
+            params: {
+              targetInfo: {
+                targetId: "t1",
+                type: "page",
+                url: "https://example.com/",
+                title: "Example",
+              },
+            },
           })
         }
       })
@@ -166,7 +192,11 @@ describe("the live view of a browser", () => {
     chrome.say({
       method: "Page.screencastFrame",
       sessionId: "s1",
-      params: { data: "anBlZw==", sessionId: 1, metadata: { deviceWidth: 1280, deviceHeight: 720 } },
+      params: {
+        data: "anBlZw==",
+        sessionId: 1,
+        metadata: { deviceWidth: 1280, deviceHeight: 720 },
+      },
     })
     await waiting
     expect(seq.n).toBeGreaterThan(0)
@@ -181,11 +211,21 @@ describe("the live view of a browser", () => {
   it("shows the mouse only while a script runs, and counts its presses", async () => {
     const chrome = fakeChrome()
     let clicks = 0
-    const preview = createPreview("ws://x", { seq: { n: 0 }, onClick: () => clicks++, openSocket: () => chrome.socket })
+    const preview = createPreview("ws://x", {
+      seq: { n: 0 },
+      onClick: () => clicks++,
+      openSocket: () => chrome.socket,
+    })
     preview.wake()
     await settle()
-    expect(chrome.sent.find((call) => call.method === "Runtime.addBinding")?.params).toEqual({ name: POINTER_BINDING })
-    const press = { method: "Runtime.bindingCalled", sessionId: "s1", params: { name: POINTER_BINDING, payload: "d,350,220" } }
+    expect(chrome.sent.find((call) => call.method === "Runtime.addBinding")?.params).toEqual({
+      name: POINTER_BINDING,
+    })
+    const press = {
+      method: "Runtime.bindingCalled",
+      sessionId: "s1",
+      params: { name: POINTER_BINDING, payload: "d,350,220" },
+    }
     // The owner's own mouse, between scripts, is not the agent's.
     chrome.say(press)
     expect(preview.latest().pointer).toBeUndefined()
@@ -214,7 +254,9 @@ describe("a browser that cannot be set up", () => {
     try {
       const io = nodeBrowserIO({ dir: mkdtempSync(join(tmpdir(), "dc-browser-none-")) })
       expect((await io.view(0, 10)).active).toBe(false)
-      const ran = await io.run({ id: "a", name: "Ada", color: "#000" }, "1 + 1", { timeoutMs: 1_000 })
+      const ran = await io.run({ id: "a", name: "Ada", color: "#000" }, "1 + 1", {
+        timeoutMs: 1_000,
+      })
       expect(ran.error).toContain("DC_DEV_BROWSER names /no/such/dev-browser")
       expect(ran).toMatchObject({ output: "", shots: [], own: false })
       await io.close()

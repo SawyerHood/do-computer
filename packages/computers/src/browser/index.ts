@@ -9,7 +9,15 @@ import { VIEW_WAIT_MS } from "@durable-computer/protocol"
 import type { BrowserIO } from "../daemon-core.ts"
 import { UseState } from "../use.ts"
 import { ensureDevBrowser } from "./binary.ts"
-import { findChrome, findOwnBrowser, keptChromeArgs, listening, readDevToolsActivePort, supervise, type Supervised } from "./chrome.ts"
+import {
+  findChrome,
+  findOwnBrowser,
+  keptChromeArgs,
+  listening,
+  readDevToolsActivePort,
+  supervise,
+  type Supervised,
+} from "./chrome.ts"
 import { isJpeg, keepEnd, readFrames } from "./frames.ts"
 import { createPreview, type Preview } from "./preview.ts"
 
@@ -55,7 +63,10 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   const socket =
     join(home, "daemon.sock").length < 90
       ? join(home, "daemon.sock")
-      : join(tmpdir(), `dc-browser-${createHash("sha1").update(home).digest("hex").slice(0, 12)}.sock`)
+      : join(
+          tmpdir(),
+          `dc-browser-${createHash("sha1").update(home).digest("hex").slice(0, 12)}.sock`,
+        )
   let daemon: Supervised | undefined
   let session: Session | undefined
   let queue: Promise<unknown> = Promise.resolve()
@@ -68,7 +79,23 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   /** What dev-browser and the browser are started with: little of this process's own, and a home apart from the owner's dev-browser. */
   function environment(): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = {}
-    for (const key of ["PATH", "HOME", "USERPROFILE", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "DISPLAY", "WAYLAND_DISPLAY", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY"]) {
+    for (const key of [
+      "PATH",
+      "HOME",
+      "USERPROFILE",
+      "LANG",
+      "LC_ALL",
+      "TMPDIR",
+      "TEMP",
+      "TMP",
+      "XDG_RUNTIME_DIR",
+      "DBUS_SESSION_BUS_ADDRESS",
+      "DISPLAY",
+      "WAYLAND_DISPLAY",
+      "HTTPS_PROXY",
+      "HTTP_PROXY",
+      "NO_PROXY",
+    ]) {
       if (process.env[key]) env[key] = process.env[key]
     }
     env.DEV_BROWSER_HOME = home
@@ -77,9 +104,17 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   }
 
   /** Run dev-browser to its end. Resolves with what it printed, and whether it had to be stopped. */
-  function execute(binary: string, args: string[], limitMs: number): Promise<{ stdout: string; stderr: string; stopped: boolean }> {
+  function execute(
+    binary: string,
+    args: string[],
+    limitMs: number,
+  ): Promise<{ stdout: string; stderr: string; stopped: boolean }> {
     return new Promise((resolve, reject) => {
-      const child = spawn(binary, args, { env: environment(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true })
+      const child = spawn(binary, args, {
+        env: environment(),
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      })
       let stdout = ""
       let stderr = ""
       let stopped = false
@@ -156,7 +191,9 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       await rm(join(profile, "DevToolsActivePort"), { force: true })
       const program = supervise(chrome, keptChromeArgs(profile, sandbox), environment())
       try {
-        const endpoint = readDevToolsActivePort(await waitForFile(join(profile, "DevToolsActivePort"), program, "The browser"))
+        const endpoint = readDevToolsActivePort(
+          await waitForFile(join(profile, "DevToolsActivePort"), program, "The browser"),
+        )
         if (endpoint === null) throw new Error("The browser did not say where it can be reached.")
         log(`browser: started ${chrome} for agents${sandbox ? "" : " (without its sandbox)"}`)
         return { ...endpoint, own: false, chrome: program, preview: preview(endpoint.ws) }
@@ -183,7 +220,9 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   async function ensureSession(binary: string): Promise<Session> {
     const ownAllowed = process.env.DC_BROWSER_OWN !== "0"
     if (session) {
-      const there = session.chrome ? session.chrome.alive() : ownAllowed && (await listening(session.port))
+      const there = session.chrome
+        ? session.chrome.alive()
+        : ownAllowed && (await listening(session.port))
       if (!there) await dropSession()
     }
     // The owner may have opened their Chrome since: theirs is preferred as soon as it is there.
@@ -202,7 +241,9 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   /** The page in front, asked of the browser itself, for where the live view cannot say. */
   async function frontPage(port: number): Promise<{ url?: string; title?: string }> {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1_000) })
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
+        signal: AbortSignal.timeout(1_000),
+      })
       const pages = (await response.json()) as { type?: string; url?: string; title?: string }[]
       const front = pages.find((page) => page.type === "page")
       return front ? { url: front.url ?? "", title: front.title ?? "" } : {}
@@ -212,7 +253,9 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   }
 
   /** The pictures a script took, read from where dev-browser wrote them and then removed. */
-  async function readShots(images: { path: string; width: number; height: number }[]): Promise<Shot[]> {
+  async function readShots(
+    images: { path: string; width: number; height: number }[],
+  ): Promise<Shot[]> {
     const shots: Shot[] = []
     const root = await realpath(join(home, "tmp")).catch(() => null)
     for (const image of images) {
@@ -223,7 +266,12 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         const bytes = await readFile(path)
         await rm(path, { force: true })
         if (shots.length >= MAX_SHOTS || bytes.length > MAX_SHOT_BYTES || !isJpeg(bytes)) continue
-        shots.push({ mimeType: "image/jpeg", data: bytes.toString("base64"), width: image.width, height: image.height })
+        shots.push({
+          mimeType: "image/jpeg",
+          data: bytes.toString("base64"),
+          width: image.width,
+          height: image.height,
+        })
       } catch {
         // A picture that cannot be read is left out; what the script printed still says it was taken.
       }
@@ -251,16 +299,27 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       const seconds = Math.max(1, Math.ceil(timeoutMs / 1000))
       const ran = await execute(
         binary,
-        ["--json", "--connect", current.ws, "--timeout", String(seconds), "--quiet-page", "-e", script],
+        [
+          "--json",
+          "--connect",
+          current.ws,
+          "--timeout",
+          String(seconds),
+          "--quiet-page",
+          "-e",
+          script,
+        ],
         // dev-browser ends a script that takes too long itself. This is for when it does not.
         timeoutMs + 10_000,
       )
       const frames = readFrames(ran.stdout)
       let error = frames.error
-      if (ran.stopped) error ??= `The script did not finish within ${seconds} seconds, and was stopped.`
+      if (ran.stopped)
+        error ??= `The script did not finish within ${seconds} seconds, and was stopped.`
       else if (frames.exitCode === undefined) {
         error ??= `dev-browser stopped before the script finished${ran.stderr.trim() ? `: ${ran.stderr.trim().slice(-500)}` : "."}`
-      } else if (frames.exitCode !== 0) error ??= `The script failed (exit code ${frames.exitCode}).`
+      } else if (frames.exitCode !== 0)
+        error ??= `The script failed (exit code ${frames.exitCode}).`
       // After a script that ran out of time dev-browser may still be busy with it: start it afresh.
       if (ran.stopped || frames.exitCode === 124 || frames.exitCode === undefined) {
         const old = daemon
@@ -270,7 +329,8 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       const shots = await readShots(frames.images)
       const front = (await current.preview.front()) ?? (await frontPage(current.port))
       // Where the browser can be reached is not something for an agent to be told, or to tell.
-      const hide = (text: string) => text.split(current.ws).join("[the browser]").split(home).join("[dev-browser]")
+      const hide = (text: string) =>
+        text.split(current.ws).join("[the browser]").split(home).join("[dev-browser]")
       return {
         output: keepEnd(hide(frames.output)),
         ...(error === undefined ? {} : { error: hide(error) }),
@@ -279,7 +339,12 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         own: current.own,
       }
     } catch (error) {
-      return { output: "", error: `dev-browser could not be run: ${said(error)}`, shots: [], own: current.own }
+      return {
+        output: "",
+        error: `dev-browser could not be run: ${said(error)}`,
+        shots: [],
+        own: current.own,
+      }
     } finally {
       clearInterval(touching)
       current.preview.running(false)

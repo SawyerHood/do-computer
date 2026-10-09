@@ -104,7 +104,10 @@ export function parseKeys(keys: string): { key: string; modifiers: string[] } {
   if (last === undefined) throw new Error("No key was named.")
   const modifiers = names.map((name) => {
     const modifier = MODIFIERS[name]
-    if (modifier === undefined) throw new Error(`"${name}" is not a key that is held: use cmd, ctrl, alt or shift before the key.`)
+    if (modifier === undefined)
+      throw new Error(
+        `"${name}" is not a key that is held: use cmd, ctrl, alt or shift before the key.`,
+      )
     return modifier
   })
   const key = last === "plus" ? "+" : (KEYS[last] ?? last)
@@ -126,7 +129,14 @@ export function driverCall(action: ScreenAction): { tool: string; args: object }
     case "drag":
       return {
         tool: "drag",
-        args: { scope, from_x: action.x, from_y: action.y, to_x: action.toX, to_y: action.toY, duration_ms: 400 },
+        args: {
+          scope,
+          from_x: action.x,
+          from_y: action.y,
+          to_x: action.toX,
+          to_y: action.toY,
+          duration_ms: 400,
+        },
       }
     case "scroll":
       return {
@@ -241,7 +251,11 @@ export function fakeDriver(log?: string): ScreenDriver & { readonly done: Screen
       const width = Math.min(maxEdge, 640)
       const height = Math.round((width * 3) / 4)
       // A shade that changes with what was done, so that one picture can be told from the next.
-      return { png: plainPng(width, height, [20, 120 + ((done.length * 16) % 120), 130]), width, height }
+      return {
+        png: plainPng(width, height, [20, 120 + ((done.length * 16) % 120), 130]),
+        width,
+        height,
+      }
     },
     async act(action) {
       done.push(action)
