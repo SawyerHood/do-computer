@@ -90,6 +90,9 @@ test.describe("an agent using a computer's screen", () => {
     await large.getByRole("button", { name: "Carry on" }).click()
     await expect(large.getByRole("button", { name: "Pause" })).toBeVisible()
     await page.keyboard.press("Escape")
+    await expect(large).toBeHidden()
+    // The window behind is still there, and no longer says it is paused.
+    await expect(view.getByRole("status")).toContainText("Clicking the button")
     await expect(view.getByText("Paused")).toBeHidden()
 
     await view.getByRole("button", { name: "Stop" }).click()

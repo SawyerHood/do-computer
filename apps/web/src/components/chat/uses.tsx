@@ -275,8 +275,11 @@ const pageOf = (use: Use, view: LiveView | undefined) =>
 function StepList({ use, view, live }: { use: Use; view: LiveView | undefined; live: boolean }) {
   const end = useRef<HTMLLIElement>(null)
   const count = use.steps.length
-  // The newest step is kept in view.
-  useEffect(() => end.current?.scrollIntoView({ block: "nearest" }), [count])
+  // The newest step is kept in view. Nothing is handed back to React: a newer browser answers
+  // scrollIntoView with a promise, which React would take for something to call on the way out.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "nearest" })
+  }, [count])
   return (
     <ol aria-label="Steps so far" className="flex flex-col gap-px">
       {use.steps.map((step, index) => {
