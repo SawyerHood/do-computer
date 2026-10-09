@@ -1,3 +1,4 @@
+import { ApiError } from "@durable-computer/client"
 import type { AgentSummary } from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
@@ -8,6 +9,7 @@ import { mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentQuery, refreshAgent } from "@/lib/collections"
 import { useAgentFavicon } from "@/lib/favicon"
+import { forgetLastAgent, rememberLastAgent } from "@/lib/last-agent"
 import { queryClient } from "@/lib/query"
 import { useListedAgent } from "@/lib/workspaces"
 
@@ -54,6 +56,15 @@ function AgentLayout() {
     if (failed) rememberMainChat(agentId, undefined)
     else if (mainId !== undefined) rememberMainChat(agentId, mainId)
   }, [agentId, mainId, failed])
+
+  // Kept too, so that the app opens on this agent the next time it is started. An agent the
+  // server will not give, being deleted or in a team that was left, is not one to come back to.
+  const loaded = state !== undefined
+  const refused = error instanceof ApiError && error.status < 500
+  useEffect(() => {
+    if (refused) forgetLastAgent(agentId)
+    else if (loaded && !failed) rememberLastAgent(agentId)
+  }, [agentId, loaded, failed, refused])
 
   if (error) {
     return (
