@@ -19,6 +19,27 @@ describe("describeChatError", () => {
     expect(view.detail?.match(/temporarily overloaded/g)).toHaveLength(1)
   })
 
+  it("says when the workspace is not signed in to the model's provider", () => {
+    // What pi says of a provider nobody is signed in to.
+    expect(describeChatError("Provider is not configured: anthropic")).toMatchObject({
+      kind: "signIn",
+      title: "The workspace isn't signed in to this model's provider.",
+      retryable: false,
+    })
+    // What the workspace says when a subscription's sign-in ran out and could not be renewed.
+    expect(
+      describeChatError(
+        "The sign-in to Anthropic has run out and could not be renewed (invalid_grant). Someone in the workspace needs to sign in to Anthropic again.",
+      ),
+    ).toMatchObject({ kind: "signIn", retryable: false })
+    // A key the provider refuses is still a refused key.
+    expect(
+      describeChatError(
+        '401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+      ).kind,
+    ).toBe("key")
+  })
+
   it("calls a failure on the provider's side a problem of the provider's", () => {
     expect(describeChatError(INTERNAL)).toMatchObject({
       kind: "provider",

@@ -80,6 +80,7 @@ import { harnessDocs, Library, LibraryDoc, LibraryError, LibraryStore } from "./
 import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
+import { mergeModelOptions } from "./model-providers.ts"
 import { parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
@@ -114,6 +115,12 @@ export type AgentActorOptions = {
   /** `provider/modelId` for agents that have not chosen a model. */
   readonly defaultModel: string
   readonly modelOptions: readonly ModelOption[]
+  /**
+   * The models of the providers the agent's workspace is signed in to, which it can run on as
+   * well as `modelOptions`. Asked each time, since someone can sign in or out, and an agent can
+   * be moved. Without it, an agent runs on the deployment's models only.
+   */
+  readonly workspaceModels?: () => Promise<readonly ModelOption[]>
   /** Extensions installed after the built-in ones. */
   readonly extensions?: readonly Extension[]
   /**
@@ -562,8 +569,7 @@ export class AgentActor implements Actor {
             keep: (file) => this.#library.keep(file),
             contents: (file) => this.#library.contents(file),
             libraryFile: (name) => this.#library.named(name),
-            sees: (model) =>
-              options.modelOptions.find((option) => option.id === model)?.images === true,
+            sees: (model) => this.#sees(model),
             onError: (error) => options.onReport?.(error),
           })
   }
@@ -782,7 +788,7 @@ export class AgentActor implements Actor {
       registry.install(this.#secrets.extension)
       registry.install(
         settingsExtension({
-          models: this.#options.modelOptions,
+          models: () => this.#modelOptions(),
           state: async () => {
             const identity = await this.#identity(await this.#open())
             return {
@@ -1443,7 +1449,7 @@ export class AgentActor implements Actor {
       throw new HttpError(400, "ownerId is required")
     }
     const model = input.model ?? this.#options.defaultModel
-    this.#requireModel(model)
+    await this.#requireModel(model)
     // Where nobody says which machines there are, the agent gets one to itself.
     const machine = this.#hosted ? undefined : this.#ownMachine(this.#choices.default)
     const outcome = await harness.commit(async (tx) => {
@@ -1471,14 +1477,37 @@ export class AgentActor implements Actor {
     return json(await this.#state(harness, await this.#identity(harness)))
   }
 
-  #requireModel(model: string): void {
-    if (!this.#options.modelOptions.some((option) => option.id === model)) {
-      throw new HttpError(400, `Unknown model "${model}"`)
-    }
+  /** Every model the agent can be set to: the deployment's, then its workspace's. */
+  async #modelOptions(): Promise<ModelOption[]> {
+    const workspace = (await this.#options.workspaceModels?.()) ?? []
+    return mergeModelOptions(this.#options.modelOptions, workspace)
+  }
+
+  async #requireModel(model: string): Promise<void> {
+    const offered =
+      this.#options.modelOptions.some((option) => option.id === model) ||
+      ((await this.#options.workspaceModels?.()) ?? []).some((option) => option.id === model)
+    if (!offered) throw new HttpError(400, `Unknown model "${model}"`)
     const ref = parseModel(model)
     if (this.#options.models.getModel(ref.provider, ref.modelId) === undefined) {
       throw new HttpError(400, `Model "${model}" is not available`)
     }
+  }
+
+  /**
+   * Whether a model takes pictures: as the deployment says of one it offers, and as the model
+   * itself says of one the agent's workspace is signed in to.
+   */
+  #sees(model: string): boolean {
+    const offered = this.#options.modelOptions.find((option) => option.id === model)
+    if (offered !== undefined) return offered.images === true
+    const slash = model.indexOf("/")
+    if (slash === -1) return false
+    return (
+      this.#options.models
+        .getModel(model.slice(0, slash), model.slice(slash + 1))
+        ?.input.includes("image") === true
+    )
   }
 
   /** What the agent has spent, summed from the ledger pi-durable keeps for each conversation. */
@@ -1663,7 +1692,7 @@ export class AgentActor implements Actor {
     const user = text("user", USER_LIMIT)
     const memory = text("memory", MEMORY_LIMIT)
     const model = text("model", 200)
-    if (model !== undefined) this.#requireModel(model)
+    if (model !== undefined) await this.#requireModel(model)
     const thinking = text("thinking", 20)
     if (thinking !== undefined && !isThinkingLevel(thinking)) {
       throw new HttpError(400, `thinking must be one of ${THINKING_LEVELS.join(", ")}`)
@@ -1906,8 +1935,7 @@ export class AgentActor implements Actor {
     if (total > MAX_MESSAGE_IMAGE_CHARS) {
       throw new HttpError(413, "Those pictures are too large to send with a message")
     }
-    const sees = this.#options.modelOptions.find((option) => option.id === model)?.images === true
-    return sees ? images : []
+    return this.#sees(model) ? images : []
   }
 
   /**

@@ -10,6 +10,7 @@ export type Env = {
   COMPUTER: DurableObjectNamespace
   PRESENCE: DurableObjectNamespace
   LIBRARY: DurableObjectNamespace
+  MODEL_ACCESS: DurableObjectNamespace
   SANDBOX: DurableObjectNamespace
   BLOBS: R2Bucket
 } & Record<string, string | undefined>
@@ -27,6 +28,7 @@ export function getPlatform(): Platform {
     computers: durableObjectNamespace(bindings.COMPUTER),
     presence: durableObjectNamespace(bindings.PRESENCE),
     libraries: durableObjectNamespace(bindings.LIBRARY),
+    modelAccess: durableObjectNamespace(bindings.MODEL_ACCESS),
     machines: computerChoices(readConfig(bindings), "cloudflare", cloudflareProviders(bindings)),
   })
 }

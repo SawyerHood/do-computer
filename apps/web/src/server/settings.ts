@@ -2,7 +2,7 @@ import { getPlatform } from "#platform"
 import type { ComputerKinds, UserSettings } from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
-import { deploymentModels, offersModel } from "./models.ts"
+import { defaultModelIn, deploymentModels, offersModel, offersModelTo } from "./models.ts"
 import { offeredKinds } from "./sandbox.ts"
 
 let kinds: ComputerKinds | undefined
@@ -22,36 +22,41 @@ const offersComputer = (kind: string) =>
 
 type Row = { default_model: string | null; default_computer: string | null }
 
-/** What a user chose, less anything the deployment has stopped offering since. */
+/** What a user chose, less a kind of computer the deployment has stopped offering since. */
 async function chosen(userId: string): Promise<{ model: string | null; computer: string | null }> {
   const row = await getPlatform().db.get<Row>(
     "SELECT default_model, default_computer FROM dc_user_settings WHERE user_id = ?",
     userId,
   )
-  const model = row?.default_model ?? null
   const computer = row?.default_computer ?? null
   return {
-    model: model !== null && offersModel(model) ? model : null,
+    model: row?.default_model ?? null,
     computer: computer !== null && offersComputer(computer) ? computer : null,
   }
 }
 
 /**
- * What a user's new agents start with: their own choices where they made them, the deployment's
- * otherwise.
+ * The model a user's new agent in a workspace starts on: their own choice where they made one
+ * and it can be had there, the workspace's otherwise. A model is only to be had in a workspace
+ * that is signed in to its provider, so a choice made in one may not hold in another.
  */
-export async function defaultsFor(userId: string): Promise<{ model: string; computer: string }> {
-  const { model, computer } = await chosen(userId)
-  return {
-    model: model ?? deploymentModels().defaultModel,
-    computer: computer ?? deploymentComputers().default,
-  }
+export async function defaultModelFor(userId: string, workspaceId: string): Promise<string> {
+  const { model } = await chosen(userId)
+  return model !== null && (await offersModel(model, workspaceId))
+    ? model
+    : defaultModelIn(workspaceId)
+}
+
+/** The kind of machine a workspace is given for a user's new agent: their choice, or the deployment's. */
+export async function defaultComputerFor(userId: string): Promise<string> {
+  return (await chosen(userId)).computer ?? deploymentComputers().default
 }
 
 async function settings(user: SessionUser): Promise<UserSettings> {
   const { model, computer } = await chosen(user.id)
   return {
-    defaultModel: model,
+    // One that nobody offers them any more, in any workspace, is no choice.
+    defaultModel: model !== null && (await offersModelTo(model, user.id)) ? model : null,
     deploymentDefaultModel: deploymentModels().defaultModel,
     defaultComputer: computer,
     deploymentDefaultComputer: deploymentComputers().default,
@@ -76,7 +81,7 @@ export async function updateSettings(user: SessionUser, request: Request): Promi
   const { db } = getPlatform()
   if ("defaultModel" in input) {
     const model = input.defaultModel
-    if (model !== null && (typeof model !== "string" || !offersModel(model))) {
+    if (model !== null && (typeof model !== "string" || !(await offersModelTo(model, user.id)))) {
       return fail(400, "That model is not available on this deployment.")
     }
     await db.run(

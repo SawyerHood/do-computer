@@ -31,8 +31,8 @@ export type SettingsChange = {
 }
 
 export type SettingsOptions = {
-  /** The models this deployment offers. */
-  readonly models: readonly ModelOption[]
+  /** The models the agent can be set to, read each time: its workspace can sign in to more. */
+  readonly models: () => Promise<readonly ModelOption[]>
   readonly state: (context: Context) => Promise<SettingsState>
   /** Make a change, checked as the app's own settings are. Rejects with `SettingsError`. */
   readonly update: (change: SettingsChange, context: Context) => Promise<void>
@@ -75,14 +75,15 @@ export function settingsExtension(options: SettingsOptions): Extension {
       if (args.action === "get") {
         const state = await options.state(context)
         const usage = await options.usage(context)
-        const current = options.models.find((model) => model.id === state.model)
+        const models = await options.models()
+        const current = models.find((model) => model.id === state.model)
         const query = (args.find ?? "").trim()
         const found =
           query === ""
-            ? options.models.filter((model) => model.recommended === true)
-            : filterModels(options.models, query)
+            ? models.filter((model) => model.recommended === true)
+            : filterModels(models, query)
         // With nothing suggested and nothing asked for, the first few are better than none.
-        const offered = (found.length === 0 && query === "" ? options.models : found).filter(
+        const offered = (found.length === 0 && query === "" ? models : found).filter(
           (model) => model.id !== state.model,
         )
         const lines = [
@@ -115,7 +116,7 @@ export function settingsExtension(options: SettingsOptions): Extension {
                 .map((model) => `- ${describeModel(model)}`)
                 .join("\n")}${
                 offered.length > MAX_MODELS_SHOWN || query === ""
-                  ? `\n(${options.models.length} models in all; pass \`find\` to search them.)`
+                  ? `\n(${models.length} models in all; pass \`find\` to search them.)`
                   : ""
               }`,
         ]

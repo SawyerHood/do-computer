@@ -1,6 +1,8 @@
 import { getPlatform } from "#platform"
+import type { AgentSummary } from "@durable-computer/protocol"
 import {
   agentFor,
+  callAgent,
   fail,
   json,
   MAX_AGENTS_PER_WORKSPACE,
@@ -9,8 +11,26 @@ import {
 } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { moveMachinesOf, removeMisfitComputersOf } from "./computers.ts"
+import { defaultModelIn, offersModel } from "./models.ts"
 import { announce } from "./presence.ts"
 import { mayRemoveAgent, roleIn } from "./teams.ts"
+
+/**
+ * An agent runs on a model of a provider its workspace is signed in to only while it is there.
+ * Moved to a workspace that is not signed in to it, it is set to that workspace's usual model,
+ * so that it goes on answering.
+ */
+async function keepRunnable(agentId: string, workspaceId: string): Promise<void> {
+  const response = await callAgent(agentId, "/").catch(() => undefined)
+  if (response === undefined || !response.ok) return
+  const { agent } = (await response.json()) as { agent: AgentSummary }
+  if (await offersModel(agent.model, workspaceId)) return
+  await callAgent(agentId, "/", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model: await defaultModelIn(workspaceId) }),
+  }).catch(() => undefined)
+}
 
 /**
  * Move an agent to another of the user's workspaces, with what is its own: its memory, chats,
@@ -43,6 +63,7 @@ export async function moveAgent(
     return fail(502, "The agent could not be told. Try again.")
   }
   await db.run("UPDATE dc_agents SET workspace_id = ? WHERE id = ?", workspaceId, agentId)
+  await keepRunnable(agentId, workspaceId)
   await moveMachinesOf(agentId, workspaceId)
   // A computer connected to it served the people it was shared with then. One that belongs to
   // a team it has left, or to someone who is not among the people it is shared with now, stops.

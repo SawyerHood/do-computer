@@ -884,6 +884,62 @@ Since then, newest last:
       (which is what makes the check prompt), and an update while a command was being
       waited for.
 
+28. **Signing a workspace in to model providers** (2026-10-09; `packages/agent/src/model-access.ts`,
+    `model-providers.ts`, `apps/web/src/server/model-access.ts`, `prototypes/model-sign-in`).
+    Every model call was paid from the deployment's one OpenRouter key. The owner asked for
+    "all of the different login methods for pi", and said the main thing was "log-in with codex
+    and claude". **The server side is built. No screen is: the mock-up is waiting on the owner.**
+    - **What pi has.** pi-ai 1.1.0 gives each provider its own sign-in: a key typed in, or the
+      provider's own flow for a subscription (Claude Pro/Max, ChatGPT for OpenAI and for Codex,
+      GitHub Copilot, xAI, Kimi, Meta, OpenRouter). A flow is a function that asks questions
+      and says things (`AuthInteraction`: a page to open, a code to enter there, a code to
+      paste), written for a terminal. Nothing here re-implements one: the app hosts them.
+    - **One actor per workspace** (`createModelAccessActor`, the `MODEL_ACCESS` Durable Object,
+      migration `v6`; `model-access/` under the data directory on Node), named by the
+      workspace's id. It keeps the credentials (`dc_model_credentials` in its own database),
+      runs a sign-in in memory while someone is doing it, and hands a credential to the
+      workspace's agents. A sign-in under way is lost if the actor is unloaded, and is started
+      again; the app asks for it with `?rev=&wait=`, which holds the request until something
+      changes and so keeps the actor loaded.
+    - **A token is exchanged in one place.** A subscription's token runs out and is exchanged
+      for a new one, and a provider that sees the old one used twice may sign the account out.
+      So agents never exchange one: an agent's `Models` reads through `workspaceCredentials`,
+      and the workspace's actor exchanges a token with less than ten minutes left before
+      handing it over, one exchange at a time. pi's own `modify`, which is how it would
+      exchange one itself, is answered with what the workspace keeps.
+    - **Which providers.** Every one pi has (39), less three: Amazon Bedrock and Google Vertex
+      sign in with files and roles of the server's own machine, and Radius by a page that has
+      to reach the server on its own address. Anthropic's sign-in asks how, and the way that
+      ends on a page showing a code is chosen for the person (`CHOSEN`), since the other ends
+      at an address on the server. OpenAI's two ways are both offered.
+    - **What an agent can run on** is the deployment's models and those of the providers its
+      workspace is signed in to (`workspaceModels` on the actor's options; `GET
+/api/models?workspaceId=`). A sign-in in a workspace takes the deployment's place for
+      that provider there: a workspace signed in to OpenRouter spends on its own account.
+      A new agent starts on its maker's default where the workspace offers it, and otherwise
+      on the workspace's: the deployment's, or the first suggested model of a sign-in where
+      the deployment has only its echo. An agent moved to a workspace that does not offer its
+      model is set to that workspace's.
+    - **Who may.** Anyone in a workspace can sign it in, and only they can read or answer
+      their own sign-in. Whoever signed in, or an admin, can sign out. Someone who leaves a
+      team, or is taken out, takes their sign-ins with them. A credential is never sent to a
+      browser, and the gateway has no route to the one address that returns one.
+    - **When it is gone.** An agent set to a model of a provider its workspace is not signed
+      in to gets a failed reply that says so (`signIn` in `chat-error.ts`).
+    - **Not built:** the Models section, the sign-in window, the picker saying where a model
+      comes from, and the picker asking for one workspace's models (it asks for all the
+      user's, which is right only for someone with one workspace). Web search, the judge and
+      dictation still run on the deployment's OpenRouter key and are absent without it.
+    - **pi-claude-bridge** (the owner asked whether it could be supported) cannot be loaded.
+      It is an extension for the pi coding agent, which this app does not run, and it works by
+      starting Claude Code as a process on the same machine with the login in `~/.claude`.
+      A Worker cannot start a process, and a server shared by many people has no one `~/.claude`.
+      What it buys is that use counts as Claude Code's own; signing in to Anthropic through pi,
+      which is what is built, is the other way, and the owner said that was acceptable.
+    - **Mine, not the owner's:** that a sign-in belongs to a workspace and not to a person or
+      to one agent; who may sign out; that leaving takes a sign-in along; the three providers
+      left out; the models suggested first for each provider.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

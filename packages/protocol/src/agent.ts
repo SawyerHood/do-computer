@@ -133,6 +133,8 @@ export type ModelOption = {
   /** `provider/model`. */
   id: string
   name: string
+  /** The service it is reached through, by name, where there is more than one to tell apart. */
+  provider?: string
   reasoning: boolean
   /**
    * The thinking levels it offers, least first. Models differ: some cannot stop thinking, some

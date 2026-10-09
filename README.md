@@ -6,7 +6,8 @@ client is closed, runs schedules, learns skills, and can work on your own machin
 shared by a [team](#teams).
 
 One codebase deploys to Cloudflare Workers and to plain Node. Models are called through
-[OpenRouter](https://openrouter.ai). The agent loop is
+[OpenRouter](https://openrouter.ai) on the deployment's key, or through a provider a workspace
+has [signed in to](#models). The agent loop is
 [pi-durable](https://earendil.com/posts/pi-durable/).
 
 **Status:** early. The core works on both runtimes and is covered by tests; see
@@ -66,7 +67,7 @@ runs the tests and nothing else.
 
 | Variable                                   | Meaning                                                                                                                                                           |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`                       | Pays for every model call on the deployment.                                                                                                                      |
+| `OPENROUTER_API_KEY`                       | Pays for every call to the deployment's own models. A workspace signed in to a provider of its own pays for those. See [Models](#models).                         |
 | `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.                                  |
 | `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                              |
 | `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                  |
@@ -158,11 +159,35 @@ test/daytona.live.test.ts` (it creates one machine and deletes it). Modal and Cl
 Containers are tested against stand-ins that run real commands, and have not yet been run with a
 real account: treat the first deployment on either as a trial.
 
+## Models
+
+A deployment with `OPENROUTER_API_KEY` offers every OpenRouter model that can call tools, and
+pays for them. Beyond that, a workspace can be signed in to a model provider of its own, and
+its agents can then be set to that provider's models:
+
+- **With a subscription**, through the provider's own sign-in: Claude Pro or Max, ChatGPT (for
+  OpenAI's models, and for Codex), GitHub Copilot, and a few more.
+- **With a key**, for any of the providers [pi](https://github.com/earendil-works/pi) knows:
+  Anthropic, OpenAI, Google, OpenRouter, Groq, Mistral, xAI and some thirty others.
+
+A sign-in belongs to the workspace. Every agent in it can run on it, everyone in a team can set
+an agent to its models, and what they use counts against whoever signed in. Whoever signed in,
+or an admin of the team, can sign out; someone who leaves a team takes their sign-ins along.
+Keys and tokens are kept with the workspace and are never sent to a browser or shown to an
+agent.
+
+The server side of this is in place and there is no screen for it yet, so for now it is
+reached through the API: `GET /api/workspaces/:id/model-providers`, `POST
+/api/workspaces/:id/model-logins`, and `GET /api/models?workspaceId=:id`.
+
+Amazon Bedrock and Google Vertex are not offered: they sign in with files and roles of the
+machine the server runs on, which belong to no workspace.
+
 ## Limits worth knowing
 
-Every model call is paid from the one deployment key and there are no per-user limits yet, which
-is why sign-up is by invitation unless you open it. Everyone invited to a team spends on that key
-too. So do agents that write to each other, and an exchange between them runs until they stop
+Every call to one of the deployment's models is paid from the one deployment key and there are
+no per-user limits yet, which is why sign-up is by invitation unless you open it. Everyone
+invited to a team spends on that key too. So do agents that write to each other, and an exchange between them runs until they stop
 answering or someone stops the conversation.
 
 ## What an agent can do

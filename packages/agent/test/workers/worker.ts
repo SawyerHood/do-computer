@@ -6,12 +6,18 @@ import {
 import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
-import { type AgentDirectory, createAgentActor, createAgentModels } from "../../src/index.ts"
+import {
+  type AgentDirectory,
+  createAgentActor,
+  createAgentModels,
+  createModelAccessActor,
+} from "../../src/index.ts"
 import { fakeMcp } from "../fake-mcp.ts"
 
 export type Env = {
   AGENT: DurableObjectNamespace
   SCRIPTED: DurableObjectNamespace
+  MODEL_ACCESS: DurableObjectNamespace
   BLOBS: R2Bucket
 }
 
@@ -85,6 +91,12 @@ export const ScriptedAgentObject = createDurableActorClass<Env>({
       connectorFetch: mcp.fetch,
     }),
   blobs: (env, name) => r2Blobs(env.BLOBS, `${encodeURIComponent(name)}/`),
+})
+
+/** A workspace's sign-ins to model providers, with the providers pi really has. */
+export const ModelAccessObject = createDurableActorClass<Env>({
+  create: (host) => createModelAccessActor(host),
+  blobs: (env, name) => r2Blobs(env.BLOBS, `models/${encodeURIComponent(name)}/`),
 })
 
 export default { fetch: () => new Response("agent test worker") } satisfies ExportedHandler<Env>
