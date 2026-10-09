@@ -1027,8 +1027,10 @@ Since then, newest last:
     - **Packing** is electron-builder's (`electron-builder.yml`): a universal `.dmg`, an NSIS
       installer and an AppImage. `DC_DESKTOP_SERVER` at build time is the deployment
       the app opens without asking; the workflow passes the repository's `DC_BASE_URL`, so
-      nothing about do.computer is in a tracked file. A tag named `desktop-v…` makes a draft
-      release.
+      nothing about do.computer is in a tracked file. A tag named `desktop-v` and a version makes a
+      release of that version, published once the app has passed on all three systems. The
+      owner asked for releases after finding there were none ("Can we add releases for these
+      that would be great"); the first, `desktop-v0.1.0`, was made on 2026-10-09.
     - **Checked:** `apps/desktop/e2e/desktop.spec.ts` starts the app itself against the built
       Node server: a first run, a wrong address, signing up, the page to confirm on appearing
       by itself, an agent running a command on the machine with the window closed, that

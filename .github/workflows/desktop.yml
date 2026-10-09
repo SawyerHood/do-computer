@@ -74,7 +74,13 @@ jobs:
         run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test
       - name: Pack it
         working-directory: apps/desktop
-        run: pnpm exec electron-builder --publish never
+        # A release is the version its tag says, in the app and in the names of its files.
+        run: |
+          version=""
+          case "$GITHUB_REF" in
+            refs/tags/desktop-v*) version="-c.extraMetadata.version=${GITHUB_REF_NAME#desktop-v}" ;;
+          esac
+          pnpm exec electron-builder --publish never $version
         env:
           # Nobody's certificate signs it. Without this, one on the machine would be tried.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -105,7 +111,7 @@ jobs:
           path: apps/desktop/test-results
           retention-days: 7
 
-  # A tag named desktop-v… makes a draft release with what was packed, for someone to publish.
+  # A tag named desktop-v… makes a release with what was packed, once it ran on every system.
   release:
     needs: app
     if: startsWith(github.ref, 'refs/tags/desktop-v')
@@ -118,6 +124,17 @@ jobs:
           path: packed
           pattern: do-computer-*
           merge-multiple: true
-      - run: gh release create "$GITHUB_REF_NAME" packed/* --repo "$GITHUB_REPOSITORY" --draft --title "Do Computer for desktop ${GITHUB_REF_NAME#desktop-v}"
+      - run: |
+          cat > notes.md <<'NOTES'
+          Do Computer in a window of its own, which is also the daemon that lets your agents work on the computer it runs on.
+
+          - **macOS**: the `.dmg`, for Apple's chips and Intel's alike.
+          - **Windows**: the `.exe` installer. Install [Git for Windows](https://gitforwindows.org) too, so that agents' commands run in bash.
+          - **Linux**: the `.AppImage`. Make it executable (`chmod +x`) and run it.
+
+          Nobody has signed these, so macOS and Windows warn before opening them: on macOS allow the app under System Settings, Privacy & Security; on Windows choose More info, then Run anyway.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" packed/* --repo "$GITHUB_REPOSITORY" \
+            --title "Do Computer for desktop ${GITHUB_REF_NAME#desktop-v}" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}

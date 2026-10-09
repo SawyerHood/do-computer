@@ -469,8 +469,15 @@ DC_DESKTOP_SERVER=https://agents.example.com pnpm --filter @durable-computer/des
 
 The `Desktop` workflow builds, tests and packs the app on all three systems and keeps what it
 packed with the run: a `.dmg`, an installer for Windows and an AppImage. Where the
-repository variable `DC_BASE_URL` is set, those open that deployment. Pushing a tag named
-`desktop-v…` also puts them in a draft release.
+repository variable `DC_BASE_URL` is set, those open that deployment.
+
+Releases are made from tags. Pushing one named `desktop-v` and a version, `desktop-v0.2.0`,
+packs the app as that version and, once it has passed on all three systems, publishes a
+release with the three files:
+
+```sh
+git tag desktop-v0.2.0 && git push origin desktop-v0.2.0
+```
 
 Things to know:
 
