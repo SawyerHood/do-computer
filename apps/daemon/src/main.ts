@@ -183,7 +183,8 @@ async function run(config: Config): Promise<void> {
       socket.send(frame)
       return true
     },
-    { readOnly: config.readOnly },
+    // The server says there may be a newer daemon: look now, not at the next look.
+    { readOnly: config.readOnly, onUpdate: () => void checkForUpdate() },
   )
 
   // A daemon run from its source has no version to compare, and nothing on disk to replace.

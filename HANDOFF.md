@@ -843,6 +843,16 @@ Since then, newest last:
       to be, keeps the old file as `daemon.cjs.previous`, puts the new one in its place in one
       step, waits up to fifteen minutes for whatever the agent is doing there to end, and
       exits with code 75.
+    - **The server can tell it to.** The owner asked next whether the server could send a
+      signal, "like an agent needs a new capability". It sends an `update` frame, and a daemon
+      that keeps itself up to date looks at once. The computer's link sends it when a daemon
+      that is not the one served connects or is used (at most once a minute), when the
+      Computers page lists one that is behind, and when something is asked of a daemon that
+      it cannot do. In that last case the request waits up to twenty seconds for the daemon
+      to come back as one that can, so the agent's call goes through instead of failing; a
+      daemon that is not back in time, or does not update itself, is said to be so in words
+      the agent passes on. Today the only such ability is `jobs`, which every daemon that
+      updates itself already has, so the waiting is for whatever comes next.
     - **Two processes.** The daemon now runs as a supervisor and a worker. The supervisor only
       starts the worker again when it exits with 75, so the same thing happens under systemd,
       under launchd and in a terminal, and nothing about the service files changed. A worker
@@ -865,7 +875,11 @@ Since then, newest last:
       the built server and a real daemon on this machine: an older build paired, downloaded
       the server's, and was running as it a tenth of a second later, and the agent ran a
       command through it; and with a server whose daemon could not start, the old one was
-      put back, reconnected, and did not fetch that version again. **Not checked:** macOS or
+      put back, reconnected, and did not fetch that version again; and a build that never
+      asks by itself updated the moment it connected, which only the server's frame can
+      have caused. The waiting for an ability is checked in
+      `packages/computers/test/computers.test.ts` with a stand-in for the daemon coming
+      back. **Not checked:** macOS or
       launchd, a daemon run by systemd, a deploy to Cloudflare dropping a live connection
       (which is what makes the check prompt), and an update while a command was being
       waited for.
@@ -1081,6 +1095,11 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   the live site, where an agent's Durable Object may also have to wake.
 
 ## 9. Things that were learned the hard way
+
+- **`date +%s%3N` is not to be trusted where `date` is not GNU's.** The owner's machine has
+  uutils coreutils, whose `date` now and then prints seconds and milliseconds that do not belong
+  together, so a time taken with it went backwards about once in a hundred. CI and Daytona
+  have GNU's and never showed it. The job runner measures with bash's `EPOCHREALTIME` instead.
 
 - **A blob key is a path on Node and only a name on R2.** A key that is another key plus
   `/more` needs the first to be a directory, which a file cannot be. A file's later revisions

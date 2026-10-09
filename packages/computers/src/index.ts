@@ -1,5 +1,5 @@
 export { DaemonCore, type DaemonCoreOptions, type DaemonIO } from "./daemon-core.ts"
-export { createComputerLinkActor, type LinkStatus } from "./link-actor.ts"
+export { createComputerLinkActor, type LinkActorOptions, type LinkStatus } from "./link-actor.ts"
 export {
   LinkCore,
   type LinkCoreOptions,

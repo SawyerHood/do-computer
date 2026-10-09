@@ -15,6 +15,7 @@ import { createAgentBeside } from "./agents.ts"
 import { addableKinds, addMachineFor, removeMachineFor } from "./computers.ts"
 import { slackDirectory } from "./slack.ts"
 import { computerDirectory } from "./computer-directory.ts"
+import { servedDaemon } from "./daemon-version.ts"
 import { libraryDirectory } from "./library-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
@@ -52,7 +53,7 @@ function create(): NodePlatform {
   const links = new NodeActorNamespace({
     directory: join(directory, "computers"),
     blobs: () => fileBlobs(join(directory, "blobs", "computers")),
-    factory: (host) => createComputerLinkActor(host),
+    factory: (host) => createComputerLinkActor(host, { daemonVersion: servedDaemon }),
     socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
     onError: (error, name) => console.error(`[${name}]`, error),
   })

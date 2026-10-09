@@ -11,6 +11,7 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { agentDirectory } from "./server/agent-directory.ts"
 import { createAgentBeside } from "./server/agents.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
+import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
 import {
   addableKinds,
@@ -74,7 +75,7 @@ export const AgentObject = createDurableActorClass<Env>({
 
 /** One Durable Object per paired computer. Its daemon's socket hibernates with it. */
 export const ComputerObject = createDurableActorClass<Env>({
-  create: (host) => createComputerLinkActor(host),
+  create: (host) => createComputerLinkActor(host, { daemonVersion: servedDaemon }),
   blobs: (env, name) => r2Blobs(env.BLOBS, `computers/${encodeURIComponent(name)}/`),
   socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
 })

@@ -698,7 +698,7 @@ export class Jobs {
           if (error instanceof JobsUnsupported) {
             if (background !== true) return plainly()
             return fail(
-              `"${target.computer.name}" cannot run commands in the background: the program that connects it is too old. Whoever it belongs to can update it by running the install command from Computers again. Until then, run it without run_in_background, with a timeout long enough for it.`,
+              `"${target.computer.name}" cannot run commands in the background yet. ${error.message} Until then, run it without run_in_background, with a timeout long enough for it.`,
             )
           }
           // Whoever made the call is told it failed, so the command is not left running unseen.

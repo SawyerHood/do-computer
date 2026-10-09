@@ -74,6 +74,8 @@ const WRITE_ASSEMBLY_TTL_MS = 120_000
 export type DaemonCoreOptions = {
   /** Refuse commands and writes; the agent may only read files. Decided by the machine's owner. */
   readonly readOnly?: boolean
+  /** Called when the host says there may be a newer daemon to become. */
+  readonly onUpdate?: () => void
   readonly now?: () => number
 }
 
@@ -92,6 +94,7 @@ export class DaemonCore {
   readonly #io: DaemonIO
   readonly #send: (frame: string) => boolean
   readonly #readOnly: boolean
+  readonly #onUpdate: (() => void) | undefined
   readonly #now: () => number
 
   /** @param send Deliver one frame to the socket; false means not connected. */
@@ -99,6 +102,7 @@ export class DaemonCore {
     this.#io = io
     this.#send = send
     this.#readOnly = options.readOnly ?? false
+    this.#onUpdate = options.onUpdate
     this.#now = options.now ?? Date.now
   }
 
@@ -193,6 +197,9 @@ export class DaemonCore {
         // Looking at a job and stopping one change nothing a read-only computer protects.
         if (this.#readOnly && frame.op === "start") return this.#refuse(frame.id, "run commands")
         this.#track(this.#job(frame))
+        return
+      case "update":
+        this.#onUpdate?.()
         return
       case "revoked":
         // The transport reacts to the close code; nothing to do here.
