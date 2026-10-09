@@ -15,6 +15,11 @@ export type ScreenDriver = {
   capture(maxEdge: number): Promise<Picture>
   /** Do one thing. Places are in the pixels of the picture last taken. */
   act(action: ScreenAction): Promise<void>
+  /**
+   * Ask the driver something that touches nothing and needs no leave of the system: how large
+   * the screen is. What it says is proof that it loaded and runs on this computer.
+   */
+  probe?(): Promise<string>
   dispose(): Promise<void>
 }
 
@@ -188,6 +193,7 @@ export function cuaDriver(dir: string): ScreenDriver {
       const asked = driverCall(action)
       if (asked !== undefined) await call(asked.tool, asked.args)
     },
+    probe: async () => (await call("get_screen_size", {})).text.trim(),
     async dispose() {
       const cua = await loading?.catch(() => undefined)
       loading = undefined

@@ -9,6 +9,7 @@
  * The few pages that are the program's own (choosing the deployment, and how this computer is
  * shared) are files that come with it.
  */
+import { writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -120,6 +121,23 @@ function screenForbidden(): string | undefined {
   ]
   if (missing.length === 0) return undefined
   return `macOS has not let Do Computer use this Mac's screen yet. Ask its owner to allow Do Computer under ${missing.join(" and ")} in System Settings, Privacy & Security (the Do Computer app on that Mac has a button for each, under This Computer), then try again.`
+}
+
+/**
+ * For the tests, which have no other way to know that the driver that came with the app loads
+ * and runs on the system they are on: ask it how large the screen is, and write down what it
+ * said, or why it could not.
+ */
+async function probeDriver(): Promise<void> {
+  const file = process.env.DC_DESKTOP_PROBE_DRIVER
+  if (file === undefined || file === "") return
+  const driver = cuaDriver(driverDir())
+  const said = await driver.probe!().then(
+    (text) => `ok: ${text}`,
+    (error) => `failed: ${error instanceof Error ? error.message : String(error)}`,
+  )
+  writeFileSync(file, said)
+  await driver.dispose()
 }
 
 /** The screen as agents use it, made when one first does or the app is ready to draw on it. */
@@ -617,5 +635,6 @@ if (!app.requestSingleInstanceLock()) {
     if (settings.server === undefined) showWelcome()
     else if (!startedHidden()) showMain()
     void startSharing()
+    void probeDriver()
   })
 }
