@@ -2,6 +2,8 @@
 # for whoever opens it.
 appId: computer.do.desktop
 productName: Do Computer
+# A name without a space in it, for whoever downloads it from a terminal.
+artifactName: Do-Computer-${version}-${os}-${arch}.${ext}
 directories:
   output: release
   buildResources: assets
@@ -26,4 +28,4 @@ linux:
   icon: assets/icon.png
   category: Utility
   executableName: do-computer
-  target: [AppImage, deb]
+  target: [AppImage]

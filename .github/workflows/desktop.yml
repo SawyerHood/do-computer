@@ -90,7 +90,6 @@ jobs:
             apps/desktop/release/*.dmg
             apps/desktop/release/*.exe
             apps/desktop/release/*.AppImage
-            apps/desktop/release/*.deb
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@v4

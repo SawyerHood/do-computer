@@ -465,7 +465,7 @@ DC_DESKTOP_SERVER=https://agents.example.com pnpm --filter @durable-computer/des
 ```
 
 The `Desktop` workflow builds, tests and packs the app on all three systems and keeps what it
-packed with the run: a `.dmg`, an installer for Windows, an AppImage and a `.deb`. Where the
+packed with the run: a `.dmg`, an installer for Windows and an AppImage. Where the
 repository variable `DC_BASE_URL` is set, those open that deployment. Pushing a tag named
 `desktop-v…` also puts them in a draft release.
 

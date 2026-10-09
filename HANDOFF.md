@@ -1000,8 +1000,11 @@ Since then, newest last:
       a downloaded daemon. Without that last one an Electron app an agent started would run
       as Node.
     - **Pairing without a link to copy.** When its owner says agents may use the computer,
-      the app waits until the window is signed in (it asks `/api/me` with the window's own
-      session) and then shows the page the daemon is waiting at. Started at sign-in with a
+      the app waits until the window is signed in and the account has an agent (it asks
+      `/api/agents` with the window's own session) and then shows the page the daemon is
+      waiting at. A new account has no agent until the page it lands on has made one, and the
+      page that confirms a pairing is where the agents are chosen: shown too soon, it offers
+      none. A run on a macOS machine showed that. Started at sign-in with a
       pairing left unfinished, it does not push that page forward; This Computer has a
       button for it.
     - **Its own computer.** The app's daemon keeps its credentials in the app's folder, not
@@ -1022,7 +1025,7 @@ Since then, newest last:
       with the daemon. Agents are told what a Windows computer is like (`WINDOWS_NOTE` in
       `packages/agent/src/computers.ts`).
     - **Packing** is electron-builder's (`electron-builder.yml`): a universal `.dmg`, an NSIS
-      installer, an AppImage and a `.deb`. `DC_DESKTOP_SERVER` at build time is the deployment
+      installer and an AppImage. `DC_DESKTOP_SERVER` at build time is the deployment
       the app opens without asking; the workflow passes the repository's `DC_BASE_URL`, so
       nothing about do.computer is in a tracked file. A tag named `desktop-v…` makes a draft
       release.

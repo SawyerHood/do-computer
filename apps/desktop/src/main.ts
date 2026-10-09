@@ -229,18 +229,26 @@ async function startSharing(): Promise<void> {
   }
 }
 
-async function signedIn(): Promise<boolean> {
+/**
+ * Whether whoever is signed in to the window has an agent. Nobody signed in has none, and
+ * neither does an account in its first moments: its first agent is made by the page it lands on.
+ */
+async function hasAgent(): Promise<boolean> {
   if (settings.server === undefined) return false
   try {
-    return (await session.defaultSession.fetch(`${settings.server}/api/me`)).ok
+    const response = await session.defaultSession.fetch(`${settings.server}/api/agents`)
+    if (!response.ok) return false
+    const { agents } = (await response.json()) as { agents?: unknown[] }
+    return Array.isArray(agents) && agents.length > 0
   } catch {
     return false
   }
 }
 
 /**
- * A pairing is confirmed on a page of the deployment, signed in. When the owner has just asked
- * to share this computer, show them that page as soon as they are.
+ * A pairing is confirmed on a page of the deployment, signed in, and that page is where the
+ * agents that get the computer are chosen. When the owner has just asked to share this
+ * computer, show them that page as soon as they are signed in and have an agent to choose.
  */
 async function confirmWhenSignedIn(): Promise<void> {
   const sharing = runner?.sharing
@@ -249,10 +257,10 @@ async function confirmWhenSignedIn(): Promise<void> {
     confirmTimer = undefined
     return
   }
-  // Signing in with a password changes no address the window tells of, so also look now and then.
+  // Neither signing in nor a first agent being made is something the window tells of.
   confirmTimer ??= setInterval(() => void confirmWhenSignedIn(), 2_000)
   const address = sharing.verifyUrl
-  if (!(await signedIn())) return
+  if (!(await hasAgent())) return
   if (!showConfirm || runner?.sharing.state !== "pairing") return
   showConfirm = false
   if (isWebAddress(address)) showMain(address)
