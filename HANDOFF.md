@@ -988,7 +988,7 @@ Since then, newest last:
       and before "Start fresh". It is given the note as it stands, what is remembered, and what
       was said since, and rewrites the note in at most 60 words. It is never waited for, and a
       failed one is made up the next time, from the same place. The same answer may add one
-      lasting fact to each store of notes, where it was said in one of the app's own chats and
+      lasting fact to each store of notes, where it was said by a person, in the app or in Slack, and
       not saved. It only adds: what the agent keeps is never removed or rewritten for it. What
       it costs is in the agent's usage. With no OpenRouter key on the deployment there is no
       small model, and the other chats are shown the finished work only.
@@ -1009,8 +1009,9 @@ Since then, newest last:
     - **The notes are larger:** 6,000 characters of the agent's own and 4,000 about its people,
       up from 2,200 and 1,375. Each store is shown with how full it is.
     - **Mine, not the owner's:** every number above; that the small model writes notes after
-      every answer and not every few; that it may add to the notes at all, and only from the
-      app's own chats; that sub-agents and scheduled runs get no note; that a side chat always
+      every answer and not every few; that it may add to the notes at all, and not from a
+      conversation with another agent (from Slack it may: the owner said "assume that if it is
+      in slack it is trusted"); that sub-agents and scheduled runs get no note; that a side chat always
       branches where it can, with no way to ask for an empty one but "Start fresh" in it; that
       nothing in the main chat marks that a side chat left it.
     - **Never run:** the note-writing against a real model in Slack or in a team; anything of

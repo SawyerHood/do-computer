@@ -503,9 +503,10 @@ export class Journal {
         .sort(([, a], [, b]) => b.at - a.at)
         .slice(0, MAX_NOTES)
       journal.notes = Object.fromEntries(kept)
-      // Only what was said to the agent in its own app is taken as something to remember: a
-      // thread in Slack, or another agent, can be anyone.
-      if (chat.kind !== "chat") return
+      // What a person said is taken as something to remember, in the app or in Slack: whoever
+      // is in the Slack workspace is someone the agent works for, by its owner's choice. What
+      // another agent wrote is not.
+      if (chat.kind !== "chat" && chat.kind !== "slack") return
       if (reviewed.user.length + reviewed.memory.length === 0) return
       const doc = await tx.doc(IdentityDoc)
       addNotes(doc, "user", reviewed.user)
