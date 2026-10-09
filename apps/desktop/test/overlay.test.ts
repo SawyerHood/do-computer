@@ -57,6 +57,8 @@ const fake = vi.hoisted(() => {
     }
     setAlwaysOnTop = vi.fn()
     setVisibleOnAllWorkspaces = vi.fn()
+    // Asked of it on a Mac only, where a window can be kept out of Mission Control.
+    setHiddenInMissionControl = vi.fn()
     setContentProtection = vi.fn()
     setBounds = vi.fn()
   }
