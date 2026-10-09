@@ -6,7 +6,7 @@ import {
   PAIRED_COMPUTER,
   type WorkspaceSummary,
 } from "@durable-computer/protocol"
-import { CopyIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react"
+import { ArrowsClockwiseIcon, CopyIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useRef, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
@@ -95,6 +95,10 @@ function ComputerCard({
     mutationFn: (agentId: string) => client.disconnectComputer(computer.id, agentId),
     onSettled: settled,
   })
+  const update = useMutation({
+    mutationFn: () => client.updateComputerDaemon(computer.id),
+    onSettled: settled,
+  })
   const share = useMutation({
     mutationFn: (access: ComputerSummary["access"]) =>
       client.setComputerAccess(computer.id, access),
@@ -121,7 +125,7 @@ function ComputerCard({
         )
         .sort((a, b) => Number(b.id === agentId) - Number(a.id === agentId))
     : []
-  const problem = [remove, move, connect, disconnect, share].find(
+  const problem = [remove, move, connect, disconnect, share, update].find(
     (mutation) => mutation.isError,
   )?.error
   const busy =
@@ -129,7 +133,12 @@ function ComputerCard({
     connect.isPending ||
     disconnect.isPending ||
     remove.isPending ||
-    share.isPending
+    share.isPending ||
+    update.isPending
+  // A daemon from before daemons kept themselves up to date. It can be replaced from here by
+  // whoever may remove the computer, unless it is read-only and so runs nothing it is sent.
+  const stale = !machine && computer.online && computer.daemon === "outdated"
+  const updatable = stale && computer.canManage && !computer.readOnly
   const [confirm, confirming] = useConfirm()
   const owners = workspaces.map((workspace) => ({
     value: workspace.id,
@@ -355,8 +364,12 @@ function ComputerCard({
               : machine && computer.access === "open"
                 ? `${everyone} can work on it, each in a folder of its own.`
                 : computer.online
-                  ? computer.daemon === "outdated"
-                    ? "Its daemon is out of date and does not update itself. Run the install command there again."
+                  ? stale
+                    ? update.isSuccess
+                      ? "Its daemon is being replaced. It will be back in a moment."
+                      : updatable
+                        ? "Its daemon is out of date and does not update itself. Update it from here, or run the install command there again."
+                        : "Its daemon is out of date and does not update itself. Run the install command there again."
                     : computer.agentIds.length === 0
                       ? "No agent can work on it until one is connected. An agent can also ask."
                       : "Its agents can work on it now."
@@ -364,12 +377,27 @@ function ComputerCard({
                     ? `Last connected ${ago(computer.lastSeenAt)}. Start the daemon there to bring it back.`
                     : "Its daemon has not connected yet."}
           </p>
+          {updatable && !update.isSuccess ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="ml-auto shrink-0"
+              disabled={busy}
+              aria-label={`Update the daemon on ${computer.name}`}
+              onClick={() => update.mutate()}
+            >
+              <ArrowsClockwiseIcon /> {update.isPending ? "Updating…" : "Update"}
+            </Button>
+          ) : null}
           {/* One whose files are with its agent goes when the agent is deleted, and not before. */}
           {computer.canManage && (!machine || computer.shareable) ? (
             <Button
               size="sm"
               variant="ghost"
-              className="ml-auto shrink-0 text-muted-foreground"
+              className={cn(
+                "shrink-0 text-muted-foreground",
+                !(updatable && !update.isSuccess) && "ml-auto",
+              )}
               disabled={busy}
               aria-label={`Remove ${computer.name}`}
               onClick={async () => {

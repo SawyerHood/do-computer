@@ -16,6 +16,7 @@ import {
 } from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
+import { reinstallCommand } from "./daemon-reinstall.ts"
 import { servedDaemon } from "./daemon-version.ts"
 import {
   agentsOn,
@@ -772,6 +773,63 @@ export async function removeComputer(user: SessionUser, computerId: string): Pro
   }
   await revokeComputer(row)
   return json({ ok: true })
+}
+
+/**
+ * Bring a paired computer's daemon up to the one this deployment serves, from here. A daemon
+ * that keeps itself up to date is told to look now. One from before daemons could is sent a
+ * command that replaces it, which it runs as it runs any command: so not a read-only one,
+ * which runs none, and whose owner has to do it there.
+ */
+export async function updateDaemon(
+  user: SessionUser,
+  computerId: string,
+  request: Request,
+): Promise<Response> {
+  const { db, computers, config } = getPlatform()
+  const row = await computerOf(user, computerId)
+  if (row === undefined) return fail(404, "Computer not found")
+  if (isMachine(row)) return fail(409, "A machine of a workspace has no daemon.")
+  if (!(await mayRemove(db, user.id, row))) {
+    return fail(403, "Only whoever connected it, or an admin of the team, can update its daemon.")
+  }
+  const link = computers.get(computerActorName(row.id))
+  const status = await linkStatus(link).catch(() => undefined)
+  if (status?.online !== true) {
+    return fail(409, "It is offline. Start the daemon there, or run the install command again.")
+  }
+  const served = await servedDaemon()
+  if (status.hello?.version === served) return json({ ok: true, how: "current" })
+  if (status.hello?.updates === true) {
+    await link.fetch(new Request("http://computer/update", { method: "POST" }))
+    return json({ ok: true, how: "told" })
+  }
+  if (status.hello?.readOnly ?? row.read_only === 1) {
+    return fail(
+      409,
+      "It is read-only, so nothing can be run there from here. Run the install command on it again.",
+    )
+  }
+  const origin = config.baseUrl ?? new URL(request.url).origin
+  const answer = await link.fetch(
+    new Request("http://computer/exec", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: reinstallCommand(origin, served), timeoutMs: 120_000 }),
+    }),
+  )
+  const result = (await answer.json().catch(() => ({}))) as {
+    stdout?: string
+    stderr?: string
+    exitCode?: number
+    error?: string
+  }
+  if (!answer.ok) return fail(502, result.error ?? "The computer could not be reached.")
+  if (result.exitCode !== 0) {
+    const said = `${result.stderr ?? ""}${result.stdout ?? ""}`.trim().slice(-400)
+    return fail(502, `Its daemon could not be replaced${said === "" ? "." : `: ${said}`}`)
+  }
+  return json({ ok: true, how: "reinstalled" })
 }
 
 /**

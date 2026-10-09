@@ -445,6 +445,14 @@ export function createClient(options: ClientOptions) {
       request<{ ok: true }>(`/api/computers/${encodeURIComponent(computerId)}`, {
         method: "DELETE",
       }),
+    /**
+     * Bring a paired computer's daemon up to the one the server serves: `told` when it keeps
+     * itself up to date and was told to look, `reinstalled` when it was replaced from here.
+     */
+    updateComputerDaemon: (computerId: string) =>
+      post<{ ok: true; how: "current" | "told" | "reinstalled" }>(
+        `/api/computers/${encodeURIComponent(computerId)}/update`,
+      ),
     pairingRequest: (code: string) =>
       request<PairingRequest>(`/api/computers/pair/request/${encodeURIComponent(code)}`),
     /** Take the computer behind a code: as the user's own or a team's, for the agents named. */

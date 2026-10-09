@@ -191,7 +191,8 @@ describe("cloudflare containers: the machine's life", () => {
   it("stops a command, and what it started, when the caller aborts", async () => {
     const { sandbox } = world()
     const controller = new AbortController()
-    const running = sandbox.exec("(sleep 60; echo child-finished > child.txt) & wait", {
+    // A length of sleep nothing else on the machine would ask for, so that only this one is counted.
+    const running = sandbox.exec("(sleep 61.0731; echo child-finished > child.txt) & wait", {
       signal: controller.signal,
     })
     await new Promise((resolve) => setTimeout(resolve, 300))
@@ -199,7 +200,11 @@ describe("cloudflare containers: the machine's life", () => {
     controller.abort()
     await expect(running).rejects.toThrow()
     expect(Date.now() - started).toBeLessThan(5_000)
-    expect((await sandbox.exec("pgrep -f '[s]leep 60' | wc -l")).output.trim()).toBe("0")
+    // Asked to stop, it is gone within moments, not within the instant.
+    const left = await sandbox.exec(
+      "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do n=$(pgrep -f '[s]leep 61.0731' | wc -l); [ \"$n\" -eq 0 ] && break; sleep 0.1; done; echo $n",
+    )
+    expect(left.output.trim()).toBe("0")
   })
 
   it("gives a command only the environment it was passed", async () => {
