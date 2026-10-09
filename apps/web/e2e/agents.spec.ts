@@ -128,6 +128,36 @@ test("the app opens on the agent that was open last", async ({ page }) => {
   await page.waitForURL(first)
 })
 
+test("a creature that could not be drawn as the page opened is drawn once it can be", async ({
+  page,
+}) => {
+  // There is no WebGL to be had as the page opens: a graphics card that is busy, or gone a moment.
+  await page.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...rest: unknown[]
+    ) {
+      if (kind !== "2d" && !("webglIsBack" in window)) return null
+      return (real as (...args: unknown[]) => unknown).call(this, kind, ...rest)
+    } as typeof real
+  })
+  await signIn(page)
+  const creature = page.getByRole("img", { name: "Agent avatar" }).first()
+  // A still picture stands in for it.
+  await expect(creature.locator("img")).toHaveCount(1)
+  await expect(creature.locator("canvas")).toBeHidden()
+
+  // Then there is, and the page is come back to. Nobody loaded it again.
+  await page.evaluate(() => {
+    Object.assign(window, { webglIsBack: true })
+    window.dispatchEvent(new Event("focus"))
+  })
+  await expect(creature.locator("canvas")).toBeVisible()
+  await expect(creature.locator("img")).toHaveCount(0)
+})
+
 test("a second agent can be made, and deleted without touching the first", async ({ page }) => {
   await signIn(page)
   const first = page.url().match(/\/a\/([^/]+)/)![1]!

@@ -1,4 +1,4 @@
-import type { Orb } from "@durable-computer/mascot"
+import type { MascotCore, Orb } from "@durable-computer/mascot"
 import {
   type AgentSummary,
   type Avatar,
@@ -17,6 +17,7 @@ import {
   mascotMoodAtom,
   prefersCalm,
   showing,
+  whenMascotLoads,
 } from "@/lib/mascot"
 import { type Heart, usePetting } from "@/lib/use-petting"
 import { cn } from "@/lib/utils"
@@ -79,8 +80,8 @@ export function AgentAvatar({
     let created: Orb | undefined
     let hide: (() => void) | undefined
     let gone = false
-    void loadMascot().then((core) => {
-      if (gone) return
+    const draw = (core: MascotCore | null) => {
+      if (gone || created !== undefined) return
       if (core === null || canvas.current === null) return setOrb(null)
       const start = first.current
       created = core.createOrb(canvas.current, {
@@ -94,9 +95,13 @@ export function AgentAvatar({
       if (!start.hatched) created.setState("egg")
       hide = showing(seed, created)
       setOrb(created)
-    })
+    }
+    void loadMascot().then(draw)
+    // Where it could not be drawn at first, it is as soon as it can be.
+    const forget = whenMascotLoads(draw)
     return () => {
       gone = true
+      forget()
       hide?.()
       created?.dispose()
     }
