@@ -6,6 +6,8 @@ export type Arguments = {
   name: string | undefined
   readOnly: boolean
   installService: boolean
+  /** Whether to keep itself up to date, where the command line says. Otherwise as it was. */
+  autoUpdate: boolean | undefined
   unpair: boolean
   version: boolean
   help: boolean
@@ -24,6 +26,11 @@ export function parseArguments(args: readonly string[]): Arguments {
     name: named === undefined ? undefined : args[named],
     readOnly: args.includes("--read-only"),
     installService: args.includes("--install-service"),
+    autoUpdate: args.includes("--no-auto-update")
+      ? false
+      : args.includes("--auto-update")
+        ? true
+        : undefined,
     unpair: args.includes("--unpair"),
     version: args.includes("--version"),
     help: args.includes("--help") || args.includes("-h"),

@@ -29,7 +29,14 @@ export async function daemonBundle(): Promise<Response> {
   })
 }
 
+/**
+ * Which daemon this deployment serves. A daemon asks when it connects and now and then after,
+ * and fetches the one at `/daemon.js` when it is not the one it is running.
+ */
 export async function daemonVersion(): Promise<Response> {
-  const { DAEMON_VERSION } = await import("./daemon-bundle.generated.ts")
-  return Response.json({ version: DAEMON_VERSION })
+  const { DAEMON_VERSION, DAEMON_SHA256 } = await import("./daemon-bundle.generated.ts")
+  return Response.json(
+    { version: DAEMON_VERSION, sha256: DAEMON_SHA256 },
+    { headers: { "cache-control": "no-cache" } },
+  )
 }

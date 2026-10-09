@@ -355,9 +355,11 @@ function ComputerCard({
               : machine && computer.access === "open"
                 ? `${everyone} can work on it, each in a folder of its own.`
                 : computer.online
-                  ? computer.agentIds.length === 0
-                    ? "No agent can work on it until one is connected. An agent can also ask."
-                    : "Its agents can work on it now."
+                  ? computer.daemon === "outdated"
+                    ? "Its daemon is out of date and does not update itself. Run the install command there again."
+                    : computer.agentIds.length === 0
+                      ? "No agent can work on it until one is connected. An agent can also ask."
+                      : "Its agents can work on it now."
                   : computer.lastSeenAt
                     ? `Last connected ${ago(computer.lastSeenAt)}. Start the daemon there to bring it back.`
                     : "Its daemon has not connected yet."}
@@ -689,7 +691,10 @@ export function ComputersSettings({
         />
         <p className="text-sm text-muted-foreground">
           It prints a link. Open it here to say whose the computer is and which agents get access.
-          Stopping the daemon, or removing the computer on this page, ends that access at once.
+          Stopping the daemon, or removing the computer on this page, ends that access at once. The
+          daemon keeps itself up to date from this server; add{" "}
+          <code className="font-mono text-xs">--no-auto-update</code> to the command to stop it
+          doing so.
         </p>
       </section>
     </div>

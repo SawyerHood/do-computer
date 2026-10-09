@@ -694,12 +694,15 @@ export async function listComputers(user: SessionUser): Promise<Response> {
     db,
     rows.map((row) => row.owner_id),
   )
+  // Loaded on demand: it sits beside the daemon itself, which is a large string.
+  const { DAEMON_VERSION } = await import("./daemon-bundle.generated.ts")
   const summaries = await Promise.all(
     rows.map(async (row): Promise<ComputerSummary> => {
       // A machine has no daemon to be away: it starts when something runs on it.
       const status = isMachine(row)
         ? { online: true, hello: null, lastSeenAt: null }
         : await linkStatus(computers.get(computerActorName(row.id))).catch(() => undefined)
+      const hello = status?.hello ?? null
       return {
         id: row.id,
         name: row.name,
@@ -718,6 +721,16 @@ export async function listComputers(user: SessionUser): Promise<Response> {
         // What the daemon reports now wins over what it said when it was paired.
         readOnly: status?.hello?.readOnly ?? row.read_only === 1,
         lastSeenAt: status?.lastSeenAt ?? null,
+        ...(hello === null
+          ? {}
+          : {
+              daemon:
+                hello.version === DAEMON_VERSION
+                  ? ("current" as const)
+                  : hello.updates === true
+                    ? ("updating" as const)
+                    : ("outdated" as const),
+            }),
       }
     }),
   )

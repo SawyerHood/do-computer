@@ -105,6 +105,11 @@ export type HelloFrame = {
   version: string
   /** True when the daemon understands `job` frames. Absent on one from before there were jobs. */
   jobs?: boolean
+  /**
+   * True when the daemon keeps itself up to date. False when its owner switched that off, and
+   * absent on one from before daemons could: either way it is replaced only by hand.
+   */
+  updates?: boolean
 }
 export type ExecResultFrame = {
   t: "exec_result"
@@ -230,6 +235,12 @@ export type ComputerSummary = {
   online: boolean
   readOnly: boolean
   lastSeenAt: number | null
+  /**
+   * For a paired computer whose daemon has said what it is: `current` when it is the daemon
+   * this deployment serves, `updating` when it is not and keeps itself up to date, `outdated`
+   * when it is not and will not: someone has to run the install command there again.
+   */
+  daemon?: "current" | "updating" | "outdated"
 }
 
 /** An agent asking to work on a computer it is not connected to, until someone answers. */
