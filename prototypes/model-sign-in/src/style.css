@@ -1,0 +1,47 @@
+/* ---------- model sign-in mock-up: added to the three mock-ups' styles above ---------- */
+
+/* A provider's mark, where a face would be: its first letter on its own colour. */
+.pm{--s:32px;width:var(--s);height:var(--s);border-radius:calc(var(--s)*.3);background:var(--c,var(--secondary));color:#fff;display:inline-grid;place-items:center;flex:none;font-weight:600;font-size:calc(var(--s)*.42)}
+.pm.own{background:var(--secondary);color:var(--muted-foreground)}
+.li .acts{display:flex;align-items:center;gap:6px;flex:none}
+.li .sub-t{font-size:11px;font-weight:500;padding:1px 6px;border-radius:5px;background:var(--secondary);color:var(--muted-foreground);margin-left:6px;white-space:nowrap}
+.more{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px;border-top:1px solid var(--border)}
+.more .chip{font-size:12.5px;border:1px solid var(--border);border-radius:8px;padding:3px 9px;color:var(--muted-foreground);cursor:pointer}
+.more .chip:hover{background:var(--accent);color:var(--foreground)}
+.morebtn{width:100%;padding:10px 14px;border-top:1px solid var(--border);font-size:13px;color:var(--muted-foreground);display:flex;align-items:center;gap:6px}
+.morebtn:hover{background:var(--accent);color:var(--foreground)}
+
+/* The sign-in window, over the settings it was opened from. */
+.veil.over{z-index:30}
+.dlg.signin{width:480px}
+.signin .steps{gap:18px;margin-top:4px}
+.signin .field{margin-top:2px}
+.signin .fine{font-size:12px;color:var(--muted-foreground);margin-top:16px;line-height:1.5}
+.signin .opts{display:flex;flex-direction:column;gap:8px}
+.signin .opt{cursor:pointer;text-align:left;width:100%}
+.signin .opt:hover{background:var(--accent)}
+.signin .opt b{display:block;font-weight:500}
+.signin .opt span.d{font-size:12.5px;color:var(--muted-foreground)}
+.code{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:.12em;text-align:center;padding:18px 0 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);user-select:all}
+.wait{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-foreground);margin-top:14px}
+.wait .grow{flex:1}
+
+/* The model picker, opened: what there is to choose, under where each comes from. */
+.mp{border:1px solid var(--primary);box-shadow:0 0 0 3px color-mix(in oklch,var(--primary) 25%,transparent);border-radius:10px;height:38px;display:flex;align-items:center;padding:0 12px;color:var(--muted-foreground)}
+.mlist{border:1px solid var(--border);border-radius:14px;background:var(--popover);box-shadow:0 12px 40px rgb(0 0 0/.3);margin-top:6px;overflow:hidden}
+.mlist .g{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);padding:10px 14px 4px;display:flex;align-items:center;gap:7px}
+.mlist .g+.mrow{margin-top:0}
+.mlist .g:not(:first-child){border-top:1px solid var(--border);margin-top:4px}
+.mrow{display:flex;align-items:flex-start;gap:10px;padding:7px 14px;cursor:pointer}
+.mrow:hover,.mrow.on{background:var(--accent)}
+.mrow .n{font-weight:500;display:flex;align-items:baseline;gap:8px}
+.mrow .n small{font-weight:400;font-size:12px;color:var(--muted-foreground)}
+.mrow .d{font-size:12px;color:var(--muted-foreground)}
+.mrow .ck{border:0;padding:0;color:var(--teal-text);margin-top:2px}
+
+/* A reply that failed because the sign-in is gone. */
+.failed{border:1px solid color-mix(in oklch,var(--destructive) 35%,var(--border));border-radius:16px;padding:14px 16px;max-width:560px;display:flex;flex-direction:column;gap:6px}
+.failed .t{font-weight:500;display:flex;align-items:center;gap:8px}
+.failed .t .ic{color:var(--destructive)}
+.failed .d{font-size:13px;color:var(--muted-foreground)}
+.failed .acts{display:flex;gap:8px;margin-top:6px}
