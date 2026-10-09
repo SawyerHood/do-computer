@@ -1029,8 +1029,22 @@ Since then, newest last:
       the app opens without asking; the workflow passes the repository's `DC_BASE_URL`, so
       nothing about do.computer is in a tracked file. A tag named `desktop-v…` makes a draft
       release.
-    - **Not built:** signing or notarizing, so macOS and Windows both warn before opening
-      it; the app updating itself; a link to the app from the web app; a way to remove the
+    - **Checked:** `apps/desktop/e2e/desktop.spec.ts` starts the app itself against the built
+      Node server: a first run, a wrong address, signing up, the page to confirm on appearing
+      by itself, an agent running a command on the machine with the window closed, that
+      command not being told it is inside an Electron app, switching sharing off and on,
+      quitting ending the daemon, starting again connecting without asking, and the daemon
+      replacing itself with the server's newer one from inside the app. The `Desktop`
+      workflow runs that on Linux, macOS and Windows, against the build and again against
+      the packed app, along with `packages/computers/test/windows.test.ts`, which runs
+      commands, files and background commands through the daemon's own code on each system,
+      in Git's bash and in PowerShell on Windows. Here it runs under `xvfb-run -a`.
+      **Not checked:** anything on a real desktop. Nobody has seen the tray, opened the
+      `.dmg` or the installer, been warned about an unsigned app, or had the app start at
+      sign-in. A daemon restarting under a running background command has not been tried on
+      Windows, nor has the app against do.computer.
+    - **Not built:** a signature anyone would recognise, so macOS and Windows both warn
+      before opening it (the macOS app is signed ad hoc, which only keeps it runnable); the app updating itself; a link to the app from the web app; a way to remove the
       computer from the app's own window (it is removed under Computers, and the app notices);
       changing read-only after pairing other than by tightening it.
     - **Mine, not the owner's:** all of the above, and in particular that the window loads

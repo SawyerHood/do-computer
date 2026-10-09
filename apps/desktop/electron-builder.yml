@@ -18,6 +18,9 @@ mac:
   # Signed by nobody in particular, which is still signed: a Mac with Apple's own chips will
   # not run a program whose signature does not match what is in it.
   identity: "-"
+  # The stricter rules are for an app Apple has checked, and one signed by no one that asks
+  # for them may not start.
+  hardenedRuntime: false
   icon: assets/icon.png
   target:
     - target: dmg

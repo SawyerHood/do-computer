@@ -12,8 +12,11 @@ runs:
     - uses: pnpm/action-setup@v4
     # What `pnpm install` leaves behind is kept whole, for as long as nothing that decides it
     # changes. Putting it back is quicker than installing, even from pnpm's own store.
+    # Not on Windows: pnpm's links between packages do not come back out of the cache there,
+    # and what is put back cannot find its own dependencies.
     - uses: actions/cache@v4
       id: modules
+      if: runner.os != 'Windows'
       with:
         path: |
           node_modules
