@@ -442,6 +442,58 @@ That includes the agent's creature, which is drawn with `expo-gl`: on a device t
 it, a still picture is shown instead. There it wears what it was dressed in on the web; its treats, boxes
 and wardrobe are not in the mobile app yet.
 
+## Desktop app
+
+`apps/desktop` is an Electron app for macOS, Windows and Linux. It is two things in one program:
+
+- **The app, in a window of its own.** The window shows your deployment the way a browser
+  does, so everything the web app can do is there and stays in step with it. On first launch it
+  asks for the server's address, unless it was built for one.
+- **The daemon for the computer it runs on.** While the app runs, the agents you connected to
+  that computer can work on it. Closing the window leaves the app in the tray with the daemon
+  going; **Quit** in the tray menu ends both. It can open when you sign in to the computer.
+
+Pairing happens inside the app. Say that your agents may use the computer, on the first screen
+or later under **This Computer…** in the tray menu, and once you are signed in the window shows
+the page where you confirm it and choose the agents. Nothing is shared before that. The same
+window shows whether the computer is connected and what agents did on it, and switches sharing
+off and on again without pairing anew. To take the computer away for good, remove it under
+Computers, as with any other.
+
+```sh
+pnpm desktop                                        # build it and run it from source
+pnpm --filter @durable-computer/desktop package     # pack it for this system, into apps/desktop/release
+DC_DESKTOP_SERVER=https://agents.example.com pnpm --filter @durable-computer/desktop package
+                                                    # the same, opening that deployment without asking
+```
+
+The `Desktop` workflow builds, tests and packs the app on all three systems and keeps what it
+packed with the run: a `.dmg`, an installer for Windows and an AppImage. Where the
+repository variable `DC_BASE_URL` is set, those open that deployment. Pushing a tag named
+`desktop-v…` also puts them in a draft release.
+
+Things to know:
+
+- **Nobody has signed it.** macOS will not open a downloaded copy from a double click: allow
+  it under System Settings, Privacy & Security, or take the download's mark off it with
+  `xattr -dr com.apple.quarantine` and the path of the app. Windows shows "Windows protected
+  your PC": choose More info, then Run anyway. Neither has been tried on a real desktop yet.
+- **The app does not update itself.** There is little in it to update: the window shows the
+  server's own pages, and the daemon inside it replaces itself from the server like any other
+  daemon. A newer app is installed over the old one.
+- **The server has to be at least as new as the app.** The daemon takes whichever version its
+  server serves, and one from before the desktop app does not know how to be part of it.
+- **It is a computer of its own.** The app keeps its daemon's credentials in its own folder, so
+  a computer that already runs the daemon from `install.sh` is paired a second time, under a
+  second name. Run one or the other.
+- **On Windows** commands run in the bash that comes with [Git for
+  Windows](https://gitforwindows.org) where that is installed, and in PowerShell where it is
+  not. Agents write their commands for bash, so install it. Paths are shown to agents the way
+  Git Bash writes them: `/c/Users/ada` for `C:\Users\ada`. Under PowerShell, a command left
+  running in the background ends when the daemon restarts, as it does to update itself.
+- **On Linux** a desktop without a tray (GNOME without the AppIndicator extension) has no icon
+  to bring the window back with. Starting the app again does it.
+
 ## Development
 
 ```sh
@@ -463,6 +515,7 @@ pairing.
 apps/web          TanStack Start app: UI, API, and the server entry for each runtime
 apps/mobile       the Expo app
 apps/daemon       the daemon a user runs on their own computer
+apps/desktop      the Electron app: the deployment in a window, and the daemon run inside it
 packages/runtime  one actor host interface (SQLite, alarm, blobs, sockets) over Durable Objects and Node
 packages/agent    the agent actor: pi-durable harness, identity, chats, history, schedules, skills,
                   connectors, approvals, library

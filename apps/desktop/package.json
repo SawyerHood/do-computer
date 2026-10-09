@@ -1,0 +1,28 @@
+{
+  "name": "@durable-computer/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Do Computer on your desktop: the app in a window of its own, and the daemon that lets your agents work on this computer.",
+  "author": "Do Computer",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "pnpm --filter @durable-computer/daemon build && node build.mjs",
+    "start": "pnpm build && electron .",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "package": "pnpm build && electron-builder --publish never"
+  },
+  "devDependencies": {
+    "@durable-computer/daemon": "workspace:*",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

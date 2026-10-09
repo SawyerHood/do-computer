@@ -1,0 +1,37 @@
+# How the app is packed for each system. Nothing is signed: see README.md for what that means
+# for whoever opens it.
+appId: computer.do.desktop
+productName: Do Computer
+# A name without a space in it, for whoever downloads it from a terminal.
+artifactName: Do-Computer-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: assets
+# Everything the app runs is already in dist/, as a few files. It has no node_modules to bring.
+files:
+  - dist/**
+  - package.json
+npmRebuild: false
+publish: null
+mac:
+  category: public.app-category.productivity
+  # Signed by nobody in particular, which is still signed: a Mac with Apple's own chips will
+  # not run a program whose signature does not match what is in it.
+  identity: "-"
+  # The stricter rules are for an app Apple has checked, and one signed by no one that asks
+  # for them may not start.
+  hardenedRuntime: false
+  icon: assets/icon.png
+  target:
+    - target: dmg
+      arch: [universal]
+  extendInfo:
+    NSMicrophoneUsageDescription: Dictating a message to an agent uses the microphone.
+win:
+  icon: assets/icon.png
+  target: [nsis]
+linux:
+  icon: assets/icon.png
+  category: Utility
+  executableName: do-computer
+  target: [AppImage]

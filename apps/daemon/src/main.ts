@@ -21,7 +21,7 @@ import {
 import * as os from "node:os"
 import * as path from "node:path"
 import { DaemonCore } from "@durable-computer/computers/daemon"
-import { nodeDaemonIO } from "@durable-computer/computers/node"
+import { nodeDaemonIO, shownPath } from "@durable-computer/computers/node"
 import {
   PING_FRAME,
   PONG_FRAME,
@@ -30,6 +30,7 @@ import {
 } from "@durable-computer/protocol"
 import WebSocket from "ws"
 import { parseArguments } from "./args.ts"
+import { type DaemonEvent, formatEvent } from "./events.ts"
 import { serviceFile } from "./service.ts"
 import { supervise } from "./supervisor.ts"
 import { RESTART_EXIT_CODE, restorePrevious, update } from "./update.ts"
@@ -37,7 +38,21 @@ import { RESTART_EXIT_CODE, restorePrevious, update } from "./update.ts"
 declare const DAEMON_VERSION: string
 const VERSION = typeof DAEMON_VERSION === "string" ? DAEMON_VERSION : "dev"
 
+/**
+ * Set by an app that runs the daemon as a part of itself: the daemon then also says how things
+ * stand in lines the app can read, and stops when the app does, which it knows by its input
+ * closing.
+ */
+const EMBEDDED = process.env.DC_DAEMON_EMBEDDED === "1"
+/** Set when the Node running this is an Electron app's, which is one only while this is set. */
+const RUN_AS_NODE = process.env.ELECTRON_RUN_AS_NODE
+/** What it takes to run this daemon's Node again, as Node. */
+const nodeEnv = () =>
+  RUN_AS_NODE === undefined ? undefined : { ...process.env, ELECTRON_RUN_AS_NODE: RUN_AS_NODE }
+
 const HOME = os.homedir()
+/** The home directory as the agent is told it: on Windows, written the way its shell writes it. */
+const SHOWN_HOME = shownPath(HOME)
 const CONFIG_DIR = process.env.DC_DAEMON_DIR ?? path.join(HOME, ".durable-computer")
 const CONFIG_PATH = path.join(CONFIG_DIR, "daemon.json")
 const AUDIT_PATH = path.join(CONFIG_DIR, "audit.log")
@@ -80,6 +95,9 @@ function saveUpdateState(state: UpdateState): void {
 }
 
 const log = (message: string) => console.log(`[${new Date().toISOString()}] ${message}`)
+const tell = (event: DaemonEvent) => {
+  if (EMBEDDED) console.log(formatEvent(event))
+}
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function loadConfig(): Config | undefined {
@@ -118,11 +136,12 @@ async function pair(server: string, readOnly: boolean, name: string | undefined)
     const started = await post<{ code: string; pollToken: string; verifyUrl: string }>(
       server,
       "/api/computers/pair/start",
-      { name, hostname: os.hostname(), platform: process.platform, home: HOME, readOnly },
+      { name, hostname: os.hostname(), platform: process.platform, home: SHOWN_HOME, readOnly },
     )
     log("This computer is not paired yet.")
     log(`Open ${started.verifyUrl}`)
     log(`and confirm the code ${started.code} while signed in. Waiting…`)
+    tell({ event: "pairing", code: started.code, verifyUrl: started.verifyUrl })
     for (;;) {
       await sleep(POLL_INTERVAL_MS)
       const result = await post<{
@@ -147,6 +166,7 @@ async function pair(server: string, readOnly: boolean, name: string | undefined)
       }
       saveConfig(config)
       log(`Paired as "${config.name}"${readOnly ? " (read-only)" : ""}.`)
+      tell({ event: "paired", name: config.name, computerId: config.computerId, readOnly })
       return config
     }
   }
@@ -201,6 +221,7 @@ async function run(config: Config): Promise<void> {
         current: VERSION,
         script: realpathSync(process.argv[1]!),
         node: process.execPath,
+        env: nodeEnv(),
         bad: state.bad,
       })
       if (result.outcome === "skipped" && !passedOver) {
@@ -242,12 +263,18 @@ async function run(config: Config): Promise<void> {
       current.on("open", () => {
         attempt = 0
         log(`Connected to ${config.server} as "${config.name}".`)
+        tell({
+          event: "connected",
+          name: config.name,
+          computerId: config.computerId,
+          readOnly: config.readOnly,
+        })
         current.send(
           JSON.stringify({
             t: "hello",
             platform: process.platform,
             hostname: os.hostname(),
-            home: HOME,
+            home: SHOWN_HOME,
             readOnly: config.readOnly,
             version: VERSION,
             jobs: true,
@@ -281,14 +308,17 @@ async function run(config: Config): Promise<void> {
     if (closed === REVOKED_CLOSE_CODE) {
       log("This computer was removed from your account. Forgetting its credentials.")
       rmSync(CONFIG_PATH, { force: true })
+      tell({ event: "revoked" })
       return
     }
     if (closed === SUPERSEDED_CLOSE_CODE) {
       log("Another daemon connected as this computer. Exiting so the two do not fight.")
+      tell({ event: "superseded" })
       return
     }
     const delay = Math.min(1_000 * 2 ** attempt++, MAX_BACKOFF_MS)
     log(`Disconnected. Reconnecting in ${Math.round(delay / 1000)}s.`)
+    tell({ event: "disconnected", retryMs: delay })
     await sleep(delay)
   }
 }
@@ -354,6 +384,7 @@ async function superviseSelf(): Promise<void> {
         worker = spawn(process.execPath, [script, ...process.argv.slice(2)], {
           stdio: "inherit",
           env: { ...process.env, DC_DAEMON_WORKER: "1" },
+          windowsHide: true,
         })
         worker.on("error", () => resolve(1))
         worker.on("exit", (code, signal) =>
@@ -380,8 +411,17 @@ async function main(): Promise<void> {
   }
 
   if (process.env.DC_DAEMON_WORKER !== "1" && VERSION !== "dev") return superviseSelf()
-  // What the agent runs here inherits the daemon's environment, and is no worker of anything.
+  // What the agent runs here inherits the daemon's environment, and is no worker of anything,
+  // no part of an app, and not to be run as Node if it is an Electron app itself.
   delete process.env.DC_DAEMON_WORKER
+  delete process.env.DC_DAEMON_EMBEDDED
+  delete process.env.ELECTRON_RUN_AS_NODE
+  if (EMBEDDED) {
+    // The app holds the other end of this for as long as it runs, and never writes to it.
+    process.stdin.on("end", () => process.exit(0))
+    process.stdin.on("error", () => process.exit(0))
+    process.stdin.resume()
+  }
 
   let config = loadConfig()
   if (config === undefined) {

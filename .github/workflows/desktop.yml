@@ -1,0 +1,123 @@
+name: Desktop
+
+# The desktop app, built, tested and packed on each system it runs on. It is the only part of
+# the project that runs on Windows and macOS, so this is where the daemon is tried there too.
+on:
+  push:
+    branches: [main]
+    tags: ["desktop-v*"]
+    paths:
+      - apps/desktop/**
+      - apps/daemon/**
+      - packages/computers/**
+      - packages/protocol/**
+      - .github/workflows/desktop.yml
+      - .github/actions/setup/**
+      - pnpm-lock.yaml
+  pull_request:
+    paths:
+      - apps/desktop/**
+      - apps/daemon/**
+      - packages/computers/**
+      - packages/protocol/**
+      - .github/workflows/desktop.yml
+      - .github/actions/setup/**
+      - pnpm-lock.yaml
+  # Run from the Actions tab to pack the app without a new commit.
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            packed: release/linux-unpacked/do-computer
+          - os: macos-latest
+            name: macOS
+            packed: release/mac-universal/Do Computer.app/Contents/MacOS/Do Computer
+          - os: windows-latest
+            name: Windows
+            packed: release/win-unpacked/Do Computer.exe
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          desktop: "true"
+      # What the daemon does to a machine, on this kind of machine. The tests written for
+      # Linux run in the main workflow; these are the ones that hold on every system.
+      - name: Test the daemon and the app's own code
+        run: |
+          pnpm --filter @durable-computer/computers exec vitest run test/windows.test.ts
+          pnpm --filter @durable-computer/daemon --filter @durable-computer/desktop run test
+      - name: Build the server and the app
+        run: |
+          pnpm --filter @durable-computer/web build:node
+          pnpm --filter @durable-computer/desktop build
+        env:
+          # The deployment the app opens without asking, where the repository has one.
+          DC_DESKTOP_SERVER: ${{ vars.DC_BASE_URL }}
+      # The app itself: a first run, pairing, an agent working on this machine, quitting.
+      - name: Run the app
+        working-directory: apps/desktop
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test
+      - name: Pack it
+        working-directory: apps/desktop
+        run: pnpm exec electron-builder --publish never
+        env:
+          # Nobody's certificate signs it. Without this, one on the machine would be tried.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # On macOS it is still sealed, by no one, and a pull request's build is too.
+          CSC_FOR_PULL_REQUEST: "true"
+      - name: Check that the macOS app is sealed
+        if: runner.os == 'macOS'
+        working-directory: apps/desktop
+        run: codesign --verify --deep --strict --verbose=2 "release/mac-universal/Do Computer.app"
+      - name: Run the packed app
+        working-directory: apps/desktop
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test
+        env:
+          DC_DESKTOP_APP: ${{ github.workspace }}/apps/desktop/${{ matrix.packed }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: do-computer-${{ matrix.name }}
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: desktop-test-results-${{ matrix.name }}
+          path: apps/desktop/test-results
+          retention-days: 7
+
+  # A tag named desktop-v… makes a draft release with what was packed, for someone to publish.
+  release:
+    needs: app
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packed
+          pattern: do-computer-*
+          merge-multiple: true
+      - run: gh release create "$GITHUB_REF_NAME" packed/* --repo "$GITHUB_REPOSITORY" --draft --title "Do Computer for desktop ${GITHUB_REF_NAME#desktop-v}"
+        env:
+          GH_TOKEN: ${{ github.token }}
