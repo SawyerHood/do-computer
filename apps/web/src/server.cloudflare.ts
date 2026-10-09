@@ -1,4 +1,11 @@
-import { createAgentActor, createAgentModels, createLibraryActor } from "@durable-computer/agent"
+import {
+  createAgentActor,
+  createAgentModels,
+  createLibraryActor,
+  createModelAccessActor,
+  workspaceCredentials,
+  workspaceModelOptions,
+} from "@durable-computer/agent"
 import { createComputerLinkActor } from "@durable-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
 import {
@@ -13,6 +20,7 @@ import { createAgentBeside } from "./server/agents.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
 import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
+import { modelAccessDirectory } from "./server/model-access-directory.ts"
 import {
   addableKinds,
   addMachineFor,
@@ -36,11 +44,18 @@ export { SandboxObject } from "./server/sandbox.cloudflare.ts"
 export const AgentObject = createDurableActorClass<Env>({
   create: (host, env) => {
     const config = readConfig(env)
-    const models = createAgentModels(config)
+    // What the agent's workspace is signed in to, which its models are then called with.
+    const signIns = modelAccessDirectory(
+      d1Database(env.DB),
+      durableObjectNamespace(env.MODEL_ACCESS),
+    )
+    const access = () => signIns(host.name)
+    const models = createAgentModels(config, workspaceCredentials(access))
     return createAgentActor(host, {
       models: models.models,
       defaultModel: models.defaultModel,
       modelOptions: models.options,
+      workspaceModels: () => workspaceModelOptions(access),
       computers: computerChoices(config, "cloudflare", cloudflareProviders(env)),
       webSearch: models.webSearch,
       judge: models.judge,
@@ -84,6 +99,12 @@ export const ComputerObject = createDurableActorClass<Env>({
 export const LibraryObject = createDurableActorClass<Env>({
   create: (host) => createLibraryActor(host),
   blobs: (env, name) => r2Blobs(env.BLOBS, `libraries/${encodeURIComponent(name)}/`),
+})
+
+/** One Durable Object per workspace, keeping the model providers it is signed in to. */
+export const ModelAccessObject = createDurableActorClass<Env>({
+  create: (host) => createModelAccessActor(host),
+  blobs: (env, name) => r2Blobs(env.BLOBS, `model-access/${encodeURIComponent(name)}/`),
 })
 
 /** One Durable Object per team. Its members' sockets hibernate with it. */

@@ -7,8 +7,14 @@
     "bindings": [
       { "name": "AGENT", "class_name": "AgentObject" },
       { "name": "SCRIPTED", "class_name": "ScriptedAgentObject" },
+      { "name": "MODEL_ACCESS", "class_name": "ModelAccessObject" },
     ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AgentObject", "ScriptedAgentObject"] }],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AgentObject", "ScriptedAgentObject", "ModelAccessObject"],
+    },
+  ],
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "dc-agent-test" }],
 }

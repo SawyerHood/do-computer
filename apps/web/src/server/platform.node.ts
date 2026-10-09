@@ -1,7 +1,14 @@
 import { randomBytes } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
-import { createAgentActor, createAgentModels, createLibraryActor } from "@durable-computer/agent"
+import {
+  createAgentActor,
+  createAgentModels,
+  createLibraryActor,
+  createModelAccessActor,
+  workspaceCredentials,
+  workspaceModelOptions,
+} from "@durable-computer/agent"
 import { createComputerLinkActor } from "@durable-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
 import {
@@ -17,6 +24,7 @@ import { slackDirectory } from "./slack.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { servedDaemon } from "./daemon-version.ts"
 import { libraryDirectory } from "./library-directory.ts"
+import { modelAccessDirectory } from "./model-access-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
 import { createPresenceActor } from "./presence-actor.ts"
@@ -47,7 +55,6 @@ function create(): NodePlatform {
   const fromEnv = readConfig(process.env)
   const config = { ...fromEnv, authSecret: fromEnv.authSecret ?? authSecret(directory) }
   const { database, app } = openNodeAppDatabase(join(directory, "app.sqlite"))
-  const models = createAgentModels(config)
   // Checked once, here, so a wrong setting stops the server instead of failing each agent.
   const computers = computerChoices(config, "node", nodeProviders)
   const links = new NodeActorNamespace({
@@ -63,14 +70,25 @@ function create(): NodePlatform {
     factory: (host) => createLibraryActor(host),
     onError: (error, name) => console.error(`[library ${name}]`, error),
   })
+  const modelAccess = new NodeActorNamespace({
+    directory: join(directory, "model-access"),
+    blobs: () => fileBlobs(join(directory, "blobs", "model-access")),
+    factory: (host) => createModelAccessActor(host),
+    onError: (error, name) => console.error(`[model access ${name}]`, error),
+  })
+  const signIns = modelAccessDirectory(app, modelAccess)
   const agents: NodeActorNamespace = new NodeActorNamespace({
     directory: join(directory, "agents"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
-    factory: (host) =>
-      createAgentActor(host, {
+    factory: (host) => {
+      // What the agent's workspace is signed in to, which its models are then called with.
+      const access = () => signIns(host.name)
+      const models = createAgentModels(config, workspaceCredentials(access))
+      return createAgentActor(host, {
         models: models.models,
         defaultModel: models.defaultModel,
         modelOptions: models.options,
+        workspaceModels: () => workspaceModelOptions(access),
         computers,
         webSearch: models.webSearch,
         judge: models.judge,
@@ -90,7 +108,8 @@ function create(): NodePlatform {
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
-      }),
+      })
+    },
     onError: (error, name) => console.error(`[agent ${name}] alarm failed`, error),
   })
   const presence = new NodeActorNamespace({
@@ -111,6 +130,7 @@ function create(): NodePlatform {
     computers: links,
     presence,
     libraries,
+    modelAccess,
     machines: computers,
     connectComputer: (name, socket, request) => links.connect(name, socket, request),
     connectPresence: (name, socket, request) => presence.connect(name, socket, request),

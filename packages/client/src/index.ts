@@ -34,7 +34,11 @@ import {
   type LibraryFile,
   type LibraryListing,
   type LibraryVersion,
+  type AnswerModelLoginRequest,
+  type ModelLogin,
   type ModelOption,
+  type ModelProvidersState,
+  type StartModelLoginRequest,
   type Outfit,
   PING_FRAME,
   type PresenceEvent,
@@ -231,8 +235,19 @@ export function createClient(options: ClientOptions) {
   return {
     me: () => request<Me>("/api/me"),
     listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
-    /** Every model an agent can be set to, suggested ones first. */
-    models: async () => (await request<{ models: ModelOption[] }>("/api/models")).models,
+    /**
+     * The models to choose from, suggested ones first. For a workspace, those an agent there
+     * can be set to: the deployment's and those of the providers the workspace is signed in to.
+     * For none, every model the user could choose somewhere.
+     */
+    models: async (workspaceId?: string) =>
+      (
+        await request<{ models: ModelOption[] }>(
+          workspaceId === undefined
+            ? "/api/models"
+            : `/api/models?workspaceId=${encodeURIComponent(workspaceId)}`,
+        )
+      ).models,
     /** The signed-in user's account settings. */
     settings: () => request<UserSettings>("/api/settings"),
     /** The kinds of computer an agent can be given here, and the one new agents get. */
@@ -276,6 +291,49 @@ export function createClient(options: ClientOptions) {
           request<{ ok: true }>(`${base}/invitations/${encodeURIComponent(invitationId)}`, {
             method: "DELETE",
           }),
+        /** The model providers there are, and which the workspace is signed in to. */
+        modelProviders: async () =>
+          (await request<ModelProvidersState>(`${base}/model-providers`)).providers,
+        /** Sign the workspace out of a provider. Its agents can no longer run on its models. */
+        signOutOfModelProvider: async (providerId: string) =>
+          (
+            await request<ModelProvidersState>(
+              `${base}/model-providers/${encodeURIComponent(providerId)}`,
+              { method: "DELETE" },
+            )
+          ).providers,
+        /**
+         * Start signing the workspace in to a provider, with a subscription or a key. What
+         * comes back says what to show next: a question, a page to open, a code to enter.
+         */
+        startModelLogin: async (input: StartModelLoginRequest) =>
+          (await post<{ login: ModelLogin }>(`${base}/model-logins`, input)).login,
+        /**
+         * How a sign-in stands. Given the `rev` last seen, it answers when there is something
+         * newer, or after `waitMs` with the same.
+         */
+        modelLogin: async (loginId: string, since?: { rev: number; waitMs: number }) =>
+          (
+            await request<{ login: ModelLogin }>(
+              `${base}/model-logins/${encodeURIComponent(loginId)}${
+                since === undefined ? "" : `?rev=${since.rev}&wait=${since.waitMs}`
+              }`,
+            )
+          ).login,
+        answerModelLogin: async (loginId: string, input: AnswerModelLoginRequest) =>
+          (
+            await post<{ login: ModelLogin }>(
+              `${base}/model-logins/${encodeURIComponent(loginId)}/answer`,
+              input,
+            )
+          ).login,
+        cancelModelLogin: async (loginId: string) =>
+          (
+            await request<{ login: ModelLogin }>(
+              `${base}/model-logins/${encodeURIComponent(loginId)}`,
+              { method: "DELETE" },
+            )
+          ).login,
         setRole: (userId: string, role: WorkspaceRole) =>
           patch<{ ok: true }>(`${base}/members/${encodeURIComponent(userId)}`, { role }),
         /** Remove someone from the team. With the user's own id, leave it. */

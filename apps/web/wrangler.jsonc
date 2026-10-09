@@ -12,6 +12,7 @@
       { "name": "SANDBOX", "class_name": "SandboxObject" },
       { "name": "PRESENCE", "class_name": "PresenceObject" },
       { "name": "LIBRARY", "class_name": "LibraryObject" },
+      { "name": "MODEL_ACCESS", "class_name": "ModelAccessObject" },
     ],
   },
   // To give each agent a Linux machine on Cloudflare Containers (Workers Paid plan), uncomment
@@ -24,6 +25,7 @@
     { "tag": "v3", "new_sqlite_classes": ["SandboxObject"] },
     { "tag": "v4", "new_sqlite_classes": ["PresenceObject"] },
     { "tag": "v5", "new_sqlite_classes": ["LibraryObject"] },
+    { "tag": "v6", "new_sqlite_classes": ["ModelAccessObject"] },
   ],
   "d1_databases": [
     {

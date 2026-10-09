@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button"
 import { chatKey } from "@/lib/atoms"
 import { useArchiveSideChat } from "@/lib/chats"
 import { client } from "@/lib/client"
-import { modelsKey } from "@/lib/collections"
+import { workspaceModelsKey } from "@/lib/collections"
 import { DOC_PANEL_LEAVES, sideChatColumn } from "@/lib/columns"
 import { useChat } from "@/lib/use-chat"
 import { useWide } from "@/lib/use-wide"
@@ -127,8 +127,8 @@ export function SideChat({
     [team, me.user.id, people],
   )
   const { data: models } = useQuery({
-    queryKey: modelsKey,
-    queryFn: () => client.models(),
+    queryKey: workspaceModelsKey(agent.workspaceId),
+    queryFn: () => client.models(agent.workspaceId),
     staleTime: Number.POSITIVE_INFINITY,
   })
 

@@ -69,7 +69,12 @@ import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/co
 import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId.invitations.$invitationId'
 import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId.members.$userId'
+import { Route as ApiWorkspacesWorkspaceIdModelLoginsIndexRouteImport } from './routes/api/workspaces/$workspaceId.model-logins.index'
+import { Route as ApiWorkspacesWorkspaceIdModelProvidersIndexRouteImport } from './routes/api/workspaces/$workspaceId.model-providers.index'
+import { Route as ApiWorkspacesWorkspaceIdModelProvidersProviderIdRouteImport } from './routes/api/workspaces/$workspaceId.model-providers.$providerId'
 import { Route as ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport } from './routes/api/agents/$agentId.connectors.$connectorId.connect'
+import { Route as ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.model-logins.$loginId.index'
+import { Route as ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRouteImport } from './routes/api/workspaces/$workspaceId.model-logins.$loginId.answer'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -380,11 +385,41 @@ const ApiWorkspacesWorkspaceIdMembersUserIdRoute =
     path: '/api/workspaces/$workspaceId/members/$userId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdModelLoginsIndexRoute =
+  ApiWorkspacesWorkspaceIdModelLoginsIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/model-logins/',
+    path: '/api/workspaces/$workspaceId/model-logins/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdModelProvidersIndexRoute =
+  ApiWorkspacesWorkspaceIdModelProvidersIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/model-providers/',
+    path: '/api/workspaces/$workspaceId/model-providers/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute =
+  ApiWorkspacesWorkspaceIdModelProvidersProviderIdRouteImport.update({
+    id: '/api/workspaces/$workspaceId/model-providers/$providerId',
+    path: '/api/workspaces/$workspaceId/model-providers/$providerId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAgentsAgentIdConnectorsConnectorIdConnectRoute =
   ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport.update({
     id: '/$connectorId/connect',
     path: '/$connectorId/connect',
     getParentRoute: () => ApiAgentsAgentIdConnectorsRoute,
+  } as any)
+const ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute =
+  ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/model-logins/$loginId/',
+    path: '/api/workspaces/$workspaceId/model-logins/$loginId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute =
+  ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRouteImport.update({
+    id: '/api/workspaces/$workspaceId/model-logins/$loginId/answer',
+    path: '/api/workspaces/$workspaceId/model-logins/$loginId/answer',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -446,8 +481,13 @@ export interface FileRoutesByFullPath {
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/model-providers/$providerId': typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  '/api/workspaces/$workspaceId/model-logins/': typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
+  '/api/workspaces/$workspaceId/model-providers/': typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
   '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+  '/api/workspaces/$workspaceId/model-logins/$loginId/answer': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute
+  '/api/workspaces/$workspaceId/model-logins/$loginId/': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/daemon.js': typeof DaemonDotjsRoute
@@ -506,8 +546,13 @@ export interface FileRoutesByTo {
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/model-providers/$providerId': typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  '/api/workspaces/$workspaceId/model-logins': typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
+  '/api/workspaces/$workspaceId/model-providers': typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
   '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+  '/api/workspaces/$workspaceId/model-logins/$loginId/answer': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute
+  '/api/workspaces/$workspaceId/model-logins/$loginId': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -570,8 +615,13 @@ export interface FileRoutesById {
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  '/api/workspaces/$workspaceId/model-providers/$providerId': typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  '/api/workspaces/$workspaceId/model-logins/': typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
+  '/api/workspaces/$workspaceId/model-providers/': typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
   '/api/agents/$agentId/connectors/$connectorId/connect': typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRoute
+  '/api/workspaces/$workspaceId/model-logins/$loginId/answer': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute
+  '/api/workspaces/$workspaceId/model-logins/$loginId/': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -634,8 +684,13 @@ export interface FileRouteTypes {
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/model-providers/$providerId'
     | '/api/workspaces/$workspaceId/invitations/'
+    | '/api/workspaces/$workspaceId/model-logins/'
+    | '/api/workspaces/$workspaceId/model-providers/'
     | '/api/agents/$agentId/connectors/$connectorId/connect'
+    | '/api/workspaces/$workspaceId/model-logins/$loginId/answer'
+    | '/api/workspaces/$workspaceId/model-logins/$loginId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/daemon.js'
@@ -694,8 +749,13 @@ export interface FileRouteTypes {
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/model-providers/$providerId'
     | '/api/workspaces/$workspaceId/invitations'
+    | '/api/workspaces/$workspaceId/model-logins'
+    | '/api/workspaces/$workspaceId/model-providers'
     | '/api/agents/$agentId/connectors/$connectorId/connect'
+    | '/api/workspaces/$workspaceId/model-logins/$loginId/answer'
+    | '/api/workspaces/$workspaceId/model-logins/$loginId'
   id:
     | '__root__'
     | '/_app'
@@ -757,8 +817,13 @@ export interface FileRouteTypes {
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
+    | '/api/workspaces/$workspaceId/model-providers/$providerId'
     | '/api/workspaces/$workspaceId/invitations/'
+    | '/api/workspaces/$workspaceId/model-logins/'
+    | '/api/workspaces/$workspaceId/model-providers/'
     | '/api/agents/$agentId/connectors/$connectorId/connect'
+    | '/api/workspaces/$workspaceId/model-logins/$loginId/answer'
+    | '/api/workspaces/$workspaceId/model-logins/$loginId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -803,7 +868,12 @@ export interface RootRouteChildren {
   ApiComputersPairRequestCodeRoute: typeof ApiComputersPairRequestCodeRoute
   ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute: typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   ApiWorkspacesWorkspaceIdMembersUserIdRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
+  ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute: typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   ApiWorkspacesWorkspaceIdInvitationsIndexRoute: typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
+  ApiWorkspacesWorkspaceIdModelLoginsIndexRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
+  ApiWorkspacesWorkspaceIdModelProvidersIndexRoute: typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
+  ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute
+  ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1228,12 +1298,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/model-logins/': {
+      id: '/api/workspaces/$workspaceId/model-logins/'
+      path: '/api/workspaces/$workspaceId/model-logins'
+      fullPath: '/api/workspaces/$workspaceId/model-logins/'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/model-providers/': {
+      id: '/api/workspaces/$workspaceId/model-providers/'
+      path: '/api/workspaces/$workspaceId/model-providers'
+      fullPath: '/api/workspaces/$workspaceId/model-providers/'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/model-providers/$providerId': {
+      id: '/api/workspaces/$workspaceId/model-providers/$providerId'
+      path: '/api/workspaces/$workspaceId/model-providers/$providerId'
+      fullPath: '/api/workspaces/$workspaceId/model-providers/$providerId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agents/$agentId/connectors/$connectorId/connect': {
       id: '/api/agents/$agentId/connectors/$connectorId/connect'
       path: '/$connectorId/connect'
       fullPath: '/api/agents/$agentId/connectors/$connectorId/connect'
       preLoaderRoute: typeof ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport
       parentRoute: typeof ApiAgentsAgentIdConnectorsRoute
+    }
+    '/api/workspaces/$workspaceId/model-logins/$loginId/': {
+      id: '/api/workspaces/$workspaceId/model-logins/$loginId/'
+      path: '/api/workspaces/$workspaceId/model-logins/$loginId'
+      fullPath: '/api/workspaces/$workspaceId/model-logins/$loginId/'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/model-logins/$loginId/answer': {
+      id: '/api/workspaces/$workspaceId/model-logins/$loginId/answer'
+      path: '/api/workspaces/$workspaceId/model-logins/$loginId/answer'
+      fullPath: '/api/workspaces/$workspaceId/model-logins/$loginId/answer'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -1374,8 +1479,18 @@ const rootRouteChildren: RootRouteChildren = {
     ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute,
   ApiWorkspacesWorkspaceIdMembersUserIdRoute:
     ApiWorkspacesWorkspaceIdMembersUserIdRoute,
+  ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute:
+    ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute,
   ApiWorkspacesWorkspaceIdInvitationsIndexRoute:
     ApiWorkspacesWorkspaceIdInvitationsIndexRoute,
+  ApiWorkspacesWorkspaceIdModelLoginsIndexRoute:
+    ApiWorkspacesWorkspaceIdModelLoginsIndexRoute,
+  ApiWorkspacesWorkspaceIdModelProvidersIndexRoute:
+    ApiWorkspacesWorkspaceIdModelProvidersIndexRoute,
+  ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute:
+    ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute,
+  ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute:
+    ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

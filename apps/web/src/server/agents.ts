@@ -16,7 +16,7 @@ import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/prot
 import { getAuth, getUser, type SessionUser } from "./auth.ts"
 import { provideFor } from "./computers.ts"
 import { announce } from "./presence.ts"
-import { defaultsFor } from "./settings.ts"
+import { defaultModelFor } from "./settings.ts"
 import { type AgentAccess, agentAccess, roleIn, workspaceIdsOf } from "./teams.ts"
 
 /** How many agents one workspace can hold: a person's own, or a team's. */
@@ -155,7 +155,7 @@ async function makeAgent(
     body: JSON.stringify({
       ownerId,
       team: await teamName(workspaceId),
-      model: (await defaultsFor(ownerId)).model,
+      model: await defaultModelFor(ownerId, workspaceId),
     }),
   })
   if (!response.ok) {

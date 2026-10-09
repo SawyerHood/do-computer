@@ -5,6 +5,7 @@ export type ChatErrorKind =
   | "tooLong"
   | "credit"
   | "key"
+  | "signIn"
   | "rateLimit"
   | "overloaded"
   | "modelGone"
@@ -43,6 +44,11 @@ const WORDS: Record<ChatErrorKind, { title: string; hint?: string; retryable: bo
   key: {
     title: "The model key was refused.",
     hint: "The key for the model provider is missing or no longer valid.",
+    retryable: false,
+  },
+  signIn: {
+    title: "The workspace isn't signed in to this model's provider.",
+    hint: "Sign the workspace in to the provider again, or pick another model for this agent.",
     retryable: false,
   },
   rateLimit: {
@@ -89,6 +95,8 @@ const BY_WORDS: [ChatErrorKind, RegExp][] = [
     /context.?(length|window)|maximum context|too many tokens|prompt is too long|input is too long/,
   ],
   ["credit", /insufficient.?(credits?|quota|balance|funds)|out of credits?|payment required/],
+  // What is said when a workspace signed out of a provider, or its sign-in ran out.
+  ["signIn", /provider is not configured|needs to sign in to .* again/],
   ["key", /invalid.?api.?key|incorrect api key|no auth credentials|unauthorized|unauthenticated/],
   ["rateLimit", /rate.?limit|too many requests/],
   ["overloaded", /overloaded|over capacity|at capacity/],

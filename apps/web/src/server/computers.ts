@@ -46,7 +46,7 @@ import {
   ungrant,
 } from "./computer-access.ts"
 import { UNSHARED_KINDS } from "./sandbox.ts"
-import { defaultsFor, deploymentComputers } from "./settings.ts"
+import { defaultComputerFor, deploymentComputers } from "./settings.ts"
 import { agentAccess, roleIn } from "./teams.ts"
 
 const PAIRING_TTL_MS = 10 * 60_000
@@ -422,7 +422,7 @@ export async function addMachineFor(
   if (kinds.length === 0) {
     return { error: "This deployment has no kind of machine that can be added." }
   }
-  const usual = (await defaultsFor(by)).computer
+  const usual = await defaultComputerFor(by)
   const kind = input.kind ?? (kinds.some((offered) => offered.id === usual) ? usual : kinds[0]!.id)
   if (!kinds.some((offered) => offered.id === kind)) {
     return {
@@ -488,7 +488,7 @@ export async function removeMachineFor(
  */
 export async function provideFor(agentId: string, workspaceId: string, by: string): Promise<void> {
   const { db } = getPlatform()
-  const { computer: kind } = await defaultsFor(by)
+  const kind = await defaultComputerFor(by)
   if (UNSHARED_KINDS.includes(kind)) {
     const row = await insertMachine({
       workspaceId,

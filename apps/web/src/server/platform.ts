@@ -83,6 +83,11 @@ export type Platform = {
   readonly presence: ActorNamespace
   /** One actor per workspace, keeping the library its agents share. Named by the workspace's id. */
   readonly libraries: ActorNamespace
+  /**
+   * One actor per workspace, keeping the model providers it is signed in to. Named by the
+   * workspace's id.
+   */
+  readonly modelAccess: ActorNamespace
   /** The kinds of machine there are, and how one is reached: to learn its home, and to delete it. */
   readonly machines: ComputerChoices
 }

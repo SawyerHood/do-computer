@@ -13,6 +13,7 @@ import type { SessionUser } from "./auth.ts"
 import { removeComputersOfMember, removeComputersOfWorkspace } from "./computers.ts"
 import { sendEmail } from "./email.ts"
 import { findGithubUser } from "./github.ts"
+import { removeModelAccessOf, removeModelSignInsOf } from "./model-access.ts"
 import { announce, dismiss } from "./presence.ts"
 import {
   acceptInvitation,
@@ -135,6 +136,8 @@ export function removeWorkspace(user: SessionUser, workspaceId: string): Promise
       .libraries.get(workspaceId)
       .fetch(new Request("http://library/destroy", { method: "POST" }))
       .catch(() => {})
+    // So does what it was signed in to model providers with.
+    await removeModelAccessOf(workspaceId)
     await announce(workspaceId)
   })
 }
@@ -205,6 +208,8 @@ export function deleteMember(
   return answer(async () => {
     await removeMember(getPlatform().db, user, workspaceId, userId)
     await removeComputersOfMember(userId, workspaceId)
+    // A subscription or key they signed the team in with was theirs, and goes with them.
+    await removeModelSignInsOf(userId, workspaceId)
     await dismiss(workspaceId, userId)
     await announce(workspaceId)
   })

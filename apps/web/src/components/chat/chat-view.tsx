@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator"
 import { agentPanelOpenAtom, chatKey } from "@/lib/atoms"
 import { isSideChat, mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
-import { agentKey, agentQuery, agentsKey, modelsKey } from "@/lib/collections"
+import { agentKey, agentQuery, agentsKey, workspaceModelsKey } from "@/lib/collections"
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useSettings } from "@/lib/settings"
@@ -212,8 +212,8 @@ export function ChatView({
   )
   // What the agent's model can take decides whether a picture is sent for it to look at.
   const { data: models } = useQuery({
-    queryKey: modelsKey,
-    queryFn: () => client.models(),
+    queryKey: workspaceModelsKey(agent.workspaceId),
+    queryFn: () => client.models(agent.workspaceId),
     staleTime: Number.POSITIVE_INFINITY,
   })
   const hatch = useHatch(agent)

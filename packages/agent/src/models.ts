@@ -5,10 +5,11 @@ import {
   type FauxProviderHandle,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
-import { createModels, getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models"
-import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter"
+import type { CredentialStore } from "@earendil-works/pi-ai"
+import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import type { ModelRef } from "@earendil-works/pi-durable"
 import type { JudgeOptions } from "./keep-going.ts"
+import { modelOption, modelProviders } from "./model-providers.ts"
 import type { WebSearchOptions } from "./web-search.ts"
 
 /** OpenRouter models suggested first in the picker. Ones the catalog lacks are dropped. */
@@ -22,6 +23,8 @@ const CURATED = [
 ]
 
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5.5"
+/** The model a deployment without a key runs on. It repeats what it is told. */
+export const ECHO_MODEL = "echo/echo-1"
 /**
  * Reads web search results when no search model is configured. Reading a handful of pages and
  * reporting what they say does not need the agent's own model, and one search with it cost
@@ -123,16 +126,34 @@ function echoAnswer(context: EchoContext) {
 
 /**
  * Model access for a deployment: OpenRouter when a key is configured, otherwise an echo model that
- * needs no network.
+ * needs no network. Either way every provider a workspace can sign in to is there as well, and
+ * answers for the agents of a workspace that has: `credentials` is what the agent's workspace
+ * keeps. Without it nobody is signed in to anything, and only the deployment's models run.
  */
-export function createAgentModels(config: AgentModelsConfig): AgentModels {
-  if (config.openrouterApiKey === undefined || config.openrouterApiKey === "") {
+export function createAgentModels(
+  config: AgentModelsConfig,
+  credentials?: CredentialStore,
+): AgentModels {
+  const key =
+    config.openrouterApiKey === undefined || config.openrouterApiKey === ""
+      ? undefined
+      : config.openrouterApiKey
+  const models = createModels({
+    ...(credentials === undefined ? {} : { credentials }),
+    // The key comes from deployment config, never from the process environment or disk.
+    authContext: {
+      env: async (name) => (name === "OPENROUTER_API_KEY" ? key : undefined),
+      fileExists: async () => false,
+    },
+  })
+  for (const provider of modelProviders()) models.setProvider(provider)
+
+  if (key === undefined) {
     const faux = fauxProvider({
       provider: "echo",
       models: [{ id: "echo-1", name: "Echo (no model key configured)" }],
       tokensPerSecond: 60,
     })
-    const models = createModels()
     models.setProvider(faux.provider)
     // An endless script: each request is answered from the conversation it carries.
     const refill = () => {
@@ -148,10 +169,10 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     refill()
     return {
       models,
-      defaultModel: "echo/echo-1",
+      defaultModel: ECHO_MODEL,
       options: [
         {
-          id: "echo/echo-1",
+          id: ECHO_MODEL,
           name: "Echo (no model key configured)",
           reasoning: false,
           inputCost: 0,
@@ -163,17 +184,7 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
     }
   }
 
-  const key = config.openrouterApiKey
-  const models = createModels({
-    // The key comes from deployment config, never from the process environment or disk.
-    authContext: {
-      env: async (name) => (name === "OPENROUTER_API_KEY" ? key : undefined),
-      fileExists: async () => false,
-    },
-  })
-  const provider = openrouterProvider()
-  models.setProvider(provider)
-
+  const provider = models.getProvider("openrouter")!
   const catalog = new Map(provider.getModels().map((model) => [model.id, model]))
   const preferred = config.defaultModel ?? DEFAULT_OPENROUTER_MODEL
   // Every model in the catalog can be chosen: it is the set of OpenRouter models that can call
@@ -182,20 +193,9 @@ export function createAgentModels(config: AgentModelsConfig): AgentModels {
   const rest = [...catalog.keys()]
     .filter((id) => !suggested.includes(id))
     .sort((a, b) => catalog.get(a)!.name.localeCompare(catalog.get(b)!.name))
-  const options = [...suggested, ...rest].map((id): ModelOption => {
-    const model = catalog.get(id)!
-    return {
-      id: `openrouter/${id}`,
-      name: model.name,
-      reasoning: model.reasoning,
-      ...(model.reasoning ? { thinking: getSupportedThinkingLevels(model) } : {}),
-      inputCost: model.cost.input,
-      outputCost: model.cost.output,
-      contextWindow: model.contextWindow,
-      images: model.input.includes("image"),
-      ...(suggested.includes(id) ? { recommended: true } : {}),
-    }
-  })
+  const options = [...suggested, ...rest].map((id) =>
+    modelOption(catalog.get(id)!, provider, suggested.includes(id)),
+  )
   if (options.length === 0) {
     throw new Error(`None of the configured OpenRouter models exist in the model catalog`)
   }

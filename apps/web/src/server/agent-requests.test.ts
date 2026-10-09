@@ -39,6 +39,8 @@ vi.mock("#platform", () => ({
       }),
     },
     presence: { get: () => ({ fetch: async () => Response.json({ ok: true }) }) },
+    // No workspace here is signed in to a model provider.
+    modelAccess: { get: () => ({ fetch: async () => Response.json({ models: [] }) }) },
     machines: {
       kinds: [],
       default: "just-bash",
