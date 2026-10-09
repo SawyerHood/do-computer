@@ -1221,7 +1221,7 @@ Since then, newest last:
     things to wait for, none with an end:
     - **The app's own address no longer waits for the list of agents.** The desktop app starts
       there every time. `GET /api/agents` asks every agent's object what it is and answers
-      when the slowest has: 1.1 to 1.2 s on do.computer against 0.15 to 0.25 s for
+      when the slowest has: 0.6 to 1.5 s on do.computer against 0.15 to 0.25 s for
       `/api/me`. The agent that was open last is now gone to without the list. One that turns
       out to be gone is forgotten by its page, which sends the visitor back to the address,
       where the list is then asked for.
