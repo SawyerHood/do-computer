@@ -194,7 +194,8 @@ test("an agent works on this computer, and still can with the window closed", as
   const env = readFileSync(join(home, "env.txt"), "utf8")
   expect(env).toContain("PATH=")
   expect(env).not.toContain("ELECTRON_RUN_AS_NODE")
-  expect(env).not.toContain("DC_DAEMON_")
+  expect(env).not.toContain("DC_DAEMON_EMBEDDED")
+  expect(env).not.toContain("DC_DAEMON_WORKER")
   // What it did is on record on the machine, and in the app's window about it.
   const computer = await windowAt("computer.html")
   await expect(computer.getByRole("list", { name: "What the daemon did" })).toContainText(

@@ -212,7 +212,10 @@ function daemon(): DaemonRunner {
     node: process.execPath,
     env: () => ({ ...process.env, ...(commandPath === undefined ? {} : { PATH: commandPath }) }),
     onChange: changed,
-    onRevoked: () => remember({ share: false }),
+    onRevoked: () => {
+      remember({ share: false })
+      changed()
+    },
   })
   return runner
 }
@@ -483,7 +486,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on("second-instance", () => showMain())
-  app.on("activate", () => showMain())
+  // macOS also says this as the app starts, before there is anything to show a window with.
+  app.on("activate", () => {
+    if (app.isReady()) showMain()
+  })
   // The tray is what ends the program, not its last window closing.
   app.on("window-all-closed", () => {})
   app.on("before-quit", () => {
