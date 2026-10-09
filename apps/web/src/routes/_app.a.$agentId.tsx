@@ -9,7 +9,7 @@ import { mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentQuery, refreshAgent } from "@/lib/collections"
 import { useAgentFavicon } from "@/lib/favicon"
-import { forgetLastAgent, rememberLastAgent } from "@/lib/last-agent"
+import { cameBackUnasked, forgetLastAgent, rememberLastAgent } from "@/lib/last-agent"
 import { queryClient } from "@/lib/query"
 import { useListedAgent } from "@/lib/workspaces"
 
@@ -61,10 +61,17 @@ function AgentLayout() {
   // server will not give, being deleted or in a team that was left, is not one to come back to.
   const loaded = state !== undefined
   const refused = error instanceof ApiError && error.status < 500
+  // A session that has ended is refused too, and is sent to sign in, not to another agent.
+  const gone = refused && error.status !== 401
+  const navigate = Route.useNavigate()
   useEffect(() => {
-    if (refused) forgetLastAgent(agentId)
-    else if (loaded && !failed) rememberLastAgent(agentId)
-  }, [agentId, loaded, failed, refused])
+    if (refused) {
+      forgetLastAgent(agentId)
+      // The app comes to the agent it kept without asking whether it is still there. One that
+      // is not is left for wherever the app opens with nothing kept.
+      if (gone && cameBackUnasked(agentId)) void navigate({ to: "/", replace: true })
+    } else if (loaded && !failed) rememberLastAgent(agentId)
+  }, [agentId, loaded, failed, refused, gone, navigate])
 
   if (error) {
     return (

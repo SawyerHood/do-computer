@@ -1,4 +1,5 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router"
+import { PageError } from "./components/page-error"
 import { routeTree } from "./routeTree.gen"
 
 export function getRouter() {
@@ -11,6 +12,8 @@ export function getRouter() {
     defaultPreloadStaleTime: 0,
     // A placeholder is taken down the moment what it stands for is here.
     defaultPendingMinMs: 0,
+    // What a page waits for may never come. It then says so, and offers to ask again.
+    defaultErrorComponent: PageError,
   })
 }
 
