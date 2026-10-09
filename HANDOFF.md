@@ -866,8 +866,18 @@ Since then, newest last:
       page says of a connected computer whose daemon is not the server's and does not update
       itself that the install command has to be run there again (`daemon` on
       `ComputerSummary`).
-    - **Daemons from before this** cannot update themselves: each needs the install command
-      once more, and the Computers page says which. That is the owner's own computers.
+    - **Daemons from before this** cannot update themselves. The owner asked whether there
+      was something to run "to make sure they all get updated", so the Computers page has an
+      Update button on a connected computer whose daemon is out of date
+      (`POST /api/computers/:id/update`, `apps/web/src/server/daemon-reinstall.ts`). For one
+      that keeps itself up to date it sends the `update` frame. For an old one it sends a
+      command through the daemon's own way of running commands: find the daemon that is
+      running this, download the served one, see that it starts and is the right version,
+      keep the old file, swap, and start the new daemon a second later. The new one
+      connecting is what ends the old one, since a computer has one connection; under a
+      service manager the service then starts again from the new file and takes over. Only
+      whoever may remove the computer can press it, and not for a read-only computer, which
+      runs nothing it is sent: there the install command has to be run by hand.
     - **Mine, not the owner's:** that it is on by default, including on a read-only computer,
       where it lets whoever runs the server run code that the agent cannot. The server
       already gave that computer the daemon it runs; the owner has not been asked.
@@ -877,7 +887,10 @@ Since then, newest last:
       command through it; and with a server whose daemon could not start, the old one was
       put back, reconnected, and did not fetch that version again; and a build that never
       asks by itself updated the moment it connected, which only the server's frame can
-      have caused. The waiting for an ability is checked in
+      have caused. The Update button was pressed in a browser on a daemon built from the
+      commit before item 26, which then ran a command in the background; the same was done
+      through the route for one started plainly and one under a loop that starts it again
+      whenever it ends, as a service manager does. The waiting for an ability is checked in
       `packages/computers/test/computers.test.ts` with a stand-in for the daemon coming
       back. **Not checked:** macOS or
       launchd, a daemon run by systemd, a deploy to Cloudflare dropping a live connection
