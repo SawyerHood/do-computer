@@ -144,6 +144,8 @@ test("signing in leads to confirming this computer, and then it is connected", a
   await expect(main.getByRole("heading", { name: "Connect this computer?" })).toBeVisible({
     timeout: 30_000,
   })
+  // With one agent there is nothing to choose between: it is chosen, once the page knows of it.
+  await expect(main.getByRole("checkbox")).toBeChecked()
   await main.getByRole("button", { name: "Connect this computer" }).click()
   await expect(main.getByRole("heading", { name: "Connected" })).toBeVisible()
 

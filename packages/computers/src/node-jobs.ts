@@ -33,6 +33,13 @@ const MEASURE_EVERY_MS = 2_000
 const WRAP =
   's=$(date +%s); "$3" -c "$1"; c=$?; echo "$c 0 $(( ($(date +%s) - s) * 1000 ))" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"'
 
+/**
+ * The same on Windows, where the script first writes which process it is. What the daemon
+ * starts there is Git's launcher for bash, which Windows ends when the daemon ends; the bash
+ * the launcher starts runs on, and is the one to find again and to stop.
+ */
+const WINDOWS_WRAP = `cat /proc/$$/winpid > "$2/pid"; ${WRAP}`
+
 type Live = {
   child: ChildProcess
   /** Why the daemon stopped it, if it did: its time limit, or printing too much. */
@@ -78,12 +85,14 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
   /** The program a job is, and what it is given. */
   const program = (command: string, dir: string): [string, string[]] => {
     // A shell that cannot run the script around a job, PowerShell on Windows, runs the command
-    // alone. The daemon writes how it ended when it sees it end, so one that ends while the
-    // daemon is not running is reported as lost.
+    // alone. The daemon writes how it ended when it sees it end, and on Windows the command
+    // ends with the daemon, so one from before the daemon restarted is reported as lost.
     if (!shell.posix) return [shell.file, shell.args(command)]
     // Windows has no `sh` but the one that comes with Git's bash, which is also the `bash` on
     // the PATH inside it, and which is told where the folder is in its own way of writing it.
-    if (windows) return [shell.file, ["-c", WRAP, "job", command, toPosixView(dir), "bash"]]
+    if (windows) {
+      return [shell.file, ["-c", WINDOWS_WRAP, "job", command, toPosixView(dir), "bash"]]
+    }
     return ["sh", ["-c", WRAP, "job", command, dir, shell.file]]
   }
   const live = new Map<string, Live>()
@@ -143,12 +152,13 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     let child: ChildProcess
     try {
       // Its own process group, so that stopping it stops what it started, and so that it is
-      // not stopped with the daemon.
+      // not stopped with the daemon. Not on Windows, where a program started apart from the
+      // daemon has no console, and neither bash nor PowerShell prints anything without one.
       const [file, args] = program(job.command, dir)
       child = spawn(file, args, {
         cwd: job.cwd === undefined ? options.home : options.resolve(job.cwd),
         env: { ...process.env, ...job.env },
-        detached: true,
+        detached: !windows,
         windowsHide: true,
         stdio: ["ignore", log, log],
       })
@@ -197,7 +207,10 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     // The daemon does not wait for it to end before it can exit itself.
     child.unref()
     if (child.pid !== undefined) {
-      await fs.writeFile(path.join(dir, "pid"), String(child.pid))
+      // Under Git's bash on Windows the script says which process it is, and says it better.
+      if (!(windows && shell.posix)) {
+        await fs.writeFile(path.join(dir, "pid"), String(child.pid))
+      }
       await fs.writeFile(path.join(dir, "deadline"), String(Date.now() + job.lifeMs))
     }
   }
@@ -279,7 +292,8 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
       stop: async (id) => {
         const dir = dirOf(id)
         if ((await readExit(dir)) !== undefined) return
-        const pid = await number(path.join(dir, "pid"))
+        // One that has not yet said which process it is, is the one this daemon started.
+        const pid = (await number(path.join(dir, "pid"))) || (live.get(dir)?.child.pid ?? 0)
         if (pid <= 0) return
         stopGroup(pid)
         if (live.has(dir)) return

@@ -486,7 +486,7 @@ Things to know:
   Windows](https://gitforwindows.org) where that is installed, and in PowerShell where it is
   not. Agents write their commands for bash, so install it. Paths are shown to agents the way
   Git Bash writes them: `/c/Users/ada` for `C:\Users\ada`. Under PowerShell, a command left
-  running in the background that ends while the daemon is restarting is reported as lost.
+  running in the background ends when the daemon restarts, as it does to update itself.
 - **On Linux** a desktop without a tray (GNOME without the AppIndicator extension) has no icon
   to bring the window back with. Starting the app again does it.
 
