@@ -190,38 +190,57 @@ const directory = mkdtempSync(join(tmpdir(), "dc-computers-"))
 const namespace = new NodeActorNamespace({
   directory: join(directory, "links"),
   blobs: () => fileBlobs(join(directory, "blobs")),
-  factory: (host) => createComputerLinkActor(host),
+  // The daemons here say they are version "test", which is the one this deployment serves.
+  factory: (host) =>
+    createComputerLinkActor(host, { daemonVersion: async () => "test", updateWaitMs: 600 }),
 })
 afterAll(() => namespace.close())
 
 let counter = 0
 /** Pair a "computer": a real daemon core on a temporary home directory, connected to its link. */
-async function connectDaemon(name = `computer-${++counter}`, readOnly = false, old = false) {
+async function connectDaemon(
+  name = `computer-${++counter}`,
+  readOnly = false,
+  old = false,
+  /** What its hello says differently from a daemon of today. */
+  said: Record<string, unknown> = {},
+) {
   const home = mkdtempSync(join(tmpdir(), "dc-daemon-home-"))
   const pair = socketPair()
   const audits: Record<string, unknown>[] = []
+  /** How often it was told to update, and what to do when it is. */
+  const told = { times: 0, then: () => {} }
   const daemon = new DaemonCore(
     nodeDaemonIO({ home, audit: (entry) => void audits.push(entry), shell: "sh" }),
     pair.client.send,
-    { readOnly },
+    {
+      readOnly,
+      onUpdate: () => {
+        told.times++
+        told.then()
+      },
+    },
   )
   pair.client.onMessage((data) => daemon.onFrame(data))
   await namespace.connect(name, pair.like, new Request("http://link/connect"))
-  pair.client.send(
-    JSON.stringify({
-      t: "hello",
-      platform: "linux",
-      hostname: "test-box",
-      home,
-      readOnly,
-      version: "test",
-      // A daemon from before there were jobs says nothing about them.
-      ...(old ? {} : { jobs: true }),
-    }),
-  )
+  const hello = (more: Record<string, unknown>) =>
+    pair.client.send(
+      JSON.stringify({
+        t: "hello",
+        platform: "linux",
+        hostname: "test-box",
+        home,
+        readOnly,
+        version: "test",
+        // A daemon from before there were jobs says nothing about them.
+        ...(old ? {} : { jobs: true }),
+        ...more,
+      }),
+    )
+  hello(said)
   daemon.onOpen()
   const sandbox = computerSandbox({ id: name, home, link: namespace.get(name) })
-  return { name, home, sandbox, audits, closed: pair.client.closed }
+  return { name, home, sandbox, audits, closed: pair.client.closed, told, hello }
 }
 
 // A paired computer has to behave exactly like the agent's own computer.
@@ -416,5 +435,77 @@ describe("jobs on a paired computer", () => {
     await expect(
       sandbox.jobs!("agent-1").start({ id: "a", command: "echo hi", lifeMs: 1_000 }, { waitMs: 0 }),
     ).rejects.toBeInstanceOf(JobsUnsupported)
+  })
+})
+
+describe("telling a daemon to update", () => {
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 30))
+
+  it("tells one that is behind when it connects, and leaves one that is current alone", async () => {
+    const behind = await connectDaemon(undefined, false, false, { version: "older", updates: true })
+    const current = await connectDaemon(undefined, false, false, { updates: true })
+    await settle()
+    expect(behind.told.times).toBe(1)
+    expect(current.told.times).toBe(0)
+    // Not again for everything that is asked of it.
+    await behind.sandbox.exec("true")
+    await behind.sandbox.exec("true")
+    await settle()
+    expect(behind.told.times).toBe(1)
+  })
+
+  it("does not tell one that does not update itself, which would not listen", async () => {
+    const fixed = await connectDaemon(undefined, false, false, { version: "older", updates: false })
+    const before = await connectDaemon(undefined, false, false, { version: "older" })
+    await fixed.sandbox.exec("true")
+    await before.sandbox.exec("true")
+    await settle()
+    expect(fixed.told.times).toBe(0)
+    expect(before.told.times).toBe(0)
+    const answer = await namespace
+      .get(fixed.name)
+      .fetch(new Request("http://computer/update", { method: "POST" }))
+    expect(await answer.json()).toEqual({ told: false })
+  })
+
+  it("tells one that is behind when someone asks it to be told", async () => {
+    const { name, told } = await connectDaemon(undefined, false, false, { updates: true })
+    const answer = await namespace
+      .get(name)
+      .fetch(new Request("http://computer/update", { method: "POST" }))
+    expect(await answer.json()).toEqual({ told: true })
+    await settle()
+    expect(told.times).toBe(1)
+  })
+
+  it("waits for a daemon that cannot do what is asked to come back as one that can", async () => {
+    const { sandbox, told, hello } = await connectDaemon(undefined, false, true, { updates: true })
+    // Being told, it becomes a daemon that keeps commands running, and says so.
+    told.then = () => void setTimeout(() => hello({ jobs: true, updates: true }), 150)
+    const done = await sandbox.jobs!("agent-1").start(
+      { id: "a", command: "echo after the update", lifeMs: 10_000 },
+      { waitMs: 5_000 },
+    )
+    expect(told.times).toBe(1)
+    expect(done).toMatchObject({ state: "exited", exitCode: 0, output: "after the update\n" })
+  })
+
+  it("says the daemon is updating when it is not back in time, and that it never will be when it does not update", async () => {
+    const slow = await connectDaemon(undefined, false, true, { updates: true })
+    await expect(
+      slow.sandbox.jobs!("agent-1").start(
+        { id: "a", command: "true", lifeMs: 1_000 },
+        { waitMs: 0 },
+      ),
+    ).rejects.toThrow(/updating itself/)
+    expect(slow.told.times).toBe(1)
+    const fixed = await connectDaemon(undefined, false, true)
+    await settle()
+    const refused = fixed.sandbox.jobs!("agent-1").start(
+      { id: "a", command: "true", lifeMs: 1_000 },
+      { waitMs: 0 },
+    )
+    await expect(refused).rejects.toBeInstanceOf(JobsUnsupported)
+    await expect(refused).rejects.toThrow(/does not update itself/)
   })
 })

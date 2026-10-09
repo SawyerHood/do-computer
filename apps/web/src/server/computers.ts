@@ -16,6 +16,7 @@ import {
 } from "@durable-computer/protocol"
 import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
+import { servedDaemon } from "./daemon-version.ts"
 import {
   agentsOn,
   agentsUsing,
@@ -694,12 +695,29 @@ export async function listComputers(user: SessionUser): Promise<Response> {
     db,
     rows.map((row) => row.owner_id),
   )
+  const served = await servedDaemon()
   const summaries = await Promise.all(
     rows.map(async (row): Promise<ComputerSummary> => {
       // A machine has no daemon to be away: it starts when something runs on it.
       const status = isMachine(row)
         ? { online: true, hello: null, lastSeenAt: null }
         : await linkStatus(computers.get(computerActorName(row.id))).catch(() => undefined)
+      const hello = status?.hello ?? null
+      const daemon =
+        hello === null
+          ? undefined
+          : hello.version === served
+            ? ("current" as const)
+            : hello.updates === true
+              ? ("updating" as const)
+              : ("outdated" as const)
+      // Someone is looking at a daemon that is behind and can catch up, so it is told to.
+      if (daemon === "updating" && status?.online === true) {
+        await computers
+          .get(computerActorName(row.id))
+          .fetch(new Request("http://computer/update", { method: "POST" }))
+          .catch(() => undefined)
+      }
       return {
         id: row.id,
         name: row.name,
@@ -718,6 +736,7 @@ export async function listComputers(user: SessionUser): Promise<Response> {
         // What the daemon reports now wins over what it said when it was paired.
         readOnly: status?.hello?.readOnly ?? row.read_only === 1,
         lastSeenAt: status?.lastSeenAt ?? null,
+        ...(daemon === undefined ? {} : { daemon }),
       }
     }),
   )

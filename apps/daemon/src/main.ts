@@ -8,8 +8,16 @@
  * Everything it does is printed and appended to an audit log. Stop the daemon to cut it off, or
  * remove the computer in the app.
  */
-import { execFileSync } from "node:child_process"
-import { appendFileSync, chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { type ChildProcess, execFileSync, spawn } from "node:child_process"
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { DaemonCore } from "@durable-computer/computers/daemon"
@@ -23,6 +31,8 @@ import {
 import WebSocket from "ws"
 import { parseArguments } from "./args.ts"
 import { serviceFile } from "./service.ts"
+import { supervise } from "./supervisor.ts"
+import { RESTART_EXIT_CODE, restorePrevious, update } from "./update.ts"
 
 declare const DAEMON_VERSION: string
 const VERSION = typeof DAEMON_VERSION === "string" ? DAEMON_VERSION : "dev"
@@ -32,13 +42,42 @@ const CONFIG_DIR = process.env.DC_DAEMON_DIR ?? path.join(HOME, ".durable-comput
 const CONFIG_PATH = path.join(CONFIG_DIR, "daemon.json")
 const AUDIT_PATH = path.join(CONFIG_DIR, "audit.log")
 const LOG_PATH = path.join(CONFIG_DIR, "daemon.log")
+const UPDATE_PATH = path.join(CONFIG_DIR, "update.json")
 
 const PING_INTERVAL_MS = 30_000
 const PONG_DEADLINE_MS = 15_000
 const POLL_INTERVAL_MS = Number(process.env.DC_DAEMON_POLL_MS ?? 3_000)
 const MAX_BACKOFF_MS = 30_000
+/** How often a connected daemon asks whether there is a newer one. It also asks on connecting. */
+const UPDATE_EVERY_MS = Number(process.env.DC_DAEMON_UPDATE_MS ?? 6 * 60 * 60_000)
+/** How long a new daemon waits for what the agent is doing here to end before it takes over. */
+const UPDATE_IDLE_WAIT_MS = 15 * 60_000
 
-type Config = { server: string; computerId: string; name: string; token: string; readOnly: boolean }
+type Config = {
+  server: string
+  computerId: string
+  name: string
+  token: string
+  readOnly: boolean
+  /** False when the owner switched updating off. Absent: it keeps itself up to date. */
+  autoUpdate?: boolean
+}
+
+/** What is remembered about updating: the version last installed, and one that would not start. */
+type UpdateState = { installed?: string; bad?: string }
+
+function loadUpdateState(): UpdateState {
+  try {
+    return JSON.parse(readFileSync(UPDATE_PATH, "utf8")) as UpdateState
+  } catch {
+    return {}
+  }
+}
+
+function saveUpdateState(state: UpdateState): void {
+  mkdirSync(CONFIG_DIR, { recursive: true })
+  writeFileSync(UPDATE_PATH, `${JSON.stringify(state)}\n`)
+}
 
 const log = (message: string) => console.log(`[${new Date().toISOString()}] ${message}`)
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -144,8 +183,44 @@ async function run(config: Config): Promise<void> {
       socket.send(frame)
       return true
     },
-    { readOnly: config.readOnly },
+    // The server says there may be a newer daemon: look now, not at the next look.
+    { readOnly: config.readOnly, onUpdate: () => void checkForUpdate() },
   )
+
+  // A daemon run from its source has no version to compare, and nothing on disk to replace.
+  const updating = config.autoUpdate !== false && VERSION !== "dev"
+  let checking = false
+  let passedOver = false
+  const checkForUpdate = async () => {
+    if (!updating || checking) return
+    checking = true
+    try {
+      const state = loadUpdateState()
+      const result = await update({
+        server: config.server,
+        current: VERSION,
+        script: realpathSync(process.argv[1]!),
+        node: process.execPath,
+        bad: state.bad,
+      })
+      if (result.outcome === "skipped" && !passedOver) {
+        passedOver = true
+        log(`Staying on daemon ${VERSION}: the server's, ${result.version}, would not start here.`)
+      }
+      if (result.outcome !== "installed") return
+      saveUpdateState({ ...state, installed: result.version })
+      log(`Downloaded daemon ${result.version}, to replace ${result.from}.`)
+      // Commands left running carry on by themselves. One the agent is waiting for would not.
+      const until = Date.now() + UPDATE_IDLE_WAIT_MS
+      while (core.busy && Date.now() < until) await sleep(1_000)
+      process.exit(RESTART_EXIT_CODE)
+    } catch (error) {
+      log(`Could not update the daemon: ${(error as Error)?.message ?? error}`)
+    } finally {
+      checking = false
+    }
+  }
+  if (updating) setInterval(() => void checkForUpdate(), UPDATE_EVERY_MS).unref()
 
   let attempt = 0
   for (;;) {
@@ -176,9 +251,12 @@ async function run(config: Config): Promise<void> {
             readOnly: config.readOnly,
             version: VERSION,
             jobs: true,
+            updates: updating,
           }),
         )
         core.onOpen()
+        // A deployment that changed dropped this connection, so this is when to ask.
+        void checkForUpdate()
       })
       current.on("message", (data, isBinary) => {
         if (isBinary) return
@@ -247,9 +325,50 @@ const USAGE = `Usage: durable-computer-daemon <server-url> [options]
   --read-only         Let the agent read files here but not run commands or change anything
   --name <name>       What the agent should call this computer (default: the hostname)
   --install-service   After pairing, keep the daemon running in the background
+  --no-auto-update    Do not replace the daemon when the server has a newer one
+  --auto-update       Do so again
   --unpair            Forget this computer's credentials and exit
   --version
+
+The daemon keeps itself up to date: it asks the server it is paired with for a newer daemon
+when it connects and every few hours, and restarts as that one.
 `
+
+/**
+ * Run the daemon proper as a second process, and start it again when it has replaced itself.
+ * This one stays as it was started, which is why it does so little.
+ */
+async function superviseSelf(): Promise<void> {
+  const script = realpathSync(process.argv[1]!)
+  let worker: ChildProcess | undefined
+  let stopping = false
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.on(signal, () => {
+      stopping = true
+      worker?.kill(signal)
+    })
+  }
+  process.exitCode = await supervise({
+    work: () =>
+      new Promise((resolve) => {
+        worker = spawn(process.execPath, [script, ...process.argv.slice(2)], {
+          stdio: "inherit",
+          env: { ...process.env, DC_DAEMON_WORKER: "1" },
+        })
+        worker.on("error", () => resolve(1))
+        worker.on("exit", (code, signal) =>
+          resolve(code ?? 128 + (signal === null ? 0 : (os.constants.signals[signal] ?? 0))),
+        )
+      }),
+    stopping: () => stopping,
+    restore: () => restorePrevious(script),
+    onBad: () => {
+      const state = loadUpdateState()
+      if (state.installed !== undefined) saveUpdateState({ ...state, bad: state.installed })
+    },
+    log,
+  })
+}
 
 async function main(): Promise<void> {
   const asked = parseArguments(process.argv.slice(2))
@@ -260,6 +379,10 @@ async function main(): Promise<void> {
     return log("Forgot this computer's credentials. Remove it in the app to finish.")
   }
 
+  if (process.env.DC_DAEMON_WORKER !== "1" && VERSION !== "dev") return superviseSelf()
+  // What the agent runs here inherits the daemon's environment, and is no worker of anything.
+  delete process.env.DC_DAEMON_WORKER
+
   let config = loadConfig()
   if (config === undefined) {
     if (asked.server === undefined) return void console.log(USAGE)
@@ -268,6 +391,16 @@ async function main(): Promise<void> {
     // The owner tightened access since pairing; honor it from now on.
     config = { ...config, readOnly: true }
     saveConfig(config)
+  }
+  if (asked.autoUpdate !== undefined && asked.autoUpdate !== (config.autoUpdate !== false)) {
+    // Said once, it holds until the owner says otherwise.
+    config = { ...config, autoUpdate: asked.autoUpdate }
+    saveConfig(config)
+    log(
+      asked.autoUpdate
+        ? "The daemon keeps itself up to date."
+        : "The daemon no longer updates itself.",
+    )
   }
   if (asked.installService) return installService([config.server])
   await run(config)

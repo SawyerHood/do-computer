@@ -73,6 +73,9 @@ test.describe("pairing a computer", () => {
       card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }),
     ).toBeVisible()
     await expect.poll(() => output).toContain("Connected to")
+    // It asked the server whether there is a newer daemon, and there is not.
+    expect(output).not.toContain("Could not update the daemon")
+    expect(output).not.toContain("Downloaded daemon")
   })
 
   test("the agent works on the paired computer when asked to", async ({ page }) => {

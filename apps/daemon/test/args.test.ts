@@ -43,4 +43,10 @@ describe("the daemon's command line", () => {
     expect(parseArguments(["-h"]).help).toBe(true)
     expect(parseArguments(["--help"]).help).toBe(true)
   })
+
+  it("is told whether to keep itself up to date only when it is said", () => {
+    expect(parseArguments(["https://a.example"]).autoUpdate).toBeUndefined()
+    expect(parseArguments(["--no-auto-update"]).autoUpdate).toBe(false)
+    expect(parseArguments(["--auto-update"]).autoUpdate).toBe(true)
+  })
 })

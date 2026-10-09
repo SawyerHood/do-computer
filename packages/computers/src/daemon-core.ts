@@ -74,6 +74,8 @@ const WRITE_ASSEMBLY_TTL_MS = 120_000
 export type DaemonCoreOptions = {
   /** Refuse commands and writes; the agent may only read files. Decided by the machine's owner. */
   readonly readOnly?: boolean
+  /** Called when the host says there may be a newer daemon to become. */
+  readonly onUpdate?: () => void
   readonly now?: () => number
 }
 
@@ -88,9 +90,11 @@ export type DaemonCoreOptions = {
 export class DaemonCore {
   readonly #outbox: string[] = []
   readonly #writes = new Map<string, PendingWrite>()
+  #working = 0
   readonly #io: DaemonIO
   readonly #send: (frame: string) => boolean
   readonly #readOnly: boolean
+  readonly #onUpdate: (() => void) | undefined
   readonly #now: () => number
 
   /** @param send Deliver one frame to the socket; false means not connected. */
@@ -98,11 +102,23 @@ export class DaemonCore {
     this.#io = io
     this.#send = send
     this.#readOnly = options.readOnly ?? false
+    this.#onUpdate = options.onUpdate
     this.#now = options.now ?? Date.now
   }
 
   get outboxSize(): number {
     return this.#outbox.length
+  }
+
+  /** Whether something the host asked for is still being done, or a file is half arrived. */
+  get busy(): boolean {
+    return this.#working > 0 || this.#writes.size > 0
+  }
+
+  /** Count a piece of work as under way until it ends. */
+  #track(work: Promise<void>): void {
+    this.#working++
+    void work.finally(() => this.#working--).catch(() => {})
   }
 
   /** The socket connected or reconnected: flush buffered results in order. */
@@ -139,10 +155,12 @@ export class DaemonCore {
     switch (frame.t) {
       case "exec":
         if (this.#readOnly) return this.#refuse(frame.id, "run commands")
-        void this.#exec(frame.id, frame.command, frame.cwd, frame.env ?? {}, frame.timeoutMs)
+        this.#track(
+          this.#exec(frame.id, frame.command, frame.cwd, frame.env ?? {}, frame.timeoutMs),
+        )
         return
       case "read":
-        void this.#read(frame.id, frame.path, frame.maxBytes ?? REMOTE_FILE_CAP)
+        this.#track(this.#read(frame.id, frame.path, frame.maxBytes ?? REMOTE_FILE_CAP))
         return
       case "write_begin":
         if (this.#readOnly) return this.#refuse(frame.id, "write files")
@@ -167,18 +185,21 @@ export class DaemonCore {
       case "write_end":
         // A refused write_begin already answered; its trailing frames find no pending write.
         if (this.#readOnly) return
-        void this.#finishWrite(frame.id)
+        this.#track(this.#finishWrite(frame.id))
         return
       case "fs":
         if (this.#readOnly && MUTATING_FS_OPS.has(frame.op)) {
           return this.#refuse(frame.id, "change files")
         }
-        void this.#fs(frame)
+        this.#track(this.#fs(frame))
         return
       case "job":
         // Looking at a job and stopping one change nothing a read-only computer protects.
         if (this.#readOnly && frame.op === "start") return this.#refuse(frame.id, "run commands")
-        void this.#job(frame)
+        this.#track(this.#job(frame))
+        return
+      case "update":
+        this.#onUpdate?.()
         return
       case "revoked":
         // The transport reacts to the close code; nothing to do here.

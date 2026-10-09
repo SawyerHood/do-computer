@@ -24,13 +24,29 @@ const STATUS: Partial<Record<RemoteErrorCode, number>> = {
 }
 
 const json = (value: unknown, status = 200) => Response.json(value, { status })
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** A daemon that was told to update is not told again for this long. */
+const TELL_EVERY_MS = 60_000
+/** How long something that needs a newer daemon waits for the daemon to become one. */
+const UPDATE_WAIT_MS = 20_000
+
+export type LinkActorOptions = LinkCoreOptions & {
+  /**
+   * The daemon this deployment serves. With it, a daemon that is another is told to update
+   * when it connects and whenever something is asked of it. Without it, only when something
+   * is asked of it that it cannot do.
+   */
+  readonly daemonVersion?: () => Promise<string | undefined>
+  readonly updateWaitMs?: number
+}
 
 /**
  * Holds one paired computer's connection and turns requests from an agent into frames to its
  * daemon. One actor per computer; it trusts its callers, which are the gateway (for the daemon's
  * socket, after checking its token) and agent actors.
  */
-export function createComputerLinkActor(host: ActorHost, options?: LinkCoreOptions): Actor {
+export function createComputerLinkActor(host: ActorHost, options?: LinkActorOptions): Actor {
   // Only one socket is ever kept, so "the socket" is whichever is open.
   const core = new LinkCore((frame) => host.sockets()[0]?.send(frame) ?? false, options)
   let ready: Promise<void> | undefined
@@ -57,6 +73,38 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkCoreOptio
     }
   }
 
+  let toldAt = 0
+  /** Tell the daemon to look for a newer one now. Resolves with whether it was there to tell. */
+  const tell = (): boolean => {
+    toldAt = host.now()
+    return host.sockets()[0]?.send(JSON.stringify({ t: "update" })) ?? false
+  }
+  /** Tell a daemon that keeps itself up to date, and is not the one served, to catch up. */
+  const tellIfBehind = async (hello: LinkStatus["hello"]) => {
+    if (hello?.updates !== true || host.now() - toldAt < TELL_EVERY_MS) return
+    const served = await options?.daemonVersion?.().catch(() => undefined)
+    if (served !== undefined && hello.version !== served) tell()
+  }
+  /**
+   * See that the daemon can do `ability`, which a newer one can. One that keeps itself up to
+   * date is told to, and waited for: it is back in about a second unless the agent has it
+   * busy. Resolves with why not, where it still cannot.
+   */
+  const able = async (ability: "jobs"): Promise<string | undefined> => {
+    let hello = (await status()).hello
+    if (hello?.[ability] === true) return undefined
+    if (hello?.updates !== true || !tell()) {
+      return "The program that connects this computer is too old for that, and does not update itself. Whoever the computer belongs to can run the install command from Computers there again."
+    }
+    const until = host.now() + (options?.updateWaitMs ?? UPDATE_WAIT_MS)
+    while (host.now() < until) {
+      await sleep(100)
+      hello = (await status()).hello
+      if (hello?.[ability] === true && host.sockets().length > 0) return undefined
+    }
+    return "The program that connects this computer is updating itself to be able to do that, and is not back yet. Try again in a minute."
+  }
+
   return {
     async fetch(request) {
       await prepare()
@@ -64,7 +112,16 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkCoreOptio
       try {
         if (request.method === "GET" && url.pathname === "/status") return json(await status())
         if (request.method !== "POST") return json({ error: "Not found" }, 404)
+        // Being used is when being behind matters.
+        if (url.pathname !== "/revoke" && url.pathname !== "/update") {
+          void tellIfBehind((await status()).hello)
+        }
         switch (url.pathname) {
+          case "/update": {
+            // Someone looked and saw that it is behind. Only one that updates itself is told.
+            const hello = (await status()).hello
+            return json({ told: hello?.updates === true && tell() })
+          }
           case "/exec":
             return json(await core.exec(...execArguments(await request.json())))
           case "/job": {
@@ -73,16 +130,8 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkCoreOptio
             if (host.sockets().length === 0) {
               throw new RemoteError("offline", "The computer is offline.")
             }
-            if ((await status()).hello?.jobs !== true) {
-              return json(
-                {
-                  error:
-                    "The program that connects this computer is too old to keep a command running.",
-                  code: "unsupported",
-                },
-                409,
-              )
-            }
+            const lacking = await able("jobs")
+            if (lacking !== undefined) return json({ error: lacking, code: "unsupported" }, 409)
             return json({ value: await core.job(await request.json()) })
           }
           case "/fs":
@@ -143,6 +192,9 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkCoreOptio
         const { t: _t, ...info } = hello
         await set("hello", JSON.stringify(info))
         await seen()
+        // It asks for itself when it connects. This is for when that look did not get through.
+        toldAt = 0
+        await tellIfBehind(info)
         return
       }
       core.onFrame(data)
