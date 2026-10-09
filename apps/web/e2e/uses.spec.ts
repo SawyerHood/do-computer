@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process"
-import { mkdirSync, mkdtempSync } from "node:fs"
+import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -8,9 +8,6 @@ import { expect, test } from "./fixtures.ts"
 import { asOwner, composer, signIn } from "./helpers.ts"
 
 asOwner()
-
-/** Where the pictures of how it looks are left, for whoever wants to look. */
-const SHOTS = "/tmp/uses-shots"
 
 const ask = async (page: Page, action: Record<string, unknown>) => {
   await composer(page).fill(`/tool screen ${JSON.stringify({ computer: "use-laptop", ...action })}`)
@@ -26,7 +23,6 @@ test.describe("an agent using a computer's screen", () => {
     baseURL,
   }) => {
     test.setTimeout(90_000)
-    mkdirSync(SHOTS, { recursive: true })
     const home = mkdtempSync(join(tmpdir(), "dc-uses-"))
     // The real daemon with a pretend screen: it draws a picture and touches nothing.
     daemon = spawn(
@@ -71,18 +67,15 @@ test.describe("an agent using a computer's screen", () => {
     await expect(view).toContainText("the screen")
     await expect(view.locator('img[src^="data:image/"]')).toBeVisible()
     await expect(view.getByRole("status")).toContainText("Clicking the button")
-    await page.screenshot({ path: `${SHOTS}/going.png` })
 
     // The agent's panel says where it is, with the same picture small.
     const now = page.getByRole("region", { name: "On use-laptop now" })
     await expect(now).toContainText("The screen")
     await expect(now.locator("img")).toBeVisible()
 
+    // Paused, it stays the agent's for as long as it is: the rest is looked at with no hurry.
     await view.getByRole("button", { name: "Pause" }).click()
     await expect(view.getByText("Paused")).toBeVisible()
-    await page.screenshot({ path: `${SHOTS}/paused.png` })
-    await view.getByRole("button", { name: "Carry on" }).last().click()
-    await expect(view.getByText("Paused")).toBeHidden()
 
     // The picture in the panel opens the same screen large, with the steps so far beside it.
     await now.getByRole("button", { name: "Open it large" }).click()
@@ -91,11 +84,13 @@ test.describe("an agent using a computer's screen", () => {
     await expect(large.getByRole("list", { name: "Steps so far" })).toContainText(
       "Clicking the button",
     )
-    await expect(large.getByRole("button", { name: "Pause" })).toBeVisible()
     // Once it has finished opening.
     await expect(large).toHaveCSS("opacity", "1")
-    await page.screenshot({ path: `${SHOTS}/large.png` })
+    // Letting the agent carry on is here too, and is told to the window behind.
+    await large.getByRole("button", { name: "Carry on" }).click()
+    await expect(large.getByRole("button", { name: "Pause" })).toBeVisible()
     await page.keyboard.press("Escape")
+    await expect(view.getByText("Paused")).toBeHidden()
 
     await view.getByRole("button", { name: "Stop" }).click()
     await expect(view).toBeHidden()
@@ -109,7 +104,6 @@ test.describe("an agent using a computer's screen", () => {
     await expect
       .poll(() => kept.evaluate((img: HTMLImageElement) => img.naturalWidth))
       .toBeGreaterThan(0)
-    await page.screenshot({ path: `${SHOTS}/ended.png` })
 
     // On a phone the window is as wide as the chat, and its steps unfold under it.
     await page.setViewportSize({ width: 390, height: 780 })
@@ -122,7 +116,6 @@ test.describe("an agent using a computer's screen", () => {
       "Typing the total",
     )
     await expect(page.getByRole("dialog")).toBeHidden()
-    await page.screenshot({ path: `${SHOTS}/phone.png` })
     // The first use is still word of what was done, above it.
     await expect(page.locator('[data-use-ended="screen"]')).toHaveCount(1)
   })
@@ -168,6 +161,5 @@ test.describe("an agent using a computer's screen", () => {
     await expect(word.getByText("3 of 3")).toBeVisible()
     await word.getByRole("button", { name: "Step 2: Typing 4,820" }).click()
     await expect(word.getByText("2 of 3")).toBeVisible()
-    await page.screenshot({ path: `${SHOTS}/film.png` })
   })
 })

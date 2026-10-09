@@ -196,7 +196,8 @@ describe("the window over the screen", () => {
     })
     expect(window().setAlwaysOnTop).toHaveBeenCalledWith(true, "screen-saver")
     expect(window().setContentProtection).toHaveBeenCalledWith(true)
-    expect(window().url).toBe("file:///app/dist/pages/overlay.html")
+    // On Windows the folder is on a drive, which the address then names.
+    expect(window().url).toMatch(/^file:\/\/\/(\w:\/)?app\/dist\/pages\/overlay\.html$/)
     expect(window().ignoring[0]).toBe(true)
   })
 
