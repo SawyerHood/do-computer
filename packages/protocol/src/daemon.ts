@@ -8,6 +8,7 @@
  * Durable Object WebSocket.
  */
 
+import type { ScreenAction, UsingAgent } from "./screen.ts"
 import type { Person } from "./workspace.ts"
 
 /** Cap on each of stdout and stderr, so a result always fits in a frame. */
@@ -80,6 +81,41 @@ export type JobFrame = {
   removeUnder?: { bytes: number; lines: number }
 }
 /**
+ * Something to do with the computer's screen. `act` does one thing to it for `agent` and
+ * answers with how it looks afterwards; `view` answers with how it looks now, for someone
+ * watching, waiting up to `waitMs` for a picture newer than `after`; `hold` pauses whoever is
+ * using it, or lets them carry on.
+ */
+export type ScreenFrame = {
+  t: "screen"
+  id: string
+  op: "act" | "view" | "hold"
+  agent?: UsingAgent
+  action?: ScreenAction
+  /** What the agent is doing, in a few words, for whoever watches. */
+  say?: string
+  after?: number
+  waitMs?: number
+  held?: boolean
+}
+/**
+ * Something to do with a browser on the computer. `run` runs a script in it for `agent` and
+ * answers with what it printed and the pictures it took; `view`, and `hold` are as for the
+ * screen; `close` closes the browser kept for agents, and lets go of the owner's own.
+ */
+export type BrowserFrame = {
+  t: "browser"
+  id: string
+  op: "run" | "view" | "hold" | "close"
+  agent?: UsingAgent
+  script?: string
+  timeoutMs?: number
+  say?: string
+  after?: number
+  waitMs?: number
+  held?: boolean
+}
+/**
  * Sent when the server has reason to think the daemon is behind: it said so when it connected,
  * or something was asked of it that it cannot do. A daemon that keeps itself up to date then
  * asks for the newest one at once, without waiting for its next look. One that does not, or
@@ -97,6 +133,8 @@ export type HostFrame =
   | WriteEndFrame
   | FsFrame
   | JobFrame
+  | ScreenFrame
+  | BrowserFrame
   | UpdateFrame
   | RevokedFrame
 
@@ -118,6 +156,13 @@ export type HelloFrame = {
    * absent on one from before daemons could: either way it is replaced only by hand.
    */
   updates?: boolean
+  /**
+   * Whether agents may use the screen here: true where the computer has one they can use and
+   * its owner switched that on. Absent on a daemon from before there was such a thing.
+   */
+  screen?: boolean
+  /** Whether agents may use a browser here. Absent on a daemon from before there was one. */
+  browser?: boolean
 }
 export type ExecResultFrame = {
   t: "exec_result"
@@ -147,6 +192,8 @@ export type FsResultFrame = {
 }
 /** The answer to a `job` frame: how the job stands and what it printed, or nothing. */
 export type JobResultFrame = { t: "job_result"; id: string; value: unknown }
+/** The answer to a `screen` or a `browser` frame: what its `op` answers with, or nothing. */
+export type UseResultFrame = { t: "use_result"; id: string; value: unknown }
 export type DaemonErrorCode =
   | "not_found"
   | "not_directory"
@@ -157,6 +204,8 @@ export type DaemonErrorCode =
   | "io"
   | "bad_request"
   | "read_only"
+  /** The computer's owner has this switched off, or stopped the agent doing it. */
+  | "refused"
 export type ErrFrame = { t: "err"; id: string; code: DaemonErrorCode; message: string }
 
 export type DaemonFrame =
@@ -166,6 +215,7 @@ export type DaemonFrame =
   | OkFrame
   | FsResultFrame
   | JobResultFrame
+  | UseResultFrame
   | ErrFrame
 
 export function parseFrame<T extends { t: string }>(raw: unknown): T | null {
@@ -243,6 +293,10 @@ export type ComputerSummary = {
   online: boolean
   readOnly: boolean
   lastSeenAt: number | null
+  /** For a paired computer: whether its owner lets agents use its screen, as its daemon last said. */
+  screen?: boolean
+  /** For a paired computer: whether agents may use a browser there, as its daemon last said. */
+  browser?: boolean
   /**
    * For a paired computer whose daemon has said what it is: `current` when it is the daemon
    * this deployment serves, `updating` when it is not and keeps itself up to date, `outdated`

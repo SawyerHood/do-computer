@@ -8,6 +8,8 @@ export type Arguments = {
   installService: boolean
   /** Whether to keep itself up to date, where the command line says. Otherwise as it was. */
   autoUpdate: boolean | undefined
+  /** Whether agents may use a browser here, where the command line says. Otherwise as it was. */
+  browser: boolean | undefined
   unpair: boolean
   version: boolean
   help: boolean
@@ -31,6 +33,7 @@ export function parseArguments(args: readonly string[]): Arguments {
       : args.includes("--auto-update")
         ? true
         : undefined,
+    browser: args.includes("--no-browser") ? false : args.includes("--browser") ? true : undefined,
     unpair: args.includes("--unpair"),
     version: args.includes("--version"),
     help: args.includes("--help") || args.includes("-h"),

@@ -19,6 +19,7 @@ const STATUS: Partial<Record<RemoteErrorCode, number>> = {
   timeout: 504,
   not_found: 404,
   read_only: 403,
+  refused: 403,
   permission_denied: 403,
   too_large: 413,
 }
@@ -90,9 +91,13 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
    * date is told to, and waited for: it is back in about a second unless the agent has it
    * busy. Resolves with why not, where it still cannot.
    */
-  const able = async (ability: "jobs"): Promise<string | undefined> => {
+  const able = async (ability: "jobs" | "screen" | "browser"): Promise<string | undefined> => {
     let hello = (await status()).hello
-    if (hello?.[ability] === true) return undefined
+    // A daemon that knows of a thing says whether it may be used, and answers for itself why
+    // not. One that says nothing of it is from before there was such a thing.
+    const knows = (said: LinkStatus["hello"]) =>
+      ability === "jobs" ? said?.jobs === true : said?.[ability] !== undefined
+    if (knows(hello)) return undefined
     if (hello?.updates !== true || !tell()) {
       return "The program that connects this computer is too old for that, and does not update itself. Whoever the computer belongs to can run the install command from Computers there again."
     }
@@ -100,7 +105,7 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
     while (host.now() < until) {
       await sleep(100)
       hello = (await status()).hello
-      if (hello?.[ability] === true && host.sockets().length > 0) return undefined
+      if (knows(hello) && host.sockets().length > 0) return undefined
     }
     return "The program that connects this computer is updating itself to be able to do that, and is not back yet. Try again in a minute."
   }
@@ -133,6 +138,17 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
             const lacking = await able("jobs")
             if (lacking !== undefined) return json({ error: lacking, code: "unsupported" }, 409)
             return json({ value: await core.job(await request.json()) })
+          }
+          case "/screen":
+          case "/browser": {
+            const what = url.pathname === "/screen" ? "screen" : "browser"
+            if (host.sockets().length === 0) {
+              throw new RemoteError("offline", "The computer is offline.")
+            }
+            const lacking = await able(what)
+            if (lacking !== undefined) return json({ error: lacking, code: "unsupported" }, 409)
+            const asked = (await request.json()) as Record<string, unknown>
+            return json({ value: await core.use({ ...asked, t: what } as never) })
           }
           case "/fs":
             return json({ value: await core.fs(await request.json()) })

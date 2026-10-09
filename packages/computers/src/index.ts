@@ -1,4 +1,10 @@
-export { DaemonCore, type DaemonCoreOptions, type DaemonIO } from "./daemon-core.ts"
+export {
+  type BrowserIO,
+  DaemonCore,
+  type DaemonCoreOptions,
+  type DaemonIO,
+  type ScreenIO,
+} from "./daemon-core.ts"
 export { createComputerLinkActor, type LinkActorOptions, type LinkStatus } from "./link-actor.ts"
 export {
   LinkCore,
@@ -13,3 +19,4 @@ export {
   ComputerUnavailable,
   linkStatus,
 } from "./sandbox.ts"
+export { UseRefused, UseState, type UseStateOptions } from "./use.ts"

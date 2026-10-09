@@ -4,15 +4,52 @@ import {
   type DaemonErrorCode,
   DEFAULT_EXEC_TIMEOUT_MS,
   EXEC_STDIO_CAP,
+  type BrowserFrame,
+  type BrowserRan,
+  DEFAULT_BROWSER_TIMEOUT_MS,
   type FsFrame,
   type HostFrame,
   type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
   REMOTE_FILE_CAP,
+  type LiveView,
+  MAX_BROWSER_TIMEOUT_MS,
   type RemoteFileStat,
+  type ScreenAction,
+  type ScreenActed,
+  type ScreenFrame,
+  type UsingAgent,
+  VIEW_WAIT_MS,
 } from "@durable-computer/protocol"
 import type { SandboxJobs } from "@durable-computer/sandbox"
+import { UseRefused } from "./use.ts"
+
+export { UseRefused } from "./use.ts"
+
+/** The computer's screen, as agents use it. */
+export interface ScreenIO {
+  /** Do one thing for `agent` and resolve with how the screen looks afterwards. */
+  act(agent: UsingAgent, action: ScreenAction, say: string | undefined): Promise<ScreenActed>
+  /** How it looks now, waiting up to `waitMs` for a picture newer than number `after`. */
+  view(after: number, waitMs: number): Promise<LiveView>
+  /** Pause whoever is using it, or let them carry on. */
+  hold(held: boolean): Promise<void>
+}
+
+/** A browser on the computer, as agents use it. */
+export interface BrowserIO {
+  /** Run a script for `agent`. Never rejects for a script that fails: that is in the answer. */
+  run(
+    agent: UsingAgent,
+    script: string,
+    options: { timeoutMs: number; say?: string },
+  ): Promise<BrowserRan>
+  view(after: number, waitMs: number): Promise<LiveView>
+  hold(held: boolean): Promise<void>
+  /** Close the browser kept for agents, and let go of the owner's own. */
+  close(): Promise<void>
+}
 
 /** What the daemon does to its machine, injected: Node in the real daemon, fakes in tests. */
 export interface DaemonIO {
@@ -38,6 +75,10 @@ export interface DaemonIO {
    * on the machine. Absent: the daemon cannot, and says so.
    */
   jobs?(scope: string): SandboxJobs
+  /** The screen, where agents may use it. Absent: there is none for them, and the daemon says so. */
+  screen?: ScreenIO
+  /** A browser, where agents may use one. Absent: likewise. */
+  browser?: BrowserIO
   /** Record one thing the agent did on this machine. */
   audit(entry: Record<string, unknown>): void
 }
@@ -198,6 +239,18 @@ export class DaemonCore {
         if (this.#readOnly && frame.op === "start") return this.#refuse(frame.id, "run commands")
         this.#track(this.#job(frame))
         return
+      case "screen":
+        // Looking on, and pausing whoever is using it, change nothing here.
+        if (this.#readOnly && frame.op === "act") return this.#refuse(frame.id, "use the screen")
+        // Someone looking on is not work the daemon must finish before it restarts.
+        if (frame.op === "act") this.#track(this.#screen(frame))
+        else void this.#screen(frame)
+        return
+      case "browser":
+        if (this.#readOnly && frame.op === "run") return this.#refuse(frame.id, "use a browser")
+        if (frame.op === "run") this.#track(this.#browser(frame))
+        else void this.#browser(frame)
+        return
       case "update":
         this.#onUpdate?.()
         return
@@ -296,6 +349,80 @@ export class DaemonCore {
       this.#sendOrBuffer(JSON.stringify({ t: "job_result", id: frame.id, value }))
     } catch (error) {
       this.#error(frame.id, errorCode(error), (error as Error)?.message ?? String(error))
+    }
+  }
+
+  /** Answer a `screen` or `browser` frame with what `work` resolves with, or why not. */
+  async #use(id: string, work: () => Promise<unknown>): Promise<void> {
+    try {
+      const value = (await work()) ?? true
+      this.#sendOrBuffer(JSON.stringify({ t: "use_result", id, value }))
+    } catch (error) {
+      const message = (error as Error)?.message ?? String(error)
+      this.#error(id, error instanceof UseRefused ? "refused" : "io", message)
+    }
+  }
+
+  async #screen(frame: ScreenFrame): Promise<void> {
+    const screen = this.#io.screen
+    if (screen === undefined) {
+      return this.#error(
+        frame.id,
+        "refused",
+        "This computer does not let agents use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer. It cannot be switched on from here.",
+      )
+    }
+    const wait = Math.min(Math.max(0, frame.waitMs ?? 0), VIEW_WAIT_MS)
+    switch (frame.op) {
+      case "act": {
+        const { agent, action } = frame
+        if (agent === undefined || action === undefined) {
+          return this.#error(frame.id, "bad_request", "act needs an agent and an action.")
+        }
+        this.#io.audit({ ts: this.#now(), kind: "screen", agent: agent.name, action })
+        return this.#use(frame.id, () => screen.act(agent, action, frame.say))
+      }
+      case "view":
+        return this.#use(frame.id, () => screen.view(frame.after ?? 0, wait))
+      case "hold":
+        return this.#use(frame.id, () => screen.hold(frame.held === true))
+    }
+  }
+
+  async #browser(frame: BrowserFrame): Promise<void> {
+    const browser = this.#io.browser
+    if (browser === undefined) {
+      return this.#error(
+        frame.id,
+        "refused",
+        "This computer does not let agents use a browser. Whoever it belongs to can switch that on where the computer was connected.",
+      )
+    }
+    const wait = Math.min(Math.max(0, frame.waitMs ?? 0), VIEW_WAIT_MS)
+    switch (frame.op) {
+      case "run": {
+        const { agent, script } = frame
+        if (agent === undefined || script === undefined) {
+          return this.#error(frame.id, "bad_request", "run needs an agent and a script.")
+        }
+        this.#io.audit({ ts: this.#now(), kind: "browser", agent: agent.name, script })
+        const timeoutMs = Math.min(
+          Math.max(1_000, frame.timeoutMs ?? DEFAULT_BROWSER_TIMEOUT_MS),
+          MAX_BROWSER_TIMEOUT_MS,
+        )
+        return this.#use(frame.id, () =>
+          browser.run(agent, script, {
+            timeoutMs,
+            ...(frame.say === undefined ? {} : { say: frame.say }),
+          }),
+        )
+      }
+      case "view":
+        return this.#use(frame.id, () => browser.view(frame.after ?? 0, wait))
+      case "hold":
+        return this.#use(frame.id, () => browser.hold(frame.held === true))
+      case "close":
+        return this.#use(frame.id, () => browser.close())
     }
   }
 

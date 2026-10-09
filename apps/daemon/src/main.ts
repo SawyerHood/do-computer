@@ -20,7 +20,9 @@ import {
 } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
+import { nodeBrowserIO } from "@durable-computer/computers/browser"
 import { DaemonCore } from "@durable-computer/computers/daemon"
+import { fakeScreen } from "@durable-computer/computers/fake-screen"
 import { nodeDaemonIO, shownPath } from "@durable-computer/computers/node"
 import {
   PING_FRAME,
@@ -30,7 +32,8 @@ import {
 } from "@durable-computer/protocol"
 import WebSocket from "ws"
 import { parseArguments } from "./args.ts"
-import { type DaemonEvent, formatEvent } from "./events.ts"
+import { BROWSER_ENV, type DaemonEvent, formatEvent, SCREEN_ENV } from "./events.ts"
+import { appScreen } from "./screen.ts"
 import { serviceFile } from "./service.ts"
 import { supervise } from "./supervisor.ts"
 import { RESTART_EXIT_CODE, restorePrevious, update } from "./update.ts"
@@ -49,6 +52,15 @@ const RUN_AS_NODE = process.env.ELECTRON_RUN_AS_NODE
 /** What it takes to run this daemon's Node again, as Node. */
 const nodeEnv = () =>
   RUN_AS_NODE === undefined ? undefined : { ...process.env, ELECTRON_RUN_AS_NODE: RUN_AS_NODE }
+
+/**
+ * Set by the app when its owner lets agents use the screen, which only the app can reach. A
+ * daemon run by hand has none for them, except the pretend one asked for when trying things.
+ */
+const SCREEN = EMBEDDED && process.env[SCREEN_ENV] === "1"
+const FAKE_SCREEN = process.env.DC_DAEMON_FAKE_SCREEN === "1"
+/** Set to `0` by the app when its owner switched the browser off there. */
+const BROWSER_OFF = process.env[BROWSER_ENV] === "0"
 
 const HOME = os.homedir()
 /** The home directory as the agent is told it: on Windows, written the way its shell writes it. */
@@ -76,6 +88,8 @@ type Config = {
   readOnly: boolean
   /** False when the owner switched updating off. Absent: it keeps itself up to date. */
   autoUpdate?: boolean
+  /** False when the owner said agents may not use a browser here. Absent: they may. */
+  browser?: boolean
 }
 
 /** What is remembered about updating: the version last installed, and one that would not start. */
@@ -186,6 +200,10 @@ function audit(entry: Record<string, unknown>): void {
         ? `refused to ${String(entry.what)}`
         : entry.kind === "job"
           ? `started: ${String(entry.command).slice(0, 200)}`
+          : entry.kind === "screen"
+            ? `${String(entry.agent)} used the screen: ${String((entry.action as { do?: unknown })?.do)}`
+            : entry.kind === "browser"
+              ? `${String(entry.agent)} ran in a browser: ${String(entry.script).replace(/\s+/g, " ").slice(0, 200)}`
           : entry.kind === "job_stop"
             ? "stopped a command it had started"
             : `${String(entry.kind)} ${String(entry.path ?? "")}`
@@ -196,8 +214,23 @@ function audit(entry: Record<string, unknown>): void {
 async function run(config: Config): Promise<void> {
   const url = `${config.server.replace(/^http/, "ws")}/api/computers/connect`
   let socket: WebSocket | undefined
+  // The app answers for the screen on the daemon's input, which nothing else is written to.
+  const screen = FAKE_SCREEN
+    ? fakeScreen()
+    : SCREEN
+      ? appScreen((line) => console.log(line), process.stdin)
+      : undefined
+  // A computer that may only be read is not one to browse from.
+  const browser =
+    config.readOnly || config.browser === false || BROWSER_OFF
+      ? undefined
+      : nodeBrowserIO({ dir: path.join(CONFIG_DIR, "browser"), log })
   const core = new DaemonCore(
-    nodeDaemonIO({ home: HOME, audit }),
+    {
+      ...nodeDaemonIO({ home: HOME, audit }),
+      ...(screen === undefined ? {} : { screen }),
+      ...(browser === undefined ? {} : { browser }),
+    },
     (frame) => {
       if (socket?.readyState !== WebSocket.OPEN) return false
       socket.send(frame)
@@ -279,6 +312,8 @@ async function run(config: Config): Promise<void> {
             version: VERSION,
             jobs: true,
             updates: updating,
+            screen: screen !== undefined && !config.readOnly,
+            browser: browser !== undefined,
           }),
         )
         core.onOpen()
@@ -357,6 +392,8 @@ const USAGE = `Usage: durable-computer-daemon <server-url> [options]
   --install-service   After pairing, keep the daemon running in the background
   --no-auto-update    Do not replace the daemon when the server has a newer one
   --auto-update       Do so again
+  --no-browser        Do not let the agent use a browser here
+  --browser           Let it again
   --unpair            Forget this computer's credentials and exit
   --version
 
@@ -441,6 +478,11 @@ async function main(): Promise<void> {
         ? "The daemon keeps itself up to date."
         : "The daemon no longer updates itself.",
     )
+  }
+  if (asked.browser !== undefined && asked.browser !== (config.browser !== false)) {
+    config = { ...config, browser: asked.browser }
+    saveConfig(config)
+    log(asked.browser ? "Agents may use a browser here." : "Agents may not use a browser here.")
   }
   if (asked.installService) return installService([config.server])
   await run(config)

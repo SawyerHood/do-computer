@@ -6,7 +6,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./node": "./src/node-io.ts",
-    "./daemon": "./src/daemon-core.ts"
+    "./daemon": "./src/daemon-core.ts",
+    "./use": "./src/use.ts",
+    "./fake-screen": "./src/fake-screen.ts",
+    "./browser": "./src/browser/index.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",

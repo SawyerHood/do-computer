@@ -509,3 +509,34 @@ describe("telling a daemon to update", () => {
     await expect(refused).rejects.toThrow(/does not update itself/)
   })
 })
+
+describe("a screen and a browser, asked for through the link", () => {
+  const agent = { id: "agent-1", name: "Pip", color: "#5f8a4e" }
+  const act = { op: "act", agent, action: { do: "screenshot" } }
+
+  it("says the daemon is too old where it is from before there were such things", async () => {
+    const { sandbox } = await connectDaemon()
+    await expect(sandbox.use!("screen", act)).rejects.toThrow(/too old/)
+    await expect(sandbox.use!("browser", { op: "run", agent, script: "1" })).rejects.toThrow(
+      /too old/,
+    )
+  })
+
+  it("lets a daemon that knows of them answer for itself why not", async () => {
+    const { sandbox } = await connectDaemon(undefined, false, false, {
+      screen: false,
+      browser: false,
+    })
+    await expect(sandbox.use!("screen", act)).rejects.toThrow(
+      /does not let agents use its screen/,
+    )
+    await expect(sandbox.use!("browser", { op: "run", agent, script: "1" })).rejects.toThrow(
+      /does not let agents use a browser/,
+    )
+  })
+
+  it("says the computer is offline when it is", async () => {
+    const sandbox = computerSandbox({ id: "x", home: "/", link: namespace.get("nobody-home") })
+    await expect(sandbox.use!("screen", act)).rejects.toThrow(/offline/)
+  })
+})

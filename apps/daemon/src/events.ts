@@ -29,3 +29,54 @@ export function parseEvent(line: string): DaemonEvent | undefined {
     return undefined
   }
 }
+
+/**
+ * What a daemon asks of the app that runs it, and waits to be answered: to do something with
+ * the computer's screen, which is the app's to use and not the daemon's. One to a line of what
+ * the daemon prints, as events are. The app answers with one line of JSON on the daemon's
+ * input: an `AppAnswer`.
+ */
+export type AppCall = { id: string } & Omit<import("@durable-computer/protocol").ScreenFrame, "t" | "id">
+
+/** The app's answer to a call: what it resolves with, or why not. */
+export type AppAnswer = {
+  id: string
+  value?: unknown
+  /** `refused`: the owner has it switched off or stopped the agent; the message is for the agent. */
+  error?: { refused: boolean; message: string }
+}
+
+export const CALL_PREFIX = "@dc-call "
+
+export const formatCall = (call: AppCall) => `${CALL_PREFIX}${JSON.stringify(call)}`
+
+/** The call a line of a daemon's output is, or undefined for anything else. */
+export function parseCall(line: string): AppCall | undefined {
+  if (!line.startsWith(CALL_PREFIX)) return undefined
+  try {
+    const parsed = JSON.parse(line.slice(CALL_PREFIX.length)) as { id?: unknown; op?: unknown }
+    return typeof parsed?.id === "string" && typeof parsed.op === "string"
+      ? (parsed as AppCall)
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** The answer a line of a daemon's input is, or undefined for anything else. */
+export function parseAnswer(line: string): AppAnswer | undefined {
+  try {
+    const parsed = JSON.parse(line) as { id?: unknown }
+    return typeof parsed?.id === "string" ? (parsed as AppAnswer) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Set by the app, for the daemon it runs, when agents may use the screen: the app has it
+ * switched on and can do it. The daemon then asks the app with `AppCall`s.
+ */
+export const SCREEN_ENV = "DC_DAEMON_SCREEN"
+/** Set to `0` by the app when its owner switched the browser off for agents. */
+export const BROWSER_ENV = "DC_DAEMON_BROWSER"

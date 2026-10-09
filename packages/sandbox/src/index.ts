@@ -92,6 +92,12 @@ export interface Sandbox {
    * is given one by `shellJobs`.
    */
   jobs?(scope: string): SandboxJobs
+  /**
+   * Ask something of the machine's screen, or of a browser on it, and resolve with the answer.
+   * Present on somebody's own computer, which has both, though its owner may not allow them.
+   * Rejects, in words for the agent, when what was asked cannot be done there.
+   */
+  use?(what: "screen" | "browser", request: Record<string, unknown>): Promise<unknown>
   /** Make everything written so far durable. A no-op where writes already are. */
   flush(): Promise<void>
   /**

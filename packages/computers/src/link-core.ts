@@ -1,6 +1,7 @@
 import {
   base64ToBytes,
   chunkBytes,
+  type BrowserFrame,
   type DaemonErrorCode,
   type DaemonFrame,
   DEFAULT_EXEC_TIMEOUT_MS,
@@ -9,7 +10,11 @@ import {
   type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
+  MAX_BROWSER_TIMEOUT_MS,
   REMOTE_FILE_CAP,
+  type ScreenFrame,
+  USE_HELD_WAIT_MS,
+  VIEW_WAIT_MS,
 } from "@durable-computer/protocol"
 
 export type RemoteErrorCode = DaemonErrorCode | "offline" | "timeout"
@@ -27,7 +32,7 @@ export class RemoteError extends Error {
 export type RemoteExecResult = { stdout: string; stderr: string; exitCode: number }
 
 type Waiter = {
-  kind: "exec" | "read" | "write" | "fs" | "job"
+  kind: "exec" | "read" | "write" | "fs" | "job" | "use"
   resolve(value: unknown): void
   reject(error: RemoteError): void
   timer: ReturnType<typeof setTimeout>
@@ -40,7 +45,10 @@ const FILE_OP_TIMEOUT_MS = 120_000
 /** Extra wait past the daemon's own kill deadline, for a result racing the timeout. */
 const EXEC_GRACE_MS = 10_000
 
-export type LinkCoreOptions = { execGraceMs?: number; fileOpTimeoutMs?: number }
+/** How long past a watcher's wait a picture of a screen or a page may still arrive. */
+const USE_GRACE_MS = 20_000
+
+export type LinkCoreOptions = { execGraceMs?: number; fileOpTimeoutMs?: number; useGraceMs?: number }
 
 /**
  * The host side of the daemon protocol, independent of any transport: it owns the requests that
@@ -55,6 +63,7 @@ export class LinkCore {
   readonly #send: (frame: string) => boolean
   readonly #execGraceMs: number
   readonly #fileOpTimeoutMs: number
+  readonly #useGraceMs: number
   #counter = 0
 
   /** @param send Deliver one frame to the live socket; false means there is none. */
@@ -62,6 +71,7 @@ export class LinkCore {
     this.#send = send
     this.#execGraceMs = options?.execGraceMs ?? EXEC_GRACE_MS
     this.#fileOpTimeoutMs = options?.fileOpTimeoutMs ?? FILE_OP_TIMEOUT_MS
+    this.#useGraceMs = options?.useGraceMs ?? USE_GRACE_MS
   }
 
   get pendingCount(): number {
@@ -210,6 +220,33 @@ export class LinkCore {
     return waited
   }
 
+  /**
+   * Something to do with the computer's screen or a browser on it. Doing something there waits
+   * for as long as the agent may be kept paused, and for a script as long as it may run.
+   * Looking on waits only as long as a picture is waited for.
+   */
+  async use(
+    request: Omit<ScreenFrame, "id"> | Omit<BrowserFrame, "id">,
+  ): Promise<unknown> {
+    const id = this.#nextId()
+    const doing = request.op === "act" || request.op === "run"
+    const waitMs = doing
+      ? USE_HELD_WAIT_MS + (request.t === "browser" ? MAX_BROWSER_TIMEOUT_MS : 60_000)
+      : Math.min(Math.max(0, request.waitMs ?? 0), VIEW_WAIT_MS) + this.#useGraceMs
+    const waited = this.#wait<unknown>(
+      id,
+      "use",
+      waitMs,
+      "No response from the computer. The connection may have been lost.",
+    )
+    if (!this.#send(JSON.stringify({ ...request, id }))) {
+      this.#settle(id)
+      waited.catch(() => {})
+      throw new RemoteError("offline", "The computer is offline.")
+    }
+    return waited
+  }
+
   /** Feed one raw socket message from the daemon. */
   onFrame(raw: unknown): void {
     const frame = parseFrame<DaemonFrame>(raw)
@@ -260,6 +297,11 @@ export class LinkCore {
     if (frame.t === "job_result") {
       const waiter = this.#settle(frame.id)
       if (waiter?.kind === "job") waiter.resolve(frame.value)
+      return
+    }
+    if (frame.t === "use_result") {
+      const waiter = this.#settle(frame.id)
+      if (waiter?.kind === "use") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "ok") {
