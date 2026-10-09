@@ -82,7 +82,8 @@ const ANSWER_GRACE_MS = 20_000
 /**
  * Starts the command in its own session. `timeout` puts it in a process group and stops the
  * whole group at the limit, or when it is itself asked to stop; the shell around it is outside
- * that group, and lives to write how it ended. `dd` passes on what is printed as it comes and
+ * that group, and lives to write how it ended, and how long it took by bash's own clock: a
+ * \`date\` that is not GNU's cannot be trusted with milliseconds. `dd` passes on what is printed as it comes and
  * stops at the cap, which ends a job that prints without end.
  */
 const START = `d=$1
@@ -90,10 +91,11 @@ mkdir -p "$d" || exit 1
 printf '%s\\n' "$2" > "$d/command"
 : > "$d/output.log"
 setsid bash -c '
-t0=$(date +%s%3N)
+now() { if [ -n "\${EPOCHREALTIME:-}" ]; then t=\${EPOCHREALTIME/[.,]/}; echo $(( t / 1000 )); else echo $(( $(date +%s) * 1000 )); fi; }
+t0=$(now)
 { timeout --kill-after=5 "$3" bash -c "$1" 2>&1 & echo $! > "$2/tpid"; wait $!; echo $? > "$2/code"; } | dd bs=65536 iflag=count_bytes count="$4" status=none >> "$2/output.log"
 code=$(cat "$2/code" 2>/dev/null || echo 1)
-ran=$(( $(date +%s%3N) - t0 ))
+ran=$(( $(now) - t0 ))
 late=0
 if [ "$code" = 124 ] || { [ "$code" = 137 ] && [ "$ran" -ge "$(( $3 * 1000 ))" ]; }; then late=1; fi
 echo "$code $late $ran" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"

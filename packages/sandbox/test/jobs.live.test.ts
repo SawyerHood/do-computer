@@ -37,6 +37,9 @@ describe.skipIf(apiKey === "")("jobs on daytona, for real", () => {
     })
     console.log(`plain call ${plain} ms, as a job ${followed} ms`)
     expect(done).toMatchObject({ state: "exited", exitCode: 3, output: "hi\n", kept: false })
+    // The machine says how long it ran, which is a moment.
+    expect(done).toMatchObject({ ranMs: expect.any(Number) })
+    expect((done as { ranMs: number }).ranMs < 5_000).toBe(true)
     expect(followed - plain < 1_000).toBe(true)
   }, 180_000)
 
