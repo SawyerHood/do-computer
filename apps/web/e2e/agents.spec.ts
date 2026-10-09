@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 import { asOwner, closeSettings, composer, openSettings, signIn, tab } from "./helpers.ts"
 
@@ -181,4 +182,81 @@ test("a second agent can be made, and deleted without touching the first", async
   expect(gone.status()).toBe(404)
   const agents = (await (await page.request.get("/api/agents")).json()) as { agents: unknown[] }
   expect(agents.agents.length).toBe(1)
+})
+
+/** How much of each creature on the page is drawn: the pixels of its picture that are not clear. */
+const drawn = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLCanvasElement>('[aria-label="Agent avatar"] canvas')].map(
+      (canvas) => {
+        const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height)
+        return pixels.data.filter((value, at) => at % 4 === 3 && value > 0).length
+      },
+    ),
+  )
+
+test("a still picture of a creature is drawn though its page opened out of sight", async ({
+  page,
+}) => {
+  // A window that is not showing, as the desktop app's is while it is closed, and a tab opened
+  // behind another: nothing moves there, and a picture that waited to be moved stayed a blank.
+  await page.addInitScript(() => {
+    const shown = () => "shown" in window
+    Object.defineProperty(document, "hidden", { get: () => !shown() })
+    Object.defineProperty(document, "visibilityState", {
+      get: () => (shown() ? "visible" : "hidden"),
+    })
+  })
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  // Some move and some are still: the one above the chat is a still.
+  expect((await drawn(page)).length).toBeGreaterThan(2)
+  // Longer than a still is given to take up its pose.
+  await page.waitForTimeout(600)
+  await page.evaluate(() => {
+    Object.assign(window, { shown: true })
+    document.dispatchEvent(new Event("visibilitychange"))
+  })
+  await expect.poll(() => drawn(page)).not.toContain(0)
+})
+
+test("creatures keep their picture when the graphics card goes away, and move again by another", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const made: WebGLRenderingContext[] = []
+    Object.assign(window, { made })
+    const real = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...rest: unknown[]
+    ) {
+      const context = (real as (...args: unknown[]) => unknown).call(this, kind, ...rest)
+      if (kind !== "2d" && context !== null && !made.includes(context as WebGLRenderingContext)) {
+        made.push(context as WebGLRenderingContext)
+      }
+      return context
+    } as typeof real
+  })
+  const made = () =>
+    page.evaluate(() => (window as unknown as { made: WebGLRenderingContext[] }).made.length)
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  await expect.poll(() => drawn(page)).not.toContain(0)
+
+  // Taken away, and not given back.
+  const before = await made()
+  await page.evaluate(() => {
+    for (const context of (window as unknown as { made: WebGLRenderingContext[] }).made) {
+      context.getExtension("WEBGL_lose_context")?.loseContext()
+    }
+  })
+  // Frames go by with nothing to draw from. What was drawn is still there.
+  await page.waitForTimeout(500)
+  expect(await drawn(page)).not.toContain(0)
+  // After a while another is asked for, and they are drawn from that.
+  await expect.poll(made, { timeout: 15_000 }).toBeGreaterThan(before)
+  await page.waitForTimeout(300)
+  expect(await drawn(page)).not.toContain(0)
 })

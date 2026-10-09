@@ -1239,6 +1239,24 @@ Since then, newest last:
     - **Not done:** the list of agents still waits for every agent. One that never answers
       leaves the sidebar's rows as placeholders for fifteen seconds and then failed.
 
+33. **Creatures that went blank** (2026-10-09; `apps/web/src/components/agent-avatar.tsx`,
+    `packages/mascot/src/orb-core.js`). The owner asked whether "the 3d renders disappear"
+    because of too many WebGL contexts. It is not that: every creature on a page is drawn by
+    one context (`Stage`), and each has a 2D canvas that takes a copy. Two things did blank
+    them, and both are reproduced by a test in `e2e/agents.spec.ts`:
+    - **A still picture was held before it was drawn.** A still (the one above the chat, in
+      menus and lists, in the wardrobe) is let move for 350 ms and then paused. The loop that
+      moves it draws nothing in a window that is not showing or of a canvas off the screen,
+      so a page opened behind another, or in the desktop app's closed window, held a blank
+      for good. It is now drawn as it is paused.
+    - **A context the browser took away wiped every creature**, each frame, by copying from
+      it. The copy is now left out while the context is lost, so the last picture stays. A
+      context that has not come back in three seconds is let go of and another asked for, at
+      most every three seconds.
+    - **Not done:** the context is still let go of whenever the last creature leaves the page
+      and made again for the next, which is a new context for most moves between pages. That
+      costs time, not pictures. Whether either of the two is what the owner saw is not known.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

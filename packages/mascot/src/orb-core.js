@@ -807,7 +807,7 @@ var RING_FRAG = [
    in use keeps a context alive.
    ================================================================ */
 var Stage = {
-  ctx: {}, camera: null, geos: {},
+  ctx: {}, camera: null, geos: {}, missedAt: {},
   // key: 'px' (mascot, no antialiasing) or 'aa' (glass). Creates the renderer on first use.
   get: function (key) {
     if (this.ctx[key]) return this.ctx[key];
@@ -851,6 +851,26 @@ var Stage = {
     if (!aa) this.release('aa');
   },
   count: function () { return Object.keys(this.ctx).length; },
+  // The renderer for a frame. This is asked every frame, so one that could not be made is asked
+  // for again only after a while.
+  frame: function (key) {
+    if (this.ctx[key]) return this.ctx[key];
+    var t = now();
+    if (t - (this.missedAt[key] || -1e9) < 3000) return null;
+    var c = this.get(key);
+    if (!c) this.missedAt[key] = t;
+    return c;
+  },
+  // Whether the browser has taken the context away. It usually gives it back, and three then
+  // carries on. One of ours that has stayed away is let go of, so that a new one is asked for.
+  lost: function (key, c) {
+    var gl = c.renderer.getContext ? c.renderer.getContext() : null;
+    if (!gl || !gl.isContextLost || !gl.isContextLost()) { c.lostAt = 0; return false; }
+    var t = now();
+    if (!c.lostAt) c.lostAt = t;
+    else if (c.own && t - c.lostAt > 3000) this.release(key);
+    return true;
+  },
   // Icosphere body with the antenna stalk and ball appended, so the whole figure is one draw call.
   body: function (detail) {
     var key = 'b' + detail;
@@ -930,8 +950,11 @@ var Stage = {
   draw: function (orb) {
     var px = orb.px;
     if (px < 2) return;
-    var c = this.get(orb.retro ? 'px' : 'aa');
-    if (!c) return;
+    var key = orb.retro ? 'px' : 'aa';
+    var c = this.frame(key);
+    // Nothing can be drawn without a context. The picture that is there stays: copying from a
+    // context that is gone would wipe it.
+    if (!c || this.lost(key, c)) return;
     var r = c.renderer;
     if (px > c.size) { c.size = Math.min(2048, Math.ceil(px / 64) * 64); r.setSize(c.size, c.size, false); }
     this.drawAt(orb, r, 0, 0);
