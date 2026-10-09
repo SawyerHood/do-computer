@@ -88,6 +88,53 @@ test.describe("pairing a computer", () => {
     expect(readFileSync(join(home, ".dc/audit.log"), "utf8")).toContain("cat hello.txt")
   })
 
+  test("a command left running there is in the chat, is read as it prints, and can be stopped", async ({
+    page,
+  }) => {
+    await signIn(page)
+    await newChat(page)
+    await composer(page).fill(
+      '/tool bash {"command":"echo serving; sleep 2; echo a request; sleep 300","computer":"test-laptop","run_in_background":true}',
+    )
+    await page.keyboard.press("Enter")
+    // It is where the agent started it, with its clock going, and counted above the message box.
+    const chip = page.getByTestId("command-chip")
+    await expect(chip).toContainText("echo serving; sleep 2; echo a request; sleep 300")
+    await expect(chip).toContainText("test-laptop · in the background")
+    await expect(page.getByRole("button", { name: "1 running" })).toBeVisible()
+    // The agent is waiting on it, and says so in the sidebar.
+    await expect(page.getByText("Waiting on echo serving")).toBeVisible()
+
+    // The list leads to the command in the chat, opened on the end of what it has printed.
+    await page.getByRole("button", { name: "1 running" }).click()
+    const list = page.getByRole("list", { name: "Running in the background" })
+    await expect(list.getByText("test-laptop ·")).toBeVisible()
+    await list.getByTitle("Show what it is printing").click()
+    const printing = page.getByLabel(/^What echo serving.* is printing$/)
+    await expect(printing).toContainText("a request")
+
+    // Stopping it is said in the chat, and it is no longer counted.
+    await page
+      .getByRole("button", { name: /^Stop echo serving/ })
+      .first()
+      .click()
+    await expect(page.getByTestId("command-word")).toContainText("You stopped")
+    await expect(chip).toContainText("test-laptop · stopped after")
+    await expect(page.getByRole("button", { name: "1 running" })).toHaveCount(0)
+
+    // One that ends by itself says how, with what it printed folded under that.
+    await newChat(page)
+    await composer(page).fill(
+      '/tool bash {"command":"echo begun; sleep 3; echo built","computer":"test-laptop","run_in_background":true}',
+    )
+    await page.keyboard.press("Enter")
+    const word = page.getByTestId("command-word")
+    await expect(word).toContainText(/finished in \d+s on test-laptop/, { timeout: 20_000 })
+    await word.getByRole("button", { name: "What it printed" }).click()
+    await expect(word).toContainText("built")
+    await expect(page.getByTestId("command-chip")).toContainText("test-laptop · finished in")
+  })
+
   test("an agent that was not given the computer asks for it, and is let in from the chat", async ({
     page,
   }) => {

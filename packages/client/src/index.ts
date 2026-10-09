@@ -9,6 +9,8 @@ import {
   type ApprovalsState,
   type ChatHistoryPage,
   type HistoryHit,
+  type JobStatus,
+  type JobSummary,
   type ApiError as ApiErrorBody,
   type Avatar,
   type ChatEvent,
@@ -426,6 +428,19 @@ export function createClient(options: ClientOptions) {
         send: (chatId: string, message: SendMessageRequest) =>
           post<SendMessageResponse>(`${base}/chats/${chatId}/messages`, message),
         abort: (chatId: string) => post<{ ok: true }>(`${base}/chats/${chatId}/abort`),
+        /** The commands the agent left running in the background, and those lately over. */
+        jobs: async () => (await request<{ jobs: JobSummary[] }>(`${base}/jobs`)).jobs,
+        /**
+         * What a background command has printed from `from` bytes on, or the end of it when
+         * `from` is left out. `next` is where to ask from the next time.
+         */
+        jobOutput: (jobId: string, from?: number) =>
+          request<{ output: string; next: number; status: JobStatus }>(
+            `${base}/jobs/${encodeURIComponent(jobId)}/output${from === undefined ? "" : `?from=${from}`}`,
+          ),
+        /** Stop a background command. The agent is told that someone stopped it. */
+        stopJob: (jobId: string) =>
+          post<{ ok: true }>(`${base}/jobs/${encodeURIComponent(jobId)}/stop`),
         /**
          * Messages of a chat from before `before`, a message id: what a summary or a fresh start
          * moved out of the live transcript.

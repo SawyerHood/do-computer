@@ -298,6 +298,20 @@ export function isAgentMessage(part: MessagePart): part is ToolPart {
   return typeof details?.agentId === "string" && typeof details.chatId === "string"
 }
 
+/**
+ * Whether a part is the agent leaving a command to run in the background, by asking or because
+ * it was still running when the wait for it ended. That is shown too, as the command: how it is
+ * getting on, and what it is printing.
+ */
+export function isJobStart(part: MessagePart): part is ToolPart {
+  return (
+    part.type === "tool" &&
+    part.name === "bash" &&
+    part.status === "done" &&
+    typeof (part.details as { job?: unknown } | null | undefined)?.job === "string"
+  )
+}
+
 /** Whether a part of a message is shown in a transcript. Thinking and tool calls are not. */
 export function isShownPart(part: MessagePart): boolean {
   return (
@@ -306,6 +320,7 @@ export function isShownPart(part: MessagePart): boolean {
     part.type === "notice" ||
     isSentFile(part) ||
     isSubagentStart(part) ||
+    isJobStart(part) ||
     isAgentMessage(part)
   )
 }

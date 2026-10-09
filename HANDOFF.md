@@ -796,11 +796,24 @@ Since then, newest last:
       the daemon restarts, and the daemon that comes back finds it by its folder.
     - **The built-in shell** has no processes. `run_in_background` fails there with a sentence
       saying so.
-    - **What the app shows so far:** the entry in the transcript when a command ends, on web
-      and phone, and "Starting in the background" in the status line. The rest of the mock-up
-      (the command where it was started, the list in the panel and above the message box,
-      Stop, reading output as it comes) is not built: see section 7. The routes it needs are
-      there: `GET /jobs`, `GET /jobs/:id/output`, `POST /jobs/:id/stop`.
+    - **What the app shows** (`apps/web/src/components/chat/commands.tsx`), built on
+      2026-10-09 after the owner saw the mock-up and said "Yeah the ui looks good go build!".
+      The app has no rows for tool calls, so a command is shown as a sub-agent is. Where the
+      agent left it running there is a chip in the transcript: the command, its computer, "in
+      the background" and a clock, or "still going after a minute, now in the background" for
+      one that was moved. Opened, it shows the end of what the command has printed, read
+      again every four seconds, with Stop. Once the command has ended the chip says how, and
+      what it printed is with the word of its end, further down. The running commands of a
+      chat are listed in the agent's panel and from a count above the message box, each with
+      its last line and Stop; a row opens the command in the chat. The agent reads "Waiting
+      on a command" in its panel and "Waiting on pnpm build" in the sidebar. Jobs reach the
+      page by `GET /jobs`, asked again when the agent's event stream says `jobs` changed.
+    - **Where that differs from the mock-up:** the sidebar says what an agent is waiting on
+      only for the agent on screen, since the list of agents does not know what the others
+      are doing. A side chat has the chips and no count. On a phone there is no count and no
+      list, as drawn. The Expo app shows a line where a command was left running and the
+      word of its end, and nothing live. How long a command took is what its computer
+      measured, not when the agent noticed.
     - **Checked:** the runner against real coreutils and, on 2026-10-08, against a real
       Daytona machine (`packages/sandbox/test/jobs.live.test.ts`: a job outlives the call
       that started it, a second call reaches the machine while a first waits, a quick command
@@ -815,7 +828,9 @@ Since then, newest last:
       the daemon's side has never run; whether looking at a job really holds off Daytona's
       15-minute stop (nothing ran that long); a command that outlives its machine being
       stopped, outside the tests; and a real model, which may or may not use
-      `run_in_background` when it should.
+      `run_in_background` when it should. The app's side was checked in a browser with the
+      echo model and a real daemon (`e2e/computers.spec.ts`), and judged from screenshots at
+      1440 and 390 pixels wide; not in Safari, not on a phone, and not against Daytona.
 
 ## 6. What the owner has said they want
 
@@ -883,11 +898,6 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 ## 7. Open questions and unfinished work
 
 ### Waiting on the owner
-
-- **How background commands look in the app.** `prototypes/background-commands` draws it: the
-  command in the transcript where it was started, a list in the panel and above the message
-  box with Stop, the end of the output on opening one. The owner has not seen it yet. Build
-  it once they have said yes; the server side is done (section 5, item 26).
 
 - **The console-mascot UI.** `prototypes/console-ui` is a click-through exploration of the whole
   UI in that style, with a ranked list of ideas in its README. The owner has looked at it and has

@@ -126,6 +126,7 @@ export type AgentEvent =
         | "memory"
         | "secrets"
         | "creature"
+        | "jobs"
     }
 
 export type ModelOption = {

@@ -4,6 +4,7 @@ import {
   chatRuns,
   type ChatState,
   type ChatSummary,
+  type JobSummary,
   type LibraryFile,
   sentFiles,
   toolActivity,
@@ -34,6 +35,7 @@ import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
 import { ThreadRows } from "./agent-threads.tsx"
+import { JobRows, waitingWords } from "./commands.tsx"
 import { SlackRows } from "./slack-threads.tsx"
 import { SubagentBrood, SubagentRows, subagentSeed, subagentWords } from "./subagents.tsx"
 
@@ -197,6 +199,7 @@ export function AgentPanel({
   startFresh,
   subagent,
   subagents,
+  running = [],
   threads = [],
   slack = [],
   chatId,
@@ -222,6 +225,8 @@ export function AgentPanel({
   }
   /** The sub-agents started in this chat. */
   subagents: ChatSummary[]
+  /** The commands this chat left running in the background. */
+  running?: JobSummary[]
   /** The conversations other agents have had with it, newest first. */
   threads?: ChatSummary[]
   /** The threads in Slack it has been spoken to in, newest first. */
@@ -249,10 +254,13 @@ export function AgentPanel({
   const agentName = agent.name ?? "New agent"
   const name = subagent?.title ?? agentName
   // A sub-agent at rest says how it ended; one at work says what it is doing.
+  // An agent at rest with a command still running is waiting on it, not ready.
   const doing =
-    subagent !== undefined && mood.state === "idle"
-      ? subagentWords(subagent.status)
-      : moodWords(mood, agent.hatched)
+    mood.state === "idle" && running.length > 0
+      ? waitingWords(running, false)
+      : subagent !== undefined && mood.state === "idle"
+        ? subagentWords(subagent.status)
+        : moodWords(mood, agent.hatched)
   return (
     <aside
       aria-label={`About ${name}`}
@@ -310,6 +318,16 @@ export function AgentPanel({
         )}
         {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
       </div>
+      {running.length === 0 ? null : (
+        <div className="flex max-h-[40%] shrink-0 flex-col border-t">
+          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Running in the background
+          </h3>
+          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
+            <JobRows agentId={agent.id} jobs={running} />
+          </div>
+        </div>
+      )}
       {subagent !== undefined || subagents.length === 0 ? null : (
         <div className="flex max-h-[40%] shrink-0 flex-col border-t">
           <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">

@@ -24,6 +24,7 @@ describe("jobs on a machine with a shell", () => {
       state: "exited",
       exitCode: 3,
       timedOut: false,
+      ranMs: expect.any(Number),
       output: `out\nerr\n${sandbox.home}\n`,
       next: `out\nerr\n${sandbox.home}\n`.length,
       kept: false,
@@ -61,6 +62,7 @@ describe("jobs on a machine with a shell", () => {
       state: "exited",
       exitCode: 0,
       timedOut: false,
+      ranMs: expect.any(Number),
       output: "two\n",
       next: 8,
       kept: true,
@@ -69,6 +71,7 @@ describe("jobs on a machine with a shell", () => {
       state: "exited",
       exitCode: 0,
       timedOut: false,
+      ranMs: expect.any(Number),
       size: 8,
     })
   })

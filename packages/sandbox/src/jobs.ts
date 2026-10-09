@@ -10,6 +10,8 @@ export type JobState =
       readonly exitCode: number
       /** Its time limit stopped it. */
       readonly timedOut: boolean
+      /** How long it ran, as the computer it ran on measured it, where it said. */
+      readonly ranMs?: number
     }
   /** Neither running nor ended: the machine stopped under it, or its folder was removed. */
   | { readonly state: "lost" }
@@ -88,17 +90,18 @@ mkdir -p "$d" || exit 1
 printf '%s\\n' "$2" > "$d/command"
 : > "$d/output.log"
 setsid bash -c '
-t0=$(date +%s)
+t0=$(date +%s%3N)
 { timeout --kill-after=5 "$3" bash -c "$1" 2>&1 & echo $! > "$2/tpid"; wait $!; echo $? > "$2/code"; } | dd bs=65536 iflag=count_bytes count="$4" status=none >> "$2/output.log"
 code=$(cat "$2/code" 2>/dev/null || echo 1)
+ran=$(( $(date +%s%3N) - t0 ))
 late=0
-if [ "$code" = 124 ] || { [ "$code" = 137 ] && [ $(( $(date +%s) - t0 )) -ge "$3" ]; }; then late=1; fi
-echo "$code $late" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"
+if [ "$code" = 124 ] || { [ "$code" = 137 ] && [ "$ran" -ge "$(( $3 * 1000 ))" ]; }; then late=1; fi
+echo "$code $late $ran" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"
 ' job "$2" "$d" "$3" "$4" > /dev/null 2>&1 < /dev/null &
 echo $! > "$d/pid"
 `
 
-/** Prints `running`, `exited <code> <late>` or `lost` for the job in "$1". */
+/** Prints `running`, `exited <code> <late> <milliseconds it ran>` or `lost` for the job in "$1". */
 const STATE = `state() {
   if [ -e "$1/exit" ]; then echo "exited $(cat "$1/exit")"
   elif kill -0 "$(cat "$1/pid" 2>/dev/null)" 2>/dev/null; then echo running
@@ -153,10 +156,12 @@ function parseState(words: readonly string[]): JobState {
   if (words[0] === "running") return { state: "running" }
   if (words[0] === "exited") {
     const exitCode = Number(words[1])
+    const ranMs = Number(words[3])
     return {
       state: "exited",
       exitCode: Number.isInteger(exitCode) ? exitCode : 1,
       timedOut: words[2] === "1",
+      ...(words[3] !== undefined && Number.isFinite(ranMs) && ranMs >= 0 ? { ranMs } : {}),
     }
   }
   return { state: "lost" }

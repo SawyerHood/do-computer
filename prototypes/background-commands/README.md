@@ -4,6 +4,10 @@ What a command left running in the background could look like in Do Computer, dr
 it was built. It is not part of the app and nothing here is imported by it. Everything in it is
 pretend. The plan it draws is `PLAN-background-commands.md`, section 5.
 
+The owner approved it as drawn, and it was built the next day (HANDOFF.md, section 5, item 26).
+Where the app differs: the sidebar says what an agent is waiting on only for the agent on screen,
+and a side chat has the commands in it and no count above its message box.
+
 ```sh
 node prototypes/background-commands/build.mjs     # writes index.html here; open it from the file system
 ```

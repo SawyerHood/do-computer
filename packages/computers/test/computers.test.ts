@@ -330,6 +330,7 @@ describe("jobs on a paired computer", () => {
       state: "exited",
       exitCode: 3,
       timedOut: false,
+      ranMs: expect.any(Number),
       output: `hi\nerr\n${home}\n`,
       next: `hi\nerr\n${home}\n`.length,
       kept: false,

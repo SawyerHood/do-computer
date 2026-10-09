@@ -27,7 +27,8 @@ const MEASURE_EVERY_MS = 2_000
  * Runs the command and writes how it ended, as `<exit code> <stopped at its limit>`. It writes
  * that itself so that it is on record even if the daemon is not there to see the command end.
  */
-const WRAP = '"$3" -c "$1"; echo "$? 0" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"'
+const WRAP =
+  's=$(date +%s); "$3" -c "$1"; c=$?; echo "$c 0 $(( ($(date +%s) - s) * 1000 ))" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"'
 
 type Live = {
   child: ChildProcess
@@ -80,17 +81,22 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
   const readExit = async (dir: string): Promise<JobState | undefined> => {
     const text = await fs.readFile(path.join(dir, "exit"), "utf8").catch(() => undefined)
     if (text === undefined) return undefined
-    const [code, late] = text.trim().split(" ")
+    const [code, late, ran] = text.trim().split(" ")
     const exitCode = Number(code)
+    const ranMs = Number(ran)
     return {
       state: "exited",
       exitCode: Number.isInteger(exitCode) ? exitCode : 1,
       timedOut: late === "1",
+      ...(ran !== undefined && Number.isFinite(ranMs) && ranMs >= 0 ? { ranMs } : {}),
     }
   }
-  const writeExit = async (dir: string, exitCode: number, late: boolean) => {
+  const writeExit = async (dir: string, exitCode: number, late: boolean, ranMs?: number) => {
     if ((await readExit(dir)) !== undefined) return
-    await fs.writeFile(path.join(dir, "exit.tmp"), `${exitCode} ${late ? 1 : 0}\n`)
+    await fs.writeFile(
+      path.join(dir, "exit.tmp"),
+      `${exitCode} ${late ? 1 : 0}${ranMs === undefined ? "" : ` ${Math.round(ranMs)}`}\n`,
+    )
     await fs.rename(path.join(dir, "exit.tmp"), path.join(dir, "exit"))
   }
   const number = async (file: string) =>
@@ -137,6 +143,7 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     } finally {
       closeSync(log)
     }
+    const startedAt = Date.now()
     const entry: Live = { child, timers: [] }
     live.set(dir, entry)
     // The kill that follows is left to happen after the command's shell has gone: something
@@ -149,9 +156,12 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
       for (const timer of entry.timers) clearTimeout(timer)
       clearInterval(measure)
       // The command writes how it ended. A stopped one did not live to.
-      await writeExit(dir, entry.ended === "limit" ? 124 : exitCode, entry.ended === "limit").catch(
-        () => {},
-      )
+      await writeExit(
+        dir,
+        entry.ended === "limit" ? 124 : exitCode,
+        entry.ended === "limit",
+        Date.now() - startedAt,
+      ).catch(() => {})
       live.delete(dir)
     }
     const limit = setTimeout(() => stop("limit"), job.lifeMs)

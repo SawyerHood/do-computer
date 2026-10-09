@@ -90,7 +90,7 @@ import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
-import { JobError, Jobs } from "./jobs.ts"
+import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 import { isInherited, own } from "./own.ts"
@@ -881,7 +881,8 @@ export class AgentActor implements Actor {
         (await harness.snapshot(ConnectorsDoc, context)) === undefined ||
         (await harness.snapshot(ApprovalsDoc, context)) === undefined ||
         (await harness.snapshot(SecretsDoc, context)) === undefined ||
-        (await harness.snapshot(CreatureDoc, context)) === undefined
+        (await harness.snapshot(CreatureDoc, context)) === undefined ||
+        (await harness.snapshot(JobsDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
@@ -892,6 +893,7 @@ export class AgentActor implements Actor {
           await tx.doc(ApprovalsDoc)
           await tx.doc(SecretsDoc)
           await tx.doc(CreatureDoc)
+          await tx.doc(JobsDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -1990,6 +1992,7 @@ export class AgentActor implements Actor {
       const approvals = await harness.watchDoc(ApprovalsDoc, context)
       const secrets = await harness.watchDoc(SecretsDoc, context)
       const creature = await harness.watchDoc(CreatureDoc, context)
+      const jobs = await harness.watchDoc(JobsDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -2007,6 +2010,7 @@ export class AgentActor implements Actor {
       approvals?.start(changed("approvals"))
       secrets?.start(changed("secrets"))
       creature?.start(changed("creature"))
+      jobs?.start(changed("jobs"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -2019,6 +2023,7 @@ export class AgentActor implements Actor {
         void approvals?.stop()
         void secrets?.stop()
         void creature?.stop()
+        void jobs?.stop()
         unwatch?.()
       }
     })

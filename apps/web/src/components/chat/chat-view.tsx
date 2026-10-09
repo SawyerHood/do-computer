@@ -35,6 +35,7 @@ import { PeerFace, threadWords, useThreads } from "./agent-threads.tsx"
 import { PendingComputerRequests, useAgentsById } from "@/components/computer-requests"
 import { PendingApprovals } from "./approvals.tsx"
 import { PendingSecrets, PendingSignIns } from "./secrets.tsx"
+import { RunningCount, useRunningJobs } from "./commands.tsx"
 import { Composer } from "./composer.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
@@ -170,6 +171,7 @@ export function ChatView({
   const sub = chat?.kind === "subagent" ? chat : undefined
   const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
   const subagents = useSubagents(agent.id, chatId)
+  const running = useRunningJobs(agent.id, chatId)
   // A conversation another agent is having with this one is read here too, and not written in.
   const thread = chat?.kind === "agent" ? chat : undefined
   const threads = useThreads(agent.id)
@@ -536,6 +538,7 @@ export function ChatView({
                   {names(typing)} {typing.length === 1 ? "is" : "are"} typing…
                 </p>
               )}
+              <RunningCount agentId={agent.id} jobs={running} />
               <Composer
                 onTyping={team === undefined ? undefined : noteTyping}
                 draftKey={chatKey(agent.id, chatId)}
@@ -587,6 +590,7 @@ export function ChatView({
               : { chatId, title: sub.title, status: sub.status, parentTitle: parent?.title }
           }
           subagents={subagents}
+          running={running}
           threads={threads}
           slack={slackThreads}
           chatId={chatId}

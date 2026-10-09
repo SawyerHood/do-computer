@@ -138,6 +138,15 @@ const statusOf = (state: JobState): JobStatus =>
           ? "done"
           : "failed"
 
+/**
+ * When a command ended. It is looked at now and then, so the time it was found over is later
+ * than the time it was: where its computer says how long it ran, that is what counts.
+ */
+const endOf = (job: JobRecord, state: JobState, now: number): number =>
+  state.state === "exited" && state.ranMs !== undefined
+    ? Math.min(now, job.startedAt + state.ranMs)
+    : now
+
 /** How a command ended, as the agent is told it. */
 function ending(job: JobRecord, now: number): string {
   const span = spanOf((job.endedAt ?? now) - job.startedAt)
@@ -390,7 +399,7 @@ export class Jobs {
       if (seen !== undefined) stored.seen = Math.max(stored.seen, seen)
       if (stored.status === "running" && state.state !== "running") {
         stored.status = statusOf(state)
-        stored.endedAt = now
+        stored.endedAt = endOf(stored, state, now)
         if (state.state === "exited") stored.exitCode = state.exitCode
         if (reason !== undefined) stored.reason = reason
       }
@@ -493,7 +502,7 @@ export class Jobs {
     const ended: JobRecord = {
       ...job,
       status: statusOf(state),
-      endedAt: now,
+      endedAt: endOf(job, state, now),
       ...(state.state === "exited" ? { exitCode: state.exitCode } : {}),
       ...(why === undefined ? {} : { reason: why }),
     }
