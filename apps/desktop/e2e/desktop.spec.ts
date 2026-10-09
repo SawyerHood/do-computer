@@ -267,12 +267,21 @@ test("it can be switched off and on again without pairing again", async () => {
 
 test("quitting the app ends its daemon, and starting it again connects without asking", async () => {
   expect(daemons()).toBeGreaterThan(0)
+  // A second agent is open when the app is quit, so that where it starts again can be told
+  // from where it would start with nothing remembered.
+  const before = await windowAt(url)
+  const { agent } = await before.evaluate(
+    async () =>
+      (await (await fetch("/api/agents", { method: "POST" })).json()) as { agent: { id: string } },
+  )
+  await before.goto(`${url}/a/${agent.id}`)
+  await before.waitForURL(new RegExp(`/a/${agent.id}/c/\\d+`))
   await app.evaluate(({ app }) => app.quit()).catch(() => {})
   await expect.poll(() => daemons(), { timeout: 15_000 }).toBe(0)
 
   app = await launch()
-  // It goes straight to the deployment, signed in as before.
-  const main = await windowAt(/\/a\/[^/]+\/c\/\d+/)
+  // It goes straight to the deployment, signed in as before, and to the agent it was left on.
+  const main = await windowAt(new RegExp(`/a/${agent.id}/c/\\d+`))
   await expect(main.getByRole("textbox", { name: "Message" })).toBeVisible()
   const computer = await openComputer()
   await expect(computer.getByRole("status")).toContainText("Connected as", { timeout: 20_000 })

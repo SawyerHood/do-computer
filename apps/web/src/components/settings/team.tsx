@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { client } from "@/lib/client"
+import { agentsCollection } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { invitationsKey, refreshWorkspaces, useHere, whoIs } from "@/lib/workspaces"
 
@@ -215,6 +216,9 @@ function MemberRow({
             }
             void change(async () => {
               await api.removeMember(member.id)
+              // The index route goes to the agent that was last open, which is the team's
+              // until the list says it is gone.
+              await agentsCollection.utils.refetch()
               await navigate({ to: "/" })
             })
           }}
@@ -410,6 +414,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
                 }
                 void change(async () => {
                   await client.workspace(workspace.id).remove()
+                  await agentsCollection.utils.refetch()
                   await navigate({ to: "/" })
                 })
               }}

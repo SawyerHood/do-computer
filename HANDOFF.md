@@ -160,6 +160,11 @@ Since then, newest last:
    now a color and an optional seed; the agent picks only its color. On web it is
    `apps/web/src/components/agent-avatar.tsx`, driven by `apps/web/src/lib/use-mascot-mood.ts`.
    On mobile it is `apps/mobile/src/components/avatar.tsx`, through `expo-gl`.
+   Where a page cannot get WebGL as it opens, a still picture stands in and `loadMascot`
+   (`apps/web/src/lib/mascot.ts`) tries again: after 1, 5 and 30 seconds, and whenever the page
+   is come back to. It used to keep the first answer for the life of the page, which in the
+   desktop app is until the app is quit; that was seen once on macOS (2026-10-09), and why WebGL
+   was not there that time is not known. The packed app does get WebGL on GitHub's Mac.
 8. **The layout the owner asked for, after Muse.** On a wide screen (1280 px and up) a panel on
    the right of the chat holds the creature, the agent's name, a few words on what it is doing,
    the files it sent in this chat, and what it did in this chat. The sidebar starts closed, behind a button at the start of the agent's strip. The header

@@ -102,6 +102,62 @@ test("the creature in the agent's panel can be petted", async ({ page }) => {
   await expect(hearts).toHaveCount(1)
 })
 
+test("the app opens on the agent that was open last", async ({ page }) => {
+  await signIn(page)
+  const first = page.url()
+  await page.getByRole("button", { name: "New agent", exact: true }).click()
+  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== first)
+  const second = page.url()
+
+  // Coming to the app by its own address, as starting it does, and not by an agent's.
+  await page.goto("/")
+  await page.waitForURL(second)
+  await expect(composer(page)).toBeVisible()
+  // The first agent is opened, and is then the one that is come back to.
+  await page.goto(first)
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
+  await page.goto("/")
+  await page.waitForURL(first)
+
+  // An agent that is gone is not come back to: the app opens on the first one there is.
+  await page.goto(second)
+  await expect(composer(page)).toBeVisible()
+  const id = second.match(/\/a\/([^/]+)/)![1]!
+  expect((await page.request.delete(`/api/agents/${id}`)).ok()).toBe(true)
+  await page.goto("/")
+  await page.waitForURL(first)
+})
+
+test("a creature that could not be drawn as the page opened is drawn once it can be", async ({
+  page,
+}) => {
+  // There is no WebGL to be had as the page opens: a graphics card that is busy, or gone a moment.
+  await page.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...rest: unknown[]
+    ) {
+      if (kind !== "2d" && !("webglIsBack" in window)) return null
+      return (real as (...args: unknown[]) => unknown).call(this, kind, ...rest)
+    } as typeof real
+  })
+  await signIn(page)
+  const creature = page.getByRole("img", { name: "Agent avatar" }).first()
+  // A still picture stands in for it.
+  await expect(creature.locator("img")).toHaveCount(1)
+  await expect(creature.locator("canvas")).toBeHidden()
+
+  // Then there is, and the page is come back to. Nobody loaded it again.
+  await page.evaluate(() => {
+    Object.assign(window, { webglIsBack: true })
+    window.dispatchEvent(new Event("focus"))
+  })
+  await expect(creature.locator("canvas")).toBeVisible()
+  await expect(creature.locator("img")).toHaveCount(0)
+})
+
 test("a second agent can be made, and deleted without touching the first", async ({ page }) => {
   await signIn(page)
   const first = page.url().match(/\/a\/([^/]+)/)![1]!

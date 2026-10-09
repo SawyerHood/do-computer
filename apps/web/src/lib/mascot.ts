@@ -26,31 +26,77 @@ export function mascotMoodAtom(agentId: string) {
 }
 
 let loading: Promise<MascotCore | null> | undefined
+/** The drawing code, once it has been fetched, whether or not there was anywhere to draw with it. */
+let drawing: MascotCore | undefined
 /** What a creature can wear, and the box a new thing comes in. Here once the drawing code is. */
 let wardrobe: Wardrobe | undefined
+/** The creatures a still picture is standing in for, each to be drawn once it can be. */
+const waiting = new Set<(core: MascotCore) => void>()
+/** How long after a try that came to nothing the next ones are made. After the last, no more. */
+const RETRY_AFTER_MS = [1_000, 5_000, 30_000]
+let retries = 0
+
+async function tryMascot(): Promise<MascotCore | null> {
+  try {
+    const [three, { AgentOrbCore, AgentOrbWardrobe }] = await Promise.all([
+      import("three"),
+      import("@durable-computer/mascot"),
+    ])
+    drawing ??= AgentOrbCore(three)
+    // No WebGL here, or none to spare.
+    if (drawing.Stage.get("px") === null) return null
+    wardrobe = AgentOrbWardrobe(three, drawing)
+    follow(drawing)
+    return drawing
+  } catch (error) {
+    console.warn("The creatures could not be drawn.", error)
+    return null
+  }
+}
+
+/**
+ * Try again in a while, and whenever the page is come back to. A page can be open for days,
+ * in the desktop app above all, and what stopped the creatures being drawn as it opened may
+ * be over in a moment.
+ */
+function retryLater(): void {
+  const wait = RETRY_AFTER_MS[retries++]
+  const retry = () => {
+    clearTimeout(timer)
+    document.removeEventListener("visibilitychange", back)
+    window.removeEventListener("focus", back)
+    loading = undefined
+    void loadMascot()
+  }
+  const back = () => {
+    if (document.visibilityState === "visible") retry()
+  }
+  const timer = wait === undefined ? undefined : setTimeout(retry, wait)
+  document.addEventListener("visibilitychange", back)
+  window.addEventListener("focus", back)
+}
 
 /**
  * The creature's drawing code with three.js, fetched once, when the first one is about to be
- * shown. Null where it cannot be drawn: a still picture stands in for it there.
+ * shown. Null where it cannot be drawn: a still picture stands in for it there, and
+ * `whenMascotLoads` says if that changes.
  */
 export function loadMascot(): Promise<MascotCore | null> {
-  loading ??= (async () => {
-    try {
-      const [three, { AgentOrbCore, AgentOrbWardrobe }] = await Promise.all([
-        import("three"),
-        import("@durable-computer/mascot"),
-      ])
-      const core = AgentOrbCore(three)
-      // No WebGL here, or none to spare.
-      if (core.Stage.get("px") === null) return null
-      wardrobe = AgentOrbWardrobe(three, core)
-      follow(core)
-      return core
-    } catch {
-      return null
-    }
-  })()
+  loading ??= tryMascot().then((core) => {
+    if (core === null) retryLater()
+    else for (const draw of [...waiting]) draw(core)
+    return core
+  })
   return loading
+}
+
+/**
+ * Ask to be told when the creatures can be drawn after all, having been answered that they
+ * cannot. Returns what takes the request back.
+ */
+export function whenMascotLoads(draw: (core: MascotCore) => void): () => void {
+  waiting.add(draw)
+  return () => waiting.delete(draw)
 }
 
 /** The wardrobe that goes with the drawing code, once `loadMascot` has answered with it. */
