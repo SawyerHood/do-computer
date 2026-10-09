@@ -1,0 +1,239 @@
+/* The app's own pages, in the colours of the app they stand beside. */
+:root {
+  color-scheme: light dark;
+  --canvas: oklch(0.985 0.003 212);
+  --ink: oklch(0.27 0.008 212);
+  --teal: oklch(0.5 0.08 195);
+  --teal-ink: oklch(0.985 0.01 195);
+  --warn: oklch(0.55 0.13 60);
+  --raised: color-mix(in oklch, var(--ink) 5%, var(--canvas));
+  --quiet: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --line: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  font:
+    14px/1.5 Inter,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: oklch(0.19 0.005 212);
+    --ink: oklch(0.93 0.005 212);
+    --teal: oklch(0.64 0.09 195);
+    --teal-ink: oklch(0.17 0.02 195);
+    --warn: oklch(0.76 0.12 70);
+  }
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  /* A page fills its window and no more: what is long in it scrolls by itself. */
+  height: 100%;
+  padding: 28px;
+  overflow: hidden;
+}
+h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--quiet);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+p {
+  margin: 0;
+}
+.quiet {
+  color: var(--quiet);
+}
+.small {
+  font-size: 12.5px;
+}
+.blob {
+  width: 56px;
+  height: 56px;
+}
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 500;
+}
+input[type="text"] {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  user-select: text;
+}
+input[type="text"]:focus-visible,
+button:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+label.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: start;
+}
+label.check input {
+  margin: 3px 0 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--teal);
+}
+label.check .quiet {
+  grid-column: 2;
+}
+button {
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+button:hover {
+  border-color: color-mix(in oklch, var(--ink) 28%, var(--canvas));
+}
+button.primary {
+  border-color: var(--teal);
+  background: var(--teal);
+  color: var(--teal-ink);
+}
+button.primary:hover {
+  filter: brightness(1.08);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font-weight: 500;
+}
+.error {
+  color: var(--warn);
+}
+.spread {
+  margin-top: auto;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.row > .grow {
+  flex: 1;
+  min-width: 0;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+}
+.dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--quiet);
+}
+.dot[data-tone="on"] {
+  background: var(--teal);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 22%, transparent);
+}
+.dot[data-tone="busy"] {
+  background: var(--warn);
+}
+.code {
+  font:
+    600 20px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  letter-spacing: 0.08em;
+  user-select: text;
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+ol.log {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  list-style: none;
+  font:
+    11.5px/1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  color: var(--quiet);
+  user-select: text;
+}
+ol.log li {
+  overflow-wrap: anywhere;
+}
+ol.log time {
+  margin-right: 8px;
+  opacity: 0.7;
+}
+[hidden] {
+  display: none !important;
+}
+.contents {
+  display: contents;
+}
+.gap-above {
+  margin-top: 8px;
+}
+main.centered {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}

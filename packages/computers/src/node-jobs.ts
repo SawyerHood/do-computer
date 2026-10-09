@@ -4,12 +4,15 @@ import { constants } from "node:os"
 import * as path from "node:path"
 import { EXEC_STDIO_CAP, JOB_LOG_CAP_BYTES } from "@durable-computer/protocol"
 import type { JobFollowed, JobState, SandboxJobs } from "@durable-computer/sandbox"
+import { killTree } from "./kill.ts"
+import { shownPath, toPosixView } from "./paths.ts"
+import { findShell, posixShell, type Shell } from "./shell.ts"
 
 export type NodeJobsOptions = {
   /** Where the folders of jobs are kept, under `.do-computer/jobs`. */
   readonly home: string
-  /** The shell commands run in. Default `bash`. */
-  readonly shell?: string
+  /** The shell commands run in: the name of one like `sh`, or a `Shell`. Default `findShell()`. */
+  readonly shell?: string | Shell
   /** Where a path that does not start at the root starts. */
   readonly resolve: (target: string) => string
   /** A job prints at most this much before it is stopped. */
@@ -50,20 +53,13 @@ const alive = (pid: number) => {
   }
 }
 
-/** Ask a job's whole process group to stop, and kill it a few seconds later if it has not. */
+/**
+ * Ask a job's whole process group to stop, and kill it a few seconds later if it has not. On
+ * Windows the asking is already by force, so nothing follows it.
+ */
 function stopGroup(pid: number): ReturnType<typeof setTimeout> | undefined {
-  try {
-    process.kill(-pid, "SIGTERM")
-  } catch {
-    return undefined
-  }
-  const timer = setTimeout(() => {
-    try {
-      process.kill(-pid, "SIGKILL")
-    } catch {
-      // Already gone.
-    }
-  }, KILL_AFTER_MS)
+  if (!killTree(pid, "SIGTERM") || process.platform === "win32") return undefined
+  const timer = setTimeout(() => void killTree(pid, "SIGKILL"), KILL_AFTER_MS)
   timer.unref()
   return timer
 }
@@ -76,6 +72,20 @@ function stopGroup(pid: number): ReturnType<typeof setTimeout> | undefined {
  */
 export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJobs {
   const cap = options.logCapBytes ?? JOB_LOG_CAP_BYTES
+  const shell =
+    typeof options.shell === "string" ? posixShell(options.shell) : (options.shell ?? findShell())
+  const windows = process.platform === "win32"
+  /** The program a job is, and what it is given. */
+  const program = (command: string, dir: string): [string, string[]] => {
+    // A shell that cannot run the script around a job, PowerShell on Windows, runs the command
+    // alone. The daemon writes how it ended when it sees it end, so one that ends while the
+    // daemon is not running is reported as lost.
+    if (!shell.posix) return [shell.file, shell.args(command)]
+    // Windows has no `sh` but the one that comes with Git's bash, which is also the `bash` on
+    // the PATH inside it, and which is told where the folder is in its own way of writing it.
+    if (windows) return [shell.file, ["-c", WRAP, "job", command, toPosixView(dir), "bash"]]
+    return ["sh", ["-c", WRAP, "job", command, dir, shell.file]]
+  }
   const live = new Map<string, Live>()
 
   const readExit = async (dir: string): Promise<JobState | undefined> => {
@@ -134,10 +144,12 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
     try {
       // Its own process group, so that stopping it stops what it started, and so that it is
       // not stopped with the daemon.
-      child = spawn("sh", ["-c", WRAP, "job", job.command, dir, options.shell ?? "bash"], {
+      const [file, args] = program(job.command, dir)
+      child = spawn(file, args, {
         cwd: job.cwd === undefined ? options.home : options.resolve(job.cwd),
         env: { ...process.env, ...job.env },
         detached: true,
+        windowsHide: true,
         stdio: ["ignore", log, log],
       })
     } finally {
@@ -289,7 +301,8 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
       remove: async (ids) => {
         for (const id of ids) await fs.rm(dirOf(id), { recursive: true, force: true })
       },
-      log: (id) => path.join(dirOf(id), "output.log"),
+      // As the server is shown the home, so that it is the path the server works out itself.
+      log: (id) => shownPath(path.join(dirOf(id), "output.log")),
     }
   }
 }

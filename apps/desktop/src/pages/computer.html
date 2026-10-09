@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'"
+    />
+    <link rel="stylesheet" href="pages.css" />
+    <title>This Computer</title>
+  </head>
+  <body>
+    <main>
+      <div>
+        <h1>This computer</h1>
+        <p class="quiet">
+          Agents you connect to it can run commands and read and change files here, as you.
+        </p>
+      </div>
+      <section class="card">
+        <div class="row">
+          <span id="dot" class="dot"></span>
+          <strong id="headline" class="grow" role="status"></strong>
+        </div>
+        <div id="pairing" hidden>
+          <p class="quiet small">Confirm this code while signed in, and choose the agents.</p>
+          <div class="row gap-above">
+            <span id="code" class="code grow"></span>
+            <button id="confirm" type="button">Open the page</button>
+          </div>
+        </div>
+        <p id="detail" class="quiet small" hidden></p>
+        <label class="check" id="read-only-row">
+          <input id="read-only" type="checkbox" />
+          <span>Read-only</span>
+          <span class="quiet small">Agents can read files here, and nothing more.</span>
+        </label>
+        <button id="toggle" class="primary" type="button"></button>
+      </section>
+      <label class="check" id="login-row">
+        <input id="login" type="checkbox" />
+        <span>Open Do Computer when I sign in to this computer</span>
+        <span class="quiet small">
+          Agents can only reach this computer while Do Computer is running. Closing its window
+          leaves it running in the tray.
+        </span>
+      </label>
+      <div class="row small">
+        <span class="quiet">Server</span>
+        <span id="server" class="grow truncate"></span>
+        <button id="change" class="link" type="button">Change…</button>
+      </div>
+      <h2>What happened here</h2>
+      <ol id="log" class="log" aria-label="What the daemon did"></ol>
+      <p class="quiet small">
+        To take this computer away from your agents for good, remove it under Computers.
+      </p>
+    </main>
+    <script src="computer.js"></script>
+  </body>
+</html>

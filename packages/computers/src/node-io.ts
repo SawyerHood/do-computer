@@ -3,14 +3,23 @@ import { promises as fs } from "node:fs"
 import * as path from "node:path"
 import { EXEC_STDIO_CAP, type RemoteFileStat } from "@durable-computer/protocol"
 import type { DaemonIO } from "./daemon-core.ts"
+import { killTree } from "./kill.ts"
 import { nodeJobs } from "./node-jobs.ts"
+import { fromPosixView, shownPath } from "./paths.ts"
+import { findShell, posixShell, type Shell } from "./shell.ts"
+
+export { shownPath } from "./paths.ts"
+export { findShell, posixShell, type Shell } from "./shell.ts"
 
 export type NodeDaemonIOOptions = {
   /** Where relative paths and commands start. */
   readonly home: string
   readonly audit: (entry: Record<string, unknown>) => void
-  /** The shell commands run in. Default `bash`, falling back to `sh` where bash is missing. */
-  readonly shell?: string
+  /**
+   * The shell commands run in: the name of one like `sh`, or a `Shell`. Default what
+   * `findShell` finds: `bash`, and on Windows Git for Windows' bash or else PowerShell.
+   */
+  readonly shell?: string | Shell
 }
 
 function describe(stats: import("node:fs").Stats): RemoteFileStat {
@@ -23,7 +32,11 @@ function describe(stats: import("node:fs").Stats): RemoteFileStat {
 
 /** The daemon's effects on a real machine, through Node. */
 export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
-  const resolve = (target: string) => {
+  const shell =
+    typeof options.shell === "string" ? posixShell(options.shell) : (options.shell ?? findShell())
+  const resolve = (given: string) => {
+    // The server writes every path as a POSIX one, so a Windows path arrives as `/c/Users/…`.
+    const target = process.platform === "win32" ? fromPosixView(given) : given
     const expanded =
       target === "~"
         ? options.home
@@ -33,25 +46,23 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
     return path.isAbsolute(expanded) ? expanded : path.join(options.home, expanded)
   }
   return {
-    jobs: nodeJobs({ home: options.home, shell: options.shell, resolve }),
+    jobs: nodeJobs({ home: options.home, shell, resolve }),
     exec(command, execOptions) {
       return new Promise((done) => {
-        // Its own process group, so a timeout stops the command's children too.
-        const child = spawn(options.shell ?? "bash", ["-c", command], {
+        // Its own process group, so a timeout stops the command's children too. Windows has
+        // none: there its children are found by who started them.
+        const child = spawn(shell.file, shell.args(command), {
           cwd: execOptions.cwd === undefined ? options.home : resolve(execOptions.cwd),
           env: { ...process.env, ...execOptions.env },
-          detached: true,
+          detached: process.platform !== "win32",
+          windowsHide: true,
         })
         let stdout = ""
         let stderr = ""
         let timedOut = false
         const timer = setTimeout(() => {
           timedOut = true
-          try {
-            if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL")
-          } catch {
-            // Already gone.
-          }
+          if (child.pid !== undefined) killTree(child.pid, "SIGKILL")
         }, execOptions.timeoutMs)
         // Streaming decoders, so a character split across two chunks is not garbled.
         const decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() }
@@ -116,7 +127,7 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
       }
       return entries
     },
-    realpath: (target) => fs.realpath(resolve(target)),
+    realpath: async (target) => shownPath(await fs.realpath(resolve(target))),
     mkdir: async (target, recursive) => void (await fs.mkdir(resolve(target), { recursive })),
     async remove(target, { recursive, force }) {
       const full = resolve(target)

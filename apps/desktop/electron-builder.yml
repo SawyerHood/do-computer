@@ -1,0 +1,29 @@
+# How the app is packed for each system. Nothing is signed: see README.md for what that means
+# for whoever opens it.
+appId: computer.do.desktop
+productName: Do Computer
+directories:
+  output: release
+  buildResources: assets
+# Everything the app runs is already in dist/, as a few files. It has no node_modules to bring.
+files:
+  - dist/**
+  - package.json
+npmRebuild: false
+publish: null
+mac:
+  category: public.app-category.productivity
+  icon: assets/icon.png
+  target:
+    - target: dmg
+      arch: [universal]
+  extendInfo:
+    NSMicrophoneUsageDescription: Dictating a message to an agent uses the microphone.
+win:
+  icon: assets/icon.png
+  target: [nsis]
+linux:
+  icon: assets/icon.png
+  category: Utility
+  executableName: do-computer
+  target: [AppImage, deb]

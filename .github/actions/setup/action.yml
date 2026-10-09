@@ -1,5 +1,11 @@
 name: Set up
 description: pnpm, Node and the workspace's dependencies.
+inputs:
+  # Electron is a program of a hundred megabytes that only the desktop app's jobs run. The
+  # others install without it, and keep what they installed apart from those that have it.
+  desktop:
+    description: Whether to fetch Electron itself, to run or pack the desktop app.
+    default: "false"
 runs:
   using: composite
   steps:
@@ -13,7 +19,7 @@ runs:
           node_modules
           apps/*/node_modules
           packages/*/node_modules
-        key: modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'packages/*/package.json') }}
+        key: modules-${{ inputs.desktop == 'true' && 'desktop-' || '' }}${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', 'apps/*/package.json', 'packages/*/package.json') }}
     # When it has changed, install as usual, with pnpm's store from the cache.
     - uses: actions/setup-node@v4
       with:
@@ -22,3 +28,5 @@ runs:
     - if: steps.modules.outputs.cache-hit != 'true'
       run: pnpm install --frozen-lockfile
       shell: bash
+      env:
+        ELECTRON_SKIP_BINARY_DOWNLOAD: ${{ inputs.desktop == 'true' && '' || '1' }}

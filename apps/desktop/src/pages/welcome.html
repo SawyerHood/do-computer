@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'"
+    />
+    <link rel="stylesheet" href="pages.css" />
+    <title>Do Computer</title>
+  </head>
+  <body>
+    <main>
+      <svg class="blob" viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="16" fill="#242829" />
+        <ellipse cx="32" cy="37" rx="20" ry="16" fill="#3b9d9d" />
+        <circle cx="25" cy="35" r="2.6" fill="#1b2021" />
+        <circle cx="39" cy="35" r="2.6" fill="#1b2021" />
+        <path
+          d="M27.5 42c2.6 2.4 6.4 2.4 9 0"
+          fill="none"
+          stroke="#1b2021"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        />
+      </svg>
+      <div>
+        <h1>Do Computer</h1>
+        <p class="quiet">Your agents, in a window of their own.</p>
+      </div>
+      <form id="form" class="contents">
+        <label class="field">
+          Server
+          <input
+            id="server"
+            type="text"
+            placeholder="https://your-do-computer.example"
+            spellcheck="false"
+            autocomplete="off"
+          />
+          <span class="quiet small">The address of the Do Computer you use.</span>
+        </label>
+        <label class="check">
+          <input id="share" type="checkbox" checked />
+          <span>Let my agents work on this computer</span>
+          <span class="quiet small">
+            They can run commands and read and change files here, as you. Nothing is shared until
+            you have signed in and said which agents.
+          </span>
+        </label>
+        <label class="check" id="login-row">
+          <input id="login" type="checkbox" checked />
+          <span>Open Do Computer when I sign in to this computer</span>
+          <span class="quiet small"
+            >It stays in the tray, so your agents can reach this computer.</span
+          >
+        </label>
+        <p id="leaving" class="quiet small" hidden></p>
+        <p id="error" class="error" role="alert" hidden></p>
+        <div class="spread row">
+          <span class="grow"></span>
+          <button id="go" class="primary" type="submit">Continue</button>
+        </div>
+      </form>
+    </main>
+    <script src="welcome.js"></script>
+  </body>
+</html>

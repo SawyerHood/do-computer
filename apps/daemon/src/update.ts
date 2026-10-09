@@ -22,6 +22,8 @@ export type UpdateOptions = {
   readonly script: string
   /** The Node that runs it. */
   readonly node: string
+  /** The environment to run it in, where that Node needs more than the daemon's own to be one. */
+  readonly env?: NodeJS.ProcessEnv | undefined
   /** A version that was installed and would not start. It is not installed again. */
   readonly bad?: string | undefined
   readonly fetch?: typeof fetch
@@ -38,9 +40,9 @@ export const incomingPath = (script: string) => `${script}.new`
 /** Where the daemon that was replaced is kept, in case the new one will not start. */
 export const previousPath = (script: string) => `${script}.previous`
 
-const run = (file: string, args: string[]) =>
+const run = (file: string, args: string[], env: NodeJS.ProcessEnv | undefined) =>
   new Promise<string>((resolve, reject) => {
-    execFile(file, args, { timeout: 20_000 }, (error, stdout) =>
+    execFile(file, args, { timeout: 20_000, env, windowsHide: true }, (error, stdout) =>
       error === null ? resolve(String(stdout)) : reject(error),
     )
   })
@@ -79,7 +81,7 @@ export async function update(options: UpdateOptions): Promise<UpdateOutcome> {
   const incoming = incomingPath(options.script)
   await fs.writeFile(incoming, bundle, { mode: 0o755 })
   try {
-    const says = (await run(options.node, [incoming, "--version"])).trim()
+    const says = (await run(options.node, [incoming, "--version"], options.env)).trim()
     if (says !== offered.version) {
       throw new Error(`The new daemon says it is "${says}", not ${offered.version}.`)
     }
