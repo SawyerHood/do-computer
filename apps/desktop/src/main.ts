@@ -396,6 +396,9 @@ function drawTray(): void {
             remember({ share: false })
             void runner?.stop()
           } else showComputer()
+          // The menu ticked the item itself, which is not yet true. Draw it as things are.
+          drawn = ""
+          drawTray()
         },
       },
       { label: "This Computer…", click: showComputer },

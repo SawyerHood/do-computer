@@ -76,10 +76,17 @@ function daemons(): number {
 
 /** Open the app's window about this computer, as its menu does. */
 async function openComputer(): Promise<Page> {
-  await app.evaluate(({ Menu }) => {
-    const file = Menu.getApplicationMenu()!.items.find((item) => item.label === "File")!
-    file.submenu!.items.find((item) => item.label === "This Computer…")!.click()
-  })
+  // An app that has only just started has no menu of its own yet.
+  await expect
+    .poll(() =>
+      app.evaluate(({ Menu }) => {
+        const file = Menu.getApplicationMenu()?.items.find((item) => item.label === "File")
+        const item = file?.submenu?.items.find((item) => item.label === "This Computer…")
+        item?.click()
+        return item !== undefined
+      }),
+    )
+    .toBe(true)
   return windowAt("computer.html")
 }
 

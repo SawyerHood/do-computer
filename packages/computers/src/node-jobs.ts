@@ -34,11 +34,13 @@ const WRAP =
   's=$(date +%s); "$3" -c "$1"; c=$?; echo "$c 0 $(( ($(date +%s) - s) * 1000 ))" > "$2/exit.tmp" && mv "$2/exit.tmp" "$2/exit"'
 
 /**
- * The same on Windows, where the script first writes which process it is. What the daemon
- * starts there is Git's launcher for bash, which Windows ends when the daemon ends; the bash
- * the launcher starts runs on, and is the one to find again and to stop.
+ * The same on Windows, with two things done first. The script opens the log itself: Git's
+ * bash prints nothing into a file it was handed already open for appending, which the first
+ * run on a Windows machine showed. And it writes which process it is. What the daemon starts
+ * there is Git's launcher for bash, which Windows ends when the daemon ends; the bash the
+ * launcher starts runs on, and is the one to find again and to stop.
  */
-const WINDOWS_WRAP = `cat /proc/$$/winpid > "$2/pid"; ${WRAP}`
+const WINDOWS_WRAP = `exec >> "$2/output.log" 2>&1; cat /proc/$$/winpid > "$2/pid"; ${WRAP}`
 
 type Live = {
   child: ChildProcess
@@ -160,7 +162,7 @@ export function nodeJobs(options: NodeJobsOptions): (scope: string) => SandboxJo
         env: { ...process.env, ...job.env },
         detached: !windows,
         windowsHide: true,
-        stdio: ["ignore", log, log],
+        stdio: windows && shell.posix ? "ignore" : ["ignore", log, log],
       })
     } finally {
       closeSync(log)

@@ -106,6 +106,7 @@ Layout, briefly (`README.md` has the full table):
 | `apps/web`           | The web app and the gateway in front of the agents                                   |
 | `apps/mobile`        | The Expo app                                                                         |
 | `apps/daemon`        | The daemon a user runs to pair a computer                                            |
+| `apps/desktop`       | The Electron app: the deployment in a window, and the daemon run inside it           |
 | `prototypes/`        | Design explorations that are not part of the app                                     |
 
 The code has a consistent voice: comments explain why in plain sentences, tests are named as
@@ -967,6 +968,74 @@ Since then, newest last:
     - **Mine, not the owner's:** that a sign-in belongs to a workspace and not to a person or
       to one agent; who may sign out; that leaving takes a sign-in along; the three providers
       left out; the models suggested first for each provider.
+
+29. **A desktop app that is also the daemon** (2026-10-09; `apps/desktop`,
+    `apps/daemon/src/events.ts`, `packages/computers/src/shell.ts`, `paths.ts`, `kill.ts`,
+    `.github/workflows/desktop.yml`). The owner asked for "an electron app that can stay
+    running and the background and also work as the daemon for you agents", as "a ui around
+    the app to use it from you desktop (it can just hit the main server)", on "mac, windows,
+    and linux". They gave no design; the choices below are mine.
+    - **The window is the deployment.** The app's main window loads the server's own pages,
+      so there is no second user interface. Links that lead off the deployment open in the
+      browser; signing in with GitHub and connectors' sign-ins stay in the window, since they
+      come back to it. A page of the deployment is given nothing of the app: the script every
+      window has (`preload.ts`) hands its few calls only to pages that are files of the app,
+      and the app checks who is asking as well (`own` in `main.ts`).
+    - **The app's own pages** are three files (`src/pages`): choosing the server on a first
+      run, **This Computer** (whether agents can use it, the code while a pairing waits,
+      read-only, opening at sign-in, what the daemon did), and one for when the server cannot
+      be reached. Closing a window hides it; the tray menu, or starting the app again, brings
+      it back, and Quit in the tray ends the app.
+    - **The daemon is the same daemon**, not a part of the app. The app copies the bundle it
+      came with into its own folder (`<app data>/daemon/bin/daemon.cjs`) and runs it as a
+      process, with the app's own executable as Node (`ELECTRON_RUN_AS_NODE`). A process of
+      its own is what lets it go on replacing itself from the server (item 27); built into
+      the app it would be stuck at the app's version, and the server would call it old. The
+      file is written again only when a newer app brings a different one (`seedDaemon`).
+    - **What the daemon learned for it** (`DC_DAEMON_EMBEDDED=1`): it also prints how things
+      stand as lines that start `@dc-event ` (`events.ts`), which the app folds into what it
+      shows (`status.ts`); it exits when its input closes, which is how the app stops it and
+      what happens if the app dies; and it takes `ELECTRON_RUN_AS_NODE`, with its own
+      settings, out of the environment agents' commands inherit, putting it back only to try
+      a downloaded daemon. Without that last one an Electron app an agent started would run
+      as Node.
+    - **Pairing without a link to copy.** When its owner says agents may use the computer,
+      the app waits until the window is signed in (it asks `/api/me` with the window's own
+      session) and then shows the page the daemon is waiting at. Started at sign-in with a
+      pairing left unfinished, it does not push that page forward; This Computer has a
+      button for it.
+    - **Its own computer.** The app's daemon keeps its credentials in the app's folder, not
+      `~/.durable-computer`, so it cannot fight a daemon installed by hand for the same
+      connection. A machine with both is two computers.
+    - **Commands get the PATH of a terminal.** An app started from the dock has a bare PATH;
+      the app asks the owner's login shell for theirs once and gives that to the daemon
+      (`login-path.ts`).
+    - **Windows.** The daemon had never run there. Commands go to Git for Windows' bash when
+      it is installed, never to `bash` from the PATH, which is WSL's; otherwise to PowerShell,
+      with the failed program's exit code put back. The server reads every path as a POSIX
+      one (`resolvePosix`), so a Windows daemon shows its home as `/c/Users/ada` and reads
+      such paths back (`paths.ts`). A command's tree is stopped with `taskkill /T /F`, since
+      there are no process groups. A background command is not started apart from the daemon
+      there: a process with no console prints nothing, in bash or PowerShell, which the first
+      run on a Windows machine showed. Under Git's bash the script around a job writes which
+      Windows process it is, and that one outlives the daemon; under PowerShell a job ends
+      with the daemon. Agents are told what a Windows computer is like (`WINDOWS_NOTE` in
+      `packages/agent/src/computers.ts`).
+    - **Packing** is electron-builder's (`electron-builder.yml`): a universal `.dmg`, an NSIS
+      installer, an AppImage and a `.deb`. `DC_DESKTOP_SERVER` at build time is the deployment
+      the app opens without asking; the workflow passes the repository's `DC_BASE_URL`, so
+      nothing about do.computer is in a tracked file. A tag named `desktop-v…` makes a draft
+      release.
+    - **Not built:** signing or notarizing, so macOS and Windows both warn before opening
+      it; the app updating itself; a link to the app from the web app; a way to remove the
+      computer from the app's own window (it is removed under Computers, and the app notices);
+      changing read-only after pairing other than by tightening it.
+    - **Mine, not the owner's:** all of the above, and in particular that the window loads
+      the server and is not a client of its own; that sharing the computer and opening at
+      sign-in are both ticked on the first screen; that the app's daemon is a separate
+      computer from a hand-installed one; PowerShell as the fallback on Windows. No mock-up
+      was shown first, against the usual habit: the only new screens are the three small
+      pages, and the owner was sent pictures of them as built.
 
 ## 6. What the owner has said they want
 
