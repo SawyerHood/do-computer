@@ -202,9 +202,11 @@ test("an agent works on this computer, and still can with the window closed", as
   expect(readFileSync(join(home, "proof.txt"), "utf8").trim()).toBe("from the agent")
   // What the agent runs is not told that it is inside the app: an Electron app it started
   // would otherwise run as Node, and not as itself.
-  await expect.poll(() => existsSync(join(home, "env.txt"))).toBe(true)
-  const env = readFileSync(join(home, "env.txt"), "utf8")
-  expect(env).toContain("PATH=")
+  // The file is there, and empty, before `env` has written to it.
+  const written = () =>
+    existsSync(join(home, "env.txt")) ? readFileSync(join(home, "env.txt"), "utf8") : ""
+  await expect.poll(written).toContain("PATH=")
+  const env = written()
   expect(env).not.toContain("ELECTRON_RUN_AS_NODE")
   expect(env).not.toContain("DC_DAEMON_EMBEDDED")
   expect(env).not.toContain("DC_DAEMON_WORKER")
