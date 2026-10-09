@@ -76,8 +76,14 @@ jobs:
         working-directory: apps/desktop
         run: pnpm exec electron-builder --publish never
         env:
-          # Nothing here signs it. Without this, a certificate on the machine would be tried.
+          # Nobody's certificate signs it. Without this, one on the machine would be tried.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # On macOS it is still sealed, by no one, and a pull request's build is too.
+          CSC_FOR_PULL_REQUEST: "true"
+      - name: Check that the macOS app is sealed
+        if: runner.os == 'macOS'
+        working-directory: apps/desktop
+        run: codesign --verify --deep --strict --verbose=2 "release/mac-universal/Do Computer.app"
       - name: Run the packed app
         working-directory: apps/desktop
         run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test

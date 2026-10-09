@@ -471,9 +471,10 @@ repository variable `DC_BASE_URL` is set, those open that deployment. Pushing a 
 
 Things to know:
 
-- **Nothing is signed.** macOS will not open the app from a double click the first time:
-  right-click it and choose Open. Windows shows "Windows protected your PC": choose More info,
-  then Run anyway.
+- **Nobody has signed it.** macOS will not open a downloaded copy from a double click: allow
+  it under System Settings, Privacy & Security, or take the download's mark off it with
+  `xattr -dr com.apple.quarantine` and the path of the app. Windows shows "Windows protected
+  your PC": choose More info, then Run anyway. Neither has been tried on a real desktop yet.
 - **The app does not update itself.** There is little in it to update: the window shows the
   server's own pages, and the daemon inside it replaces itself from the server like any other
   daemon. A newer app is installed over the old one.
