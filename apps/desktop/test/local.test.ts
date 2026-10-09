@@ -49,25 +49,41 @@ describe("the PATH its owner has in a terminal", () => {
 describe("what the app remembers", () => {
   it("is nothing on a first run, and what was saved after", () => {
     const file = join(scratch(), "nested", "settings.json")
-    expect(loadSettings(file)).toEqual({ share: false, readOnly: false, openAtLogin: false })
+    expect(loadSettings(file)).toEqual({
+      share: false,
+      readOnly: false,
+      openAtLogin: false,
+      screen: false,
+      browser: true,
+    })
     saveSettings(file, {
       server: "https://do.example",
       share: true,
       readOnly: false,
       openAtLogin: true,
+      screen: true,
+      browser: false,
     })
     expect(loadSettings(file)).toEqual({
       server: "https://do.example",
       share: true,
       readOnly: false,
       openAtLogin: true,
+      screen: true,
+      browser: false,
     })
   })
 
   it("starts over from a file that cannot be read", () => {
     const file = join(scratch(), "settings.json")
     writeFileSync(file, "{ not json")
-    expect(loadSettings(file)).toEqual({ share: false, readOnly: false, openAtLogin: false })
+    expect(loadSettings(file)).toEqual({
+      share: false,
+      readOnly: false,
+      openAtLogin: false,
+      screen: false,
+      browser: true,
+    })
   })
 })
 

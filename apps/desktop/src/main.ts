@@ -22,16 +22,22 @@ import {
   nativeImage,
   nativeTheme,
   net,
+  screen,
   session,
   shell,
+  systemPreferences,
   Tray,
 } from "electron"
+import { UseState } from "@durable-computer/computers/use"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
 import { loginPath } from "./login-path.ts"
+import { createOverlay, type Overlay } from "./overlay.ts"
+import { ScreenService } from "./screen.ts"
+import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
 import { isWebAddress, onServer, serverAddress } from "./server.ts"
-import { loadSettings, type Settings, saveSettings } from "./settings.ts"
+import { DEFAULTS, loadSettings, type Settings, saveSettings } from "./settings.ts"
 import { headline } from "./status.ts"
 
 /** The deployment the app was built for, if it was built for one. Otherwise it asks. */
@@ -49,7 +55,7 @@ if (process.env.DC_DESKTOP_DATA) app.setPath("userData", process.env.DC_DESKTOP_
 else app.setName(NAME)
 
 const settingsFile = () => path.join(app.getPath("userData"), "settings.json")
-let settings: Settings = { share: false, readOnly: false, openAtLogin: false }
+let settings: Settings = { ...DEFAULTS }
 const remember = (change: Partial<Settings>) => {
   settings = { ...settings, ...change }
   saveSettings(settingsFile(), settings)
@@ -60,6 +66,9 @@ let computerWindow: BrowserWindow | undefined
 let welcomeWindow: BrowserWindow | undefined
 let tray: Tray | undefined
 let runner: DaemonRunner | undefined
+let screenService: ScreenService | undefined
+let screenDriver: ScreenDriver | undefined
+let overlay: Overlay | undefined
 let quitting = false
 /** The PATH commands run with, once it has been asked for. */
 let commandPath: string | undefined
@@ -77,14 +86,72 @@ const startedHidden = () =>
 // ---------------------------------------------------------------------------------------------
 // State, as the app's pages and the tray show it
 
+/** A screen that is only pretended, so that the tests need none. */
+const FAKE_SCREEN = process.env.DC_DESKTOP_FAKE_SCREEN === "1"
+/**
+ * Where the driver's packages are. They are programs for one system, which cannot be run from
+ * inside the one file the app is packed into, so a packed app keeps them beside that file.
+ */
+const driverDir = () => (app.isPackaged ? path.join(process.resourcesPath, "driver") : here("driver"))
+const screenUnavailable = () => (FAKE_SCREEN ? undefined : driverMissing(driverDir()))
+
+/** What macOS has let the app do, of the two things using the screen takes. */
+const permissions = () => ({
+  accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+  screenRecording: systemPreferences.getMediaAccessStatus("screen") === "granted",
+})
+
+/** What agents may use here now. One that may only read files may use neither. */
+const abilities = () => ({
+  screen: settings.screen && !settings.readOnly && screenUnavailable() === undefined,
+  browser: settings.browser && !settings.readOnly,
+})
+
+/** Why an agent may not use the screen just now, in words it can pass on to its owner. */
+function screenForbidden(): string | undefined {
+  if (!abilities().screen) {
+    return "This computer does not let agents use its screen. Its owner can switch that on in the Do Computer app on that computer, under This Computer."
+  }
+  if (!MAC || FAKE_SCREEN) return undefined
+  const allowed = permissions()
+  const missing = [
+    ...(allowed.accessibility ? [] : ["Accessibility"]),
+    ...(allowed.screenRecording ? [] : ["Screen Recording"]),
+  ]
+  if (missing.length === 0) return undefined
+  return `macOS has not let Do Computer use this Mac's screen yet. Ask its owner to allow Do Computer under ${missing.join(" and ")} in System Settings, Privacy & Security (the Do Computer app on that Mac has a button for each, under This Computer), then try again.`
+}
+
+/** The screen as agents use it, made when one first does or the app is ready to draw on it. */
+function screenOf(): ScreenService {
+  if (screenService !== undefined) return screenService
+  const using = new UseState({ what: "the screen" })
+  overlay = createOverlay({ state: using, pagesDir: here("pages"), preload: here("overlay-preload.cjs") })
+  screenDriver = FAKE_SCREEN ? fakeDriver(process.env.DC_DESKTOP_FAKE_SCREEN_LOG) : cuaDriver(driverDir())
+  screenService = new ScreenService({
+    state: using,
+    driver: screenDriver,
+    pointer: overlay,
+    display: () => screen.getPrimaryDisplay().bounds,
+    toJpeg: (png, quality) => nativeImage.createFromBuffer(png).toJPEG(quality),
+    forbidden: screenForbidden,
+  })
+  return screenService
+}
+
 function state(): AppState {
   const sharing = runner?.sharing ?? { state: "off" }
+  const unavailable = screenUnavailable()
   return {
     ...(settings.server === undefined ? {} : { server: settings.server }),
     suggestedServer: settings.server ?? (process.env.DC_DESKTOP_SERVER || DEFAULT_SERVER),
     sharing,
     headline: headline(sharing),
     readOnly: settings.readOnly,
+    screen: settings.screen,
+    ...(unavailable === undefined ? {} : { screenUnavailable: unavailable }),
+    ...(MAC ? { permissions: permissions() } : {}),
+    browser: settings.browser,
     openAtLogin: settings.openAtLogin,
     canOpenAtLogin: app.isPackaged || process.env.DC_DESKTOP_AUTOSTART === "1",
     log: runner?.lines ?? [],
@@ -214,6 +281,8 @@ function daemon(): DaemonRunner {
     node: process.execPath,
     env: () => ({ ...process.env, ...(commandPath === undefined ? {} : { PATH: commandPath }) }),
     onChange: changed,
+    abilities,
+    onCall: (call) => screenOf().answer(call),
     onRevoked: () => {
       remember({ share: false })
       changed()
@@ -346,6 +415,31 @@ function listen(): void {
       if (sharing?.state === "pairing" && isWebAddress(sharing.verifyUrl)) {
         showMain(sharing.verifyUrl)
       }
+    }),
+  )
+  ipcMain.handle(
+    "allow",
+    own(async (what: unknown, on: unknown) => {
+      if (what !== "screen" && what !== "browser") return
+      remember({ [what]: on === true })
+      changed()
+      // The daemon says what it can do as it connects, so it connects again to say otherwise.
+      await runner?.restart()
+    }),
+  )
+  ipcMain.handle(
+    "permit",
+    own(async (what: unknown) => {
+      if (!MAC) return
+      // Accessibility is asked for by macOS itself, in a window of its own. Recording the
+      // screen has no such question that can be put twice, so its owner is shown where it is.
+      if (what === "accessibility") systemPreferences.isTrustedAccessibilityClient(true)
+      else if (what === "screenRecording") {
+        await shell.openExternal(
+          "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+        )
+      }
+      changed()
     }),
   )
   ipcMain.handle(
@@ -510,6 +604,8 @@ if (!app.requestSingleInstanceLock()) {
     quitting = true
     // The daemon ends with the program either way; this is so that it ends first.
     void runner?.stop()
+    overlay?.dispose()
+    void screenDriver?.dispose()
   })
   void app.whenReady().then(() => {
     if (process.platform === "win32") app.setAppUserModelId("computer.do.desktop")

@@ -10,7 +10,15 @@ directories:
 # Everything the app runs is already in dist/, as a few files. It has no node_modules to bring.
 files:
   - dist/**
+  - "!dist/driver/**"
   - package.json
+# The driver that uses the screen for agents is programs for one system, which cannot be run
+# from inside the app's one packed file. It goes beside it: Resources/driver/node_modules.
+extraResources:
+  # Named whole, because a folder called node_modules is otherwise left behind.
+  - from: dist/driver/node_modules
+    to: driver/node_modules
+    filter: ["**/*"]
 npmRebuild: false
 publish: null
 mac:
@@ -25,6 +33,9 @@ mac:
   target:
     - target: dmg
       arch: [universal]
+  # The driver's programs for each kind of chip are the same files in both halves of the
+  # app, which joining the halves takes for a mistake unless it is told to expect it.
+  x64ArchFiles: "**/driver/node_modules/**"
   extendInfo:
     NSMicrophoneUsageDescription: Dictating a message to an agent uses the microphone.
 win:

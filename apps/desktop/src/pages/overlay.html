@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'"
+    />
+    <link rel="stylesheet" href="overlay.css" />
+    <title>An agent is using this computer</title>
+  </head>
+  <body>
+    <div class="glow"></div>
+    <div id="bar" class="bar" role="status">
+      <svg class="face" width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+        <ellipse class="body" cx="32" cy="34" rx="25" ry="24" />
+        <ellipse class="eye" cx="24" cy="32" rx="5" ry="6.5" />
+        <ellipse class="eye" cx="40" cy="32" rx="5" ry="6.5" />
+        <circle class="pupil" cx="25" cy="33" r="2.6" />
+        <circle class="pupil" cx="41" cy="33" r="2.6" />
+      </svg>
+      <b id="title"></b>
+      <span id="detail" class="detail"></span>
+      <button id="hold" type="button">
+        <svg class="pause" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" />
+        </svg>
+        <svg class="play" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4.5 2.5l9 5.500-9 5.500z" />
+        </svg>
+        <span id="hold-label"></span>
+      </button>
+      <button id="stop" type="button">Stop</button>
+      <kbd id="esc">esc</kbd>
+    </div>
+    <div id="pointer" class="pointer" hidden>
+      <span class="ripple"></span>
+      <svg class="arrow" width="26" height="26" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M2.500 2l5 14.500 2.300-6.200 6.200-2.300z" />
+      </svg>
+      <span id="tag" class="tag"></span>
+    </div>
+    <script src="overlay.js"></script>
+  </body>
+</html>

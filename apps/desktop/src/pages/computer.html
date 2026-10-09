@@ -37,6 +37,44 @@
         </label>
         <button id="toggle" class="primary" type="button"></button>
       </section>
+      <h2>What agents can use here</h2>
+      <section class="card" id="allow">
+        <label class="switch-row">
+          <span class="grow">
+            <strong>The screen</strong>
+            <span class="quiet small">
+              They see the screen and use the mouse and keyboard, with a pointer of their own
+              that you can watch. You can pause or stop them at any time.
+            </span>
+            <span id="screen-unavailable" class="quiet small" hidden></span>
+          </span>
+          <input id="screen" class="switch" type="checkbox" role="switch" />
+        </label>
+        <div id="permissions" class="perms" hidden>
+          <div class="row small">
+            <span id="accessibility-dot" class="dot"></span>
+            <span id="accessibility-words" class="grow"></span>
+            <button id="accessibility" type="button">Allow…</button>
+          </div>
+          <div class="row small">
+            <span id="recording-dot" class="dot"></span>
+            <span id="recording-words" class="grow"></span>
+            <button id="recording" type="button">Open System Settings</button>
+          </div>
+        </div>
+        <label class="switch-row">
+          <span class="grow">
+            <strong>A browser</strong>
+            <span class="quiet small">
+              They use your own Chrome when it is open and lets itself be used
+              (chrome://inspect/#remote-debugging), with everything you are signed in to.
+              Otherwise a browser of their own, which keeps its own sign-ins.
+            </span>
+          </span>
+          <input id="browser" class="switch" type="checkbox" role="switch" />
+        </label>
+      </section>
+      <p class="quiet small">An agent cannot change these. They are kept on this computer.</p>
       <label class="check" id="login-row">
         <input id="login" type="checkbox" />
         <span>Open Do Computer when I sign in to this computer</span>

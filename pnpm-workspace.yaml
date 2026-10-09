@@ -17,6 +17,13 @@ minimumReleaseAgeExclude:
   - "@cloudflare/vite-plugin@1.62.4"
   - vite@8.3.2
   - just-bash@3.6.0
+  - '@trycua/cua-driver-darwin-arm64@0.34.1'
+  - '@trycua/cua-driver-darwin-x64@0.34.1'
+  - '@trycua/cua-driver-linux-arm64-gnu@0.34.1'
+  - '@trycua/cua-driver-linux-x64-gnu@0.34.1'
+  - '@trycua/cua-driver-win32-arm64-msvc@0.34.1'
+  - '@trycua/cua-driver-win32-x64-msvc@0.34.1'
+  - '@trycua/cua-driver@0.34.1'
 
 allowBuilds:
   esbuild: true

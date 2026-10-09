@@ -3,6 +3,8 @@ import type { AppState } from "../api.ts"
 const at = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const readOnly = at<HTMLInputElement>("read-only")
 const login = at<HTMLInputElement>("login")
+const screen = at<HTMLInputElement>("screen")
+const browser = at<HTMLInputElement>("browser")
 const toggle = at<HTMLButtonElement>("toggle")
 const log = at<HTMLOListElement>("log")
 
@@ -41,6 +43,22 @@ function show(state: AppState): void {
   toggle.textContent = off ? "Let agents use this computer" : "Stop letting agents use it"
   toggle.className = off ? "primary" : ""
   toggle.disabled = state.server === undefined
+  // An agent that may only read files uses neither, whatever the switches say.
+  const reading = off ? readOnly.checked : state.readOnly
+  screen.checked = state.screen && state.screenUnavailable === undefined && !reading
+  screen.disabled = state.screenUnavailable !== undefined || reading
+  browser.checked = state.browser && !reading
+  browser.disabled = reading
+  const unavailable = at("screen-unavailable")
+  unavailable.hidden = state.screenUnavailable === undefined
+  unavailable.textContent = state.screenUnavailable ?? ""
+  // What macOS must allow is only worth saying once the screen is wanted.
+  const allowed = state.permissions
+  at("permissions").hidden = allowed === undefined || !screen.checked
+  if (allowed !== undefined) {
+    permission("accessibility", allowed.accessibility, "control this Mac")
+    permission("recording", allowed.screenRecording, "record the screen")
+  }
   at("login-row").hidden = !state.canOpenAtLogin
   login.checked = state.openAtLogin
   at("server").textContent = state.server ?? "None chosen yet"
@@ -55,6 +73,24 @@ function show(state: AppState): void {
   shown = state.log.length
   if (pinned) log.scrollTop = log.scrollHeight
 }
+
+/** One of the two things macOS must allow: whether it has, and a button for when it has not. */
+function permission(id: string, allowed: boolean, what: string): void {
+  at(`${id}-dot`).dataset.tone = allowed ? "on" : "busy"
+  at(`${id}-words`).textContent = allowed
+    ? `macOS lets Do Computer ${what}`
+    : `macOS has not let Do Computer ${what}`
+  at(id).hidden = allowed
+}
+
+screen.addEventListener("change", () => void window.desktop.allow("screen", screen.checked))
+browser.addEventListener("change", () => void window.desktop.allow("browser", browser.checked))
+// Ticking read-only is not told to the app until the computer is shared; the switches follow it now.
+readOnly.addEventListener("change", () => now !== undefined && show(now))
+at("accessibility").addEventListener("click", () => void window.desktop.permit("accessibility"))
+at("recording").addEventListener("click", () => void window.desktop.permit("screenRecording"))
+// macOS does not say when its owner allowed something in System Settings. They come back here.
+window.addEventListener("focus", () => void window.desktop.state().then(show))
 
 toggle.addEventListener("click", () => {
   toggle.disabled = true

@@ -13,6 +13,8 @@ if (location.protocol === "file:") {
     connect: (choice) => ipcRenderer.invoke("connect", choice),
     share: (on, readOnly) => ipcRenderer.invoke("share", on, readOnly),
     confirm: () => ipcRenderer.invoke("confirm"),
+    allow: (what, on) => ipcRenderer.invoke("allow", what, on),
+    permit: (what) => ipcRenderer.invoke("permit", what),
     setOpenAtLogin: (on) => ipcRenderer.invoke("open-at-login", on),
     changeServer: () => ipcRenderer.invoke("change-server"),
     retry: () => ipcRenderer.invoke("retry"),

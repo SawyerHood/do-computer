@@ -15,8 +15,11 @@
     "package": "pnpm build && electron-builder --publish never"
   },
   "devDependencies": {
+    "@durable-computer/computers": "workspace:*",
     "@durable-computer/daemon": "workspace:*",
+    "@durable-computer/protocol": "workspace:*",
     "@playwright/test": "^1.63.0",
+    "@trycua/cua-driver": "0.34.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "electron": "^44.0.0",
