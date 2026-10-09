@@ -176,9 +176,10 @@ or an admin of the team, can sign out; someone who leaves a team takes their sig
 Keys and tokens are kept with the workspace and are never sent to a browser or shown to an
 agent.
 
-The server side of this is in place and there is no screen for it yet, so for now it is
-reached through the API: `GET /api/workspaces/:id/model-providers`, `POST
-/api/workspaces/:id/model-logins`, and `GET /api/models?workspaceId=:id`.
+It is under **Models** in a workspace's settings. A subscription is signed in to on the
+provider's own page, which ends with a code to paste back or asks for a short code shown in the
+app; nothing is installed and no address has to be registered with the provider. An agent's
+model picker then lists those models under where they come from.
 
 Amazon Bedrock and Google Vertex are not offered: they sign in with files and roles of the
 machine the server runs on, which belong to no workspace.

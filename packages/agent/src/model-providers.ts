@@ -101,6 +101,18 @@ export function modelProviders(): Provider[] {
   return [...first, ...rest]
 }
 
+/** The providers most asked for, which the app shows ahead of the rest. */
+const FEATURED = new Set([
+  "anthropic",
+  "openai",
+  "openai-codex",
+  "github-copilot",
+  "openrouter",
+  "google",
+  "xai",
+])
+export const isFeatured = (provider: Pick<Provider, "id">) => FEATURED.has(provider.id)
+
 /** The ways there are of signing in to a provider from the app. */
 export function loginMethods(provider: Provider): ModelLoginMethod[] {
   const methods: ModelLoginMethod[] = []

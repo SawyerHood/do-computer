@@ -4,9 +4,9 @@ What signing a workspace in to a model provider could look like in Do Computer: 
 ChatGPT subscription, or a key for any provider pi knows. It is not part of the app and nothing
 here is imported by it. Everything in it is pretend.
 
-The part of the app it is drawn over exists: the server keeps a workspace's sign-ins, leads a
-sign-in through the provider's own steps, and calls models with what came of it (HANDOFF.md,
-section 5, item 28). No screen for it has been built. This is drawn first, to be looked at.
+It was drawn first, over a server side that already existed, and the screens were built from
+it the same day (HANDOFF.md, section 5, item 28, which also says where the app differs). The
+owner had been shown it and had not yet said it was right.
 
 ```sh
 node prototypes/model-sign-in/build.mjs     # writes index.html here; open it from the file system

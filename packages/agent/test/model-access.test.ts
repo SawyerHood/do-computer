@@ -222,6 +222,7 @@ describe("a workspace's model providers", () => {
           { type: "oauth", label: "Fake (subscription)", subscription: true },
           { type: "api_key", label: "Fake API key", subscription: false },
         ],
+        featured: false,
         signedIn: null,
       },
     ])
@@ -252,7 +253,12 @@ describe("a workspace's model providers", () => {
 
     const { models } = (await call<{ models: ModelOption[] }>(world, "/models")).body
     expect(models.map((option) => option.id)).toEqual(["fake/big", "fake/small"])
-    expect(models[0]).toMatchObject({ name: "Fake Big", provider: "Fake", inputCost: 1 })
+    expect(models[0]).toMatchObject({
+      name: "Fake Big",
+      provider: "Fake",
+      inputCost: 1,
+      signIn: { subscription: false, by: "Ada" },
+    })
   })
 
   it("leads a sign-in through a page to open and a code to paste", async () => {
@@ -295,6 +301,9 @@ describe("a workspace's model providers", () => {
       access: "access-code-1",
     })
     expect((await providers(world))[0]!.signedIn).toMatchObject({ type: "oauth", by: "Ada" })
+    // A model of a subscription says so, for the app to show in place of its price.
+    const { models } = (await call<{ models: ModelOption[] }>(world, "/models")).body
+    expect(models[0]!.signIn).toEqual({ subscription: true, by: "Ada" })
   })
 
   it("waits for a code entered at the provider, and tells whoever is waiting", async () => {

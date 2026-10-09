@@ -20,6 +20,7 @@ import { createModels, type Provider } from "@earendil-works/pi-ai/models"
 import { type Caller, readCaller } from "./caller.ts"
 import {
   inOfferedOrder,
+  isFeatured,
   isSuggested,
   loginMethods,
   modelOption,
@@ -244,6 +245,9 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
     return found
   }
 
+  /** A provider as it is named to people. pi marks one as older, which is not part of its name. */
+  const named = (entry: Provider) => ({ name: entry.name.replace(/\s*\(legacy\)$/i, "") })
+
   /** The models a provider gives with the credential kept for it. */
   const offered = (from: Provider, credential: Credential) => {
     const handled = credential.type === "oauth" ? from.auth.oauth : from.auth.apiKey
@@ -262,8 +266,9 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
       return [
         {
           id: entry.id,
-          name: entry.name,
+          name: named(entry).name,
           methods,
+          featured: isFeatured(entry),
           signedIn:
             row === undefined || credential === undefined
               ? null
@@ -285,8 +290,15 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
     return models.getProviders().flatMap((entry) => {
       const row = rows.get(entry.id)
       if (row === undefined) return []
-      const found = offered(entry, JSON.parse(row.json) as Credential)
-      return inOfferedOrder(found).map((model) => modelOption(model, entry, isSuggested(model)))
+      const credential = JSON.parse(row.json) as Credential
+      const signIn = {
+        subscription: credential.type === "oauth" && entry.auth.oauth?.isSubscription === true,
+        by: row.by_name,
+      }
+      return inOfferedOrder(offered(entry, credential)).map((model) => ({
+        ...modelOption(model, named(entry), isSuggested(model)),
+        signIn,
+      }))
     })
   }
 
@@ -314,7 +326,7 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
       if (current?.type === "oauth" && host.now() < current.expires) return current
       throw new Refusal(
         409,
-        `The sign-in to ${from.name} has run out and could not be renewed (${reason(error)}). Someone in the workspace needs to sign in to ${from.name} again.`,
+        `The sign-in to ${named(from).name} has run out and could not be renewed (${reason(error)}). Someone in the workspace needs to sign in to ${named(from).name} again.`,
         "sign_in_expired",
       )
     }

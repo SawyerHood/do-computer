@@ -26,6 +26,8 @@ export type ModelProvider = {
   id: string
   name: string
   methods: ModelLoginMethod[]
+  /** One of the few most asked for, shown ahead of the rest. */
+  featured: boolean
   signedIn: ModelSignIn | null
 }
 

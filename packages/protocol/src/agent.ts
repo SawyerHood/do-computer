@@ -150,6 +150,12 @@ export type ModelOption = {
   images?: boolean
   /** One of the few suggested first, ahead of the full list. */
   recommended?: boolean
+  /**
+   * On a model of a provider the workspace is signed in to, as against one of the deployment's:
+   * whether that is with a subscription, which pays for it in place of the price above, and
+   * the name of whoever signed in.
+   */
+  signIn?: { subscription: boolean; by: string | null }
 }
 
 /**

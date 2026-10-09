@@ -41,6 +41,7 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from "@/components/ui/message-scroller"
+import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { TeamContext } from "@/lib/workspaces"
 import { Markdown } from "./markdown.tsx"
@@ -96,6 +97,7 @@ function ReplyError({
   onRetry?: (() => void) | undefined
 }) {
   const view = describeChatError(error)
+  const { openAgent, openWorkspace } = useSettings()
   const [open, setOpen] = useState(false)
   const hint = [failures > 1 ? `Tried ${failures} times.` : undefined, view.hint]
     .filter((text) => text !== undefined)
@@ -108,8 +110,19 @@ function ReplyError({
         <div className="font-medium">{view.title}</div>
         {hint === "" ? null : <div className="text-muted-foreground">{hint}</div>}
         <Collapsible open={open} onOpenChange={setOpen}>
-          {(onRetry !== undefined && view.retryable) || hasDetails ? (
+          {(onRetry !== undefined && view.retryable) || hasDetails || view.kind === "signIn" ? (
             <div className="mt-2 -ml-0.5 flex items-center gap-1.5">
+              {/* The two ways out of a sign-in that is gone, each a click away. */}
+              {view.kind === "signIn" ? (
+                <>
+                  <Button variant="outline" size="xs" onClick={() => openWorkspace("models")}>
+                    Sign in again
+                  </Button>
+                  <Button variant="outline" size="xs" onClick={() => openAgent("model")}>
+                    Pick another model
+                  </Button>
+                </>
+              ) : null}
               {onRetry !== undefined && view.retryable ? (
                 <Button variant="outline" size="xs" onClick={onRetry}>
                   <ArrowClockwiseIcon data-icon="inline-start" />

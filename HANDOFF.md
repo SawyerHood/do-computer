@@ -888,7 +888,8 @@ Since then, newest last:
     `model-providers.ts`, `apps/web/src/server/model-access.ts`, `prototypes/model-sign-in`).
     Every model call was paid from the deployment's one OpenRouter key. The owner asked for
     "all of the different login methods for pi", and said the main thing was "log-in with codex
-    and claude". **The server side is built. No screen is: the mock-up is waiting on the owner.**
+    and claude". Built on the server first, then the screens, as drawn in the mock-up. The
+    owner was shown the mock-up and did not say it was right before the screens were built.
     - **What pi has.** pi-ai 1.1.0 gives each provider its own sign-in: a key typed in, or the
       provider's own flow for a subscription (Claude Pro/Max, ChatGPT for OpenAI and for Codex,
       GitHub Copilot, xAI, Kimi, Meta, OpenRouter). A flow is a function that asks questions
@@ -926,10 +927,24 @@ Since then, newest last:
       browser, and the gateway has no route to the one address that returns one.
     - **When it is gone.** An agent set to a model of a provider its workspace is not signed
       in to gets a failed reply that says so (`signIn` in `chat-error.ts`).
-    - **Not built:** the Models section, the sign-in window, and the picker saying where a
-      model comes from. The picker already asks for the models of the agent's own workspace.
-      Web search, the judge and dictation still run on the deployment's OpenRouter key and
-      are absent without it.
+    - **The screens** (`apps/web/src/components/settings/models.tsx`). A Models section in the
+      workspace's settings lists the deployment's own models and the providers, the seven most
+      asked for first and the rest behind one line. The sign-in window draws whatever the
+      sign-in is at (a choice, a page to open, a code to enter there, something to type), so a
+      provider pi adds needs nothing new here; only the two ways OpenAI offers are given words
+      of their own (`WAYS`). The model picker puts models under where they come from once
+      there is more than one place, and a model on a subscription says so in place of a
+      price (`signIn` on `ModelOption`). A reply that failed because the sign-in is gone has
+      "Sign in again" and "Pick another model".
+    - **Where the app differs from the mock-up:** a provider's mark is its first letter on
+      grey, not in its own color; the code to enter at OpenAI has no countdown; the two ways
+      of signing in to ChatGPT are chosen between first and "Choose another way" goes back,
+      where the mock-up switched between them in place; a model group is named "Anthropic
+      subscription", not "Claude subscription".
+    - **Not built:** signing in from the Expo app, which only lists what it is given. Web
+      search, the judge and dictation still run on the deployment's OpenRouter key and are
+      absent without it. A sign-in that has run out is not marked in the Models section
+      until an agent fails on it.
     - **pi-claude-bridge** (the owner asked whether it could be supported) cannot be loaded.
       It is an extension for the pi coding agent, which this app does not run, and it works by
       starting Claude Code as a process on the same machine with the login in `~/.claude`.
