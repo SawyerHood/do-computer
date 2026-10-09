@@ -155,7 +155,12 @@ function directory(world: World): SlackDirectory {
   }
 }
 
-function open(folder = mkdtempSync(join(tmpdir(), "dc-slack-")), keepAliveMs = 60_000): World {
+function open(
+  folder = mkdtempSync(join(tmpdir(), "dc-slack-")),
+  keepAliveMs = 60_000,
+  /** What a small model answers when asked for a thread's note. Absent: there is none. */
+  note?: string,
+): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -202,6 +207,15 @@ function open(folder = mkdtempSync(join(tmpdir(), "dc-slack-")), keepAliveMs = 6
         // Long, so that an answer is posted because the agent came to rest and not on a wake-up.
         keepAliveMs,
         slackDirectory: directory(world),
+        ...(note === undefined
+          ? {}
+          : {
+              review: {
+                apiKey: "key",
+                model: "tiny/notes",
+                fetch: async () => Response.json({ choices: [{ message: { content: note } }] }),
+              },
+            }),
         connectorFetch: world.mcp.fetch,
         onNotify: (notification) => world.reports.push(notification),
         onReport: (error) => world.errors.push(error),
@@ -260,6 +274,50 @@ const say = (world: World, message: SlackMessage) =>
   call<{ chatId: string }>(world, "/slack/message", "POST", message)
 
 describe("an agent in Slack", () => {
+  it("remembers a lasting fact said in a thread, and tells its other chats where the thread stands", async () => {
+    const world = open(
+      undefined,
+      undefined,
+      JSON.stringify({
+        note: "Jon asked for the launch checklist; it goes out Thursday.",
+        memory: [],
+        user: ["Jon Reyes wants launch updates posted in #launch."],
+      }),
+    )
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    world.faux.setResponses([fauxAssistantMessage("It goes out Thursday.")])
+    const { chatId } = await say(
+      world,
+      mention("when does the checklist go out? post updates here"),
+    )
+    await posted(world, 1)
+    // Whoever is in the Slack workspace is someone it works for, so what they say is kept.
+    const { user } = await until(
+      () => call<{ user: string }>(world, "/"),
+      (agent) => agent.user !== "",
+    )
+    expect(user).toBe("Jon Reyes wants launch updates posted in #launch.")
+
+    // Its main chat is shown where the thread stands.
+    const main = await call<ChatSummary>(world, "/chats/main", "POST")
+    let shown = ""
+    world.faux.setResponses([
+      (context) => {
+        shown = JSON.stringify(context)
+        return fauxAssistantMessage("Hello.")
+      },
+    ])
+    await call(world, `/chats/${main.id}/messages`, "POST", { text: "hi", requestId: "r-1" })
+    await until(
+      () => chatState(world, main.id),
+      (state) => !state.busy && state.messages.at(-1)?.role === "assistant",
+    )
+    expect(shown).toContain(`A Slack thread in #launch`)
+    expect(shown).toContain(`(chat ${chatId})`)
+    expect(shown).toContain("it goes out Thursday.")
+    expect(world.errors).toEqual([])
+  })
+
   it("answers a mention in the thread, in a conversation of its own that the app can read", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })

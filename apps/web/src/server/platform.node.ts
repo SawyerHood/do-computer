@@ -92,6 +92,7 @@ function create(): NodePlatform {
         computers,
         webSearch: models.webSearch,
         judge: models.judge,
+        review: models.review,
         allowPrivateHosts: config.allowPrivateHosts,
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,

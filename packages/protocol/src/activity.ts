@@ -325,6 +325,15 @@ export function isShownPart(part: MessagePart): boolean {
   )
 }
 
+/**
+ * Whether a chat continues the main chat: a side chat that branched off it, which opens with the
+ * mark of where its own messages begin.
+ */
+export function continuesMain(messages: readonly ChatMessage[]): boolean {
+  const first = messages[0]?.parts[0]
+  return first?.type === "notice" && first.kind === "branch"
+}
+
 /** Whether a message has anything to show, so that one made only of tool calls leaves no gap. */
 export function isVisibleMessage(message: ChatMessage): boolean {
   return (

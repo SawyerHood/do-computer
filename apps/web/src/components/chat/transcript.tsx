@@ -9,6 +9,7 @@ import {
   isJobStart,
   isShownPart,
   isSubagentStart,
+  continuesMain,
   isVisibleMessage,
   type MessagePart,
 } from "@durable-computer/protocol"
@@ -328,7 +329,9 @@ function MessageView({
         <MarkerContent>
           {part?.type === "notice" && part.kind === "compaction"
             ? "Earlier messages were summarized"
-            : "New context"}
+            : part?.type === "notice" && part.kind === "branch"
+              ? "Continues from the main chat"
+              : "New context"}
         </MarkerContent>
       </Marker>
     )
@@ -458,7 +461,10 @@ export function Transcript({
   // What the agent is doing, when its answer is not already being written on screen.
   const activity = chatActivity(state)
   const lastSent = state.messages.findLast((message) => message.role === "user")?.id
-  const shown = foldFailures(state.messages.filter(isVisibleMessage), state.busy)
+  // A side chat that continues the main one opens with the mark of where its own messages
+  // begin. Until something is said in it, it is as empty as any new chat, and greets like one.
+  const untouched = state.messages.length === (continuesMain(state.messages) ? 1 : 0)
+  const shown = foldFailures((untouched ? [] : state.messages).filter(isVisibleMessage), state.busy)
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <FollowSends lastSent={lastSent} />
@@ -466,7 +472,7 @@ export function Transcript({
         <MessageScrollerViewport>
           {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
           <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-24 pb-6">
-            {state.messages.length === 0 && !state.busy ? empty : null}
+            {untouched && !state.busy ? empty : null}
             {before}
             {shown.map(({ message, failures }, index) => (
               <MessageScrollerItem key={message.id} messageId={message.id}>

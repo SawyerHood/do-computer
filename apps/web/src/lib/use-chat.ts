@@ -1,4 +1,9 @@
-import { type ChatMessage, type MessageImage, randomId } from "@durable-computer/protocol"
+import {
+  type ChatMessage,
+  continuesMain,
+  type MessageImage,
+  randomId,
+} from "@durable-computer/protocol"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { chatKey, earlierAtom, sendingAtom } from "./atoms.ts"
@@ -9,8 +14,12 @@ import { useLiveChat } from "./use-live-chat.ts"
 /** How long after the chat shows a message of the user's it may take to say it is being answered. */
 const ANSWER_BEGINS_MS = 2_000
 
-/** A chat whose transcript starts at a summary or a fresh start has more before it. */
-export const startsMidway = (first: ChatMessage | undefined) => first?.role === "notice"
+/**
+ * A chat whose transcript starts at a summary or a fresh start has more before it. One that
+ * starts where it branched off the main chat does not: what came before is the main chat's.
+ */
+export const startsMidway = (first: ChatMessage | undefined) =>
+  first?.role === "notice" && !continuesMain([first])
 
 /**
  * One chat as a page of it needs it: the transcript, kept live by its event stream, what came

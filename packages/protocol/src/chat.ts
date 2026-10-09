@@ -28,11 +28,13 @@ export type NoticePart = {
    * agent's reply to a message; its text is that agent's name. `secret` is the answer to the
    * agent's asking for secrets; its text is where they were to be saved. `connector` is how a
    * sign-in the agent asked for went; its text is the connector's name. `command` is the end of
-   * a command the agent left running in the background; its text is the command.
+   * a command the agent left running in the background; its text is the command. `branch` is
+   * where a side chat's own messages begin, after the ones it carries from the main chat.
    */
   kind:
     | "reset"
     | "compaction"
+    | "branch"
     | "error"
     | "schedule"
     | "subagent"

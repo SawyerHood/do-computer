@@ -1,4 +1,4 @@
-import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
+import { type AgentSummary, type ChatSummary, continuesMain } from "@durable-computer/protocol"
 import {
   ArchiveIcon,
   ArrowsOutSimpleIcon,
@@ -31,15 +31,19 @@ import { Transcript } from "./transcript.tsx"
 const iconLink =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 [&_svg]:size-4"
 
-/** What an empty side chat says, where the main chat would have the agent's hello. */
-export function SideChatWelcome({ agent }: { agent: AgentSummary }) {
+/**
+ * What an empty side chat says, where the main chat would have the agent's hello. `carried` is
+ * for one that continues the main chat: the agent has what was said there in front of it.
+ */
+export function SideChatWelcome({ agent, carried }: { agent: AgentSummary; carried: boolean }) {
   const name = agent.name ?? "Your agent"
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
       <ChatsIcon className="size-7 text-muted-foreground" />
       <p className="max-w-xs text-sm text-muted-foreground">
-        A side chat keeps its own conversation. {name} brings what it remembers, and the main chat
-        stays as it was.
+        {carried
+          ? `A side chat keeps its own conversation. ${name} picks up from the main chat, which stays as it was.`
+          : `A side chat keeps its own conversation. ${name} brings what it remembers, and the main chat stays as it was.`}
       </p>
     </div>
   )
@@ -185,7 +189,13 @@ export function SideChat({
             <Transcript
               state={state}
               onRetry={retry}
-              empty={live.loaded ? <SideChatWelcome agent={agent} /> : <TranscriptPlaceholder />}
+              empty={
+                live.loaded ? (
+                  <SideChatWelcome agent={agent} carried={continuesMain(state.messages)} />
+                ) : (
+                  <TranscriptPlaceholder />
+                )
+              }
               before={
                 earlier.has ? (
                   <Button

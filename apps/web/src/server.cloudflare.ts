@@ -59,6 +59,7 @@ export const AgentObject = createDurableActorClass<Env>({
       computers: computerChoices(config, "cloudflare", cloudflareProviders(env)),
       webSearch: models.webSearch,
       judge: models.judge,
+      review: models.review,
       allowPrivateHosts: config.allowPrivateHosts,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       computerDirectory: computerDirectory(

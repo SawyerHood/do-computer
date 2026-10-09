@@ -7,11 +7,15 @@ import {
   type DocumentReader,
   section,
 } from "@earendil-works/pi-durable"
-import { IdentityDoc } from "./docs.ts"
+import { IdentityDoc, type IdentityState } from "./docs.ts"
 
-/** Hard caps on the always-injected notes. A write over the cap fails, so the agent must consolidate. */
-export const MEMORY_LIMIT = 2200
-export const USER_LIMIT = 1375
+/**
+ * Hard caps on the always-injected notes. A write over the cap fails, so the agent must
+ * consolidate. Large enough for a team's worth of people and conventions, and still a small part
+ * of every request.
+ */
+export const MEMORY_LIMIT = 6000
+export const USER_LIMIT = 4000
 
 const STORES = {
   memory: { field: "memory", limit: MEMORY_LIMIT, label: "your notes" },
@@ -33,7 +37,7 @@ Working for a team:
 const HOW = `
 How to work:
 - Be direct and useful. Do the thing rather than describing how it could be done.
-- You have long-term memory. Conversations start fresh, but the "user" and "memory" sections below carry over. When you learn something durable about the person or how they like things done, save it with the memory tool right away. Do not save things that only matter to the current conversation.
+- You have long-term memory. Each of your chats sees only its own messages, but the "user" and "memory" sections below are in all of them, and so is a short account of what has been going on in your other chats. When you learn something durable about the person or how they like things done, save it with the memory tool right away. Do not save things that only matter to the current conversation.
 - If you do not know something, say so. Never invent the result of an action you did not take.
 - Your turn ends the moment you reply without calling a tool. So do not reply with only a promise or a progress update ("on it", "next I'll check"): the work would stop there. To keep the person posted while there is more to do, call the progress tool: it shows them your message and lets you carry on. Reply on its own when the work is done or you need something from them.
 - The person sees a short list of what you have done in a chat. When you finish something substantial, add it with the log tool. Leave small things out: a list of everything is no use to them.`
@@ -57,6 +61,48 @@ const readIdentity = (read: DocumentReader, context: Context) => read.snapshot(I
 
 function entries(text: string): string[] {
   return text.split("\n").filter((line) => line.trim() !== "")
+}
+
+/** What is shown of a store: how full it is, so the agent tidies before it is turned away, then its entries. */
+function shown(text: string | undefined, limit: number): string {
+  if (!text) return "(Nothing saved yet.)"
+  return `(${text.length} of ${limit} characters used)\n${text}`
+}
+
+/** The longest an entry added on the agent's behalf may be. */
+const MAX_ADDED_CHARS = 240
+
+const folded = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim()
+
+/**
+ * Adds entries to a store on the agent's behalf, where it did not think to. Only ever adds: one
+ * that is already there in other words' clothing, or that there is no room for, is left out, and
+ * nothing is removed to make room. Returns what was added.
+ */
+export function addNotes(
+  doc: Pick<IdentityState, "user" | "memory">,
+  target: keyof typeof STORES,
+  candidates: readonly string[],
+): string[] {
+  const store = STORES[target]
+  const lines = entries(doc[store.field])
+  const added: string[] = []
+  for (const candidate of candidates) {
+    const entry = candidate.replace(/\s+/g, " ").trim()
+    if (entry === "" || entry.length > MAX_ADDED_CHARS) continue
+    const said = folded(entry)
+    const same = (line: string) => {
+      const kept = folded(line)
+      // A short entry is part of many sentences without saying what they say.
+      return kept.includes(said) || (kept.length >= 12 && said.includes(kept))
+    }
+    if (lines.some(same)) continue
+    if ([...lines, entry].join("\n").length > store.limit) continue
+    lines.push(entry)
+    added.push(entry)
+  }
+  if (added.length > 0) doc[store.field] = lines.join("\n")
+  return added
 }
 
 const setIdentity = defineTool({
@@ -191,11 +237,11 @@ export const Persona = defineExtension({
     }),
     section("user", async (input, context) => {
       const doc = await readIdentity(input.read, context)
-      return doc?.user ? doc.user : "(Nothing saved yet.)"
+      return shown(doc?.user, USER_LIMIT)
     }),
     section("memory", async (input, context) => {
       const doc = await readIdentity(input.read, context)
-      return doc?.memory ? doc.memory : "(Nothing saved yet.)"
+      return shown(doc?.memory, MEMORY_LIMIT)
     }),
   ],
   tools: [setIdentity, memory],

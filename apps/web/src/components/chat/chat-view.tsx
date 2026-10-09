@@ -1,4 +1,4 @@
-import type { AgentSummary } from "@durable-computer/protocol"
+import { type AgentSummary, continuesMain } from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
@@ -441,7 +441,7 @@ export function ChatView({
                         // What it holds is on its way. Not the hello of an empty chat.
                         <TranscriptPlaceholder />
                       ) : !own ? null : aside !== undefined ? (
-                        <SideChatWelcome agent={agent} />
+                        <SideChatWelcome agent={agent} carried={continuesMain(state.messages)} />
                       ) : (
                         <Welcome
                           agent={agent}
