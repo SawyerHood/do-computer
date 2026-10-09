@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   ChatState,
   ChatUsage,
+  JobStatus,
   Json,
   MessagePart,
   QueuedInput,
@@ -249,6 +250,41 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         createdAt: first?.role === "user" ? first.timestamp : undefined,
       }
     }
+    case "dc.job": {
+      // The end of a command the agent left running in the background, in the chat it began in.
+      const word = entry.data as
+        | {
+            id?: string
+            computer?: string
+            command?: string
+            status?: JobStatus
+            exitCode?: number
+            ms?: number
+            output?: string
+          }
+        | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "command",
+            text: word?.command ?? "A command",
+            job: {
+              id: word?.id ?? "",
+              computer: word?.computer ?? "",
+              status: word?.status ?? "done",
+              ...(word?.exitCode === undefined ? {} : { exitCode: word.exitCode }),
+              ms: word?.ms ?? 0,
+            },
+            ...(word?.output ? { detail: word.output } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
     case "dc.agent": {
       // Another agent's reply to a message, in the chat the message was sent from.
       const word = entry.data as
@@ -427,6 +463,14 @@ export function entryText(
       return {
         role: "assistant",
         text: [word?.title, word?.text].filter(Boolean).join("\n"),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case "dc.job": {
+      const word = entry.data as { command?: string; output?: string } | undefined
+      return {
+        role: "assistant",
+        text: [word?.command, word?.output].filter(Boolean).join("\n"),
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }

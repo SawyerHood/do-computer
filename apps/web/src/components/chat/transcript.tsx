@@ -6,6 +6,7 @@ import {
   foldFailures,
   isAgentMessage,
   isSentFile,
+  isJobStart,
   isShownPart,
   isSubagentStart,
   isVisibleMessage,
@@ -48,11 +49,13 @@ const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-d
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
 import { SentFile } from "./sent-file.tsx"
 import { SlackMark } from "./slack-threads.tsx"
+import { CommandChip, CommandWord } from "./commands.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
 
 function AssistantPart({ part }: { part: MessagePart }) {
   if (isSentFile(part)) return <SentFile part={part} />
   if (isSubagentStart(part)) return <SubagentChip part={part} />
+  if (isJobStart(part)) return <CommandChip part={part} />
   if (isAgentMessage(part)) return <AgentMessageChip part={part} />
   switch (part.type) {
     case "text":
@@ -255,6 +258,7 @@ function MessageView({
     const part = message.parts[0]
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
     if (part?.type === "notice" && part.kind === "agent") return <AgentWord part={part} />
+    if (part?.type === "notice" && part.kind === "command") return <CommandWord part={part} />
     if (part?.type === "notice" && part.kind === "computer") {
       // The answer to the agent's asking to use a computer.
       return (

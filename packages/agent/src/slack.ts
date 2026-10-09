@@ -236,6 +236,11 @@ export type SlackChatsOptions = {
   readonly chat: (chatId: string) => Promise<ChatState | undefined>
   /** Whether a chat has asked the user for something and not been answered. */
   readonly waiting: (chatId: string, context: Context) => Promise<boolean>
+  /**
+   * Whether something a chat left running will give the agent a turn there when it ends, such
+   * as a command in the background. Until then the chat has not come to rest.
+   */
+  readonly running?: (chatId: string, context: Context) => Promise<boolean>
   /** Called when a thread was stopped, so that what it was waiting on is not left asking. */
   readonly onStopped?: (chatId: string, context: Context) => Promise<void>
   /** Keeps a file that was attached in Slack, in the library, as an upload in that chat. */
@@ -712,6 +717,8 @@ export class SlackChats {
     const rest = (stored: SlackRecord, status: SubagentStatus) => {
       if (stored.woken === slack.woken) stored.status = status
     }
+    // What it left running will set it going again, and its answer is what it says then.
+    if (slack.stopping !== true && (await this.#options.running?.(id, context))) return
     const state = await this.#options.chat(id)
     const last = state?.messages.findLast((message) => message.role === "assistant")
     const said = (last?.parts ?? [])

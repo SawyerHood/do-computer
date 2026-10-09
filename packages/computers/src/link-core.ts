@@ -6,6 +6,7 @@ import {
   DEFAULT_EXEC_TIMEOUT_MS,
   type FsFrame,
   type FsResultFrame,
+  type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
   REMOTE_FILE_CAP,
@@ -26,7 +27,7 @@ export class RemoteError extends Error {
 export type RemoteExecResult = { stdout: string; stderr: string; exitCode: number }
 
 type Waiter = {
-  kind: "exec" | "read" | "write" | "fs"
+  kind: "exec" | "read" | "write" | "fs" | "job"
   resolve(value: unknown): void
   reject(error: RemoteError): void
   timer: ReturnType<typeof setTimeout>
@@ -188,6 +189,27 @@ export class LinkCore {
     return waited
   }
 
+  /**
+   * Something to do with a job the daemon keeps going. One that follows a job waits as long as
+   * it was told to, so the answer is given that long and a little more.
+   */
+  async job(request: Omit<JobFrame, "t" | "id">): Promise<unknown> {
+    const id = this.#nextId()
+    const waitMs = Math.min(Math.max(0, request.waitMs ?? 0), MAX_EXEC_TIMEOUT_MS)
+    const waited = this.#wait<unknown>(
+      id,
+      "job",
+      waitMs + this.#fileOpTimeoutMs,
+      "No response from the computer. The connection may have been lost.",
+    )
+    if (!this.#send(JSON.stringify({ t: "job", id, ...request, waitMs }))) {
+      this.#settle(id)
+      waited.catch(() => {})
+      throw new RemoteError("offline", "The computer is offline.")
+    }
+    return waited
+  }
+
   /** Feed one raw socket message from the daemon. */
   onFrame(raw: unknown): void {
     const frame = parseFrame<DaemonFrame>(raw)
@@ -233,6 +255,11 @@ export class LinkCore {
     if (frame.t === "fs_result") {
       const waiter = this.#settle(frame.id)
       if (waiter?.kind === "fs") waiter.resolve(frame.value)
+      return
+    }
+    if (frame.t === "job_result") {
+      const waiter = this.#settle(frame.id)
+      if (waiter?.kind === "job") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "ok") {

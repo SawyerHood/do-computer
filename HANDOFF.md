@@ -756,6 +756,81 @@ Since then, newest last:
       Chromium, which draws in software. **Not checked:** on a phone or in Safari (carrying a
       treat by touch above all), the Workers runtime beyond its type check, the Expo app on a
       device, and a team where two people feed or dress one creature at the same moment.
+26. **Commands that run in the background** (2026-10-08; `packages/sandbox/src/jobs.ts`,
+    `packages/agent/src/jobs.ts`, `packages/computers/src/node-jobs.ts`,
+    `PLAN-background-commands.md`, `prototypes/background-commands`). The owner said agents
+    "sometimes take a long time to run bash commands" and asked for them to run in the
+    background, by request or by themselves, "like claude code does". They approved the plan
+    with "Yeah these all sound good! Go forth please".
+    - **Every command is a job.** On a machine of the workspace a command runs in a session of
+      its own, with what it prints going to `~/.do-computer/jobs/<agent id>/<folder>/output.log`,
+      and a call to `bash` is a wait for it. One shell command starts it and follows it, so a
+      quick command still costs one call to the provider. A folder is removed when its command
+      ended in time and printed little; otherwise it stays for seven days.
+    - **A slow command moves by itself.** One still running after 60 seconds is written down
+      (`JobsDoc`, ids `b1`, `b2`, ...) and the call returns what it printed so far. With
+      `run_in_background` it is written down after a second. With `timeout` and no
+      `run_in_background`, the agent waits that long, ten minutes at most, and the command is
+      stopped, as before. A background command is stopped after an hour unless `timeout` says
+      otherwise, a day at most; eight can run at once; one that prints over 100 MB is ended.
+    - **The agent is told.** When a command ends, the chat that started it gets an entry
+      (`dc.job`, shown as a `command` notice) and the agent gets a turn, the way a sub-agent's
+      report arrives. Stopped by the agent, nothing is said; stopped by a person, the entry is
+      written and no turn is given. The `background` tool lists them, shows what one printed
+      since the agent last looked, and stops one.
+    - **Who waits.** A sub-agent, a conversation with another agent, or a thread in Slack that
+      left a command running has not come to rest until it ends, so it reports once, with what
+      it said after. Stopping a sub-agent stops what it left running. Keep-going does not
+      nudge a chat that is waiting on a command. Stop on a turn stops the command the turn is
+      waiting for, at once on every kind of computer, and leaves background ones alone.
+    - **Looking in.** Running commands count as live work, so the agent's wake-up looks at them,
+      one call per machine, and that is also what keeps Daytona from stopping the machine. A
+      timer in the process looks sooner (every 5 seconds for the first two minutes), so word
+      of a short command is not 20 seconds late. A request to the agent used to put the
+      wake-up off each time; it no longer does, or a client that kept asking would have kept
+      a finished command from being noticed.
+    - **Paired computers** keep jobs in the daemon, through Node, because macOS has neither
+      `setsid` nor `timeout`: `job` frames in `packages/protocol/src/daemon.ts`, and a daemon
+      says `jobs: true` when it connects. One that does not is from before: `bash` there works
+      as it did, and `run_in_background` says the daemon wants updating. A job runs on when
+      the daemon restarts, and the daemon that comes back finds it by its folder.
+    - **The built-in shell** has no processes. `run_in_background` fails there with a sentence
+      saying so.
+    - **What the app shows** (`apps/web/src/components/chat/commands.tsx`), built on
+      2026-10-09 after the owner saw the mock-up and said "Yeah the ui looks good go build!".
+      The app has no rows for tool calls, so a command is shown as a sub-agent is. Where the
+      agent left it running there is a chip in the transcript: the command, its computer, "in
+      the background" and a clock, or "still going after a minute, now in the background" for
+      one that was moved. Opened, it shows the end of what the command has printed, read
+      again every four seconds, with Stop. Once the command has ended the chip says how, and
+      what it printed is with the word of its end, further down. The running commands of a
+      chat are listed in the agent's panel and from a count above the message box, each with
+      its last line and Stop; a row opens the command in the chat. The agent reads "Waiting
+      on a command" in its panel and "Waiting on pnpm build" in the sidebar. Jobs reach the
+      page by `GET /jobs`, asked again when the agent's event stream says `jobs` changed.
+    - **Where that differs from the mock-up:** the sidebar says what an agent is waiting on
+      only for the agent on screen, since the list of agents does not know what the others
+      are doing. A side chat has the chips and no count. On a phone there is no count and no
+      list, as drawn. The Expo app shows a line where a command was left running and the
+      word of its end, and nothing live. How long a command took is what its computer
+      measured, not when the agent noticed.
+    - **Checked:** the runner against real coreutils and, on 2026-10-08, against a real
+      Daytona machine (`packages/sandbox/test/jobs.live.test.ts`: a job outlives the call
+      that started it, a second call reaches the machine while a first waits, a quick command
+      costs no more than before); the agent's side with the test model
+      (`packages/agent/test/jobs.test.ts`, and `paired.test.ts` for a paired computer); the
+      daemon's side with real processes (`packages/computers/test/computers.test.ts`). On the
+      Node server with the echo model and a Daytona machine: a 75-second command moved at
+      the minute, word of its end reached the chat 4 seconds after it ended, and Stop from
+      the app took effect in 150 ms. `scripts/smoke.sh` now leaves a command running on the
+      paired computer and waits to be told. **Not checked:** Cloudflare Containers and Modal
+      (no Docker here and no Modal keys), where the same shell commands are used; macOS, where
+      the daemon's side has never run; whether looking at a job really holds off Daytona's
+      15-minute stop (nothing ran that long); a command that outlives its machine being
+      stopped, outside the tests; and a real model, which may or may not use
+      `run_in_background` when it should. The app's side was checked in a browser with the
+      echo model and a real daemon (`e2e/computers.spec.ts`), and judged from screenshots at
+      1440 and 390 pixels wide; not in Safari, not on a phone, and not against Daytona.
 
 ## 6. What the owner has said they want
 

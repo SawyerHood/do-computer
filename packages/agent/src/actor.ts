@@ -44,6 +44,7 @@ import {
   type Conversation,
   type ConversationId,
   createRegistry,
+  defineExtension,
   type Extension,
   Harness,
   UsageDoc,
@@ -58,7 +59,7 @@ import {
   type IdentityState,
   SchedulesDoc,
 } from "./docs.ts"
-import { CodingTools } from "@earendil-works/pi-durable/tools"
+import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
@@ -89,6 +90,7 @@ import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, projectChat } from "./project.ts"
+import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 import { isInherited, own } from "./own.ts"
@@ -128,6 +130,8 @@ export type AgentActorOptions = {
   readonly random?: () => number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
+  /** How long a command is waited for before it is left to run in the background. */
+  readonly foregroundMs?: number
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
   readonly computerLinks?: ActorNamespace
   /**
@@ -352,6 +356,7 @@ export class AgentActor implements Actor {
   readonly #watchers = new Map<string, number>()
   readonly #scheduler: Scheduler
   readonly #subagents: Subagents
+  readonly #jobs: Jobs
   readonly #peers: Peers | undefined
   readonly #slack: SlackChats | undefined
   readonly #skills: Skills
@@ -359,6 +364,8 @@ export class AgentActor implements Actor {
   readonly #secrets: Secrets
   readonly #keepGoing: KeepGoing
   #harness: Promise<Harness> | undefined
+  /** When the agent next wakes itself to keep live work going, while that is still to come. */
+  #wake: number | undefined
   /** The address the app was last reached at, as its gateway said. */
   #origin: string | undefined
 
@@ -410,6 +417,24 @@ export class AgentActor implements Actor {
       // The agent can be talked into installing from any address, so this one is checked too.
       fetch: (url, init) => skillFetch(url, init),
     })
+    this.#jobs = new Jobs({
+      agentId: host.name,
+      now: () => host.now(),
+      context,
+      computer: (id, c) => this.#computers.resolve(id, c),
+      ...(options.foregroundMs === undefined ? {} : { foregroundMs: options.foregroundMs }),
+      // A command left running wants looking in on, which the wake-up does.
+      onStarted: () => void this.#rearm().catch((error) => options.onReport?.(error)),
+      // What the agent says about a command that ended is told like any other answer nobody
+      // was there for.
+      onReport: (report) => {
+        if (report.turn === undefined || this.#harness === undefined) return
+        void this.#harness.then((harness) =>
+          this.#notifyWhenUnseen(harness, report.chatId, report.turn!, undefined),
+        )
+      },
+      onError: (error) => options.onReport?.(error),
+    })
     this.#computers = new Computers({
       links: options.computerLinks,
       machine: (kind, key) => this.#choices.create(kind, key, host),
@@ -458,6 +483,7 @@ export class AgentActor implements Actor {
     this.#keepGoing = new KeepGoing({
       judge: options.judge,
       chat: (chatId) => this.#chatState(chatId),
+      waiting: (chatId) => this.#jobs.waiting(chatId, context),
       context,
       onError: (error) => options.onReport?.(error),
     })
@@ -489,7 +515,12 @@ export class AgentActor implements Actor {
       chat: (chatId) => this.#chatState(chatId),
       waiting: async (chatId, c) =>
         (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
-      onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
+      running: (chatId, c) => this.#jobs.waiting(chatId, c),
+      onStopped: async (chatId, c) => {
+        await this.#approvals.withdraw(chatId, c)
+        // What a stopped sub-agent left running would only set it going again.
+        await this.#jobs.stopFor(chatId, c)
+      },
       // What the agent says about a report is told like any other answer nobody was there for.
       onReport: (report) => {
         if (report.turn === undefined || this.#harness === undefined) return
@@ -511,6 +542,7 @@ export class AgentActor implements Actor {
             chat: (chatId) => this.#chatState(chatId),
             waiting: async (chatId, c) =>
               (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+            running: (chatId, c) => this.#jobs.waiting(chatId, c),
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
             onError: (error) => options.onReport?.(error),
           })
@@ -525,6 +557,7 @@ export class AgentActor implements Actor {
             chat: (chatId) => this.#chatState(chatId),
             waiting: async (chatId, c) =>
               (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
+            running: (chatId, c) => this.#jobs.waiting(chatId, c),
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
             keep: (file) => this.#library.keep(file),
             contents: (file) => this.#library.contents(file),
@@ -730,12 +763,19 @@ export class AgentActor implements Actor {
       // First among the tool hooks: a call that is not allowed should cause nothing at all.
       registry.install(this.#approvals.extension)
       // The file and shell tools, which run on whichever computer a call is for.
-      registry.install(CodingTools)
+      // pi-durable's coding tools, with a `bash` that can leave a command running.
+      registry.install(
+        defineExtension({
+          name: "coding-tools",
+          tools: [createReadTool(), createWriteTool(), createEditTool(), this.#jobs.bashTool],
+        }),
+      )
       registry.install(this.#computers.extension)
       // Its tools take a computer too, as the wraps above say.
       registry.install(this.#library.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
+      registry.install(this.#jobs.extension)
       if (this.#peers !== undefined) registry.install(this.#peers.extension)
       if (this.#slack !== undefined) registry.install(this.#slack.extension)
       registry.install(this.#skills.extension)
@@ -794,6 +834,7 @@ export class AgentActor implements Actor {
       this.#computers.attach(harness)
       this.#scheduler.attach(harness)
       this.#subagents.attach(harness)
+      this.#jobs.attach(harness)
       this.#peers?.attach(harness)
       this.#slack?.attach(harness)
       this.#skills.attach(harness)
@@ -840,7 +881,8 @@ export class AgentActor implements Actor {
         (await harness.snapshot(ConnectorsDoc, context)) === undefined ||
         (await harness.snapshot(ApprovalsDoc, context)) === undefined ||
         (await harness.snapshot(SecretsDoc, context)) === undefined ||
-        (await harness.snapshot(CreatureDoc, context)) === undefined
+        (await harness.snapshot(CreatureDoc, context)) === undefined ||
+        (await harness.snapshot(JobsDoc, context)) === undefined
       ) {
         // Created up front so they can be watched before they have any content.
         await harness.commit(async (tx) => {
@@ -851,6 +893,7 @@ export class AgentActor implements Actor {
           await tx.doc(ApprovalsDoc)
           await tx.doc(SecretsDoc)
           await tx.doc(CreatureDoc)
+          await tx.doc(JobsDoc)
         }, context)
       }
       const schedules = await harness.watchDoc(SchedulesDoc, context)
@@ -882,10 +925,20 @@ export class AgentActor implements Actor {
       inspection.tasks.length > 0 ||
       inspection.submissions.length > 0 ||
       (await this.#subagents.working(context)) ||
+      (await this.#jobs.working(context)) ||
       (await this.#scheduler.working(context)) ||
       ((await this.#peers?.working(context)) ?? false) ||
       ((await this.#slack?.working(context)) ?? false)
-    const keepAlive = live ? this.#host.now() + (this.#options.keepAliveMs ?? KEEPALIVE_MS) : null
+    // A wake-up that is still to come is left where it is. Every request comes through here,
+    // and one that put it off each time would keep what is looked at on waking from being
+    // looked at for as long as requests kept coming.
+    const now = this.#host.now()
+    const keepAlive = !live
+      ? null
+      : this.#wake !== undefined && this.#wake > now
+        ? this.#wake
+        : now + (this.#options.keepAliveMs ?? KEEPALIVE_MS)
+    this.#wake = keepAlive ?? undefined
     const scheduled = await this.#scheduler.nextWake(context)
     const wake =
       keepAlive === null
@@ -901,6 +954,7 @@ export class AgentActor implements Actor {
     await this.#open()
     await this.#scheduler.tick(context)
     await this.#subagents.tick()
+    await this.#jobs.tick()
     await this.#peers?.tick()
     await this.#slack?.tick()
     await this.#rearm()
@@ -911,6 +965,7 @@ export class AgentActor implements Actor {
     const harness = this.#harness
     this.#harness = undefined
     this.#opened = undefined
+    this.#jobs.close()
     await this.#connectors?.close()
     await (await harness)?.close(context)
   }
@@ -921,6 +976,8 @@ export class AgentActor implements Actor {
    * itself, because nobody says which there are, deletes those first.
    */
   async #destroy(harness: Harness): Promise<Response> {
+    // What it left running on machines it shares would otherwise run on with nobody to stop it.
+    await this.#jobs.stopAll(context)
     if (!this.#hosted) {
       // An agent that was moved left a machine behind each time, and those go too.
       const had = new Set([
@@ -970,6 +1027,7 @@ export class AgentActor implements Actor {
       if (
         error instanceof ScheduleError ||
         error instanceof SubagentError ||
+        error instanceof JobError ||
         error instanceof PeerError ||
         error instanceof SlackError ||
         error instanceof SkillError ||
@@ -1273,6 +1331,26 @@ export class AgentActor implements Actor {
       if (scheduleId !== undefined && segments[2] === "run" && method === "POST") {
         await this.#scheduler.runNow(scheduleId, context)
         return json({ ok: true }, 202)
+      }
+    }
+    if (segments[0] === "jobs") {
+      const jobId = segments[1]
+      if (jobId === undefined && method === "GET") {
+        return json({ jobs: await this.#jobs.list(context) })
+      }
+      if (jobId !== undefined && segments[2] === "output" && method === "GET") {
+        const from = Number(url.searchParams.get("from") ?? "")
+        return json(
+          await this.#jobs.read(
+            jobId,
+            Number.isInteger(from) && from >= 0 ? from : undefined,
+            context,
+          ),
+        )
+      }
+      if (jobId !== undefined && segments[2] === "stop" && method === "POST") {
+        await this.#jobs.stop(jobId, "user", context)
+        return json({ ok: true })
       }
     }
     if (segments[0] === "chats") {
@@ -1914,6 +1992,7 @@ export class AgentActor implements Actor {
       const approvals = await harness.watchDoc(ApprovalsDoc, context)
       const secrets = await harness.watchDoc(SecretsDoc, context)
       const creature = await harness.watchDoc(CreatureDoc, context)
+      const jobs = await harness.watchDoc(JobsDoc, context)
       const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
       }
@@ -1931,6 +2010,7 @@ export class AgentActor implements Actor {
       approvals?.start(changed("approvals"))
       secrets?.start(changed("secrets"))
       creature?.start(changed("creature"))
+      jobs?.start(changed("jobs"))
       void (identity ?? chats)?.closed.then(close)
       return () => {
         void identity?.stop()
@@ -1943,6 +2023,7 @@ export class AgentActor implements Actor {
         void approvals?.stop()
         void secrets?.stop()
         void creature?.stop()
+        void jobs?.stop()
         unwatch?.()
       }
     })

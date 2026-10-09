@@ -1,0 +1,63 @@
+/* ---------- Background commands mock-up: added to the two mock-ups' styles above ---------- */
+
+/* The mark of a command, where a sub-agent has its face. */
+.term{--s:32px;width:var(--s);height:var(--s);border-radius:calc(var(--s)*.3);background:var(--secondary);color:var(--muted-foreground);display:inline-grid;place-items:center;flex:none}
+.cmd{font-family:var(--mono);font-size:.88em}
+.bad{color:var(--destructive)}
+
+/* A command in the transcript, where the agent started it: built as a sub-agent's is. */
+.bgc{display:flex;width:fit-content;max-width:100%;align-items:center;gap:8px;border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:6px 10px 6px 8px;font-size:14px;cursor:pointer;text-align:left}
+.bgc:hover{background:var(--accent)}
+.bgc .term{--s:24px}
+.bgc .cmd{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bgc .w{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;min-width:0}
+.bgc .cmd{max-width:100%}
+.bgc .k{font-size:12px;color:var(--muted-foreground)}
+[data-clock]{white-space:nowrap}
+.bgc .car{color:var(--muted-foreground);display:grid;transition:transform .15s}
+.bgc.open .car{transform:rotate(90deg)}
+
+/* What a command printed: the end of it. */
+.out{margin-top:8px;border-radius:12px;background:var(--surface);overflow:hidden}
+.out .hd{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 12px;font-size:12px;color:var(--muted-foreground);border-bottom:1px solid var(--border);min-height:42px}
+.out pre{margin:0;padding:10px 12px;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--foreground);max-height:calc(1.6em*13 + 10px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.out pre .e{color:var(--destructive)}
+
+/* Word that a command ended, in the chat that started it: as word from a sub-agent is. */
+.word{border-left:2px solid var(--border);padding:2px 0 2px 12px;font-size:14px;color:var(--muted-foreground)}
+.word .l{display:flex;align-items:flex-start;gap:8px}
+.word .l>span:first-child{flex:none;display:grid;height:1.5em;align-content:center}
+.word b{color:var(--foreground);font-weight:500}
+.word .more{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 8px;margin:4px 0 0 -8px;border-radius:8px;font-size:13.5px;color:var(--muted-foreground)}
+.word .more:hover{background:var(--accent)}
+.word .more .ic{transition:transform .15s}
+.word .more.open .ic{transform:rotate(90deg)}
+.word .out{margin-top:6px}
+
+/* Commands running in the background, in the agent's panel and in the list above the message box. */
+.job{display:flex;gap:10px;padding:7px 8px 7px 10px;border-radius:12px;align-items:center;width:100%;cursor:pointer}
+.job:hover{background:var(--surface)}
+.job .t{font-size:13.5px;display:flex;align-items:baseline;gap:8px}
+.job .t .k{font-size:12px;color:var(--muted-foreground);white-space:nowrap;flex:none}
+.job .s{font-family:var(--mono);font-size:11.5px;color:var(--muted-foreground);margin-top:2px}
+.job .btn{flex:none}
+
+.foot{position:relative}
+.runchip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 8px;margin:0 0 8px 6px;border:1px solid var(--border);border-radius:99px;background:var(--surface);font-size:12.5px;color:var(--muted-foreground)}
+.runchip:hover,.runchip.on{background:var(--accent);color:var(--foreground)}
+.runlist{position:absolute;left:22px;bottom:calc(100% - 4px);width:460px;max-width:calc(100% - 44px);background:var(--popover);--surface:var(--accent);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 40px rgb(0 0 0/.28);padding:6px;z-index:5;animation:rise .15s ease-out}
+.runlist .lb{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);padding:6px 10px}
+
+/* The message box while a turn is going: the button stops the turn. */
+.send.halt{background:var(--foreground);color:var(--background)}
+
+/* On a phone. */
+.phone .bgc{font-size:13px;gap:6px}
+.phone .word{font-size:13px}
+.phone .out pre{font-size:10.5px;max-height:calc(1.6em*9 + 8px);padding:8px 10px}
+.phone .out .hd{font-size:11.5px;padding-left:10px}
+.phone .tool{font-size:12.5px}
+
+/* A chat longer than the window scrolls, and does not push the message box off the page. */
+.acol .chat{min-height:0}
+.acol .foot{flex:none}

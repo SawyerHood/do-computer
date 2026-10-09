@@ -125,7 +125,11 @@ function audit(entry: Record<string, unknown>): void {
       ? `ran (exit ${String(entry.exitCode)}, ${String(entry.ms)} ms): ${String(entry.command).slice(0, 200)}`
       : entry.kind === "refused"
         ? `refused to ${String(entry.what)}`
-        : `${String(entry.kind)} ${String(entry.path ?? "")}`
+        : entry.kind === "job"
+          ? `started: ${String(entry.command).slice(0, 200)}`
+          : entry.kind === "job_stop"
+            ? "stopped a command it had started"
+            : `${String(entry.kind)} ${String(entry.path ?? "")}`
   log(what)
 }
 
@@ -171,6 +175,7 @@ async function run(config: Config): Promise<void> {
             home: HOME,
             readOnly: config.readOnly,
             version: VERSION,
+            jobs: true,
           }),
         )
         core.onOpen()

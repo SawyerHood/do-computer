@@ -4,11 +4,14 @@ import {
   type ChatState,
   describeChatError,
   foldFailures,
+  isJobStart,
   isSentFile,
   isShownPart,
   isVisibleMessage,
+  jobOutcome,
   type LibraryFile,
   type MessagePart,
+  type ToolPart,
 } from "@durable-computer/protocol"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -60,12 +63,31 @@ function FileCard({ agentId, file }: { agentId: string; file: LibraryFile }) {
   )
 }
 
+/**
+ * A command the agent left running in the background. How it is getting on is read on the web;
+ * word of its end comes into the chat here too.
+ */
+function LeftRunning({ part }: { part: ToolPart }) {
+  const command = String((part.args as { command?: unknown } | null)?.command ?? "")
+  return (
+    <View style={{ paddingHorizontal: space(1) }}>
+      <Text size={14} numberOfLines={1}>
+        {command.split("\n")[0]}
+      </Text>
+      <Text tone="muted" size={13}>
+        Left running in the background
+      </Text>
+    </View>
+  )
+}
+
 function Part({ part, agentId }: { part: MessagePart; agentId: string }) {
   const theme = useTheme()
   // The one tool call that is shown: a file the agent delivered, as the file.
   if (isSentFile(part)) {
     return <FileCard agentId={agentId} file={part.details as unknown as LibraryFile} />
   }
+  if (isJobStart(part)) return <LeftRunning part={part} />
   switch (part.type) {
     case "text":
       return (
@@ -159,6 +181,25 @@ function Message({
           </Text>
           {notice.detail === undefined ? null : (
             <Text tone="muted" size={13}>
+              {notice.detail}
+            </Text>
+          )}
+        </View>
+      )
+    }
+    if (notice?.kind === "command") {
+      // The end of a command the agent left running in the background.
+      const command = notice.text.split("\n")[0]
+      const ended = notice.job === undefined ? "Ended" : jobOutcome(notice.job)
+      return (
+        <View style={{ gap: space(1), paddingHorizontal: space(1) }}>
+          <Text tone="muted" size={14}>
+            {notice.job?.status === "stopped"
+              ? `You stopped ${command}`
+              : `${command}: ${ended.charAt(0).toLowerCase()}${ended.slice(1)}`}
+          </Text>
+          {notice.detail === undefined ? null : (
+            <Text tone="muted" size={12} numberOfLines={12}>
               {notice.detail}
             </Text>
           )}

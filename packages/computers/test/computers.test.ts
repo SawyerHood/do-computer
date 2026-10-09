@@ -1,9 +1,9 @@
-import { mkdtempSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { REVOKED_CLOSE_CODE, SUPERSEDED_CLOSE_CODE } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@durable-computer/runtime/node"
-import { type Sandbox, SandboxEnv } from "@durable-computer/sandbox"
+import { JobsUnsupported, type Sandbox, SandboxEnv } from "@durable-computer/sandbox"
 import { registerSandboxConformance } from "@durable-computer/sandbox/testing"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
@@ -18,6 +18,7 @@ import {
   RemoteError,
 } from "../src/index.ts"
 import { nodeDaemonIO } from "../src/node-io.ts"
+import { nodeJobs } from "../src/node-jobs.ts"
 
 // Typed as the interface the agent's tools are written against.
 const environment = (sandbox: Sandbox): ExecutionEnv => new SandboxEnv(sandbox)
@@ -195,7 +196,7 @@ afterAll(() => namespace.close())
 
 let counter = 0
 /** Pair a "computer": a real daemon core on a temporary home directory, connected to its link. */
-async function connectDaemon(name = `computer-${++counter}`, readOnly = false) {
+async function connectDaemon(name = `computer-${++counter}`, readOnly = false, old = false) {
   const home = mkdtempSync(join(tmpdir(), "dc-daemon-home-"))
   const pair = socketPair()
   const audits: Record<string, unknown>[] = []
@@ -214,6 +215,8 @@ async function connectDaemon(name = `computer-${++counter}`, readOnly = false) {
       home,
       readOnly,
       version: "test",
+      // A daemon from before there were jobs says nothing about them.
+      ...(old ? {} : { jobs: true }),
     }),
   )
   daemon.onOpen()
@@ -300,5 +303,118 @@ describe("computer link", () => {
     expect(await connected.closed).toBe(REVOKED_CLOSE_CODE)
     const again = await connectDaemon("to-revoke")
     expect(await again.closed).toBe(REVOKED_CLOSE_CODE)
+  })
+})
+
+describe("jobs on a paired computer", () => {
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  it("answers for a quick command, and leaves nothing behind", async () => {
+    const { sandbox, home, audits } = await connectDaemon()
+    const jobs = sandbox.jobs!("agent/1")
+    let told = ""
+    const done = await jobs.start(
+      {
+        id: "a",
+        command: 'echo "$GREETING"; echo err >&2; pwd; exit 3',
+        env: { GREETING: "hi" },
+        lifeMs: 60_000,
+      },
+      {
+        waitMs: 10_000,
+        onOutput: (text) => (told += text),
+        removeUnder: { bytes: 1000, lines: 100 },
+      },
+    )
+    expect(done).toEqual({
+      state: "exited",
+      exitCode: 3,
+      timedOut: false,
+      ranMs: expect.any(Number),
+      output: `hi\nerr\n${home}\n`,
+      next: `hi\nerr\n${home}\n`.length,
+      kept: false,
+    })
+    expect(told).toBe(done.output)
+    expect(existsSync(join(home, ".do-computer/jobs/agent_1/a"))).toBe(false)
+    expect(audits).toContainEqual(expect.objectContaining({ kind: "job" }))
+  })
+
+  it("leaves a slow command running, to be followed from where it was and stopped", async () => {
+    const { sandbox, home } = await connectDaemon()
+    const jobs = sandbox.jobs!("agent-1")
+    const first = await jobs.start(
+      {
+        id: "slow",
+        command: "echo one; sleep 1; echo two; sleep 300 & echo $! > child; wait",
+        lifeMs: 600_000,
+      },
+      { waitMs: 200 },
+    )
+    expect(first).toEqual({ state: "running", output: "one\n", next: 4, kept: true })
+    expect(jobs.log("slow")).toBe(join(home, ".do-computer/jobs/agent-1/slow/output.log"))
+    const rest = await jobs.follow("slow", { from: first.next, waitMs: 1_500 })
+    expect(rest).toEqual({ state: "running", output: "two\n", next: 8, kept: true })
+    expect(await jobs.check(["slow", "never"])).toEqual({
+      slow: { state: "running", size: 8 },
+      never: { state: "lost", size: 0 },
+    })
+    const child = Number(readFileSync(join(home, "child"), "utf8"))
+    await jobs.stop("slow")
+    const ended = await jobs.follow("slow", { from: 8, waitMs: 10_000 })
+    expect(ended).toMatchObject({ state: "exited", timedOut: false })
+    expect(ended.state === "exited" && ended.exitCode).not.toBe(0)
+    await sleep(100)
+    expect(() => process.kill(child, 0)).toThrow()
+    await jobs.remove(["slow"])
+    expect(existsSync(join(home, ".do-computer/jobs/agent-1/slow"))).toBe(false)
+  })
+
+  it("stops a job at its time limit and says that is what happened", async () => {
+    const { sandbox } = await connectDaemon()
+    const ended = await sandbox.jobs!("agent-1").start(
+      { id: "t", command: "echo begun; sleep 30", lifeMs: 500 },
+      { waitMs: 10_000 },
+    )
+    expect(ended).toMatchObject({
+      state: "exited",
+      exitCode: 124,
+      timedOut: true,
+      output: "begun\n",
+    })
+  })
+
+  it("finds a job again after the daemon restarted, and can still stop it", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dc-daemon-home-"))
+    const keeper = () => nodeJobs({ home, shell: "sh", resolve: (target) => target })("agent-1")
+    const first = await keeper().start(
+      { id: "j", command: "echo up; sleep 300", lifeMs: 600_000 },
+      { waitMs: 200 },
+    )
+    expect(first).toMatchObject({ state: "running", output: "up\n" })
+    // A daemon that knows nothing of the job but its folder.
+    const after = keeper()
+    expect((await after.check(["j"])).j).toEqual({ state: "running", size: 3 })
+    await after.stop("j")
+    expect(await after.follow("j", { from: 0, waitMs: 0 })).toMatchObject({
+      state: "exited",
+      exitCode: 143,
+      output: "up\n",
+    })
+  })
+
+  it("will not start one on a read-only computer", async () => {
+    const { sandbox } = await connectDaemon(undefined, true)
+    await expect(
+      sandbox.jobs!("agent-1").start({ id: "a", command: "echo hi", lifeMs: 1_000 }, { waitMs: 0 }),
+    ).rejects.toThrow(/read-only/)
+  })
+
+  it("says so when the daemon is from before there were jobs", async () => {
+    const { sandbox } = await connectDaemon(undefined, false, true)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await expect(
+      sandbox.jobs!("agent-1").start({ id: "a", command: "echo hi", lifeMs: 1_000 }, { waitMs: 0 }),
+    ).rejects.toBeInstanceOf(JobsUnsupported)
   })
 })

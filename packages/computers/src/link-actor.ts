@@ -67,6 +67,24 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkCoreOptio
         switch (url.pathname) {
           case "/exec":
             return json(await core.exec(...execArguments(await request.json())))
+          case "/job": {
+            // A daemon from before there were jobs would not answer at all. One that is not
+            // there is another matter, and is said to be offline as for anything else.
+            if (host.sockets().length === 0) {
+              throw new RemoteError("offline", "The computer is offline.")
+            }
+            if ((await status()).hello?.jobs !== true) {
+              return json(
+                {
+                  error:
+                    "The program that connects this computer is too old to keep a command running.",
+                  code: "unsupported",
+                },
+                409,
+              )
+            }
+            return json({ value: await core.job(await request.json()) })
+          }
           case "/fs":
             return json({ value: await core.fs(await request.json()) })
           case "/read": {

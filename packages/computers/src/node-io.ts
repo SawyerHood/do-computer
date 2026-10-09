@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs"
 import * as path from "node:path"
 import { EXEC_STDIO_CAP, type RemoteFileStat } from "@durable-computer/protocol"
 import type { DaemonIO } from "./daemon-core.ts"
+import { nodeJobs } from "./node-jobs.ts"
 
 export type NodeDaemonIOOptions = {
   /** Where relative paths and commands start. */
@@ -32,6 +33,7 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
     return path.isAbsolute(expanded) ? expanded : path.join(options.home, expanded)
   }
   return {
+    jobs: nodeJobs({ home: options.home, shell: options.shell, resolve }),
     exec(command, execOptions) {
       return new Promise((done) => {
         // Its own process group, so a timeout stops the command's children too.

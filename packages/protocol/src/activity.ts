@@ -33,7 +33,16 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
   switch (part.name) {
     case "bash": {
       const command = text(args.command)
-      return command === undefined ? `Running a command${on}` : `Running${on}: ${clip(command)}`
+      const how = args.run_in_background === true ? "Starting in the background" : "Running"
+      return command === undefined
+        ? `${how === "Running" ? "Running a command" : "Starting a command in the background"}${on}`
+        : `${how}${on}: ${clip(command)}`
+    }
+    case "background": {
+      const id = text(args.id)
+      if (args.action === "stop") return `Stopping ${id ?? "a background command"}`
+      if (args.action === "output") return `Reading what ${id ?? "a background command"} printed`
+      return "Checking its background commands"
     }
     case "read":
       return path === undefined ? `Reading a file${on}` : `Reading ${fileName(path)}${on}`
@@ -289,6 +298,20 @@ export function isAgentMessage(part: MessagePart): part is ToolPart {
   return typeof details?.agentId === "string" && typeof details.chatId === "string"
 }
 
+/**
+ * Whether a part is the agent leaving a command to run in the background, by asking or because
+ * it was still running when the wait for it ended. That is shown too, as the command: how it is
+ * getting on, and what it is printing.
+ */
+export function isJobStart(part: MessagePart): part is ToolPart {
+  return (
+    part.type === "tool" &&
+    part.name === "bash" &&
+    part.status === "done" &&
+    typeof (part.details as { job?: unknown } | null | undefined)?.job === "string"
+  )
+}
+
 /** Whether a part of a message is shown in a transcript. Thinking and tool calls are not. */
 export function isShownPart(part: MessagePart): boolean {
   return (
@@ -297,6 +320,7 @@ export function isShownPart(part: MessagePart): boolean {
     part.type === "notice" ||
     isSentFile(part) ||
     isSubagentStart(part) ||
+    isJobStart(part) ||
     isAgentMessage(part)
   )
 }

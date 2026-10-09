@@ -22,6 +22,7 @@ export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const secretsKey = (agentId: string) => ["agents", agentId, "secrets"] as const
 export const slackKey = (agentId: string) => ["agents", agentId, "slack"] as const
+export const jobsKey = (agentId: string) => ["agents", agentId, "jobs"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
 /** A library file's text at one revision. Kept apart from the listing, which changes; this never does. */
 export const libraryTextKey = (agentId: string, fileId: string, rev: number) =>
@@ -51,6 +52,10 @@ export const creatureQuery = (agentId: string) =>
     queryKey: creatureKey(agentId),
     queryFn: () => client.agent(agentId).creature(),
   })
+
+/** The commands an agent left running in the background, and those lately over. */
+export const jobsQuery = (agentId: string) =>
+  queryOptions({ queryKey: jobsKey(agentId), queryFn: () => client.agent(agentId).jobs() })
 
 export const agentsQuery = queryOptions({ queryKey: agentsKey, queryFn: () => client.listAgents() })
 
@@ -150,6 +155,11 @@ export function refreshAgent(agentId: string, what: string): void {
     void queryClient.invalidateQueries({ queryKey: creatureKey(agentId) })
     // What it has on is part of what every drawing of the agent is given.
     void queryClient.invalidateQueries({ queryKey: agentsKey, exact: true })
+    return
+  }
+  if (what === "jobs") {
+    // What each has printed is kept under the same key, and is not asked for again here.
+    void queryClient.invalidateQueries({ queryKey: jobsKey(agentId), exact: true })
     return
   }
   if (what === "skills") {

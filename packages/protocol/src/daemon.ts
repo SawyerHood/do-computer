@@ -56,11 +56,41 @@ export type FsFrame = {
   recursive?: boolean
   force?: boolean
 }
+/**
+ * Something to do with a job: a command the daemon keeps going by itself, in a folder named
+ * `job` under `scope`, with what it prints going to a log there. `start` starts one and follows
+ * it; `follow` reads what one printed from `from` bytes on, waiting up to `waitMs` for it to
+ * end; `stop` stops one; `check` says how each of `jobs` stands; `remove` removes their folders.
+ */
+export type JobFrame = {
+  t: "job"
+  id: string
+  op: "start" | "follow" | "stop" | "check" | "remove"
+  scope: string
+  job?: string
+  jobs?: string[]
+  command?: string
+  cwd?: string
+  env?: Record<string, string>
+  /** How long the command may run before it is stopped. */
+  lifeMs?: number
+  from?: number
+  waitMs?: number
+  /** Remove the folder of a job that ended while followed and printed no more than this. */
+  removeUnder?: { bytes: number; lines: number }
+}
 /** Sent, best effort, before a revocation close so the daemon can say why. */
 export type RevokedFrame = { t: "revoked" }
 
 export type HostFrame =
-  ExecFrame | ReadFrame | WriteBeginFrame | WriteChunkFrame | WriteEndFrame | FsFrame | RevokedFrame
+  | ExecFrame
+  | ReadFrame
+  | WriteBeginFrame
+  | WriteChunkFrame
+  | WriteEndFrame
+  | FsFrame
+  | JobFrame
+  | RevokedFrame
 
 // Daemon to host.
 
@@ -73,6 +103,8 @@ export type HelloFrame = {
   /** True when the daemon was started read-only: it refuses commands and writes. */
   readOnly: boolean
   version: string
+  /** True when the daemon understands `job` frames. Absent on one from before there were jobs. */
+  jobs?: boolean
 }
 export type ExecResultFrame = {
   t: "exec_result"
@@ -100,6 +132,8 @@ export type FsResultFrame = {
   id: string
   value: RemoteFileStat | null | (RemoteFileStat & { name: string })[] | string | true
 }
+/** The answer to a `job` frame: how the job stands and what it printed, or nothing. */
+export type JobResultFrame = { t: "job_result"; id: string; value: unknown }
 export type DaemonErrorCode =
   | "not_found"
   | "not_directory"
@@ -113,7 +147,13 @@ export type DaemonErrorCode =
 export type ErrFrame = { t: "err"; id: string; code: DaemonErrorCode; message: string }
 
 export type DaemonFrame =
-  HelloFrame | ExecResultFrame | FileChunkFrame | OkFrame | FsResultFrame | ErrFrame
+  | HelloFrame
+  | ExecResultFrame
+  | FileChunkFrame
+  | OkFrame
+  | FsResultFrame
+  | JobResultFrame
+  | ErrFrame
 
 export function parseFrame<T extends { t: string }>(raw: unknown): T | null {
   if (typeof raw !== "string") return null

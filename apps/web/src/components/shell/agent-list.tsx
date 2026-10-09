@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { AgentFace } from "@/components/agent-avatar"
+import { useRunningJobs, waitingWords } from "@/components/chat/commands"
 import { FaceStack, PersonFace } from "@/components/people"
 import { AgentRowsPlaceholder } from "@/components/placeholders"
 import { Button } from "@/components/ui/button"
@@ -200,6 +201,8 @@ export function AgentList({
   const newAgent = useNewAgent(workspace.id, onNavigate)
   const loading = pending || isLoading
   const list = loading ? [] : (agents ?? [])
+  // What the agent on screen left running, wherever in its chats it did.
+  const waiting = waitingWords(useRunningJobs(activeAgentId), true)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -245,6 +248,14 @@ export function AgentList({
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <FaceStack people={with_} className="size-4" />
                       {with_.length === 0 ? "Quiet" : `${with_.length} here`}
+                    </span>
+                  ) : active && waiting !== undefined ? (
+                    <span
+                      title="Waiting on something it left running"
+                      className="flex items-center gap-1 text-xs text-muted-foreground"
+                    >
+                      <span className="min-w-0 truncate">{waiting}</span>
+                      <ClockIcon className="size-3 shrink-0" />
                     </span>
                   ) : agent.tagline ? (
                     <span className="block truncate text-xs text-muted-foreground">
