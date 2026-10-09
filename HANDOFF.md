@@ -1194,16 +1194,25 @@ Since then, newest last:
       that the mobile app shows none of this; that whoever can read an agent's chats can watch
       a screen while that agent uses it, a teammate included; that dev-browser is pinned at 1.0.0-rc.3 and
       fetched from its GitHub release, checked against hashes written in the code.
-    - **Never run:** anything of the screen on macOS or Windows, which is where it matters:
-      the driver itself there, the two macOS permissions and the unsigned app keeping them, the
-      overlay's transparency, its clicks, its being kept out of pictures, Esc, and the packed
-      app finding the driver (on a Mac both kinds of chip are packed, the other fetched with
-      `npm pack`). The screen with a real model. The owner's own Chrome through Chrome 144's
-      switch, where Chrome may ask twice, once for dev-browser and once for the picture. The
-      browser on macOS. dev-browser has no Windows build, so on Windows the browser tool says
-      so. On this machine: the driver in Electron under Xvfb clicked, typed, scrolled and
+    - **Checked on GitHub's machines** (pull request #39, and a run of the `Desktop` workflow
+      on the branch from the Actions tab, which is how a branch is tried on macOS): on macOS,
+      Windows and Linux the app is packed with the driver beside it, on a Mac for both kinds of
+      chip, the other fetched with `npm pack`; the packed Mac app is sealed; and the real
+      driver loads from beside the packed app and says how large the screen is
+      (`e2e/driver.spec.ts`). The overlay's window is made on all three, and the app answers a
+      real daemon's call for a pretended screen.
+    - **Never run:** an agent using a real screen on macOS or Windows: a click, a key, a
+      picture taken there; the two macOS permissions, and whether an unsigned app keeps them;
+      how the overlay looks on a real desktop, its clicks, its being kept out of pictures, and
+      Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch,
+      where Chrome may ask twice, once for dev-browser and once for the picture. The browser on
+      macOS. dev-browser has no Windows build, so on Windows the browser tool says so. On the
+      owner's Linux machine: the driver in Electron under Xvfb clicked, typed, scrolled and
       dragged in a real window; the browser ran for real through a built server and a real
       daemon, fetching dev-browser and a Chrome by itself.
+    - **Learned the hard way:** an effect that hands React what `scrollIntoView` answered
+      crashes on a newer Chrome, which answers with a promise that React then calls on the way
+      out. The Chromium on the owner's machine is older and did not show it; CI's did.
 
 ## 6. What the owner has said they want
 
