@@ -160,7 +160,33 @@ function assistantMessage(id: string, message: AssistantMessage, live: boolean):
   return result
 }
 
-function notice(id: string, kind: "reset" | "compaction", text: string): ChatMessage {
+/** The entry that begins a side chat's own messages, after the ones it carries from another chat. */
+export const BRANCH_ENTRY = "dc.branch"
+
+/**
+ * Where a chat can be branched from: its last entry while the agent is at rest in it, and the
+ * agent's last finished answer while it is working, so that a side chat never begins in the
+ * middle of a step. Undefined when the agent has not answered anything there yet.
+ */
+export function branchPoint(entries: readonly EntryRecord[]): EntryRecord["id"] | undefined {
+  const spoken = (entry: EntryRecord) =>
+    entry.kind === "pi.user" || entry.kind === "pi.assistant" || entry.kind === "pi.tool-result"
+  const answered = entries.findLastIndex((entry) => {
+    const message = entry.model?.[0]
+    return (
+      entry.kind === "pi.assistant" &&
+      message?.role === "assistant" &&
+      message.stopReason === "stop" &&
+      !message.content.some((block) => block.type === "toolCall")
+    )
+  })
+  if (answered === -1) return undefined
+  // Only notes written into the chat follow the answer: the agent is at rest.
+  const resting = !entries.slice(answered + 1).some(spoken)
+  return (resting ? entries.at(-1)! : entries[answered]!).id
+}
+
+function notice(id: string, kind: "reset" | "compaction" | "branch", text: string): ChatMessage {
   return { id, role: "notice", parts: [{ type: "notice", kind, text }], status: "done" }
 }
 
@@ -209,6 +235,8 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       return notice(id, "reset", first?.role === "user" ? contentText(first.content) : "")
     case "pi.compaction":
       return notice(id, "compaction", "Earlier messages were summarized to free up context.")
+    case BRANCH_ENTRY:
+      return notice(id, "branch", "Continues from the main chat.")
     case "dc.scheduled": {
       // A scheduled task's report, delivered into the chat the task was created in.
       const report = entry.data as { title?: string; text?: string } | undefined
@@ -521,7 +549,14 @@ export function projectChat(view: ConversationView): ChatState {
   const inbox = view.docs["pi.inbox"] as InboxState | undefined
   const usageDoc = view.docs["pi.usage"] as UsageState | undefined
 
-  const { messages, tools, register, lastEntryId } = projectEntries(view.entries)
+  // A side chat carries the messages of the chat it branched off. They are in front of the
+  // agent, and are that chat's to show.
+  const carried = view.conversation.parent?.at
+  const entries =
+    carried === undefined
+      ? view.entries
+      : view.entries.filter((entry) => Number(entry.id) > Number(carried))
+  const { messages, tools, register, lastEntryId } = projectEntries(entries)
 
   const partial = live?.generation?.message
   if (partial !== undefined) {

@@ -78,6 +78,42 @@ describe("agent actor in a Durable Object", () => {
   })
 })
 
+describe("an agent's chats in a Durable Object", () => {
+  it("branches a side chat off the main one, and finds what was said in the object's own table", async () => {
+    const agent = "agent-workers-chats"
+    await call(agent, "/init", "POST", { ownerId: "user-1" })
+    const main = await call<ChatSummary>(agent, "/chats/main", "POST")
+    await call(agent, `/chats/${main.id}/messages`, "POST", {
+      text: "the ferry leaves at noon",
+      requestId: "request-1",
+    })
+    let state = EMPTY_CHAT
+    for (let attempt = 0; attempt < 400; attempt++) {
+      state = await call<ChatState>(agent, `/chats/${main.id}`)
+      if (!state.busy && state.messages.at(-1)?.role === "assistant") break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    expect(state.messages.map((m) => m.role)).toEqual(["user", "assistant"])
+
+    // The side chat carries those messages, and shows only where its own begin.
+    const side = await call<ChatSummary>(agent, "/chats", "POST", { title: "Aside" })
+    const opened = await call<ChatState>(agent, `/chats/${side.id}`)
+    expect(opened.messages.map((m) => m.parts[0])).toMatchObject([
+      { type: "notice", kind: "branch" },
+    ])
+
+    const found = await call<{ hits: { chatId: string }[]; complete: boolean }>(
+      agent,
+      "/search?q=ferry%20noon",
+    )
+    expect(found.complete).toBe(true)
+    expect(found.hits.map((hit) => hit.chatId)).toEqual([main.id, main.id])
+    // Asked again, with the table already filled.
+    const again = await call<{ hits: unknown[] }>(agent, "/search?q=FERRY")
+    expect(again.hits).toHaveLength(2)
+  })
+})
+
 describe("sub-agents in a Durable Object", () => {
   it("has a sub-agent work in its own chat and report back to the one that started it", async () => {
     const agent = "agent-workers-subagent"

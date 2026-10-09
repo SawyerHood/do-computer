@@ -1,5 +1,10 @@
 import type { StreamStatus } from "@durable-computer/client"
-import { type ChatMessage, type ChatState, EMPTY_CHAT } from "@durable-computer/protocol"
+import {
+  type ChatMessage,
+  type ChatState,
+  continuesMain,
+  EMPTY_CHAT,
+} from "@durable-computer/protocol"
 import { useCallback, useEffect, useState } from "react"
 import { useSession } from "./use-session.ts"
 
@@ -69,7 +74,11 @@ export function useEarlierMessages(agentId: string, chatId: string, state: ChatS
   return {
     messages: earlier.messages,
     loading: earlier.loading,
-    hasEarlier: earlier.before === undefined ? first?.role === "notice" : earlier.before !== null,
+    // A side chat that starts where it branched off the main chat has nothing of its own before that.
+    hasEarlier:
+      earlier.before === undefined
+        ? first?.role === "notice" && !continuesMain([first])
+        : earlier.before !== null,
     load,
   }
 }

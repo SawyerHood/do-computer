@@ -185,6 +185,12 @@ export type ChatRecord = {
   peer?: PeerRecord
   /** Present on a thread in Slack. */
   slack?: SlackRecord
+  /**
+   * Present on a side chat that branched off another chat: which one, and the last of its
+   * messages the side chat carries. What came before that is in the side chat's context and is
+   * not shown as its own.
+   */
+  fork?: { chatId: string; at: number }
 }
 
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */

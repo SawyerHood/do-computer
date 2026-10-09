@@ -216,7 +216,11 @@ function Message({
     }
     return (
       <Text tone="muted" size={13} style={{ textAlign: "center" }}>
-        {notice?.kind === "compaction" ? "Earlier messages were summarized" : "New context"}
+        {notice?.kind === "compaction"
+          ? "Earlier messages were summarized"
+          : notice?.kind === "branch"
+            ? "Continues from the main chat"
+            : "New context"}
       </Text>
     )
   }

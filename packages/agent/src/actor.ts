@@ -39,6 +39,7 @@ import type { Context } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
+import { estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate"
 import {
   AssistantEntry,
   type Conversation,
@@ -65,9 +66,16 @@ import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
-import { HistoryError, historyExtension, readHistory, searchHistory } from "./history.ts"
+import {
+  HistoryError,
+  historyExtension,
+  HistoryIndex,
+  readHistory,
+  searchHistory,
+} from "./history.ts"
+import { Journal, type ReviewOptions } from "./journal.ts"
 import { type JudgeOptions, KeepGoing } from "./keep-going.ts"
-import { Log } from "./log.ts"
+import { logExtension } from "./log.ts"
 import {
   type AgentComputer,
   type ComputerAnswer,
@@ -90,7 +98,7 @@ import { type SettingsChange, SettingsError, settingsExtension } from "./setting
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
-import { addUsage, projectChat } from "./project.ts"
+import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
@@ -109,6 +117,14 @@ const CHECK_TIMEOUT_MS = 60_000
 const SSE_HEARTBEAT_MS = 15_000
 const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
+/**
+ * The most of the main chat a side chat will carry, in tokens as estimated. Past it, a side chat
+ * starts empty.
+ */
+const MAX_BRANCH_TOKENS = 60_000
+/** What a side chat that branched off the main chat is told, once, where its own messages begin. */
+const BRANCH_NOTE =
+  '<meta kind="side-chat">This is a side chat. It branched off your main chat here: everything above was said in the main chat, and you carry it with you. What is said from here on is said in this side chat only, and the main chat goes on without it.</meta>'
 
 export type AgentActorOptions = {
   readonly models: Models
@@ -179,6 +195,11 @@ export type AgentActorOptions = {
    * agent meant to go on, and sets it going again if so. Absent: a run ends where the agent stops.
    */
   readonly judge?: JudgeOptions
+  /**
+   * Has a small model keep a note of where each chat stands, which the agent's other chats are
+   * shown. Absent: they are shown only the work the agent wrote up itself.
+   */
+  readonly review?: ReviewOptions
   /** Used to fetch skills the user installs from a URL. Default: the global `fetch`. */
   readonly fetch?: (url: string, init?: RequestInit) => Promise<Response>
   /**
@@ -323,7 +344,9 @@ const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
   identity.whenBusy ?? "steer"
 
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
-  const { subagent, peer, slack, ...chat } = record
+  // Where a side chat branched off is the agent's to know, not a client's. Left in, it would
+  // also be a part of the document still being written, which cannot be read once it is stored.
+  const { subagent, peer, slack, fork: _fork, ...chat } = record
   return {
     id,
     ...chat,
@@ -370,6 +393,8 @@ export class AgentActor implements Actor {
   readonly #approvals: Approvals
   readonly #secrets: Secrets
   readonly #keepGoing: KeepGoing
+  readonly #journal: Journal
+  readonly #history: HistoryIndex
   #harness: Promise<Harness> | undefined
   /** When the agent next wakes itself to keep live work going, while that is still to come. */
   #wake: number | undefined
@@ -487,6 +512,13 @@ export class AgentActor implements Actor {
             request.chatKind === "chat" || request.chatKind === "slack" ? request.chatId : null,
         }),
     })
+    this.#journal = new Journal({
+      review: options.review,
+      now: () => host.now(),
+      context,
+      onError: (error) => options.onReport?.(error),
+    })
+    this.#history = new HistoryIndex(host.sql, () => host.now())
     this.#keepGoing = new KeepGoing({
       judge: options.judge,
       chat: (chatId) => this.#chatState(chatId),
@@ -507,6 +539,10 @@ export class AgentActor implements Actor {
       onReport: (report) => {
         // A scheduled run that came to something is work done for someone, as an answer is.
         void this.#earnTreat()
+        // Its other chats are told what the latest run of each schedule came to.
+        void this.#journal
+          .record({ chatId: report.runChatId, title: report.title, outcome: report.text })
+          .catch((error) => options.onReport?.(error))
         void this.#notify({
           kind: "scheduled",
           heading: report.title,
@@ -810,16 +846,18 @@ export class AgentActor implements Actor {
         }),
       )
       registry.install(appGuide({ agentId: this.#host.name, appUrl: () => this.#appUrl() }))
-      registry.install(Log)
+      registry.install(logExtension(() => this.#host.now()))
       registry.install(this.#keepGoing.extension)
       if (this.#options.webSearch !== undefined) {
         registry.install(webSearchExtension(this.#options.webSearch))
       }
+      // What its other chats have been about, then the tool that reads them.
+      registry.install(this.#journal.extension)
       registry.install(
         historyExtension(() => {
           if (opened === undefined) throw new Error("The agent is not open yet")
           return opened
-        }),
+        }, this.#history),
       )
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       const harness = await Harness.open(
@@ -837,6 +875,7 @@ export class AgentActor implements Actor {
       this.#opened = harness
       this.#approvals.attach(harness)
       this.#keepGoing.attach(harness)
+      this.#journal.attach(harness)
       this.#computers.attach(harness)
       this.#scheduler.attach(harness)
       this.#subagents.attach(harness)
@@ -1312,6 +1351,7 @@ export class AgentActor implements Actor {
       return json(
         await searchHistory(
           harness,
+          this.#history,
           url.searchParams.get("q") ?? "",
           { limit: limit === null ? undefined : Number(limit) },
           context,
@@ -1424,7 +1464,9 @@ export class AgentActor implements Actor {
         }
         if (rest === "reset" && method === "POST") {
           // Starts the chat's context over. What was said stays readable as earlier messages,
-          // and what the agent remembers is unaffected.
+          // and what the agent remembers is unaffected. Where the chat stood is noted for its
+          // other chats first, from what is stored: the note does not hold the reset up.
+          void this.#journal.review(chatId)
           await conversation.reset(undefined, context)
           return json({ ok: true })
         }
@@ -1550,6 +1592,17 @@ export class AgentActor implements Actor {
           total.outputTokens += used.outputTokens
           total.cost += used.cost
         }
+      }
+    }
+    // So is what keeping its chats' notes cost.
+    const noted = await this.#journal.spent(context)
+    if (noted !== undefined && noted.spent.inputTokens + noted.spent.outputTokens > 0) {
+      const key = `openrouter/${noted.model}`
+      if (!models.has(key)) models.set(key, zero())
+      for (const total of [usage.total, models.get(key)!]) {
+        total.inputTokens += noted.spent.inputTokens
+        total.outputTokens += noted.spent.outputTokens
+        total.cost += noted.spent.cost
       }
     }
     usage.models = [...models]
@@ -1785,14 +1838,93 @@ export class AgentActor implements Actor {
     return summarize(id, record, main ? id : undefined)
   }
 
-  /** A chat beside the main one: a side chat. */
+  /**
+   * A chat beside the main one: a side chat. It branches off the main chat where it can, so the
+   * agent arrives knowing what was being talked about, and starts empty where it cannot.
+   */
   async #createChat(
     harness: Harness,
     identity: Readonly<IdentityState>,
     input: CreateChatRequest,
     caller: Caller | undefined,
   ): Promise<Response> {
-    return json(await this.#newChat(harness, identity, input.title, caller, false), 201)
+    const branched = await this.#branchChat(harness, identity, input.title, caller).catch(
+      (error) => {
+        // Not being able to branch must not cost the user their chat.
+        this.#options.onReport?.(error)
+        return undefined
+      },
+    )
+    return json(
+      branched ?? (await this.#newChat(harness, identity, input.title, caller, false)),
+      201,
+    )
+  }
+
+  /**
+   * A side chat that carries the main chat's context up to where the agent last came to rest
+   * there. Undefined where there is nothing to carry yet, or more than is worth carrying: a
+   * side chat that began nearly full would be slow and dear from its first message, and what
+   * the main chat is about still reaches it as that chat's note.
+   */
+  async #branchChat(
+    harness: Harness,
+    identity: Readonly<IdentityState>,
+    title: string | undefined,
+    caller: Caller | undefined,
+  ): Promise<ChatSummary | undefined> {
+    const mainId = (await harness.snapshot(ChatsDoc, context))?.main
+    if (mainId === undefined) return undefined
+    const main = await harness.conversation(Number(mainId) as ConversationId, context)
+    if (main === undefined) return undefined
+    const active = await main.context(context)
+    const at = branchPoint(active.entries)
+    if (at === undefined) return undefined
+    const carried = at === active.entries.at(-1)?.id ? active : await main.context(context, { at })
+    const tokens = carried.messages.reduce(
+      (sum, message) => sum + estimateMessageTokens(message),
+      0,
+    )
+    if (tokens > MAX_BRANCH_TOKENS) return undefined
+
+    const now = this.#host.now()
+    const record: ChatRecord = {
+      title: title?.trim().slice(0, MAX_TITLE_CHARS) || DEFAULT_CHAT_TITLE,
+      kind: "chat",
+      createdAt: now,
+      updatedAt: now,
+      archived: false,
+      ...(caller === undefined ? {} : { createdBy: caller.id }),
+      fork: { chatId: mainId, at: Number(at) },
+    }
+    const conversation = await main.fork(
+      at,
+      {
+        ownership: { kind: "ownerless" },
+        agent: {
+          model: parseModel(identity.model),
+          thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
+        },
+        init: async (tx, id) => {
+          ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
+        },
+      },
+      context,
+    )
+    const id = String(conversation.id)
+    // Tells the agent where it is, and marks in the chat where its own messages begin.
+    await conversation.submit(
+      {
+        type: "write",
+        requestId: `branch:${id}`,
+        entry: {
+          kind: BRANCH_ENTRY,
+          model: [{ role: "user", content: BRANCH_NOTE, timestamp: now }],
+        },
+      },
+      context,
+    )
+    return summarize(id, record, undefined)
   }
 
   /**

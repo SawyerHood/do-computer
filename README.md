@@ -79,6 +79,7 @@ runs the tests and nothing else.
 | `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                                                 |
 | `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                                               |
 | `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`.                     |
+| `DC_REVIEW_MODEL`                          | OpenRouter model that notes where each chat stands, for the agent's other chats. Default: the model that reads web search results.                                |
 | `DC_SANDBOX`                               | The kind of machine a workspace is given: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                         |
 | `DC_SANDBOX_KINDS`                         | The kinds of machine on offer, comma-separated. Default: every kind that has what it needs.                                                                       |
 | `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                                         |
@@ -194,9 +195,11 @@ answering or someone stops the conversation.
 ## What an agent can do
 
 - **Chat.** Choosing an agent opens its main chat, one conversation that carries on. Anything
-  else goes in a side chat, from the button on the agent's strip: its own conversation, with the
-  same memory, open beside the main chat on a wide screen. A reply keeps being written when you
-  close the tab, and is there when you come back. It can search what was said in its other chats.
+  else goes in a side chat, from the button on the agent's strip: its own conversation, which
+  picks up from the main chat, open beside it on a wide screen. A reply keeps being written when
+  you close the tab, and is there when you come back. Every chat, a Slack thread included, is
+  told where the agent's other chats stand and what was finished in them, and it can search and
+  read what was said there.
 - **Be someone.** It names itself in its first conversation, picks its color, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable in
   its settings. They are kept with the agent and on no computer.

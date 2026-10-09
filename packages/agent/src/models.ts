@@ -8,6 +8,7 @@ import {
 import type { CredentialStore } from "@earendil-works/pi-ai"
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import type { ModelRef } from "@earendil-works/pi-durable"
+import type { ReviewOptions } from "./journal.ts"
 import type { JudgeOptions } from "./keep-going.ts"
 import { modelOption, modelProviders } from "./model-providers.ts"
 import type { WebSearchOptions } from "./web-search.ts"
@@ -52,6 +53,8 @@ export type AgentModels = {
   readonly webSearch?: WebSearchOptions
   /** What judging whether an agent meant to stop needs. Absent without a model key. */
   readonly judge?: JudgeOptions
+  /** What keeping a note of where each chat stands needs. Absent without a model key. */
+  readonly review?: ReviewOptions
 }
 
 export type AgentModelsConfig = {
@@ -63,6 +66,8 @@ export type AgentModelsConfig = {
   readonly searchModel?: string
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
   readonly judgeModel?: string
+  /** OpenRouter model id that notes where each chat stands. Default: the one that reads searches. */
+  readonly reviewModel?: string
 }
 
 /** `provider/modelId` to a pi-durable model reference. The provider is the first path segment. */
@@ -200,19 +205,17 @@ export function createAgentModels(
     throw new Error(`None of the configured OpenRouter models exist in the model catalog`)
   }
   const defaultModel = catalog.has(preferred) ? `openrouter/${preferred}` : options[0]!.id
+  // Reading a stretch of text and saying what it comes to: the same work for a search and a note.
+  const reader = catalog.has(DEFAULT_SEARCH_MODEL)
+    ? DEFAULT_SEARCH_MODEL
+    : defaultModel.slice("openrouter/".length)
   return {
     models,
     defaultModel,
     options,
-    webSearch: {
-      apiKey: key,
-      model:
-        config.searchModel ??
-        (catalog.has(DEFAULT_SEARCH_MODEL)
-          ? DEFAULT_SEARCH_MODEL
-          : defaultModel.slice("openrouter/".length)),
-    },
+    webSearch: { apiKey: key, model: config.searchModel ?? reader },
     // Asked for by its OpenRouter id, so it need not be a model an agent could run on.
     judge: { apiKey: key, model: config.judgeModel ?? DEFAULT_JUDGE_MODEL },
+    review: { apiKey: key, model: config.reviewModel ?? reader },
   }
 }

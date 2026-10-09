@@ -310,7 +310,7 @@ describe("agent actor", () => {
     const chat = await setup(world)
     world.faux.setResponses([
       fauxAssistantMessage(
-        [fauxToolCall("memory", { action: "add", target: "user", content: "x".repeat(1400) })],
+        [fauxToolCall("memory", { action: "add", target: "user", content: "x".repeat(4100) })],
         { stopReason: "toolUse" },
       ),
       fauxAssistantMessage("Too long."),

@@ -389,7 +389,7 @@ Since then, newest last:
       cannot be archived (409); "Start fresh" is how it is cleared.
     - **Side chats** are the other chats of kind `chat`. `POST /chats` makes one, as it always
       made a chat. Nothing about how they run differs from the main chat: same agent, same
-      memory, their own conversation.
+      memory, their own conversation. Since item 29 one begins with the main chat's context.
     - **In the app** the sidebar's rows are links to `/a/<agent>`, which goes to the main chat.
       The agent's strip has a "Side chats" button with their number, whose menu lists them and
       starts a new one (`components/shell/side-chats.tsx`). Opened from the main chat on a wide
@@ -967,6 +967,54 @@ Since then, newest last:
     - **Mine, not the owner's:** that a sign-in belongs to a workspace and not to a person or
       to one agent; who may sign out; that leaving takes a sign-in along; the three providers
       left out; the models suggested first for each provider.
+
+29. **Chats that know about each other** (2026-10-09; `packages/agent/src/journal.ts`,
+    `history.ts`, `persona.ts`). The owner noticed that "different threads can kind of lose
+    context for the same agent", asked what OpenClaw and Hermes Agent do (both were cloned and
+    read), and said of five recommendations "lets try all of these". Until then a chat was given
+    the agent's two stores of notes and nothing else, the notes were written only when the model
+    thought to, and the `history` tool walked whole transcripts and gave up after 10,000 entries.
+    - **What the other chats have been about** is a section of the prompt, `recent`, in every
+      chat but a sub-agent's, Slack threads included (the owner was asked, and said they should
+      see it). It is read from one document, `dc.journal`: for each chat a note of where it
+      stands, and a list of finished work. It shows the six most recent notes and the ten most
+      recent pieces of work from the other chats, each with its chat's id, so the agent can read
+      the chat with `history`. pi-durable sends a section again only when it changed, so it
+      costs a request little.
+    - **Finished work** is what the agent writes up with the `log` tool, which now also adds to
+      the journal, and what a scheduled run reported. A schedule keeps one entry, its latest.
+    - **Where a chat stands** is written by a small model (`DC_REVIEW_MODEL`; default: the one
+      that reads web searches) each time the agent comes to rest in a chat, before a compaction,
+      and before "Start fresh". It is given the note as it stands, what is remembered, and what
+      was said since, and rewrites the note in at most 60 words. It is never waited for, and a
+      failed one is made up the next time, from the same place. The same answer may add one
+      lasting fact to each store of notes, where it was said in one of the app's own chats and
+      not saved. It only adds: what the agent keeps is never removed or rewritten for it. What
+      it costs is in the agent's usage. With no OpenRouter key on the deployment there is no
+      small model, and the other chats are shown the finished work only.
+    - **A side chat branches off the main chat** (`#branchChat` in `actor.ts`). It is a
+      pi-durable fork at the main chat's last entry, or at the agent's last finished answer
+      while it is working there, so the agent arrives with the main chat in front of it. Its
+      chat record has `fork: { chatId, at }`. What it carries is not shown as its own: the
+      transcript, the earlier pages and the search begin after `at`, at a `dc.branch` entry
+      shown as "Continues from the main chat". Past 60,000 tokens of main chat, estimated, or
+      with nothing answered there yet, a side chat starts empty as it did before.
+    - **Searching** reads a table, `dc_history` in the agent's own database, holding the words of
+      every message and nothing else. It is filled when a search is made, from where it left
+      off in each chat, 10,000 entries at a time, so an agent's whole past is reachable and a
+      first search of a long one says it is not complete yet. Matching is as it was (every
+      word, else the messages with the most of the telling ones). For the agent, sub-agents'
+      chats are left out and scheduled runs' matches come last; the app's own search has both.
+      The tool gained `list`: the twenty most recent chats, each with its note.
+    - **The notes are larger:** 6,000 characters of the agent's own and 4,000 about its people,
+      up from 2,200 and 1,375. Each store is shown with how full it is.
+    - **Mine, not the owner's:** every number above; that the small model writes notes after
+      every answer and not every few; that it may add to the notes at all, and only from the
+      app's own chats; that sub-agents and scheduled runs get no note; that a side chat always
+      branches where it can, with no way to ask for an empty one but "Start fresh" in it; that
+      nothing in the main chat marks that a side chat left it.
+    - **Never run:** the note-writing against a real model in Slack or in a team; anything of
+      this on a deployed Worker; the native app showing a branched side chat.
 
 ## 6. What the owner has said they want
 

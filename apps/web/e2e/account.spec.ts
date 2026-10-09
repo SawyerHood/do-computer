@@ -65,14 +65,20 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
 
   // The main chat stays where it is, and the side chat is in a column of its own beside it.
   const beside = page.getByRole("complementary", { name: /^Side chat:/ })
-  await expect(beside.getByText(/A side chat keeps its own conversation/)).toBeVisible()
+  // It continues from the main chat, which the agent carries into it and which is not shown in it.
+  await expect(beside.getByText(/picks up from the main chat, which stays as it was/)).toBeVisible()
+  await expect(beside.getByText("Continues from the main chat")).toHaveCount(0)
   await expect(page).toHaveURL(new RegExp(`${new URL(main).pathname}\\?side=\\d+$`))
   await expect(page.getByText("You said: What can you do?")).toBeVisible()
   await beside.getByRole("textbox", { name: "Message" }).fill("second chat here")
   await page.keyboard.press("Enter")
   await expect(beside.getByText("You said: second chat here")).toBeVisible()
   await expect(beside.getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(beside.getByText("Continues from the main chat")).toBeVisible()
+  // What came before that is the main chat's, and is not offered here.
+  await expect(beside.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
   await expect(beside.getByRole("heading", { name: "second chat here" })).toBeVisible()
+  await page.screenshot({ path: process.env.DC_SIDE_CHAT_SHOT ?? "/dev/null" }).catch(() => {})
 
   // It is still beside the main chat after a reload, and it is listed in the agent's side chats.
   await page.reload()
@@ -105,8 +111,8 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
 test("memory over its limit cannot be saved", async ({ page }) => {
   await signIn(page)
   await openSettings(page, "Identity")
-  await page.locator("#user").fill("x".repeat(1400))
-  await expect(page.getByText("1400 / 1375")).toBeVisible()
+  await page.locator("#user").fill("x".repeat(4100))
+  await expect(page.getByText("4100 / 4000")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled()
 })
 

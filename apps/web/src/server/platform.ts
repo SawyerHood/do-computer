@@ -14,6 +14,8 @@ export type Config = {
   readonly searchModel: string | undefined
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
   readonly judgeModel: string | undefined
+  /** OpenRouter model id that notes where each chat stands. Default: the one that reads searches. */
+  readonly reviewModel: string | undefined
   readonly googleClientId: string | undefined
   readonly googleClientSecret: string | undefined
   readonly githubClientId: string | undefined
@@ -120,6 +122,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     defaultModel: optional("DC_DEFAULT_MODEL"),
     searchModel: optional("DC_SEARCH_MODEL"),
     judgeModel: optional("DC_JUDGE_MODEL"),
+    reviewModel: optional("DC_REVIEW_MODEL"),
     googleClientId: optional("GOOGLE_CLIENT_ID"),
     googleClientSecret: optional("GOOGLE_CLIENT_SECRET"),
     githubClientId: optional("GITHUB_CLIENT_ID"),
