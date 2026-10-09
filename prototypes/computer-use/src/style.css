@@ -1,0 +1,199 @@
+/* ---------- Screen and browser mock-up: added to the two mock-ups' styles above ---------- */
+
+.k{font-size:12px;color:var(--muted-foreground)}
+.bad{color:var(--destructive)}
+[data-clock]{white-space:nowrap}
+
+/* A screen: a pretend one, drawn 1280 by 800 and shrunk to the room it has. The agent's pointer
+   is drawn over it at the size it is read at, not shrunk with it. */
+.scr{position:relative;display:block;width:100%;aspect-ratio:1280/800;overflow:hidden;background:#20333b;--k:.4}
+.scr .stage{position:absolute;left:0;top:0;width:1280px;height:800px;transform-origin:0 0;transform:scale(var(--k));font-family:Inter,system-ui,sans-serif;font-size:13px;line-height:1.4;color:#1c2024;text-align:left;pointer-events:none;user-select:none}
+.scr .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:8}
+.scr.look .flash{animation:flash .45s ease-out}
+@keyframes flash{from{opacity:.35}to{opacity:0}}
+
+/* The agent's pointer: its colour and its name. */
+.aptr{position:absolute;left:0;top:0;z-index:9;--c:#5f8a4e;transform:translate(calc(var(--x)*var(--k)*1px),calc(var(--y)*var(--k)*1px));transition:transform .7s cubic-bezier(.3,.1,.2,1),opacity .2s;pointer-events:none}
+.aptr svg.arrow{display:block;filter:drop-shadow(0 1px 2px rgb(0 0 0/.5))}
+.aptr .tag{position:absolute;left:13px;top:15px;background:var(--c);color:#fff;font:600 11px/1.5 Inter,system-ui,sans-serif;border-radius:4px 99px 99px 99px;padding:0 7px;white-space:nowrap;box-shadow:0 1px 3px rgb(0 0 0/.35)}
+.aptr .rider{position:absolute;left:10px;top:12px;width:30px;height:30px;filter:drop-shadow(0 2px 3px rgb(0 0 0/.4));animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-2px)}}
+.aptr .rip{position:absolute;left:-15px;top:-15px;width:30px;height:30px;border-radius:99px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 25%,transparent);opacity:0}
+.aptr.click .rip{animation:rip .5s ease-out}
+@keyframes rip{from{transform:scale(.2);opacity:1}to{transform:scale(1.6);opacity:0}}
+.aptr.wait{opacity:.55}
+.scr.sm .aptr{zoom:.8}
+.scr.xs .aptr{zoom:.55}
+.scr.xs .aptr .tag,.scr.xs .aptr .rider{display:none}
+.scr.big .aptr{zoom:1.35}
+/* Your own pointer, when you have taken the computer back. */
+.mine-ptr{position:absolute;left:0;top:0;z-index:9;transform:translate(calc(var(--x)*var(--k)*1px),calc(var(--y)*var(--k)*1px));filter:drop-shadow(0 1px 2px rgb(0 0 0/.5))}
+
+/* The pretend desktop. */
+.st-desk{position:absolute;inset:0;background:radial-gradient(120% 90% at 20% 0%,#3d7f86 0%,#24505c 45%,#162a35 100%)}
+.mbar{position:absolute;left:0;right:0;top:0;height:28px;background:rgb(255 255 255/.72);display:flex;align-items:center;gap:18px;padding:0 14px;font-size:13px}
+.mbar b{font-weight:600}.mbar .sp{flex:1}
+.dock{position:absolute;left:454px;bottom:10px;height:64px;padding:8px 12px;display:flex;gap:12px;border-radius:18px;background:rgb(255 255 255/.3);border:1px solid rgb(255 255 255/.35)}
+.dock i{width:48px;height:48px;border-radius:12px;background:var(--c);display:grid;place-items:center;color:#fff;font:700 20px/1 Inter,sans-serif;font-style:normal;box-shadow:0 2px 6px rgb(0 0 0/.25)}
+.dock i.run::after{content:"";position:absolute;margin-top:60px;width:4px;height:4px;border-radius:9px;background:#fff}
+.w{position:absolute;border-radius:12px;background:#fff;box-shadow:0 18px 50px rgb(0 0 0/.4),0 0 0 1px rgb(0 0 0/.14);overflow:hidden;display:flex;flex-direction:column}
+.w.behind{filter:brightness(.94)}
+.wt{height:36px;flex:none;background:#eceef0;border-bottom:1px solid #d9dcdf;display:flex;align-items:center;gap:7px;padding:0 13px;font-weight:600;font-size:13px}
+.wt i{width:12px;height:12px;border-radius:99px;background:#ff5f57}.wt i+i{background:#febc2e}.wt i+i+i{background:#28c840}
+.wt span{flex:1;text-align:center;margin-right:50px;color:#4a5157}
+.mailb{flex:1;display:flex;min-height:0}
+.ml{width:220px;flex:none;border-right:1px solid #e3e5e8;background:#f7f8f9}
+.mrow{height:64px;padding:10px 14px;border-bottom:1px solid #e9ebed;display:grid;grid-template-columns:1fr auto;column-gap:8px}
+.mrow b{font-weight:600}.mrow span{color:#7a838a;font-size:12px}.mrow div{grid-column:1/3;color:#5c656c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow.on{background:#2f7f86;color:#fff}.mrow.on span,.mrow.on div{color:rgb(255 255 255/.85)}
+.mv{flex:1;padding:22px 26px;min-width:0}
+.mv h4{margin:0;font-size:19px;font-weight:600}
+.mv .from{color:#7a838a;font-size:12.5px;margin:2px 0 16px}
+.mv p{margin:0 0 12px}
+.mv .none{color:#9aa2a8;text-align:center;margin-top:170px}
+.inv{border:1px solid #dfe2e5;border-radius:10px;padding:14px 16px;background:#fbfbfc}
+.inv table{width:100%;border-collapse:collapse;margin-top:8px}
+.inv td{padding:6px 0;border-top:1px solid #e9ebed}.inv td+td{text-align:right;font-variant-numeric:tabular-nums}
+.inv tr:last-child td{font-weight:700}
+.tb{height:40px;flex:none;border-bottom:1px solid #e3e5e8;display:flex;align-items:center;gap:14px;padding:0 14px;color:#6b747b;font-size:12.5px}
+.tb .sv{margin-left:auto;color:#2f7f86;font-weight:600}
+.grid{display:grid;grid-template-columns:40px 220px 180px 180px;grid-auto-rows:34px;font-variant-numeric:tabular-nums}
+.grid>div{border-right:1px solid #e3e5e8;border-bottom:1px solid #e3e5e8;padding:0 12px;display:flex;align-items:center}
+.grid .h{background:#f1f3f4;font-weight:600;color:#4a5157;font-size:12px}
+.grid .n{background:#f1f3f4;color:#8a9298;justify-content:center;padding:0;font-size:12px}
+.grid .r{justify-content:flex-end}
+.grid .sel{box-shadow:inset 0 0 0 2px #2f7f86;background:#eef7f7}
+.grid .tot{font-weight:700;background:#f7f8f9}
+.caret{display:inline-block;width:1.5px;height:16px;background:#2f7f86;margin-left:1px;animation:pulse 1s steps(2) infinite}
+
+/* The pretend page a browser is on. Only the page is ever seen: its address is told beside it. */
+.st-web{position:absolute;inset:0;background:#fbfaf7;color:#1e2a2c}
+.st-web.blank{background:#fff}
+.wnavb{position:absolute;left:0;right:0;top:0;height:64px;border-bottom:1px solid #e8e5dd;display:flex;align-items:center;gap:28px;padding:0 56px;font-size:15px}
+.wnavb b{font-size:19px;font-weight:700;letter-spacing:-.02em;margin-right:auto;color:#1f6f77}
+.wnavb .cta{background:#1f6f77;color:#fff;border-radius:99px;padding:8px 18px;font-weight:600}
+.st-web h1{position:absolute;left:0;right:0;top:108px;text-align:center;font-size:44px;font-weight:700;letter-spacing:-.03em;margin:0}
+.st-web .lede{position:absolute;left:0;right:0;top:172px;text-align:center;font-size:17px;color:#5e6b6d}
+.seg{position:absolute;left:530px;top:228px;width:220px;height:44px;border-radius:99px;background:#ebe8e0;display:flex;padding:4px;font-size:14.5px;font-weight:600}
+.seg span{flex:1;border-radius:99px;display:grid;place-items:center;color:#5e6b6d}
+.seg span.on{background:#fff;color:#1e2a2c;box-shadow:0 1px 3px rgb(0 0 0/.15)}
+.plan{position:absolute;top:310px;width:300px;height:300px;border:1px solid #e3dfd5;border-radius:18px;background:#fff;padding:24px}
+.plan.hot{border-color:#1f6f77;box-shadow:0 0 0 1px #1f6f77,0 14px 40px rgb(31 111 119/.16)}
+.plan h3{margin:0;font-size:17px;font-weight:600}
+.plan .pr{font-size:40px;font-weight:700;letter-spacing:-.03em;margin:10px 0 0}
+.plan .pr small{font-size:14px;font-weight:500;color:#5e6b6d;letter-spacing:0}
+.plan .sv{font-size:13px;color:#1f6f77;font-weight:600;height:20px}
+.plan p{margin:10px 0 0;color:#5e6b6d;font-size:14px}
+.plan .go{position:absolute;left:24px;right:24px;bottom:24px;height:44px;border-radius:12px;display:grid;place-items:center;font-weight:600;font-size:15px;border:1px solid #cfcabd}
+.plan.hot .go{background:#1f6f77;color:#fff;border-color:transparent}
+.form{position:absolute;left:430px;top:196px;width:420px;height:330px;border:1px solid #e3dfd5;border-radius:18px;background:#fff}
+.form h2{position:absolute;left:28px;top:26px;margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.form .s{position:absolute;left:28px;top:64px;color:#5e6b6d;font-size:14.5px}
+.form label{margin:0;position:absolute;left:28px;top:128px;font-weight:600;font-size:13.5px}
+.form .in{position:absolute;left:28px;right:28px;top:154px;height:44px;border-radius:10px;border:1px solid #cfcabd;padding:0 12px;display:flex;align-items:center;font-size:15px}
+.form .in.f{border-color:#1f6f77;box-shadow:0 0 0 3px rgb(31 111 119/.2)}
+.form .go{position:absolute;left:28px;right:28px;top:218px;height:44px;border-radius:10px;background:#1f6f77;color:#fff;display:grid;place-items:center;font-weight:600;font-size:15px}
+.form .fine{position:absolute;left:28px;right:28px;top:280px;color:#8a9496;font-size:12.5px;text-align:center}
+.sent{position:absolute;left:0;right:0;top:250px;text-align:center}
+.sent .tick{width:64px;height:64px;border-radius:99px;background:#1f6f77;color:#fff;display:inline-grid;place-items:center;font-size:32px}
+.sent h2{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:18px 0 6px}
+.sent p{color:#5e6b6d;font-size:16px;margin:0}
+
+/* The little window in the chat, where the agent is using a screen or a browser. */
+.view{width:520px;max-width:100%;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden}
+.view .vh{display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 12px;font-size:13px}
+.view .vh b{font-weight:500}
+.view .vh .ib{width:28px;height:28px}
+.view .vs{display:block;width:100%;border-block:1px solid var(--border);cursor:zoom-in;position:relative}
+.view .vf{display:flex;align-items:center;gap:8px;min-height:36px;padding:6px 8px 6px 12px;font-size:13px;color:var(--muted-foreground)}
+.view .vf .btn{margin-left:auto}
+.view.held .scr{filter:saturate(.5) brightness(.8)}
+.held-tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;background:rgb(0 0 0/.72);color:#fff;border-radius:99px;padding:6px 14px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.url{font-family:var(--mono);font-size:11.5px}
+
+/* Word that it ended, and what it did: the pictures it took, one to a step. */
+.word{border-left:2px solid var(--border);padding:2px 0 2px 12px;font-size:14px;color:var(--muted-foreground)}
+.word .l{display:flex;align-items:flex-start;gap:8px}
+.word .l>span:first-child{flex:none;display:grid;height:1.5em;align-content:center}
+.word b{color:var(--foreground);font-weight:500}
+.word .more{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 8px;margin:4px 0 0 -8px;border-radius:8px;font-size:13.5px;color:var(--muted-foreground)}
+.word .more:hover{background:var(--accent)}
+.word .more .ic{transition:transform .15s}
+.word .more.open .ic{transform:rotate(90deg)}
+.film{margin-top:8px;width:520px;max-width:100%;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden}
+.film .cap{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:13px;border-top:1px solid var(--border)}
+.film .cap b{font-weight:500;color:var(--foreground)}
+.film .row{display:flex;gap:6px;padding:0 10px 10px;overflow-x:auto}
+.film .th{flex:none;width:76px;border-radius:6px;overflow:hidden;border:1px solid var(--border);opacity:.65}
+.film .th:hover{opacity:1}
+.film .th.on{opacity:1;box-shadow:0 0 0 2px var(--primary)}
+
+/* Opened large. */
+.dlg.big{width:1120px;max-width:calc(100% - 40px);padding:0;display:flex;overflow:hidden;position:relative}
+.big .bs{flex:1;min-width:0;background:#000;display:grid;align-items:center}
+.big .bl{width:272px;flex:none;border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.big .bh{padding:14px 44px 12px 16px;border-bottom:1px solid var(--border)}
+.big .bh b{font-weight:600;font-size:15px;display:block}
+.big .steps{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:1px;max-height:520px}
+.step{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:9px;font-size:13.5px;color:var(--muted-foreground)}
+.step.now{color:var(--foreground);background:var(--surface)}
+.step.todo{display:none}
+.step .mk{width:14px;display:grid;place-items:center;flex:none}
+.big .bf{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border)}
+.big .bf .btn{flex:1}
+.big .x{position:absolute;top:10px;right:10px}
+
+/* In the agent's panel. */
+.job{display:flex;gap:10px;padding:7px 8px 7px 10px;border-radius:12px;align-items:center;width:100%;cursor:pointer}
+.job:hover{background:var(--surface)}
+.job .t{font-size:13.5px}
+.job .s{font-size:12px;color:var(--muted-foreground);margin-top:1px}
+.job .mini{width:64px;flex:none;border-radius:6px;overflow:hidden;border:1px solid var(--border)}
+.send.halt{background:var(--foreground);color:var(--background)}
+
+/* On the computer itself: what the Do Computer app draws over everything else. */
+.yours{flex:1;min-width:0;display:grid;place-items:center;background:var(--rail);padding:20px}
+.mon{position:relative;width:min(100%,calc((100vh - 78px - 40px)*1.6));border-radius:14px;overflow:hidden;box-shadow:0 24px 70px rgb(0 0 0/.45),0 0 0 1px var(--input)}
+.mon .glow{position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 3px #5f8a4e,inset 0 0 38px rgb(95 138 78/.55);pointer-events:none;z-index:10;animation:glow 2.4s ease-in-out infinite}
+@keyframes glow{50%{opacity:.55}}
+.mon.held .glow{box-shadow:inset 0 0 0 3px oklch(0.75 0.15 75),inset 0 0 30px oklch(0.75 0.15 75/.4);animation:none}
+.ypill{position:absolute;left:50%;top:44px;transform:translateX(-50%);z-index:11;display:flex;align-items:center;gap:10px;height:44px;padding:0 8px 0 10px;border-radius:99px;background:rgb(22 26 29/.86);color:#f1f3f4;backdrop-filter:blur(14px);box-shadow:0 10px 34px rgb(0 0 0/.4),0 0 0 1px rgb(255 255 255/.12);font-size:13.5px;white-space:nowrap}
+.ypill b{font-weight:600}
+.ypill .k{color:rgb(255 255 255/.62);font-size:13px;min-width:190px}
+.ypill .btn{border-color:rgb(255 255 255/.22);color:#fff;border-radius:99px}
+.ypill .btn:hover{background:rgb(255 255 255/.12)}
+.ypill kbd{font:500 11px/1 var(--mono);border:1px solid rgb(255 255 255/.25);border-radius:5px;padding:2px 5px;color:rgb(255 255 255/.7)}
+
+/* Allowing it. */
+.allow{flex:1;min-width:0;overflow:auto;display:flex;gap:36px;justify-content:safe center;align-items:flex-start;padding:36px 28px}
+.allow figure{margin:0;flex:none}
+.allow figcaption{font-size:12.5px;color:var(--muted-foreground);margin-bottom:10px}
+.allow figcaption b{display:block;color:var(--foreground);font-weight:600;font-size:13.5px}
+.appw{width:520px;border:1px solid var(--input);border-radius:14px;overflow:hidden;background:var(--background);box-shadow:0 20px 50px rgb(0 0 0/.3)}
+.appw .wt{background:var(--rail);border-color:var(--border)}
+.appw .wt span{color:var(--muted-foreground)}
+.appw main{padding:26px 30px 28px;display:flex;flex-direction:column;gap:16px}
+.appw h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.appw h2{font-size:12px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);margin:6px 0 -6px}
+.appw .cardy{border:1px solid var(--border);border-radius:14px}
+.appw .rw{display:flex;gap:12px;align-items:flex-start;padding:13px 14px}
+.appw .rw+.rw{border-top:1px solid var(--border)}
+.appw .rw .n{font-weight:500}
+.appw .rw .d{font-size:12.5px;color:var(--muted-foreground);margin-top:1px}
+.appw .dot{width:9px;height:9px;border-radius:99px;background:var(--here);margin-top:6px;flex:none}
+.perm{margin:9px 0 0;display:flex;flex-direction:column;gap:6px}
+.perm div{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.perm .ok{color:var(--here)}
+.sidechatty{width:420px;border:1px solid var(--border);border-radius:14px;background:var(--background);padding:18px;display:flex;flex-direction:column;gap:14px}
+.sidechatty .bub,.sidechatty .prose{font-size:14px}
+.ask{max-width:none}
+
+.acol .chat{min-height:0}
+.acol .foot{flex:none}
+.phone .view,.phone .film{border-radius:12px}
+.phone .view .vh{font-size:12px;padding-left:10px}
+.phone .view .vf{font-size:12px}
+.phone .word{font-size:13px}
+.phone .tool{font-size:12.5px}
+.phone .steps{padding:4px 2px}
+.phone .step{font-size:12.5px;padding:4px 6px}
