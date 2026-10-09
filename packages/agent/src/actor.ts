@@ -1,4 +1,5 @@
 import {
+  avatarLook,
   type AddConnectorRequest,
   type AgentEvent,
   type AgentSummary,
@@ -89,7 +90,7 @@ import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
 import { mergeModelOptions } from "./model-providers.ts"
-import { parseModel } from "./models.ts"
+import { ECHO_MODEL, parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { type CheckResult, ScheduleError, Scheduler } from "./schedules.ts"
@@ -100,6 +101,7 @@ import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
+import { UseError, Uses } from "./uses.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 import { isInherited, own } from "./own.ts"
@@ -387,6 +389,7 @@ export class AgentActor implements Actor {
   readonly #scheduler: Scheduler
   readonly #subagents: Subagents
   readonly #jobs: Jobs
+  readonly #uses: Uses
   readonly #peers: Peers | undefined
   readonly #slack: SlackChats | undefined
   readonly #skills: Skills
@@ -467,10 +470,28 @@ export class AgentActor implements Actor {
       },
       onError: (error) => options.onReport?.(error),
     })
+    this.#uses = new Uses({
+      agentId: host.name,
+      blobs: host.blobs,
+      agent: async () => {
+        const identity = await this.#identity(await this.#open())
+        return {
+          id: host.name,
+          name: identity.name ?? "Your agent",
+          color: avatarLook(identity.avatar, host.name).color,
+        }
+      },
+      // The built-in echo sees nothing and decides nothing: a screen can be tried with it.
+      sees: async () => {
+        const { model } = await this.#identity(await this.#open())
+        return model === ECHO_MODEL || this.#sees(model)
+      },
+      computer: (id, c) => this.#computers.resolve(id, c),
+    })
     this.#computers = new Computers({
       links: options.computerLinks,
       machine: (kind, key) => this.#choices.create(kind, key, host),
-      extraTools: [this.#library.sendFileTool, this.#library.libraryTool],
+      extraTools: [this.#library.sendFileTool, this.#library.libraryTool, ...this.#uses.tools],
       // Loading a skill copies its files to where the agent is working, if it is anywhere.
       optionalTools: [this.#skills.tool],
       ...(options.computerDirectory === undefined
@@ -818,6 +839,7 @@ export class AgentActor implements Actor {
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
       registry.install(this.#jobs.extension)
+      registry.install(this.#uses.extension)
       if (this.#peers !== undefined) registry.install(this.#peers.extension)
       if (this.#slack !== undefined) registry.install(this.#slack.extension)
       registry.install(this.#skills.extension)
@@ -1073,6 +1095,7 @@ export class AgentActor implements Actor {
         error instanceof ScheduleError ||
         error instanceof SubagentError ||
         error instanceof JobError ||
+        error instanceof UseError ||
         error instanceof PeerError ||
         error instanceof SlackError ||
         error instanceof SkillError ||
@@ -1377,6 +1400,32 @@ export class AgentActor implements Actor {
       if (scheduleId !== undefined && segments[2] === "run" && method === "POST") {
         await this.#scheduler.runNow(scheduleId, context)
         return json({ ok: true }, 202)
+      }
+    }
+    if (segments[0] === "shots" && segments[1] !== undefined && method === "GET") {
+      const shot = await this.#uses.shot(segments[1])
+      if (shot === undefined) throw new HttpError(404, "There is no such picture")
+      // A picture never changes once it is kept, and is the owner's screen: theirs to cache.
+      return new Response(shot.bytes.slice().buffer, {
+        headers: {
+          "content-type": shot.contentType,
+          "cache-control": "private, max-age=31536000, immutable",
+        },
+      })
+    }
+    if (segments[0] === "use") {
+      const what = url.searchParams.get("what") === "browser" ? "browser" : "screen"
+      const computer = url.searchParams.get("computer") ?? ""
+      if (segments[1] === "view" && method === "GET") {
+        const after = Number(url.searchParams.get("after") ?? "0")
+        return json(
+          await this.#uses.view(computer, what, Number.isFinite(after) ? after : 0, context),
+        )
+      }
+      if (segments[1] === "hold" && method === "POST") {
+        const { held } = await body<{ held?: boolean }>(request)
+        await this.#uses.hold(computer, what, held === true, context)
+        return json({ ok: true })
       }
     }
     if (segments[0] === "jobs") {

@@ -237,3 +237,60 @@ main.centered {
   justify-content: center;
   text-align: center;
 }
+
+/* What agents can use here: a name and what it means, with a switch at the end of the line. */
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.switch-row > .grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 1px 0 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: translate 0.15s;
+}
+.switch:checked {
+  background: var(--teal);
+}
+.switch:checked::after {
+  translate: 14px 0;
+}
+.switch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.switch:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+.perms {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

@@ -2,7 +2,14 @@ import { type ChildProcess, execFile, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
-import { parseEvent } from "@durable-computer/daemon/events"
+import {
+  type AppAnswer,
+  type AppCall,
+  BROWSER_ENV,
+  parseCall,
+  parseEvent,
+  SCREEN_ENV,
+} from "@durable-computer/daemon/events"
 import { after, type Sharing } from "./status.ts"
 
 /** How many lines of what the daemon said are kept to show. */
@@ -50,6 +57,13 @@ export type RunnerOptions = {
   readonly onChange: () => void
   /** The computer was removed in the app, so the owner no longer shares it. */
   readonly onRevoked: () => void
+  /**
+   * What agents may use here besides files and commands, asked each time the daemon starts:
+   * the daemon tells the server what it can do once, as it connects.
+   */
+  readonly abilities?: () => { screen: boolean; browser: boolean }
+  /** Something the daemon asks of the app: to use the screen, which only the app can. */
+  readonly onCall?: (call: AppCall) => Promise<AppAnswer>
 }
 
 /**
@@ -101,6 +115,14 @@ export class DaemonRunner {
     })
   }
 
+  /** Start the daemon again as it was started, if it is meant to be running: with what agents may use now. */
+  async restart(): Promise<void> {
+    const wanted = this.#wanted
+    if (wanted === undefined) return
+    await this.stop()
+    this.start(wanted.server, wanted.readOnly)
+  }
+
   /** Forget this computer's credentials, so that sharing it again pairs it anew. */
   async forget(): Promise<void> {
     await this.stop()
@@ -115,11 +137,14 @@ export class DaemonRunner {
   }
 
   #env(): NodeJS.ProcessEnv {
+    const abilities = this.#options.abilities?.()
     return {
       ...this.#options.env(),
       ELECTRON_RUN_AS_NODE: "1",
       DC_DAEMON_DIR: this.#options.dir,
       DC_DAEMON_EMBEDDED: "1",
+      ...(abilities?.screen === true ? { [SCREEN_ENV]: "1" } : {}),
+      ...(abilities?.browser === false ? { [BROWSER_ENV]: "0" } : {}),
     }
   }
 
@@ -143,10 +168,32 @@ export class DaemonRunner {
       { env: this.#env(), stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
     )
     this.#child = child
-    // Closing the input is how the daemon is told to stop; nothing is ever written to it.
+    // Closing the input is how the daemon is told to stop. All that is written to it is the
+    // answers to what it asked, a line each.
     child.stdin?.on("error", () => {})
+    const asked = (call: AppCall) => {
+      const answering =
+        this.#options.onCall?.(call) ??
+        Promise.resolve<AppAnswer>({
+          id: call.id,
+          error: { refused: true, message: "This computer does not let agents use its screen." },
+        })
+      void answering
+        .catch((error: unknown): AppAnswer => ({
+          id: call.id,
+          error: {
+            refused: false,
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }))
+        .then((answer) => {
+          // A daemon that has gone since has nobody waiting, and the one after it never asked.
+          if (this.#child !== child || child.stdin?.writable !== true) return
+          child.stdin.write(`${JSON.stringify({ ...answer, id: call.id })}\n`)
+        })
+    }
     let last: "revoked" | "superseded" | undefined
-    const read = (stream: NodeJS.ReadableStream | null) => {
+    const read = (stream: NodeJS.ReadableStream | null, calls: boolean) => {
       let rest = ""
       stream?.setEncoding("utf8")
       stream?.on("data", (chunk: string) => {
@@ -154,6 +201,12 @@ export class DaemonRunner {
         rest = lines.pop() ?? ""
         for (const line of lines) {
           if (line === "") continue
+          // A call carries what an agent typed, and is no news to the owner: it is not kept.
+          const call = calls ? parseCall(line) : undefined
+          if (call !== undefined) {
+            asked(call)
+            continue
+          }
           const event = parseEvent(line)
           if (event === undefined) {
             this.#say(line)
@@ -166,8 +219,8 @@ export class DaemonRunner {
         this.#options.onChange()
       })
     }
-    read(child.stdout)
-    read(child.stderr)
+    read(child.stdout, true)
+    read(child.stderr, false)
     child.on("error", (error) => this.#say(`Could not start the daemon: ${error.message}`))
     child.on("close", () => {
       if (this.#child !== child) return

@@ -54,6 +54,8 @@ const launch = () =>
       USERPROFILE: home,
       DC_DESKTOP_DATA: data,
       DC_DAEMON_POLL_MS: "200",
+      // A screen that is only pretended: nothing on the machine running this is clicked.
+      DC_DESKTOP_FAKE_SCREEN: "1",
     },
   })
 
@@ -215,6 +217,42 @@ test("an agent works on this computer, and still can with the window closed", as
   await expect(computer.getByRole("list", { name: "What the daemon did" })).toContainText(
     "echo from the agent",
   )
+})
+
+test("an agent uses the screen once its owner switches that on here, and not before", async () => {
+  const main = await windowAt(url)
+  const computer = await windowAt("computer.html")
+  const name = /“(.+)”/.exec((await computer.getByRole("status").textContent()) ?? "")![1]
+  const ask = async (message: string) => {
+    await main.getByRole("textbox", { name: "Message" }).fill(message)
+    await main.keyboard.press("Enter")
+  }
+  const computers = () =>
+    main.evaluate(async () => JSON.stringify(await (await fetch("/api/computers")).json()))
+
+  // Off until its owner says otherwise, and the agent is told whose it is to switch on.
+  await expect(computer.getByRole("switch", { name: /The screen/ })).not.toBeChecked()
+  await ask(`/tool screen {"computer":"${name}","action":"screenshot"}`)
+  await expect(main.getByText(/does not let agents use its screen/)).toBeVisible({
+    timeout: 30_000,
+  })
+  // A browser is theirs to use from the start.
+  expect(await computers()).toContain('"browser":true')
+  expect(await computers()).not.toContain('"screen":true')
+
+  await computer.getByRole("switch", { name: /The screen/ }).check()
+  // The daemon starts again, and says what it may now do.
+  await expect.poll(computers, { timeout: 30_000 }).toContain('"screen":true')
+  await ask(
+    `/tool screen {"computer":"${name}","action":"click","x":40,"y":30,"note":"Clicking Save"}`,
+  )
+  await expect(main.getByText(/Done\. The screen now, \d+ by \d+/)).toBeVisible({
+    timeout: 30_000,
+  })
+  // On the computer itself, it says who is using it and what they are doing.
+  const overlay = await windowAt("overlay.html")
+  await expect(overlay.getByText(/is using this computer/)).toBeVisible()
+  await expect(overlay.getByText("Clicking Save")).toBeVisible()
 })
 
 test("it can be switched off and on again without pairing again", async () => {

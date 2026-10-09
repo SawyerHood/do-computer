@@ -89,6 +89,20 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
     capabilities: { realBinaries: true, network: true },
     fs,
     flush: async () => {},
+    async use(what, request) {
+      const response = await options.link.fetch(
+        new Request(`http://computer/${what}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+        }),
+      )
+      if (response.ok) return ((await response.json()) as { value: unknown }).value
+      const failure = (await response.json().catch(() => ({}))) as { error?: string }
+      throw new ComputerUnavailable(
+        failure.error ?? `The computer answered with an error (${response.status}).`,
+      )
+    },
     // The daemon keeps jobs itself, and nothing of what one prints arrives before the answer.
     jobs(scope) {
       const ask = async <T>(request: Record<string, unknown>): Promise<T> =>

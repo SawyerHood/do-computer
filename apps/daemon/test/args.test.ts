@@ -49,4 +49,10 @@ describe("the daemon's command line", () => {
     expect(parseArguments(["--no-auto-update"]).autoUpdate).toBe(false)
     expect(parseArguments(["--auto-update"]).autoUpdate).toBe(true)
   })
+
+  it("is told whether agents may use a browser only when it is said", () => {
+    expect(parseArguments(["https://a.example"]).browser).toBeUndefined()
+    expect(parseArguments(["--no-browser"]).browser).toBe(false)
+    expect(parseArguments(["--browser"]).browser).toBe(true)
+  })
 })

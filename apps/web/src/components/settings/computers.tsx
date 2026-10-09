@@ -162,6 +162,8 @@ function ComputerCard({
               <>
                 {PLATFORMS[computer.platform] ?? computer.platform} · {computer.hostname}
                 {computer.readOnly ? " · read-only" : ""}
+                {computer.screen ? " · screen" : ""}
+                {computer.browser ? " · browser" : ""}
               </>
             )}
           </CardDescription>

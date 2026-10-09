@@ -188,6 +188,7 @@ export function SideChat({
           <TeamContext value={teamContext}>
             <Transcript
               state={state}
+              chatId={chat.id}
               onRetry={retry}
               empty={
                 live.loaded ? (

@@ -96,6 +96,18 @@ const ABILITIES: readonly Ability[] = [
     tools: ["write", "edit"],
   },
   { id: "tool:send_file", label: "Send you files", tools: ["send_file"] },
+  {
+    id: "tool:screen",
+    label: "Use a computer's screen",
+    hint: "The mouse and keyboard of somebody's own computer, where its owner has switched that on.",
+    tools: ["screen"],
+  },
+  {
+    id: "tool:browser",
+    label: "Use a browser on a computer",
+    hint: "On somebody's own computer: their own Chrome where it lets itself be used, with what they are signed in to.",
+    tools: ["browser"],
+  },
   { id: "tool:web_search", label: "Search the web", tools: ["web_search"] },
   {
     id: "tool:slack_post",
@@ -268,7 +280,16 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
 }
 
 /** The tools that always run on a computer, whether or not the call names one. */
-const COMPUTER_TOOLS = new Set(["bash", "read", "write", "edit", "send_file", "request_secret"])
+const COMPUTER_TOOLS = new Set([
+  "bash",
+  "read",
+  "write",
+  "edit",
+  "send_file",
+  "request_secret",
+  "screen",
+  "browser",
+])
 const usesComputer = (call: ToolCall) =>
   COMPUTER_TOOLS.has(call.name) ||
   setsCheck(call) ||

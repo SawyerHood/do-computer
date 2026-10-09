@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
+  chatUses,
+  goingUse,
+  isUse,
   type ChatMessage,
   type ChatState,
   chatActivity,
@@ -240,5 +243,126 @@ describe("sentFiles", () => {
       ],
     }
     expect(sentFiles(state).map((file) => file.name)).toEqual(["the-plan.md", "data.csv"])
+  })
+})
+
+describe("chatUses", () => {
+  const step = (
+    id: string,
+    name: "screen" | "browser",
+    over: Partial<ToolPart> & { say?: string; computer?: string; shot?: string } = {},
+  ): ToolPart => {
+    const { say = "Clicking Save", computer = "MacBook", shot, ...rest } = over
+    return {
+      type: "tool",
+      toolCallId: id,
+      name,
+      args: { computer, note: say },
+      status: "done",
+      details: {
+        use: {
+          what: name,
+          computer: { id: `id-${computer}`, name: computer },
+          say,
+          ...(shot === undefined
+            ? {}
+            : { shot, width: 1280, height: 800, pointer: { x: 4, y: 9 } }),
+        },
+      },
+      ...rest,
+    }
+  }
+  const said = (id: string, at: number, ...parts: ChatMessage["parts"]): ChatMessage => ({
+    id,
+    role: "assistant",
+    parts,
+    status: "done",
+    createdAt: at,
+  })
+  const asked: ChatMessage = {
+    id: "u",
+    role: "user",
+    parts: [{ type: "text", text: "Go on" }],
+    status: "done",
+    createdAt: 500,
+  }
+  const words = (value: string) => ({ type: "text" as const, text: value })
+
+  it("says which screen or browser is being used, by the computer's name", () => {
+    expect(toolActivity({ name: "screen", args: { computer: "MacBook", action: "click" } })).toBe(
+      "Using MacBook's screen",
+    )
+    expect(toolActivity({ name: "browser", args: { computer: "MacBook" } })).toBe(
+      "Using a browser on MacBook",
+    )
+    expect(toolSummary({ name: "screen", args: { computer: "MacBook" } })).toBe(
+      "Used MacBook's screen",
+    )
+  })
+
+  it("makes one use of a turn's steps on a screen, across its messages and what it says between", () => {
+    const uses = chatUses({
+      busy: false,
+      messages: [
+        said("a", 1_000, step("1", "screen", { shot: "s1" })),
+        said("b", 5_000, words("Now the total."), step("2", "screen", { say: "Typing 4,820" })),
+        said("c", 9_000, words("Done.")),
+      ],
+    })
+    expect(uses).toHaveLength(1)
+    expect(uses[0]).toMatchObject({ id: "1", what: "screen", going: false, last: true, ms: 8_000 })
+    expect(uses[0]!.computer).toEqual({ id: "id-MacBook", name: "MacBook" })
+    expect(uses[0]!.steps.map((each) => each.say)).toEqual(["Clicking Save", "Typing 4,820"])
+    expect(uses[0]!.steps[0]).toMatchObject({ shot: "s1", width: 1280, pointer: { x: 4, y: 9 } })
+    expect(uses[0]!.steps[1]!.shot).toBeUndefined()
+  })
+
+  it("starts another use at the other tool, another computer, a message from someone, or a thing shown", () => {
+    const sent: ToolPart = {
+      type: "tool",
+      toolCallId: "f",
+      name: "send_file",
+      args: {},
+      status: "done",
+      details: { id: "file" },
+    }
+    const uses = chatUses({
+      busy: false,
+      messages: [
+        said("a", 0, step("1", "screen"), step("2", "browser"), step("3", "browser")),
+        said(
+          "b",
+          1,
+          step("4", "browser", { computer: "Studio" }),
+          sent,
+          step("5", "browser", { computer: "Studio" }),
+        ),
+        asked,
+        said("c", 600, step("6", "browser", { computer: "Studio" })),
+      ],
+    })
+    expect(uses.map((use) => [use.what, use.computer.name, use.steps.length])).toEqual([
+      ["screen", "MacBook", 1],
+      ["browser", "MacBook", 2],
+      ["browser", "Studio", 1],
+      ["browser", "Studio", 1],
+      ["browser", "Studio", 1],
+    ])
+    expect(uses.map((use) => use.last)).toEqual([false, false, false, false, true])
+  })
+
+  it("is going while its last step runs, and while the chat is busy with nothing but words after it", () => {
+    const running = step("2", "screen", { status: "running", details: undefined })
+    const first = said("a", 0, step("1", "screen"))
+    expect(isUse(running)).toBe(true)
+    expect(isUse({ ...running, status: "error" })).toBe(false)
+    const mid = chatUses({ busy: true, messages: [first, said("b", 1, running)] })
+    expect(mid[0]).toMatchObject({ going: true, computer: { id: "id-MacBook" } })
+    expect(mid[0]!.steps[1]!.say).toBe("Clicking Save")
+    expect(mid[0]!.ms).toBeUndefined()
+    const between = { busy: true, messages: [first, said("b", 1, words("Next, the total."))] }
+    expect(goingUse(between)?.id).toBe("1")
+    expect(goingUse({ ...between, busy: false })).toBeUndefined()
+    expect(goingUse({ busy: true, messages: [first, asked] })).toBeUndefined()
   })
 })

@@ -11,9 +11,21 @@ export type Settings = {
   readOnly: boolean
   /** Whether the app starts when its owner signs in to the computer. */
   openAtLogin: boolean
+  /** Whether agents may see this computer's screen and use its mouse and keyboard. */
+  screen: boolean
+  /** Whether agents may use a browser on this computer. */
+  browser: boolean
 }
 
-const DEFAULTS: Settings = { share: false, readOnly: false, openAtLogin: false }
+// The screen is everything its owner can see and do, so it is asked for. A browser is what a
+// computer with agents on it is mostly for, and is theirs until it is taken away.
+export const DEFAULTS: Settings = {
+  share: false,
+  readOnly: false,
+  openAtLogin: false,
+  screen: false,
+  browser: true,
+}
 
 export function loadSettings(file: string): Settings {
   try {
@@ -25,6 +37,8 @@ export function loadSettings(file: string): Settings {
       share: parsed.share === true,
       readOnly: parsed.readOnly === true,
       openAtLogin: parsed.openAtLogin === true,
+      screen: parsed.screen === true,
+      browser: parsed.browser !== false,
     }
   } catch {
     // Missing or unreadable: a first run.

@@ -6,7 +6,9 @@ import {
   foldFailures,
   isAgentMessage,
   isSentFile,
+  chatUses,
   isJobStart,
+  isUse,
   isShownPart,
   isSubagentStart,
   continuesMain,
@@ -24,7 +26,7 @@ import {
   SlackLogoIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
-import { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useMemo, useState } from "react"
 import { useAgentsById } from "@/components/computer-requests"
 import { PersonFace } from "@/components/people"
 import { Badge } from "@/components/ui/badge"
@@ -53,11 +55,13 @@ import { SentFile } from "./sent-file.tsx"
 import { SlackMark } from "./slack-threads.tsx"
 import { CommandChip, CommandWord } from "./commands.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
+import { UsesContext, UseView } from "./uses.tsx"
 
 function AssistantPart({ part }: { part: MessagePart }) {
   if (isSentFile(part)) return <SentFile part={part} />
   if (isSubagentStart(part)) return <SubagentChip part={part} />
   if (isJobStart(part)) return <CommandChip part={part} />
+  if (isUse(part)) return <UseView part={part} />
   if (isAgentMessage(part)) return <AgentMessageChip part={part} />
   switch (part.type) {
     case "text":
@@ -448,8 +452,11 @@ export function Transcript({
   before,
   onRetry,
   asker,
+  chatId,
 }: {
   state: ChatState
+  /** The chat's id, for stopping the agent from the window of a screen it is using. */
+  chatId?: string | undefined
   empty: React.ReactNode
   /** Shown above the first message, for reaching what came before it. */
   before?: React.ReactNode
@@ -464,36 +471,57 @@ export function Transcript({
   // A side chat that continues the main one opens with the mark of where its own messages
   // begin. Until something is said in it, it is as empty as any new chat, and greets like one.
   const untouched = state.messages.length === (continuesMain(state.messages) ? 1 : 0)
-  const shown = foldFailures((untouched ? [] : state.messages).filter(isVisibleMessage), state.busy)
+  // The steps an agent takes on a screen are shown as one thing, where the first of them is.
+  const uses = useMemo(() => {
+    const all = chatUses(state)
+    return { chatId, all, uses: new Map(all.map((use) => [use.id, use])) }
+  }, [state, chatId])
+  // A message whose every shown part is a later step of a use shows nothing, and leaves no gap.
+  const shows = (message: ChatMessage) =>
+    isVisibleMessage(message) &&
+    (message.role !== "assistant" ||
+      message.status === "error" ||
+      message.status === "aborted" ||
+      message.parts.some(
+        (part) => isShownPart(part) && (!isUse(part) || uses.uses.has(part.toolCallId)),
+      ))
+  const shown = foldFailures((untouched ? [] : state.messages).filter(shows), state.busy)
+  // While a step is under way, the window of the screen says what it is.
+  const stepping = uses.all.some((use) => {
+    const status = use.steps.at(-1)?.status
+    return status === "pending" || status === "running"
+  })
   return (
-    <MessageScrollerProvider autoScroll defaultScrollPosition="end">
-      <FollowSends lastSent={lastSent} />
-      <MessageScroller>
-        <MessageScrollerViewport>
-          {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
-          <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-24 pb-6">
-            {untouched && !state.busy ? empty : null}
-            {before}
-            {shown.map(({ message, failures }, index) => (
-              <MessageScrollerItem key={message.id} messageId={message.id}>
-                <MessageView
-                  message={message}
-                  failures={failures}
-                  onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
-                  asker={asker}
-                />
-              </MessageScrollerItem>
-            ))}
-            {activity === null ? null : (
-              // The moving shine says it is working; a spinner beside it would say it twice.
-              <Marker role="status" aria-live="polite" className="px-1">
-                <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
-              </Marker>
-            )}
-          </MessageScrollerContent>
-        </MessageScrollerViewport>
-        <MessageScrollerButton />
-      </MessageScroller>
-    </MessageScrollerProvider>
+    <UsesContext value={uses}>
+      <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+        <FollowSends lastSent={lastSent} />
+        <MessageScroller>
+          <MessageScrollerViewport>
+            {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
+            <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-24 pb-6">
+              {untouched && !state.busy ? empty : null}
+              {before}
+              {shown.map(({ message, failures }, index) => (
+                <MessageScrollerItem key={message.id} messageId={message.id}>
+                  <MessageView
+                    message={message}
+                    failures={failures}
+                    onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
+                    asker={asker}
+                  />
+                </MessageScrollerItem>
+              ))}
+              {activity === null || stepping ? null : (
+                // The moving shine says it is working; a spinner beside it would say it twice.
+                <Marker role="status" aria-live="polite" className="px-1">
+                  <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
+                </Marker>
+              )}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
+    </UsesContext>
   )
 }
