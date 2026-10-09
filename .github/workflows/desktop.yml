@@ -2,6 +2,9 @@ name: Desktop
 
 # The desktop app, built, tested and packed on each system it runs on. It is the only part of
 # the project that runs on Windows and macOS, so this is where the daemon is tried there too.
+#
+# A change to what the daemon and the server say to each other (packages/protocol) does not
+# start it: those happen most days, and are the same on every system.
 on:
   push:
     branches: [main]
@@ -10,7 +13,6 @@ on:
       - apps/desktop/**
       - apps/daemon/**
       - packages/computers/**
-      - packages/protocol/**
       - .github/workflows/desktop.yml
       - .github/actions/setup/**
       - pnpm-lock.yaml
@@ -19,7 +21,6 @@ on:
       - apps/desktop/**
       - apps/daemon/**
       - packages/computers/**
-      - packages/protocol/**
       - .github/workflows/desktop.yml
       - .github/actions/setup/**
       - pnpm-lock.yaml
@@ -35,18 +36,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            name: Linux
-            packed: release/linux-unpacked/do-computer
-          - os: macos-latest
-            name: macOS
-            packed: release/mac-universal/Do Computer.app/Contents/MacOS/Do Computer
-          - os: windows-latest
-            name: Windows
-            packed: release/win-unpacked/Do Computer.exe
+        # A minute of macOS costs ten of Linux, so a pull request goes without it. Main, a tag
+        # and a run from the Actions tab have all three: to try a branch on macOS, run this
+        # workflow on it from there.
+        name: ${{ fromJSON(github.event_name == 'pull_request' && '["Linux", "Windows"]' || '["Linux", "macOS", "Windows"]') }}
     name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.name == 'macOS' && 'macos-latest' || matrix.name == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
     defaults:
       run:
         shell: bash
@@ -94,7 +89,7 @@ jobs:
         working-directory: apps/desktop
         run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test
         env:
-          DC_DESKTOP_APP: ${{ github.workspace }}/apps/desktop/${{ matrix.packed }}
+          DC_DESKTOP_APP: ${{ github.workspace }}/apps/desktop/release/${{ runner.os == 'macOS' && 'mac-universal/Do Computer.app/Contents/MacOS/Do Computer' || runner.os == 'Windows' && 'win-unpacked/Do Computer.exe' || 'linux-unpacked/do-computer' }}
       - uses: actions/upload-artifact@v4
         with:
           name: do-computer-${{ matrix.name }}
@@ -103,7 +98,9 @@ jobs:
             apps/desktop/release/*.exe
             apps/desktop/release/*.AppImage
           if-no-files-found: error
-          retention-days: 30
+          # Three apps are most of half a gigabyte, kept at a price for every day. A release
+          # has its own copies; these are for trying a build, the longest when one was asked for.
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && 7 || 1 }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
