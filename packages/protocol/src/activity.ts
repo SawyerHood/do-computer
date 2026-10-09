@@ -1,5 +1,6 @@
 import type { LibraryFile } from "./agent.ts"
 import type { ChatMessage, ChatState, MessagePart, ToolPart } from "./chat.ts"
+import type { ShotPoint, UseDetails, UseWhat } from "./screen.ts"
 
 const MAX_DETAIL = 72
 
@@ -105,6 +106,10 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return "Asking you for a secret"
     case "settings":
       return args.action === "set" ? "Updating its settings" : "Checking its settings"
+    case "screen":
+      return where === undefined ? "Using a computer's screen" : `Using ${where}'s screen`
+    case "browser":
+      return where === undefined ? "Using a browser" : `Using a browser on ${where}`
     case "agents":
       if (args.action === "create") return withDetail("Making a new agent", text(args.name))
       if (args.action === "message") {
@@ -321,8 +326,150 @@ export function isShownPart(part: MessagePart): boolean {
     isSentFile(part) ||
     isSubagentStart(part) ||
     isJobStart(part) ||
-    isAgentMessage(part)
+    isAgentMessage(part) ||
+    isUse(part)
   )
+}
+
+const USE_TOOLS: readonly string[] = ["screen", "browser"] satisfies UseWhat[]
+
+/**
+ * Whether a part is the agent using a computer's screen, or a browser on it. That is shown too,
+ * however it is getting on: as the screen itself while it is used, and as what was done there
+ * afterwards. One that is only starting carries nothing yet, and is known by its name.
+ */
+export function isUse(part: MessagePart): part is ToolPart {
+  if (part.type !== "tool" || !USE_TOOLS.includes(part.name)) return false
+  if (useOf(part) !== undefined) return true
+  return part.status === "pending" || part.status === "running"
+}
+
+/** What a `screen` or `browser` call carries about itself, once it carries anything. */
+export function useOf(part: ToolPart): UseDetails["use"] | undefined {
+  const use = (part.details as Partial<UseDetails> | null | undefined)?.use
+  return typeof use === "object" && use !== null && typeof use.computer?.id === "string"
+    ? use
+    : undefined
+}
+
+/** One thing an agent did on a screen or in a browser. */
+export type UseStep = {
+  toolCallId: string
+  status: ToolPart["status"]
+  /** What it was doing, in a few words. */
+  say: string
+  /** The id of the picture kept of how it ended, where one was. */
+  shot?: string
+  width?: number
+  height?: number
+  pointer?: ShotPoint
+  url?: string
+}
+
+/** A stretch of an agent's turn spent on one computer's screen, or in a browser on it. */
+export type Use = {
+  /** The id of its first call: where in the transcript it is shown. */
+  id: string
+  what: UseWhat
+  /** The id is absent only while its first call has said nothing of itself yet. */
+  computer: { id?: string; name: string }
+  steps: UseStep[]
+  /** Whether the agent is still at it. */
+  going: boolean
+  /** Whether nothing was used after it in the chat: the one that may still be on its screen. */
+  last: boolean
+  startedAt?: number
+  /** How long it took, where the times of the messages around it say. */
+  ms?: number
+}
+
+/**
+ * The screens and browsers an agent used in a chat, each stretch as one thing. A stretch is the
+ * calls to one of the two tools, on one computer, within one turn. What the agent says between
+ * its steps does not end a stretch, nor does work that is not shown: agents say what they are
+ * about to do before each click, and a window for every click would be no window at all. It ends
+ * when something else is said by anyone else, when the agent turns to the other tool or another
+ * computer, or when something else of the agent's is shown: a file it sent, a command it left
+ * running.
+ */
+export function chatUses(state: Pick<ChatState, "messages" | "busy">): Use[] {
+  const uses: Use[] = []
+  type Open = { use: Use; lastMessage: number; follows: boolean }
+  let open: Open | undefined
+  const { messages } = state
+  // A stretch took from when its first message began until the next message after its last
+  // step began: the model is asked again as soon as a step is done.
+  const close = () => {
+    if (open === undefined) return
+    const after = messages[open.lastMessage + 1]?.createdAt
+    const { startedAt } = open.use
+    if (startedAt !== undefined && after !== undefined) open.use.ms = Math.max(0, after - startedAt)
+    open = undefined
+  }
+  messages.forEach((message, index) => {
+    if (message.role !== "assistant") return close()
+    for (const part of message.parts) {
+      if (part.type === "tool" && isUse(part)) {
+        const use = useOf(part)
+        const args = (part.args ?? {}) as { computer?: unknown; note?: unknown }
+        const what = part.name as UseWhat
+        const name = use?.computer.name ?? text(args.computer) ?? "a computer"
+        if (open !== undefined && (open.use.what !== what || open.use.computer.name !== name))
+          close()
+        if (open === undefined) {
+          open = {
+            use: {
+              id: part.toolCallId,
+              what,
+              computer: { name },
+              steps: [],
+              going: false,
+              last: false,
+              ...(message.createdAt === undefined ? {} : { startedAt: message.createdAt }),
+            },
+            lastMessage: index,
+            follows: false,
+          }
+          uses.push(open.use)
+        }
+        if (use !== undefined) open.use.computer = use.computer
+        open.lastMessage = index
+        open.follows = false
+        open.use.steps.push({
+          toolCallId: part.toolCallId,
+          status: part.status,
+          say: use?.say ?? text(args.note) ?? toolActivity(part),
+          ...(use?.shot === undefined ? {} : { shot: use.shot }),
+          ...(use?.width === undefined ? {} : { width: use.width }),
+          ...(use?.height === undefined ? {} : { height: use.height }),
+          ...(use?.pointer === undefined ? {} : { pointer: use.pointer }),
+          ...(use?.url === undefined ? {} : { url: use.url }),
+        })
+      } else if (part.type !== "text" && isShownPart(part)) close()
+    }
+  })
+  // The one still open is in the turn the chat ends with, and nothing but words came after it.
+  const current = open as Open | undefined
+  for (const use of uses) {
+    const status = use.steps.at(-1)?.status
+    use.going = status === "pending" || status === "running" || (state.busy && use === current?.use)
+  }
+  close()
+  const last = uses.at(-1)
+  if (last !== undefined) last.last = true
+  return uses
+}
+
+/** The screen or browser the agent is using right now in a chat, if it is using one. */
+export function goingUse(state: Pick<ChatState, "messages" | "busy">): Use | undefined {
+  return chatUses(state).findLast((use) => use.going)
+}
+
+/** How a use reads in a sentence: "MacBook's screen", "a browser on MacBook". */
+export function useWords(use: Pick<Use, "what" | "computer">): string {
+  return use.what === "screen"
+    ? `${use.computer.name}'s screen`
+    : `a browser on ${use.computer.name}`
 }
 
 /**

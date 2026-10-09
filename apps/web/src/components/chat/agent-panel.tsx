@@ -7,7 +7,9 @@ import {
   type JobSummary,
   type LibraryFile,
   sentFiles,
+  chatUses,
   toolActivity,
+  useOf,
   type ToolPart,
   toolSummary,
 } from "@durable-computer/protocol"
@@ -37,6 +39,8 @@ import { cn } from "@/lib/utils"
 import { ThreadRows } from "./agent-threads.tsx"
 import { JobRows, waitingWords } from "./commands.tsx"
 import { SlackRows } from "./slack-threads.tsx"
+import { AgentIdContext } from "./sent-file.tsx"
+import { UseNow } from "./uses.tsx"
 import { SubagentBrood, SubagentRows, subagentSeed, subagentWords } from "./subagents.tsx"
 
 /** How many of the latest pieces of work are listed. */
@@ -92,7 +96,8 @@ function Step({ part }: { part: ToolPart }) {
             )}
           />
           <span className="line-clamp-1 min-w-0 flex-1 break-all group-data-open/step:line-clamp-none">
-            {going ? toolActivity(part) : toolSummary(part)}
+            {/* A step on a screen says what it did there, not only that it used it. */}
+            {useOf(part)?.say ?? (going ? toolActivity(part) : toolSummary(part))}
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -251,6 +256,7 @@ export function AgentPanel({
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
   const files = useMemo(() => sentFiles(state), [state])
+  const using = useMemo(() => chatUses(state).at(-1), [state])
   const agentName = agent.name ?? "New agent"
   const name = subagent?.title ?? agentName
   // A sub-agent at rest says how it ended; one at work says what it is doing.
@@ -318,6 +324,12 @@ export function AgentPanel({
         )}
         {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
       </div>
+      {using === undefined ? null : (
+        // The last screen the agent used here may still be its own; the section says when it is.
+        <AgentIdContext value={agent.id}>
+          <UseNow key={using.id} use={using} chatId={chatId} />
+        </AgentIdContext>
+      )}
       {running.length === 0 ? null : (
         <div className="flex max-h-[40%] shrink-0 flex-col border-t">
           <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">

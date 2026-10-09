@@ -1105,6 +1105,101 @@ Since then, newest last:
     - **Never run:** the note-writing against a real model in Slack or in a team; anything of
       this on a deployed Worker; the native app showing a branched side chat.
 
+31. **Agents that use a screen and a browser** (2026-10-09; `packages/protocol/src/screen.ts`,
+    `packages/agent/src/uses.ts`, `packages/computers/src/use.ts` and `browser/`,
+    `apps/desktop/src/screen.ts`, `screen-driver.ts`, `overlay.ts`,
+    `apps/web/src/components/chat/uses.tsx`). The owner asked for the daemon and the desktop
+    app to have Cua (`trycua/cua`) "to control your computer", with "a little window of the
+    agent controlling it" in the chat and the agent seen to "move around your computer like it
+    is the mouse", and the same for a browser, pointing at their own dev-browser and at how bb
+    uses it. It was drawn first (`prototypes/computer-use`), and they answered the four things
+    put to them: the pointer has the agent's name; the screen is off until switched on, on the
+    computer; the agent uses "your own" browser "if availible"; and the screen is the desktop
+    app's first.
+    - **Two tools**, `screen` and `browser`, each taking the `computer` argument the file tools
+      take, and only for somebody's own computer. `screen` does one thing to a call
+      (screenshot, click, double and right click, move, drag, scroll, type, key, wait) and
+      answers with a picture of the screen afterwards; places are in that picture's pixels.
+      `browser` runs a dev-browser script and answers with what it printed and the pictures it
+      took. Each call carries a `note`, a few words for whoever watches. The calls of one round
+      start together and are done one after another. A model that cannot see pictures is
+      refused the screen and told so; the echo model may use it, so it can be tried. The model
+      is sent only the newest four pictures of a screen or a page (`dropOldPictures`, a hook
+      before every request): each costs about a page of text.
+    - **On the wire** there are two new frames to the daemon, `screen` (`act`, `view`, `hold`)
+      and `browser` (`run`, `view`, `hold`, `close`), both answered by `use_result`, and a new
+      error code, `refused`, for what the owner has off or stopped. A daemon says `screen` and
+      `browser` in its hello. One that says neither is from before, and is told to update as
+      for background commands. One that says no answers for itself why not.
+    - **Who is using it** is one small class for both, `UseState`: in use from the first thing
+      done until 45 seconds after the last; paused by its owner, when the agent waits where it
+      is, for five minutes at most; stopped by its owner, when what the agent is doing fails
+      and so does what it tries for the next minute.
+    - **The screen is the app's, not the daemon's.** The daemon is plain Node. One the app runs
+      is told so (`DC_DAEMON_SCREEN=1`) and asks the app, a line to a call (`@dc-call`, in
+      `apps/daemon/src/events.ts`), which the app answers on the daemon's input. In the app's
+      main process `ScreenService` does it with Cua Driver, `@trycua/cua-driver` 0.34.1, loaded
+      from `dist/driver` and, packed, from `resources/driver`, outside the one file the app is
+      packed into. Cua's own cursor is switched off: the app draws the pointer. The driver's
+      pictures are PNG, and are made JPEG by Electron. A daemon run by hand says it has no
+      screen for agents, and `DC_DAEMON_FAKE_SCREEN=1` gives it a pretend one for tests.
+    - **On the computer itself** the app draws over everything else (`overlay.ts`): the agent's
+      pointer in its colour with its name, a bar saying who is using the computer and what they
+      are doing, with Pause and Stop, and a glow round the screen. Esc pauses, and is taken
+      only while an agent is at work and not pressing keys itself. The overlay is kept out of
+      pictures of the screen on macOS and Windows. On Linux it cannot be, so there it is in
+      what the agent sees and what the chat shows, and its buttons cannot be clicked: Esc and
+      the chat are the ways to pause.
+    - **The switches** are in the app, under This Computer: the screen (off to begin with) and a
+      browser (on). They are kept in the app's settings on that computer, and changing one
+      starts the daemon again so that it says so. A computer that is read-only has neither. On
+      macOS the page says whether the app has been allowed Accessibility and Screen Recording,
+      and leads to each. A daemon run by hand takes `--no-browser`.
+    - **The browser** is the daemon's (`packages/computers/src/browser`), ported from bb's
+      plugin. It fetches a pinned dev-browser the first time. It uses the owner's own Chrome
+      when it finds one that lets itself be used: a `DevToolsActivePort` file in a usual
+      profile folder, which Chrome 144 writes when remote debugging is allowed at
+      `chrome://inspect`, or a debugging port from 9222 to 9229. Otherwise it starts a headless
+      Chrome of its own, with a profile kept in the daemon's folder.
+    - **Watching** is asked of the computer and never kept: `GET /api/agents/:id/use/view`
+      waits up to five seconds for a picture newer than the last, and answers with nothing for
+      a screen no agent is using, of which no picture is taken. The app asks a few times a
+      second while the window is on screen. `POST …/use/hold` pauses. The picture each call
+      ended with is kept, in the agent's own blobs under `shots/`, and served by
+      `GET …/shots/:id`; that is what "What it did" shows afterwards. They are removed with the
+      agent and not before.
+    - **In the chat** (`uses.tsx`, `use-live-view.ts`, `chatUses` in
+      `packages/protocol/src/activity.ts`) a use is the `screen` calls, or the `browser` calls,
+      on one computer within one turn, whatever the agent says between them. It is one window
+      where the first of them is: the picture as it is now, the agent's pointer drawn over it
+      from where the computer says it is, and a line for what it is doing, with Pause, Open
+      large and Stop. Stop is the chat's own. The agent's panel has the same small, under "On
+      (computer) now". One question is asked of each computer for all of them, only while one
+      is on screen in a tab that is looked at. A use counts as going while a step is, or the
+      chat is busy and only words have followed it; the last one of a chat is also shown for
+      as long as the computer says it is still in use. Afterwards it is one line, "(agent) used
+      (computer)'s screen for 1m 12s · 8 steps", and "What it did" has each step's picture.
+    - **Approvals** have a rule for each ("Use a computer's screen", "Use a browser on a
+      computer"), and both answer to a computer's own rule.
+    - **Mine, not the owner's:** every number above (45 seconds, five minutes, a minute, four
+      pictures, 1280 pixels, a picture every 400 ms); that the app draws the pointer and Cua's
+      own is off; that Esc pauses; that the browser kept for agents is headless; that the
+      owner's Chrome is used with no switch of its own beyond the browser's, since Chrome asks
+      for itself; that read-only means neither; that the kept pictures are never tidied away;
+      that the mobile app shows none of this; that whoever can read an agent's chats can watch
+      a screen while that agent uses it, a teammate included; that dev-browser is pinned at 1.0.0-rc.3 and
+      fetched from its GitHub release, checked against hashes written in the code.
+    - **Never run:** anything of the screen on macOS or Windows, which is where it matters:
+      the driver itself there, the two macOS permissions and the unsigned app keeping them, the
+      overlay's transparency, its clicks, its being kept out of pictures, Esc, and the packed
+      app finding the driver (on a Mac both kinds of chip are packed, the other fetched with
+      `npm pack`). The screen with a real model. The owner's own Chrome through Chrome 144's
+      switch, where Chrome may ask twice, once for dev-browser and once for the picture. The
+      browser on macOS. dev-browser has no Windows build, so on Windows the browser tool says
+      so. On this machine: the driver in Electron under Xvfb clicked, typed, scrolled and
+      dragged in a real window; the browser ran for real through a built server and a real
+      daemon, fetching dev-browser and a Chrome by itself.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

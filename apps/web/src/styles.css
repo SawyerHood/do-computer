@@ -468,3 +468,19 @@
     transition: none;
   }
 }
+
+/* An agent's click on a screen it is using: a ring that spreads from its pointer and is gone. */
+.use-ripple {
+  animation: use-ripple 0.5s ease-out;
+}
+
+@keyframes use-ripple {
+  from {
+    transform: scale(0.2);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}

@@ -430,6 +430,7 @@ export function ChatView({
                 <TeamContext value={teamContext}>
                   <Transcript
                     state={state}
+                    chatId={chatId}
                     onRetry={own ? retry : undefined}
                     asker={sub === undefined ? undefined : name}
                     empty={

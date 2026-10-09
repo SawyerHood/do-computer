@@ -96,8 +96,8 @@ const blockText = (content: unknown): string => {
 /**
  * What the echo model answers. It repeats the last user message, with two affordances for trying
  * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
- * that tool and then report the result, and `/fail <error>` makes the reply fail with that error,
- * the way a model provider's would.
+ * that tool and then report the result (several such lines make it call them all in one round),
+ * and `/fail <error>` makes the reply fail with that error, the way a model provider's would.
  */
 function echoAnswer(context: EchoContext) {
   // Prompt changes are recorded as system entries, which can follow a tool result.
@@ -114,6 +114,18 @@ function echoAnswer(context: EchoContext) {
   const failure = /^\/fail\s+([\s\S]+)$/.exec(text)
   if (failure) {
     return fauxAssistantMessage([], { stopReason: "error", errorMessage: failure[1]!.trim() })
+  }
+  // Several of them, one to a line, are called in one round, as a model calls several at once.
+  const lines = text.split("\n").map((line) => /^\/tool\s+(\w+)\s+(\{.*\})\s*$/.exec(line))
+  if (lines.length > 1 && lines.every((line) => line !== null)) {
+    try {
+      return fauxAssistantMessage(
+        lines.map((line) => fauxToolCall(line![1]!, JSON.parse(line![2]!))),
+        { stopReason: "toolUse" },
+      )
+    } catch {
+      return fauxAssistantMessage("Those tool arguments are not valid JSON.")
+    }
   }
   const command = /^\/tool\s+(\w+)\s+(\{[\s\S]*\})\s*$/.exec(text)
   if (command) {
