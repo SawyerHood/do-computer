@@ -737,6 +737,8 @@ export async function listComputers(user: SessionUser): Promise<Response> {
         // What the daemon reports now wins over what it said when it was paired.
         readOnly: status?.hello?.readOnly ?? row.read_only === 1,
         lastSeenAt: status?.lastSeenAt ?? null,
+        ...(status?.hello?.screen === true ? { screen: true } : {}),
+        ...(status?.hello?.browser === true ? { browser: true } : {}),
         ...(daemon === undefined ? {} : { daemon }),
       }
     }),

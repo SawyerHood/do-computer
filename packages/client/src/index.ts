@@ -11,6 +11,8 @@ import {
   type HistoryHit,
   type JobStatus,
   type JobSummary,
+  type LiveView,
+  type UseWhat,
   type ApiError as ApiErrorBody,
   type Avatar,
   type ChatEvent,
@@ -503,6 +505,24 @@ export function createClient(options: ClientOptions) {
         jobOutput: (jobId: string, from?: number) =>
           request<{ output: string; next: number; status: JobStatus }>(
             `${base}/jobs/${encodeURIComponent(jobId)}/output${from === undefined ? "" : `?from=${from}`}`,
+          ),
+        /** The address of the picture the agent kept of how a step on a screen or in a browser ended. */
+        shotUrl: (shotId: string) => `${options.baseUrl}${base}/shots/${encodeURIComponent(shotId)}`,
+        /**
+         * How a computer's screen, or the browser on it, looks now, while the agent is using it.
+         * Waits a few seconds for a picture newer than number `after`. Nothing is shown of one
+         * that no agent is using: `active` is false then.
+         */
+        view: (computerId: string, what: UseWhat, after: number, signal?: AbortSignal) =>
+          request<LiveView>(
+            `${base}/use/view?computer=${encodeURIComponent(computerId)}&what=${what}&after=${after}`,
+            signal === undefined ? undefined : { signal },
+          ),
+        /** Pause the agent on a computer's screen or browser, or let it carry on. */
+        hold: (computerId: string, what: UseWhat, held: boolean) =>
+          post<{ ok: true }>(
+            `${base}/use/hold?computer=${encodeURIComponent(computerId)}&what=${what}`,
+            { held },
           ),
         /** Stop a background command. The agent is told that someone stopped it. */
         stopJob: (jobId: string) =>
