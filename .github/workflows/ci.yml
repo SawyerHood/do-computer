@@ -7,49 +7,56 @@ on:
   # Run from the Actions tab to deploy again without a new commit.
   workflow_dispatch:
 
-# A pull request's newer push replaces the run of its older one. Runs on main are each left to
-# finish, since they deploy.
-concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: true
-
-# The checks run side by side, each on a machine of its own, so a push waits for the slowest of
-# them and not for their sum.
+# A newer push to a branch, or to a pull request, replaces the tests of the older one, on main
+# too: what the newer one deploys has the older one's changes in it. This is said job by job and
+# not once for the run, so that a deploy already under way is left to finish.
+#
+# The checks run side by side, so a push waits for the slowest of them and not for their sum.
+# A machine is paid for by the whole minute, though, so work of less than a minute shares one.
 jobs:
+  # The checks, and the unit and integration tests of everything but the agent, on Node and
+  # inside the Workers runtime.
   check:
+    name: check, test (the rest)
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-check-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm check
+      # Whether or not the checks passed, so that one run says everything that is wrong.
+      - if: success() || failure()
+        run: pnpm --filter '!@durable-computer/agent' run test
 
-  # Unit and integration tests, on Node and inside the Workers runtime. The agent's take as long
-  # as all the others together, so they have a machine of their own.
+  # The agent's tests take as long as all the others together, so they have a machine of their
+  # own.
   test:
+    name: test (agent)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: agent
-            filter: "@durable-computer/agent"
-          - name: the rest
-            filter: "!@durable-computer/agent"
-    name: test (${{ matrix.name }})
+    concurrency:
+      group: ci-test-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm --filter '${{ matrix.filter }}' run test
+      - run: pnpm --filter '@durable-computer/agent' run test
 
   # Browser tests against the built Node server, with a real daemon. Each file of them has a
-  # server to itself, so the files are dealt out over several machines, two to a machine: one for
-  # each of its cores. With more files than that, add to `share`.
+  # server to itself, so the files are dealt out over several machines, where two run at a time:
+  # one for each core. Every machine spends most of a minute getting ready, and that is paid for
+  # once per machine, so more of them finish sooner and cost more. Three take about three
+  # minutes each; five took two and a half, for a third more money.
   e2e:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-e2e-${{ matrix.share }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
-        share: [1, 2, 3, 4, 5]
+        share: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -77,6 +84,9 @@ jobs:
   # tests do, so it is kept from one run to the next for as long as nothing it is made of changes.
   e2e-mobile:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ci-e2e-mobile-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
