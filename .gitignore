@@ -30,3 +30,6 @@ prototypes/console-ui/index.html
 
 # The teams mock-up, built from prototypes/teams/src
 prototypes/teams/index.html
+
+# The desktop app, packed by electron-builder
+apps/desktop/release/

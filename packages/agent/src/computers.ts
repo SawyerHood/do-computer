@@ -59,6 +59,13 @@ export type AgentComputer = {
   pairedAt: number
 }
 
+/**
+ * What an agent is told about a paired computer that runs Windows, where neither the paths nor
+ * the shell are what it would take them to be.
+ */
+const WINDOWS_NOTE =
+  " (Windows: paths there are written like /c/Users/name for C:\\Users\\name, and commands run in Git Bash where it is installed and in PowerShell where it is not)"
+
 /** Whether a computer is somebody's own machine, reached through its daemon. */
 export const isPaired = (computer: Pick<AgentComputer, "kind">) =>
   computer.kind === undefined || computer.kind === PAIRED
@@ -392,7 +399,7 @@ export class Computers {
         `These are computers that people connected, their real machines with their real files. To work on one, pass its name as \`computer\`; paths are then relative to its home directory. Be careful there, and work on a machine of your workspace unless the task is about theirs.\n${paired
           .map(
             ([, computer]) =>
-              `- ${computer.name}: ${computer.platform}, home ${computer.home}${computer.readOnly ? ", read-only (you can read files there but not run commands or change anything)" : ""}`,
+              `- ${computer.name}: ${computer.platform}, home ${computer.home}${computer.platform === "win32" ? WINDOWS_NOTE : ""}${computer.readOnly ? ", read-only (you can read files there but not run commands or change anything)" : ""}`,
           )
           .join("\n")}`,
       )

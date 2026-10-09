@@ -16,7 +16,8 @@
     "test": "pnpm -r run test",
     "test:e2e": "pnpm --filter @durable-computer/web test:e2e",
     "format": "prettier --write .",
-    "mobile": "pnpm --filter @durable-computer/mobile start"
+    "mobile": "pnpm --filter @durable-computer/mobile start",
+    "desktop": "pnpm --filter @durable-computer/desktop start"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

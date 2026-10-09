@@ -20,6 +20,7 @@ minimumReleaseAgeExclude:
 
 allowBuilds:
   esbuild: true
+  electron: true
   workerd: true
   lightningcss: true
   sharp: false
@@ -28,6 +29,8 @@ allowBuilds:
   "@mongodb-js/zstd": false
   node-liblzma: false
   cbor-extract: false
+  # Only the Squirrel installer for Windows needs it, and the desktop app is packed with NSIS.
+  electron-winstaller: false
 
 catalog:
   typescript: npm:@typescript/typescript6@^6.0.2

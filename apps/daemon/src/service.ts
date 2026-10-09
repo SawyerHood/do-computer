@@ -1,5 +1,8 @@
 import * as path from "node:path"
 
+// Both kinds of file are for systems whose paths are POSIX ones, wherever this is worked out.
+const { join } = path.posix
+
 const LABEL = "com.durable-computer.daemon"
 
 export type ServiceFile = { path: string; content: string; enable: string[][] }
@@ -20,7 +23,7 @@ export function serviceFile(options: {
 }): ServiceFile | undefined {
   const command = [options.node, options.script, ...options.args]
   if (options.platform === "linux") {
-    const unit = path.join(options.home, ".config/systemd/user/durable-computer-daemon.service")
+    const unit = join(options.home, ".config/systemd/user/durable-computer-daemon.service")
     return {
       path: unit,
       content: `[Unit]
@@ -42,7 +45,7 @@ WantedBy=default.target
     }
   }
   if (options.platform === "darwin") {
-    const plist = path.join(options.home, `Library/LaunchAgents/${LABEL}.plist`)
+    const plist = join(options.home, `Library/LaunchAgents/${LABEL}.plist`)
     const escape = (value: string) =>
       value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
     return {
