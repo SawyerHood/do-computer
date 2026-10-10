@@ -79,7 +79,7 @@ pnpm dev                        # Node target on http://localhost:3000
 pnpm dev:cloudflare             # the same on the local Workers runtime
 scripts/smoke.sh <base-url>     # end-to-end check of a running deployment (fresh, open sign-up)
 pnpm --filter @durable-computer/mascot demo    # the creature's playground page
-node scripts/icons.mjs          # draws the app's icons again, from the creature grown from "Do"
+node scripts/icons.mjs          # draws the app's icons again: its creature on the first run's island
 ```
 
 Without `OPENROUTER_API_KEY` the app answers with a built-in echo model. A message of the form
@@ -1923,6 +1923,47 @@ Since then, newest last:
       `.wrangler` state was started with this one, and the agent read all three back.
     - **Not known:** what it costs with real use; how it behaves with files of hundreds of
       megabytes; `git`, which the package has (isomorphic-git) and which was not turned on.
+
+48. **The app's picture is a creature on its island, and in the desktop app its owner's own**
+    (2026-10-10; `packages/mascot/src/portrait.js`, `scripts/icons.mjs`,
+    `apps/web/src/lib/app-icon.ts`, `apps/desktop/src/page-bridge.ts` and `main.ts`). The
+    owner asked for an icon that "screams windows 98 .exe logo", turned down three rounds
+    that added a treatment to the creature (beige furniture, a spooky game, a glossy one),
+    and settled it with "can it just be a render of a character on a background", "on the
+    spawning island background", "do teal mochi sunrise for default. before you've made one
+    show the egg. then build the dynamic one now!". The mock-ups are in `prototypes/app-icon`.
+    - **The picture** is the island of the first run (`sky.js`) with a creature standing on
+      it at rest, each drawn by its own code, one pixel of each to one pixel of the picture,
+      and nothing done to either. `portrait.js` draws it: the scene is drawn 2.1 times as
+      tall as the picture, so that there is sky over the creature, and the picture is the
+      square of it with the ground four fifths of the way down. The creature's own shadow
+      is left out and one is put on the grass.
+    - **The app's own icons** (item 40) are now this picture of the teal mochi, seed
+      `agt_ct5dka`, at sunrise, in place of the drop on a dark square: the phone's four, the
+      desktop app's two. A phone's are drawn from further back, since it cuts their corners
+      off. The tray, the tab and the mark are that creature alone.
+    - **In the desktop app the picture follows its owner's agent.** `useAppIcon` is given the
+      agent whose pages are open; `app-icon.ts` draws the same picture of it, in what it has
+      on, and hands it to the app as a PNG's address through `setIcon` on the page bridge.
+      The app shows it with `app.dock.setIcon` on a Mac and on its main window elsewhere.
+      Until an agent hatches it is its egg; on `/welcome`, before there is an agent, it is
+      the egg of the app's own creature; on the sign-in pages it is the usual picture again.
+      Other pages leave it as it was.
+    - **It lasts as long as the app runs.** Quit, and in Finder, Launchpad and Spotlight, the
+      app has the picture it was built with. Its file is signed and is not changed.
+    - **What the app accepts:** only from the top page of its main window while that is on
+      the deployment, as with the rest of the bridge; only a PNG's address under two
+      million characters, of a square of 64 to 1024 pixels. Anything else is left unanswered.
+    - **The island is drawn once for a page**, when the page is idle, with a graphics context
+      of its own that is given back at once (`WEBGL_lose_context`). Where it cannot be drawn
+      the app keeps the picture it has. An app older than this has no `setIcon` and is not
+      asked.
+    - **Mine, not the owner's:** that it is the agent whose chat is open (as the tab's icon
+      is); that an agent still in its egg is shown as its egg; the usual picture when signed
+      out; that Windows and Linux get it too, on the window; the tray staying the app's own
+      creature.
+    - **Tested:** `apps/web/e2e/app-icon.spec.ts`, where the app is stood in for by what it
+      gives a page, and `apps/desktop/test/page-bridge.test.ts`.
 
 ## 6. What the owner has said they want
 
