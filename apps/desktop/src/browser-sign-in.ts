@@ -9,6 +9,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
+import { MARK } from "./mark.ts"
 
 export type BrowserAnswer = { token: string } | { error: string }
 
@@ -37,14 +38,14 @@ const DONE = `<!doctype html>
 html, body { height: 100%; }
 body { margin: 0; display: grid; place-items: center; background: var(--canvas); color: var(--ink); font: 15px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
 main { max-width: 26em; padding: 28px; text-align: center; }
-svg { width: 56px; height: 56px; }
+svg { width: 64px; height: 64px; }
 h1 { margin: 14px 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
 p { margin: 0; color: color-mix(in oklch, var(--ink) 62%, var(--canvas)); }
 </style>
 </head>
 <body>
 <main>
-<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#242829"/><ellipse cx="32" cy="37" rx="20" ry="16" fill="#3b9d9d"/><circle cx="25" cy="35" r="2.6" fill="#1b2021"/><circle cx="39" cy="35" r="2.6" fill="#1b2021"/><path d="M27.5 42c2.6 2.4 6.4 2.4 9 0" fill="none" stroke="#1b2021" stroke-width="1.8" stroke-linecap="round"/></svg>
+${MARK}
 <h1>You are signed in.</h1>
 <p>You can close this tab and go back to Do Computer.</p>
 </main>
