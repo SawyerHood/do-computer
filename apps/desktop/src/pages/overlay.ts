@@ -18,6 +18,11 @@ export type OverlayView = {
   top: number
   /** False where the bar cannot be clicked, and Esc is the only way to pause. */
   buttons: boolean
+  /**
+   * True while the agent works in a window behind what its owner has in front. The screen is
+   * then still theirs: there is no glow round it, and Esc is not taken from them.
+   */
+  behind?: boolean
 }
 
 /** What the page asks of the app, given to it by the preload script. */
@@ -40,13 +45,21 @@ export type Bar = {
 }
 
 /** What the bar says. */
-export function barOf(view: Pick<OverlayView, "agent" | "say" | "held">): Bar {
+export function barOf(view: Pick<OverlayView, "agent" | "say" | "held" | "behind">): Bar {
   const name = view.agent.name.trim() || "An agent"
   if (view.held) {
     return {
       title: `${name} is paused`,
       detail: "It carries on when you say.",
       button: { label: "Carry on", act: "carry-on" },
+      esc: false,
+    }
+  }
+  if (view.behind === true) {
+    return {
+      title: `${name} is working in the background`,
+      detail: (view.say ?? "").trim(),
+      button: { label: "Pause", act: "pause" },
       esc: false,
     }
   }
@@ -96,6 +109,7 @@ function draw(api: OverlayApi): void {
     const says = barOf(view)
     act = says.button.act
     root.classList.toggle("held", view.held)
+    root.classList.toggle("behind", view.behind === true)
     root.classList.toggle("no-buttons", !view.buttons)
     // The page's rules allow no styles written into it, and do allow these, set from a script.
     root.style.setProperty(

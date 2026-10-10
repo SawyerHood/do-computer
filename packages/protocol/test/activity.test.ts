@@ -250,9 +250,14 @@ describe("chatUses", () => {
   const step = (
     id: string,
     name: "screen" | "browser",
-    over: Partial<ToolPart> & { say?: string; computer?: string; shot?: string } = {},
+    over: Partial<ToolPart> & {
+      say?: string
+      computer?: string
+      shot?: string
+      title?: string
+    } = {},
   ): ToolPart => {
-    const { say = "Clicking Save", computer = "MacBook", shot, ...rest } = over
+    const { say = "Clicking Save", computer = "MacBook", shot, title, ...rest } = over
     return {
       type: "tool",
       toolCallId: id,
@@ -267,6 +272,7 @@ describe("chatUses", () => {
           ...(shot === undefined
             ? {}
             : { shot, width: 1280, height: 800, pointer: { x: 4, y: 9 } }),
+          ...(title === undefined ? {} : { title }),
         },
       },
       ...rest,
@@ -315,6 +321,29 @@ describe("chatUses", () => {
     expect(uses[0]!.steps.map((each) => each.say)).toEqual(["Clicking Save", "Typing 4,820"])
     expect(uses[0]!.steps[0]).toMatchObject({ shot: "s1", width: 1280, pointer: { x: 4, y: 9 } })
     expect(uses[0]!.steps[1]!.shot).toBeUndefined()
+  })
+
+  it("keeps the window a step on a screen was done in, and has none for the whole screen or a page", () => {
+    const uses = chatUses({
+      busy: false,
+      messages: [
+        said(
+          "a",
+          0,
+          step("1", "screen", { shot: "s1", title: "Notes: Shopping" }),
+          step("2", "screen", { shot: "s2" }),
+          // A page's title is not a window's, and is not kept as one.
+          step("3", "browser", { title: "Pricing" }),
+        ),
+      ],
+    })
+    expect(uses.map((use) => use.steps.map((each) => each.title))).toEqual([
+      ["Notes: Shopping", undefined],
+      [undefined],
+    ])
+    expect(uses[0]!.steps[0]).toMatchObject({ shot: "s1", width: 1280, title: "Notes: Shopping" })
+    expect(uses[0]!.steps[1]).not.toHaveProperty("title")
+    expect(uses[1]!.steps[0]).not.toHaveProperty("title")
   })
 
   it("starts another use at the other tool, another computer, a message from someone, or a thing shown", () => {

@@ -6,8 +6,16 @@ import type { OverlayAct, OverlayView } from "./pages/overlay.ts"
 
 export type OverlayOptions = { state: UseState; pagesDir: string; preload: string }
 export type Overlay = {
-  /** Put the agent's pointer at a place on the primary display, in that display's own points from its top left; `click` makes it ripple. */
-  point(at: { x: number; y: number }, click: boolean): void
+  /**
+   * Put the agent's pointer at a place on the primary display, in that display's own points
+   * from its top left; `click` makes it ripple. With no place, the pointer is taken away.
+   */
+  point(at: { x: number; y: number } | undefined, click: boolean): void
+  /**
+   * Say whether the agent is working behind what the owner has in front. Then the screen is
+   * still theirs to use: there is no glow round it, and Esc stays their own key.
+   */
+  behind(on: boolean): void
   /** Whether the overlay turns up in pictures taken of the screen (true on Linux, where it cannot be kept out). */
   readonly inPictures: boolean
   dispose(): void
@@ -28,7 +36,7 @@ export function viewOf(
   state: Pick<UseState, "agent" | "say" | "held">,
   pointer: Pointer | undefined,
   ripples: number,
-  place: { top: number; buttons: boolean },
+  place: { top: number; buttons: boolean; behind?: boolean },
 ): OverlayView | undefined {
   if (state.agent === undefined) return undefined
   return {
@@ -53,6 +61,7 @@ export function createOverlay(options: OverlayOptions): Overlay {
   let ready = false
   let pointer: Pointer | undefined
   let ripples = 0
+  let behind = false
   let escape = false
   let looking: ReturnType<typeof setInterval> | undefined
   let disposed = false
@@ -141,6 +150,7 @@ export function createOverlay(options: OverlayOptions): Overlay {
     const view = viewOf(state, pointer, ripples, {
       top: Math.max(0, workArea.y - bounds.y) + BAR_GAP,
       buttons: !LINUX,
+      behind,
     })
     if (view !== undefined) window!.webContents.send("overlay:view", view)
   }
@@ -153,14 +163,16 @@ export function createOverlay(options: OverlayOptions): Overlay {
       clearInterval(looking)
       looking = undefined
       pointer = undefined
+      behind = false
       if (alive()) {
         takeClicks(false)
         window!.hide()
       }
       return
     }
-    // An Esc the agent presses is its own, and has to reach what it is typing into.
-    takeEscape(!state.held && !state.pressing)
+    // An Esc the agent presses is its own, and has to reach what it is typing into. One pressed
+    // while the agent works behind what is in front is its owner's, at their own work.
+    takeEscape(!behind && !state.held && !state.pressing)
     const shown = open()
     if (!shown.isVisible()) {
       shown.showInactive()
@@ -204,8 +216,13 @@ export function createOverlay(options: OverlayOptions): Overlay {
   return {
     point(at, click) {
       if (disposed) return
-      pointer = { x: Math.round(at.x), y: Math.round(at.y) }
-      if (click) ripples += 1
+      pointer = at === undefined ? undefined : { x: Math.round(at.x), y: Math.round(at.y) }
+      if (click && at !== undefined) ripples += 1
+      sync()
+    },
+    behind(on) {
+      if (disposed || behind === on) return
+      behind = on
       sync()
     },
     inPictures: LINUX,

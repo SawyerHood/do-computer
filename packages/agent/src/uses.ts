@@ -5,8 +5,12 @@ import {
   type LiveView,
   MAX_BROWSER_TIMEOUT_MS,
   SCREEN_ACTIONS,
+  type DesktopAction,
   type ScreenActed,
   type ScreenAction,
+  type ScreenWindow,
+  type WindowAct,
+  windowName,
   type Shot,
   type UseDetails,
   type UseWhat,
@@ -77,6 +81,12 @@ function bytesOf(base64: string): Uint8Array {
 /** What an action is called while it is done, where the agent did not say. */
 function sayOf(action: ScreenAction): string {
   switch (action.do) {
+    case "windows":
+      return "Looking at what is open"
+    case "open":
+      return `Opening ${action.app}`
+    case "in_window":
+      return action.act.do === "screenshot" ? "Looking at a window" : sayOf(action.act)
     case "screenshot":
       return "Looking at the screen"
     case "click":
@@ -100,9 +110,32 @@ function sayOf(action: ScreenAction): string {
   }
 }
 
+/** A window as it is listed for an agent: what it is asked for by, and what tells it from the others. */
+function windowLine(window: ScreenWindow): string {
+  const title = window.title.trim()
+  return [
+    String(window.id),
+    window.app.trim() || "(no name)",
+    ...(title === "" || title === window.app.trim() ? [] : [title]),
+    `${window.width}×${window.height}`,
+    ...(window.shown ? [] : ["not showing"]),
+  ].join(" · ")
+}
+
+const windowLines = (windows: readonly ScreenWindow[]) =>
+  windows.length === 0 ? "(none)" : windows.map(windowLine).join("\n")
+
+/** What a window is called in a sentence. */
+function windowSaid(window: ScreenWindow): string {
+  return `Window ${window.id} (${windowName(window)})`
+}
+
 /** The action a call's arguments ask for, or what is wrong with them. */
 export function screenAction(args: {
   action: string
+  window?: number
+  in_front?: boolean
+  app?: string
   x?: number
   y?: number
   to_x?: number
@@ -113,6 +146,47 @@ export function screenAction(args: {
   keys?: string
   seconds?: number
 }): ScreenAction | string {
+  if (args.action === "windows") return { do: "windows" }
+  if (args.action === "open") {
+    return typeof args.app === "string" && args.app.trim() !== ""
+      ? { do: "open", app: args.app.trim() }
+      : "open needs app: the name of the app to open, such as Notes."
+  }
+  if (args.window === undefined || args.window === null) return desktopAction(args)
+  if (!Number.isInteger(args.window) || args.window <= 0) {
+    return "window is the id of a window, a whole number: ask for `windows` to see the ones there are."
+  }
+  if (args.action === "move") {
+    return "move is for the whole screen. In a window nothing is under your pointer until you click: leave out `window` to move the computer's own pointer."
+  }
+  const act = desktopAction(args)
+  if (typeof act === "string") return act
+  // In a window the keyboard is wherever was last clicked, or at a place given with the text.
+  const place =
+    act.do === "type" && Number.isFinite(args.x) && Number.isFinite(args.y)
+      ? { x: Math.round(args.x!), y: Math.round(args.y!) }
+      : {}
+  return {
+    do: "in_window",
+    window: args.window,
+    ...(args.in_front === true ? { inFront: true } : {}),
+    act: { ...act, ...place } as WindowAct,
+  }
+}
+
+/** The same for an action done to the whole screen. */
+function desktopAction(args: {
+  action: string
+  x?: number
+  y?: number
+  to_x?: number
+  to_y?: number
+  direction?: string
+  amount?: number
+  text?: string
+  keys?: string
+  seconds?: number
+}): DesktopAction | string {
   const at = (): { x: number; y: number } | undefined =>
     Number.isFinite(args.x) && Number.isFinite(args.y)
       ? { x: Math.round(args.x!), y: Math.round(args.y!) }
@@ -217,7 +291,7 @@ export class Uses {
         section(
           "screen-and-browser",
           () =>
-            `On somebody's own computer you may be able to use more than files and commands. \`${BROWSER_TOOL}\` runs a short script in a browser there: use it for anything on a website. It is their own Chrome when that is open and lets itself be used, with everything they are signed in to, and otherwise a browser kept for agents. \`${SCREEN_TOOL}\` uses the computer's screen, with the mouse and keyboard, as they would: use it for programs that can be worked no other way, and prefer a command, a file or the browser when one of those would do, because the screen is slow and theirs. The person can watch either while you work, pause you, and stop you. Say what you are doing in each call's \`note\`, in a few words, for them to read. Whether a computer allows either is its owner's to say, on that computer: where it does not, the tool says so, and you cannot switch it on.`,
+            `On somebody's own computer you may be able to use more than files and commands. \`${BROWSER_TOOL}\` runs a short script in a browser there: use it for anything on a website. It is their own Chrome when that is open and lets itself be used, with everything they are signed in to, and otherwise a browser kept for agents. \`${SCREEN_TOOL}\` works the programs on the computer's screen: use it for programs that can be worked no other way, and prefer a command, a file or the browser when one of those would do, because the screen is slow. Work in one window at a time, which is done behind whatever the person has in front and leaves them their mouse and keyboard, so that they can carry on with their own work; only the whole screen, and a window you ask to have brought forward, take those from them. The person can watch either while you work, pause you, and stop you. Say what you are doing in each call's \`note\`, in a few words, for them to read. Whether a computer allows either is its owner's to say, on that computer: where it does not, the tool says so, and you cannot switch it on.`,
         ),
       ],
       hooks: [
@@ -303,13 +377,28 @@ export class Uses {
     return defineTool({
       name: SCREEN_TOOL,
       description:
-        "Use the screen of somebody's own computer, with its mouse and keyboard. Every call does one thing and answers with a picture of the screen afterwards. " +
-        "Start with `screenshot` to see it. Places are x and y in the pixels of the picture you were last given, from its top left. " +
-        "`click`, `double_click`, `right_click` and `move` take x and y; `drag` takes x, y, to_x and to_y; `scroll` takes x, y, a direction and an amount of wheel notches; " +
-        "`type` types text where the keyboard is, so click there first; `key` presses keys together, such as `enter`, `tab`, `escape`, `cmd+s` or `ctrl+shift+t`; `wait` waits some seconds for the screen to change. " +
-        "The person at the computer sees your pointer and can pause or stop you. Their computer must allow this: if it does not, the answer says so.",
+        "Work the programs on the screen of somebody's own computer. Every call does one thing and answers with a picture of how it looks afterwards. " +
+        "Work in a window wherever you can. `windows` lists the windows there are, each with an id; `open` starts an app by its name (`app`) without bringing it forward, and answers with its windows. With `window` set to an id, every other action is done in that window alone, behind whatever the person has in front and without their mouse or keyboard, so they can carry on with their own work; the picture is of that window, whether or not it can be seen on the screen, and places are x and y in the pixels of the last picture you were given of it, from its top left. " +
+        "`screenshot` looks; `click`, `double_click` and `right_click` take x and y; `drag` takes x, y, to_x and to_y; `scroll` takes x, y, a direction and an amount of wheel notches; " +
+        "`type` types text where the keyboard is, so click there first, or give x and y with it to click the field and type in one go, which is what a field in a web page wants; `key` presses keys together, such as `enter`, `tab`, `escape`, `cmd+s` or `ctrl+shift+t`; `wait` waits some seconds for things to change. " +
+        "Some things cannot be done behind what is in front, and the answer then says so: do the same again with `in_front: true`, which brings the window forward for that one action and takes the person's mouse and keyboard for a moment. Look at each picture to see that what you did took. " +
+        "Without `window`, the action is done to the whole screen with the computer's own mouse and keyboard, which the person cannot then use: keep that for what is in no window, such as the Dock, the menu bar or the desktop. `move` is only for the whole screen. " +
+        "The person can watch, pause you, and stop you. Their computer must allow this: if it does not, the answer says so.",
       parameters: Type.Object({
         action: StringEnum([...SCREEN_ACTIONS], { description: "What to do" }),
+        window: Type.Optional(
+          Type.Number({
+            description:
+              "The id of the window to do it in, from `windows` or `open`. Left out: the whole screen",
+          }),
+        ),
+        in_front: Type.Optional(
+          Type.Boolean({
+            description:
+              "With `window`: bring the window forward for this one action. Only when the answer said it could not be done otherwise",
+          }),
+        ),
+        app: Type.Optional(Type.String({ description: "For open: the app's name, such as Notes" })),
         x: Type.Optional(Type.Number({ description: "Pixels from the left of the last picture" })),
         y: Type.Optional(Type.Number({ description: "Pixels from the top of the last picture" })),
         to_x: Type.Optional(Type.Number({ description: "For drag: where it ends" })),
@@ -355,14 +444,44 @@ export class Uses {
         } catch (error) {
           return fail(error instanceof Error ? error.message : String(error))
         }
-        const { shot, pointer } = acted
+        // An app from before windows does nothing with what it was asked, and says nothing of windows.
+        const inWindows =
+          action.do === "windows" || action.do === "open" || action.do === "in_window"
+        if (inWindows && acted.window === undefined && acted.windows === undefined) {
+          return fail(
+            `The Do Computer app on ${computer.name} is from before agents could work in a window, so nothing was done. Its owner can install the newest Do Computer there. Until then, leave out \`window\` and use the whole screen, which takes their mouse and keyboard while you work.`,
+          )
+        }
+        const { shot, pointer, window, windows, note } = acted
+        const said: string[] = []
+        if (action.do === "windows") {
+          said.push(
+            `The windows on ${computer.name}, the nearest the front first (id · app · title · size):\n${windowLines(windows ?? [])}\nGive an id as \`window\` to look at one and work in it. \`open\` starts an app that has no window here.`,
+          )
+        } else if (action.do === "open") {
+          said.push(
+            `Opened ${action.app}, behind what is in front. Its windows:\n${windowLines(windows ?? [])}`,
+          )
+        } else if (windows !== undefined) {
+          said.push(`The windows there are now:\n${windowLines(windows)}`)
+        }
+        if (note !== undefined) said.unshift(note)
+        if (shot === undefined) {
+          return {
+            content: [{ type: "text", text: said.join("\n") }],
+            details: details() as unknown as Json,
+          }
+        }
         const kept = await this.#keep(shot)
+        const of = window === undefined ? "The screen" : windowSaid(window)
+        const looked =
+          action.do === "screenshot" ||
+          action.do === "open" ||
+          (action.do === "in_window" && action.act.do === "screenshot")
+        said.push(`${looked ? of : `Done. ${of} now`}, ${shot.width} by ${shot.height}:`)
         return {
           content: [
-            {
-              type: "text",
-              text: `${action.do === "screenshot" ? "The screen" : "Done. The screen now"}, ${shot.width} by ${shot.height}:`,
-            },
+            { type: "text", text: said.join("\n") },
             { type: "image", data: shot.data, mimeType: shot.mimeType },
           ],
           details: details({
@@ -370,6 +489,7 @@ export class Uses {
             width: shot.width,
             height: shot.height,
             ...(pointer === undefined ? {} : { pointer }),
+            ...(window === undefined ? {} : { title: windowName(window) }),
           }) as unknown as Json,
         }
       },

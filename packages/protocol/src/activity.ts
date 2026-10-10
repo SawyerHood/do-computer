@@ -364,6 +364,8 @@ export type UseStep = {
   height?: number
   pointer?: ShotPoint
   url?: string
+  /** On a screen: the window it was done in, where it was in one. */
+  title?: string
 }
 
 /** A stretch of an agent's turn spent on one computer's screen, or in a browser on it. */
@@ -444,6 +446,7 @@ export function chatUses(state: Pick<ChatState, "messages" | "busy">): Use[] {
           ...(use?.height === undefined ? {} : { height: use.height }),
           ...(use?.pointer === undefined ? {} : { pointer: use.pointer }),
           ...(use?.url === undefined ? {} : { url: use.url }),
+          ...(use?.title === undefined || use.what !== "screen" ? {} : { title: use.title }),
         })
       } else if (part.type !== "text" && isShownPart(part)) close()
     }
