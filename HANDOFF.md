@@ -1279,6 +1279,18 @@ Since then, newest last:
       at zenn.dev/coji/articles/cloudflare-workers-better-auth-hanging-promise, which names
       better-auth issue 10315. The app's own `getAuth` kept a promise the same way until
       2026-10-08 (pull request #25); this one is the library's.
+    - **That was not the promise, or not the only one.** After it was deployed the same
+      check still found isolates that did not answer, and the log said the second try, of a
+      new instance, did. So the promise is kept on the instance: Better Auth compares the
+      tables with what it expects when an instance is first used, once, and every
+      `auth.api` call waits for that one comparison (`createSchemaCheck` in
+      `@better-auth/core/dist/db/schema-check.mjs`, awaited in
+      `better-auth/dist/api/to-auth-endpoints.mjs`). A page abandons one of its requests a
+      quarter of a second after it loads, and when that is the request the comparison was
+      started in, it is never finished. It is switched off
+      (`advanced.database.validateSchema: false`, `NO_SHARED_SCHEMA_CHECK`): the tables are
+      brought up to date before an instance is made. Two tests say that the library still
+      keeps one promise by default, and that the app's instance has none.
     - **The stores are made as the module loads** (`seedAuthStores`), from an import nothing
       waits for, on Better Auth's shared object (`Symbol.for("better-auth:global")`). A test
       makes a real call and fails if the library has a store that was not made for it, which

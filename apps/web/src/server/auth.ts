@@ -3,7 +3,7 @@ import { expo } from "@better-auth/expo"
 import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
-import { askTwice, seedAuthStores } from "./auth-guard.ts"
+import { askTwice, NO_SHARED_SCHEMA_CHECK, seedAuthStores } from "./auth-guard.ts"
 import type { Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
 import { isInvited } from "./teams.ts"
@@ -75,6 +75,8 @@ function authOptions(platform: Platform) {
         }
       },
     },
+    // No call waits on another's: see the constant.
+    advanced: NO_SHARED_SCHEMA_CHECK,
     // The mobile app signs in from its own URL scheme and keeps the session cookie itself.
     trustedOrigins: [`${MOBILE_SCHEME}://`],
     // tanstackStartCookies must stay last: it turns the Set-Cookie headers of server-side calls
