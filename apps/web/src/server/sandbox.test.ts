@@ -94,4 +94,25 @@ describe("the kinds of computer a deployment offers", () => {
     // The built-in shell's files are with one agent, so there is none without an agent.
     expect(choices.create("just-bash", "agent-1")).toBeUndefined()
   })
+
+  it("take the built-in shell from the runtime, where it has one of its own", () => {
+    const asked: unknown[] = []
+    const shell = { id: "just-bash:agent-1" } as never
+    const choices = computerChoices(readConfig({}), "cloudflare", {
+      shell: () => (key, host) => {
+        asked.push([key, host === undefined])
+        return shell
+      },
+    })
+    expect(choices.default).toBe("just-bash")
+    expect(choices.create("just-bash", "agent-1", { name: "agent-1", sql: {} } as never)).toBe(
+      shell,
+    )
+    // Its files are not with the agent there, so it can be reached, and deleted, without one.
+    expect(choices.create("just-bash", "agent-1")).toBe(shell)
+    expect(asked).toEqual([
+      ["agent-1", false],
+      ["agent-1", true],
+    ])
+  })
 })

@@ -426,6 +426,8 @@ Since then, newest last:
       (`computers.ts`) adds an open machine when an agent is made where it could use none. The
       built-in shell keeps its files in one agent's database, so each agent gets its own,
       `chosen`, and it cannot be shared or removed apart from its agent (`UNSHARED_KINDS`).
+      (On Cloudflare its files have been in an object of their own since item 47, kept under
+      the agent's id; it is still one agent's.)
     - **The record is told to agents, whole.** `tellMachines` puts every machine an agent can
       use to it (`PUT /computers`), and the agent replaces what it had. An agent that was not
       told catches up by asking its host (`ComputerDirectory.machines`) the first time a name
@@ -1880,6 +1882,48 @@ Since then, newest last:
       lists a few models and not all; that the first run's choice is for that agent and does
       not become the person's default for new ones.
 
+47. **On Cloudflare the built-in shell is Cloudflare Computer's** (2026-10-10;
+    `packages/sandbox/src/worker-shell`, `apps/web/src/server/sandbox.cloudflare.ts`). The
+    owner, of https://github.com/cloudflare/computer: "would it be possible to make this with
+    the just bash backend one of the built in computer options? We can configure this to be the
+    default on cloudflare runs. since it would be very cheap", and then "roll it out and
+    replace our just bash version please".
+    - **What it is.** The kind is still `just-bash`. On Cloudflare `cloudflareProviders` now
+      answers for it: `workerShellSandbox` talks over Workers RPC to a `ShellObject`, one
+      Durable Object per shell, named after the machine's key (the agent's id). The object
+      holds a `Workspace` from `@cloudflare/computer` over its own SQLite storage, with the
+      `WorkerShellBackend`: each command runs in just-bash in a Dynamic Worker (`LOADER`),
+      which reaches the files through `WorkspaceServiceProxy` and nothing else of the server.
+      Its requests leave through `ShellGateway`, which is `guardedFetch` as before, so the
+      rule about private addresses is the same. On Node nothing changed: the shell inside the
+      server, with `DurableFs`.
+    - **Why an object of its own and not the agent's storage:** so that the shell could be a
+      workspace's machine later with no files to move. Whether it should be is the owner's to
+      say; it was left one per agent (`UNSHARED_KINDS`).
+    - **Files from before.** `movedFromDatabase` copies what `dc_fs` holds in the agent's
+      database into the object the first time the shell is used, then renames the tables to
+      `dc_fs_moved` and `dc_fs_chunks_moved`. Nothing drops them. Modification times are not
+      kept.
+    - **What the package cannot do, found by trying.** `yq`, `sqlite3`, `python3` and `js-exec`
+      do not run in a Worker, so they are not offered; `jq`, `xan`, `file`,
+      `html-to-markdown`, `rg`, `gzip` and `tar` are. A command is answered only when it is
+      over, so nothing is streamed. `killExec` does nothing (the shell's Worker keeps the
+      running commands in an object that each call gets a new one of), so `abort` stops
+      waiting and the command runs on until its time is out: ten minutes at most
+      (`MAX_RUN_MS`, a number of mine). The object's log fills with "uncaught exception"
+      lines for files that `rg` looks for and does not find; they are the package's.
+      Appending to a file with `>>` sets its mode back to 644, which the shell inside the
+      server did not do; writing it anew does in both.
+    - **The `experimental` flag** the package's README asks for was not needed, in
+      vitest-pool-workers or in `vite dev`.
+    - **Tested:** `packages/sandbox/test/workers` runs both conformance suites, the network
+      rules, deletion and the move inside the Workers runtime; `scripts/smoke.sh` passes
+      against `vite dev` on Cloudflare with it. The move was also made for real: an agent
+      wrote a file, a link to it and a mode with the commit before this one, the same
+      `.wrangler` state was started with this one, and the agent read all three back.
+    - **Not known:** what it costs with real use; how it behaves with files of hundreds of
+      megabytes; `git`, which the package has (isomorphic-git) and which was not turned on.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -1955,6 +1999,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   Telegram webhook pointing at an address that no longer exists, an R2 access token used for
   backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
   database and files that was taken before they were deleted. The old daemon is gone from that machine.
+- **Whether the built-in shell should be a workspace's machine on Cloudflare**, shared by its
+  agents like the others. Its files are in an object of their own since item 47, so nothing
+  would have to move; it was left one per agent because nobody was asked.
 - **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
   dashboard; the API token at hand cannot edit zone rules.
 - **Two credentials were pasted into a chat transcript**: the GitHub OAuth app's client secret

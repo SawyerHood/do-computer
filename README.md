@@ -50,6 +50,8 @@ pnpm run deploy
 
 Each agent is a Durable Object with its own SQLite storage; accounts and teams are in D1. Each
 team has one more Durable Object, which holds its members' connections for who is where.
+The built-in shell runs agents' commands in Dynamic Workers (the `worker_loaders` entry in
+`wrangler.jsonc`), which need the Workers Paid plan.
 
 Instead of editing `wrangler.jsonc`, a deployment's own values can come from the environment,
 which keeps them out of the repository. `pnpm run deploy` applies them to the build before it
@@ -119,18 +121,30 @@ the machines it shared, and offers to delete one that only it could use. Moving 
 another workspace takes along a machine only it could use; there it has that workspace's
 machines, and that workspace's library.
 
-| Kind         | The computer                                                                                  | Runs on          | What persists                                | Settings                                                                                                     |
-| ------------ | --------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace, in one agent's own database   | none                                                                                                         |
-| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
-| `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
-| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
-| `none`       | No machine is added. Agents can still work on computers of yours that are paired with them.   | Node, Cloudflare |                                              | none                                                                                                         |
+| Kind         | The computer                                                                                  | Runs on          | What persists                                                                                        | Settings                                                                                                     |
+| ------------ | --------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace: on Node in one agent's own database, on Cloudflare in a Durable Object of the shell's | on Cloudflare, the `worker_loaders` entry in `wrangler.jsonc`                                                |
+| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                                                                                       | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
+| `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume)                                                         | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
+| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                                                                         | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
+| `none`       | No machine is added. Agents can still work on computers of yours that are paired with them.   | Node, Cloudflare |                                                                                                      | none                                                                                                         |
 
 Things to know before choosing one:
 
-- **The built-in shell cannot be shared.** Its files are in one agent's database, so where it
-  is the default every agent gets its own, which goes when the agent is deleted.
+- **The built-in shell is not shared.** Where it is the default every agent gets its own, which
+  goes when the agent is deleted.
+- **On Cloudflare the built-in shell is [Cloudflare Computer](https://github.com/cloudflare/computer)'s.**
+  Its files are in a Durable Object of its own (about 10 GB, read as they are needed), and each
+  command runs in a Dynamic Worker started for it, which can reach those files and, through the
+  server, the public internet, and nothing else. That needs the Workers Paid plan: Dynamic
+  Workers are billed per shell per day it is used, after the first thousand a month. The
+  package is a preview and says of itself that it is not for production. On Node the shell runs
+  inside the server, with every file held in memory (64 MB at most). A shell that ran inside a
+  Cloudflare deployment before this has its files moved over the first time it is used; the
+  old tables stay in the agent's database as `dc_fs_moved` and `dc_fs_chunks_moved`.
+- **What the Cloudflare shell does not do:** a command that its caller stops, or that runs past
+  its time, is no longer waited for but runs on until ten minutes are up, since the shell's
+  Worker cannot be told to stop; and what it prints arrives when it is over, not as it goes.
 - **Daytona** stops a machine after 15 minutes without use and starts the same machine again on
   the next command. A machine is only ever created when Daytona says there is none; if Daytona
   cannot be reached the agent is told so, and no empty replacement is made.
@@ -588,8 +602,9 @@ apps/desktop      the Electron app: the deployment in a window, and the daemon r
 packages/runtime  one actor host interface (SQLite, alarm, blobs, sockets) over Durable Objects and Node
 packages/agent    the agent actor: pi-durable harness, identity, chats, history, schedules, skills,
                   connectors, approvals, library
-packages/sandbox  the sandbox interface, its adapter to pi-durable, and the providers: just-bash,
-                  Daytona, Modal, Cloudflare Containers
+packages/sandbox  the sandbox interface, its adapter to pi-durable, and the providers: just-bash
+                  (inside the server on Node, Cloudflare Computer on Cloudflare), Daytona, Modal,
+                  Cloudflare Containers
 packages/computers  the daemon protocol and the actor that holds a paired computer's connection
 packages/protocol   types and reducers shared by server and clients
 packages/client     API client, and following an agent over a socket or an event stream, for the
