@@ -15,6 +15,10 @@ export default defineConfig({
   // CI's machines have two cores, and a third worker there only makes the tests late for each
   // other. Elsewhere it is half the cores there are.
   workers: process.env.CI ? 2 : undefined,
+  // Those machines are also several times slower, most of all where a creature is drawn, which
+  // they do in software: a page that is right a moment late was failing a run there now and
+  // then, and a failed run on main is a deploy that does not happen.
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   reporter: [["list"]],
   use: {
     colorScheme: "dark",

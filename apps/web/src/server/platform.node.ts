@@ -21,6 +21,7 @@ import { agentDirectory } from "./agent-directory.ts"
 import { createAgentBeside } from "./agents.ts"
 import { addableKinds, addMachineFor, removeMachineFor } from "./computers.ts"
 import { slackDirectory } from "./slack.ts"
+import { browserDirectory } from "./browser-directory.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { servedDaemon } from "./daemon-version.ts"
 import { libraryDirectory } from "./library-directory.ts"
@@ -102,6 +103,7 @@ function create(): NodePlatform {
           remove: removeMachineFor,
         }),
         library: libraryDirectory(app, libraries),
+        showsBrowser: browserDirectory(app),
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
         appUrl: config.baseUrl,

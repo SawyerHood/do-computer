@@ -7,7 +7,7 @@ on a scene: an egg comes down out of the sky onto a little island, asks for what
 cracks a little more with each answer, hatches, and takes them to its chat. It is not part of the
 app and nothing here is imported by it. Everything in it is pretend.
 
-The owner approved it, and it was built the same day (HANDOFF.md, section 5, item 37). Where
+The owner approved it, and it was built the same day (HANDOFF.md, section 5, item 39). Where
 the app differs: the scene is a page of the server's, for a browser as well as the desktop app,
 and a browser is not asked about a computer; signing in with a provider goes through the
 owner's own browser when it is the desktop app that asks; the agent's hello in its chat is the

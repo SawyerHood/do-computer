@@ -221,10 +221,25 @@ export function findChrome(
   return candidates.find(runnable) ?? null
 }
 
-/** The flags of the browser kept for agents: no window, its own profile, a port of Chrome's choosing. */
-export function keptChromeArgs(profile: string, sandbox: boolean): string[] {
+/**
+ * Whether a window opened on this computer has anywhere to be: on Linux there is a display only
+ * where one is named. A Mac and a Windows machine are taken to have a screen.
+ */
+export function hasDisplay(
+  platform: string = process.platform,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  if (platform !== "linux") return true
+  return Boolean(env.DISPLAY || env.WAYLAND_DISPLAY)
+}
+
+/**
+ * The flags of the browser kept for agents: its own profile, a port of Chrome's choosing, and a
+ * window its owner can watch where it is shown, none where it is not.
+ */
+export function keptChromeArgs(profile: string, sandbox: boolean, shown = false): string[] {
   return [
-    "--headless=new",
+    ...(shown ? [] : ["--headless=new"]),
     ...(sandbox ? [] : ["--no-sandbox"]),
     "--remote-debugging-port=0",
     "--remote-debugging-address=127.0.0.1",
@@ -238,14 +253,17 @@ export function keptChromeArgs(profile: string, sandbox: boolean): string[] {
 
 /**
  * Stands between this process and a program it started, and ends that program, with everything
- * it started, when this process goes away for any reason: its end of the pipe closes.
+ * it started, when this process goes away for any reason: its end of the pipe closes. Windows
+ * is told to hide what the program opens unless `DC_SUPERVISED_SHOWN` says it has a window.
  */
 const supervisor = `
 const { spawn } = require('node:child_process');
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
+const shown = env.DC_SUPERVISED_SHOWN === '1';
+delete env.DC_SUPERVISED_SHOWN;
 const windows = process.platform === 'win32';
-const child = spawn(process.argv[1], process.argv.slice(2), { detached: !windows, stdio: 'ignore', env, windowsHide: true });
+const child = spawn(process.argv[1], process.argv.slice(2), { detached: !windows, stdio: 'ignore', env, windowsHide: !shown });
 let stopping = false;
 function kill(signal) {
   if (!child.pid) return;
@@ -274,11 +292,23 @@ process.on('SIGINT', stop);
 
 export type Supervised = { alive(): boolean; close(): Promise<void> }
 
-/** Start a program that is ended when this process ends, or when `close` is called. */
-export function supervise(command: string, args: string[], env: NodeJS.ProcessEnv): Supervised {
+/**
+ * Start a program that is ended when this process ends, or when `close` is called. One that is
+ * `shown` has a window of its own, which Windows is then not told to hide.
+ */
+export function supervise(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  shown = false,
+): Supervised {
   const child = spawn(process.execPath, ["-e", supervisor, command, ...args], {
-    // Under Electron the program that is running is Electron, which is Node only when told so.
-    env: process.versions.electron ? { ...env, ELECTRON_RUN_AS_NODE: "1" } : env,
+    env: {
+      ...env,
+      // Under Electron the program that is running is Electron, which is Node only when told so.
+      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+      ...(shown ? { DC_SUPERVISED_SHOWN: "1" } : {}),
+    },
     stdio: ["pipe", "ignore", "ignore"],
     windowsHide: true,
   })

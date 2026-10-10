@@ -1353,7 +1353,70 @@ Since then, newest last:
       test that waits five seconds: the one before in a test of two clients (item 35's gap).
       A failed run skips the deploy. `gh run rerun <id> --failed` runs the failed job again.
 
-37. **A first run that is a scene** (2026-10-10; `prototypes/onboarding` is the mock-up;
+37. **Creatures come back after the graphics card's process dies** (2026-10-10;
+    `packages/mascot/src/orb-core.js`, `apps/web/src/components/agent-avatar.tsx`,
+    `apps/desktop/src/main.ts`). The owner asked for the GPU restarts on their Mac (item 33)
+    to be fixed. What makes the card fault was not found. What the app does about it was
+    found wanting twice over, on that Mac, by killing the GPU process of a second copy of the
+    installed app (its own folder, `--remote-debugging-port`, a test server through an SSH
+    tunnel, driven from here with Playwright over CDP):
+    - **After one death, every creature stayed blank for good**, item 33's change
+      notwithstanding. The browser gives the WebGL context back within a second, and every
+      2D canvas too, wiped. three (r128) then makes every draw call and draws nothing. So a
+      renderer of the stage's own that has lost its context once is let go of and another
+      made, and a creature held still is drawn again once its canvas is back (`owed`). On
+      the Mac: blank for good before, drawn again within 1.5 s after.
+    - **After two deaths in a few seconds, Chromium refuses WebGL to the page** for as long
+      as the app runs. Chrome puts up a bar that offers to load the page again; Electron puts
+      up nothing. The app now calls `app.disableDomainBlockingFor3DAPIs()`. On the Mac, with
+      the same thing as a switch (`--disable-domain-blocking-for-3d-apis`): refused for good
+      before, drawn again within 1.5 s after. Where it is still refused, as in an app that
+      has not been updated, the still picture stands in after a second or so.
+    - **What was tried to find the fault, and did not:** the creature's own page with freshly
+      compiled shaders, every state and every reaction (five runs in Chrome 154, four in the
+      app's Electron 44); all hundred things to wear; the box opened five times over; the
+      real pages from signing up through chatting, a treat, the box, the wardrobe and typing
+      (twice). Once in those, as the box's window opened, the GPU process died twice in two
+      seconds with no report from macOS. The same steps again did not do it.
+    - **Checked here:** a browser test kills the browser's GPU process and fails without the
+      change (`e2e/agents.spec.ts`). A desktop test kills the app's twice and fails without
+      the app's call (`apps/desktop/e2e/graphics.spec.ts`). It starts an app of its own that
+      draws 3D in software, since the other tests' app is started with no GPU at all and so
+      has no 3D to lose, on GitHub's Mac included.
+    - **The desktop app has to be released again** for its half: `desktop-v0.3.0`.
+
+38. **The browser an agent uses is in a window, unless its workspace says otherwise**
+    (2026-10-10; `packages/computers/src/browser`, `apps/web/src/server/teams.ts`,
+    `components/settings/computers.tsx`). The owner: "Would it be possible to start the
+    browsers that do computer controls on your computer headed so you can see them", and
+    while it was being built, "the browser being visible be default should be a toggle on and
+    off in your workspace settings".
+    - **The choice is the workspace's**, on until someone there switches it off: Workspace
+      settings, Computers, "Show the browser agents use". It is kept in a table of its own
+      (`dc_workspace_settings`, since a personal workspace has no row with the teams), read
+      and changed at `/api/workspaces/:id/settings`, by a team's admins and by the owner of a
+      personal workspace. A member sees it and cannot change it.
+    - **It travels with each use of the browser**: the agent asks its host what its workspace
+      has chosen (`showsBrowser`, from `browser-directory.ts`, on both servers) and sends
+      `shown` on the daemon's `browser` frame. So nothing is kept anywhere that can go stale,
+      a change holds from the next use, an older daemon ignores it, and the desktop app
+      needed no release.
+    - **On the computer** the browser kept for agents is started without `--headless` when
+      asked to be shown, and is closed and started again, with its profile, when it is
+      asked for the other way than it is running. With no display (Linux with neither
+      `DISPLAY` nor `WAYLAND_DISPLAY`) it stays out of sight and the log says so once. If it
+      cannot open a window it is started without one. The owner's own Chrome, where that is
+      what is used, is as it was.
+    - **Mine, not the owner's:** everything but those two sentences of theirs. No switch in
+      the desktop app, which I had begun and took out when they named workspace settings; no
+      flag for a daemon run by hand; that a member sees the switch disabled.
+    - **Never run:** a browser with a window on macOS or Windows, where nothing has been
+      seen of it: whether it comes to the front, where it opens, and on Windows whether the
+      window shows at all (the program that starts it was told to hide windows, and is now
+      told not to for this one). Under Xvfb on Linux it was started both ways and asked
+      which it was. Two workspaces that have chosen differently and share one computer
+      have the browser start again at each change of hands.
+39. **A first run that is a scene** (2026-10-10; `prototypes/onboarding` is the mock-up;
     `packages/mascot/src/sky.js`, `apps/web/src/components/welcome`, `apps/web/src/routes/welcome.tsx`,
     `apps/web/src/server/desktop-handoff.ts`, `apps/desktop/src/page-bridge.ts`,
     `apps/desktop/src/browser-sign-in.ts`). The owner asked for "a really nice onboarding when
@@ -1401,9 +1464,10 @@ Since then, newest last:
       tab itself has just come back from the provider; the hello and its three starters; the
       scene for someone who signs in again on a new computer; that a page may share the
       computer during the first run without a second question from the app.
-    - **Never run:** a real GitHub or Google sign-in through any of this; the scene on a real
-      graphics card in the app (here it was drawn by software); the token exchange on
-      Workers (`adapter.consumeOne` against D1); macOS and Windows outside CI.
+    - **Run on a Mac once:** the packed build from this branch, on the owner's MacBook Air and
+      its own graphics card, through a whole first run against a server on another machine.
+    - **Never run:** a real GitHub or Google sign-in through any of this; the token exchange
+      on Workers (`adapter.consumeOne` against D1); Windows outside CI.
 
 ## 6. What the owner has said they want
 

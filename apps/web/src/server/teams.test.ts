@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { personalWorkspaceId } from "@durable-computer/protocol"
 import { openNodeAppDatabase } from "@durable-computer/runtime/node"
 import { describe, expect, it } from "vitest"
+import { browserDirectory } from "./browser-directory.ts"
 import { migrateAppDatabase } from "./schema.ts"
 import {
   acceptInvitation,
@@ -24,9 +25,12 @@ import {
   removeMember,
   renewInvitation,
   setRole,
+  showsBrowser,
   updateWorkspace,
+  updateWorkspaceOptions,
   type Who,
   withdrawInvitation,
+  workspaceOptions,
 } from "./teams.ts"
 
 const person = (id: string, verified = true): Who => ({
@@ -148,6 +152,52 @@ describe("teams", () => {
     // Out of the team, out of its agents.
     await removeMember(db, maya, id, "jon")
     expect(await agentAccess(db, "jon", "shared")).toBeUndefined()
+  })
+
+  it("shows the browser its agents use until an admin says otherwise", async () => {
+    const db = await database()
+    const id = await team(db)
+    const own = personalWorkspaceId("sawyer")
+    // Nobody has chosen anything, so it is shown, in a team and in a workspace of one's own.
+    expect(await workspaceOptions(db, sawyer, id)).toEqual({ showBrowser: true, canChange: true })
+    expect(await workspaceOptions(db, maya, id)).toEqual({ showBrowser: true, canChange: true })
+    expect(await workspaceOptions(db, jon, id)).toEqual({ showBrowser: true, canChange: false })
+    expect(await workspaceOptions(db, sawyer, own)).toEqual({ showBrowser: true, canChange: true })
+
+    // A member reads the choice and cannot change it; someone outside is not told of the team.
+    expect(await refused(updateWorkspaceOptions(db, jon, id, { showBrowser: false }))).toBe(403)
+    expect(await refused(updateWorkspaceOptions(db, priya, id, { showBrowser: false }))).toBe(404)
+    expect(await refused(workspaceOptions(db, priya, id))).toBe(404)
+    expect(await refused(workspaceOptions(db, maya, own))).toBe(404)
+    expect(await refused(updateWorkspaceOptions(db, maya, own, { showBrowser: false }))).toBe(404)
+    expect(await refused(updateWorkspaceOptions(db, maya, id, { showBrowser: "no" }))).toBe(400)
+    expect(await showsBrowser(db, id)).toBe(true)
+
+    await updateWorkspaceOptions(db, maya, id, { showBrowser: false })
+    expect(await workspaceOptions(db, jon, id)).toEqual({ showBrowser: false, canChange: false })
+    // Each workspace chooses for itself.
+    expect(await showsBrowser(db, own)).toBe(true)
+    await updateWorkspaceOptions(db, sawyer, own, { showBrowser: false })
+    expect(await showsBrowser(db, own)).toBe(false)
+
+    // An agent is answered with what the workspace it is in now has chosen.
+    const shown = browserDirectory(db)
+    await db.run(
+      "INSERT INTO dc_agents (id, owner_id, workspace_id, created_at) VALUES ('shared', 'maya', ?, 1)",
+      id,
+    )
+    await db.run("INSERT INTO dc_agents (id, owner_id, created_at) VALUES ('hers', 'maya', 2)")
+    expect(await shown("shared")).toBe(false)
+    expect(await shown("hers")).toBe(true)
+    expect(await shown("nobody")).toBeUndefined()
+    await updateWorkspaceOptions(db, sawyer, id, { showBrowser: true })
+    expect(await shown("shared")).toBe(true)
+
+    // A deleted team's choice goes with it.
+    await updateWorkspaceOptions(db, sawyer, id, { showBrowser: false })
+    await db.run("DELETE FROM dc_agents WHERE id = 'shared'")
+    await deleteWorkspace(db, sawyer, id)
+    expect(await showsBrowser(db, id)).toBe(true)
   })
 
   it("keeps who may change a team to its admins and owner", async () => {

@@ -38,6 +38,29 @@ describe("migrating the app database", () => {
     await expect(app.all("SELECT id FROM dc_agents")).resolves.toEqual([])
   })
 
+  it("gives workspaces somewhere to keep what they choose, shown browsers by default", async () => {
+    const latest = database()
+    await migrateAppDatabase(latest)
+    const version = Number(await readMeta(latest, "schema_version"))
+
+    // A database from before workspaces chose anything, with a team and an agent in it.
+    const app = database()
+    await migrateAppDatabase(app, version - 1)
+    await expect(app.all("SELECT * FROM dc_workspace_settings")).rejects.toThrow()
+    await app.run(
+      "INSERT INTO dc_workspaces (id, name, color, created_by, created_at) VALUES ('team', 'Tidewater', 'moss', 'sawyer', 1)",
+    )
+    await migrateAppDatabase(app)
+    expect(await readMeta(app, "schema_version")).toBe(String(version))
+    // Nothing is written for the workspaces there already: no row is a browser that is shown.
+    await expect(app.all("SELECT * FROM dc_workspace_settings")).resolves.toEqual([])
+    await expect(app.all("SELECT id FROM dc_workspaces")).resolves.toEqual([{ id: "team" }])
+    await app.run("INSERT INTO dc_workspace_settings (workspace_id) VALUES ('personal:sawyer')")
+    await expect(app.all("SELECT * FROM dc_workspace_settings")).resolves.toEqual([
+      { workspace_id: "personal:sawyer", show_browser: 1 },
+    ])
+  })
+
   it("still fails when a migration cannot be run", async () => {
     const app = database()
     const broken: typeof app = {

@@ -18,7 +18,8 @@ import { OWN_PORTS, findChrome } from "../src/browser/chrome.ts"
 const live = process.env.DC_BROWSER_LIVE === "1"
 const agent = { id: "a1", name: "Ada", color: "#14b8a6" }
 const dir = mkdtempSync(join(tmpdir(), "dc-browser-"))
-const io = nodeBrowserIO({ dir, log: (line) => console.log(line) })
+// Without a window, whatever the machine has: where the tests are run there is no display.
+const io = nodeBrowserIO({ dir, shown: false, log: (line) => console.log(line) })
 
 // The button is at a known place, so that where the pointer was last seen can be checked.
 const html = `<!doctype html><title>before</title><body style="margin:0">

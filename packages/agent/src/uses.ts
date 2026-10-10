@@ -44,6 +44,11 @@ export type UsesOptions = {
   readonly blobs: BlobStore
   /** Who the agent is, as it is said on the computer and to whoever watches. */
   readonly agent: (context: Context) => Promise<UsingAgent>
+  /**
+   * Whether the browser kept for agents on a computer has a window its owner can watch, as the
+   * agent's workspace has it now. Where this is absent or does not know, the computer is not told.
+   */
+  readonly showsBrowser?: (context: Context) => Promise<boolean | undefined>
   /** Whether the model the agent runs on takes pictures. */
   readonly sees: (context: Context) => Promise<boolean>
   /** The computer of that name or id, ready to work on, or why there is none. */
@@ -409,6 +414,7 @@ export class Uses {
           Math.max(1, args.timeout ?? DEFAULT_BROWSER_TIMEOUT_MS / 1000) * 1000,
           MAX_BROWSER_TIMEOUT_MS,
         )
+        const shown = await this.#options.showsBrowser?.(context)
         let ran: BrowserRan
         try {
           // Scripts on one page would get in each other's way, so they take turns as well.
@@ -419,6 +425,7 @@ export class Uses {
               script: args.script,
               timeoutMs,
               say,
+              ...(shown === undefined ? {} : { shown }),
             }),
           )) as BrowserRan
         } catch (error) {
