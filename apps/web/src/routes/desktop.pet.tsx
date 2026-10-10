@@ -23,7 +23,9 @@ import {
   PET_BOX,
   type PetBridge,
   petBridge,
-  petEnding,
+  petEndings,
+  type PetMemory,
+  petMemory,
   petNow,
   type PetPlace,
   type PetSaying,
@@ -190,16 +192,10 @@ function Pet({
   // A run that was going in one of its chats has stopped: it says how that went, for a while.
   const [ending, setEnding] = useState<PetSaying>()
   const [flash, setFlash] = useState<"done" | "error">()
-  const wasBusy = useRef(new Map<string, boolean>())
+  const memory = useRef<PetMemory>(undefined)
   useEffect(() => {
-    let said: PetSaying | undefined
-    for (const { chat, state, loaded } of followed) {
-      if (!loaded) continue
-      if (wasBusy.current.get(chat.id) === true && !state.busy) {
-        said = petEnding(chat, state) ?? said
-      }
-      wasBusy.current.set(chat.id, state.busy)
-    }
+    memory.current ??= petMemory(Date.now())
+    const said = petEndings(followed, memory.current)
     if (said === undefined) return
     setEnding(said)
     setFlash(said.kind === "error" ? "error" : "done")

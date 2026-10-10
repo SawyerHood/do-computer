@@ -296,7 +296,7 @@ test("the agent kept on the desktop goes while an agent uses the screen", async 
   // use: the companion would be in the pictures the agent is given, and under its clicks.
   await computer.getByLabel("Keep my agent on the desktop").check()
   const pet = await windowAt("/desktop/pet")
-  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible({ timeout: 30_000 })
   expect(await showing()).toBe(false)
   // Its owner stops the agent, and the screen is their own again.
   await app.evaluate(({ BrowserWindow }) => {

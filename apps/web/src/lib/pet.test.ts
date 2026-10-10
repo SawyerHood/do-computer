@@ -6,7 +6,15 @@ import {
   EMPTY_CHAT,
 } from "@durable-computer/protocol"
 import { describe, expect, it } from "vitest"
-import { chatsToFollow, excerpt, type FollowedChat, petEnding, petNow } from "./pet.ts"
+import {
+  chatsToFollow,
+  excerpt,
+  type FollowedChat,
+  petEnding,
+  petEndings,
+  petMemory,
+  petNow,
+} from "./pet.ts"
 
 const NOW = 10_000_000
 
@@ -151,6 +159,53 @@ describe("what a companion says", () => {
     // A run its owner stopped is theirs to know of already.
     expect(petEnding(main, chat([answer({ status: "aborted" })]))).toBeUndefined()
     expect(petEnding(main, chat([]))).toBeUndefined()
+  })
+
+  it("says a run's ending once, when a chat that was at work no longer is", () => {
+    const memory = petMemory(NOW)
+    // The chat was last written in before the companion came, and is at work as it comes.
+    const old = summary("1", { main: true, updatedAt: NOW - 60_000 })
+    const done = answer({ id: "a1", parts: [{ type: "text", text: "All done." }] })
+    expect(petEndings([followed(old, chat([running], true))], memory)).toBeUndefined()
+    expect(petEndings([followed(old, chat([done]))], memory)).toEqual({
+      kind: "done",
+      text: "All done.",
+      chatId: "1",
+    })
+    expect(petEndings([followed(old, chat([done]))], memory)).toBeUndefined()
+  })
+
+  it("says nothing of what was over before it came", () => {
+    const memory = petMemory(NOW)
+    const old = summary("1", { main: true, updatedAt: NOW - 60_000 })
+    const done = answer({ id: "a1", parts: [{ type: "text", text: "Long ago." }] })
+    expect(petEndings([followed(old, chat([done]))], memory)).toBeUndefined()
+    expect(petEndings([followed(old, chat([done]))], memory)).toBeUndefined()
+  })
+
+  it("says the ending of a run that was over before its chat was heard from", () => {
+    const memory = petMemory(NOW)
+    const done = answer({ id: "a1", parts: [{ type: "text", text: "That was quick." }] })
+    // The chat says what was written before the list of chats says that it was written in.
+    const stale = summary("2", { title: "Side", updatedAt: NOW - 60_000 })
+    expect(petEndings([followed(stale, chat([done]))], memory)).toBeUndefined()
+    const fresh = { ...stale, updatedAt: NOW + 1_000 }
+    expect(petEndings([followed(fresh, chat([done]))], memory)).toEqual({
+      kind: "done",
+      text: "That was quick.",
+      chatId: "2",
+      where: "Side",
+    })
+    expect(petEndings([followed(fresh, chat([done]))], memory)).toBeUndefined()
+    // What its owner wrote is no ending, and the answer to it is the next one.
+    const asked: ChatMessage = { id: "u2", role: "user", parts: [], status: "done" }
+    expect(petEndings([followed(fresh, chat([done, asked]))], memory)).toBeUndefined()
+    const next = answer({ id: "a2", parts: [{ type: "text", text: "And again." }] })
+    expect(petEndings([followed(fresh, chat([done, asked, next]))], memory)?.text).toBe(
+      "And again.",
+    )
+    // A chat that has not been heard from says nothing.
+    expect(petEndings([followed(fresh, chat([next]), false)], petMemory(NOW))).toBeUndefined()
   })
 
   it("is one plain line, cut at a word", () => {

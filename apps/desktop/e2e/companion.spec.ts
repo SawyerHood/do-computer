@@ -168,7 +168,8 @@ test("switched on, the agent's creature is on the desktop, over the other window
   await companion.check()
 
   const pet = await windowAt(PET)
-  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  // A slow machine takes a while over a page's first load.
+  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible({ timeout: 30_000 })
   // The agent it shows is the one the app was left on.
   const main = await windowAt(`${url}/a/`)
   const agentId = /\/a\/([^/]+)/.exec(main.url())![1]!
@@ -265,7 +266,7 @@ test("it is where it was left when the app is started again, and goes when switc
   await app.evaluate(({ app }) => app.quit()).catch(() => {})
   app = await launch()
   const pet = await windowAt(PET)
-  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible({ timeout: 30_000 })
   await expect(pet.locator("[data-pet]")).toHaveAttribute("data-place", "top left")
   await expect.poll(async () => (await companionWindow())?.visible).toBe(true)
   const { bounds, workArea } = (await companionWindow())!

@@ -1569,7 +1569,10 @@ Since then, newest last:
       and the start of the answer for twenty seconds, or "Ran into a problem" and
       `describeChatError`'s sentence for forty-five. A pending approval comes before either:
       "Needs your OK". Clicking the bubble opens that chat in the app. The creature acts out
-      the same thing, as it does in the app.
+      the same thing, as it does in the app. A run's ending is known by a chat that was at
+      work no longer being so, and also by a last message that is new in a chat written in
+      since the companion came (`petEndings`): a quick answer in a chat that has only just
+      started up is over before its stream is heard from, which CI's Linux machine showed.
     - **How it reacts.** The app says where the pointer is on the whole screen thirty times
       a second while it moves, and the creature looks at it (`leadPointer`). A key typed in a
       message to the agent in the app's window is told to the companion's window over a

@@ -175,13 +175,61 @@ export function petNow(
   }
 }
 
+/** What a companion keeps of the chats it follows, to know a run's ending when it sees one. */
+export type PetMemory = {
+  /** When it began to follow them. What was over before then is no news. */
+  since: number
+  /** Whether each chat was at work when last looked at. */
+  wasBusy: Map<string, boolean>
+  /** The last message of each chat that has been dealt with: said, or passed over. */
+  dealt: Map<string, string>
+}
+
+export const petMemory = (since: number): PetMemory => ({
+  since,
+  wasBusy: new Map(),
+  dealt: new Map(),
+})
+
+/**
+ * The ending there is to say, if a run has ended in one of the chats since they were last
+ * looked at. A run is known to have ended when a chat that was at work no longer is. One that
+ * began and ended between two looks was never seen at work: a chat that starts up is only
+ * followed once it has, and a quick answer is over by then. That one is known by a last
+ * message that has not been dealt with, in a chat written in since the companion came.
+ */
+export function petEndings(
+  followed: readonly FollowedChat[],
+  memory: PetMemory,
+): PetSaying | undefined {
+  let said: PetSaying | undefined
+  for (const { chat, state, loaded } of followed) {
+    if (!loaded) continue
+    const worked = memory.wasBusy.get(chat.id) === true
+    memory.wasBusy.set(chat.id, state.busy)
+    const last = state.messages.at(-1)
+    if (state.busy || last === undefined || memory.dealt.get(chat.id) === last.id) continue
+    // Not passed over for good: the list of chats may say that it was written in a moment
+    // after the chat itself says what was written.
+    if (!worked && chat.updatedAt < memory.since) continue
+    memory.dealt.set(chat.id, last.id)
+    said = petEnding(chat, state) ?? said
+  }
+  return said
+}
+
 /**
  * What a companion says of a run that has just ended in one of its chats: the start of the
  * answer, or what went wrong. Nothing of one its owner stopped.
  */
 export function petEnding(chat: ChatSummary, state: ChatState): PetSaying | undefined {
   const last = state.messages.at(-1)
-  if (last === undefined || last.role !== "assistant" || last.status === "aborted") {
+  if (
+    last === undefined ||
+    last.role !== "assistant" ||
+    last.status === "aborted" ||
+    last.status === "streaming"
+  ) {
     return undefined
   }
   if (last.status === "error") {
