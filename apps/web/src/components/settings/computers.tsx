@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -49,7 +50,7 @@ import { client } from "@/lib/client"
 import { computerKindsKey, computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
-import { useWorkspaces } from "@/lib/workspaces"
+import { useWorkspaces, workspaceOptionsKey } from "@/lib/workspaces"
 
 const PLATFORMS: Record<string, string> = { darwin: "macOS", linux: "Linux", win32: "Windows" }
 
@@ -622,6 +623,46 @@ function AddComputer({
 }
 
 /** Kinds that cannot be added: no computer at all, and the shell that is one agent's alone. */
+/**
+ * Whether the browser the workspace's agents use on a computer is shown there. Everyone in the
+ * workspace sees what was chosen; those who may not change it see it as it is.
+ */
+function ShownBrowser({ workspaceId }: { workspaceId: string }) {
+  const { data: options } = useQuery({
+    queryKey: workspaceOptionsKey(workspaceId),
+    queryFn: () => client.workspace(workspaceId).options(),
+  })
+  const save = useMutation({
+    mutationFn: (showBrowser: boolean) => client.workspace(workspaceId).setOptions({ showBrowser }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: workspaceOptionsKey(workspaceId) }),
+  })
+  if (options === undefined) return null
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border border-dashed p-4">
+      <div>
+        <h2 className="text-sm font-medium">The browser agents use</h2>
+        <p className="text-sm text-muted-foreground">
+          On a computer with a screen, the browser an agent uses opens in a window you can watch.
+          Off, it works out of sight.
+        </p>
+      </div>
+      <Label className="font-normal">
+        <Switch
+          checked={save.isPending ? save.variables : options.showBrowser}
+          disabled={save.isPending || !options.canChange}
+          onCheckedChange={(next) => save.mutate(next)}
+        />
+        Show the browser agents use
+      </Label>
+      {save.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {save.error.message}
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
 const NOT_ADDED: readonly string[] = ["none", "just-bash"]
 
 /**
@@ -727,6 +768,8 @@ export function ComputersSettings({
           doing so.
         </p>
       </section>
+
+      {workspaceId !== undefined ? <ShownBrowser workspaceId={workspaceId} /> : null}
     </div>
   )
 }

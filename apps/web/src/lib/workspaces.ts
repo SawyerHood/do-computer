@@ -19,6 +19,9 @@ export const workspacesKey = ["workspaces"] as const
 export const invitationsKey = (workspaceId: string) =>
   ["workspaces", workspaceId, "invitations"] as const
 
+export const workspaceOptionsKey = (workspaceId: string) =>
+  ["workspaces", workspaceId, "settings"] as const
+
 export const workspacesQuery = queryOptions({
   queryKey: workspacesKey,
   queryFn: () => client.workspaces(),

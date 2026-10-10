@@ -98,6 +98,17 @@ export type Me = {
 }
 
 /** Everything about one agent that is not a chat transcript. */
+/** What a workspace has chosen for all its agents. */
+export type WorkspaceOptions = {
+  /**
+   * Whether the browser its agents use on a computer opens in a window the computer's owner can
+   * watch, as opposed to working out of sight.
+   */
+  showBrowser: boolean
+  /** Whether the signed-in user may change any of this. */
+  canChange: boolean
+}
+
 export type AgentState = {
   agent: AgentSummary
   /** The user's IANA timezone as the agent knows it. */
@@ -305,6 +316,10 @@ export function createClient(options: ClientOptions) {
       const base = `/api/workspaces/${encodeURIComponent(workspaceId)}`
       return {
         update: (change: UpdateWorkspaceRequest) => patch<{ ok: true }>(base, change),
+        /** What the workspace has chosen for all its agents. */
+        options: () => request<WorkspaceOptions>(`${base}/settings`),
+        setOptions: (change: { showBrowser?: boolean }) =>
+          patch<{ ok: true }>(`${base}/settings`, change),
         /** Delete the team. It has to be empty of agents. */
         remove: () => request<{ ok: true }>(base, { method: "DELETE" }),
         invitations: async () =>

@@ -175,6 +175,13 @@ export type AgentActorOptions = {
    */
   readonly library?: (agentId: string) => Promise<ActorStub | undefined>
   /**
+   * Whether the browser the agent uses on a computer opens in a window its owner can watch, as
+   * the agent's workspace has it. Asked before each use of the browser, since the choice can be
+   * changed and an agent can be moved. Without it, or where it does not know, the computer is
+   * not told and decides for itself.
+   */
+  readonly showsBrowser?: (agentId: string) => Promise<boolean | undefined>
+  /**
    * Who the other agents of the agent's workspace are, and how a message reaches one. Without
    * it, the agent knows of no other agent.
    */
@@ -514,6 +521,12 @@ export class AgentActor implements Actor {
         const { model } = await this.#identity(await this.#open())
         return model === ECHO_MODEL || this.#sees(model)
       },
+      // Not knowing is no reason to refuse the agent the browser: the computer is then not told.
+      showsBrowser: async () =>
+        options.showsBrowser?.(host.name).catch((error: unknown) => {
+          options.onReport?.(error)
+          return undefined
+        }),
       computer: (id, c) => this.#computers.resolve(id, c),
     })
     this.#computers = new Computers({

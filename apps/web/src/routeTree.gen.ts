@@ -63,6 +63,7 @@ import { Route as ApiInvitationsKeyIndexRouteImport } from './routes/api/invitat
 import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invitations/$key.accept'
 import { Route as ApiSlackEventsAgentIdRouteImport } from './routes/api/slack/events.$agentId'
 import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
+import { Route as ApiWorkspacesWorkspaceIdSettingsRouteImport } from './routes/api/workspaces/$workspaceId.settings'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
 import { Route as ApiComputersComputerIdAgentsAgentIdRouteImport } from './routes/api/computers/$computerId.agents.$agentId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
@@ -350,6 +351,12 @@ const ApiWorkspacesWorkspaceIdIndexRoute =
     path: '/api/workspaces/$workspaceId/',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdSettingsRoute =
+  ApiWorkspacesWorkspaceIdSettingsRouteImport.update({
+    id: '/api/workspaces/$workspaceId/settings',
+    path: '/api/workspaces/$workspaceId/settings',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
   id: '/c/$chatId',
   path: '/c/$chatId',
@@ -471,6 +478,7 @@ export interface FileRoutesByFullPath {
   '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
+  '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
   '/api/computers/requests/': typeof ApiComputersRequestsIndexRoute
@@ -536,6 +544,7 @@ export interface FileRoutesByTo {
   '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
+  '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId': typeof AppWWorkspaceIdIndexRoute
   '/api/computers/requests': typeof ApiComputersRequestsIndexRoute
@@ -605,6 +614,7 @@ export interface FileRoutesById {
   '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
+  '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
   '/api/computers/requests/': typeof ApiComputersRequestsIndexRoute
@@ -674,6 +684,7 @@ export interface FileRouteTypes {
     | '/api/computers/requests/$requestId'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
+    | '/api/workspaces/$workspaceId/settings'
     | '/a/$agentId/'
     | '/w/$workspaceId/'
     | '/api/computers/requests/'
@@ -739,6 +750,7 @@ export interface FileRouteTypes {
     | '/api/computers/requests/$requestId'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
+    | '/api/workspaces/$workspaceId/settings'
     | '/a/$agentId'
     | '/w/$workspaceId'
     | '/api/computers/requests'
@@ -807,6 +819,7 @@ export interface FileRouteTypes {
     | '/api/computers/requests/$requestId'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
+    | '/api/workspaces/$workspaceId/settings'
     | '/_app/a/$agentId/'
     | '/_app/w/$workspaceId/'
     | '/api/computers/requests/'
@@ -862,6 +875,7 @@ export interface RootRouteChildren {
   ApiComputersRequestsRequestIdRoute: typeof ApiComputersRequestsRequestIdRoute
   ApiInvitationsKeyAcceptRoute: typeof ApiInvitationsKeyAcceptRoute
   ApiSlackEventsAgentIdRoute: typeof ApiSlackEventsAgentIdRoute
+  ApiWorkspacesWorkspaceIdSettingsRoute: typeof ApiWorkspacesWorkspaceIdSettingsRoute
   ApiComputersRequestsIndexRoute: typeof ApiComputersRequestsIndexRoute
   ApiInvitationsKeyIndexRoute: typeof ApiInvitationsKeyIndexRoute
   ApiWorkspacesWorkspaceIdIndexRoute: typeof ApiWorkspacesWorkspaceIdIndexRoute
@@ -1256,6 +1270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/settings': {
+      id: '/api/workspaces/$workspaceId/settings'
+      path: '/api/workspaces/$workspaceId/settings'
+      fullPath: '/api/workspaces/$workspaceId/settings'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/a/$agentId/c/$chatId': {
       id: '/_app/a/$agentId/c/$chatId'
       path: '/c/$chatId'
@@ -1471,6 +1492,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiComputersRequestsRequestIdRoute: ApiComputersRequestsRequestIdRoute,
   ApiInvitationsKeyAcceptRoute: ApiInvitationsKeyAcceptRoute,
   ApiSlackEventsAgentIdRoute: ApiSlackEventsAgentIdRoute,
+  ApiWorkspacesWorkspaceIdSettingsRoute: ApiWorkspacesWorkspaceIdSettingsRoute,
   ApiComputersRequestsIndexRoute: ApiComputersRequestsIndexRoute,
   ApiInvitationsKeyIndexRoute: ApiInvitationsKeyIndexRoute,
   ApiWorkspacesWorkspaceIdIndexRoute: ApiWorkspacesWorkspaceIdIndexRoute,

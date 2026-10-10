@@ -58,6 +58,7 @@ const agents = new NodeActorNamespace({
       keepAliveMs: 100,
       sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
       computerLinks: links,
+      showsBrowser: async () => workspace.showsBrowser,
     }),
 })
 afterAll(async () => {
@@ -65,14 +66,20 @@ afterAll(async () => {
   await links.close()
 })
 
+/** What the agents' workspace has chosen, as their host would answer. */
+const workspace = { showsBrowser: undefined as boolean | undefined }
+
 /** What the pretend browser was asked to run, and what it answers with. */
 const browser = {
   scripts: [] as string[],
+  /** Whether each script was to run in a browser that is shown, where the call said. */
+  shown: [] as (boolean | undefined)[],
   shot: fakeScreen(),
 }
 const pretendBrowser: BrowserIO = {
-  run: async (agent, script) => {
+  run: async (agent, script, options) => {
     browser.scripts.push(script)
+    browser.shown.push(options.shown)
     if (script.includes("throw")) {
       return { output: "", error: "Error: no such element", shots: [], own: false }
     }
@@ -327,6 +334,28 @@ describe("a browser on somebody's own computer", () => {
     expect(typeof useOf(ran).shot).toBe("string")
     expect(second.match(/"type":"image"/g)).toHaveLength(1)
     expect(browser.scripts.at(-1)).toContain("page.shot()")
+  })
+
+  it("is asked for a browser that is shown or not, as the agent's workspace has it then", async () => {
+    const chat = await call<ChatSummary>("/chats", "POST", {})
+    const browse = async () => {
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("browser", { computer: "MacBook", script: "1" })], {
+          stopReason: "toolUse",
+        }),
+        fauxAssistantMessage("done"),
+      ])
+      expect(tools(await say(chat.id, "look again")).at(-1)!.status).toBe("done")
+      return browser.shown.at(-1)
+    }
+    // A host that does not know says nothing, and the computer is then not told either.
+    expect(await browse()).toBeUndefined()
+    workspace.showsBrowser = true
+    expect(await browse()).toBe(true)
+    // Changed while the agent is running: its next script is asked for the other way.
+    workspace.showsBrowser = false
+    expect(await browse()).toBe(false)
+    workspace.showsBrowser = undefined
   })
 
   it("tells the agent how a script failed, as a failure", async () => {
