@@ -319,12 +319,13 @@ function describeGenome(g, retro) {
 /* ================================================================
    Shaders
    ================================================================ */
+// Simplex noise at v: its slope in xyz and its value in w.
 var NOISE = [
   'vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}',
   'vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}',
   'vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}',
   'vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}',
-  'float snoise(vec3 v){',
+  'vec4 snoise(vec3 v){',
   '  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);',
   '  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);',
   '  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);',
@@ -341,8 +342,9 @@ var NOISE = [
   '  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);',
   '  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));',
   '  p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;',
-  '  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;',
-  '  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));',
+  '  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); vec4 m2=m*m; vec4 m4=m2*m2;',
+  '  vec4 px=vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)); vec4 t=m2*m*px;',
+  '  return 42.0*vec4(-8.0*(t.x*x0+t.y*x1+t.z*x2+t.w*x3) + m4.x*p0+m4.y*p1+m4.z*p2+m4.w*p3, dot(m4,px));',
   '}'
 ].join('\n');
 
@@ -394,9 +396,17 @@ var BODY_VERT = [
   'uniform vec4 uTop; uniform vec3 uTopDir; uniform vec3 uBend; uniform float uSnap;',
   'varying vec3 vN; varying vec3 vV; varying vec3 vObj; varying vec3 vN0; varying float vPart;',
   NOISE,
-  'float disp(vec3 p){',
-  '  float d = snoise(p*uSurf.x + uFlow) * uSurf.y;',
-  '  if (uSurf.w > 0.0005) d += snoise(p*uSurf.z + uFlow2) * uSurf.w;',
+  // The noise is taken once for a vertex, with its slope, and the two neighbours its normal is
+  // found from are given the noise the slope says they have. Taken afresh at each of the three,
+  // as it was, this shader drawn for a page's worth of creatures made a Mac's graphics card
+  // fault under whatever else began to draw (macOS 27.0.1, Apple M2): see HANDOFF.md, item 45.
+  'vec4 surf(vec3 p){',
+  '  vec4 s = snoise(p*uSurf.x + uFlow) * vec4(vec3(uSurf.x*uSurf.y), uSurf.y);',
+  '  if (uSurf.w > 0.0005) s += snoise(p*uSurf.z + uFlow2) * vec4(vec3(uSurf.z*uSurf.w), uSurf.w);',
+  '  return s;',
+  '}',
+  // d: the noise at p
+  'float disp(vec3 p, float d){',
   '  d *= mix(1.0, 0.35 + 1.1*smoothstep(-0.7, 1.0, p.y), uWisp);',
   '  if (uVoice.x > 0.0005) {',
   '    float a = acos(clamp(dot(p, uFront), -1.0, 1.0));',
@@ -409,8 +419,8 @@ var BODY_VERT = [
   '  d += uBump[2].w * pow(max(dot(p, uBump[2].xyz), 0.0), uBumpK.z);',
   '  return d;',
   '}',
-  'vec3 shape(vec3 p){',
-  '  vec3 q = p*(1.0 + disp(p));',
+  'vec3 shape(vec3 p, float d){',
+  '  vec3 q = p*(1.0 + disp(p, d));',
   '  q.xz *= uShape.x*(1.0 - uShape.z*q.y);',
   '  q.y *= uShape.y;',
   '  float fb = -uShape.w;',
@@ -425,13 +435,14 @@ var BODY_VERT = [
   '    vec3 up = abs(p.y) > 0.92 ? vec3(1.0,0.0,0.0) : vec3(0.0,1.0,0.0);',
   '    vec3 t1 = normalize(cross(up, p)); vec3 t2 = cross(p, t1);',
   '    vec3 pa = normalize(p + t1*0.06); vec3 pb = normalize(p + t2*0.06);',
-  '    pos = shape(p); vec3 qa = shape(pa); vec3 qb = shape(pb);',
+  '    vec4 s = surf(p);',
+  '    pos = shape(p, s.w); vec3 qa = shape(pa, s.w + dot(s.xyz, pa - p)); vec3 qb = shape(pb, s.w + dot(s.xyz, pb - p));',
   '    n = normalize(cross(qa - pos, qb - pos));',
   '    if (dot(n, p) < 0.0) n = -n;',
   '    vObj = p;',
   '  } else {',
   // antenna stalk (1) and its ball (2), anchored on the body and bent by a lagging spring
-  '    vec3 base = shape(uTopDir);',
+  '    vec3 base = shape(uTopDir, surf(uTopDir).w);',
   '    vec3 up = normalize(uTopDir + vec3(0.0, 0.7, 0.0));',
   '    if (aPart < 1.5) {',
   '      float t = position.y;',

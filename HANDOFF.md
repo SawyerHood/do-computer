@@ -1608,7 +1608,8 @@ Since then, newest last:
       CSS animations that run for good and cost about 4% of a core in the page and 3% in the
       GPU process while a box is waiting. A page that is not showing draws nothing, as before.
     - **Not known:** whether this is every way the GPU process dies. macOS recorded GPU
-      restarts of its own on 2026-10-09 (item 33), and none while these were reproduced.
+      restarts of its own on 2026-10-09 (item 33), and none while these were reproduced. (It
+      did record them: see item 45, which found the cause.)
 
 42. **What a thousand people would cost or break on Cloudflare** (2026-10-10;
     `apps/web/src/server/rate-limit.ts`, `packages/protocol/src/bytes.ts`,
@@ -1757,6 +1758,58 @@ Since then, newest last:
       inspector, where the driver has the app's permissions; and for the whole chain, a
       signed build of the branch from the Actions tab (`gh workflow run desktop.yml --ref
 <branch>`), run as a second copy from a folder of its own.
+
+45. **The creatures' own shader was what reset the Mac's graphics card** (2026-10-10;
+    `packages/mascot/src/orb-core.js`). The owner: "I'm still getting gpu crashes on my mac. Is
+    there anything out of the ordinary we are doing in this codebase that could cause it", and
+    then "I think it happens without screen use". It was the body's vertex shader, and it is
+    changed. Found on the owner's MacBook Air (M2, macOS 27.0.1) with a copy of the installed
+    app (Electron 44.7, Chromium 152) showing test pages, over SSH and CDP.
+    - **What a fault is.** macOS's log (`eventMessage CONTAINS "Caused GPU"`) names a process
+      whose work on the card hung or read a place that was not there, and the card is
+      restarted under everyone. It named WindowServer and Apple's own programs far more often
+      than the app. The app is the one that shows it: it is nearly always drawing, so it is
+      caught by every restart, and after three Chromium draws without the card (item 41). The
+      `gpuEvent-*.ips` files stopped being written on 2026-10-09 and are not the record.
+    - **What sets one off** is another program starting to draw while creatures are being
+      drawn: an app opening, the lock screen, the screen-use overlay. Opening Font Book did it
+      nearly every time. Counted as faults in the log over twelve openings (six where marked):
+      nothing of ours running, 0 in 21 openings of three apps; the app on a blank page, 0 in
+      21; a plain WebGL canvas, 0 (6); the same scene copied into eleven 2D canvases as the
+      creatures are, 0 (6); 2D canvases alone, 0 (6); eleven creatures, 7, 5 (6) and 11.
+    - **Which part.** Creatures without their bodies, 0 (6). Bodies with a plain fragment
+      shader and their own vertex shader, 9 (6); the other way about, 0 (6). In the vertex
+      shader, with the noise taken out, 0; with the shape worked out once for a vertex and
+      not three times, 0, and 0 with forty-one creatures. One creature alone, 0. It is not
+      load: the page that faults uses a tenth of the card, and one that uses a fifth does
+      not. It is not numbers that are no numbers: a page that sends vertices to infinity or
+      to NaN on purpose faults nothing. Why this shader does it is not known; it is the
+      driver's to answer.
+    - **Now** the noise is taken once for a vertex, with its slope (`snoise` gives both), and
+      the two neighbours the normal is found from are given the noise the slope says they
+      have. Eight takings of the noise in the shader became four. The old file against the
+      new, twelve openings each: 11 faults and 0. Forty-one creatures with the new, over
+      twenty-one openings of three apps: 0.
+    - **The look** is the same to the eye. Drawn side by side from the same moments on that
+      Mac, seven creatures in three states: those shaded flat are the same in every pixel,
+      and those shaded smooth differ in about one pixel in a hundred, dots of dither along
+      the edges of their shading.
+    - **Item 41 is wrong in one place:** macOS did record faults while the GPU process was
+      made to die there by going back and forth (22:37:57 and 22:41:59 that evening, the
+      app's GPU process named). Throwing the context away is one more way of setting off the
+      same fault, and keeping it for ten seconds made that rarer.
+    - **Not done:** the screen-use overlay and the pictures taken for someone watching
+      (every 400 ms, a `screencapture` each) were suspected first and are not the cause; they
+      are as they were. Nothing was reported to Apple or to Chromium.
+    - **Checked here:** the browser tests of the creatures pass with it (`e2e/agents.spec.ts`,
+      drawn in software). There is no test of the fault itself: it needs that Mac. How it was
+      counted: a copy of the app with `--remote-debugging-port`, a page of creatures, Font
+      Book opened with `open -a` and stopped with `pkill -x` twelve times, seven seconds
+      apart, then the log.
+    - **Not known:** whether other Macs or other versions of macOS do this; whether a
+      creature wearing things, or the box, can still set it off (neither uses the noise);
+      whether the owner's own app is quiet now, which it can only be once this is deployed,
+      since the app draws what do.computer serves.
 
 ## 6. What the owner has said they want
 
