@@ -133,7 +133,8 @@
     align-items: center;
     gap: 14px;
     flex-wrap: wrap;
-    > p {
+    /* The small print beside a button. What else is said here has a look of its own. */
+    > p:not([class]) {
       font-size: 13.5px;
       line-height: 1.35;
       color: var(--dim);
@@ -152,12 +153,10 @@
     color: #fff;
     text-shadow: 0 4px 0 var(--teal-deep);
     animation: lp-blink 1.4s steps(2) infinite;
-    max-width: none;
   }
   .lp-have {
     font-size: 13px;
     color: var(--faint);
-    max-width: none;
     a {
       color: var(--dim);
       text-decoration: underline;
@@ -182,7 +181,6 @@
     color: var(--ink);
     background: rgb(255 255 255 / 0.08);
     box-shadow: inset 0 0 0 1px var(--line2);
-    max-width: none;
     i {
       width: 8px;
       height: 8px;
@@ -904,7 +902,7 @@
       .lp-cta {
         order: 7;
         margin-top: 18px;
-        > p:not(.lp-soon, .lp-have) {
+        > p:not([class]) {
           display: none;
         }
       }

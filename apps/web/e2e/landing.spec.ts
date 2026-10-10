@@ -54,7 +54,8 @@ test("once nobody new can sign up, it says coming soon, with one small way in", 
   expect(sent).not.toContain("Press start")
 
   await page.goto("/")
-  await expect(page.getByText("Coming soon").first()).toBeVisible()
+  // Said as large as the button it stands in for, not as the small print beside one.
+  await expect(page.getByText("Coming soon").first()).toHaveCSS("font-size", "40px")
   await expect(page.getByRole("link", { name: "Press start" })).toHaveCount(0)
   await expect(page.getByRole("link", { name: "Hatch yours" })).toHaveCount(0)
   await expect(page.locator('a[href="/welcome"], a[href="/signup"]')).toHaveCount(0)
