@@ -1284,6 +1284,35 @@ Since then, newest last:
       then `/api/me` over one connection, a dozen times, each with a few seconds' limit.
     - **Mine, not the owner's:** the five seconds and the second try.
 
+35. **Clients that catch up after a lost stream** (2026-10-10; `packages/client/src/index.ts`,
+    `apps/web/src/lib/collections.ts`, `packages/agent/src/actor.ts`). The owner: "when I have
+    multiple clients connected to the same do computer chat they can get out of sync. For
+    example when requesting a secret form and submitting on one it will stay open on the
+    others", and asked for a fix that is not only for that form.
+    - **With both clients connected it already worked**, for every document of an agent: the
+      agent's event stream says which changed and the page asks for it again. Two browsers
+      on one chat show a secrets form and an approval closing on the other
+      (`e2e/two-clients.spec.ts`).
+    - **A client whose stream had been down missed whatever changed meanwhile**, and nothing
+      asked again until the page was loaded again. The stream's first event on every
+      connection is `ready`; the page now asks again for all it has of the agent when it hears
+      one (`catchUpAgent`), the first time only for what it fetched before it began to
+      listen. The mobile app does the same.
+    - **A stream that had died without ending was never noticed.** The server sends a
+      heartbeat every 15 seconds; a stream that says nothing for 45 is now given up and asked
+      for again, one that was never answered included. That last is what an isolate stuck as
+      in item 34 does to a client, which is the likeliest way the owner's clients fell out
+      of step, though that is a guess.
+    - **One list** (`TOLD` in the actor) says which documents are made up front and told of,
+      and a `what` a client has no name for makes it ask for everything of the agent.
+    - **Still not told to other clients:** an agent's usage total; anything of the workspace
+      or the account (agents made or deleted, members, model sign-ins, settings), for which
+      there is no stream.
+    - **Mine, not the owner's:** the 45 seconds; asking for everything again on a reconnect
+      in place of the server replaying what was missed.
+    - **Never run:** on Workers, in the desktop app, on a phone; the watch on silence against
+      a connection that really died (only with a clock the test moves).
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
