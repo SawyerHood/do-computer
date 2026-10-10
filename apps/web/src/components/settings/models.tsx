@@ -3,6 +3,7 @@ import type {
   ModelLoginMethod,
   ModelLoginPrompt,
   ModelProvider,
+  WorkspaceRole,
   WorkspaceSummary,
 } from "@durable-computer/protocol"
 import {
@@ -53,9 +54,30 @@ function short(method: ModelLoginMethod): string {
   return name.replace(/ subscription$/, "").replace("/", " or ")
 }
 
+/**
+ * Where a sign-in is kept, and so whose agents it is for: a workspace, or the deployment
+ * itself, whose sign-ins are for everyone's.
+ */
+type Scope = Pick<WorkspaceSummary, "id" | "name"> & {
+  kind: WorkspaceSummary["kind"] | "deployment"
+  role: WorkspaceRole
+}
+
+/** The name the deployment's own sign-ins are kept under, where a workspace's id would be. */
+const DEPLOYMENT: Scope = {
+  id: "deployment",
+  name: "This server",
+  kind: "deployment",
+  role: "owner",
+}
+
 /** Whose agents these are, in a sentence: a team's by its name, one's own as "your". */
-const whose = (workspace: WorkspaceSummary) =>
-  workspace.kind === "team" ? `${workspace.name}'s` : "your"
+const whose = (workspace: Scope) =>
+  workspace.kind === "deployment"
+    ? "everyone's"
+    : workspace.kind === "team"
+      ? `${workspace.name}'s`
+      : "your"
 
 const day = (at: number) =>
   new Date(at).toDateString() === new Date().toDateString()
@@ -156,7 +178,7 @@ function Typed({
       <p className="text-xs text-muted-foreground">
         {prompt.type !== "manual_code"
           ? secret
-            ? "Kept with the workspace and never shown again. Agents never see it."
+            ? "Kept on the server and never shown again. Agents never see it."
             : null
           : address
             ? `After you sign in, the tab goes to an address that starts with localhost and does not load. That is expected. Copy the whole address from the address bar.`
@@ -178,7 +200,7 @@ function SignIn({
   method,
   onClose,
 }: {
-  workspace: WorkspaceSummary
+  workspace: Scope
   provider: ModelProvider
   method: ModelLoginMethod
   onClose: () => void
@@ -250,9 +272,11 @@ function SignIn({
       ? `Use a ${way} subscription for ${whose(workspace)} agents.`
       : `Use your own ${provider.name} account for ${whose(workspace)} agents.`
   const shared =
-    workspace.kind === "team"
-      ? `Everyone in ${workspace.name} can then set agents to these models, and what the agents use counts against your account there.`
-      : "Your agents can then be set to these models, and what they use counts against your account there."
+    workspace.kind === "deployment"
+      ? "Everyone on this server can then set agents to these models, and what the agents use counts against your account there."
+      : workspace.kind === "team"
+        ? `Everyone in ${workspace.name} can then set agents to these models, and what the agents use counts against your account there.`
+        : "Your agents can then be set to these models, and what they use counts against your account there."
   const prompt = login?.prompt ?? null
   const problem =
     failure ?? (login?.status === "failed" ? (login.error ?? "It failed.") : undefined)
@@ -482,7 +506,7 @@ function ProviderRow({
   busy,
 }: {
   provider: ModelProvider
-  workspace: WorkspaceSummary
+  workspace: Scope
   meId: string
   /** Whether the deployment already offers this provider's models, on its own key. */
   deployment: boolean
@@ -559,14 +583,16 @@ function ProviderRow({
   )
 }
 
-function Section({ workspace, meId }: { workspace: WorkspaceSummary; meId: string }) {
+function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
+  const server = workspace.kind === "deployment"
   const { data: providers } = useSuspenseQuery({
     queryKey: modelProvidersKey(workspace.id),
     queryFn: () => client.workspace(workspace.id).modelProviders(),
   })
   const { data: models } = useQuery({
     queryKey: workspaceModelsKey(workspace.id),
-    queryFn: () => client.models(workspace.id),
+    // The deployment's own are among what anyone can choose, wherever they are.
+    queryFn: () => client.models(server ? undefined : workspace.id),
     staleTime: Number.POSITIVE_INFINITY,
   })
   const [more, setMore] = useState(false)
@@ -599,13 +625,15 @@ function Section({ workspace, meId }: { workspace: WorkspaceSummary; meId: strin
       provider={provider}
       workspace={workspace}
       meId={meId}
-      deployment={through.includes(provider.name)}
+      deployment={!server && through.includes(provider.name)}
       busy={signOut.isPending}
       onSignIn={(method) => setSigningIn({ provider, method })}
       onSignOut={async () => {
         const agreed = await confirm({
           title: `Sign out of ${provider.name}?`,
-          description: `An agent set to one of its models stops answering until it is set to another.`,
+          description: server
+            ? "Agents set to one of its models stop answering until they are set to another."
+            : "An agent set to one of its models stops answering until it is set to another.",
           action: "Sign out",
           destructive: true,
         })
@@ -624,8 +652,10 @@ function Section({ workspace, meId }: { workspace: WorkspaceSummary; meId: strin
             <p className="font-medium">Do Computer's models</p>
             <p className="text-sm text-muted-foreground">
               {through.length === 0
-                ? "A built-in echo model that repeats what it is told: this deployment has no model key."
-                : `${own.length} models through ${through.join(" and ")}, paid for by this deployment. Always there.`}
+                ? "A built-in echo model that repeats what it is told: this deployment has no model key and is signed in to nothing."
+                : `${own.length} model${own.length === 1 ? "" : "s"} through ${through.join(" and ")}, ${
+                    server ? "offered to everyone" : "paid for by this deployment. Always there"
+                  }.`}
             </p>
           </div>
         </div>
@@ -655,9 +685,11 @@ function Section({ workspace, meId }: { workspace: WorkspaceSummary; meId: strin
           </p>
         ) : null}
         <p className="pt-2 text-xs text-muted-foreground">
-          {workspace.kind === "team"
-            ? `A sign-in belongs to the workspace: everyone in ${workspace.name} can then set agents to its models, and what the agents use counts against whoever signed in.`
-            : "A sign-in belongs to this workspace: your agents here can then be set to its models."}{" "}
+          {server
+            ? "A sign-in here is the server's: everyone's agents can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
+            : workspace.kind === "team"
+              ? `A sign-in belongs to the workspace: everyone in ${workspace.name} can then set agents to its models, and what the agents use counts against whoever signed in.`
+              : "A sign-in belongs to this workspace: your agents here can then be set to its models."}{" "}
           Nobody is shown a key or a token again, and agents never see one.
         </p>
       </section>
@@ -690,6 +722,27 @@ export function ModelsSettings({ workspace, meId }: { workspace: WorkspaceSummar
       </div>
       <Loads key={workspace.id} fallback={<CardsPlaceholder cards={3} />}>
         <Section workspace={workspace} meId={meId} />
+      </Loads>
+    </div>
+  )
+}
+
+/**
+ * What the deployment itself offers everyone's agents, for whoever looks after it: the same
+ * sign-ins a workspace has, kept for all of them.
+ */
+export function ServerModelsSettings({ meId }: { meId: string }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight">Server models</h2>
+        <p className="text-sm text-muted-foreground">
+          What everyone's agents can run on without signing in to anything. Sign the server in with
+          a subscription or a key, and its models are offered to every workspace.
+        </p>
+      </div>
+      <Loads fallback={<CardsPlaceholder cards={3} />}>
+        <Section workspace={DEPLOYMENT} meId={meId} />
       </Loads>
     </div>
   )

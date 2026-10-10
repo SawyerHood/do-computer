@@ -140,3 +140,41 @@ test.describe("signing in to model providers", () => {
     await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible()
   })
 })
+
+/**
+ * Signing the server itself in, which is for whoever its settings name. What it is signed in to
+ * is offered to everyone as its own.
+ */
+test.describe("the server's own models", () => {
+  test("someone who looks after the server signs it in, for every workspace", async ({ page }) => {
+    await signIn(page)
+    await openWorkspaceSettings(page, "Server models")
+    await expect(page.getByText("A built-in echo model")).toBeVisible()
+    await page.getByRole("button", { name: "Use a key for OpenAI", exact: true }).click()
+    const window = page.getByRole("dialog", { name: "OpenAI API key" })
+    await expect(window).toContainText("Everyone on this server can then set agents to these")
+    await window.getByLabel("Key", { exact: true }).fill("sk-not-a-real-key")
+    await window.getByRole("button", { name: "Save" }).click()
+    await expect(window).toHaveCount(0)
+    const row = page.getByRole("listitem").filter({ hasText: /^OOpenAI(?! Codex)/ })
+    await expect(row).toContainText("Signed in")
+    await expect(page.getByText(/models? through OpenAI, offered to everyone/)).toBeVisible()
+
+    // A workspace has them without signing in to anything, as the deployment's own.
+    await page.getByRole("button", { name: "Models", exact: true }).click()
+    await expect(page.getByText(/through OpenAI, paid for by this deployment/)).toBeVisible()
+    const own = page.getByRole("region", { name: "Model providers" })
+    await expect(
+      own.getByRole("listitem").filter({ hasText: /^OOpenAI(?! Codex)/ }),
+    ).toContainText("Already here. Sign in to use your own account.")
+    await closeSettings(page)
+    await openSettings(page, "Model and computer")
+    const picker = page.getByRole("combobox", { name: "Model" })
+    await picker.click()
+    await picker.fill("gpt-6 luna")
+    const list = page.getByRole("listbox", { name: "Model" })
+    await expect(list.getByRole("option", { name: /GPT-6 Luna/ }).first()).toBeVisible()
+    await expect(list.getByText(/signed in by/)).toHaveCount(0)
+  })
+})
+

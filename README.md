@@ -68,7 +68,9 @@ runs the tests and nothing else.
 | Variable                                   | Meaning                                                                                                                                                           |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPENROUTER_API_KEY`                       | Pays for every call to the deployment's own models. A workspace signed in to a provider of its own pays for those. See [Models](#models).                         |
-| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.                                  |
+| `DC_DEFAULT_MODEL`                         | Model new agents start on unless their owner chose one: `provider/model` or an OpenRouter id. Default `anthropic/claude-sonnet-5.5`, or the first of `DC_MODELS`. |
+| `DC_MODELS`                                | The only models the deployment itself offers, comma-separated: `provider/model` or OpenRouter ids. Default: all it can run. See [Models](#models).                |
+| `DC_ADMIN_EMAILS`                          | Comma-separated emails of those who may sign the deployment itself in to model providers, for everyone. See [Models](#models).                                    |
 | `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                              |
 | `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                  |
 | `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` and people invited to a team can sign up. |
@@ -162,9 +164,31 @@ real account: treat the first deployment on either as a trial.
 
 ## Models
 
-A deployment with `OPENROUTER_API_KEY` offers every OpenRouter model that can call tools, and
-pays for them. Beyond that, a workspace can be signed in to a model provider of its own, and
-its agents can then be set to that provider's models:
+There are two places an agent's model can come from: the deployment, which offers its models to
+everyone, and the agent's workspace, which can be signed in to a provider with an account of its
+own.
+
+**The deployment's models.** A deployment with `OPENROUTER_API_KEY` offers every OpenRouter model
+that can call tools, and pays for them. It can also be signed in to any provider, in any of the
+ways a workspace can be (below): someone named in `DC_ADMIN_EMAILS` finds **Server models** in
+their workspace's settings, and what they sign the server in to there is offered to every
+workspace as the deployment's own. Where anyone can sign up (`DC_SIGNUP=open`), an admin's
+address also has to be one a Google or GitHub sign-in vouches for.
+
+`DC_MODELS` narrows what the deployment offers to the models it names, for example
+
+```sh
+DC_MODELS=meta/muse-spark-1.3-contributor,anthropic/claude-haiku-5.5,openai/gpt-6-luna
+```
+
+Each is a model's whole id (`anthropic/claude-haiku-5-5` for Anthropic's own) or its OpenRouter
+id. They are offered in that order, and new agents start on the first unless `DC_DEFAULT_MODEL`
+names another of them. The deployment's key and sign-ins are then used for those models and for
+no other, whatever an agent was set to before. The small models the server itself uses for web
+search, notes and dictation are not chosen by anyone and are not narrowed.
+
+**A workspace's own.** A workspace can be signed in to a model provider of its own, and its
+agents can then be set to any of that provider's models, whatever `DC_MODELS` says:
 
 - **With a subscription**, through the provider's own sign-in: Claude Pro or Max, ChatGPT (for
   OpenAI's models, and for Codex), GitHub Copilot, and a few more.
@@ -172,15 +196,20 @@ its agents can then be set to that provider's models:
   Anthropic, OpenAI, Google, OpenRouter, Groq, Mistral, xAI and some thirty others.
 
 A sign-in belongs to the workspace. Every agent in it can run on it, everyone in a team can set
-an agent to its models, and what they use counts against whoever signed in. Whoever signed in,
-or an admin of the team, can sign out; someone who leaves a team takes their sign-ins along.
-Keys and tokens are kept with the workspace and are never sent to a browser or shown to an
-agent.
+an agent to its models, and what they use counts against whoever signed in. That holds for a
+model the deployment offers too: a workspace signed in to its provider runs it on its own
+account. Whoever signed in, or an admin of the team, can sign out; someone who leaves a team
+takes their sign-ins along. Keys and tokens are kept on the server and are never sent to a
+browser or shown to an agent.
 
 It is under **Models** in a workspace's settings. A subscription is signed in to on the
 provider's own page, which ends with a code to paste back or asks for a short code shown in the
 app; nothing is installed and no address has to be registered with the provider. An agent's
 model picker then lists those models under where they come from.
+
+An agent set to a model the deployment has since stopped offering goes on with the model new
+agents start on. One whose workspace signed out of its model's provider says so in the chat
+until it is signed in again or set to another model.
 
 Amazon Bedrock and Google Vertex are not offered: they sign in with files and roles of the
 machine the server runs on, which belong to no workspace.
@@ -188,7 +217,8 @@ machine the server runs on, which belong to no workspace.
 ## Limits worth knowing
 
 Every call to one of the deployment's models is paid from the one deployment key and there are
-no per-user limits yet, which is why sign-up is by invitation unless you open it. Everyone
+no per-user limits yet, which is why sign-up is by invitation unless you open it. `DC_MODELS`
+keeps what it can be spent on to the models you name. Everyone
 invited to a team spends on that key too. So do agents that write to each other, and an exchange between them runs until they stop
 answering or someone stops the conversation.
 

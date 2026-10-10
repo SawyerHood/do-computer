@@ -8,8 +8,18 @@ export type Config = {
   /** Signs sessions. Required outside development. */
   readonly authSecret: string | undefined
   readonly openrouterApiKey: string | undefined
-  /** OpenRouter model id new agents use. */
+  /** The model new agents use: `provider/model`, or an OpenRouter model id. */
   readonly defaultModel: string | undefined
+  /**
+   * The only models the deployment offers on its own account. Undefined: all it can run. What
+   * a workspace signs in to with an account of its own is not narrowed by it.
+   */
+  readonly allowedModels: readonly string[] | undefined
+  /**
+   * The emails of those who may sign the deployment itself in to model providers, for
+   * everyone's agents.
+   */
+  readonly adminEmails: readonly string[]
   /** OpenRouter model id that reads web search results. Default: the default model. */
   readonly searchModel: string | undefined
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
@@ -115,11 +125,18 @@ function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undef
 
 export function readConfig(env: Record<string, string | undefined>): Config {
   const optional = (name: string) => (env[name] === "" ? undefined : env[name])
+  const listed = (name: string) =>
+    (env[name] ?? "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
   return {
     baseUrl: optional("DC_BASE_URL"),
     authSecret: optional("DC_AUTH_SECRET"),
     openrouterApiKey: optional("OPENROUTER_API_KEY"),
     defaultModel: optional("DC_DEFAULT_MODEL"),
+    allowedModels: listed("DC_MODELS").length === 0 ? undefined : listed("DC_MODELS"),
+    adminEmails: listed("DC_ADMIN_EMAILS").map((email) => email.toLowerCase()),
     searchModel: optional("DC_SEARCH_MODEL"),
     judgeModel: optional("DC_JUDGE_MODEL"),
     reviewModel: optional("DC_REVIEW_MODEL"),
@@ -128,10 +145,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     githubClientId: optional("GITHUB_CLIENT_ID"),
     githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
     signup: env.DC_SIGNUP === "open" ? "open" : "invite",
-    allowedEmails: (env.DC_ALLOWED_EMAILS ?? "")
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean),
+    allowedEmails: listed("DC_ALLOWED_EMAILS").map((email) => email.toLowerCase()),
     sandbox: sandboxKind(optional("DC_SANDBOX")),
     sandboxKinds: sandboxKinds(optional("DC_SANDBOX_KINDS")),
     sandboxNetwork: !["off", "0", "false", "none"].includes(
