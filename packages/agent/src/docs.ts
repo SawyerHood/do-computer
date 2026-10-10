@@ -59,6 +59,11 @@ export type IdentityState = {
   adopted?: boolean
   /** When its owner watched it hatch. Until then it is shown as an egg. */
   hatchedAt?: number
+  /**
+   * Its owner named it before it had a name of its own, as the first run has them do. Until it
+   * has a personality as well, its first conversation is still for the two to work that out.
+   */
+  namedByOwner?: boolean
 }
 
 export const IdentityDoc = defineDoc<IdentityState>({

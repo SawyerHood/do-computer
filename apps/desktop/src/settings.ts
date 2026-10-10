@@ -15,6 +15,11 @@ export type Settings = {
   screen: boolean
   /** Whether agents may use a browser on this computer. */
   browser: boolean
+  /**
+   * Whether the first run is over: its owner has been shown the app and asked whether agents
+   * may work on this computer. Until then the window opens on the deployment's welcome.
+   */
+  welcomed: boolean
 }
 
 // The screen is everything its owner can see and do, so it is asked for. A browser is what a
@@ -25,20 +30,24 @@ export const DEFAULTS: Settings = {
   openAtLogin: false,
   screen: false,
   browser: true,
+  welcomed: false,
 }
 
 export function loadSettings(file: string): Settings {
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<Settings>
+    const server =
+      typeof parsed.server === "string" && parsed.server !== "" ? parsed.server : undefined
     return {
-      ...(typeof parsed.server === "string" && parsed.server !== ""
-        ? { server: parsed.server }
-        : {}),
+      ...(server === undefined ? {} : { server }),
       share: parsed.share === true,
       readOnly: parsed.readOnly === true,
       openAtLogin: parsed.openAtLogin === true,
       screen: parsed.screen === true,
       browser: parsed.browser !== false,
+      // An app from before there was a first run to be over wrote down nothing about it. One
+      // that has a server was set up then, and its owner is not asked it all again.
+      welcomed: parsed.welcomed === undefined ? server !== undefined : parsed.welcomed === true,
     }
   } catch {
     // Missing or unreadable: a first run.

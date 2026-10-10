@@ -14,6 +14,7 @@ import { Route as DaemonDotjsRouteImport } from './routes/daemon[.]js'
 import { Route as InstallDotshRouteImport } from './routes/install[.]sh'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppPairRouteImport } from './routes/_app.pair'
 import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
@@ -24,6 +25,7 @@ import { Route as ApiMeRouteImport } from './routes/api/me'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as DesktopSignInRouteImport } from './routes/desktop.sign-in'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as AppWWorkspaceIdRouteImport } from './routes/_app.w.$workspaceId'
@@ -100,6 +102,11 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -148,6 +155,11 @@ const ApiSettingsRoute = ApiSettingsRouteImport.update({
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesktopSignInRoute = DesktopSignInRouteImport.update({
+  id: '/desktop/sign-in',
+  path: '/desktop/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -428,6 +440,7 @@ export interface FileRoutesByFullPath {
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/welcome': typeof WelcomeRoute
   '/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/computer-kinds': typeof ApiComputerKindsRoute
@@ -437,6 +450,7 @@ export interface FileRoutesByFullPath {
   '/api/models': typeof ApiModelsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
@@ -494,6 +508,7 @@ export interface FileRoutesByTo {
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/welcome': typeof WelcomeRoute
   '/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/computer-kinds': typeof ApiComputerKindsRoute
@@ -503,6 +518,7 @@ export interface FileRoutesByTo {
   '/api/models': typeof ApiModelsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -561,6 +577,7 @@ export interface FileRoutesById {
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/welcome': typeof WelcomeRoute
   '/_app/pair': typeof AppPairRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/computer-kinds': typeof ApiComputerKindsRoute
@@ -570,6 +587,7 @@ export interface FileRoutesById {
   '/api/models': typeof ApiModelsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
@@ -631,6 +649,7 @@ export interface FileRouteTypes {
     | '/install.sh'
     | '/login'
     | '/signup'
+    | '/welcome'
     | '/pair'
     | '/api/auth-methods'
     | '/api/computer-kinds'
@@ -640,6 +659,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/settings'
     | '/api/transcribe'
+    | '/desktop/sign-in'
     | '/invite/$token'
     | '/a/$agentId'
     | '/w/$workspaceId'
@@ -697,6 +717,7 @@ export interface FileRouteTypes {
     | '/install.sh'
     | '/login'
     | '/signup'
+    | '/welcome'
     | '/pair'
     | '/api/auth-methods'
     | '/api/computer-kinds'
@@ -706,6 +727,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/settings'
     | '/api/transcribe'
+    | '/desktop/sign-in'
     | '/invite/$token'
     | '/'
     | '/api/auth/$'
@@ -763,6 +785,7 @@ export interface FileRouteTypes {
     | '/install.sh'
     | '/login'
     | '/signup'
+    | '/welcome'
     | '/_app/pair'
     | '/api/auth-methods'
     | '/api/computer-kinds'
@@ -772,6 +795,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/settings'
     | '/api/transcribe'
+    | '/desktop/sign-in'
     | '/invite/$token'
     | '/_app/'
     | '/_app/a/$agentId'
@@ -832,6 +856,7 @@ export interface RootRouteChildren {
   InstallDotshRoute: typeof InstallDotshRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  WelcomeRoute: typeof WelcomeRoute
   ApiAuthMethodsRoute: typeof ApiAuthMethodsRoute
   ApiComputerKindsRoute: typeof ApiComputerKindsRoute
   ApiDaemonVersionRoute: typeof ApiDaemonVersionRoute
@@ -840,6 +865,7 @@ export interface RootRouteChildren {
   ApiModelsRoute: typeof ApiModelsRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  DesktopSignInRoute: typeof DesktopSignInRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
@@ -913,6 +939,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/': {
       id: '/_app/'
       path: '/'
@@ -981,6 +1014,13 @@ declare module '@tanstack/react-router' {
       path: '/api/transcribe'
       fullPath: '/api/transcribe'
       preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/desktop/sign-in': {
+      id: '/desktop/sign-in'
+      path: '/desktop/sign-in'
+      fullPath: '/desktop/sign-in'
+      preLoaderRoute: typeof DesktopSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite/$token': {
@@ -1441,6 +1481,7 @@ const rootRouteChildren: RootRouteChildren = {
   InstallDotshRoute: InstallDotshRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  WelcomeRoute: WelcomeRoute,
   ApiAuthMethodsRoute: ApiAuthMethodsRoute,
   ApiComputerKindsRoute: ApiComputerKindsRoute,
   ApiDaemonVersionRoute: ApiDaemonVersionRoute,
@@ -1449,6 +1490,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiModelsRoute: ApiModelsRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  DesktopSignInRoute: DesktopSignInRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,

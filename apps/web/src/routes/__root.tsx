@@ -3,6 +3,7 @@ import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { FRAME_INIT_SCRIPT } from "@/components/shell/app-skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { WelcomeHost } from "@/components/welcome/host"
 import { BOOT_GUARD_SCRIPT, started } from "@/lib/boot"
 import { queryClient } from "@/lib/query"
 import { THEME_INIT_SCRIPT } from "@/lib/theme"
@@ -53,7 +54,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="h-dvh overflow-hidden">
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>{children}</TooltipProvider>
+          <TooltipProvider>
+            {children}
+            <WelcomeHost />
+          </TooltipProvider>
         </QueryClientProvider>
         <Scripts />
       </body>

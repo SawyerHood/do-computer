@@ -4,6 +4,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
 import { askTwice, NO_SHARED_SCHEMA_CHECK, seedAuthStores } from "./auth-guard.ts"
+import { desktopHandoff } from "./desktop-handoff.ts"
 import type { Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
 import { isInvited } from "./teams.ts"
@@ -81,7 +82,7 @@ function authOptions(platform: Platform) {
     trustedOrigins: [`${MOBILE_SCHEME}://`],
     // tanstackStartCookies must stay last: it turns the Set-Cookie headers of server-side calls
     // into response cookies.
-    plugins: [expo(), tanstackStartCookies()],
+    plugins: [expo(), desktopHandoff(), tanstackStartCookies()],
   } satisfies BetterAuthOptions
 }
 

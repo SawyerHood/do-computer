@@ -9,6 +9,7 @@ import {
   type ElectronApplication,
   expect,
   type Page,
+  request as playwrightRequest,
   test,
 } from "@playwright/test"
 
@@ -43,7 +44,16 @@ async function windowAt(part: string | RegExp): Promise<Page> {
 /** The packed app to test, where there is one. Otherwise the build in dist/, run by Electron. */
 const packed = process.env.DC_DESKTOP_APP
 
-const launch = () =>
+/** The card under the egg in the first run, once it has said this and can be answered. */
+async function card(window: Page, says: string | RegExp) {
+  const asked = window.locator("[data-card]")
+  // The egg comes down first, and each thing it says is written out as it says it.
+  await expect(asked.getByRole("status")).toHaveText(says, { timeout: 30_000 })
+  await expect(asked.locator("div[inert]")).toHaveCount(0)
+  return asked
+}
+
+const launch = (env: Record<string, string> = {}) =>
   electron.launch({
     ...(packed ? { executablePath: packed } : {}),
     // A machine with no graphics card and a build machine's sandbox rules can both run it.
@@ -56,6 +66,9 @@ const launch = () =>
       DC_DAEMON_POLL_MS: "200",
       // A screen that is only pretended: nothing on the machine running this is clicked.
       DC_DESKTOP_FAKE_SCREEN: "1",
+      // An app that knows no deployment asks for one, whatever it was built for.
+      DC_DESKTOP_SERVER: "",
+      ...env,
     },
   })
 
@@ -128,7 +141,8 @@ test("a first run asks which Do Computer to use, and says so when there is none 
   app = await launch()
   const welcome = await windowAt("welcome.html")
   await expect(welcome.getByRole("heading", { name: "Do Computer" })).toBeVisible()
-  await expect(welcome.getByLabel("Let my agents work on this computer")).toBeChecked()
+  // Whether agents may work here is not asked on this form: the first run asks it.
+  await expect(welcome.getByLabel("Let my agents work on this computer")).toBeHidden()
 
   await welcome.getByLabel("Server").fill("http://127.0.0.1:9")
   await welcome.getByRole("button", { name: "Continue" }).click()
@@ -139,29 +153,43 @@ test("a first run asks which Do Computer to use, and says so when there is none 
 
   await welcome.getByLabel("Server").fill(url)
   await welcome.getByRole("button", { name: "Continue" }).click()
-  // The window that takes its place shows the deployment itself.
-  const main = await windowAt(/\/(login|signup)/)
-  await expect(main.getByRole("button", { name: "Sign in" })).toBeVisible()
+  // The window that takes its place shows the deployment's first run.
+  const main = await windowAt(/\/welcome$/)
+  await card(main, /Is somebody out there\?/)
+  // Nothing is shared until its owner has been asked.
+  expect(daemons()).toBe(0)
 })
 
-test("signing in leads to confirming this computer, and then it is connected", async () => {
-  const main = await windowAt(url)
-  await main.goto(`${url}/signup`)
-  await main.getByLabel("Name").fill("Sawyer")
-  await main.getByLabel("Email").fill("owner@example.com")
-  await main.getByLabel("Password").fill("correct horse battery")
-  await main.getByRole("button", { name: "Create account" }).click()
+test("the first run asks who its owner is, a name for the agent, and for this computer", async () => {
+  const main = await windowAt(/\/welcome$/)
+  await (
+    await card(main, /Is somebody out there\?/)
+  )
+    .getByRole("button", { name: "Hello!" })
+    .click()
+  const you = await card(main, /who are you\?/)
+  await you.getByLabel("Your name").fill("Sawyer")
+  await you.getByLabel("Email").fill("owner@example.com")
+  await you.getByLabel("Password").fill("correct horse battery")
+  await you.getByRole("button", { name: "That’s me" }).click()
 
-  // Nobody copied a link or a code: the app knew what its daemon was waiting for.
-  await expect(main.getByRole("heading", { name: "Connect this computer?" })).toBeVisible({
-    timeout: 30_000,
-  })
-  // With one agent there is nothing to choose between: it is chosen, once the page knows of it.
-  await expect(main.getByRole("checkbox")).toBeChecked()
-  await main.getByRole("button", { name: "Connect this computer" }).click()
-  await expect(main.getByRole("heading", { name: "Connected" })).toBeVisible()
+  const naming = await card(main, /What will you call me\?/)
+  await naming.getByLabel("A name for it").fill("Pip")
+  await naming.getByRole("button", { name: "That’s your name" }).click()
 
-  // The app's own window about this computer says so too.
+  // Nobody copies a link or a code, or is sent to another page: the app pairs itself.
+  const asking = await card(main, /may I work on this computer\?/)
+  await asking.getByRole("button", { name: "Yes, work here" }).click()
+  await expect(asking.getByText("is paired")).toBeVisible({ timeout: 30_000 })
+
+  // Then it hatches, and its chat is where the first run ends.
+  const out = await card(main, /This computer is ours to work on now\./)
+  await out.getByRole("button", { name: "Start chatting with Pip" }).click()
+  await main.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  await expect(main.getByRole("heading", { name: "Hi Sawyer, I’m Pip." })).toBeVisible()
+  await expect(main.locator("[data-welcome]")).toHaveCount(0)
+
+  // The app's own window about this computer says that it is connected.
   const computer = await openComputer()
   await expect(computer.getByRole("status")).toContainText("Connected as", { timeout: 20_000 })
   await expect(computer.getByRole("button", { name: "Stop letting agents use it" })).toBeVisible()
@@ -312,4 +340,73 @@ test("its daemon replaces itself with the server's newer one, and comes back con
   await expect(computer.getByRole("status")).toContainText("Connected as")
   expect(readFileSync(script, "utf8")).toContain(version)
   expect(daemons()).toBeGreaterThan(0)
+})
+
+test("an app that knows its deployment opens on the first run, and signs in through the browser", async () => {
+  await app.evaluate(({ app }) => app.quit()).catch(() => {})
+  await expect.poll(() => daemons(), { timeout: 15_000 }).toBe(0)
+  // Another computer's app: nothing kept, and told which deployment is its own.
+  const fresh = join(scratch, "second")
+  app = await launch({ DC_DESKTOP_DATA: fresh, DC_DESKTOP_SERVER: url })
+  const main = await windowAt(/\/welcome$/)
+  await card(main, /Is somebody out there\?/)
+
+  // The browser is the owner's own. Here the test is the browser: it sees where it was sent.
+  await app.evaluate(({ shell }) => {
+    const opened: string[] = []
+    ;(globalThis as { opened?: string[] }).opened = opened
+    shell.openExternal = async (address: string) => {
+      opened.push(address)
+    }
+  })
+  const waiting = main.evaluate(() =>
+    (
+      window as unknown as { doComputer: { signIn(): Promise<{ token?: string; error?: string }> } }
+    ).doComputer.signIn(),
+  )
+  await expect
+    .poll(() => app.evaluate(() => (globalThis as { opened?: string[] }).opened?.length ?? 0))
+    .toBe(1)
+  const sent = new URL(
+    (await app.evaluate(() => (globalThis as { opened?: string[] }).opened![0]))!,
+  )
+  expect(sent.origin + sent.pathname).toBe(`${url}/desktop/sign-in`)
+  const port = sent.searchParams.get("port")
+  const state = sent.searchParams.get("state")!
+
+  // In the browser the owner is signed in, and agrees: the deployment gives a token for the app.
+  const browser = await playwrightRequest.newContext({ extraHTTPHeaders: { origin: url } })
+  const signedIn = await browser.post(`${url}/api/auth/sign-in/email`, {
+    data: { email: "owner@example.com", password: "correct horse battery" },
+  })
+  expect(signedIn.status()).toBe(200)
+  const asked = await browser.post(`${url}/api/auth/desktop/token`, { data: {} })
+  expect(asked.status()).toBe(200)
+  const { token } = (await asked.json()) as { token: string }
+  // A visit that does not know the app's word for this sign-in is not it.
+  expect((await fetch(`http://127.0.0.1:${port}/done?token=${token}&state=wrong`)).status).toBe(404)
+  const done = await fetch(
+    `http://127.0.0.1:${port}/done?token=${encodeURIComponent(token)}&state=${state}`,
+  )
+  expect(done.status).toBe(200)
+  expect(await done.text()).toContain("You are signed in")
+  await browser.dispose()
+
+  // The app hands the token to its window, which is then signed in by itself.
+  expect(await waiting).toEqual({ token })
+  const me = await main.evaluate(async (token) => {
+    const exchanged = await fetch("/api/auth/desktop/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
+    const me = await fetch("/api/me")
+    return { exchanged: exchanged.status, email: (await me.json())?.user?.email as unknown }
+  }, token)
+  expect(me).toEqual({ exchanged: 200, email: "owner@example.com" })
+
+  // The egg knows them when the first run is opened again: their own agent comes out of it, and
+  // asks about this computer, which is not theirs to use yet.
+  await main.reload()
+  await card(main, /Sawyer, it’s you! I haven’t worked on this computer before\. May I\?/)
 })

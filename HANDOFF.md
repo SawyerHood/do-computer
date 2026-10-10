@@ -1353,6 +1353,58 @@ Since then, newest last:
       test that waits five seconds: the one before in a test of two clients (item 35's gap).
       A failed run skips the deploy. `gh run rerun <id> --failed` runs the failed job again.
 
+37. **A first run that is a scene** (2026-10-10; `prototypes/onboarding` is the mock-up;
+    `packages/mascot/src/sky.js`, `apps/web/src/components/welcome`, `apps/web/src/routes/welcome.tsx`,
+    `apps/web/src/server/desktop-handoff.ts`, `apps/desktop/src/page-bridge.ts`,
+    `apps/desktop/src/browser-sign-in.ts`). The owner asked for "a really nice onboarding when
+    you first open the desktop app": the egg of the first agent comes down from the sky, the
+    agent walks its owner through setup as it hatches, and it ends in the chat with it "rather
+    than taking you to the settings screen". After the mock-up: "We should also have a
+    variation of this on web", and "we support sign in with github. Can we make oauth in the
+    desktop app happen in a pop up or the user's browser that redirects".
+    - **The scene is a page of the deployment's, `/welcome`**, for a browser and the desktop app
+      alike. It is drawn over the page (`WelcomeHost` in the root), so it is still there as the
+      chat comes up under it and the creature is seen going to its place. The sky and the
+      island are `sky.js` in the mascot package; the egg is the mascot's own, laid over it.
+      Where WebGL is not to be had the same card is shown over a plain night. With less
+      motion there is no fall and no waiting on the words.
+    - **What it asks**, each answer a crack in the shell: who they are (an account, or signing
+      in, with the providers the deployment has), a name and a color for the agent, and, in
+      the desktop app on its first run, whether it may work on this computer. Then it
+      hatches. The agent is made as it is named, with the seed its egg was drawn from.
+    - **Who is sent there:** someone with no agent (`_app.index.tsx` no longer makes one),
+      and "Create an account" on the sign-in page. `/signup` is still the plain form.
+      Someone who has an agent is sent on, except in a desktop app that has not been
+      through its first run: there their own agent comes out of the egg and asks about the
+      computer.
+    - **In its chat it says hello first**: the empty chat of an agent just met says who it is
+      and what it was given, with three things to start with (`meetingWith`, kept for the
+      window's life). These are the app's words, not a model's, and are gone once the chat has
+      a message. An agent named by its owner, and with no personality yet, is still told that
+      this is its first conversation (`bootstrapNamed` in `persona.ts`, `namedByOwner`).
+    - **The desktop app** opens `/welcome` until the first run is over (`welcomed` in its
+      settings; an app that already had a server counts as through it). An app built for a
+      deployment that answers skips its own form. The form now asks only for the server.
+    - **The page is given a little by the app** (`window.doComputer`, only to the top page of
+      the main window on the deployment's origin): to sign in through the browser, to share
+      this computer, and to say the first run is over. Sharing can be asked for by a page only
+      during the first run; afterwards it is the app's own window's to do, as before. The
+      page confirms the pairing itself with the code it is handed.
+    - **Signing in through the browser:** the app listens on a port of this computer and opens
+      the browser on `/desktop/sign-in`; whoever is signed in there (or signs in, with GitHub
+      at once if that was asked for) agrees, and the page sends a one-minute, single-use
+      token to that port. The app's window exchanges it for a session of its own
+      (`POST /api/auth/desktop/token` and `/desktop/session`, a small Better Auth plugin). The
+      sign-in form in the app does the same for its provider buttons.
+    - **Mine, not the owner's:** naming and coloring in the scene, where the agent used to
+      name itself in conversation; the browser and not a pop-up; no click to agree when the
+      tab itself has just come back from the provider; the hello and its three starters; the
+      scene for someone who signs in again on a new computer; that a page may share the
+      computer during the first run without a second question from the app.
+    - **Never run:** a real GitHub or Google sign-in through any of this; the scene on a real
+      graphics card in the app (here it was drawn by software); the token exchange on
+      Workers (`adapter.consumeOne` against D1); macOS and Windows outside CI.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

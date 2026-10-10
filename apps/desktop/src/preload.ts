@@ -1,9 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { AppState, DesktopApi } from "./api.ts"
+import { CHANNELS, type DesktopBridge, type PageInfo } from "./page-bridge.ts"
 
-// Every window has this script, and the window that shows the deployment must be given
-// nothing by it: only the app's own pages, which are files, can ask anything of the app. The
-// app checks who is asking as well.
+// Every window has this script. The app's own pages, which are files, can ask the app what
+// they need to. A page of the web is given something only when the app says so: the app is
+// asked, before the page has run anything, what this page may know, and it answers nothing
+// unless the page is the top one in the main window and on the deployment the app is set to.
+// Such a page is given the little a first run takes (see page-bridge.ts) and none of what the
+// app's own pages have. The app checks who is asking again each time it is asked.
 if (location.protocol === "file:") {
   const api: DesktopApi = {
     state: () => ipcRenderer.invoke("state"),
@@ -20,4 +24,16 @@ if (location.protocol === "file:") {
     retry: () => ipcRenderer.invoke("retry"),
   }
   contextBridge.exposeInMainWorld("desktop", api)
+} else if (location.protocol === "https:" || location.protocol === "http:") {
+  const info = ipcRenderer.sendSync(CHANNELS.info) as PageInfo | null
+  if (info !== null) {
+    const bridge: DesktopBridge = {
+      ...info,
+      signIn: (provider) => ipcRenderer.invoke(CHANNELS.signIn, provider),
+      cancelSignIn: () => ipcRenderer.invoke(CHANNELS.cancelSignIn),
+      share: (options) => ipcRenderer.invoke(CHANNELS.share, options),
+      finish: (options) => ipcRenderer.invoke(CHANNELS.finish, options),
+    }
+    contextBridge.exposeInMainWorld("doComputer", bridge)
+  }
 }

@@ -6,6 +6,8 @@ export type AppState = {
   server?: string
   /** The deployment the app was built for, or the one in use: what the address field starts with. */
   suggestedServer: string
+  /** Whether the first run is over. Until it is, the deployment's welcome asks what the app would. */
+  welcomed: boolean
   sharing: Sharing
   /** `sharing` in a line. */
   headline: string
@@ -29,12 +31,18 @@ export type AppState = {
   platform: string
 }
 
-/** What the app's own pages can ask of it. A page of the deployment is given none of this. */
+/**
+ * What the app's own pages can ask of it. A page of the deployment is given none of this: what
+ * it is given is in `page-bridge.ts`.
+ */
 export type DesktopApi = {
   state(): Promise<AppState>
   /** Called with the state whenever it changes. */
   watch(listener: (state: AppState) => void): void
-  /** Use this deployment. Resolves with what is wrong with the address, or nothing. */
+  /**
+   * Use this deployment. Resolves with what is wrong with the address, or nothing. On a first
+   * run only the address is heeded: the deployment's welcome asks the rest.
+   */
   connect(choice: {
     server: string
     share: boolean

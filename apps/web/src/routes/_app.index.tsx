@@ -1,12 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { client } from "@/lib/client"
-import { agentsKey, agentsQuery, listedAgents } from "@/lib/collections"
+import { agentsQuery, listedAgents } from "@/lib/collections"
 import { comingBackTo, lastAgent } from "@/lib/last-agent"
 import { queryClient } from "@/lib/query"
 
 /**
  * Land on the agent that was open here last, whichever workspace it is in. Where none was, or
- * it is no longer the user's to open, on their first agent, creating it on a first visit.
+ * it is no longer the user's to open, on their first agent. Someone who has none yet is sent to
+ * meet one.
  */
 export const Route = createFileRoute("/_app/")({
   beforeLoad: async () => {
@@ -21,11 +21,9 @@ export const Route = createFileRoute("/_app/")({
     }
     // The list the sidebar shows, asked for again only if it is no longer good.
     const agents = await listedAgents()
-    let agent = agents.find((candidate) => candidate.id === last) ?? agents[0]
-    if (agent === undefined) {
-      agent = await client.createAgent()
-      void queryClient.invalidateQueries({ queryKey: agentsKey })
-    }
+    const agent = agents.find((candidate) => candidate.id === last) ?? agents[0]
+    // Someone with no agent is new here: their first is met, and named, in the first run.
+    if (agent === undefined) throw redirect({ to: "/welcome", replace: true })
     throw redirect({ to: "/a/$agentId", params: { agentId: agent.id } })
   },
 })

@@ -22,7 +22,12 @@
    orb.offer(true | false)              a treat is held out to it: it opens its mouth for it, until told otherwise
    orb.bite()                           it takes a bite of what it was offered
    orb.cheer()                          a pleased little hop, whatever it is doing
-   orb.hatch({ onDone })                play the hatch; orb.skipHatch() jumps to its end
+   orb.hatch({ onDone, onOut })         play the hatch; orb.skipHatch() jumps to its end. onOut is the moment
+                                        the shell breaks
+   orb.crack(0..1)                      how cracked the waiting egg is: it keeps its cracks while it waits,
+                                        and the hatch goes on from them
+   orb.shadow = 0..1                    how much of its shadow is drawn: 0 for one that is in the air
+   orb.stance()                         where it stands in its picture: { ground, egg }, see orb-core.d.ts
    orb.paused = true                    stop updating and drawing this one;
                                         Runner.stop() / Runner.start() pause and resume all of them
    orb.reduced = true                   reduced motion
@@ -1034,8 +1039,9 @@ function Orb(canvas, opts) {
   this.attn = { x: 0, y: 0, k: 0, target: 0 };
   this.ptr = { x: 0, y: 0, t: -1e9 };
   // egg and hatching
-  this.eggMode = 'none'; this.hatchT = 0; this.hatchDur = 5.3; this.hatchPh = 0; this.onHatched = null;
+  this.eggMode = 'none'; this.hatchT = 0; this.hatchDur = 5.3; this.hatchPh = 0; this.onHatched = null; this.onOut = null;
   this.born = 1; this.bornY = 0; this.joy = 0; this.petK = 0; this.petX = 0; this.eggWait = 1.5; this.eggYc = 0;
+  this.eggCrack = 0; this.shadow = 1;
   // eating: how wide its mouth is held open for a treat, where that is heading, and the snap of a bite
   this.gape = 0; this.gapeTo = 0; this.chew = 0;
   this.E = { roll: 0, squash: 0, crack: 0, burst: 0, fade: 1, jolt: 0, rockT: 9, rockA: 0 };
@@ -1309,7 +1315,7 @@ Orb.prototype.resize = function (size) {
 Orb.prototype.setState = function (state, variant) {
   if (state === 'egg') {
     // the waiting egg (mascot look); the glass look has no egg and just idles
-    if (this.retro) { this.eggMode = 'egg'; this.born = 0; this.eggWait = 1.2; var E = this.E; E.crack = 0; E.burst = 0; E.fade = 1; E.roll = 0; E.squash = 0; E.rockT = 9; }
+    if (this.retro) { this.eggMode = 'egg'; this.born = 0; this.eggWait = 1.2; var E = this.E; E.crack = this.eggCrack; E.burst = 0; E.fade = 1; E.roll = 0; E.squash = 0; E.rockT = 9; }
     this._calm();
     return;
   }
@@ -1341,8 +1347,10 @@ Orb.prototype._calm = function () {
 Orb.prototype._endEgg = function (tell) {
   var was = this.eggMode;
   this.eggMode = 'none'; this.born = 1; this.bornY = 0; this.sp.born.x = 1; this.sp.born.v = 0; this.sp.born.t = 1;
-  this.E.burst = 0; this.E.crack = 0; this.E.fade = 1;
+  this.E.burst = 0; this.E.crack = 0; this.E.fade = 1; this.eggCrack = 0;
   if (tell && was === 'hatch') {
+    var out = this.onOut; this.onOut = null;
+    if (out) out();
     var fn = this.onHatched; this.onHatched = null;
     if (fn) fn();
     if (this.onAuto) this.onAuto('idle');
@@ -1353,13 +1361,29 @@ Orb.prototype._endEgg = function (tell) {
 Orb.prototype.hatch = function (opts) {
   opts = opts || {};
   this.onHatched = opts.onDone || null;
+  this.onOut = opts.onOut || null;
   this._calm();
   this.eggMode = 'hatch';
   if (!this.retro) { this._endEgg(true); return; }
   this.hatchT = 0; this.hatchPh = 0; this.hatchDur = this.reduced ? 0.9 : 5.3;
   this.born = 0; this.bornY = 0;
   var E = this.E; E.crack = 0; E.burst = 0; E.fade = 1; E.roll = 0; E.squash = 0; E.jolt = 0;
+  // an egg that was cracked while it waited goes on from there, and not from a whole shell
+  if (!this.reduced && this.eggCrack >= 0.3) { this.hatchT = this.eggCrack >= 0.6 ? 1.6 : 1.2; E.crack = this.eggCrack >= 0.6 ? 0.67 : 0.34; }
   for (var i = 0; i < 4; i++) this.rings[i].on = false;
+};
+// How cracked the waiting egg is, from 0 (whole) to 1. It keeps its cracks while it waits, and jolts as it gets one.
+Orb.prototype.crack = function (amount) {
+  var was = this.eggCrack;
+  this.eggCrack = clamp(amount, 0, 1);
+  if (this.eggMode !== 'egg' || this.eggCrack <= was || this.reduced) return;
+  var E = this.E;
+  E.jolt = 1; E.rockT = 0; E.rockA = this.rnd() < 0.5 ? -0.2 : 0.2; this.sp.eggY.v += 0.7;
+};
+// Where it stands in its own picture, for a host that puts it on something: the ground under it, measured
+// down from the top, and how tall its egg is, both as parts of the picture's side.
+Orb.prototype.stance = function () {
+  return { ground: (1 - this.uH.uGround.value.z) / 2, egg: this.fill * 0.92 * this.uE.uEggS.value.y };
 };
 Orb.prototype.skipHatch = function () { if (this.eggMode === 'hatch') this._endEgg(true); };
 // 'egg', 'hatching' or the current state name
@@ -1372,7 +1396,7 @@ Orb.prototype._egg = function (dt, hop) {
   this.bornY *= decay(dt, 0.2);
   if (this.eggMode === 'egg') {
     // waiting: every few seconds it rocks, sometimes with a little hop
-    this.born = 0; E.crack = 0; E.burst = 0; E.fade = 1; E.squash = 0;
+    this.born = 0; E.crack = this.eggCrack; E.burst = 0; E.fade = 1; E.squash = 0;
     E.rockT += dt;
     this.eggWait -= dt;
     if (this.eggWait <= 0 && !this.reduced) {
@@ -1403,6 +1427,8 @@ Orb.prototype._egg = function (dt, hop) {
       E.squash = t < 2.9 ? -0.2 * smooth(2.55, 2.85, t) : 0;
       // beat 4 (2.9 s): it breaks: shards, a ring, and the blob hops out with its eyes shut
       if (at(2.9)) {
+        var out = this.onOut; this.onOut = null;
+        if (out) out();
         this.flash = 1; this.bornY = this.eggYc - this.rest;
         sp.born.x = 0.45; sp.born.v = 3; sp.born.t = 1; sp.lift.v += 2.4 * hop; sp.squash.v += 2.2;
         this.spawnRing({ r0: 0.8, r1: 2.4, dur: 0.8, a: 0.75, w: 0.16, ease: 1 });
@@ -1467,6 +1493,8 @@ Orb.prototype.bite = function () {
 };
 // A pleased little hop with its eyes shut, whatever else it is doing.
 Orb.prototype.cheer = function () {
+  // an egg can only hop where it stands, and rock
+  if (this.eggMode === 'egg' && !this.reduced) { this.sp.eggY.v += 0.9; this.E.rockT = 0; this.E.rockA = this.rnd() < 0.5 ? -0.16 : 0.16; }
   if (this.eggMode !== 'none') return;
   this.joy = 1;
   if (!this.reduced) { this.sp.lift.v += this.retro ? 1.35 : 1; this.sp.squash.v += 1.2; }
@@ -1891,6 +1919,7 @@ Orb.prototype.update = function (dt) {
       h.uGround.value.x = big * (this.dark ? 0.16 : 0.20); h.uGround.value.y = 0.9 - Math.max(0, sp.eggY.x) * 1.5;
     }
   }
+  h.uGround.value.x *= this.shadow;
 };
 
 Orb.prototype.render = function () { Stage.draw(this); };

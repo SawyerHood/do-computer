@@ -265,6 +265,31 @@ describe("agent actor", () => {
     expect(named.agent.hatched).toBe(true)
   })
 
+  it("still gets to know its owner when they named it as it hatched", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    // The first run names it, and says who named it, before it has said a word.
+    await call(world, "/", "PATCH", { name: "Pip", user: "Their name is Sawyer." })
+    const prompts: string[] = []
+    const keep = (said: string) => (context: unknown) => {
+      prompts.push(JSON.stringify(context))
+      return fauxAssistantMessage(said)
+    }
+    world.faux.setResponses([keep("Hello, Sawyer."), keep("Hello again.")])
+
+    await send(world, chat.id, "hello")
+    await follow(world, chat.id, answered(1))
+    expect(prompts[0]).toContain("They have already named you Pip")
+    expect(prompts[0]).toContain("You do not have a personality yet")
+    expect(prompts[0]).toContain("Their name is Sawyer.")
+
+    // With a personality it is someone, and is told who.
+    await call(world, "/", "PATCH", { soul: "You are warm and brief." })
+    await send(world, chat.id, "hello again")
+    await follow(world, chat.id, answered(2))
+    expect(prompts[1]).toContain("Your name is Pip.")
+  })
+
   it("keeps the look it grew when only its color changes", async () => {
     const world = open(temporary())
     const chat = await setup(world)
