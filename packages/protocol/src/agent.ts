@@ -507,6 +507,11 @@ export type ComputerKind = {
   label: string
   /** A sentence on what it is, for whoever is choosing. */
   description: string
+  /**
+   * A machine of this kind is one agent's alone: each agent is given its own, and none can be
+   * added to a workspace.
+   */
+  perAgent?: boolean
 }
 
 /** The kinds of computer a deployment offers, and the one it gives new agents. */

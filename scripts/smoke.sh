@@ -44,7 +44,7 @@ wait_for "not d['busy'] and 'durable' in $TEXTS and 'in /' in $TEXTS" "agent ran
 check "its workspace has a machine for it" "$(get /api/computers | field "['computers'][0]['agentIds'][0]")" "$AGENT"
 # Documents: what the agent writes into its library folder is in the library, a page is served
 # with what is beside it to whoever has its address, and what the user changes reaches the agent.
-tool '/tool bash {"command":"mkdir -p library/site && printf \"<link rel=stylesheet href=style.css><h1>hi</h1>\" > library/site/index.html && printf \"h1{color:teal}\" > library/site/style.css && echo written"}'
+tool '/tool bash {"command":"mkdir -p ~/library/site && printf \"<link rel=stylesheet href=style.css><h1>hi</h1>\" > ~/library/site/index.html && printf \"h1{color:teal}\" > ~/library/site/style.css && echo written"}'
 wait_for "not d['busy'] and 'written' in $TEXTS" "agent wrote a page into its library folder"
 check "the page is in the library, in its folder" "$(get "/api/agents/$AGENT/library" | field "['files'][0]['path'].split('/')[0]")" "site"
 VIEW=$(get "/api/agents/$AGENT/library" | field "['view']")
@@ -53,7 +53,7 @@ check "a page is served sandboxed" "$(curl -sS -m 20 -o /dev/null -D - "$BASE/d/
 check "a page's address needs its key" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$BASE/d/$AGENT/0-00/site/index.html")" "404"
 STYLE=$(get "/api/agents/$AGENT/library" | field "['files']" | python3 -c "import ast,sys; print(next(f['id'] for f in ast.literal_eval(sys.stdin.read()) if f['path']=='site/style.css'))")
 check "the user's edit is saved as a new revision" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/octet-stream" -X PUT "$BASE/api/agents/$AGENT/library/$STYLE?rev=0" -d 'h1{color:crimson}' | field "['rev']")" "1"
-tool '/tool bash {"command":"cat library/site/style.css"}'
+tool '/tool bash {"command":"cat ~/library/site/style.css"}'
 wait_for "not d['busy'] and 'color:crimson' in $TEXTS" "the agent reads what the user changed"
 SOON=$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=3)).isoformat())')
 tool "/tool schedule {\"action\":\"create\",\"schedule\":\"$SOON\",\"prompt\":\"Report in\",\"title\":\"Smoke schedule\"}"
@@ -127,11 +127,15 @@ MACHINE=$(get /api/computers | field "['computers'][0]['id']")
 check "the workspace's machine is of the default kind" "$(get /api/computers | field "['computers'][0]['kind']")" "$DEFAULT_KIND"
 check "no computer is on offer" "$(get /api/computer-kinds | field "['kinds'][-1]['id']")" "none"
 check "a machine of a kind that is not offered is not added" "$(post /api/computers '{"kind":"mainframe"}' | field "['error']")" "This deployment has no machine of that kind to add."
-if [ "$DEFAULT_KIND" = "just-bash" ]; then
+# The built-in shell is one agent's where its files are with the agent, which is on Node.
+if [ "$(get /api/computers | field "['computers'][0]['shareable']")" = "False" ]; then
   check "the built-in shell is its agent's alone" "$(get /api/computers | field "['computers'][0]['shareable']")" "False"
   check "and cannot be opened to the workspace" "$(patch "/api/computers/$MACHINE" '{"access":"open"}' | field "['error']")" "Only a machine that agents can share can be opened to a workspace."
 else
   check "the workspace's machine is open to its agents" "$(get /api/computers | field "['computers'][0]['access']")" "open"
+fi
+# A machine with real programs can be left running something. The built-in shell has none.
+if [ "$DEFAULT_KIND" != "just-bash" ]; then
   tool '/tool bash {"command":"sleep 3; echo late on the machine","run_in_background":true}'
   wait_for "any(p.get('kind')=='command' and 'late on the machine' in p.get('detail','') for m in d['messages'] for p in m['parts'])" "a command left running on the machine was reported when it ended"
 fi

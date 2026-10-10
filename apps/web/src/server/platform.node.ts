@@ -31,7 +31,7 @@ import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
 import { createPresenceActor } from "./presence-actor.ts"
 import { nodeProviders } from "./sandbox.node.ts"
-import { computerChoices } from "./sandbox.ts"
+import { computerChoices, unsharedKinds } from "./sandbox.ts"
 
 const KEY = Symbol.for("durable-computer.platform")
 
@@ -106,11 +106,17 @@ function create(): NodePlatform {
         allowPrivateHosts: config.allowPrivateHosts,
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
-        computerDirectory: computerDirectory(app, links, undefined, {
-          kinds: addableKinds,
-          add: addMachineFor,
-          remove: removeMachineFor,
-        }),
+        computerDirectory: computerDirectory(
+          app,
+          links,
+          undefined,
+          {
+            kinds: addableKinds,
+            add: addMachineFor,
+            remove: removeMachineFor,
+          },
+          unsharedKinds("node"),
+        ),
         library: libraryDirectory(app, libraries),
         showsBrowser: browserDirectory(app),
         // The agents reach each other through the namespace they are all in.

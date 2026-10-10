@@ -54,14 +54,15 @@ export const ShellObject = createWorkerShellClass<Env>({
 })
 
 export const cloudflareProviders = (env: Env): RuntimeProviders => ({
-  // The key is the agent the shell is for. The shell this replaced ran inside the server and
-  // kept its files in that agent's database: they are moved over the first time it is used.
+  // A shell is a machine of a workspace, named after its key. One from before that was one
+  // agent's ran inside the server and kept its files in that agent's database: its key is the
+  // agent's id, and the files are moved over the first time that agent uses it.
   shell: (config) => (key, host) =>
     workerShellSandbox({
       id: key,
       network: config.sandboxNetwork,
       shell: env.SHELL.get(env.SHELL.idFromName(key)),
-      ...(host === undefined ? {} : { prepare: movedFromDatabase(host.sql) }),
+      ...(host?.name === key ? { prepare: movedFromDatabase(host.sql) } : {}),
     }),
   cloudflare: (config) => (key) =>
     containerSandbox({

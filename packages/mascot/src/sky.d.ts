@@ -5,6 +5,8 @@ export type EggPlace = {
   y: number
   /** How it leans as it comes down, in degrees. */
   lean: number
+  /** How far it has spun about its long axis as it comes down, in radians. None once it is down. */
+  turn: number
   /** How much of the picture's height it is tall, now and once the view has settled. */
   part: number
   heading: number

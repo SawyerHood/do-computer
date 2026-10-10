@@ -31,7 +31,7 @@ async function freePort(): Promise<number> {
   return port
 }
 
-async function start(file: string): Promise<Server> {
+async function start(file: string, settings: Record<string, string>): Promise<Server> {
   const url = `http://127.0.0.1:${await freePort()}`
   const slack = `http://127.0.0.1:${await freePort()}`
   const data = mkdtempSync(join(tmpdir(), "dc-e2e-"))
@@ -52,6 +52,7 @@ async function start(file: string): Promise<Server> {
       DC_SLACK_API_URL: `${slack}/api`,
       // Where the tests sign the server itself in to a model provider, their owner may.
       ...(file.endsWith("models.spec.ts") ? { DC_ADMIN_EMAILS: "owner@example.com" } : {}),
+      ...settings,
     },
   })
   child.stderr!.on("data", (chunk) => {
@@ -92,10 +93,13 @@ type WorkerFixtures = {
   }
   /** Whether the agent's creature is drawn live. Set with `test.use` by the tests that are about it. */
   creature: boolean
+  /** Settings of the deployment that a file's server is started with, over the ones every file gets. */
+  settings: Record<string, string>
 }
 
 export const test = base.extend<object, WorkerFixtures>({
   creature: [false, { option: true, scope: "worker" }],
+  settings: [{}, { option: true, scope: "worker" }],
   // The creature is drawn with WebGL, which a browser with no graphics card does in software: a
   // whole core's work for as long as a page is open. Without it the app shows the creature as a
   // still picture, which is all that most tests need of it.
@@ -108,13 +112,13 @@ export const test = base.extend<object, WorkerFixtures>({
   ],
   servers: [
     // Playwright reads what a fixture needs from this pattern, so it has to be one.
-    async ({}, use) => {
+    async ({ settings }, use) => {
       let server: Server | undefined
       // A worker runs one file at a time. When it moves on to the next, that one starts clean.
       const serverFor = async (file: string) => {
         if (server?.file !== file) {
           server?.stop()
-          server = await start(file)
+          server = await start(file, settings)
         }
         return server
       }

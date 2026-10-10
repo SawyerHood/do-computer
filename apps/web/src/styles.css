@@ -3,6 +3,9 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
+/* The landing page's headlines. Fetched by a browser only where they are shown. */
+@import "@fontsource/jersey-25";
+@import "./components/landing/landing.css";
 
 @custom-variant dark (&:is(.dark *));
 

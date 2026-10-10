@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ConfigError, readConfig } from "./platform.ts"
-import { computerChoices, offeredKinds } from "./sandbox.ts"
+import { computerChoices, offeredKinds, unsharedKinds } from "./sandbox.ts"
 
 const ids = (env: Record<string, string>, target: "node" | "cloudflare" = "node") =>
   offeredKinds(readConfig(env), target).kinds.map((kind) => kind.id)
@@ -93,6 +93,17 @@ describe("the kinds of computer a deployment offers", () => {
     )
     // The built-in shell's files are with one agent, so there is none without an agent.
     expect(choices.create("just-bash", "agent-1")).toBeUndefined()
+  })
+
+  it("say the built-in shell is one agent's on Node, and a machine like the others on Cloudflare", () => {
+    const perAgent = (target: "node" | "cloudflare") =>
+      offeredKinds(readConfig({ DAYTONA_API_KEY: "key" }), target)
+        .kinds.filter((kind) => kind.perAgent === true)
+        .map((kind) => kind.id)
+    expect(perAgent("node")).toEqual(["just-bash"])
+    expect(unsharedKinds("node")).toEqual(["just-bash"])
+    expect(perAgent("cloudflare")).toEqual([])
+    expect(unsharedKinds("cloudflare")).toEqual([])
   })
 
   it("take the built-in shell from the runtime, where it has one of its own", () => {

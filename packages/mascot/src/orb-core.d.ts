@@ -88,6 +88,8 @@ export interface Orb {
   hidden: boolean
   /** How much of its shadow is drawn, from 0 to 1: none under one that is in the air. */
   shadow: number
+  /** How far its egg is turned about its long axis, in radians: one that falls spins. */
+  turn: number
   /** What it has on, kept by the wardrobe. Not for a host to set. */
   worn: { tick(seconds: number, time: number): void; fit(): void; dispose(): void } | null
   /** Called when it changes state by itself: `done` to `idle`, and after hatching. */

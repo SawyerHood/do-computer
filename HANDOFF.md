@@ -53,7 +53,7 @@ deploying: "I don't want to make changes to this project". The deployment's valu
 
 - **GitHub repository variables:** `DC_D1_DATABASE_ID`, `DC_ROUTE`, `DC_ROUTE_ZONE`,
   `DC_BASE_URL`, `DC_SANDBOX`. Others the workflow passes through if set: `DC_CUSTOM_DOMAIN`,
-  `DC_SIGNUP`, `DC_ALLOWED_EMAILS`, `DC_DEFAULT_MODEL`, `DC_SEARCH_MODEL`, `DC_SUMMARY_MODEL`,
+  `DC_SIGNUP`, `DC_LANDING`, `DC_ALLOWED_EMAILS`, `DC_DEFAULT_MODEL`, `DC_SEARCH_MODEL`, `DC_SUMMARY_MODEL`,
   `DC_JUDGE_MODEL`, `DC_SANDBOX_KINDS`.
 - **GitHub repository secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - **Worker secrets** (kept by Cloudflare across deploys): `DC_AUTH_SECRET`, `OPENROUTER_API_KEY`,
@@ -426,8 +426,7 @@ Since then, newest last:
       (`computers.ts`) adds an open machine when an agent is made where it could use none. The
       built-in shell keeps its files in one agent's database, so each agent gets its own,
       `chosen`, and it cannot be shared or removed apart from its agent (`UNSHARED_KINDS`).
-      (On Cloudflare its files have been in an object of their own since item 47, kept under
-      the agent's id; it is still one agent's.)
+      (That is Node. On Cloudflare it is a machine like the others since item 47.)
     - **The record is told to agents, whole.** `tellMachines` puts every machine an agent can
       use to it (`PUT /computers`), and the agent replaces what it had. An agent that was not
       told catches up by asking its host (`ComputerDirectory.machines`) the first time a name
@@ -1898,8 +1897,17 @@ Since then, newest last:
       rule about private addresses is the same. On Node nothing changed: the shell inside the
       server, with `DurableFs`.
     - **Why an object of its own and not the agent's storage:** so that the shell could be a
-      workspace's machine later with no files to move. Whether it should be is the owner's to
-      say; it was left one per agent (`UNSHARED_KINDS`).
+      workspace's machine with no files to move.
+    - **It is a workspace's machine there** (the same day, after the owner sent a picture of
+      Add a computer offering only Daytona: "also this still shows daytona"). What is one
+      agent's alone now depends on where the server runs: `unsharedKinds(target)` in
+      `sandbox.ts` is `just-bash` on Node and nothing on Cloudflare, and a kind says so to the
+      app as `perAgent`. So on Cloudflare a workspace is given one shell, open to its agents,
+      each in a folder under `/workspace`; one can be added, opened, closed and removed like
+      any machine. A shell from the few hours before, which was one agent's, is a row with
+      that agent's id as its key and stays that agent's until someone opens it. Only a shell
+      whose key is the asking agent's id has old files moved into it. Daytona is still
+      offered beside it: taking a kind off offer cuts off the machines of that kind.
     - **Files from before.** `movedFromDatabase` copies what `dc_fs` holds in the agent's
       database into the object the first time the shell is used, then renames the tables to
       `dc_fs_moved` and `dc_fs_chunks_moved`. Nothing drops them. Modification times are not
@@ -1924,7 +1932,45 @@ Since then, newest last:
     - **Not known:** what it costs with real use; how it behaves with files of hundreds of
       megabytes; `git`, which the package has (isomorphic-git) and which was not turned on.
 
-48. **The app's picture is a creature on its island, and in the desktop app its owner's own**
+48. **A landing page** (2026-10-10; `apps/web/src/components/landing`,
+    `apps/web/src/routes/index.tsx`, `prototypes/landing`). The owner: "Can you design a nice
+    landing page for the site at do.computer that features our little guys! ... Ideally this
+    can we an env variable that you can flip on (it should be on for our deployment). Also if
+    open access isn't availible we should disable sign up and have coming soon with a small
+    link for if you have access already". Four looks were drawn; they chose the character
+    select, asked for it to say "your open source personal assistant" and not "little guy",
+    for pictures of the app, eight to choose from, and a pixel face that is easier to read.
+    - **`DC_LANDING=1`** makes `/` the landing page for whoever is not signed in. Without it
+      `/` leads to the sign-in form, as it always did: someone hosting it for themselves has
+      no use for a page that sells it. The workflow passes the variable through, and the
+      deploy script writes it into the build.
+    - **`/` is a route of its own**, no longer one of the pages behind sign-in. A visitor
+      with no session cookie is a stranger: the server draws the page and sends it whole, so
+      it is there before any script. For anyone with a session cookie, and for the desktop
+      app, the server sends the app's frame and the browser decides, as before: someone
+      signed in goes to their agent, and a session that has ended finds the landing page.
+    - **Whether a stranger may sign up** is `open` in what `/api/auth-methods` answers: true
+      where `DC_SIGNUP=open`, and where nobody has an account yet, since the first to arrive
+      is the deployment's owner. While it is false the page has no way to make an account:
+      "Coming soon", and "Already have access? Sign in". The sign-in form then drops "Create
+      an account", unless a page sent the visitor there to come back to it, as an invitation
+      does. `/signup` and `/welcome` are still there for whoever knows them: the server
+      refuses an account to anyone not invited, as it did.
+    - **The page**: one creature large on a pedestal, with the job it stands for and what it
+      is doing; eight to choose from, the last an egg; the app in a window whose tabs change
+      the picture, and in a phone where the window would be too small; six things it does,
+      each acted out; that it is open source, with the three lines that run it; the app's own
+      box opening; and an egg that hatches when pressed three times. The creatures are
+      `AgentAvatar`, as everywhere else, so where they cannot be drawn their still pictures
+      stand in. Its styles are one file under `.lp`, which is also what scrolls.
+    - **The pictures of the app** in `apps/web/public/landing` are real: taken from the built
+      server with a real model (`prototypes/landing/README.md` says how). They will go out of
+      date as the app changes.
+    - **Not done:** the repository is private, so the page's GitHub links lead nowhere until
+      it is made public; nothing collects the addresses of people who want to be told when it
+      opens; the page has no picture for a link's preview; and it has not been seen in Safari.
+
+49. **The app's picture is a creature on its island, and in the desktop app its owner's own**
     (2026-10-10; `packages/mascot/src/portrait.js`, `scripts/icons.mjs`,
     `apps/web/src/lib/app-icon.ts`, `apps/desktop/src/page-bridge.ts` and `main.ts`). The
     owner asked for an icon that "screams windows 98 .exe logo", turned down three rounds
@@ -2040,9 +2086,6 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   Telegram webhook pointing at an address that no longer exists, an R2 access token used for
   backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
   database and files that was taken before they were deleted. The old daemon is gone from that machine.
-- **Whether the built-in shell should be a workspace's machine on Cloudflare**, shared by its
-  agents like the others. Its files are in an object of their own since item 47, so nothing
-  would have to move; it was left one per agent because nobody was asked.
 - **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
   dashboard; the API token at hand cannot edit zone rules.
 - **Two credentials were pasted into a chat transcript**: the GitHub OAuth app's client secret

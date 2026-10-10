@@ -27,6 +27,7 @@
    orb.crack(0..1)                      how cracked the waiting egg is: it keeps its cracks while it waits,
                                         and the hatch goes on from them
    orb.shadow = 0..1                    how much of its shadow is drawn: 0 for one that is in the air
+   orb.turn = radians                   how far its egg is turned about its long axis: one that falls spins
    orb.stance()                         where it stands in its picture: { ground, egg }, see orb-core.d.ts
    orb.paused = true                    stop updating and drawing this one;
                                         Runner.stop() / Runner.start() pause and resume all of them
@@ -1132,7 +1133,7 @@ function Orb(canvas, opts) {
   // egg and hatching
   this.eggMode = 'none'; this.hatchT = 0; this.hatchDur = 5.3; this.hatchPh = 0; this.onHatched = null; this.onOut = null;
   this.born = 1; this.bornY = 0; this.joy = 0; this.petK = 0; this.petX = 0; this.eggWait = 1.5; this.eggYc = 0;
-  this.eggCrack = 0; this.shadow = 1;
+  this.eggCrack = 0; this.shadow = 1; this.turn = 0;
   // eating: how wide its mouth is held open for a treat, where that is heading, and the snap of a bite
   this.gape = 0; this.gapeTo = 0; this.chew = 0;
   this.E = { roll: 0, squash: 0, crack: 0, burst: 0, fade: 1, jolt: 0, rockT: 9, rockA: 0 };
@@ -2001,6 +2002,7 @@ Orb.prototype.update = function (dt) {
     this.eggYc = Ye;
     m.a.makeTranslation(Xe, Ye, 0);
     m.a.multiply(m.b.makeRotationZ(E.roll));
+    if (this.turn) m.a.multiply(m.b.makeRotationY(this.turn));
     m.a.multiply(m.b.makeScale(Se * qx, Se * qy, Se * qx));
     eg.matrix.copy(m.a); eg.matrixWorldNeedsUpdate = true;
     ue.uCrk.value.w = E.crack; ue.uBurst.value = E.burst; ue.uFade.value = E.fade;

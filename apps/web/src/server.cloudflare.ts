@@ -41,7 +41,7 @@ import { notifyPeople } from "./server/push.ts"
 import { overLimit } from "./server/rate-limit.ts"
 import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
 import { slackDirectory } from "./server/slack.ts"
-import { computerChoices } from "./server/sandbox.ts"
+import { computerChoices, unsharedKinds } from "./server/sandbox.ts"
 
 export { SandboxObject, ShellGateway, ShellObject } from "./server/sandbox.cloudflare.ts"
 // How a built-in shell's Worker finds its way back to the object that keeps its files.
@@ -81,6 +81,7 @@ export const AgentObject = createDurableActorClass<Env>({
         durableObjectNamespace(env.COMPUTER),
         undefined,
         { kinds: addableKinds, add: addMachineFor, remove: removeMachineFor },
+        unsharedKinds("cloudflare"),
       ),
       library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
       showsBrowser: browserDirectory(d1Database(env.DB)),
