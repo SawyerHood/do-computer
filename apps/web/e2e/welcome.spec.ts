@@ -47,20 +47,26 @@ test("someone new meets their first agent: it is named as it hatches, and says h
   const out = await card(page, `There you are, ${owner.name}! Shall we get started?`)
   // The chat comes up under the scene before the creature leaves the island for its place
   // there. Until it has landed it is in the scene only: after each frame is drawn, the chat's
-  // own large pictures of it are counted, for as long as the scene is still there.
+  // own large pictures of it are looked for, for as long as the scene is still there. One that
+  // has only just come onto the page has not been drawn yet, so it counts the second time.
   await page.evaluate(() => {
     const seen = { twice: 0, frames: 0 }
     Object.assign(window, { seenInTwoPlaces: seen })
+    let before = false
     const count = () => {
       const scene = document.querySelector("[data-welcome]")
       if (scene === null) return
       seen.frames++
-      for (const face of document.querySelectorAll<HTMLElement>(
-        '[role="img"][aria-label="Agent avatar"]',
-      )) {
-        if (scene.contains(face) || face.offsetWidth < 120) continue
-        if (getComputedStyle(face).visibility !== "hidden") seen.twice++
-      }
+      const shown = [
+        ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Agent avatar"]'),
+      ].some(
+        (face) =>
+          !scene.contains(face) &&
+          face.offsetWidth >= 120 &&
+          getComputedStyle(face).visibility !== "hidden",
+      )
+      if (shown && before) seen.twice++
+      before = shown
     }
     const frame = () => {
       setTimeout(count, 0)

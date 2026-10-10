@@ -1444,8 +1444,17 @@ Since then, newest last:
       own large picture of it was showing for that long: it was seen in two places at once
       (the owner, of a recording: "you see pip in the left and right at the same time as he
       starts to animate over"). The chat's large pictures are now kept out of sight from
-      before the page changes until the flight is over (`unseen` in `scene.tsx`). A browser
-      test counts them after every frame for as long as the scene is there.
+      before the page changes until the flight is over (`unseen` in `scene.tsx`), and the
+      scene is taken down in the same step as they are shown again. A browser test looks for
+      them after every frame for as long as the scene is there.
+    - **The egg is not shown until it is known where it starts.** It can be drawn before the
+      server has said whether anyone is signed in, and for as long as that answer took it
+      stood small in an empty night, before the sky had come up and before it was put at the
+      top to fall (the owner: "the egg flashes in the first frame before it appears"). One
+      frame on this machine; longer over a real network. `placed` in `scene.tsx` keeps it
+      out of sight until it has been sent to fall, or set down. `welcome-scene.spec.ts` holds
+      the server's answer back and looks; it is the one first-run test that draws the scene
+      (`creature: true`), the others run with WebGL off.
     - **What it asks**, each answer a crack in the shell: who they are (an account, or signing
       in, with the providers the deployment has), a name and a color for the agent, and, in
       the desktop app on its first run, whether it may work on this computer. Then it

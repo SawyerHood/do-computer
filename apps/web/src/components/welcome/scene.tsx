@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useSetAtom } from "jotai"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -225,6 +226,12 @@ export default function WelcomeScene() {
   const gone = useRef(false)
   /** Whether the scene can be drawn. Undefined until that is known. */
   const [drawn, setDrawn] = useState<boolean>()
+  /**
+   * Whether the egg is where it starts: up in the sky to fall, or down on the island. Until it
+   * is known who is here that is not known either, and the egg, which can be drawn sooner, was
+   * seen standing in an empty night for as long as the answer took.
+   */
+  const [placed, setPlaced] = useState(false)
   const [falling, setFalling] = useState(false)
   const [titled, setTitled] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -373,11 +380,15 @@ export default function WelcomeScene() {
         },
       )
       if (gone.current) return
-      if (signedIn) return arrived()
+      if (signedIn) {
+        setPlaced(true)
+        return arrived()
+      }
       // A sign-in elsewhere that came back with nobody signed in says why in the address.
       const failed = new URLSearchParams(location.search).get("error")
       if (failed !== null || drawing === null || calm) {
         drawing?.sky.land()
+        setPlaced(true)
         return say(failed === null ? "hello" : "you", {
           ...(failed === null
             ? {}
@@ -397,13 +408,16 @@ export default function WelcomeScene() {
         later(() => say("hello"), 1100)
       }
       drawing.sky.fall()
+      setPlaced(true)
       setFalling(true)
       later(() => setTitled(true), 250)
       later(() => setTitled(false), 1900)
     }
     begin().catch((error: unknown) => {
       console.error(error)
-      if (!gone.current) say("you", { error: "Something went wrong. Try again." })
+      if (gone.current) return
+      setPlaced(true)
+      say("you", { error: "Something went wrong. Try again." })
     })
     return () => {
       gone.current = true
@@ -596,9 +610,11 @@ export default function WelcomeScene() {
     } else {
       await new Promise((resolve) => setTimeout(resolve, 700))
     }
-    show?.()
     handingOver.end()
-    setOpen(false)
+    // The scene goes and the chat's pictures show in one step, so that no frame has the
+    // creature twice and none is without it.
+    flushSync(() => setOpen(false))
+    show?.()
   }
 
   /** A click on the scene itself: it brings the egg down at once, and a touch makes it hop. */
@@ -636,9 +652,10 @@ export default function WelcomeScene() {
       <div
         ref={egg}
         aria-hidden
+        data-egg
         className={cn(
           "pointer-events-none absolute top-0 left-0 will-change-transform",
-          !drawn && "invisible",
+          !(drawn && placed) && "invisible",
         )}
       >
         <canvas ref={creature} className="block size-full" />
