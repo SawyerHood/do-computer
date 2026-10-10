@@ -1,7 +1,7 @@
 import type { AgentState } from "@durable-computer/client"
 import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
 import { queryCollectionOptions } from "@tanstack/query-db-collection"
-import { type Query, queryOptions } from "@tanstack/react-query"
+import { queryOptions } from "@tanstack/react-query"
 import { createCollection } from "@tanstack/react-db"
 import { client, patience } from "./client.ts"
 import { queryClient } from "./query.ts"
@@ -187,17 +187,31 @@ export function refreshAgent(agentId: string, what: string): void {
 }
 
 /**
- * Refetch all that is kept of an agent. The agent's event stream tells of changes only while it
- * is connected, so this is what is done each time it connects: the first time for what was
- * fetched before `since`, when the page began to listen, and after that for everything, since
- * anything may have changed while the stream was down.
+ * Ask again for what is kept under a key. What is still on its way is let arrive, since a page
+ * may be waiting to draw from it, and is then asked for once more.
  */
-export function catchUpAgent(agentId: string, since?: number): void {
-  const missed = (query: Query) =>
-    since === undefined ||
-    (query.state.dataUpdatedAt < since && query.state.fetchStatus !== "fetching")
-  void queryClient.invalidateQueries({ queryKey: [...agentsKey, agentId], predicate: missed })
+function askAgain(queryKey: readonly unknown[], exact = false): void {
+  const onTheirWay = queryClient
+    .getQueryCache()
+    .findAll({ queryKey, exact, fetchStatus: "fetching" })
+  void queryClient.invalidateQueries({ queryKey, exact }, { cancelRefetch: false })
+  for (const query of onTheirWay) {
+    const arrived = () =>
+      void queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true })
+    void query.promise?.then(arrived, arrived)
+  }
+}
+
+/**
+ * Ask again for all that is kept of an agent. Its event stream tells of what changes from the
+ * moment it connects, so this is what is done each time it does: whatever was asked for before
+ * then, a moment before as much as an hour, may have changed since without a word. When the
+ * stream is `back` after being down, the list of agents and the machines are asked for too.
+ */
+export function catchUpAgent(agentId: string, back: boolean): void {
+  askAgain([...agentsKey, agentId])
+  if (!back) return
   // What every drawing of the agent is given, and the machines it works on, are kept apart.
-  void queryClient.invalidateQueries({ queryKey: agentsKey, exact: true, predicate: missed })
-  void queryClient.invalidateQueries({ queryKey: computersKey, predicate: missed })
+  askAgain(agentsKey, true)
+  askAgain(computersKey)
 }

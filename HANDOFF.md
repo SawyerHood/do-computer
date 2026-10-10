@@ -1301,6 +1301,10 @@ Since then, newest last:
     - **Not reproduced on this machine**: `wrangler dev` starts the Worker before any request
       and passes on no cancellation. The only proof is the live site: ask `/api/health` and
       then `/api/me` over one connection, a dozen times, each with a few seconds' limit.
+      Before any of this 12 of 42 connections did not answer; with the stores and the
+      second try, 5 of 50 took five seconds; with the comparison switched off, 70 of 70
+      answered at once, 40 of them after 200 requests had been abandoned 5 to 300 ms in,
+      and the live log had no `[auth]` line.
     - **Mine, not the owner's:** the five seconds and the second try.
 
 35. **Clients that catch up after a lost stream** (2026-10-10; `packages/client/src/index.ts`,
@@ -1315,8 +1319,10 @@ Since then, newest last:
     - **A client whose stream had been down missed whatever changed meanwhile**, and nothing
       asked again until the page was loaded again. The stream's first event on every
       connection is `ready`; the page now asks again for all it has of the agent when it hears
-      one (`catchUpAgent`), the first time only for what it fetched before it began to
-      listen. The mobile app does the same.
+      one (`catchUpAgent`), the first time too: a page that opens as something changes has
+      asked too soon to see it and too late to be told, which a test on a slow machine
+      showed. What is still on its way is let arrive first. The mobile app does the same on a
+      reconnect.
     - **A stream that had died without ending was never noticed.** The server sends a
       heartbeat every 15 seconds; a stream that says nothing for 45 is now given up and asked
       for again, one that was never answered included. That last is what an isolate stuck as
