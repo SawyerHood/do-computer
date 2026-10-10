@@ -37,6 +37,33 @@ async function windowAt(part: string): Promise<Page> {
   return app.windows().find(matches)!
 }
 
+/** The creature in the companion's window, once it is there. A page that never shows it says what it had. */
+async function creatureIn(pet: Page) {
+  const creature = pet.getByRole("img", { name: "Agent avatar" })
+  // A slow machine takes a while over a page's first load.
+  await expect(creature)
+    .toBeVisible({ timeout: 30_000 })
+    .catch(async (error: unknown) => {
+      const had = await pet
+        .evaluate(async () => ({
+          showing: document.visibilityState,
+          text: document.body.innerText.slice(0, 200),
+          me: (await fetch("/api/me")).status,
+          asked: performance
+            .getEntriesByType("resource")
+            .map(
+              (entry) =>
+                `${new URL(entry.name).pathname} ${(entry as PerformanceResourceTiming).responseStatus}`,
+            )
+            .filter((entry) => entry.startsWith("/api/")),
+        }))
+        .catch(String)
+      console.log("The companion's page:", JSON.stringify(had))
+      throw error
+    })
+  return creature
+}
+
 const settings = () =>
   JSON.parse(readFileSync(join(data, "settings.json"), "utf8")) as {
     companion?: boolean
@@ -168,8 +195,7 @@ test("switched on, the agent's creature is on the desktop, over the other window
   await companion.check()
 
   const pet = await windowAt(PET)
-  // A slow machine takes a while over a page's first load.
-  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible({ timeout: 30_000 })
+  await creatureIn(pet)
   // The agent it shows is the one the app was left on.
   const main = await windowAt(`${url}/a/`)
   const agentId = /\/a\/([^/]+)/.exec(main.url())![1]!
@@ -263,10 +289,12 @@ test("carried to another corner, it stays there and says what it says on the oth
 })
 
 test("it is where it was left when the app is started again, and goes when switched off", async () => {
+  // Who is signed in is written down now and then. An app quit this soon after may not have.
+  await app.evaluate(({ session }) => session.defaultSession.cookies.flushStore())
   await app.evaluate(({ app }) => app.quit()).catch(() => {})
   app = await launch()
   const pet = await windowAt(PET)
-  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible({ timeout: 30_000 })
+  await creatureIn(pet)
   await expect(pet.locator("[data-pet]")).toHaveAttribute("data-place", "top left")
   await expect.poll(async () => (await companionWindow())?.visible).toBe(true)
   const { bounds, workArea } = (await companionWindow())!

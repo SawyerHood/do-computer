@@ -176,9 +176,6 @@ export function createCompanion(options: CompanionOptions): Companion {
       ...boundsOf(at, place),
       title: "Do Computer Companion",
       show: false,
-      // Until it is shown its page is not showing, and draws nothing. Left to itself a window
-      // that starts hidden tells its page otherwise.
-      paintWhenInitiallyHidden: false,
       frame: false,
       transparent: true,
       backgroundColor: "#00000000",

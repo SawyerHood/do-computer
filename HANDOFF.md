@@ -1591,10 +1591,13 @@ Since then, newest last:
       for. Kept in the app's `settings.json` with the agent chosen and where it was put.
     - **When it goes by itself.** While an agent uses the screen (it would be in the
       agent's pictures and under its clicks), and while the screen is locked (macOS and
-      Windows say when; Linux does not). A window that is not showing draws nothing, and
-      that includes one that has not been shown yet: the window is made with
-      `paintWhenInitiallyHidden: false`, without which its page is told it is showing. The
-      page still loads and says what it has, which is what the window waits for.
+      Windows say when; Linux does not). A window that has been hidden draws nothing. One
+      that has not been shown yet is told it is showing, and draws: that is only the
+      moments before it first shows, and the times it starts while the screen is in use.
+      `paintWhenInitiallyHidden: false` would stop that, and was taken out again when the
+      Windows machine's test never saw the creature with it; whether it was the cause is
+      not known. The page asks who is signed in while hidden too, or it would never come
+      back after its owner signed out and in.
     - **What it costs,** on the owner's MacBook Air with its own graphics card: at rest
       about 5% of a core in its page and 6% in the GPU process; before it was drawn on
       every other beat at rest (`slow` on `AgentAvatar`, `half` on the creature), 6% and
@@ -1609,9 +1612,8 @@ Since then, newest last:
       run the real window against the built server under Xvfb: switched on and off, what it
       says, leaning in, carried to another corner, kept across a restart, gone while the
       screen is in use. Playwright tells every page it is showing, so no test of its can
-      see that a hidden window stops drawing: that, and that the window shows itself from
-      hidden, were seen once by hand with the app started plainly and asked over CDP. On
-      the owner's MacBook Air a second copy of the installed app with
+      see that a hidden window stops drawing: that was seen once by hand, in a window of
+      Electron's started plainly. On the owner's MacBook Air a second copy of the installed app with
       this build's files showed it over CDP: drawn by the graphics card, the bubble, the
       window where it should be and at the floating level.
     - **Never seen:** the companion over other windows with eyes: the Mac's screen was

@@ -99,6 +99,9 @@ function PetPage() {
     queryFn: () => client.me(),
     retry: false,
     refetchInterval: (query) => (query.state.status === "success" ? SIGNED_IN_MS : ASK_AGAIN_MS),
+    // With nobody signed in there is nothing to show, and the app hides the window. A page
+    // that is not showing is the one that has to keep asking.
+    refetchIntervalInBackground: true,
   })
   const signedIn = me.isSuccess
   const { data: agents } = useQuery({ ...agentsQuery, enabled: signedIn })
