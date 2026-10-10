@@ -1843,11 +1843,15 @@ Since then, newest last:
       waiting and the command runs on until its time is out: ten minutes at most
       (`MAX_RUN_MS`, a number of mine). The object's log fills with "uncaught exception"
       lines for files that `rg` looks for and does not find; they are the package's.
+      Appending to a file with `>>` sets its mode back to 644, which the shell inside the
+      server did not do; writing it anew does in both.
     - **The `experimental` flag** the package's README asks for was not needed, in
       vitest-pool-workers or in `vite dev`.
     - **Tested:** `packages/sandbox/test/workers` runs both conformance suites, the network
       rules, deletion and the move inside the Workers runtime; `scripts/smoke.sh` passes
-      against `vite dev` on Cloudflare with it.
+      against `vite dev` on Cloudflare with it. The move was also made for real: an agent
+      wrote a file, a link to it and a mode with the commit before this one, the same
+      `.wrangler` state was started with this one, and the agent read all three back.
     - **Not known:** what it costs with real use; how it behaves with files of hundreds of
       megabytes; `git`, which the package has (isomorphic-git) and which was not turned on.
 
