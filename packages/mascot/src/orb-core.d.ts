@@ -84,6 +84,8 @@ export interface Orb {
   readonly owed: boolean
   reduced: boolean
   notice: boolean
+  /** Whether it is drawn at the lower frame rate, on every other beat. Can be changed as it goes. */
+  half: boolean
   /** Draw its scene without it, for something else that is shown on its stage. */
   hidden: boolean
   /** How much of its shadow is drawn, from 0 to 1: none under one that is in the air. */

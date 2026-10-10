@@ -334,6 +334,8 @@ function Pet({
           outfit={agent.outfit}
           mood={mood}
           hatched={agent.hatched}
+          // It is on the desktop all day. At rest it is drawn half as often, which costs half.
+          slow={mood.state === "idle" || mood.state === "asleep"}
           pettable
           className="size-[80%]"
         />

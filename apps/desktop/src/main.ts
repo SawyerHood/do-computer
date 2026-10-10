@@ -24,6 +24,7 @@ import {
   nativeImage,
   nativeTheme,
   net,
+  powerMonitor,
   screen,
   session,
   shell,
@@ -397,7 +398,7 @@ let steppedAside: ReturnType<typeof setInterval> | undefined
  * clock and unannounced.
  */
 function stepAside(using: UseState): void {
-  companion?.away(using.active)
+  companion?.away("screen", using.active)
   if (!using.active) {
     clearInterval(steppedAside)
     steppedAside = undefined
@@ -927,6 +928,9 @@ if (!app.requestSingleInstanceLock()) {
     makeMenu()
     makeTray()
     syncCompanion()
+    // A locked screen shows nothing of the desktop. What is on it need not be drawn.
+    powerMonitor.on("lock-screen", () => companion?.away("locked", true))
+    powerMonitor.on("unlock-screen", () => companion?.away("locked", false))
     if (settings.server === undefined) void firstRun()
     else if (!startedHidden()) showMain()
     void startSharing()

@@ -45,8 +45,12 @@ export type CompanionOptions = {
 export type Companion = {
   /** Put it on the desktop, or take it off. */
   show(on: boolean): void
-  /** Take it off for the time being, and put it back: while an agent uses the screen it is in the way. */
-  away(on: boolean): void
+  /**
+   * Take it off for the time being, and put it back. While an agent uses the screen it is in
+   * the way, and while the screen is locked nobody sees it: a window that is not showing
+   * draws nothing. It is back once none of the reasons it went for still holds.
+   */
+  away(why: "screen" | "locked", on: boolean): void
   /** Load its page again: the deployment changed, or who is signed in. */
   reload(): void
   dispose(): void
@@ -71,7 +75,7 @@ const RETRY_MS = 30_000
 export function createCompanion(options: CompanionOptions): Companion {
   let window: BrowserWindow | undefined
   let wanted = false
-  let hidden = false
+  const away = new Set<string>()
   let disposed = false
   /** Where the creature's square is on the screen, and which corner of the window that is. */
   let at: Point = { x: 0, y: 0 }
@@ -139,7 +143,7 @@ export function createCompanion(options: CompanionOptions): Companion {
   /** Show the window if there is something in it to show, and its owner wants it now. */
   function sync(): void {
     if (!alive()) return watch(0)
-    const on = wanted && !hidden && areas.length > 0
+    const on = wanted && away.size === 0 && areas.length > 0
     if (!on) {
       carried = undefined
       take(false)
@@ -172,6 +176,9 @@ export function createCompanion(options: CompanionOptions): Companion {
       ...boundsOf(at, place),
       title: "Do Computer Companion",
       show: false,
+      // Until it is shown its page is not showing, and draws nothing. Left to itself a window
+      // that starts hidden tells its page otherwise.
+      paintWhenInitiallyHidden: false,
       frame: false,
       transparent: true,
       backgroundColor: "#00000000",
@@ -191,8 +198,6 @@ export function createCompanion(options: CompanionOptions): Companion {
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
-        // It is on the desktop to be seen at a glance, whatever else has its owner's attention.
-        backgroundThrottling: false,
       },
     })
     window = made
@@ -332,9 +337,10 @@ export function createCompanion(options: CompanionOptions): Companion {
       else close()
       sync()
     },
-    away(on) {
-      if (disposed || hidden === on) return
-      hidden = on
+    away(why, on) {
+      if (disposed || away.has(why) === on) return
+      if (on) away.add(why)
+      else away.delete(why)
       sync()
     },
     reload() {

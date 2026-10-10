@@ -37,6 +37,7 @@ export function AgentAvatar({
   hatching = false,
   onHatched,
   quiet = false,
+  slow = false,
   still = false,
   pettable = false,
 }: {
@@ -56,6 +57,8 @@ export function AgentAvatar({
   onHatched?: () => void
   /** One among many: drawn at a lower frame rate, and it does not follow the pointer. */
   quiet?: boolean
+  /** Drawn at the lower frame rate for now, to cost less while little is happening. */
+  slow?: boolean
   /** A picture of it, holding still: drawn once, and again only when its look changes. */
   still?: boolean
   /** It can be petted: patted with a click or a tap, and stroked by rubbing the pointer on it. */
@@ -111,6 +114,10 @@ export function AgentAvatar({
     orb?.setSeed(look.seed)
     orb?.setColor(look.color)
   }, [orb, look])
+
+  useEffect(() => {
+    if (orb) orb.half = first.current.quiet || slow
+  }, [orb, slow])
 
   // A browser that has lost its graphics card's process more than once gives no more of what
   // the creature is drawn with, and what was drawn is wiped. The still picture stands in then,

@@ -1547,6 +1547,79 @@ Since then, newest last:
     - **Not known:** whether this is every way the GPU process dies. macOS recorded GPU
       restarts of its own on 2026-10-09 (item 33), and none while these were reproduced.
 
+42. **An agent kept on the desktop** (2026-10-10; `apps/desktop/src/companion.ts`,
+    `apps/desktop/src/companion-place.ts`, `apps/web/src/routes/desktop.pet.tsx`,
+    `apps/web/src/lib/pet.ts`). The owner asked for "a desktop floppy type version of my agent
+    that you can toggle on in settings in the desktop app that you can put on your desktop as
+    an overlay (above other windows) and react to you and give status updates as it works",
+    which was taken to mean one like Clippy. No mock-up was shown first: it was built and
+    shown as built.
+    - **What it is.** The desktop app opens one more window: 340 by 330, with no frame and
+      nothing behind it, over every other window and on every desktop, and never the window
+      being typed into. It shows a page of the deployment, `/desktop/pet`, which draws the
+      agent's creature in a square of 200 in one corner and, beside it, a bubble with what
+      the agent is doing. It is a page of the deployment for the reason the main window is:
+      the creature, its clothes and the chat streams are the web app's, and stay in step.
+      It is outside the signed-in pages, and shows nothing until somebody is signed in,
+      which it asks every fifteen seconds (`/api/me`, which wakes no agent).
+    - **What it says.** The page follows the agent's main chat and the three others last
+      written in within the hour (`chatsToFollow`), each by its own stream, and its
+      approvals. While one of them is at work the bubble says what `chatActivity` says of
+      it, with the chat's name when it is not the main one. When a run ends it says "Done"
+      and the start of the answer for twenty seconds, or "Ran into a problem" and
+      `describeChatError`'s sentence for forty-five. A pending approval comes before either:
+      "Needs your OK". Clicking the bubble opens that chat in the app. The creature acts out
+      the same thing, as it does in the app.
+    - **How it reacts.** The app says where the pointer is on the whole screen thirty times
+      a second while it moves, and the creature looks at it (`leadPointer`). A key typed in a
+      message to the agent in the app's window is told to the companion's window over a
+      `BroadcastChannel`, and it leans in. It can be petted. After four minutes with the
+      pointer still it sleeps. Dragging it carries the window with the pointer; put down, it
+      is kept wholly on that screen, and the bubble is above it where there is room and on
+      the side toward the middle of the screen (`placeOf`). Double-click opens the agent;
+      right-click is a menu with the agents to choose from and Hide.
+    - **Clicks.** Where the page draws nothing, clicks go to whatever is under the window.
+      The page says which rectangles are something (`areas`). On macOS and Windows the app
+      looks where the pointer is and takes clicks only inside them; on Linux, where a
+      window cannot be told to pass clicks on and still hear of the pointer, the window is
+      cut to their shape (`setShape`).
+    - **Where it is switched on.** "Keep my agent on the desktop": a tick on the app's own
+      page about this computer, in the tray's menu and in the File menu. Off until asked
+      for. Kept in the app's `settings.json` with the agent chosen and where it was put.
+    - **When it goes by itself.** While an agent uses the screen (it would be in the
+      agent's pictures and under its clicks), and while the screen is locked (macOS and
+      Windows say when; Linux does not). A window that is not showing draws nothing, and
+      that includes one that has not been shown yet: the window is made with
+      `paintWhenInitiallyHidden: false`, without which its page is told it is showing. The
+      page still loads and says what it has, which is what the window waits for.
+    - **What it costs,** on the owner's MacBook Air with its own graphics card: at rest
+      about 5% of a core in its page and 6% in the GPU process; before it was drawn on
+      every other beat at rest (`slow` on `AgentAvatar`, `half` on the creature), 6% and
+      10%, which is what it costs while the agent works. Its streams also keep the agent's
+      Durable Object in memory for as long as it is on the desktop, as a window left open
+      on the agent does.
+    - **Mine, not the owner's:** all of the above past the request itself: that it is one
+      agent, the one last open until another is chosen; which chats it follows; every word
+      and time; the size; that it steps aside for screen use; no box to type to the agent
+      in, and no sound.
+    - **Checked:** `apps/desktop/e2e/companion.spec.ts` and one test in `desktop.spec.ts`
+      run the real window against the built server under Xvfb: switched on and off, what it
+      says, leaning in, carried to another corner, kept across a restart, gone while the
+      screen is in use. Playwright tells every page it is showing, so no test of its can
+      see that a hidden window stops drawing: that, and that the window shows itself from
+      hidden, were seen once by hand with the app started plainly and asked over CDP. On
+      the owner's MacBook Air a second copy of the installed app with
+      this build's files showed it over CDP: drawn by the graphics card, the bubble, the
+      window where it should be and at the floating level.
+    - **Never seen:** the companion over other windows with eyes: the Mac's screen was
+      locked, and `screencapture` is refused over SSH. So that it is see-through there,
+      that clicks beside the creature reach what is under it, dragging with a real mouse,
+      the right-click menu from a window that cannot be focused, a second screen, and
+      whether locking the screen is heard. Nothing on Windows but what its build machine
+      runs. Under Wayland a program cannot place its window or keep it on top, so on the
+      owner's Hyprland machine it is an ordinary window until a rule floats and pins the
+      one titled `Do Computer Companion`.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
