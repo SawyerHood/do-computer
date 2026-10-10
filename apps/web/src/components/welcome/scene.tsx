@@ -801,6 +801,11 @@ export default function WelcomeScene() {
                         ) : null}
                       </div>
                     ) : null}
+                    {methods?.github || methods?.google ? (
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+                        or
+                      </div>
+                    ) : null}
                     <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
                       {view.signingIn ? null : (
                         <div className="flex flex-col gap-1.5">

@@ -97,6 +97,7 @@ export class Stage {
       orb.resize(this.#side)
     }
     orb.shadow = place.shadow
+    orb.turn = place.turn
     const side = this.#side
     // While it is still above the picture it is kept just over the top edge: a creature far
     // off the screen is not drawn at all, and would come into view a moment before its picture.

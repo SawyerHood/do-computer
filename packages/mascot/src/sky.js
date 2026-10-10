@@ -21,9 +21,10 @@
    sky.dawn(0..3, now)                    how far the night has gone: 0 night, 3 the sun is up. `now` is at once
    sky.clear(top)                         keep the egg and the island's top above this many pixels from the top
                                           of the picture, by standing back and looking higher; null for all the room
-   sky.egg()                              { x, y, lean, part, heading, shadow }: where the ground under the egg is,
-                                          how it leans in degrees, how much of the height it is tall now and when the
-                                          view has settled, and how much of its shadow to draw
+   sky.egg()                              { x, y, lean, turn, part, heading, shadow }: where the ground under the egg
+                                          is, how it leans in degrees and how far it has spun about its long axis in
+                                          radians, how much of the height it is tall now and when the view has
+                                          settled, and how much of its shadow to draw
    sky.chips(hex)   sky.confetti(hexes)   bits of shell, and what goes up when it is out
    sky.glow(0..1)   sky.flash(0..1)       a moment of light about the egg, and over the whole sky
    sky.bump(speed)                        the island dips under something
@@ -31,7 +32,7 @@
 */
 function AgentOrbSky(THREE) {
   var T3 = THREE, TAU = Math.PI * 2;
-  var K = 3, FALL = 7.6, HIGH = 46, FAR = 10.5, TALL = 6.42, EGG = 0.25, TOP = 0.375;
+  var K = 3, FALL = 7.6, HIGH = 46, FAR = 10.5, TALL = 6.42, EGG = 0.25, TOP = 0.375, SPINS = 6;
   function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
   function lerp(a, b, k) { return a + (b - a) * k; }
   function smooth(a, b, x) { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); }
@@ -238,7 +239,7 @@ function AgentOrbSky(THREE) {
     }
 
     // how things stand
-    var W = { t: 0, fallT: 0, alt: 0, sway: 0, lean: 0, eggY: 0.1, phase: 0, phaseTo: 0, beam: 0, glow: 0, flash: 0, dip: 0, dipV: 0, acc: 0, fly: 0, w: 1, h: 1 };
+    var W = { t: 0, fallT: 0, alt: 0, sway: 0, lean: 0, turn: 0, eggY: 0.1, phase: 0, phaseTo: 0, beam: 0, glow: 0, flash: 0, dip: 0, dipV: 0, acc: 0, fly: 0, w: 1, h: 1 };
     // how much of the height the egg takes and how far down the island's top is: now, and where they are heading
     var L = { part: EGG, top: TOP, partTo: EGG, topTo: TOP };
     var c1 = new T3.Color(), c2 = new T3.Color(), v3 = new T3.Vector3();
@@ -252,7 +253,7 @@ function AgentOrbSky(THREE) {
       skyU.uStars.value = lerp(a.stars, b.stars, k); skyU.uDay.value = lerp(a.day, b.day, k);
     }
     function touchDown() {
-      sky.falling = false; W.alt = 0; W.sway = 0; W.lean = 0;
+      sky.falling = false; W.alt = 0; W.sway = 0; W.lean = 0; W.turn = 0;
       if (!sky.calm) W.dipV = -1.7;
       for (var n = 0; n < 26; n++) { var a = Math.random() * TAU, v = 1 + Math.random() * 1.6; spark(Math.cos(a) * 0.6, isle.position.y + 0.15, Math.sin(a) * 0.5, Math.cos(a) * v, 0.5 + Math.random() * 1.3, Math.sin(a) * v, 0.45 + Math.random() * 0.45, 3.5, pick(['#e8f4e0', '#bcd8b0', '#ffffff'])); }
       var told = sky.onLand;
@@ -289,7 +290,7 @@ function AgentOrbSky(THREE) {
       },
       egg: function () {
         v3.set(W.sway, W.eggY, 0).project(cam);
-        return { x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h, lean: W.lean, part: L.part, heading: L.partTo, shadow: 1 - smooth(0, 2.5, W.alt) };
+        return { x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h, lean: W.lean, turn: W.turn, part: L.part, heading: L.partTo, shadow: 1 - smooth(0, 2.5, W.alt) };
       },
       chips: function (hex) {
         for (var n = 0; n < 12; n++) spark((Math.random() - 0.5) * 0.7, W.eggY + 0.6 + Math.random() * 0.6, 0.4, (Math.random() - 0.5) * 3.4, 1.2 + Math.random() * 2.2, Math.random(), 0.6 + Math.random() * 0.4, 8, pick(['#f4efe6', '#ffffff', hex || '#ffffff']));
@@ -314,6 +315,8 @@ function AgentOrbSky(THREE) {
           W.alt = HIGH * Math.pow(1 - u, 1.8);
           W.sway = Math.sin(W.t * 1.3) * 0.32 * (1 - u);
           W.lean = Math.sin(W.t * 2.1) * 6 * (1 - u * u);
+          // it spins as it comes, slower the nearer it is, and is down with its front to the front
+          W.turn = SPINS * TAU * Math.pow(1 - u, 1.4);
           // it leaves a trail above it as it comes
           W.acc += dt * 30;
           while (W.acc > 1) {
