@@ -16,6 +16,7 @@ import {
   driverCall,
   driverMissing,
   driverTarget,
+  sessionEnded,
   driverWindowCall,
   fakeDriver,
   parseKeys,
@@ -706,6 +707,28 @@ describe("the driver", () => {
     expect(() => driverWindowCall(window, { do: "key", keys: "s+cmd" }, false)).toThrow(
       /not a key that is held/,
     )
+  })
+
+  it("knows a refusal that means its name with the driver has ended, which is started again", () => {
+    // As the driver says it, five minutes after it last heard the name.
+    const ended = {
+      isError: true,
+      text: "session 'do-computer' has ended; call start_session with session 'do-computer' to start it again, or use a new session label",
+      structuredJson: JSON.stringify({
+        refusal: { code: "session_ended", message: "session 'do-computer' has ended" },
+        status: "refused",
+      }),
+    }
+    expect(sessionEnded(ended)).toBe(true)
+    expect(sessionEnded({ ...ended, structuredJson: undefined })).toBe(true)
+    expect(sessionEnded({ ...ended, isError: false })).toBe(false)
+    expect(
+      sessionEnded({
+        isError: true,
+        text: "Background drag is unavailable.",
+        structuredJson: "{}",
+      }),
+    ).toBe(false)
   })
 
   it("has its refusal to work behind what is in front put as what the agent is to ask for", () => {

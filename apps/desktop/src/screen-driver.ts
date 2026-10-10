@@ -359,6 +359,30 @@ export function windowsOf(listed: unknown, own: number = process.pid): DriverWin
     .sort((a, b) => (b.z ?? -1) - (a.z ?? -1))
 }
 
+/** How much of a window is walked to wake the program it belongs to: enough to be an asking. */
+const WAKE_ELEMENTS = 40
+
+/** Two pointers would be one too many. A driver that will not hide its own still works. */
+const hideCursor = (cua: Cua) =>
+  cua
+    .callTool("set_agent_cursor_enabled", JSON.stringify({ session: SESSION, enabled: false }))
+    .then(
+      () => {},
+      () => {},
+    )
+
+/** Whether the driver refused because the name everything is asked under has ended. */
+export function sessionEnded(called: Pick<Called, "isError" | "text" | "structuredJson">): boolean {
+  if (!called.isError) return false
+  const said = parsed(called.structuredJson)
+  const refusal = (said.refusal ?? {}) as { code?: unknown }
+  return (
+    said.code === "session_ended" ||
+    refusal.code === "session_ended" ||
+    /\bsession\b.*\bhas ended\b/.test(called.text)
+  )
+}
+
 /**
  * Cua Driver, from the packages in `dir`. It is loaded the first time it is used, since loading
  * it starts a program of its own, and most runs of the app never use the screen.
@@ -375,22 +399,33 @@ export function cuaDriver(dir: string): ScreenDriver {
         CuaDriver: { create(options: undefined): Cua }
       }
       const cua = CuaDriver.create(undefined)
-      // Two pointers would be one too many. A driver that will not hide its own still works.
-      await cua
-        .callTool("set_agent_cursor_enabled", JSON.stringify({ session: SESSION, enabled: false }))
-        .catch(() => {})
+      await hideCursor(cua)
       return cua
     })()
     // A driver that would not load is tried again the next time, not remembered as broken.
     loading.catch(() => (loading = undefined))
     return loading
   }
-  const call = async (tool: string, args: object): Promise<Called> => {
+  /** Ask the driver for something, and resolve with whatever it said, a refusal included. */
+  const ask = async (tool: string, args: object): Promise<Called> => {
     const cua = await load()
-    const called = await cua.callTool(tool, JSON.stringify({ ...args, session: SESSION }))
+    const asked = JSON.stringify({ ...args, session: SESSION })
+    const called = await cua.callTool(tool, asked)
+    if (!sessionEnded(called)) return called
+    // The driver ends a name it has not heard in five minutes, and does nothing more under
+    // it until it is started again: an agent that came back to the screen later would find it
+    // refused for good.
+    await cua.callTool("start_session", JSON.stringify({ session: SESSION })).catch(() => {})
+    await hideCursor(cua)
+    return cua.callTool(tool, asked)
+  }
+  const call = async (tool: string, args: object): Promise<Called> => {
+    const called = await ask(tool, args)
     if (called.isError) throw new Error(called.text.trim() || `The screen would not ${tool}.`)
     return called
   }
+  /** The programs whose windows have been looked at once with everything in them. */
+  const woken = new Set<number>()
   const picture = (called: Called, of: string): Picture => {
     const image = called.images.find((each) => each.mimeType === "image/png")
     if (image === undefined) throw new Error(`${of} gave no picture of itself.`)
@@ -413,26 +448,26 @@ export function cuaDriver(dir: string): ScreenDriver {
       return windowsOf(parsed(called.structuredJson).windows)
     },
     async captureWindow(window, maxEdge, watching) {
-      return picture(
-        await call("get_window_state", {
-          pid: window.pid,
-          window_id: window.id,
-          // The picture alone. Walking everything in the window is slow, and nothing here reads it.
-          include_accessibility_tree: false,
-          max_image_dimension: maxEdge,
-          ...(watching === true ? { display_only: true } : {}),
-        }),
-        "That window",
-      )
+      // The picture alone: walking everything in the window is slow, and nothing here reads it.
+      // But a program made of web pages tells the system what is in its window only once it
+      // has been asked, and until then a click there finds nothing to press. So the first
+      // picture an agent is given of a program's window asks, and by its first click it is told.
+      const wake = watching !== true && !woken.has(window.pid)
+      const called = await call("get_window_state", {
+        pid: window.pid,
+        window_id: window.id,
+        include_accessibility_tree: wake,
+        ...(wake ? { max_elements: WAKE_ELEMENTS } : {}),
+        max_image_dimension: maxEdge,
+        ...(watching === true ? { display_only: true } : {}),
+      })
+      if (wake) woken.add(window.pid)
+      return picture(called, "That window")
     },
     async actIn(window, act, inFront) {
       if (act.do === "screenshot" || act.do === "wait") return undefined
       const asked = driverWindowCall(window, act, inFront)
-      const cua = await load()
-      const called = await cua.callTool(
-        asked.tool,
-        JSON.stringify({ ...asked.args, session: SESSION }),
-      )
+      const called = await ask(asked.tool, asked.args)
       if (called.isError) throw new Error(windowRefusal(called, inFront))
       return windowNote(called, inFront)
     },
@@ -486,9 +521,7 @@ export function plainPng(width: number, height: number, rgb: [number, number, nu
  * A screen that is a plain picture and does nothing it is asked, but says what it was asked:
  * in `done`, and as a line of JSON each in the file `log` where one is named.
  */
-export function fakeDriver(
-  log?: string,
-): ScreenDriver & {
+export function fakeDriver(log?: string): ScreenDriver & {
   readonly done: (DesktopAction | (WindowAct & { window: number; inFront: boolean }))[]
 } {
   const done: (DesktopAction | (WindowAct & { window: number; inFront: boolean }))[] = []

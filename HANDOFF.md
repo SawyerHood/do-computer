@@ -1661,6 +1661,79 @@ Since then, newest last:
       deployed Worker.
     - **Mine, not the owner's:** the fingerprints in place of sending everything again; the
       fall back to streams; sixteen chats to a socket; leaving the mobile app as it is.
+44. **Agents work in one window, behind what the owner has in front** (2026-10-10;
+    `packages/protocol/src/screen.ts`, `packages/agent/src/uses.ts`,
+    `apps/desktop/src/screen.ts`, `screen-driver.ts`, `overlay.ts`). The owner asked whether
+    Cua has "a mode that lets the agent control your computer without taking over your mouse
+    and keyboard like codex computer use", and then for the app to be rewritten to use it. It
+    has: Cua Driver sends what is done in a window to that window's program alone, and until
+    now the app asked for everything on the whole screen, which is the one target the driver
+    can only do with the real pointer.
+    - **The `screen` tool** has two more actions and two more arguments. `windows` lists the
+      windows there are (id, app, title, size, and whether it is showing); `open` starts an app
+      by name without bringing it forward. With `window` set to an id, every other action is
+      done in that window alone, the picture that comes back is of that window whether or not
+      it can be seen, and places are in that picture. `in_front: true` has the window brought
+      forward for the one action. Without `window` everything is as it was: the whole screen,
+      with the computer's own mouse and keyboard. The agent is told to work in a window where
+      it can.
+    - **On the wire** the three new things are actions of their own (`windows`, `open`,
+      `in_window`, which carries the window and what to do in it), not arguments to the old
+      ones. An app from before does nothing with an action it does not know and answers with
+      a picture of the screen; had `window` been one more argument to `click`, it would have
+      clicked that place on the whole screen. The server knows an old app by its answer, which
+      has no `window` or `windows` in it, and tells the agent so. The answer's picture is now
+      optional (`windows` has none), and it can carry a `note`.
+    - **In the app** `ScreenService` finds the window by its id each time, takes a picture of
+      it before acting (the driver takes a place to be in the picture it last took, and a
+      picture taken for someone watching is taken apart from those), moves the places where
+      the window has changed size since the agent saw it, and answers with a picture taken
+      afterwards. A window that is gone afterwards (the agent closed it) answers with the
+      windows there are. Someone watching is shown the window the agent last worked in, with
+      its name where "The screen" was.
+    - **What the driver refuses** behind what is in front is told to the agent with what to ask
+      for: on a Mac a drag, and keys to a program with more than one window. Where it sent a
+      click or keys to the program without being able to tell whether they were taken, the
+      answer says so. Nothing is ever brought forward without the agent asking.
+    - **On the computer itself** the bar says "(agent) is working in the background", there is
+      no glow round the screen, and Esc is left to its owner, who is at their own work. The
+      agent's pointer is drawn only where the window is the one to be seen at that place.
+      With the whole screen, or a window brought forward, all of that is as before.
+    - **Two things found on the owner's Mac that were broken before this.** The driver ends
+      the name everything is asked under after five minutes without hearing it, and refuses
+      everything under it from then on: an agent that came back to a screen later was refused
+      until the app was started again. The app now starts the name again and asks once more
+      (`sessionEnded`). And a program made of web pages (Electron, Chrome) tells the system
+      what is in its window only once it has been asked, so the first click there pressed
+      nothing: the first picture an agent is given of a program's window now asks.
+    - **Checked on the owner's MacBook Air** (macOS 27, a signed build of the branch run as a
+      second copy against a server on the owner's Linux machine, while they were using the
+      Mac): through the whole chain, chat to driver, an agent listed the windows, opened
+      Calculator behind what was in front and worked a sum in it, with the pointer where it
+      was and the app in front unchanged; typed, pressed keys and scrolled in a TextEdit
+      window that was covered by others; filled in a form in an Electron window behind
+      Calculator; was refused a drag and did it with `in_front`; closed a window. Sonnet 5.5
+      was given "use the Calculator app to work out 127 × 49" with "do not take over my mouse
+      or keyboard" and did it in a window, unprompted, in about half a minute. It is the first
+      time an agent used a real screen on a Mac at all.
+    - **Not run:** Windows and Linux, where the driver can do much less behind what is in
+      front (on X11 little more than a left click; on Hyprland nothing), so that there an
+      agent will mostly be told to ask for `in_front` or use the whole screen. Nobody has
+      looked at the bar and the pointer by eye while an agent worked in a window. A window on
+      another desktop, a minimized one, a second display. Chrome and Safari themselves.
+    - **Mine, not the owner's:** that the whole screen stays as a way to work, for what is in
+      no window; that bringing a window forward is the agent's to ask for and is never done
+      for it; that the app's own windows are left out of the list; that the picture is of the
+      window and nothing is read from the system's outline of it; no glow and no Esc while
+      working behind; that a first picture wakes the program.
+    - **Learned the hard way:** a signed Mac app with one file changed inside it is not run by
+      macOS at all ("is damaged and can't be opened", a dialog on the owner's screen), so new
+      code cannot be tried in a copy of the installed app any more. What works: start the
+      installed app a second time with `--inspect=9230` and its own data folder, bundle the
+      code to try as one CommonJS file, and `require` it into that process over the
+      inspector, where the driver has the app's permissions; and for the whole chain, a
+      signed build of the branch from the Actions tab (`gh workflow run desktop.yml --ref
+<branch>`), run as a second copy from a folder of its own.
 
 ## 6. What the owner has said they want
 

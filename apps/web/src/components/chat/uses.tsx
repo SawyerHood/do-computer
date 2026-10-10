@@ -495,7 +495,13 @@ function Frame({ step, pointer, eager }: { step: UseStep; pointer: boolean; eage
 function UseEnded({ use }: { use: Use }) {
   const agentId = useAgentId()
   const name = useAgentsById().get(agentId)?.name ?? "It"
-  const [at, setAt] = useState(0)
+  // It opens on the first step there is a picture of: listing the windows leaves none.
+  const [at, setAt] = useState(() =>
+    Math.max(
+      0,
+      use.steps.findIndex((each) => each.shot !== undefined),
+    ),
+  )
   const count = use.steps.length
   const step = use.steps[Math.min(at, count - 1)]
   const [computer, rest] =
