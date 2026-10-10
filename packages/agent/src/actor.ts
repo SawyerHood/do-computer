@@ -28,6 +28,7 @@ import {
   type SendMessageRequest,
   SSE_HEADERS,
   SSE_HEARTBEAT,
+  SSE_HEARTBEAT_MS,
   THINKING_LEVELS,
   TREATS_PER_BOX,
   type UpdateChatRequest,
@@ -47,8 +48,11 @@ import {
   type ConversationId,
   createRegistry,
   defineExtension,
+  type DocumentWatch,
   type Extension,
   Harness,
+  type JsonObject,
+  type SessionDocToken,
   UsageDoc,
 } from "@earendil-works/pi-durable"
 import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
@@ -116,7 +120,6 @@ const context = BACKGROUND_CONTEXT
 const KEEPALIVE_MS = 20_000
 /** How long an automation's check may run before it is stopped and counted as broken. */
 const CHECK_TIMEOUT_MS = 60_000
-const SSE_HEARTBEAT_MS = 15_000
 const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
 /**
@@ -280,6 +283,31 @@ function titleFrom(text: string): string {
   const line = text.trim().split("\n")[0]!.trim()
   return line.length > MAX_TITLE_CHARS ? `${line.slice(0, MAX_TITLE_CHARS - 1).trimEnd()}…` : line
 }
+
+type Told = Extract<AgentEvent, { type: "changed" }>["what"]
+type Doc = SessionDocToken<JsonObject>
+
+/**
+ * The documents of an agent that its pages are drawn from, and what each goes by on the agent's
+ * event stream. Everyone following the agent is told when one of these changes, and a client
+ * that has no name for what changed asks for all of it again: a new document has only to be
+ * added here. One marked "here" is made when the agent is opened, since a document that is not
+ * there yet cannot be watched. The others are there by the time anyone is following: the agent
+ * does not exist without its identity and its chats, and its skills come with its owner.
+ */
+const TOLD: readonly (readonly [Told, Doc, "here" | "before"])[] = [
+  ["identity", IdentityDoc as unknown as Doc, "before"],
+  ["chats", ChatsDoc as unknown as Doc, "before"],
+  ["skills", SkillsDoc as unknown as Doc, "before"],
+  ["schedules", SchedulesDoc as unknown as Doc, "here"],
+  ["computers", ComputersDoc as unknown as Doc, "here"],
+  ["library", LibraryDoc as unknown as Doc, "here"],
+  ["connectors", ConnectorsDoc as unknown as Doc, "here"],
+  ["approvals", ApprovalsDoc as unknown as Doc, "here"],
+  ["secrets", SecretsDoc as unknown as Doc, "here"],
+  ["creature", CreatureDoc as unknown as Doc, "here"],
+  ["jobs", JobsDoc as unknown as Doc, "here"],
+]
 
 /**
  * A `text/event-stream` response fed by `setup`. `emit` resolves once the client has room, so a
@@ -940,29 +968,18 @@ export class AgentActor implements Actor {
       if (((await harness.snapshot(IdentityDoc, context))?.ownerId ?? "") !== "") {
         await this.#skills.seed(context)
       }
-      // A schedule the agent creates or changes moves the next wake-up.
-      if (
-        (await harness.snapshot(SchedulesDoc, context)) === undefined ||
-        (await harness.snapshot(ComputersDoc, context)) === undefined ||
-        (await harness.snapshot(LibraryDoc, context)) === undefined ||
-        (await harness.snapshot(ConnectorsDoc, context)) === undefined ||
-        (await harness.snapshot(ApprovalsDoc, context)) === undefined ||
-        (await harness.snapshot(SecretsDoc, context)) === undefined ||
-        (await harness.snapshot(CreatureDoc, context)) === undefined ||
-        (await harness.snapshot(JobsDoc, context)) === undefined
-      ) {
-        // Created up front so they can be watched before they have any content.
+      // Made up front, so that they can be watched before they have anything in them.
+      const unmade: SessionDocToken<JsonObject>[] = []
+      for (const [, doc, made] of TOLD) {
+        if (made === "here" && (await harness.snapshot(doc, context)) === undefined)
+          unmade.push(doc)
+      }
+      if (unmade.length > 0) {
         await harness.commit(async (tx) => {
-          await tx.doc(SchedulesDoc)
-          await tx.doc(ComputersDoc)
-          await tx.doc(LibraryDoc)
-          await tx.doc(ConnectorsDoc)
-          await tx.doc(ApprovalsDoc)
-          await tx.doc(SecretsDoc)
-          await tx.doc(CreatureDoc)
-          await tx.doc(JobsDoc)
+          for (const doc of unmade) await tx.doc(doc)
         }, context)
       }
+      // A schedule the agent creates or changes moves the next wake-up.
       const schedules = await harness.watchDoc(SchedulesDoc, context)
       schedules?.start(async () => {
         await this.#rearm().catch((error) => this.#options.onReport?.(error))
@@ -2191,48 +2208,24 @@ export class AgentActor implements Actor {
 
   #agentEvents(harness: Harness): Response {
     return eventStream(async (emit, close) => {
-      const identity = await harness.watchDoc(IdentityDoc, context)
-      const chats = await harness.watchDoc(ChatsDoc, context)
-      const schedules = await harness.watchDoc(SchedulesDoc, context)
-      const skills = await harness.watchDoc(SkillsDoc, context)
-      const computers = await harness.watchDoc(ComputersDoc, context)
-      const library = await harness.watchDoc(LibraryDoc, context)
-      const connectors = await harness.watchDoc(ConnectorsDoc, context)
-      const approvals = await harness.watchDoc(ApprovalsDoc, context)
-      const secrets = await harness.watchDoc(SecretsDoc, context)
-      const creature = await harness.watchDoc(CreatureDoc, context)
-      const jobs = await harness.watchDoc(JobsDoc, context)
-      const changed = (what: Extract<AgentEvent, { type: "changed" }>["what"]) => async () => {
+      const changed = (what: Told) => async () => {
         await emit({ type: "changed", what } satisfies AgentEvent)
+      }
+      const watches: { what: Told; watch: DocumentWatch<JsonObject> }[] = []
+      for (const [what, doc] of TOLD) {
+        const watch = await harness.watchDoc(doc, context)
+        if (watch !== undefined) watches.push({ what, watch })
       }
       // A library the workspace shares changes without the agent having a hand in it.
       const shared = await this.#sharedLibrary().catch(() => undefined)
       const unwatch = shared?.watch(() => void changed("library")())
+      // Said once everything is being watched. What changed before this is not told here, so a
+      // client that hears it asks again for whatever it already has.
       await emit({ type: "ready" } satisfies AgentEvent)
-      identity?.start(changed("identity"))
-      chats?.start(changed("chats"))
-      schedules?.start(changed("schedules"))
-      skills?.start(changed("skills"))
-      computers?.start(changed("computers"))
-      library?.start(changed("library"))
-      connectors?.start(changed("connectors"))
-      approvals?.start(changed("approvals"))
-      secrets?.start(changed("secrets"))
-      creature?.start(changed("creature"))
-      jobs?.start(changed("jobs"))
-      void (identity ?? chats)?.closed.then(close)
+      for (const { what, watch } of watches) watch.start(changed(what))
+      void watches[0]?.watch.closed.then(close)
       return () => {
-        void identity?.stop()
-        void chats?.stop()
-        void schedules?.stop()
-        void skills?.stop()
-        void computers?.stop()
-        void library?.stop()
-        void connectors?.stop()
-        void approvals?.stop()
-        void secrets?.stop()
-        void creature?.stop()
-        void jobs?.stop()
+        for (const { watch } of watches) void watch.stop()
         unwatch?.()
       }
     })

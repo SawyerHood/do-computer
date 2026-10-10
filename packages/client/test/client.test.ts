@@ -1,5 +1,12 @@
-import { type ChatEvent, type ChatState, EMPTY_CHAT, encodeSse } from "@durable-computer/protocol"
-import { describe, expect, it } from "vitest"
+import {
+  type ChatEvent,
+  type ChatState,
+  EMPTY_CHAT,
+  encodeSse,
+  SSE_HEARTBEAT,
+  SSE_HEARTBEAT_MS,
+} from "@durable-computer/protocol"
+import { describe, expect, it, vi } from "vitest"
 import { ApiError, createClient } from "../src/index.ts"
 
 function sse(events: ChatEvent[]): Response {
@@ -88,6 +95,97 @@ describe("client", () => {
     expect(states.at(-1)).toEqual(second)
     expect(connections).toBe(2)
     expect(statuses.slice(0, 4)).toEqual(["connecting", "open", "reconnecting", "open"])
+  })
+
+  it("asks again for a stream that has gone quiet without ending", async () => {
+    vi.useFakeTimers()
+    try {
+      const state: ChatState = { ...EMPTY_CHAT, busy: true }
+      const given: AbortSignal[] = []
+      const beats: ReadableStreamDefaultController<Uint8Array>[] = []
+      const client = createClient({
+        baseUrl: "",
+        fetch: async (_input, init) => {
+          given.push(init!.signal!)
+          // Neither connection ever ends. The second is told the chat is no longer busy.
+          const later = given.length > 1
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                beats.push(controller)
+                controller.enqueue(
+                  encodeSse({ type: "snapshot", state: { ...state, busy: !later } }),
+                )
+                init!.signal!.addEventListener("abort", () => controller.error(new Error("gone")))
+              },
+            }),
+          )
+        },
+      })
+      const states: ChatState[] = []
+      const subscription = client.agent("a").watchChat("1", (next) => states.push(next))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(states.at(-1)?.busy).toBe(true)
+
+      // One that still sends its heartbeat is kept, however long it has nothing to say.
+      for (let beat = 0; beat < 6; beat++) {
+        await vi.advanceTimersByTimeAsync(SSE_HEARTBEAT_MS)
+        beats[0]!.enqueue(SSE_HEARTBEAT)
+      }
+      await vi.advanceTimersByTimeAsync(0)
+      expect(given).toHaveLength(1)
+
+      // Then nothing at all: it is given up, and the chat is read again from the start.
+      await vi.advanceTimersByTimeAsync(3 * SSE_HEARTBEAT_MS + 1_000)
+      expect(given[0]!.aborted).toBe(true)
+      expect(given).toHaveLength(2)
+      expect(states.at(-1)?.busy).toBe(false)
+      subscription.close()
+      expect(given[1]!.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("asks again for a stream the server never answered", async () => {
+    vi.useFakeTimers()
+    try {
+      const given: AbortSignal[] = []
+      const client = createClient({
+        baseUrl: "",
+        fetch: (_input, init) => {
+          given.push(init!.signal!)
+          // The first is never answered, as by a server that is stuck. The second is.
+          if (given.length === 1) {
+            return new Promise<Response>((_resolve, reject) => {
+              init!.signal!.addEventListener("abort", () => reject(new Error("gone")))
+            })
+          }
+          return Promise.resolve(
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(encodeSse({ type: "snapshot", state: EMPTY_CHAT }))
+                },
+              }),
+            ),
+          )
+        },
+      })
+      const states: ChatState[] = []
+      const subscription = client.agent("a").watchChat("1", (next) => states.push(next))
+      await vi.advanceTimersByTimeAsync(3 * SSE_HEARTBEAT_MS - 1_000)
+      expect(given).toHaveLength(1)
+      expect(given[0]!.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(given[0]!.aborted).toBe(true)
+      expect(given).toHaveLength(2)
+      expect(states).toHaveLength(1)
+      subscription.close()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("stops instead of retrying a stream the server refuses", async () => {

@@ -46,6 +46,7 @@ import {
   type PresenceEvent,
   type PresenceUpdate,
   readSse,
+  SSE_HEARTBEAT_MS,
   reduceChat,
   type ScheduleSummary,
   type SecretRequest,
@@ -150,6 +151,8 @@ export type PresenceLink = Subscription & { update(where: PresenceUpdate): void 
 const PRESENCE_PING_MS = 30_000
 
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000]
+/** How long a stream may say nothing, heartbeats included, before it is taken for lost. */
+const STREAM_SILENCE_MS = 3 * SSE_HEARTBEAT_MS
 
 export function createClient(options: ClientOptions) {
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis)
@@ -194,7 +197,9 @@ export function createClient(options: ClientOptions) {
 
   /**
    * Follow a server-sent event stream until closed, reconnecting with backoff. Every connection
-   * starts from the server's current state, so nothing is lost across a reconnect.
+   * begins with an event that says where things stand, a chat's whole state or an agent's
+   * `ready`, and what happened while there was no connection is not sent again: the one
+   * following has to start over from that first event.
    */
   function stream<T>(
     path: string,
@@ -206,10 +211,23 @@ export function createClient(options: ClientOptions) {
     const run = async () => {
       onStatus?.("connecting")
       while (!controller.signal.aborted) {
+        // Each connection can be given up by itself, without closing the subscription.
+        const lost = new AbortController()
+        const give = () => lost.abort()
+        controller.signal.addEventListener("abort", give)
+        let silence: ReturnType<typeof setTimeout> | undefined
+        // A connection can die without ending: a laptop that slept, a network that changed.
+        // The server is never this quiet, so one that is has gone, and is asked for again.
+        // That goes for one that was never answered too: a server that is stuck says nothing.
+        const hear = () => {
+          clearTimeout(silence)
+          silence = setTimeout(() => lost.abort(), STREAM_SILENCE_MS)
+        }
+        hear()
         try {
           const response = await send(path, {
             headers: { accept: "text/event-stream" },
-            signal: controller.signal,
+            signal: lost.signal,
           })
           // A refused stream will be refused again; only transport failures are retried.
           if (response.status >= 400 && response.status < 500) {
@@ -219,9 +237,13 @@ export function createClient(options: ClientOptions) {
           if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status}`)
           attempt = 0
           onStatus?.("open")
-          for await (const event of readSse<T>(response.body)) onEvent(event)
+          hear()
+          for await (const event of readSse<T>(response.body, hear)) onEvent(event)
         } catch {
           // Fall through to reconnect.
+        } finally {
+          clearTimeout(silence)
+          controller.signal.removeEventListener("abort", give)
         }
         if (controller.signal.aborted) break
         onStatus?.("reconnecting")

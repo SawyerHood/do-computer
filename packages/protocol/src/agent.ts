@@ -109,7 +109,11 @@ export type SlackPlace = {
   url: string | null
 }
 
-/** What changed on an agent, sent on its event stream so clients know what to refetch. */
+/**
+ * What changed on an agent, sent on its event stream so clients know what to refetch. `ready` is
+ * first on every connection: changes are told from then on, and whatever a client fetched before
+ * it may be out of date. A client that has no use for a `what` refetches all it has of the agent.
+ */
 export type AgentEvent =
   | { type: "ready" }
   | {

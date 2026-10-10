@@ -43,7 +43,14 @@ export function useAgent() {
 
   useEffect(() => {
     if (agentId === undefined) return
+    // The stream tells of what changes while it is connected. A phone's is often cut, and each
+    // time it comes back anything may have changed, so everything here is asked for again.
+    let connected = false
     const subscription = client.agent(agentId).watch((event) => {
+      if (event.type === "ready") {
+        if (connected) void queryClient.invalidateQueries()
+        connected = true
+      }
       if (event.type !== "changed") return
       if (event.what === "identity") void queryClient.invalidateQueries({ queryKey: keys.agents })
       const key =
