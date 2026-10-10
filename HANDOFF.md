@@ -1489,7 +1489,9 @@ Since then, newest last:
       twenty). All that are due are drawn side by side into one picture and each takes its
       square of it, so there is one copy out of the card per beat. The same page, measured
       in the same sitting, three runs of each: about 15% and 21%. Script time on the page
-      went from about 7% to 4%.
+      went from about 7% to 4%. Where there is no graphics card and the creatures are
+      drawn in software, as in headless Chromium here, the same page kept more than four
+      cores busy and now keeps two and a half; one creature alone is still a whole core.
     - **Why the GPU process died.** The app's own log, from a second copy started with
       `--enable-logging=stderr`: `[Device] is lost` from Skia's Dawn device, then "Restarting
       GPU process due to unrecoverable error. Context was lost." After three of those within
@@ -1501,7 +1503,7 @@ Since then, newest last:
       start, where the tab's icon draws a creature and lets it go before the others exist,
       and on every move from one agent to another with the sidebar shut. Moving between two
       agents that way killed the GPU process in 2 of 6 starts of the old code, each time
-      within fourteen moves, and in none of 10 starts of the new.
+      within fourteen moves, and in none of 20 starts of the new.
     - **Now** what a creature was drawn with is kept for ten seconds after it goes
       (`Stage.retire`): its shaders, and with them the context. The creatures of the next
       page find both. The picture they are drawn into starts with room for a page's worth and
