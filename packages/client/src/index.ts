@@ -235,8 +235,10 @@ export function createClient(options: ClientOptions) {
   }
 
   return {
-    me: () => request<Me>("/api/me"),
-    listAgents: async () => (await request<{ agents: AgentSummary[] }>("/api/agents")).agents,
+    // Both take a signal, so that a page which waits for them can stop waiting.
+    me: (init?: { signal?: AbortSignal }) => request<Me>("/api/me", init),
+    listAgents: async (init?: { signal?: AbortSignal }) =>
+      (await request<{ agents: AgentSummary[] }>("/api/agents", init)).agents,
     /**
      * The models to choose from, suggested ones first. For a workspace, those an agent there
      * can be set to: the deployment's and those of the providers the workspace is signed in to.

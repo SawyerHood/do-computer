@@ -1214,6 +1214,49 @@ Since then, newest last:
       crashes on a newer Chrome, which answers with a promise that React then calls on the way
       out. The Chromium on the owner's machine is older and did not show it; CI's did.
 
+32. **A page that cannot start says so** (2026-10-09; `apps/web/src/lib/boot.ts`,
+    `components/page-error.tsx`, `routes/_app.index.tsx`). The owner reported that the desktop
+    app "sometimes gets stuck loading", with a picture of the frame of placeholders and nothing
+    in it. It was not reproduced (see section 7). What was found is that the frame had three
+    things to wait for, none with an end:
+    - **The app's own address no longer waits for the list of agents.** The desktop app starts
+      there every time. `GET /api/agents` asks every agent's object what it is and answers
+      when the slowest has: 0.6 to 1.5 s on do.computer against 0.15 to 0.25 s for
+      `/api/me`. The agent that was open last is now gone to without the list. One that turns
+      out to be gone is forgotten by its page, which sends the visitor back to the address,
+      where the list is then asked for.
+    - **Who is signed in, and the list of agents, are waited for fifteen seconds**
+      (`patience` in `lib/client.ts`), then asked once more, as any failed query is. After
+      that the page says "This could not be loaded" with Try again, which loads it afresh.
+      That is the router's `defaultErrorComponent` now, in place of the framework's own, so a
+      page whose code is no longer on the server, as after a deploy, says the same.
+    - **Scripts that do not arrive** (`BOOT_GUARD_SCRIPT`, in the head before anything else):
+      the page loads itself again after 0.3, 3 and 10 seconds, counted in `sessionStorage`
+      and forgotten once the app has started, and after that puts up a button that says it
+      did not load. Only scripts under `/assets/` count.
+    - **Mine, not the owner's:** all of it, the numbers included. The desktop app itself is
+      unchanged, since its window shows the deployment's pages; no release was needed.
+    - **Not done:** the list of agents still waits for every agent. One that never answers
+      leaves the sidebar's rows as placeholders for fifteen seconds and then failed.
+
+33. **Creatures that went blank** (2026-10-09; `apps/web/src/components/agent-avatar.tsx`,
+    `packages/mascot/src/orb-core.js`). The owner asked whether "the 3d renders disappear"
+    because of too many WebGL contexts. It is not that: every creature on a page is drawn by
+    one context (`Stage`), and each has a 2D canvas that takes a copy. Two things did blank
+    them, and both are reproduced by a test in `e2e/agents.spec.ts`:
+    - **A still picture was held before it was drawn.** A still (the one above the chat, in
+      menus and lists, in the wardrobe) is let move for 350 ms and then paused. The loop that
+      moves it draws nothing in a window that is not showing or of a canvas off the screen,
+      so a page opened behind another, or in the desktop app's closed window, held a blank
+      for good. It is now drawn as it is paused.
+    - **A context the browser took away wiped every creature**, each frame, by copying from
+      it. The copy is now left out while the context is lost, so the last picture stays. A
+      context that has not come back in three seconds is let go of and another asked for, at
+      most every three seconds.
+    - **Not done:** the context is still let go of whenever the last creature leaves the page
+      and made again for the next, which is a new context for most moves between pages. That
+      costs time, not pictures. Whether either of the two is what the owner saw is not known.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -1310,6 +1353,14 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   web search and pictures. Probably a failure on Meta's or OpenRouter's side. Which model the
   agent was on is not known. The raw provider error is what the user saw; a friendlier message
   and a retry would be an improvement.
+
+- **The desktop app "sometimes gets stuck loading"** on the owner's Mac, 2026-10-09: the frame
+  of placeholders, for good. Thirty-one starts and reloads of the app against a local server
+  never stuck, and nothing unusual was in the live logs while they were followed. Which
+  request was waiting is not known: the owner was not asked for the Network tab before the
+  ways it could happen were closed (item 32). If it recurs, the page should now say what
+  failed; View, Toggle Developer Tools, Network in the app shows what is still waiting, and
+  `wrangler tail` shows a request that was given up on as `canceled`.
 
 ### Known gaps
 

@@ -143,6 +143,12 @@ export function AgentAvatar({
     orb.paused = false
     if (!still) return
     const timer = setTimeout(() => {
+      // The loop that moves it draws nothing in a window that is not showing, or of a creature
+      // that is off the screen. Whether or not it got to this one, its picture is drawn here,
+      // or what is held would be a blank.
+      orb.resize()
+      for (let step = 0; step < 12; step++) orb.update(1 / 30)
+      orb.render()
       orb.paused = true
     }, 350)
     return () => clearTimeout(timer)

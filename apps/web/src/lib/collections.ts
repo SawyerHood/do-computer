@@ -3,7 +3,7 @@ import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
 import { queryCollectionOptions } from "@tanstack/query-db-collection"
 import { queryOptions } from "@tanstack/react-query"
 import { createCollection } from "@tanstack/react-db"
-import { client } from "./client.ts"
+import { client, patience } from "./client.ts"
 import { queryClient } from "./query.ts"
 
 export const agentsKey = ["agents"] as const
@@ -47,7 +47,7 @@ export const meKey = ["me"] as const
  */
 export const meQuery = queryOptions({
   queryKey: meKey,
-  queryFn: () => client.me(),
+  queryFn: () => client.me({ signal: patience() }),
   staleTime: Number.POSITIVE_INFINITY,
 })
 
@@ -66,7 +66,10 @@ export const creatureQuery = (agentId: string) =>
 export const jobsQuery = (agentId: string) =>
   queryOptions({ queryKey: jobsKey(agentId), queryFn: () => client.agent(agentId).jobs() })
 
-export const agentsQuery = queryOptions({ queryKey: agentsKey, queryFn: () => client.listAgents() })
+/** The signed-in user's agents. The server asks each agent what it is, so one can hold up them all. */
+const listAgents = () => client.listAgents({ signal: patience() })
+
+export const agentsQuery = queryOptions({ queryKey: agentsKey, queryFn: listAgents })
 
 export const schedulesQuery = (agentId: string) =>
   queryOptions({
@@ -85,7 +88,7 @@ export const agentsCollection = createCollection(
   queryCollectionOptions({
     id: "agents",
     queryKey: agentsKey,
-    queryFn: () => client.listAgents(),
+    queryFn: listAgents,
     queryClient,
     getKey: (agent: AgentSummary) => agent.id,
   }),

@@ -1,7 +1,9 @@
 import { QueryClientProvider } from "@tanstack/react-query"
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router"
+import { useEffect } from "react"
 import { FRAME_INIT_SCRIPT } from "@/components/shell/app-skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { BOOT_GUARD_SCRIPT, started } from "@/lib/boot"
 import { queryClient } from "@/lib/query"
 import { THEME_INIT_SCRIPT } from "@/lib/theme"
 import appCss from "../styles.css?url"
@@ -36,12 +38,17 @@ export const Route = createRootRoute({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  useEffect(started, [])
   return (
     // suppressHydrationWarning: the scripts in the head may change the class, and say how the
     // frame was left, before React hydrates.
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT + FRAME_INIT_SCRIPT }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `${THEME_INIT_SCRIPT};${FRAME_INIT_SCRIPT};${BOOT_GUARD_SCRIPT}`,
+          }}
+        />
         <HeadContent />
       </head>
       <body className="h-dvh overflow-hidden">

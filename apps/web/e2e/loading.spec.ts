@@ -27,6 +27,9 @@ async function holdRequests(page: Page) {
   }
 }
 
+/** The frame of the app with nothing in it: what is on screen until the app's code has started. */
+const frame = (page: Page) => page.locator("[data-loading]:has(> main)").filter({ visible: true })
+
 const agentRow = (page: Page, name: RegExp) =>
   page.getByRole("navigation", { name: "Agents" }).getByRole("link", { name })
 
@@ -135,4 +138,84 @@ test("a message is in the chat the moment it is sent", async ({ page }) => {
     page.locator("[data-slot=bubble-content]").filter({ hasText: "This one does not go" }),
   ).toHaveCount(0)
   await expect(page.getByText("Thinking…")).toHaveCount(0)
+})
+
+test("the app's own address opens the agent it was left on without waiting for the list", async ({
+  page,
+}) => {
+  await signIn(page)
+  const chat = page.url()
+  // The list of agents is as slow as its slowest agent. Here it never comes.
+  await page.route("**/api/agents", () => {})
+  await page.goto("/")
+  await page.waitForURL(chat)
+  await expect(composer(page)).toBeVisible()
+  await expect(frame(page)).toHaveCount(0)
+})
+
+test("a page whose code did not arrive is loaded again by itself", async ({ page }) => {
+  await signIn(page)
+  const chat = page.url()
+  let pages = 0
+  let lost = 0
+  await page.route(chat, (route) => {
+    pages++
+    return route.continue()
+  })
+  // The page arrives and its scripts do not, the first time and the time after.
+  await page.route("**/assets/*.js", (route) =>
+    pages <= 2 && ++lost ? route.abort() : route.continue(),
+  )
+  await page.goto(chat)
+  await expect(composer(page)).toBeVisible({ timeout: 15_000 })
+  expect(lost).toBeGreaterThan(0)
+  expect(pages).toBe(3)
+  // What is counted is forgotten once the app has started, so that the next time starts over.
+  expect(await page.evaluate(() => sessionStorage.getItem("dc-boot-tries"))).toBeNull()
+})
+
+test("a page whose code keeps not arriving says so, and can be asked for again", async ({
+  page,
+}) => {
+  await signIn(page)
+  const chat = page.url()
+  // As after the last of the times it tries by itself, which are seconds apart.
+  await page.evaluate(() => sessionStorage.setItem("dc-boot-tries", "3"))
+  await page.route("**/assets/*.js", (route) => route.abort())
+  await page.goto(chat)
+  const again = page.getByRole("button", { name: "Do Computer did not load. Try again" })
+  await expect(again).toBeVisible()
+  // The frame is still what is on screen, as it was for good before.
+  await expect(frame(page)).toBeVisible()
+  await page.unroute("**/assets/*.js")
+  await again.click()
+  await expect(composer(page)).toBeVisible()
+})
+
+test("a server that never answers is said not to have, where the frame would stay for good", async ({
+  page,
+}) => {
+  await signIn(page)
+  const chat = page.url()
+  let asked = 0
+  let held = true
+  await page.route("**/api/me", (route) => {
+    asked++
+    return held ? undefined : route.continue()
+  })
+  // The page's clock is the test's to move: the wait is longer than a test should take.
+  await page.clock.install()
+  await page.goto(chat)
+  await expect.poll(() => asked).toBe(1)
+  await expect(frame(page)).toBeVisible()
+  await page.clock.fastForward(16_000)
+  // It is asked once more before anything is said.
+  await expect.poll(async () => (await page.clock.fastForward(1_000), asked)).toBe(2)
+  await page.clock.fastForward(16_000)
+  await expect(page.getByRole("alert")).toContainText("The server took too long to answer.")
+  await expect(frame(page)).toHaveCount(0)
+
+  held = false
+  await page.getByRole("button", { name: "Try again" }).click()
+  await expect(composer(page)).toBeVisible()
 })
