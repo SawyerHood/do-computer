@@ -1379,8 +1379,10 @@ Since then, newest last:
       (twice). Once in those, as the box's window opened, the GPU process died twice in two
       seconds with no report from macOS. The same steps again did not do it.
     - **Checked here:** a browser test kills the browser's GPU process and fails without the
-      change (`e2e/agents.spec.ts`). The desktop test of two deaths is skipped where the
-      window has no 3D, which is every machine but GitHub's Mac.
+      change (`e2e/agents.spec.ts`). A desktop test kills the app's twice and fails without
+      the app's call (`apps/desktop/e2e/graphics.spec.ts`). It starts an app of its own that
+      draws 3D in software, since the other tests' app is started with no GPU at all and so
+      has no 3D to lose, on GitHub's Mac included.
     - **The desktop app has to be released again** for its half: `desktop-v0.3.0`.
 
 ## 6. What the owner has said they want
