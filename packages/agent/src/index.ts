@@ -21,7 +21,9 @@ export {
 export {
   type AgentModels,
   type AgentModelsConfig,
+  type AgentModelsSources,
   createAgentModels,
+  type DeploymentModels,
   DEFAULT_OPENROUTER_MODEL,
   ECHO_MODEL,
   formatModel,
@@ -29,12 +31,14 @@ export {
 } from "./models.ts"
 export {
   createModelAccessActor,
+  DEPLOYMENT_MODEL_ACCESS,
+  type DeploymentAccess,
   type ModelAccess,
   type ModelAccessOptions,
   workspaceCredentials,
   workspaceModelOptions,
 } from "./model-access.ts"
-export { mergeModelOptions, modelProviders } from "./model-providers.ts"
+export { mergeModelOptions, modelProviders, offeredModels } from "./model-providers.ts"
 export { Library, LIBRARY_FOLDER, LibraryError, MAX_LIBRARY_FILE_BYTES } from "./library.ts"
 export { createLibraryActor, LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 export {

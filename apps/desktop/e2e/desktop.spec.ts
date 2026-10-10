@@ -177,6 +177,10 @@ test("the first run asks who its owner is, a name for the agent, and for this co
   await naming.getByLabel("A name for it").fill("Pip")
   await naming.getByRole("button", { name: "That’s your name" }).click()
 
+  // What it thinks with is the server's own model unless they would rather one of theirs.
+  const thinking = await card(main, /What should I think with\?/)
+  await thinking.getByRole("button", { name: /^Use Echo/ }).click()
+
   // Nobody copies a link or a code, or is sent to another page: the app pairs itself.
   const asking = await card(main, /may I work on this computer\?/)
   await asking.getByRole("button", { name: "Yes, work here" }).click()

@@ -258,3 +258,77 @@ describe("the models of a workspace", () => {
     expect(models.some((option) => option.id === "anthropic/claude-sonnet-5-5")).toBe(true)
   })
 })
+
+describe("what the deployment itself is signed in to", () => {
+  const ids = (models: ModelOption[]) => models.map((option) => option.id)
+  const SERVER = "deployment"
+
+  it("is for those its settings name to change, and nobody else", async () => {
+    // Nobody is named: not even the owner of a team has a say in it.
+    expect((await listModelProviders(sawyer, SERVER)).status).toBe(404)
+    world.env = { DC_ADMIN_EMAILS: "Sawyer@Example.com, someone@else.example" }
+    expect((await listModelProviders(sawyer, SERVER)).status).toBe(200)
+    for (const response of [
+      await listModelProviders(maya, SERVER),
+      await startModelLogin(maya, post({ providerId: "anthropic", type: "api_key" }), SERVER),
+      await signOutOfModelProvider(maya, SERVER, "anthropic"),
+    ]) {
+      expect(response.status).toBe(404)
+    }
+    // Where anyone can make an account, the address has to be known to be theirs.
+    world.env = { ...world.env, DC_SIGNUP: "open" }
+    expect((await listModelProviders(sawyer, SERVER)).status).toBe(200)
+    const unproven = { ...sawyer, emailVerified: false }
+    expect((await listModelProviders(unproven, SERVER)).status).toBe(404)
+  })
+
+  it("is offered to every workspace as the deployment's own", async () => {
+    world.env = { DC_ADMIN_EMAILS: sawyer.email }
+    expect(await defaultModelIn(team)).toBe("echo/echo-1")
+    await signIn(sawyer, SERVER)
+    expect(await signedIn(sawyer, SERVER)).toMatchObject({ type: "api_key", by: "Sawyer" })
+
+    // In a team and in one's own workspace alike, with no echo beside a real model.
+    for (const workspace of [team, personalWorkspaceId(jon.id)]) {
+      const models = await workspaceModels(workspace)
+      expect(ids(models).slice(0, 2)).toEqual([
+        "anthropic/claude-sonnet-5-5",
+        "anthropic/claude-opus-5-5",
+      ])
+      expect(ids(models)).not.toContain("echo/echo-1")
+      // Nobody's sign-in, as far as a workspace can tell: they are simply there.
+      expect(models.every((option) => option.signIn === undefined)).toBe(true)
+      expect(await defaultModelIn(workspace)).toBe("anthropic/claude-sonnet-5-5")
+    }
+    // A workspace that signs in to the same provider runs those models on its own account.
+    await signIn(jon, team)
+    const inTeam = await workspaceModels(team)
+    expect(inTeam.find((option) => option.id === "anthropic/claude-sonnet-5-5")?.signIn).toEqual({
+      subscription: false,
+      by: "Jon",
+    })
+
+    expect((await signOutOfModelProvider(sawyer, SERVER, "anthropic")).status).toBe(200)
+    expect(ids(await workspaceModels(personalWorkspaceId(jon.id)))).toEqual(["echo/echo-1"])
+  })
+
+  it("offers only the models the deployment names, and a workspace's own in full", async () => {
+    world.env = {
+      DC_ADMIN_EMAILS: sawyer.email,
+      DC_MODELS: "anthropic/claude-haiku-5-5, anthropic/claude-sonnet-5-5",
+    }
+    vi.resetModules()
+    const fresh = await import("./models.ts")
+    await signIn(sawyer, SERVER)
+    const own = personalWorkspaceId(jon.id)
+    // In the order the deployment names them, the first being what new agents start on.
+    expect(ids(await fresh.workspaceModels(own))).toEqual([
+      "anthropic/claude-haiku-5-5",
+      "anthropic/claude-sonnet-5-5",
+    ])
+    expect(await fresh.defaultModelIn(own)).toBe("anthropic/claude-haiku-5-5")
+    // What a workspace signs in to itself is all there.
+    await signIn(jon, team)
+    expect(ids(await fresh.workspaceModels(team))).toContain("anthropic/claude-opus-5-5")
+  })
+})

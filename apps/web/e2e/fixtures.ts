@@ -50,6 +50,8 @@ async function start(file: string): Promise<Server> {
       DC_ALLOW_PRIVATE_HOSTS: "1",
       // The Slack tests stand in for Slack on this machine too.
       DC_SLACK_API_URL: `${slack}/api`,
+      // Where the tests sign the server itself in to a model provider, their owner may.
+      ...(file.endsWith("models.spec.ts") ? { DC_ADMIN_EMAILS: "owner@example.com" } : {}),
     },
   })
   child.stderr!.on("data", (chunk) => {

@@ -182,3 +182,16 @@ export function mergeModelOptions(
   const seen = new Set(first.map((option) => option.id))
   return [...first, ...second.filter((option) => !seen.has(option.id))]
 }
+
+/**
+ * The models an agent in a workspace can be set to: the deployment's, then those of the
+ * providers its workspace is signed in to. A model both have is the workspace's, since its own
+ * sign-in is what the model is then called with, and what pays for it.
+ */
+export function offeredModels(
+  deployment: readonly ModelOption[],
+  workspace: readonly ModelOption[],
+): ModelOption[] {
+  const theirs = new Set(workspace.map((option) => option.id))
+  return [...deployment.filter((option) => !theirs.has(option.id)), ...workspace]
+}

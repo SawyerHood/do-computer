@@ -139,6 +139,8 @@ jobs:
           DC_SIGNUP: ${{ vars.DC_SIGNUP }}
           DC_ALLOWED_EMAILS: ${{ vars.DC_ALLOWED_EMAILS }}
           DC_DEFAULT_MODEL: ${{ vars.DC_DEFAULT_MODEL }}
+          DC_MODELS: ${{ vars.DC_MODELS }}
+          DC_ADMIN_EMAILS: ${{ vars.DC_ADMIN_EMAILS }}
           DC_SEARCH_MODEL: ${{ vars.DC_SEARCH_MODEL }}
           DC_JUDGE_MODEL: ${{ vars.DC_JUDGE_MODEL }}
           DC_REVIEW_MODEL: ${{ vars.DC_REVIEW_MODEL }}

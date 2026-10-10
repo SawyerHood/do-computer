@@ -1,6 +1,7 @@
 import {
   createAgentActor,
   createAgentModels,
+  DEPLOYMENT_MODEL_ACCESS,
   createLibraryActor,
   createModelAccessActor,
   workspaceCredentials,
@@ -56,11 +57,15 @@ export const AgentObject = createDurableActorClass<Env>({
       durableObjectNamespace(env.MODEL_ACCESS),
     )
     const access = () => signIns(host.name)
-    const models = createAgentModels(config, workspaceCredentials(access))
+    const models = createAgentModels(config, {
+      workspace: workspaceCredentials(access),
+      deployment: async () => durableObjectNamespace(env.MODEL_ACCESS).get(DEPLOYMENT_MODEL_ACCESS),
+    })
     return createAgentActor(host, {
       models: models.models,
       defaultModel: models.defaultModel,
       modelOptions: models.options,
+      deploymentModels: models.offered,
       workspaceModels: () => workspaceModelOptions(access),
       computers: computerChoices(config, "cloudflare", cloudflareProviders(env)),
       webSearch: models.webSearch,

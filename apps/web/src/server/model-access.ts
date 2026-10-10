@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import { CALLER_HEADER, encodeCaller } from "@durable-computer/agent"
+import { CALLER_HEADER, DEPLOYMENT_MODEL_ACCESS, encodeCaller } from "@durable-computer/agent"
 import type { ModelOption, ModelProvidersState } from "@durable-computer/protocol"
 import { fail } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
@@ -40,12 +40,31 @@ async function providersOf(workspaceId: string): Promise<ModelProvidersState | u
   return response.ok ? ((await response.json()) as ModelProvidersState) : undefined
 }
 
-/** Run `handle` for someone in the workspace, or answer that there is no such team. */
+/**
+ * Whether someone may sign the deployment itself in to model providers, which then answer for
+ * everyone's agents: those whose email the deployment's settings name. Where anyone can make an
+ * account, the address has to be known to be theirs as well, or whoever signed up with it
+ * first would be let in.
+ */
+export function isDeploymentAdmin(user: SessionUser): boolean {
+  const { config } = getPlatform()
+  if (!config.adminEmails.includes(user.email.toLowerCase())) return false
+  return config.signup !== "open" || user.emailVerified === true
+}
+
+/**
+ * Run `handle` for someone in the workspace, or answer that there is no such team. The
+ * deployment's own sign-ins are kept as a workspace's are, under a name no workspace has, and
+ * are its admins' to change.
+ */
 async function inWorkspace(
   user: SessionUser,
   workspaceId: string,
   handle: (role: NonNullable<Awaited<ReturnType<typeof roleIn>>>) => Promise<Response>,
 ): Promise<Response> {
+  if (workspaceId === DEPLOYMENT_MODEL_ACCESS) {
+    return isDeploymentAdmin(user) ? handle("owner") : fail(404, "Team not found")
+  }
   const role = await roleIn(getPlatform().db, user.id, workspaceId)
   if (role === undefined) return fail(404, "Team not found")
   return handle(role)
