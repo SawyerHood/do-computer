@@ -37,35 +37,10 @@ async function windowAt(part: string): Promise<Page> {
   return app.windows().find(matches)!
 }
 
-/** The creature in the companion's window, once it is there. A page that never shows it says what it had. */
+/** The creature in the companion's window, once it is there. A slow machine takes a while over a page's first load. */
 async function creatureIn(pet: Page) {
   const creature = pet.getByRole("img", { name: "Agent avatar" })
-  // A slow machine takes a while over a page's first load.
-  await expect(creature)
-    .toBeVisible({ timeout: 30_000 })
-    .catch(async (error: unknown) => {
-      const had = await pet
-        .evaluate(async () => ({
-          showing: document.visibilityState,
-          text: document.body.innerText.slice(0, 200),
-          me: (await fetch("/api/me")).status,
-          asked: performance
-            .getEntriesByType("resource")
-            .map(
-              (entry) =>
-                `${new URL(entry.name).pathname} ${(entry as PerformanceResourceTiming).responseStatus}`,
-            )
-            .filter((entry) => entry.startsWith("/api/")),
-        }))
-        .catch(String)
-      console.log("The companion's page:", JSON.stringify(had))
-      console.log(
-        "The app's windows:",
-        app.windows().map((page) => page.url()),
-      )
-      console.log("What the app printed:", printed.join("").slice(-4_000))
-      throw error
-    })
+  await expect(creature).toBeVisible({ timeout: 30_000 })
   return creature
 }
 
@@ -120,7 +95,41 @@ async function launch(): Promise<ElectronApplication> {
   const process = launched.process()
   process.stderr?.on("data", (chunk) => printed.push(String(chunk)))
   process.on("exit", (code, signal) => printed.push(`The app ended: ${code} ${signal}\n`))
+  // Every window's coming and going is written down where the test can read it.
+  await launched.evaluate(({ app, BrowserWindow }) => {
+    const seen: string[] = []
+    ;(globalThis as { seen?: string[] }).seen = seen
+    const note = (what: string) => seen.push(`${Date.now() % 1_000_000} ${what}`)
+    const follow = (window: Electron.BrowserWindow) => {
+      const name = () => `window ${window.id}`
+      note(`${name()} made`)
+      window.on("show", () => note(`${name()} shown`))
+      window.on("hide", () => note(`${name()} hidden`))
+      window.on("closed", () => note(`${name()} closed`))
+      window.webContents.on("did-start-navigation", (_event, address, _inPlace, isMainFrame) => {
+        if (isMainFrame) note(`${name()} goes to ${address}`)
+      })
+      window.webContents.on("did-fail-load", (_event, code, text, address) =>
+        note(`${name()} could not load ${address}: ${code} ${text}`),
+      )
+      window.webContents.on("render-process-gone", (_event, details) =>
+        note(`${name()} lost its process: ${details.reason} ${details.exitCode}`),
+      )
+    }
+    for (const window of BrowserWindow.getAllWindows()) follow(window)
+    app.on("browser-window-created", (_event, window) => follow(window))
+    app.on("child-process-gone", (_event, details) =>
+      note(`a ${details.type} process went: ${details.reason} ${details.exitCode}`),
+    )
+  })
   return launched
+}
+
+/** Quit the app, and wait until it has gone: a second one started meanwhile would give way to it. */
+async function quit(): Promise<void> {
+  const ended = new Promise((resolve) => app.process().once("exit", resolve))
+  await app.evaluate(({ app }) => app.quit()).catch(() => {})
+  await ended
 }
 
 const start = () =>
@@ -182,6 +191,24 @@ test.afterAll(async () => {
 })
 
 test.describe.configure({ mode: "serial" })
+
+// A test that fails on a machine nobody is at says what the app was doing.
+test.afterEach(async ({}, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus) return
+  const seen = await app
+    .evaluate(({ BrowserWindow }) => ({
+      seen: (globalThis as { seen?: string[] }).seen,
+      windows: BrowserWindow.getAllWindows().map((window) => ({
+        id: window.id,
+        at: window.webContents.getURL(),
+        visible: window.isVisible(),
+      })),
+    }))
+    .catch(String)
+  console.log("What the app's windows did:", JSON.stringify(seen, null, 1))
+  console.log("What it keeps:", JSON.stringify(settings()))
+  console.log("What it printed:", printed.join("").slice(-6_000))
+})
 
 test("there is no companion until its owner asks for one", async () => {
   const main = await windowAt(url)
@@ -308,7 +335,7 @@ test("carried to another corner, it stays there and says what it says on the oth
 test("it is where it was left when the app is started again, and goes when switched off", async () => {
   // Who is signed in is written down now and then. An app quit this soon after may not have.
   await app.evaluate(({ session }) => session.defaultSession.cookies.flushStore())
-  await app.evaluate(({ app }) => app.quit()).catch(() => {})
+  await quit()
   app = await launch()
   const pet = await windowAt(PET)
   await creatureIn(pet)
