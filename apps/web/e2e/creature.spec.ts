@@ -63,7 +63,7 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   await box.getByRole("button", { name: "Open the box" }).click()
 
   // What was inside is named, with how rare it is, once the box has opened on it.
-  await expect(box.getByText("1 of 100 found")).toBeVisible({ timeout: 15_000 })
+  await expect(box.getByText("1 of 200 found")).toBeVisible({ timeout: 15_000 })
   const found = (await box.getByRole("heading").textContent())!
   expect(found).not.toBe("Juniper found a box")
   await expect(
@@ -79,7 +79,7 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   // The wardrobe has it, and says the creature has it on. Everything else is still to find.
   await picture.click()
   const wardrobe = page.getByRole("dialog")
-  await expect(wardrobe.getByText("1 of 100 found")).toBeVisible()
+  await expect(wardrobe.getByText("1 of 200 found")).toBeVisible()
   const wearing = wardrobe.getByRole("list", { name: "What Juniper has on" })
   await expect(wearing).toContainText(found)
   await expect(wardrobe.getByRole("tab", { name: /1\/\d+$/ })).toHaveCount(1)

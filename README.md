@@ -224,7 +224,7 @@ answering or someone stops the conversation.
   has happened for a while. `pnpm --filter @durable-computer/mascot demo` builds a page for
   trying every state and look.
 - **Be looked after, a little.** The creature earns a treat each time its agent answers you.
-  Give it a few and it finds a box; inside is one of a hundred things to wear, from common to
+  Give it a few and it finds a box; inside is one of two hundred things to wear, from common to
   legendary, which it then wears wherever it is shown. It changes nothing about what the agent
   can do.
 - **Think with the model you choose.** Each agent can be set to any OpenRouter model that can

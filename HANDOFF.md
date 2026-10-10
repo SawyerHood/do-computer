@@ -719,11 +719,15 @@ Since then, newest last:
       What a box holds is decided there and not in the browser. The agent's summary carries
       `outfit`, so every drawing of it is dressed; an agent event `creature` says when any of it
       changed. The agent itself has no tool for any of this and is not told about it.
-    - **The hundred things** are named, placed and given a rarity in
-      `packages/protocol/src/wardrobe.ts` (41 for the head, 20 for the eyes, 20 for the face, 19
-      for the neck; 45 common, 29 uncommon, 18 rare, 6 epic, 2 legendary). Their shapes are in
+    - **The two hundred things** are named, placed and given a rarity in
+      `packages/protocol/src/wardrobe.ts` (81 for the head, 40 for the eyes, 40 for the face, 39
+      for the neck; 90 common, 58 uncommon, 36 rare, 12 epic, 4 legendary). Their shapes are in
       `packages/mascot/src/wardrobe.js` under the same ids, and a test holds the two lists to
-      each other. To add one: a row in the first, an `item(...)` in the second.
+      each other. To add one: a row in the first, an `item(...)` in the second. The second
+      hundred were added on 2026-10-10 after the first, in both files, so that what a creature
+      already has keeps its id and its place in the wardrobe. A thing thinner than about 0.035
+      of the body's radius is less than a pixel at the size the creature is drawn, and is not
+      seen.
     - **Fitting.** Every creature is grown from a seed, so nothing is placed by a fixed number.
       A stiff hat is open underneath and is lowered along its own axis until the head touches
       its underside. A soft thing (a beanie, a scarf, a beard) is made out of the skin itself,
@@ -732,7 +736,7 @@ Since then, newest last:
       a horn, a tuft or an antenna does, and all come back when the hat comes off. A last pass
       moves anything that still has a corner in the body straight out. `Wardrobe.audit(orb)`
       measures how far the deepest corner is inside the body; `apps/web/src/lib/wardrobe.test.ts`
-      holds it at nothing for all hundred things on sixty seeds.
+      holds it at nothing for all two hundred things on sixty seeds.
     - **In the core** (`orb-core.js`): `orb.offer()`, `orb.bite()` and `orb.cheer()` for eating,
       `orb.hidden` to draw a creature's stage without it, and `orb.worn`, which the wardrobe
       sets and the core calls after each update, after a change of size or seed, and on

@@ -12,9 +12,10 @@
    Wardrobe.ITEMS                                      every id, and the place it is worn
    Wardrobe.SLOTS                                      the places, in the order things are put on
 
-   There are a hundred things: 41 for the head, 20 for the eyes, 20 for the face and 19 for the
-   neck. Their names and rarities are the app's to say (packages/protocol); here is only the
-   shape of each. Each is a few low-poly shapes hung on the creature's body, so it moves, squashes
+   There are two hundred things: 81 for the head, 40 for the eyes, 40 for the face and 39 for the
+   neck. The first hundred come first, a place at a time, and the second hundred after them.
+   Their names and rarities are the app's to say (packages/protocol); here is only the shape of
+   each. Each is a few low-poly shapes hung on the creature's body, so it moves, squashes
    and turns with it, and is drawn at the same low resolution with the same snapped vertices,
    flat tones and dither.
 
@@ -468,14 +469,18 @@ item("hardhat", "hat", function (m) {
   m.shell(a - 0.05, a + 0.06, puff(0.07, 0.2), YEL, { rows: 2, az0: -1.1, az1: 1.1, seg: 6 });
   put(m.mesh(box(0.1, 0.06, 0.5), "#e0b020"), p.x, p.y + 0.03, p.z);
 });
-item("headphones", "hat", function (m) {
-  m.clear(1, true);
+// A band over the top of its head from one side to the other, `half` wide to the front and to the back.
+function arch(m, color, half) {
   var pos = [], idx = [], n = 12, i;
-  for (i = 0; i <= n; i++) { var t = -1.4 + 2.8 * i / n, p = m.surf(Math.sin(t), Math.cos(t), 0, 0.1); pos.push(p.x, p.y, p.z + 0.08, p.x, p.y, p.z - 0.08); m.top = Math.max(m.top, p.y); }
+  for (i = 0; i <= n; i++) { var t = -1.4 + 2.8 * i / n, p = m.surf(Math.sin(t), Math.cos(t), 0, 0.1); pos.push(p.x, p.y, p.z + half, p.x, p.y, p.z - half); m.top = Math.max(m.top, p.y); }
   for (i = 0; i < n; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 2, i * 2 + 1, i * 2 + 3);
   var geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-  m.mesh(geo, DARK);
+  return m.mesh(geo, color);
+}
+item("headphones", "hat", function (m) {
+  m.clear(1, true);
+  arch(m, DARK, 0.08);
   [-1, 1].forEach(function (s) {
     var c = m.surf(s, 0.12, 0, 0.12), g = m.group();
     g.position.set(c.x + s * 0.06, c.y, c.z);
@@ -977,6 +982,848 @@ item("hoop", "neck", function (m) {
     hoop.material.uniforms.uCol.value.setHSL((t * 0.2) % 1, 0.85, 0.62);
   });
   m.wide = Math.max(m.wide, Rh + 0.08);
+});
+
+/* ================= the second hundred =================
+   Forty more for the head, and twenty more each for the eyes, the face and the neck. They are
+   made and fitted the same ways as the first. */
+
+// Something that stands on the very top of its head: a frame just clear of the skin there.
+function topper(m) {
+  m.bare();
+  var g = m.group(), p = m.surf(0, 1, 0);
+  g.position.set(p.x, p.y + 0.015, p.z);
+  return g;
+}
+// A flat piece of a ring, lying level: from `r0` out to `r1`, `arc` wide, centred on the front.
+function brim(r0, r1, arc, seg) { var g = new THREE.RingGeometry(r0, r1, seg || 6, 1, HALF - arc / 2, arc); g.rotateX(HALF); return g; }
+// A cone that stands on its base, to be grown and swayed from there: a flame, a tentacle.
+function spike(r, h, seg) { var g = cone(r, h, seg || 5); g.translate(0, h / 2, 0); return g; }
+
+/* ----------------- on the head (40) ----------------- */
+item("flatcap", "hat", function (m) {
+  var a = m.capTo(0.78), p = m.at(a - 0.04, 0, 0.09);
+  m.shell(0, a, function (t, u) { return 0.07 + 0.1 * Math.sin(Math.PI * t) * (0.5 + 0.5 * Math.cos(TAU * u)); }, "#7d7466", { rows: 4 });
+  put(m.mesh(box(0.5, 0.045, 0.2), "#5f574b"), p.x, p.y - 0.01, p.z + 0.11, 0.3);
+});
+item("kerchief", "hat", function (m) {
+  var a = m.capTo(0.9), k = m.group();
+  m.shell(0, a, 0.07, "#e8556d", { rows: 3 });
+  m.around(a * 0.55, 6, 0.08, function (p) { put(m.mesh(ico(0.05), WHITE), p.x, p.y, p.z); }, 0.5);
+  k.position.copy(m.at(a, Math.PI, 0.12));
+  [-1, 1].forEach(function (s) { put(m.mesh(cone(0.09, 0.26), "#e8556d", { in: k }), s * 0.1, -0.1, -0.04, 0, 0, Math.PI + s * 0.6).scale.z = 0.5; });
+  m.mesh(ico(0.07), "#c93d55", { in: k });
+});
+item("nightcap", "hat", function (m) {
+  var a = m.capTo(0.8), g = m.stay(m.group());
+  m.shell(0, a, 0.075, "#6f8fd8");
+  m.shell(a - 0.1, a + 0.03, puff(0.03, 0.11), WHITE, { rows: 2 });
+  g.position.copy(m.at(0.22, HALF, 0.06));
+  put(m.mesh(cyl(0.05, 0.2, 0.5, 6), "#6f8fd8", { in: g, soft: true }), 0.17, 0.03, 0, 0, 0, -1.9);
+  var bob = put(m.mesh(ico(0.09), WHITE, { in: g, soft: true }), 0.43, -0.08, 0);
+  m.ticks.push(function (dt, t) { bob.position.y = -0.08 + 0.02 * Math.sin(t * 2.4); });
+});
+item("tennisvisor", "hat", function (m) {
+  var a = Math.min(0.8, m.brow), p = m.at(a - 0.03, 0, 0.08), g = m.group();
+  m.shell(a - 0.2, a, puff(0.04, 0.09), WHITE, { rows: 2 });
+  g.position.copy(p); g.rotation.x = 0.5;
+  put(m.mesh(brim(p.z, p.z + 0.3, 1.6), TEAL, { in: g }), 0, 0, -p.z);
+});
+item("leaf", "hat", function (m) {
+  var g = topper(m);
+  put(m.mesh(cyl(0.03, 0.03, 0.2, 4), "#4faa3c", { in: g, soft: true }), 0, 0.04, 0);
+  put(m.mesh(ico(0.2), GREEN, { in: g }), 0.15, 0.27, 0, 0, 0, -0.6).scale.set(0.55, 1.3, 0.3);
+  m.ticks.push(function (dt, t) { g.rotation.z = 0.1 * Math.sin(t * 1.4); });
+  m.top = Math.max(m.top, g.position.y + 0.52);
+});
+item("acorn", "hat", function (m) {
+  var a = m.capTo(0.9), p = m.at(0, 0, 0.1);
+  m.shell(0, a, function (t) { return 0.07 + 0.05 * t; }, "#8a5a34", { rows: 4, zig: 0.05 });
+  put(m.mesh(cyl(0.035, 0.05, 0.2, 5), "#5a3a20", { soft: true }), p.x + 0.02, p.y + 0.07, p.z, 0, 0, -0.2);
+  m.top = Math.max(m.top, p.y + 0.2);
+});
+item("saucepan", "hat", function (m) {
+  var h = m.hat({ r: 0.42, R: 0.46, dome: 0.4, tall: 0.44, tilt: -0.1, liner: "#6f7682" });
+  m.mesh(lathe([[0.46, 0], [0.44, 0.42], [0, 0.42]], 10), STEEL, { in: h });
+  put(m.mesh(box(0.42, 0.05, 0.09), INK, { in: h }), 0.66, 0.3, 0);
+});
+item("sailor", "hat", function (m) {
+  var h = m.hat({ r: 0.36, R: 0.5, dome: 0.26, tall: 0.3, tilt: 0.14, liner: "#cfcabb" });
+  m.mesh(lathe([[0.38, 0], [0.5, 0.17], [0.38, 0.12], [0.36, 0.28], [0, 0.3]], 10), WHITE, { in: h });
+  put(m.mesh(cyl(0.385, 0.385, 0.05, 10, true), BLUE, { in: h }), 0, 0.21, 0);
+});
+item("earmuffs", "hat", function (m) {
+  m.clear(1, true);
+  arch(m, STEEL, 0.05);
+  [-1, 1].forEach(function (s) {
+    var c = m.surf(s, 0.12, 0, 0.12);
+    put(m.mesh(ico(0.26), "#ff9ec4"), c.x + s * 0.1, c.y, c.z).scale.x = 0.6;
+    m.wide = Math.max(m.wide, Math.abs(c.x) + 0.3);
+  });
+});
+item("cherry", "hat", function (m) {
+  var g = topper(m);
+  put(m.mesh(ico(0.17), "#d81e3a", { in: g }), 0, 0.17, 0);
+  put(m.mesh(cyl(0.028, 0.028, 0.26, 4), "#4faa3c", { in: g, soft: true }), 0.04, 0.42, 0, 0, 0, -0.3);
+  put(m.mesh(ico(0.08), GREEN, { in: g }), 0.15, 0.52, 0).scale.set(1.4, 0.4, 0.8);
+  m.top = Math.max(m.top, g.position.y + 0.6);
+});
+item("candle", "hat", function (m) {
+  var g = topper(m), flame = put(m.mesh(ico(0.07), "#ffb92e", { in: g, plain: true }), 0, 0.47, 0);
+  put(m.mesh(cyl(0.06, 0.06, 0.34, 6), SKY, { in: g }), 0, 0.17, 0);
+  put(m.mesh(cyl(0.065, 0.065, 0.05, 6, true), WHITE, { in: g }), 0, 0.14, 0);
+  put(m.mesh(cyl(0.02, 0.02, 0.07, 3), INK, { in: g }), 0, 0.37, 0);
+  m.ticks.push(function (dt, t) { var k = 1 + 0.2 * Math.sin(t * 13) * Math.sin(t * 7.3); flame.scale.set(0.8, 1.5 * k, 0.8); flame.position.x = 0.012 * Math.sin(t * 9); });
+  m.ticks[m.ticks.length - 1](0, 0);
+  m.top = Math.max(m.top, g.position.y + 0.62);
+});
+item("feather", "hat", function (m) {
+  var a = m.brow - 0.06, g = m.stay(m.group());
+  m.shell(a - 0.13, a, 0.06, "#b5651d", { rows: 1 });
+  g.position.copy(m.at(a - 0.1, 1.9, 0.06)); g.rotation.z = -0.25;
+  put(m.mesh(ico(0.2), RED, { in: g, soft: true }), 0, 0.34, 0).scale.set(0.5, 1.6, 0.2);
+  put(m.mesh(cyl(0.025, 0.025, 0.56, 3), WHITE, { in: g, soft: true }), 0, 0.26, 0.045);
+  m.top = Math.max(m.top, g.position.y + 0.7);
+});
+item("buns", "hat", function (m) {
+  pair(m, 0.55, function (g, s) {
+    g.rotation.z = -s * 0.5;
+    put(m.mesh(ico(0.2), "#6b4a2e", { in: g, soft: true }), 0, 0.14, 0);
+    put(m.mesh(tor(0.11, 0.035, null, 6), PINK, { in: g, soft: true }), 0, 0.02, 0, HALF);
+  });
+});
+item("bearears", "hat", function (m) {
+  pair(m, 0.62, function (g, s) {
+    g.rotation.z = -s * 0.5;
+    put(m.mesh(cyl(0.2, 0.2, 0.09, 8), "#9c6b43", { in: g, soft: true }), 0, 0.12, 0, HALF);
+    put(m.mesh(cyl(0.11, 0.11, 0.1, 8), "#e8c49a", { in: g, soft: true }), 0, 0.11, 0.01, HALF);
+  });
+});
+item("boppers", "hat", function (m) {
+  m.clear(1, true);
+  arch(m, PINK, 0.045);
+  [-1, 1].forEach(function (s) {
+    var g = m.stay(m.group());
+    g.position.copy(m.at(0.4, s * HALF, 0.1));
+    put(m.mesh(cyl(0.025, 0.025, 0.36, 3), STEEL, { in: g, soft: true }), 0, 0.18, 0);
+    put(m.mesh(ico(0.09), s < 0 ? YEL : TEAL, { in: g }), 0, 0.4, 0);
+    m.ticks.push(function (dt, t) { g.rotation.z = -s * 0.3 + 0.2 * Math.sin(t * 5 + s); });
+    m.ticks[m.ticks.length - 1](0, 0);
+    m.top = Math.max(m.top, g.position.y + 0.5);
+  });
+});
+item("ricehat", "hat", function (m) {
+  var h = m.hat({ r: 0.8, R: 0.84, dome: 0.36, cone: true, tall: 0.4, tilt: 0.06 });
+  m.mesh(lathe([[0.84, 0], [0.02, 0.4], [0, 0.4]], 10), "#e3c97f", { in: h });
+  m.mesh(lathe([[0.85, 0], [0.62, 0.115]], 10), "#c9a955", { in: h });
+});
+item("ushanka", "hat", function (m) {
+  var a = m.capTo(0.84);
+  m.shell(0, a, 0.085, "#6b4a2e");
+  m.shell(a - 0.2, a, puff(0.1, 0.15), "#a98b6d", { rows: 2, az0: -0.9, az1: 0.9, seg: 5 });
+  [-1, 1].forEach(function (s) { m.shell(a - 0.05, a + 0.6, puff(0.07, 0.13), "#a98b6d", { rows: 3, az0: s * HALF - 0.45, az1: s * HALF + 0.45, seg: 3 }); });
+});
+item("flowerpot", "hat", function (m) {
+  var h = m.hat({ r: 0.4, R: 0.46, cav: function (rho) { return rho < 0.26 ? 0.42 : 0.42 * (0.4 - rho) / 0.14; }, tall: 0.9, tilt: -0.12, liner: "#8f4a2a" }), f = m.group(h);
+  m.mesh(lathe([[0.46, 0], [0.46, 0.1], [0.42, 0.1], [0.29, 0.46], [0, 0.46]], 8), "#c8693f", { in: h });
+  put(m.mesh(cyl(0.02, 0.02, 0.26, 4), "#4faa3c", { in: h }), 0, 0.59, 0);
+  put(f, 0, 0.74, 0.02, 0.2);
+  for (var i = 0; i < 5; i++) { var a = i * TAU / 5; put(m.mesh(ico(0.08), PINK, { in: f }), 0.11 * Math.cos(a), 0.11 * Math.sin(a), 0).scale.z = 0.4; }
+  m.mesh(ico(0.07), YEL, { in: f }).position.z = 0.03;
+  m.ticks.push(function (dt, t) { f.rotation.z = 0.15 * Math.sin(t * 1.3); });
+});
+item("teacup", "hat", function (m) {
+  var h = m.hat({ R: 0.4, tall: 0.6, tilt: 0.1 }), steam = [];
+  put(m.mesh(cyl(0.4, 0.3, 0.05, 10), WHITE, { in: h }), 0, 0.045, 0);
+  put(m.mesh(cyl(0.26, 0.17, 0.27, 10), WHITE, { in: h }), 0, 0.205, 0);
+  put(m.mesh(cyl(0.215, 0.215, 0.02, 10), "#a8632b", { in: h, plain: true }), 0, 0.335, 0);
+  put(m.mesh(cyl(0.265, 0.26, 0.04, 10, true), TEAL, { in: h }), 0, 0.3, 0);
+  put(m.mesh(tor(0.09, 0.03, Math.PI, 5), WHITE, { in: h }), 0.24, 0.2, 0, 0, 0, -HALF);
+  for (var i = 0; i < 2; i++) steam.push(m.mesh(box(0.04, 0.1, 0.04), WHITE, { in: h, plain: true, door: true }));
+  m.ticks.push(function (dt, t) {
+    steam.forEach(function (s, i) { var k = (t * 0.6 + i * 0.5) % 1; s.position.set(i * 0.12 - 0.06 + 0.03 * Math.sin(t * 3 + i), 0.42 + 0.2 * k, 0); s.visible = k < 0.85; });
+  });
+  m.ticks[m.ticks.length - 1](0, 0.3);
+});
+item("pirate", "hat", function (m) {
+  var h = m.hat({ r: 0.4, R: 0.5, dome: 0.3, tall: 0.56, liner: "#14161b" }), k = m.group(h);
+  m.mesh(lathe([[0.44, 0], [0.4, 0.3], [0, 0.34]], 10), "#23262e", { in: h });
+  [1, -1].forEach(function (s) { put(m.mesh(poly([[-1, 0], [-0.78, 0.4], [-0.3, 0.62], [0, 0.72], [0.3, 0.62], [0.78, 0.4], [1, 0]], 0.72), "#2f3340", { in: h }), 0, 0.02, s * 0.45, -s * 0.12); });
+  put(k, 0, 0.27, 0.44);
+  [-1, 1].forEach(function (s) { put(m.mesh(box(0.34, 0.045, 0.01), WHITE, { in: k, plain: true }), 0, -0.03, 0, 0, 0, s * 0.6); });
+  put(m.mesh(disc(0.09, 7), WHITE, { in: k, plain: true }), 0, 0.03, 0.012);
+  [-1, 1].forEach(function (s) { put(m.mesh(disc(0.025, 4), INK, { in: k, plain: true }), s * 0.036, 0.035, 0.024); });
+});
+item("sombrero", "hat", function (m) {
+  var h = m.hat({ r: 0.32, R: 0.9, cav: function (rho) { return rho < 0.14 ? 0.5 : 0.5 * (0.32 - rho) / 0.18; }, tall: 0.56, tilt: -0.08, liner: "#b08a3c" });
+  m.mesh(lathe([[0.36, 0], [0.74, 0], [0.9, 0.14]], 12), "#e3b95a", { in: h });
+  m.mesh(lathe([[0.36, 0], [0.2, 0.5], [0, 0.54]], 10), "#e3b95a", { in: h });
+  put(m.mesh(cyl(0.335, 0.365, 0.08, 10, true), RED, { in: h }), 0, 0.05, 0);
+  put(m.mesh(cyl(0.255, 0.285, 0.06, 10, true), GREEN, { in: h }), 0, 0.28, 0);
+  put(m.mesh(tor(0.9, 0.03, null, 12), RED, { in: h }), 0, 0.14, 0, HALF);
+});
+item("firehelmet", "hat", function (m) {
+  var a = m.capTo(0.84), g;
+  m.shell(0, a, 0.09, RED);
+  m.shell(a - 0.06, a + 0.05, puff(0.08, 0.2), "#b02a37", { rows: 2 });
+  m.shell(a - 0.05, a + 0.24, function (t) { return 0.1 + 0.25 * t; }, "#b02a37", { rows: 2, az0: Math.PI - 0.9, az1: Math.PI + 0.9, seg: 5 });
+  g = m.onFace(0, Math.cos(a * 0.6), 0.115, 0.9);
+  m.mesh(poly([[0, 1], [0.8, 0.5], [0.6, -0.8], [0, -1], [-0.6, -0.8], [-0.8, 0.5]], 0.14), GOLD, { in: g, plain: true });
+});
+item("pumpkin", "hat", function (m) {
+  var a = m.capTo(0.9), p = m.at(0, 0, 0.1);
+  for (var i = 0; i < 8; i++) m.shell(0, a, function (t, u) { return 0.06 + 0.08 * Math.sin(Math.PI * u) * Math.min(1, t * 3); }, i % 2 ? "#f08a1c" : ORANGE, { az0: i * TAU / 8, az1: (i + 1) * TAU / 8, seg: 2, rows: 3 });
+  put(m.mesh(cyl(0.04, 0.07, 0.22, 5), "#4f7a2a", { soft: true }), p.x, p.y + 0.06, p.z, 0, 0, 0.25);
+  m.top = Math.max(m.top, p.y + 0.22);
+});
+item("antlers", "hat", function (m) {
+  pair(m, 0.5, function (g, s) {
+    g.rotation.z = -s * 0.35;
+    put(m.mesh(cyl(0.035, 0.05, 0.5, 5), "#a9794a", { in: g, soft: true }), 0, 0.22, 0);
+    put(m.mesh(cyl(0.025, 0.035, 0.24, 4), "#a9794a", { in: g, soft: true }), s * 0.09, 0.3, 0, 0, 0, -s * 0.9);
+    put(m.mesh(cyl(0.025, 0.035, 0.2, 4), "#a9794a", { in: g, soft: true }), -s * 0.07, 0.42, 0, 0, 0, s * 0.8);
+  });
+});
+item("mohawk", "hat", function (m) {
+  m.bare();
+  var from = Math.min(0.72, m.brow - 0.25);
+  for (var i = 0; i < 6; i++) {
+    var t = from - i * 0.33, g = m.stay(m.group());
+    g.position.copy(m.surf(0, Math.cos(t), Math.sin(t), -0.02)); g.rotation.x = t;
+    put(m.mesh(cone(0.15, 0.5 - 0.06 * Math.abs(i - 2)), i % 2 ? "#ff4fd8" : PINK, { in: g, soft: true }), 0, 0.2, 0, 0, 0, (i % 2 ? 1 : -1) * 0.22).scale.x = 0.85;
+  }
+  m.top = Math.max(m.top, m.surf(0, 1, 0).y + 0.5);
+});
+item("pineapple", "hat", function (m) {
+  var g = topper(m);
+  for (var i = 0; i < 7; i++) { var a = i * TAU / 7, k = i % 2 ? 0.55 : 0.34; put(m.mesh(cone(0.1, 0.52, 4), i % 2 ? "#4faa3c" : GREEN, { in: g, soft: true }), 0.11 * Math.sin(a), 0.2, 0.11 * Math.cos(a), k * Math.cos(a), 0, -k * Math.sin(a)); }
+  put(m.mesh(cone(0.1, 0.6), GREEN, { in: g, soft: true }), 0, 0.29, 0);
+  m.top = Math.max(m.top, g.position.y + 0.6);
+});
+item("clover", "hat", function (m) {
+  var g = topper(m), f = m.group(g);
+  put(m.mesh(cyl(0.025, 0.025, 0.36, 4), "#3f8f3a", { in: g, soft: true }), 0, 0.12, 0);
+  put(f, 0, 0.38, 0.02, 0.3);
+  for (var i = 0; i < 4; i++) { var a = i * HALF + Math.PI / 4; put(m.mesh(heart(0.1), "#43b04a", { in: f }), 0.11 * Math.cos(a), 0.11 * Math.sin(a), 0, 0, 0, a - HALF); }
+  m.ticks.push(function (dt, t) { g.rotation.z = 0.1 * Math.sin(t * 1.5); });
+  m.top = Math.max(m.top, g.position.y + 0.62);
+});
+item("foil", "hat", function (m) {
+  var h = m.hat({ r: 0.36, R: 0.44, dome: 0.5, cone: true, tall: 0.62, tilt: 0.12, liner: "#7c8494" });
+  m.mesh(lathe([[0.45, 0], [0.31, 0.2], [0.25, 0.24], [0.1, 0.5], [0.07, 0.6], [0, 0.56]], 6), "#cfd6df", { in: h });
+});
+item("jester", "hat", function (m) {
+  var a = m.capTo(0.8);
+  m.shell(0, a, 0.075, RED, { az0: 0, az1: Math.PI, seg: 8 });
+  m.shell(0, a, 0.075, PURPLE, { az0: Math.PI, az1: TAU, seg: 8 });
+  m.shell(a - 0.06, a + 0.04, 0.09, GOLD, { rows: 1, zig: 0.07 });
+  [-1, 1].forEach(function (s) {
+    var g = m.stay(m.group());
+    g.position.copy(m.at(0.45, s * HALF, 0.02));
+    put(m.mesh(cyl(0.04, 0.2, 0.46, 6), s > 0 ? RED : PURPLE, { in: g, soft: true }), 0, 0.2, 0);
+    put(m.mesh(ico(0.075), GOLD, { in: g }), 0, 0.46, 0);
+    m.ticks.push(function (dt, t) { g.rotation.z = -s * (0.75 + 0.1 * Math.sin(t * 3 + s)); });
+    m.ticks[m.ticks.length - 1](0, 0);
+    m.top = Math.max(m.top, g.position.y + 0.42); m.wide = Math.max(m.wide, Math.abs(g.position.x) + 0.45);
+  });
+});
+item("unicorn", "hat", function (m) {
+  m.bare();
+  var g = m.stay(m.group()), t = Math.min(0.45, m.brow - 0.3);
+  g.position.copy(m.at(t, 0, -0.02)); g.rotation.x = t * 0.8;
+  for (var i = 0; i < 4; i++) put(m.mesh(cyl(0.095 - i * 0.022, 0.11 - i * 0.022, 0.13, 6), i % 2 ? "#fff3a0" : GOLD, { in: g, soft: true }), 0, 0.05 + i * 0.12, 0);
+  put(m.mesh(cone(0.03, 0.14, 6), "#fff3a0", { in: g, soft: true }), 0, 0.54, 0);
+  m.top = Math.max(m.top, g.position.y + 0.62);
+});
+item("cake", "hat", function (m) {
+  var h = m.hat({ R: 0.42, tall: 0.64, tilt: -0.08 }), flames = [], i;
+  put(m.mesh(cyl(0.4, 0.4, 0.26, 10), "#e8b877", { in: h }), 0, 0.15, 0);
+  put(m.mesh(cyl(0.42, 0.42, 0.09, 10), "#ff9ec4", { in: h }), 0, 0.3, 0);
+  for (i = 0; i < 5; i++) { var a = i * TAU / 5 + 0.3; put(m.mesh(ico(0.075), "#ff9ec4", { in: h }), 0.4 * Math.sin(a), 0.23, 0.4 * Math.cos(a)).scale.y = 1.3; }
+  for (i = 0; i < 3; i++) {
+    var x = (i - 1) * 0.19, z = i === 1 ? 0.1 : 0;
+    put(m.mesh(cyl(0.03, 0.03, 0.16, 4), i % 2 ? YEL : SKY, { in: h }), x, 0.42, z);
+    flames.push(put(m.mesh(ico(0.045), "#ffb92e", { in: h, plain: true }), x, 0.55, z));
+  }
+  m.ticks.push(function (dt, t) { flames.forEach(function (f, n) { f.scale.set(0.8, 1.4 * (1 + 0.25 * Math.sin(t * 12 + n * 2)), 0.8); }); });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+item("tiara", "hat", function (m) {
+  var a = Math.min(0.8, m.brow - 0.1);
+  m.shell(a - 0.08, a, 0.05, "#dfe6ee", { rows: 1, az0: -1.2, az1: 1.2, seg: 8 });
+  [-2, -1, 0, 1, 2].forEach(function (i) {
+    var az = i * 0.42, k = 1 - Math.abs(i) * 0.28, g = m.group();
+    g.position.copy(m.at(a - 0.08, az, 0.075));
+    g.quaternion.setFromUnitVectors(UP, new THREE.Vector3().fromArray(dir(a, az)).lerp(UP, 0.6).normalize());
+    put(m.mesh(cone(0.085, 0.34 * k), "#dfe6ee", { in: g }), 0, 0.17 * k, 0);
+    put(m.mesh(ico(0.055), i ? SKY : PINK, { in: g, plain: true }), 0, 0.06, 0.065);
+    m.top = Math.max(m.top, g.position.y + 0.36);
+  });
+});
+item("laurel", "hat", function (m) {
+  var a = Math.min(0.8, m.brow - 0.08);
+  m.around(a, 12, 0.13, function (p, i, az) {
+    if (i === 0) return;
+    var s = az > Math.PI ? -1 : 1, l = put(m.mesh(ico(0.17), i % 2 ? GOLD : "#d9a81e"), p.x, p.y + 0.04, p.z);
+    l.quaternion.setFromUnitVectors(UP, new THREE.Vector3(-s * Math.cos(az), 0.9, s * Math.sin(az)).normalize());
+    l.scale.set(0.55, 1.35, 0.55);
+    m.top = Math.max(m.top, p.y + 0.3);
+  });
+});
+item("knight", "hat", function (m) {
+  var a = m.capTo(0.9), p = m.at(0, 0, 0.1), plume = m.group();
+  m.shell(0, a, 0.09, STEEL);
+  m.shell(a - 0.1, a + 0.03, puff(0.08, 0.14), "#7c8494", { rows: 2 });
+  [-1, 1].forEach(function (s) { m.shell(a, a + 0.5, puff(0.07, 0.1), STEEL, { rows: 2, az0: s * HALF - 0.4, az1: s * HALF + 0.4, seg: 3 }); });
+  plume.position.set(p.x, p.y, p.z);
+  put(m.mesh(ico(0.22), RED, { in: plume }), 0, 0.14, -0.12).scale.set(0.35, 0.95, 1.5);
+  m.ticks.push(function (dt, t) { plume.rotation.z = 0.08 * Math.sin(t * 1.8); });
+  m.top = Math.max(m.top, p.y + 0.38);
+});
+item("nest", "hat", function (m) {
+  var h = m.hat({ R: 0.46, tall: 0.6, tilt: 0.06 }), bird = m.group(h);
+  put(m.mesh(tor(0.33, 0.09, null, 9), "#8a6a3c", { in: h }), 0, 0.1, 0, HALF);
+  put(m.mesh(cyl(0.33, 0.27, 0.08, 9), "#6e5230", { in: h }), 0, 0.05, 0);
+  [-1, 1].forEach(function (s) { put(m.mesh(ico(0.085), "#bfe8f0", { in: h }), s * 0.1 - 0.12, 0.2, 0.1).scale.y = 1.25; });
+  put(bird, 0.12, 0.33, -0.02);
+  m.mesh(ico(0.15), YEL, { in: bird });
+  put(m.mesh(cone(0.05, 0.12, 4), ORANGE, { in: bird }), 0, 0.01, 0.16, HALF);
+  [-1, 1].forEach(function (s) { put(m.mesh(ico(0.03), INK, { in: bird, plain: true }), s * 0.065, 0.06, 0.125); });
+  m.ticks.push(function (dt, t) { bird.position.y = 0.33 + 0.04 * Math.abs(Math.sin(t * 3)); bird.rotation.z = 0.2 * Math.sin(t * 1.5); });
+});
+item("duck", "hat", function (m) {
+  var h = m.hat({ R: 0.34, tall: 0.62, tilt: 0.08 }), g = m.group(h);
+  g.rotation.y = 0.45;
+  put(m.mesh(ico(0.26), YEL, { in: g }), 0, 0.21, 0).scale.set(1, 0.75, 1.2);
+  put(m.mesh(ico(0.16), YEL, { in: g }), 0, 0.45, 0.1);
+  put(m.mesh(cone(0.07, 0.15, 4), ORANGE, { in: g }), 0, 0.43, 0.28, HALF).scale.z = 0.5;
+  put(m.mesh(cone(0.1, 0.2, 4), YEL, { in: g }), 0, 0.3, -0.3, -0.9);
+  [-1, 1].forEach(function (s) { put(m.mesh(ico(0.028), INK, { in: g, plain: true }), s * 0.085, 0.5, 0.22); });
+  m.ticks.push(function (dt, t) { g.rotation.z = 0.08 * Math.sin(t * 2); });
+});
+item("lightbulb", "hat", function (m) {
+  var y = m.peak() + 0.36, g = m.stay(m.group()), rays = [], lit = new THREE.Color("#fff3a0"), dim = new THREE.Color("#8d949e");
+  g.position.y = y;
+  var glass = put(m.mesh(ico(0.2), "#fff3a0", { in: g, plain: true }), 0, 0.08, 0);
+  put(m.mesh(cyl(0.11, 0.08, 0.13, 6), STEEL, { in: g }), 0, -0.14, 0);
+  for (var i = 0; i < 5; i++) { var a = (i - 2) * 0.6; rays.push(put(m.mesh(box(0.04, 0.13, 0.04), YEL, { in: g, plain: true }), 0.37 * Math.sin(a), 0.08 + 0.37 * Math.cos(a), 0, 0, 0, -a)); }
+  m.ticks.push(function (dt, t) {
+    var on = t % 3.2 < 2.3;
+    glass.material.uniforms.uCol.value.copy(on ? lit : dim);
+    rays.forEach(function (r, n) { r.visible = on && Math.floor(t * 5 + n) % 4 !== 0; });
+    g.position.y = y + 0.03 * Math.sin(t * 2);
+  });
+  m.top = Math.max(m.top, y + 0.44);
+});
+item("flame", "hat", function (m) {
+  m.bare();
+  var p = m.surf(0, 1, 0), g = m.stay(m.group()), tongues = [];
+  g.position.set(p.x, p.y - 0.02, p.z);
+  [[0, -0.03, 0.2, 0.62, "#ff4b1f"], [-0.14, 0, 0.13, 0.38, ORANGE], [0.15, 0, 0.13, 0.42, ORANGE], [0.02, 0.1, 0.12, 0.36, YEL]].forEach(function (f) {
+    tongues.push(put(m.mesh(spike(f[2], f[3]), f[4], { in: g, plain: true, soft: true }), f[0], 0, f[1]));
+  });
+  m.ticks.push(function (dt, t) { tongues.forEach(function (c, i) { c.scale.y = 1 + 0.22 * Math.sin(t * (9 + i * 2.3) + i); c.rotation.z = 0.12 * Math.sin(t * (5 + i) + i * 2); }); });
+  m.top = Math.max(m.top, p.y + 0.76);
+});
+item("rainbow", "hat", function (m) {
+  var y = m.peak() + 0.16, g = m.stay(m.group()), bands = [];
+  g.position.y = y;
+  [0.5, 0.43, 0.36, 0.29].forEach(function (r) { bands.push(m.mesh(tor(r, 0.04, Math.PI, 10), WHITE, { in: g, plain: true })); });
+  [-1, 1].forEach(function (s) {
+    put(m.mesh(ico(0.13), "#e6ecf3", { in: g }), s * 0.38, 0, 0.03);
+    put(m.mesh(ico(0.1), "#e6ecf3", { in: g }), s * 0.52, -0.02, 0.03);
+    put(m.mesh(ico(0.09), "#b9c4d2", { in: g }), s * 0.29, -0.03, 0.08);
+  });
+  m.ticks.push(function (dt, t) {
+    bands.forEach(function (b, i) { b.material.uniforms.uCol.value.setHSL((i * 0.16 + t * 0.12) % 1, 0.9, 0.6); });
+    g.position.y = y + 0.025 * Math.sin(t * 1.8);
+  });
+  m.ticks[m.ticks.length - 1](0, 0);
+  m.top = Math.max(m.top, y + 0.6);
+});
+item("galaxy", "hat", function (m) {
+  var y = m.peak() + 0.42, g = m.stay(m.group()), disk = m.group(g), stars = [];
+  g.position.y = y; g.rotation.set(0.5, 0, 0.18);
+  m.mesh(ico(0.14), "#fff3a0", { in: disk, plain: true });
+  for (var i = 0; i < 16; i++) {
+    var k = Math.floor(i / 2) / 7, r = 0.2 + 0.5 * k, a = (i % 2) * Math.PI + k * 3.2;
+    stars.push(put(m.mesh(new THREE.OctahedronGeometry(0.07 + 0.04 * (1 - k)), WHITE, { in: disk, plain: true }), r * Math.cos(a), 0, r * Math.sin(a)));
+  }
+  m.ticks.push(function (dt, t) {
+    disk.rotation.y = t * 0.9;
+    stars.forEach(function (s, n) {
+      var k = 0.7 + 0.5 * Math.sin(t * 4 + n * 1.7);
+      s.scale.set(k, k, k); s.material.uniforms.uCol.value.setHSL(0.62 + 0.22 * Math.sin(t * 0.4 + n * 0.35), 0.85, 0.72);
+    });
+    g.position.y = y + 0.03 * Math.sin(t * 1.6);
+  });
+  m.ticks[m.ticks.length - 1](0, 0);
+  m.top = Math.max(m.top, y + 0.44);
+});
+
+/* ----------------- over the eyes (20) ----------------- */
+/* A mask: a sheet on the skin round each eye, from the eye's edge to `grow` beyond it, which is a
+   number or a function of how far outward and how far up the place is. The two meet in the middle. */
+function mask(m, color, grow, o) {
+  var e = m.eye, n = 14;
+  [-1, 1].forEach(function (s) {
+    var pos = [], idx = [], i;
+    for (i = 0; i <= n; i++) {
+      var c = Math.cos(i * TAU / n), up = Math.sin(i * TAU / n), k = typeof grow === "function" ? grow(c, up) : grow;
+      var p = m.face(s * (e.x + c * (e.a + 0.025)), e.y + up * (e.b + 0.025), 0.05), q = m.face(s * Math.max(0, e.x + c * (e.a + k)), e.y + up * (e.b + k * 0.8), 0.05);
+      pos.push(p.x, p.y, p.z, q.x, q.y, q.z);
+    }
+    for (i = 0; i < n; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 2, i * 2 + 1, i * 2 + 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+    m.mesh(geo, color, o);
+  });
+}
+item("reading", "glasses", function (m) {
+  both(m, function (l) { put(m.mesh(square(0.22), BROWN, { in: l.g }), 0, -l.ry * 0.55, 0).scale.set(l.rx * 1.25, l.ry * 0.6, l.rx); });
+  bridge(m, BROWN, -(m.eye.b + 0.075) * 0.55);
+});
+item("browline", "glasses", function (m) {
+  both(m, function (l) {
+    put(m.mesh(tor(1, 0.12, Math.PI, 8), STEEL, { in: l.g }), 0, 0, 0, 0, 0, Math.PI).scale.set(l.rx, l.ry, l.rx);
+    put(m.mesh(box(l.rx * 2.3, 0.1, 0.06), INK, { in: l.g }), 0, l.ry * 0.9, 0);
+  });
+  bridge(m, INK, (m.eye.b + 0.075) * 0.9);
+});
+item("hex", "glasses", function (m) {
+  both(m, function (l) { m.mesh(tor(1, 0.18, null, 6), "#2f7d6b", { in: l.g }).scale.set(l.rx * 1.12, l.ry * 1.12, l.rx); });
+  bridge(m, "#2f7d6b");
+});
+item("rosy", "glasses", function (m) {
+  both(m, function (l) {
+    m.mesh(disc(1, 10), "#ff8fc0", { in: l.g, plain: true, door: true }).scale.set(l.rx, l.ry, 1);
+    m.mesh(tor(1, 0.12, null, 10), ROSE, { in: l.g }).scale.set(l.rx, l.ry, l.rx);
+  });
+  bridge(m, ROSE);
+});
+item("lennon", "glasses", function (m) {
+  both(m, function (l) {
+    var k = Math.max(l.rx, l.ry) * 0.92;
+    m.mesh(disc(k, 10), "#2a2140", { in: l.g, plain: true });
+    m.mesh(tor(k, k * 0.14, null, 10), GOLD, { in: l.g });
+    put(m.mesh(disc(k * 0.2, 4), "#8f86b8", { in: l.g, plain: true }), -k * 0.35, k * 0.35, 0.012);
+  });
+  bridge(m, GOLD);
+});
+item("lashes", "glasses", function (m) {
+  both(m, function (l) {
+    [0.25, 0.7, 1.15].forEach(function (a) { put(m.mesh(box(0.04, 0.15, 0.02), INK, { in: l.g, plain: true }), l.s * Math.sin(a) * (l.rx + 0.02), Math.cos(a) * (l.ry + 0.02), 0, 0, 0, -l.s * a); });
+  });
+});
+item("bandit", "glasses", function (m) {
+  mask(m, "#23262e", function (c) { return 0.11 + 0.12 * Math.max(0, c); }, { plain: true });
+  strap(m, "#23262e", 0.06);
+});
+item("swim", "glasses", function (m) {
+  strap(m, BLUE, 0.045);
+  both(m, function (l) {
+    m.mesh(disc(1, 8), "#bfe8ff", { in: l.g, plain: true, door: true }).scale.set(l.rx * 1.02, l.ry * 0.9, 1);
+    m.mesh(tor(1, 0.22, null, 8), BLUE, { in: l.g }).scale.set(l.rx * 1.08, l.ry * 0.95, l.rx * 1.2);
+  });
+  bridge(m, BLUE);
+});
+item("taped", "glasses", function (m) {
+  both(m, function (l) { m.mesh(square(0.26), INK, { in: l.g }).scale.set(l.rx * 1.32, l.ry * 1.25, l.rx); });
+  bridge(m, INK);
+  bridge(m, WHITE).scale.set(0.6, 1.6, 1.4);
+});
+item("googly", "glasses", function (m) {
+  both(m, function (l) {
+    var k = Math.max(l.rx, l.ry) * 1.05, pupil = put(m.mesh(disc(k * 0.45, 8), INK, { in: l.g, plain: true }), 0, -k * 0.45, 0.012);
+    m.mesh(disc(k, 10), WHITE, { in: l.g, plain: true });
+    m.mesh(tor(k, k * 0.1, null, 10), STEEL, { in: l.g });
+    m.ticks.push(function (dt, t) { var a = -HALF + 1.1 * Math.sin(t * 3.1 + l.s) * Math.sin(t * 0.63 + l.s * 0.4); pupil.position.set(k * 0.45 * Math.cos(a), k * 0.45 * Math.sin(a), 0.012); });
+  });
+});
+item("snorkel", "glasses", function (m) {
+  var e = m.eye, w = 2 * (Math.max(e.x, e.a + 0.09) + e.a) + 0.16, h = 2 * e.b + 0.18, p = m.face(0, e.y, 0.1), g = m.group();
+  strap(m, INK, 0.06);
+  g.position.set(p.x, p.y, p.z);
+  m.mesh(new THREE.PlaneGeometry(w, h), "#9fe8ff", { in: g, plain: true, door: true });
+  [-1, 1].forEach(function (s) {
+    put(m.mesh(box(w + 0.07, 0.07, 0.09), YEL, { in: g }), 0, s * h / 2, 0);
+    put(m.mesh(box(0.07, h, 0.09), YEL, { in: g }), s * w / 2, 0, 0);
+  });
+  put(m.mesh(cyl(0.045, 0.045, 0.7, 5), YEL, { in: g }), w / 2 + 0.1, 0.32, -0.12);
+  put(m.mesh(cyl(0.055, 0.055, 0.12, 5), ORANGE, { in: g }), w / 2 + 0.1, 0.68, -0.12);
+  m.top = Math.max(m.top, p.y + 0.76);
+});
+item("swirly", "glasses", function (m) {
+  both(m, function (l) {
+    var k = Math.max(l.rx, l.ry) * 1.05, sw = m.group(l.g);
+    m.mesh(disc(k, 10), WHITE, { in: l.g, plain: true });
+    m.mesh(tor(k, k * 0.12, null, 10), RED, { in: l.g });
+    sw.position.z = 0.012;
+    m.mesh(tor(k * 0.62, k * 0.1, Math.PI * 1.2, 8), INK, { in: sw, plain: true });
+    m.mesh(tor(k * 0.28, k * 0.1, Math.PI * 1.2, 6), INK, { in: sw, plain: true }).rotation.z = Math.PI;
+    m.ticks.push(function (dt, t) { sw.rotation.z = -l.s * t * 2.5; });
+  });
+  bridge(m, RED);
+});
+item("disguise", "glasses", function (m) {
+  var e = m.eye, p = m.face(0, e.y - e.b * 0.7, 0.1);
+  both(m, function (l) {
+    m.mesh(tor(1, 0.2, null, 10), INK, { in: l.g }).scale.set(l.rx, l.ry, l.rx);
+    put(m.mesh(box(l.rx * 1.7, 0.09, 0.05), INK, { in: l.g }), 0, l.ry + 0.08, 0, 0, 0, -l.s * 0.2);
+  });
+  bridge(m, INK);
+  put(m.mesh(ico(0.13), "#f0b48a"), p.x, p.y - 0.03, p.z + 0.08).scale.set(0.85, 1.2, 1);
+  [-1, 1].forEach(function (s) { put(m.mesh(cone(0.08, 0.3), INK), p.x + s * 0.15, p.y - 0.2, p.z + 0.03, 0, 0, -s * (HALF + 0.3)).scale.z = 0.6; });
+});
+item("flipups", "glasses", function (m) {
+  both(m, function (l) {
+    var flap = m.group(l.g);
+    m.mesh(square(0.18), STEEL, { in: l.g }).scale.set(l.rx * 1.32, l.ry * 1.2, l.rx);
+    put(flap, 0, l.ry * 0.9, 0.03, 1.15);
+    put(m.mesh(new THREE.PlaneGeometry(1.9, 1.7), "#14161b", { in: flap, plain: true }), 0, l.ry * 0.85, 0).scale.set(l.rx, l.ry, 1);
+  });
+  bridge(m, STEEL);
+});
+item("hero", "glasses", function (m) {
+  mask(m, RED, function (c, up) { return 0.09 + 0.17 * Math.pow(Math.max(0, c * 0.8 + up * 0.6), 3); });
+});
+item("ruby", "glasses", function (m) {
+  var e = m.eye, p = m.face(0, e.y, 0.1), Rv = p.z, h = e.b * 1.1 + 0.07, a = 1.2;
+  var glass = m.stay(put(m.mesh(cyl(Rv, Rv, h, 10, true, -a, 2 * a), "#ff2d46", { plain: true }), 0, p.y, 0));
+  [-1, 1].forEach(function (s) { m.stay(put(m.mesh(cyl(Rv + 0.012, Rv + 0.012, 0.06, 10, true, -a, 2 * a), GOLD), 0, p.y + s * (h / 2 + 0.03), 0)); });
+  m.ticks.push(function (dt, t) { glass.material.uniforms.uCol.value.setHSL(0.975, 1, 0.5 + 0.12 * Math.sin(t * 4)); });
+});
+item("nightvision", "glasses", function (m) {
+  var glow = [];
+  strap(m, "#3a3f4f", 0.06);
+  both(m, function (l) {
+    var k = Math.min(l.rx, l.ry) * 0.9;
+    put(m.mesh(cyl(k, k * 1.1, 0.3, 8), DARK, { in: l.g }), 0, 0, 0.15, HALF);
+    glow.push(put(m.mesh(disc(k * 0.8, 8), "#7dff6a", { in: l.g, plain: true }), 0, 0, 0.305));
+  });
+  bridge(m, DARK);
+  m.ticks.push(function (dt, t) { glow.forEach(function (d) { d.material.uniforms.uCol.value.setHSL(0.31, 1, 0.6 + 0.1 * Math.sin(t * 5)); }); });
+});
+item("masquerade", "glasses", function (m) {
+  var e = m.eye, f = m.group();
+  mask(m, "#7b3fc4", function (c, up) { return 0.1 + 0.13 * Math.pow(Math.max(0, c * 0.7 + up * 0.7), 2); });
+  both(m, function (l) { m.mesh(tor(1, 0.12, null, 10), GOLD, { in: l.g }).scale.set(l.rx - 0.04, l.ry - 0.04, l.rx * 0.5); });
+  f.position.copy(m.face(Math.min(0.8, e.x + e.a + 0.1), e.y + e.b + 0.08, 0.1));
+  [[-0.3, TEAL], [0.1, PINK], [0.5, YEL]].forEach(function (d) { put(m.mesh(ico(0.14), d[1], { in: f }), Math.sin(d[0]) * 0.17, Math.cos(d[0]) * 0.17, 0, 0, 0, -d[0]).scale.set(0.35, 1.3, 0.2); });
+});
+item("equalizer", "glasses", function (m) {
+  var e = m.eye, cx = Math.max(e.x, e.a + 0.09), w = cx + e.a + 0.14, h = e.b + 0.1, p = m.face(0, e.y, 0.11), g = m.group(), bars = [], n = 9;
+  g.position.set(p.x, p.y, p.z);
+  m.mesh(box(2 * w, 2 * h, 0.04), "#14161b", { in: g, plain: true });
+  for (var i = 0; i < n; i++) bars.push(put(m.mesh(box(1.2 * w / n, 1, 0.02), TEAL, { in: g, plain: true }), (i - (n - 1) / 2) * 1.9 * w / n, 0, 0.03));
+  strap(m, "#14161b", 0.05);
+  m.ticks.push(function (dt, t) {
+    bars.forEach(function (b, i) {
+      var k = Math.ceil((0.2 + 0.8 * Math.abs(Math.sin(t * (2.6 + (i * 7) % 5 * 0.7) + i * 1.3))) * 5) / 5;
+      b.scale.y = 1.7 * h * k; b.position.y = -0.85 * h * (1 - k);
+      b.material.uniforms.uCol.value.setHSL((i / n * 0.5 + t * 0.1) % 1, 0.9, 0.6);
+    });
+  });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+item("blazing", "glasses", function (m) {
+  var flames = [], rims = [];
+  both(m, function (l) {
+    m.mesh(disc(1), "#14161b", { in: l.g, plain: true }).scale.set(l.rx * 1.15, l.ry, 1);
+    rims.push(m.mesh(tor(1, 0.12, null, 8), ORANGE, { in: l.g, plain: true }));
+    rims[rims.length - 1].scale.set(l.rx * 1.17, l.ry * 1.02, l.rx);
+    [[0.3, 0.26, YEL], [0.75, 0.34, ORANGE], [1.15, 0.4, "#ff4b1f"]].forEach(function (f) {
+      flames.push(put(m.mesh(spike(0.075, f[1], 4), f[2], { in: l.g, plain: true }), l.s * Math.sin(f[0]) * l.rx * 1.1, Math.cos(f[0]) * l.ry * 0.95, -0.01, 0, 0, -l.s * (f[0] + 0.25)));
+    });
+    m.wide = Math.max(m.wide, l.g.position.x + l.rx + 0.45);
+  });
+  bridge(m, "#14161b");
+  m.ticks.push(function (dt, t) {
+    flames.forEach(function (c, i) { c.scale.set(0.9 + 0.2 * Math.sin(t * 11 + i), 0.75 + 0.4 * Math.abs(Math.sin(t * (6 + i * 1.7) + i * 2)), 1); });
+    rims.forEach(function (r) { r.material.uniforms.uCol.value.setHSL(0.06 + 0.04 * Math.sin(t * 6), 1, 0.55); });
+  });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+
+/* ----------------- on the face (20) ----------------- */
+item("scar", "face", function (m) {
+  var e = m.eye, k = m.group(m.onFace(e.x + e.a * 0.5, e.y - e.b - 0.12, 0.04, 1));
+  k.rotation.z = 0.5;
+  m.mesh(box(0.04, 0.26, 0.02), "#b8506a", { in: k, plain: true });
+  [-1, 0, 1].forEach(function (i) { put(m.mesh(box(0.11, 0.035, 0.02), "#b8506a", { in: k, plain: true }), 0, i * 0.08, 0); });
+});
+item("beautymark", "face", function (m) { var g = m.onFace(m.eye.x * 0.9, m.mouthY + 0.07, 0.04, 1); m.mesh(disc(0.05, 6), INK, { in: g, plain: true }); });
+beard("goatee", "#3a2a20", 0.22, 0.2);
+item("pencil", "face", function (m) {
+  var g = m.onFace(0, m.mouthY + 0.085, 0.045, 0.9);
+  [-1, 1].forEach(function (s) { put(m.mesh(box(0.17, 0.035, 0.025), INK, { in: g, plain: true }), s * 0.1, 0, 0, 0, 0, -s * 0.18); });
+});
+item("tongue", "face", function (m) {
+  var g = m.onFace(0.03, m.mouthY - 0.03, 0.05, 0.7), k = m.group(g);
+  put(m.mesh(box(0.15, 0.09, 0.02), "#ff6f91", { in: k, plain: true }), 0, -0.02, 0);
+  put(m.mesh(disc(0.075, 8), "#ff6f91", { in: k, plain: true }), 0, -0.065, 0.01);
+  put(m.mesh(box(0.022, 0.1, 0.02), "#d94f74", { in: k, plain: true }), 0, -0.05, 0.012);
+  m.ticks.push(function (dt, t) { k.rotation.z = 0.14 * Math.sin(t * 2.6); });
+});
+item("warpaint", "face", function (m) {
+  cheeks(m, function (g, s) { [0, 1].forEach(function (i) { put(m.mesh(box(0.2, 0.045, 0.02), i ? RED : BLUE, { in: g, plain: true }), 0, i * 0.075 - 0.03, 0, 0, 0, -s * 0.2); }); });
+});
+item("kiss", "face", function (m) {
+  var e = m.eye, g = m.onFace(e.x + e.a * 0.9, e.y - e.b - 0.1, 0.04, 1);
+  m.mesh(poly([[-1, 0], [-0.5, 0.45], [0, 0.25], [0.5, 0.45], [1, 0], [0.5, -0.5], [0, -0.6], [-0.5, -0.5]], 0.11), "#e0245e", { in: g, plain: true }).rotation.z = -0.35;
+});
+item("pacifier", "face", function (m) {
+  var g = m.onFace(0, m.mouthY, 0.07, 0.8);
+  put(m.mesh(cyl(0.12, 0.12, 0.035, 8), SKY, { in: g }), 0, 0, 0, HALF).scale.x = 1.3;
+  put(m.mesh(ico(0.05), YEL, { in: g }), 0, 0, 0.05);
+  put(m.mesh(tor(0.07, 0.02, null, 8), YEL, { in: g }), 0, -0.07, 0.08, 0.5);
+});
+item("wheat", "face", function (m) {
+  var g = m.group();
+  g.position.copy(m.face(0.05, m.mouthY, 0.04));
+  put(m.mesh(cyl(0.025, 0.025, 0.5, 3), "#d9b44a", { in: g, soft: true }), 0.25, 0, 0.05, 0, 0, HALF);
+  put(m.mesh(ico(0.07), "#e8c860", { in: g }), 0.54, 0, 0.06).scale.set(2, 0.8, 0.8);
+  m.ticks.push(function (dt, t) { g.rotation.z = 0.25 + 0.06 * Math.sin(t * 2.4); });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+item("milk", "face", function (m) {
+  var y = m.mouthY + 0.04;
+  m.patch(function (u, v) { var x = (u * 2 - 1) * 0.2; return [x, y + v * (0.03 + 0.05 * Math.sin(Math.PI * Math.min(1, Math.abs(x) / 0.2))), 0.035]; }, WHITE, { n: 4, plain: true });
+});
+item("rose", "face", function (m) {
+  var g = m.group();
+  g.position.copy(m.face(0, m.mouthY, 0.05)); g.rotation.z = 0.12;
+  put(m.mesh(cyl(0.025, 0.025, 0.62, 3), "#3f8f3a", { in: g, soft: true }), 0.05, 0, 0.04, 0, 0, HALF);
+  put(m.mesh(ico(0.095), "#d81e3a", { in: g }), 0.4, 0, 0.07);
+  put(m.mesh(ico(0.05), "#ff6f91", { in: g, plain: true }), 0.4, 0.02, 0.13);
+  put(m.mesh(ico(0.05), GREEN, { in: g }), 0.24, 0.04, 0.06).scale.set(1.6, 0.4, 0.8);
+});
+item("beak", "face", function (m) {
+  var p = m.face(0, m.mouthY + 0.05, 0);
+  put(m.mesh(ico(0.16), "#ffa726", { soft: true }), p.x, p.y, p.z + 0.06).scale.set(1.25, 0.45, 1.1);
+  put(m.mesh(ico(0.13), "#e88a0c", { soft: true }), p.x, p.y - 0.06, p.z + 0.03).scale.set(1.2, 0.35, 1);
+});
+item("tusks", "face", function (m) {
+  [-1, 1].forEach(function (s) { var g = m.onFace(s * 0.17, m.mouthY - 0.01, 0.03, 0.5); put(m.mesh(cone(0.045, 0.24, 5), "#f6f1e4", { in: g, soft: true }), s * 0.02, 0.09, 0.03, 0.25, 0, -s * 0.25); });
+});
+item("muttonchops", "face", function (m) {
+  var e = m.eye, top = e.y + 0.02, low = Math.max(m.mouthY - 0.14, m.lowY), x0 = e.x + e.a + 0.1;
+  [-1, 1].forEach(function (s) {
+    m.patch(function (u, v) {
+      var y = top + (low - top) * v, w = Math.sqrt(Math.max(0.05, 1 - y * y)), a = Math.min(lerp(x0, 0.32, v * v), 0.62 * w), b = Math.min(a + 0.22, 0.86 * w);
+      return [s * lerp(a, b, u), y, 0.045 + 0.05 * Math.sin(Math.PI * u)];
+    }, "#6b4a2e", { n: 5 });
+  });
+});
+item("facemask", "face", function (m) {
+  var top = m.mouthY + 0.13, low = Math.max(m.mouthY - 0.2, m.lowY), a = Math.acos(clamp(m.mouthY + 0.03, -1, 1));
+  m.patch(function (u, v) { var y = top + (low - top) * v; return [(u * 2 - 1) * 0.34 * Math.sqrt(Math.max(0.05, 1 - y * y)), y, 0.05 + 0.03 * Math.sin(Math.PI * v)]; }, "#bfe3f0", { n: 5 });
+  [-1, 1].forEach(function (s) { m.shell(a - 0.025, a + 0.025, 0.045, WHITE, { rows: 1, az0: s > 0 ? 0.36 : -1.5, az1: s > 0 ? 1.5 : -0.36, seg: 4 }); });
+});
+item("bone", "face", function (m) {
+  var g = m.group();
+  g.position.copy(m.face(0, m.mouthY, 0.08)); g.rotation.z = 0.1;
+  put(m.mesh(cyl(0.035, 0.035, 0.44, 5), "#f6f1e4", { in: g }), 0, 0, 0.03, 0, 0, HALF);
+  [-1, 1].forEach(function (s) { [-1, 1].forEach(function (k) { put(m.mesh(ico(0.055), "#f6f1e4", { in: g }), s * 0.23, k * 0.04, 0.03); }); });
+});
+item("bubblepipe", "face", function (m) {
+  var g = m.group(), bubbles = [];
+  g.position.copy(m.face(0.06, m.mouthY, 0.05));
+  put(m.mesh(cyl(0.025, 0.025, 0.3, 4), BROWN, { in: g, soft: true }), 0.15, -0.04, 0.05, 0, 0, HALF - 0.25);
+  put(m.mesh(cyl(0.09, 0.07, 0.13, 6), BROWN, { in: g }), 0.32, -0.05, 0.07);
+  for (var i = 0; i < 3; i++) bubbles.push(m.mesh(ico(1), "#bfe8ff", { in: g, plain: true, door: true }));
+  m.ticks.push(function (dt, t) {
+    bubbles.forEach(function (b, n) { var k = (t * 0.35 + n / 3) % 1, r = 0.03 + 0.05 * k; b.scale.set(r, r, r); b.position.set(0.32 + 0.07 * Math.sin(t * 2 + n * 2) * k, 0.08 + 0.5 * k, 0.07); b.visible = k < 0.92; });
+  });
+  m.ticks[m.ticks.length - 1](0, 0.5);
+});
+item("tentacles", "face", function (m) {
+  var arms = [];
+  [-1.5, -0.5, 0.5, 1.5].forEach(function (i) {
+    var g = m.stay(m.group()), len = 0.36 - 0.05 * Math.abs(i);
+    g.position.copy(m.face(i * 0.09, m.mouthY - 0.05, 0.02));
+    m.mesh(spike(0.055, len), i % 2 ? "#4fb59a" : "#3f9a82", { in: g, soft: true }).rotation.x = Math.PI;
+    arms.push({ g: g, i: i });
+  });
+  m.ticks.push(function (dt, t) { arms.forEach(function (a) { a.g.rotation.set(-0.3 + 0.12 * Math.sin(t * 1.7 + a.i), 0, a.i * 0.14 + 0.2 * Math.sin(t * 2.1 + a.i * 1.3)); }); });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+item("goldtooth", "face", function (m) {
+  var g = m.onFace(0.05, m.mouthY - 0.05, 0.045, 0.8), tw = put(m.mesh(star(0.075), "#fff8d0", { in: g, plain: true }), 0.04, 0.03, 0.03);
+  m.mesh(box(0.075, 0.1, 0.03), GOLD, { in: g });
+  m.ticks.push(function (dt, t) { var k = Math.pow(Math.max(0, Math.sin(t * 2.2)), 3); tw.scale.set(k, k, k); tw.rotation.z = t * 1.5; tw.visible = k > 0.05; });
+  m.ticks[m.ticks.length - 1](0, 0.7);
+});
+item("tune", "face", function (m) {
+  var p = m.face(0.1, m.mouthY, 0.12), notes = [];
+  for (var i = 0; i < 3; i++) {
+    var g = m.stay(m.group());
+    m.mesh(ico(0.075), WHITE, { in: g, plain: true }).scale.set(1.2, 0.85, 0.6);
+    put(m.mesh(box(0.04, 0.26, 0.02), WHITE, { in: g, plain: true }), 0.07, 0.13, 0);
+    put(m.mesh(box(0.13, 0.06, 0.02), WHITE, { in: g, plain: true }), 0.12, 0.24, 0, 0, 0, -0.3);
+    notes.push(g);
+  }
+  m.ticks.push(function (dt, t) {
+    notes.forEach(function (g, n) {
+      var k = (t * 0.4 + n / 3) % 1, s = Math.max(0.01, Math.min(1, k * 5, (1 - k) * 5));
+      g.position.set(p.x + 0.1 + 0.42 * k + 0.05 * Math.sin(t * 3 + n * 2), p.y + 0.1 * k + 0.5 * k * k, p.z);
+      g.rotation.z = 0.3 * Math.sin(t * 2.5 + n); g.scale.set(s, s, s);
+      g.children.forEach(function (c) { c.material.uniforms.uCol.value.setHSL((n / 3 + t * 0.12) % 1, 0.85, 0.62); });
+    });
+  });
+  m.ticks[m.ticks.length - 1](0, 0.4);
+});
+
+/* ----------------- round the neck (20) ----------------- */
+item("ribbon", "neck", function (m) {
+  var g = m.chin(0.02, 0.1);
+  m.band(PINK, 0.04, 0.045, { rows: 1 });
+  [-1, 1].forEach(function (s) {
+    put(m.mesh(cone(0.1, 0.17), PINK, { in: g }), s * 0.1, 0, 0, 0, 0, s * HALF).scale.z = 0.6;
+    put(m.mesh(box(0.05, 0.2, 0.03), PINK, { in: g }), s * 0.055, -0.13, 0, 0, 0, s * 0.3);
+  });
+  m.mesh(box(0.07, 0.08, 0.07), "#c93d77", { in: g });
+});
+item("dogtag", "neck", function (m) {
+  var g = m.chin(0.13, 0.1);
+  m.band("#3f8f3a", 0.055, 0.055, { rows: 1 });
+  m.mesh(box(0.16, 0.06, 0.03), "#dfe6ee", { in: g });
+  [-1, 1].forEach(function (s) { [-1, 1].forEach(function (k) { put(m.mesh(ico(0.04), "#dfe6ee", { in: g }), s * 0.09, k * 0.03, 0); }); });
+});
+item("locket", "neck", function (m) {
+  var g = m.chin(0.14, 0.1);
+  m.band(GOLD, 0.02, 0.03, { rows: 1 });
+  put(m.mesh(box(0.02, 0.1, 0.02), GOLD, { in: g }), 0, 0.1, 0);
+  m.mesh(heart(0.09), "#ff4d7e", { in: g });
+});
+item("stripytie", "neck", function (m) {
+  var g = m.chin(0);
+  m.band(WHITE, 0.05, 0.045, { rows: 1 });
+  m.mesh(box(0.11, 0.09, 0.07), RED, { in: g });
+  put(m.mesh(cyl(0.05, 0.1, 0.34, 4), RED, { in: g }), 0, -0.2, 0.02, 0, Math.PI / 4).scale.z = 0.4;
+  [0, 1, 2].forEach(function (i) { put(m.mesh(box(0.08 + i * 0.03, 0.035, 0.02), YEL, { in: g, plain: true }), 0, -0.11 - i * 0.09, 0.065, 0, 0, 0.4); });
+});
+item("neckerchief", "neck", function (m) {
+  var g = m.chin(0.03, 0.09);
+  m.band(YEL, 0.07, 0.06);
+  m.mesh(box(0.08, 0.07, 0.07), BROWN, { in: g });
+  [-1, 1].forEach(function (s) { put(m.mesh(cone(0.07, 0.24, 4), YEL, { in: g }), s * 0.06, -0.15, 0.01, 0, 0, s * 0.35).scale.z = 0.4; });
+});
+item("choker", "neck", function (m) {
+  m.band("#23262e", 0.05, 0.05, { rows: 1 });
+  m.around(m.neck, 10, 0.125, function (p, i, az) {
+    put(m.mesh(cone(0.045, 0.13, 4), "#dfe6ee"), p.x, p.y, p.z).quaternion.setFromUnitVectors(UP, new THREE.Vector3().fromArray(dir(m.neck, az)));
+  }, TAU / 20);
+});
+beads("candy", 14, 0.065, ["#ff9ec4", "#9fe8ff", "#fff3a0", "#b8f5a0", "#d7b8ff"]);
+item("seashell", "neck", function (m) {
+  var g = m.chin(0.14, 0.1);
+  m.band("#c9a66b", 0.022, 0.03, { rows: 1 });
+  put(m.mesh(box(0.02, 0.09, 0.02), "#c9a66b", { in: g }), 0, 0.1, 0);
+  put(m.mesh(cyl(0.14, 0.14, 0.03, 6, false, -0.9, 1.8), "#ffc9b0", { in: g }), 0, 0.06, 0, HALF);
+});
+item("poloneck", "neck", function (m) {
+  m.shell(m.neck - 0.1, Math.min(m.neck + 0.22, Math.acos(m.lowY)), puff(0.05, 0.1), "#2f6f6a", { rows: 3 });
+  m.shell(m.neck - 0.13, m.neck - 0.01, puff(0.07, 0.14), "#3b8a83", { rows: 2 });
+});
+item("bolo", "neck", function (m) {
+  var g = m.chin(0.03, 0.09);
+  m.band(INK, 0.02, 0.03, { rows: 1 });
+  put(m.mesh(cyl(0.065, 0.065, 0.035, 8), TEAL, { in: g }), 0, 0, 0, HALF).scale.z = 1.3;
+  [-1, 1].forEach(function (s) {
+    put(m.mesh(box(0.04, 0.24, 0.03), INK, { in: g }), s * 0.04, -0.15, 0, 0, 0, s * 0.12);
+    put(m.mesh(box(0.05, 0.07, 0.04), STEEL, { in: g }), s * 0.055, -0.29, 0);
+  });
+});
+item("mittens", "neck", function (m) {
+  m.band(WHITE, 0.02, 0.03, { rows: 1 });
+  [-1, 1].forEach(function (s) {
+    var g = m.group();
+    g.position.copy(m.face(s * 0.3, m.neckY - 0.03, 0.1));
+    put(m.mesh(box(0.03, 0.14, 0.03), WHITE, { in: g }), 0, -0.03, 0);
+    put(m.mesh(ico(0.1), RED, { in: g }), 0, -0.2, 0).scale.set(0.85, 1.15, 0.55);
+    put(m.mesh(ico(0.045), RED, { in: g }), -s * 0.09, -0.19, 0);
+    put(m.mesh(box(0.15, 0.05, 0.08), WHITE, { in: g }), 0, -0.1, 0);
+    m.ticks.push(function (dt, t) { g.rotation.z = 0.1 * Math.sin(t * 2 + s); });
+  });
+});
+item("camera", "neck", function (m) {
+  var g = m.chin(0.2, 0.1), flash = put(m.mesh(star(0.09), WHITE, { in: g, plain: true }), -0.09, 0.07, 0.07);
+  m.band(INK, 0.03, 0.035, { rows: 1 });
+  [-1, 1].forEach(function (s) { put(m.mesh(box(0.025, 0.2, 0.02), INK, { in: g }), s * 0.12, 0.14, 0, 0, 0, -s * 0.25); });
+  m.mesh(box(0.3, 0.19, 0.1), DARK, { in: g });
+  put(m.mesh(cyl(0.07, 0.07, 0.08, 8), STEEL, { in: g }), 0, -0.005, 0.08, HALF);
+  put(m.mesh(disc(0.045, 8), SKY, { in: g, plain: true }), 0, -0.005, 0.125);
+  put(m.mesh(box(0.07, 0.04, 0.06), RED, { in: g }), 0.09, 0.11, 0);
+  flash.visible = false;
+  m.ticks.push(function (dt, t) { flash.visible = t % 4.5 < 0.14; });
+});
+item("ruff", "neck", function (m) {
+  m.shell(m.neck - 0.08, m.neck + 0.08, function (t, u) { return 0.06 + 0.2 * Math.sin(Math.PI * t) * (Math.round(u * 32) % 2 ? 1 : 0.45); }, WHITE, { rows: 2, seg: 32 });
+});
+item("boa", "neck", function (m) {
+  var p = m.face(0.32, m.neckY - 0.05, 0.16);
+  m.around(m.neck, 13, 0.14, function (q, i) { put(m.mesh(ico(0.12 + 0.02 * (i % 2)), i % 2 ? "#ff7ad1" : "#d94fb0"), q.x, q.y, q.z).rotation.set(i, i * 2, 0); });
+  [0, 1, 2].forEach(function (i) { put(m.mesh(ico(0.1 - i * 0.015), i % 2 ? "#d94fb0" : "#ff7ad1"), p.x + 0.03 * i, p.y - 0.12 * (i + 1), p.z); });
+});
+item("stethoscope", "neck", function (m) {
+  var g = m.chin(0.05, 0.1);
+  m.band(DARK, 0.03, 0.04, { rows: 1 });
+  [-1, 1].forEach(function (s) { put(m.mesh(box(0.04, 0.17, 0.03), DARK, { in: g }), s * 0.045, -0.06, 0, 0, 0, -s * 0.57); });
+  put(m.mesh(box(0.04, 0.14, 0.03), DARK, { in: g }), 0, -0.2, 0);
+  put(m.mesh(cyl(0.08, 0.08, 0.035, 8), STEEL, { in: g }), 0, -0.3, 0.01, HALF);
+  put(m.mesh(disc(0.05, 8), "#dfe6ee", { in: g, plain: true }), 0, -0.3, 0.03);
+});
+item("fairylights", "neck", function (m) {
+  var bulbs = [], cols = [RED, YEL, GREEN, BLUE, PINK].map(function (c) { return new THREE.Color(c); });
+  m.band("#2f5d3a", 0.02, 0.035, { rows: 1 });
+  m.around(m.neck, 12, 0.09, function (p, i) { var b = put(m.mesh(ico(0.06), "#ffffff", { plain: true }), p.x, p.y - 0.04, p.z); b.scale.y = 1.4; bulbs.push({ mesh: b, i: i }); });
+  m.ticks.push(function (dt, t) { bulbs.forEach(function (b) { b.mesh.material.uniforms.uCol.value.copy(cols[b.i % 5]).multiplyScalar(Math.floor(t * 2.5 + b.i * 0.5) % 3 ? 1 : 0.4); }); });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+item("amulet", "neck", function (m) {
+  var g = m.chin(0.16, 0.1);
+  m.around(m.neck, 20, 0.05, function (p) { put(m.mesh(ico(0.035), GOLD), p.x, p.y, p.z); });
+  put(m.mesh(cyl(0.12, 0.12, 0.03, 6), GOLD, { in: g }), 0, 0, 0, HALF);
+  var gem = put(m.mesh(new THREE.OctahedronGeometry(0.085), "#7df9ff", { in: g, plain: true }), 0, 0, 0.03), ring = put(m.mesh(tor(0.17, 0.02, null, 10), "#7df9ff", { in: g, plain: true, door: true }), 0, 0, 0.02);
+  gem.scale.z = 0.5;
+  m.ticks.push(function (dt, t) {
+    var k = 0.5 + 0.5 * Math.sin(t * 2.4);
+    gem.material.uniforms.uCol.value.setHSL(0.5 + 0.08 * k, 1, 0.55 + 0.25 * k); gem.rotation.z = t * 0.8;
+    ring.scale.set(0.8 + 0.5 * k, 0.8 + 0.5 * k, 1);
+  });
+  m.ticks[m.ticks.length - 1](0, 0);
+});
+item("mantle", "neck", function (m) {
+  var g = m.chin(0, 0.19);
+  m.shell(m.neck - 0.1, m.neck + 0.12, puff(0.07, 0.16), "#f6f1e4", { rows: 2 });
+  m.around(m.neck + 0.01, 9, 0.17, function (p) { put(m.mesh(ico(0.04), INK, { plain: true }), p.x, p.y, p.z); }, 0.35);
+  m.shell(m.neck + 0.06, Math.min(m.neck + 1.25, Math.acos(m.lowY)), function (t) { return 0.06 + 0.4 * t * t; }, "#a3122a", { rows: 5, az0: HALF + 0.1, az1: TAU - HALF - 0.1, seg: 8 });
+  m.mesh(ico(0.07), GOLD, { in: g });
+  m.wide = Math.max(m.wide, m.girth(1.8, 2.6) + 0.42);
+});
+item("snake", "neck", function (m) {
+  var g = m.group(), tongue;
+  for (var i = 0; i < 12; i++) m.band([RED, YEL, INK, YEL][i % 4], 0.07, 0.11, { az0: i * TAU / 12, az1: (i + 1) * TAU / 12, seg: 2 });
+  g.position.copy(m.face(0.38, m.neckY + 0.02, 0.2));
+  put(m.mesh(cyl(0.075, 0.09, 0.24, 6), RED, { in: g }), 0, 0.07, 0, 0, 0, -0.3);
+  put(m.mesh(cyl(0.08, 0.08, 0.06, 6), YEL, { in: g }), 0.03, 0.14, 0, 0, 0, -0.3);
+  put(m.mesh(ico(0.13), INK, { in: g }), 0.06, 0.25, 0.03).scale.set(1, 0.75, 1.25);
+  [-1, 1].forEach(function (s) { put(m.mesh(ico(0.035), YEL, { in: g, plain: true }), 0.06 + s * 0.07, 0.29, 0.13); });
+  tongue = put(m.mesh(box(0.035, 0.035, 0.12), RED, { in: g, plain: true }), 0.06, 0.22, 0.23);
+  m.ticks.push(function (dt, t) { tongue.visible = t % 2.2 < 0.35; g.rotation.z = 0.08 * Math.sin(t * 1.6); });
+});
+item("wings", "neck", function (m) {
+  [-1, 1].forEach(function (s) {
+    // hung well round its back, so that a pair lifted off it is still a pair of wings
+    var g = m.stay(m.group()), p = m.at(1.3, s * 2.85, 0.02);
+    g.position.copy(p);
+    [[1.4, 0.5, 0.27], [1.2, 0.22, 0.23], [1.0, -0.06, 0.19]].forEach(function (f, i) {
+      put(m.mesh(ico(1), i ? "#e6ecf3" : WHITE, { in: g, soft: true }), s * f[0] / 2 * Math.cos(f[1]), f[0] / 2 * Math.sin(f[1]), 0, 0, 0, s * f[1]).scale.set(f[0] / 2, f[2], 0.05);
+    });
+    m.ticks.push(function (dt, t) { g.rotation.y = s * (0.2 + 0.3 * Math.sin(t * 6)); });
+    m.wide = Math.max(m.wide, Math.abs(p.x) + 1.28);
+  });
 });
 
 /* ================= what one creature has on ================= */

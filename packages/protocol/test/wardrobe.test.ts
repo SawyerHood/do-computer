@@ -10,9 +10,9 @@ import {
 } from "../src/index.ts"
 
 describe("the things a creature can wear", () => {
-  it("are a hundred, each with an id of its own, in every place and every rarity", () => {
-    expect(WEAR_ITEMS).toHaveLength(100)
-    expect(new Set(WEAR_ITEMS.map((item) => item.id)).size).toBe(100)
+  it("are two hundred, each with an id of its own, in every place and every rarity", () => {
+    expect(WEAR_ITEMS).toHaveLength(200)
+    expect(new Set(WEAR_ITEMS.map((item) => item.id)).size).toBe(200)
     for (const slot of WEAR_SLOTS) {
       expect(WEAR_ITEMS.some((item) => item.slot === slot)).toBe(true)
     }
