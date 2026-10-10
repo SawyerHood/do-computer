@@ -433,6 +433,24 @@ describe("agent actor", () => {
     await follow(world, second.id, answered(1))
     expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(first.id)
   })
+
+  it("tells whoever is watching the agent which of its documents changed", async () => {
+    const world = open(temporary())
+    await setup(world)
+    const stream = await world.namespace.get("agent-1").fetch(new Request("http://actor/events"))
+    const events = readSse<AgentEvent>(stream.body!)[Symbol.asyncIterator]()
+    const next = async () => (await events.next()).value as AgentEvent
+    // Said first, once all of them are watched: what a client has from before is asked for again.
+    expect(await next()).toEqual({ type: "ready" })
+    // Each of these was empty until now, and is told of all the same.
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
+    expect(await next()).toEqual({ type: "changed", what: "approvals" })
+    await call(world, "/creature/open", "POST")
+    expect(await next()).toEqual({ type: "changed", what: "creature" })
+    await call(world, "/chats", "POST", {})
+    expect(await next()).toEqual({ type: "changed", what: "chats" })
+    await events.return?.(undefined)
+  })
 })
 
 describe("deleting an agent", () => {

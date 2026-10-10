@@ -7,7 +7,7 @@ import { CreatureWindows } from "@/components/creature/windows"
 import { AppShell } from "@/components/shell/app-shell"
 import { mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
-import { agentQuery, refreshAgent } from "@/lib/collections"
+import { agentQuery, catchUpAgent, refreshAgent } from "@/lib/collections"
 import { useAgentFavicon } from "@/lib/favicon"
 import { cameBackUnasked, forgetLastAgent, rememberLastAgent } from "@/lib/last-agent"
 import { queryClient } from "@/lib/query"
@@ -30,8 +30,15 @@ function AgentLayout() {
   const listed = useListedAgent(agentId)
 
   useEffect(() => {
+    // The stream tells of what changes while it is connected. Each time it connects, what
+    // changed before that is asked for: the first time, only what was fetched before now.
+    let since: number | undefined = Date.now()
     const subscription = client.agent(agentId).watch((event) => {
       if (event.type === "changed") refreshAgent(agentId, event.what)
+      if (event.type === "ready") {
+        catchUpAgent(agentId, since)
+        since = undefined
+      }
     })
     return () => subscription.close()
   }, [agentId])
