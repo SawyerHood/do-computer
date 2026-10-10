@@ -178,3 +178,28 @@ export function authMethods() {
     signup: config.signup,
   }
 }
+
+/** Whether anyone has an account here yet. Once someone has, someone always does. */
+let anyAccount = false
+
+/**
+ * What someone who is not signed in is shown first: the ways to sign in, whether `/` is the
+ * landing page, and whether anyone at all may make an account. Sign-up by invitation is open
+ * to the first person to arrive, who is the deployment's owner, and shut to strangers after.
+ */
+export async function frontDoor() {
+  const platform = getPlatform()
+  const { config } = platform
+  if (config.signup !== "open" && !anyAccount) {
+    anyAccount = await platform.db.get<{ id: string }>("SELECT id FROM user LIMIT 1").then(
+      (found) => found !== undefined,
+      // No table of accounts yet: nobody has asked to sign in since the deployment was made.
+      () => false,
+    )
+  }
+  return {
+    ...authMethods(),
+    landing: config.landing,
+    open: config.signup === "open" || !anyAccount,
+  }
+}

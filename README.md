@@ -77,6 +77,7 @@ runs the tests and nothing else.
 | `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                  |
 | `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` and people invited to a team can sign up. |
 | `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                                        |
+| `DC_LANDING`                               | `1` shows the landing page at `/` to whoever is not signed in; without it `/` leads to the sign-in form. It says "coming soon" where sign-up is by invitation.    |
 | `RESEND_API_KEY`, `DC_EMAIL_FROM`          | Send team invitations by email through [Resend](https://resend.com), from that address. Without both, an invitation is a link to pass on.                         |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                                                       |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                                                       |

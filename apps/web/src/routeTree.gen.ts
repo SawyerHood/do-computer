@@ -9,13 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as DaemonDotjsRouteImport } from './routes/daemon[.]js'
 import { Route as InstallDotshRouteImport } from './routes/install[.]sh'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as WelcomeRouteImport } from './routes/welcome'
-import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppPairRouteImport } from './routes/_app.pair'
 import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
 import { Route as ApiComputerKindsRouteImport } from './routes/api/computer-kinds'
@@ -79,6 +79,11 @@ import { Route as ApiAgentsAgentIdConnectorsConnectorIdConnectRouteImport } from
 import { Route as ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.model-logins.$loginId.index'
 import { Route as ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRouteImport } from './routes/api/workspaces/$workspaceId.model-logins.$loginId.answer'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
@@ -107,11 +112,6 @@ const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AppIndexRoute = AppIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AppRoute,
 } as any)
 const AppPairRoute = AppPairRouteImport.update({
   id: '/pair',
@@ -442,7 +442,7 @@ const ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AppIndexRoute
+  '/': typeof IndexRoute
   '/daemon.js': typeof DaemonDotjsRoute
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
@@ -512,6 +512,7 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/model-logins/$loginId/': typeof ApiWorkspacesWorkspaceIdModelLoginsLoginIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/daemon.js': typeof DaemonDotjsRoute
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
@@ -528,7 +529,6 @@ export interface FileRoutesByTo {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
-  '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
@@ -581,6 +581,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/daemon.js': typeof DaemonDotjsRoute
   '/install.sh': typeof InstallDotshRoute
@@ -598,7 +599,6 @@ export interface FileRoutesById {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
-  '/_app/': typeof AppIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -724,6 +724,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/model-logins/$loginId/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/daemon.js'
     | '/install.sh'
     | '/login'
@@ -740,7 +741,6 @@ export interface FileRouteTypes {
     | '/api/transcribe'
     | '/desktop/sign-in'
     | '/invite/$token'
-    | '/'
     | '/api/auth/$'
     | '/api/computers/$computerId'
     | '/api/connectors/callback'
@@ -792,6 +792,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/model-logins/$loginId'
   id:
     | '__root__'
+    | '/'
     | '/_app'
     | '/daemon.js'
     | '/install.sh'
@@ -809,7 +810,6 @@ export interface FileRouteTypes {
     | '/api/transcribe'
     | '/desktop/sign-in'
     | '/invite/$token'
-    | '/_app/'
     | '/_app/a/$agentId'
     | '/_app/w/$workspaceId'
     | '/api/auth/$'
@@ -864,6 +864,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   DaemonDotjsRoute: typeof DaemonDotjsRoute
   InstallDotshRoute: typeof InstallDotshRoute
@@ -918,6 +919,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app': {
       id: '/_app'
       path: ''
@@ -959,13 +967,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/welcome'
       preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_app/': {
-      id: '/_app/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
     }
     '/_app/pair': {
       id: '/_app/pair'
@@ -1450,14 +1451,12 @@ const AppWWorkspaceIdRouteWithChildren = AppWWorkspaceIdRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppPairRoute: typeof AppPairRoute
-  AppIndexRoute: typeof AppIndexRoute
   AppAAgentIdRoute: typeof AppAAgentIdRouteWithChildren
   AppWWorkspaceIdRoute: typeof AppWWorkspaceIdRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppPairRoute: AppPairRoute,
-  AppIndexRoute: AppIndexRoute,
   AppAAgentIdRoute: AppAAgentIdRouteWithChildren,
   AppWWorkspaceIdRoute: AppWWorkspaceIdRouteWithChildren,
 }
@@ -1497,6 +1496,7 @@ const ApiAgentsAgentIdConnectorsRouteWithChildren =
   )
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   DaemonDotjsRoute: DaemonDotjsRoute,
   InstallDotshRoute: InstallDotshRoute,
