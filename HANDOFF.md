@@ -1338,6 +1338,21 @@ Since then, newest last:
     - **Never run:** on Workers, in the desktop app, on a phone; the watch on silence against
       a connection that really died (only with a clock the test moves).
 
+36. **A route that waits for the list of agents asks again when the request is cancelled**
+    (2026-10-10; `listedAgents` in `apps/web/src/lib/collections.ts`). The run on main after
+    pull request #44 failed in `teams.spec.ts`, "a team is started from the workspace menu":
+    the team's page said "This could not be loaded: CancelledError". The route waits for the
+    list before it shows anything, the sidebar shows the same list, and a request that is
+    let go of while it is on its way is given up for everyone waiting on it. It is asked for
+    again, up to five times. Both routes that wait for the list do this (the app's own
+    address and a team's).
+    - **Not reproduced here**, with every core busy; GitHub's machines have two. What let go
+      of the request was not found. The page's own words in the failed run's artifact are
+      what this rests on, and a test that cancels the request the same way.
+    - **Two runs on main failed in a row** after thirty-five that had not, both in a browser
+      test that waits five seconds: the one before in a test of two clients (item 35's gap).
+      A failed run skips the deploy. `gh run rerun <id> --failed` runs the failed job again.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

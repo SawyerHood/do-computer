@@ -1,7 +1,7 @@
 import type { AgentState } from "@durable-computer/client"
 import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
 import { queryCollectionOptions } from "@tanstack/query-db-collection"
-import { queryOptions } from "@tanstack/react-query"
+import { CancelledError, queryOptions } from "@tanstack/react-query"
 import { createCollection } from "@tanstack/react-db"
 import { client, patience } from "./client.ts"
 import { queryClient } from "./query.ts"
@@ -70,6 +70,22 @@ export const jobsQuery = (agentId: string) =>
 const listAgents = () => client.listAgents({ signal: patience() })
 
 export const agentsQuery = queryOptions({ queryKey: agentsKey, queryFn: listAgents })
+
+/**
+ * The list of agents, for a route that waits for it before it shows anything. The request can
+ * be cancelled under it: the sidebar shows the same list, and whatever lets go of a request
+ * that is on its way, as one page gives way to another, gives it up for everyone waiting. That
+ * is not the list failing, so it is asked for again.
+ */
+export async function listedAgents(): Promise<AgentSummary[]> {
+  for (let tries = 1; ; tries++) {
+    try {
+      return await queryClient.fetchQuery(agentsQuery)
+    } catch (error) {
+      if (!(error instanceof CancelledError) || tries >= 5) throw error
+    }
+  }
+}
 
 export const schedulesQuery = (agentId: string) =>
   queryOptions({
