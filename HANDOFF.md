@@ -1055,8 +1055,28 @@ Since then, newest last:
       `.dmg` or the installer, been warned about an unsigned app, or had the app start at
       sign-in. A daemon restarting under a running background command has not been tried on
       Windows, nor has the app against do.computer.
-    - **Not built:** a signature anyone would recognise, so macOS and Windows both warn
-      before opening it (the macOS app is signed ad hoc, which only keeps it runnable); the app updating itself; a link to the app from the web app; a way to remove the
+    - **Signing (2026-10-10).** The Mac's app is signed with the owner's Developer ID
+      (team 9QCU24SXK5) and checked by Apple, where the repository has the secrets `CSC_LINK`,
+      `CSC_KEY_PASSWORD`, `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, which
+      it now has. Why: an app signed by nobody is another app to macOS with every build, so
+      the owner's Mac refused Accessibility and Screen Recording to 0.3.1 while System
+      Settings showed both on, granted to 0.2.0 (`tccd` logs "Failed to match existing code
+      requirement"). `electron-builder.yml` is the signed app (hardened runtime,
+      `assets/entitlements.mac.plist`); `electron-builder.unsigned.yml` extends it for a pack
+      with no certificate, which is what `pnpm package` and a repository without the secrets
+      make. The workflow puts the certificate in a keychain of its own and points the packing
+      at it (`CSC_KEYCHAIN`): electron-builder 26.15.3 given `CSC_LINK` hands macOS the
+      certificate's password for the keychain's, which macOS 26 refuses. Apple is asked for a
+      release and for a run from the Actions tab, not for a push to main. A run from the
+      Actions tab on the branch signed, was checked by Apple and passed the packed app's
+      tests, the driver's among them, and that build was installed on the owner's Mac.
+      **Mine, not the owner's:** asking Apple only then; no `disable-library-validation`,
+      which the unsigned app had from electron-builder's defaults; the Apple Events
+      entitlement, for `osascript` in an agent's command. **Never run:** whether the two
+      permissions are kept from one signed version to the next, which is the point of it; an
+      agent's `osascript` under the stricter rules; a signed release from a tag.
+    - **Not built:** a signature Windows would recognise, so Windows warns before opening
+      it; the app updating itself; a link to the app from the web app; a way to remove the
       computer from the app's own window (it is removed under Computers, and the app notices);
       changing read-only after pairing other than by tightening it.
     - **Mine, not the owner's:** all of the above, and in particular that the window loads
@@ -1207,7 +1227,8 @@ Since then, newest last:
       (`e2e/driver.spec.ts`). The overlay's window is made on all three, and the app answers a
       real daemon's call for a pretended screen.
     - **Never run:** an agent using a real screen on macOS or Windows: a click, a key, a
-      picture taken there; the two macOS permissions, and whether an unsigned app keeps them;
+      picture taken there; the two macOS permissions (an unsigned app loses them with every
+      build: see Signing under the desktop app);
       how the overlay looks on a real desktop, its clicks, its being kept out of pictures, and
       Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch,
       where Chrome may ask twice, once for dev-browser and once for the picture. The browser on
