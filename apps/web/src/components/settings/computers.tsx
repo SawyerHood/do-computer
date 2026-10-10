@@ -662,8 +662,8 @@ function ShownBrowser({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-/** Kinds that cannot be added: no computer at all, and the shell that is one agent's alone. */
-const NOT_ADDED: readonly string[] = ["none", "just-bash"]
+/** Whether a kind can be added: not no computer at all, nor one that is one agent's alone. */
+const canBeAdded = (kind: ComputerKind) => kind.id !== "none" && kind.perAgent !== true
 
 /**
  * The computers the user can see: the machines of their workspaces, and the ones people have
@@ -693,7 +693,7 @@ export function ComputersSettings({
     queryFn: () => client.computerKinds(),
     staleTime: Number.POSITIVE_INFINITY,
   })
-  const addable = (kinds?.kinds ?? []).filter((kind) => !NOT_ADDED.includes(kind.id))
+  const addable = (kinds?.kinds ?? []).filter(canBeAdded)
   const workspaces = useWorkspaces()?.workspaces ?? []
   const agents = useAgentsById()
   // As often as the list under it, which is looked at for the same reason.

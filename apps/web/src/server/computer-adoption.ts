@@ -2,7 +2,7 @@ import type { AgentComputer } from "@durable-computer/agent"
 import { personalWorkspaceId } from "@durable-computer/protocol"
 import type { AppDatabase } from "@durable-computer/runtime"
 import { type ComputerRow, grant, machinesOf } from "./computer-access.ts"
-import { UNSHARED_KINDS } from "./sandbox.ts"
+import { unsharedKinds } from "./sandbox.ts"
 
 /** A name people and agents can say: lowercase letters, digits and hyphens. */
 const nameFrom = (value: string) =>
@@ -29,6 +29,8 @@ export async function adoptMachines(
   machines: readonly { kind: string; home: string; current: boolean }[],
   agentName: string | null,
   now = Date.now(),
+  /** The kinds whose machine is one agent's alone, where the agents run. */
+  unshared: readonly string[] = unsharedKinds("node"),
 ): Promise<(AgentComputer & { id: string })[]> {
   const agent = await db.get<{ owner_id: string; workspace_id: string | null }>(
     "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
@@ -38,7 +40,7 @@ export async function adoptMachines(
   const workspaceId = agent.workspace_id ?? personalWorkspaceId(agent.owner_id)
   const called = nameFrom(agentName ?? "") || "agent"
   for (const machine of machines) {
-    if (!machine.current && UNSHARED_KINDS.includes(machine.kind)) continue
+    if (!machine.current && unshared.includes(machine.kind)) continue
     let row = await db.get<ComputerRow>(
       "SELECT * FROM dc_computers WHERE kind = ? AND machine_key = ?",
       machine.kind,

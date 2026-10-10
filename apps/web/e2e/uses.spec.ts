@@ -147,11 +147,13 @@ test.describe("an agent using a computer's screen", () => {
       timeout: 20_000,
     })
     await expect(page.locator('[data-use="screen"]')).toHaveCount(1)
-    // The agent's pointer is where it last clicked, three quarters of the way across.
+    // The agent's pointer is where it last clicked, three quarters of the way across. What it is
+    // doing is said as a step begins and the pointer moves when the step is over, so until then
+    // it is still where the first click left it.
     const pointer = view.locator("[data-pointer]")
     await expect(pointer).toHaveCSS("left", /px/)
-    expect(await pointer.evaluate((el: HTMLElement) => el.style.left)).toBe("75%")
-    expect(await pointer.evaluate((el: HTMLElement) => el.style.top)).toBe("75%")
+    await expect.poll(() => pointer.evaluate((el: HTMLElement) => el.style.left)).toBe("75%")
+    await expect.poll(() => pointer.evaluate((el: HTMLElement) => el.style.top)).toBe("75%")
 
     await view.getByRole("button", { name: "Stop" }).click()
     const word = page.locator('[data-use-ended="screen"]').last()

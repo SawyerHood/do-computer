@@ -45,7 +45,7 @@ import {
   requestsFor,
   ungrant,
 } from "./computer-access.ts"
-import { UNSHARED_KINDS } from "./sandbox.ts"
+import { unsharedKinds } from "./sandbox.ts"
 import { defaultComputerFor, deploymentComputers } from "./settings.ts"
 import { agentAccess, roleIn } from "./teams.ts"
 
@@ -330,9 +330,11 @@ export async function tellWorkspace(workspaceId: string): Promise<void> {
   await Promise.all(rows.map((row) => tellMachines(row.id)))
 }
 
+/** Whether a kind's machine is one agent's alone, where this server runs. */
+const unshared = (kind: string) => unsharedKinds(getPlatform().target).includes(kind)
+
 /** Whether a machine can serve more than one agent. One whose files are with an agent cannot. */
-const shareable = (row: Pick<ComputerRow, "kind">) =>
-  isMachine(row) && !UNSHARED_KINDS.includes(row.kind)
+const shareable = (row: Pick<ComputerRow, "kind">) => isMachine(row) && !unshared(row.kind)
 
 /** A name in a workspace that no other computer of it has: `wanted`, or that with a number. */
 async function freeName(workspaceId: string, wanted: string): Promise<string> {
@@ -387,9 +389,7 @@ async function insertMachine(input: {
 
 /** The kinds of machine that can be added to a workspace: every kind that agents can share. */
 export function addableKinds(): AddableKind[] {
-  return deploymentComputers().kinds.filter(
-    (kind) => kind.id !== "none" && !UNSHARED_KINDS.includes(kind.id),
-  )
+  return deploymentComputers().kinds.filter((kind) => kind.id !== "none" && !unshared(kind.id))
 }
 
 /** The workspace an agent is in, and who made it. */
@@ -494,7 +494,7 @@ export async function removeMachineFor(
 export async function provideFor(agentId: string, workspaceId: string, by: string): Promise<void> {
   const { db } = getPlatform()
   const kind = await defaultComputerFor(by)
-  if (UNSHARED_KINDS.includes(kind)) {
+  if (unshared(kind)) {
     const row = await insertMachine({
       workspaceId,
       by,
@@ -528,7 +528,7 @@ export async function addComputer(user: SessionUser, request: Request): Promise<
   if (
     typeof kind !== "string" ||
     kind === "none" ||
-    UNSHARED_KINDS.includes(kind) ||
+    unshared(kind) ||
     !deploymentComputers().kinds.some((offered) => offered.id === kind)
   ) {
     return fail(400, "This deployment has no machine of that kind to add.")
