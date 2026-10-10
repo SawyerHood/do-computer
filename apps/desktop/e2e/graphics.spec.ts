@@ -32,13 +32,15 @@ test.beforeAll(async () => {
   )
   app = await electron.launch({
     ...(packed ? { executablePath: packed } : {}),
-    // Unlike the other tests' app, this one draws in 3D: in software, so that a machine with no
-    // graphics card can run it too.
+    // Unlike the other tests' app, this one draws in 3D. A Mac has a graphics card to do it
+    // with, GitHub's included, and no way to do it in software. Elsewhere it is done in
+    // software, so that a machine with no graphics card can run this too.
     args: [
       ...(packed ? [] : [appEntry]),
       "--no-sandbox",
-      "--use-angle=swiftshader",
-      "--enable-unsafe-swiftshader",
+      ...(process.platform === "darwin"
+        ? []
+        : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
     ],
     env: {
       ...process.env,
