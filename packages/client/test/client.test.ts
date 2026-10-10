@@ -147,6 +147,47 @@ describe("client", () => {
     }
   })
 
+  it("asks again for a stream the server never answered", async () => {
+    vi.useFakeTimers()
+    try {
+      const given: AbortSignal[] = []
+      const client = createClient({
+        baseUrl: "",
+        fetch: (_input, init) => {
+          given.push(init!.signal!)
+          // The first is never answered, as by a server that is stuck. The second is.
+          if (given.length === 1) {
+            return new Promise<Response>((_resolve, reject) => {
+              init!.signal!.addEventListener("abort", () => reject(new Error("gone")))
+            })
+          }
+          return Promise.resolve(
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(encodeSse({ type: "snapshot", state: EMPTY_CHAT }))
+                },
+              }),
+            ),
+          )
+        },
+      })
+      const states: ChatState[] = []
+      const subscription = client.agent("a").watchChat("1", (next) => states.push(next))
+      await vi.advanceTimersByTimeAsync(3 * SSE_HEARTBEAT_MS - 1_000)
+      expect(given).toHaveLength(1)
+      expect(given[0]!.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(given[0]!.aborted).toBe(true)
+      expect(given).toHaveLength(2)
+      expect(states).toHaveLength(1)
+      subscription.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("stops instead of retrying a stream the server refuses", async () => {
     let connections = 0
     const client = createClient({

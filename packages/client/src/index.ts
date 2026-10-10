@@ -216,6 +216,14 @@ export function createClient(options: ClientOptions) {
         const give = () => lost.abort()
         controller.signal.addEventListener("abort", give)
         let silence: ReturnType<typeof setTimeout> | undefined
+        // A connection can die without ending: a laptop that slept, a network that changed.
+        // The server is never this quiet, so one that is has gone, and is asked for again.
+        // That goes for one that was never answered too: a server that is stuck says nothing.
+        const hear = () => {
+          clearTimeout(silence)
+          silence = setTimeout(() => lost.abort(), STREAM_SILENCE_MS)
+        }
+        hear()
         try {
           const response = await send(path, {
             headers: { accept: "text/event-stream" },
@@ -229,12 +237,6 @@ export function createClient(options: ClientOptions) {
           if (!response.ok || response.body === null) throw new Error(`HTTP ${response.status}`)
           attempt = 0
           onStatus?.("open")
-          // A connection can die without ending: a laptop that slept, a network that changed.
-          // The server is never this quiet, so one that is has gone, and is asked for again.
-          const hear = () => {
-            clearTimeout(silence)
-            silence = setTimeout(() => lost.abort(), STREAM_SILENCE_MS)
-          }
           hear()
           for await (const event of readSse<T>(response.body, hear)) onEvent(event)
         } catch {
