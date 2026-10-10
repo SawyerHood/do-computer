@@ -154,6 +154,35 @@ test("the sign-in page sends someone new to the first run", async ({ page }) => 
   await card(page, /Is somebody out there\?/)
 })
 
+test("a card comes back closed, and opens once its words are said", async ({ page }) => {
+  // With the words written out as they are said, which is when a card has something to open.
+  // The scene is not drawn here: a machine that draws it in software writes the words too
+  // slowly to wait for, and the card is the same over the plain night.
+  await page.emulateMedia({ reducedMotion: "no-preference" })
+  await page.goto("/welcome")
+  const asked = page.locator("[data-card]")
+  await expect(asked.getByRole("status")).toHaveText(/Is somebody out there\?$/)
+
+  // What the card asks for only ever opens. It used to come back still open on the last answer,
+  // as tall as the next form, and shut as the words began: that is counted here.
+  await page.evaluate(() => {
+    const seen = { shut: 0 }
+    Object.assign(window, { seenShutting: seen })
+    document.addEventListener("transitionrun", (event) => {
+      const more = event.target as HTMLElement
+      if (event.propertyName === "grid-template-rows" && more.matches("[data-more][inert]")) {
+        seen.shut++
+      }
+    })
+  })
+  await asked.getByRole("button", { name: "Hello!" }).click()
+  await expect(asked.getByLabel("Your name")).toBeVisible()
+  const seen = await page.evaluate(
+    () => (window as unknown as { seenShutting: { shut: number } }).seenShutting,
+  )
+  expect(seen.shut).toBe(0)
+})
+
 test("on a phone held sideways the card leaves the egg its room, and the rest of it is scrolled to", async ({
   page,
 }) => {

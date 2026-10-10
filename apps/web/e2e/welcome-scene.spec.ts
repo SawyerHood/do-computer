@@ -26,29 +26,3 @@ test("the egg is not seen until it is known where it starts", async ({ page }) =
   await expect(egg).toBeVisible()
   expect((await egg.boundingBox())!.y).toBeLessThan(0)
 })
-
-test("a card comes back closed, and opens once its words are said", async ({ page }) => {
-  await page.goto("/welcome")
-  await page.getByRole("button", { name: "Skip" }).click()
-  const asked = page.locator("[data-card]")
-  await expect(asked.getByRole("status")).toHaveText(/Is somebody out there\?$/)
-
-  // What the card asks for only ever opens. It used to come back still open on the last answer,
-  // as tall as the next form, and shut as the words began: that is counted here.
-  await page.evaluate(() => {
-    const seen = { shut: 0 }
-    Object.assign(window, { seenShutting: seen })
-    document.addEventListener("transitionrun", (event) => {
-      const more = event.target as HTMLElement
-      if (event.propertyName === "grid-template-rows" && more.matches("[data-more][inert]")) {
-        seen.shut++
-      }
-    })
-  })
-  await asked.getByRole("button", { name: "Hello!" }).click()
-  await expect(asked.getByLabel("Your name")).toBeVisible()
-  const seen = await page.evaluate(
-    () => (window as unknown as { seenShutting: { shut: number } }).seenShutting,
-  )
-  expect(seen.shut).toBe(0)
-})

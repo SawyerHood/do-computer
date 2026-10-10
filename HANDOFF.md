@@ -1482,7 +1482,10 @@ Since then, newest last:
       through, shut as the words began, and opened again when they were said (the owner:
       "some snapping when animating between the forms"). It is now a new element for each
       step (`key={view.step}`), which starts shut. The test counts closing transitions:
-      there are none.
+      there are none. It is in `welcome.spec.ts`, where the scene is not drawn: beside the
+      drawn scene it failed on main the first time it ran there, because a build machine
+      that draws the sky in software wrote the egg's words too slowly for the test's wait,
+      and a failed run on main is a deploy that does not happen.
     - **What it asks**, each answer a crack in the shell: who they are (an account, or signing
       in, with the providers the deployment has), a name and a color for the agent, and, in
       the desktop app on its first run, whether it may work on this computer. Then it
