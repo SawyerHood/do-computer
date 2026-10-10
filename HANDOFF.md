@@ -1497,6 +1497,56 @@ Since then, newest last:
       Windows taskbar. The pictures were looked at in Chromium, and the two pages in the
       built app on Linux.
 
+41. **What the creatures cost a computer, and the GPU process that died** (2026-10-10;
+    `packages/mascot/src/orb-core.js`, `apps/web/e2e/agents.spec.ts`). The owner asked for a
+    profile of the client, that it "doesn't melt your cpu or gpu", and while it was under way:
+    "I'm also still getting the gpu crashes and it is mainly in the desktop app". Measured on
+    the owner's MacBook Air (Chrome 154 and the installed app, its own graphics card, over
+    SSH and CDP) and in headless Chromium here.
+    - **What was fine:** a chat of eighty long messages. Typing in it, scrolling it and an
+      answer streaming into it each took 6 to 14% of one core's main thread. Nothing was
+      changed there.
+    - **What was not: the page at rest.** With nothing happening, a page with the sidebar open
+      (ten creatures) took about 21% of a core in the page and 44% in the GPU process, for as
+      long as it was showing. Almost all of it was the creatures' loop: they were drawn one
+      at a time, each copied out of the graphics card by itself, and spread over every frame
+      the screen showed, so the page was drawn again sixty times a second. The loop counted
+      frames, so on a 120 Hz screen it would have drawn everything twice as often.
+    - **Now** the creatures are drawn on beats: thirty a second by the clock, whatever the
+      screen's rate, every other one for those in the sidebar (fifteen a second; it was
+      twenty). All that are due are drawn side by side into one picture and each takes its
+      square of it, so there is one copy out of the card per beat. The same page, measured
+      in the same sitting, three runs of each: about 15% and 21%. Script time on the page
+      went from about 7% to 4%. Where there is no graphics card and the creatures are
+      drawn in software, as in headless Chromium here, the same page kept more than four
+      cores busy and now keeps two and a half; one creature alone is still a whole core.
+    - **Why the GPU process died.** The app's own log, from a second copy started with
+      `--enable-logging=stderr`: `[Device] is lost` from Skia's Dawn device, then "Restarting
+      GPU process due to unrecoverable error. Context was lost." After three of those within
+      a few seconds Chromium starts the GPU process with `--use-gl=disabled`, and the app is
+      drawn in software until it is started again: the owner's own copy was found that way,
+      its GPU process replaced three times in five seconds, 1 min 45 s after it started.
+      What sets it off is the WebGL context being thrown away while canvases still hold what
+      they copied from it. That happened whenever the last creature left the page: at the
+      start, where the tab's icon draws a creature and lets it go before the others exist,
+      and on every move from one agent to another with the sidebar shut. Moving between two
+      agents that way killed the GPU process in 2 of 6 starts of the old code, each time
+      within fourteen moves, and in none of 20 starts of the new.
+    - **Now** what a creature was drawn with is kept for ten seconds after it goes
+      (`Stage.retire`): its shaders, and with them the context. The creatures of the next
+      page find both. The picture they are drawn into starts with room for a page's worth and
+      only grows. A test counts the contexts a page asks for while it moves between agents.
+    - **Mine, not the owner's:** fifteen pictures a second in the sidebar where it was
+      twenty; ten seconds.
+    - **Tried and left out:** sleeping through the frames between beats with a timer (no
+      cheaper, and beats came late); a layer of its own for each creature's canvas (no
+      cheaper).
+    - **Left as it was:** the box that hops while it waits to be opened, and its twinkle, are
+      CSS animations that run for good and cost about 4% of a core in the page and 3% in the
+      GPU process while a box is waiting. A page that is not showing draws nothing, as before.
+    - **Not known:** whether this is every way the GPU process dies. macOS recorded GPU
+      restarts of its own on 2026-10-09 (item 33), and none while these were reproduced.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
