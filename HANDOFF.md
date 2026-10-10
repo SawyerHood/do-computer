@@ -708,6 +708,9 @@ Since then, newest last:
     - **The loop.** The creature earns a treat each time its agent answers someone in a chat or
       in Slack, and each time a scheduled run reports. A treat is given by carrying it onto the
       creature or pressing the pile; it opens its mouth, eats it in three bites and is pleased.
+      A treat that is carried is followed from the window and not from the pile: a treat earned
+      meanwhile makes the pile anew, and a pile that held the pointer never heard it let go, so
+      the treat hung there and no other could be given until the page was loaded again.
       Four treats fill a box (`TREATS_PER_BOX`). A box holds one thing to wear that the creature
       does not have yet: the rarity is drawn first (60, 25, 10, 4 and 1 in a hundred, among the
       rarities that still have something to find), then a thing of it. Every creature starts
@@ -1528,7 +1531,10 @@ Since then, newest last:
     - **Now** the creatures are drawn on beats: thirty a second by the clock, whatever the
       screen's rate, every other one for those in the sidebar (fifteen a second; it was
       twenty). All that are due are drawn side by side into one picture and each takes its
-      square of it, so there is one copy out of the card per beat. The same page, measured
+      square of it, so there is one copy out of the card per beat. Each starts on a whole
+      tile of the dither (`TILE`, four pixels): the dither is laid over the whole picture, and
+      a creature's place in it changes with which others are due, so without that its dither
+      shifted from beat to beat and flickered, the box's most of all. The same page, measured
       in the same sitting, three runs of each: about 15% and 21%. Script time on the page
       went from about 7% to 4%. Where there is no graphics card and the creatures are
       drawn in software, as in headless Chromium here, the same page kept more than four

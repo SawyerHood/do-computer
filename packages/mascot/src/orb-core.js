@@ -813,6 +813,8 @@ var RING_FRAG = [
    ================================================================ */
 // The longest side of the picture the orbs are drawn into together.
 var SHEET = 2048;
+// The dither repeats every so many pixels, each way.
+var TILE = 4;
 // How long what an orb was drawn with is kept after it has gone.
 var LINGER_MS = 10000;
 var Stage = {
@@ -1014,7 +1016,12 @@ var Stage = {
         if (x > 0 && x + o.px > SHEET) { x = 0; y += row; row = 0; }
         if (to > from && y + o.px > SHEET) break;
         o.sx = x; o.sy = y;
-        x += o.px; if (x > w) w = x; if (o.px > row) row = o.px;
+        // Each starts on a whole tile of the dither, which is laid over the picture and not over
+        // an orb's square of it. Which orbs are due changes from beat to beat, and where each
+        // is put with them: anywhere else, its dither would shift under it as it did, and
+        // flicker.
+        var step = Math.ceil(o.px / TILE) * TILE;
+        x += step; if (x > w) w = x; if (step > row) row = step;
       }
       var h = y + row;
       // Made larger only, and from the first with room for a page's worth. A new size is a new

@@ -39,7 +39,7 @@ function useTreats(
   const [held, setHeld] = useState<Held | null>(null)
   const [crumbs, setCrumbs] = useState<Crumb[]>([])
   const [hearts, setHearts] = useState<Heart[]>([])
-  const carry = useRef({ x: 0, y: 0, moved: false, near: false })
+  const carry = useRef({ x: 0, y: 0, moved: false, near: false, pointer: 0 })
   const count = useRef(0)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(
@@ -112,30 +112,24 @@ function useTreats(
   }
 
   const busy = held !== null
+  const carrying = held !== null && !held.eating
   const none = creature === undefined || creature.treats <= 0
-  const handlers = {
-    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
-      if (busy || none || creature === undefined || event.button !== 0) return
-      event.preventDefault()
-      event.currentTarget.setPointerCapture(event.pointerId)
-      carry.current = { x: event.clientX, y: event.clientY, moved: false, near: false }
-      const kind = topTreat(agentId, creature)
-      setHeld({ kind, x: event.clientX, y: event.clientY, eating: false, bites: 0 })
-    },
-    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+  /** What the pointer does with the treat it picked up. */
+  const hand = {
+    move: (event: PointerEvent) => {
       if (held === null || held.eating) return
-      const hand = carry.current
-      if (Math.abs(event.clientX - hand.x) + Math.abs(event.clientY - hand.y) > CARRIED_PX) {
-        hand.moved = true
+      const from = carry.current
+      if (Math.abs(event.clientX - from.x) + Math.abs(event.clientY - from.y) > CARRIED_PX) {
+        from.moved = true
       }
       const near = at(event.clientX, event.clientY)
-      if (near !== hand.near) {
-        hand.near = near
+      if (near !== from.near) {
+        from.near = near
         offerMascot(agentId, near)
       }
       setHeld({ ...held, x: event.clientX, y: event.clientY })
     },
-    onPointerUp: (event: React.PointerEvent<HTMLElement>) => {
+    up: (event: PointerEvent) => {
       if (held === null || held.eating) return
       const from = { x: event.clientX, y: event.clientY }
       // Let go on the creature, it is eaten. Pressed and not carried, it goes there by itself.
@@ -143,10 +137,51 @@ function useTreats(
       offerMascot(agentId, false)
       setHeld(null)
     },
-    onPointerCancel: () => {
+    cancel: () => {
       if (held === null || held.eating) return
       offerMascot(agentId, false)
       setHeld(null)
+    },
+  }
+  const heard = useRef(hand)
+  heard.current = hand
+  // The treat is followed from the window, and not from the pile it was taken from. A treat
+  // earned while one is carried makes the pile anew, and the pointer's capture goes with the old
+  // one: the pile then never heard the treat let go, and it hung where it was for good.
+  useEffect(() => {
+    if (!carrying) return
+    const own = (event: PointerEvent) => event.pointerId === carry.current.pointer
+    const move = (event: PointerEvent) => (own(event) ? heard.current.move(event) : undefined)
+    const up = (event: PointerEvent) => (own(event) ? heard.current.up(event) : undefined)
+    const cancel = (event: PointerEvent) => (own(event) ? heard.current.cancel() : undefined)
+    // A window that is left with the button down is not told when it comes up.
+    const left = () => heard.current.cancel()
+    window.addEventListener("pointermove", move, true)
+    window.addEventListener("pointerup", up, true)
+    window.addEventListener("pointercancel", cancel, true)
+    window.addEventListener("blur", left)
+    return () => {
+      window.removeEventListener("pointermove", move, true)
+      window.removeEventListener("pointerup", up, true)
+      window.removeEventListener("pointercancel", cancel, true)
+      window.removeEventListener("blur", left)
+    }
+  }, [carrying])
+
+  const handlers = {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (busy || none || creature === undefined || event.button !== 0) return
+      event.preventDefault()
+      event.currentTarget.setPointerCapture(event.pointerId)
+      carry.current = {
+        x: event.clientX,
+        y: event.clientY,
+        moved: false,
+        near: false,
+        pointer: event.pointerId,
+      }
+      const kind = topTreat(agentId, creature)
+      setHeld({ kind, x: event.clientX, y: event.clientY, eating: false, bites: 0 })
     },
     // The pointer's own press is handled above; this is the keyboard's.
     onClick: (event: React.MouseEvent<HTMLElement>) => {

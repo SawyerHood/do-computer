@@ -125,3 +125,47 @@ test("enough treats and the creature finds another box", async ({ page }) => {
   }
   await expect(box).toBeVisible()
 })
+
+test("a treat carried while another is earned is still eaten when it is let go", async ({
+  page,
+}) => {
+  await open(page)
+  await say(page, "One for now")
+  await expect(treats(page, 1)).toBeVisible()
+  const pile = (await treats(page, 1).boundingBox())!
+  const creature = (await panel(page).getByRole("img", { name: "Agent avatar" }).boundingBox())!
+  await page.mouse.move(pile.x + pile.width / 2, pile.y + pile.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(pile.x + pile.width / 2 + 30, pile.y - 30, { steps: 4 })
+  // The pile is made anew as the treat lands on it, and the pointer was held by the old one:
+  // the treat then hung where it was let go, and no other could be given.
+  await say(page, "And one while it is carried")
+  await expect(treats(page, 2)).toBeVisible()
+  await page.mouse.move(creature.x + creature.width / 2, creature.y + creature.height * 0.6, {
+    steps: 6,
+  })
+  await page.mouse.up()
+  await expect(treats(page, 1)).toHaveAttribute("aria-busy", "false")
+})
+
+test("a box that is waiting holds still", async ({ page }) => {
+  // Asked for less motion it does not rock, so its picture should be the same on every beat.
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await open(page)
+  await panel(page).getByRole("button", { name: "Open Juniper's box" }).click()
+  const box = page.getByRole("dialog")
+  await expect(box.getByRole("heading", { name: "Juniper found a box" })).toBeVisible()
+  await expect(box.locator("canvas")).toBeVisible()
+  // The creatures on the page are drawn side by side in one picture, some on every beat and
+  // some on every other. The box's place among them moved with that, and its dither with it.
+  const pictures = () =>
+    box.locator("canvas").evaluate(async (canvas: HTMLCanvasElement) => {
+      const seen = new Set<string>()
+      for (let frame = 0; frame < 24; frame++) {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+        seen.add(canvas.toDataURL())
+      }
+      return seen.size
+    })
+  await expect.poll(pictures).toBe(1)
+})
