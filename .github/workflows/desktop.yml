@@ -91,9 +91,10 @@ jobs:
             -k "$keychain" -T /usr/bin/codesign -T /usr/bin/productbuild
           rm "$RUNNER_TEMP/certificate.p12"
           # Apple's own certificate between its root and a Developer ID, without which the
-          # one just put in is not taken for valid on a Mac that has not met it.
+          # one just put in is not taken for valid on a Mac that has not met it. GitHub's Macs
+          # have, and say it already exists: whether the certificate is valid is asked below.
           curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
-          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain" || true
           # Lets codesign use the key without a question nobody is there to answer.
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
