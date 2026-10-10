@@ -104,10 +104,15 @@ test("a picture pasted into the message box is attached, under a name of its own
   // A screenshot on the clipboard is called image.png every time, so it is named for the moment.
   await paste("image.png")
   const attached = page.getByRole("list", { name: "Attached files" })
-  await expect(attached.getByText(/^pasted-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.png$/)).toBeVisible()
+  // It is shown as the picture it is, small, and not as a name.
+  const pasted = attached.getByRole("img", {
+    name: /^pasted-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.png$/,
+  })
+  await expect(pasted).toBeVisible()
+  await expect(pasted).toHaveJSProperty("naturalWidth", 1)
   // A copied file keeps its own name. What was typed is left as it was.
   await paste("receipt.png")
-  await expect(attached.getByText("receipt.png")).toBeVisible()
+  await expect(attached.getByRole("img", { name: "receipt.png" })).toBeVisible()
   await expect(composer(page)).toHaveValue("Look at this: ")
   // The built-in echo model cannot look at pictures, and the box says what that means.
   await expect(attached.getByRole("note")).toContainText("cannot look at pictures")
@@ -119,6 +124,68 @@ test("a picture pasted into the message box is attached, under a name of its own
       .getByText(/Attached: pasted-[\d_-]+\.png, receipt\.png/)
       .first(),
   ).toBeVisible()
+  await expect(attached).toHaveCount(0)
+})
+
+test("attached pictures are shown small beside the names of other files, and open large", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  const picture = async (colour: string) =>
+    Buffer.from(
+      await page.evaluate((colour) => {
+        const canvas = document.createElement("canvas")
+        canvas.width = 300
+        canvas.height = 200
+        const context = canvas.getContext("2d")!
+        context.fillStyle = colour
+        context.fillRect(0, 0, 300, 200)
+        return canvas.toDataURL("image/png").split(",")[1]!
+      }, colour),
+      "base64",
+    )
+  // Chosen together, as the picker allows: every one of them is attached, not only the first.
+  await page.getByLabel("Choose files to attach").setInputFiles([
+    { name: "harbour.png", mimeType: "image/png", buffer: await picture("#1b6ca8") },
+    { name: "packing-list.txt", mimeType: "text/plain", buffer: Buffer.from("socks\n") },
+    { name: "meadow.png", mimeType: "image/png", buffer: await picture("#4c9f38") },
+  ])
+  const attached = page.getByRole("list", { name: "Attached files" })
+  await expect(attached.getByText("packing-list.txt")).toBeVisible()
+  await expect(attached.locator("img")).toHaveCount(2)
+  // The picture itself has been drawn, and its name is not written out beside it.
+  const harbour = attached.getByRole("img", { name: "harbour.png" })
+  await expect(harbour).toBeVisible()
+  await expect(harbour).toHaveJSProperty("naturalWidth", 300)
+  await expect(attached.getByText("harbour.png")).toHaveCount(0)
+  await page.screenshot({ path: "test-results/chat-attached-pictures.png" })
+
+  // Clicked, it opens large, and the arrow keys go from one picture to the next.
+  const open = attached.getByRole("button", { name: "Open harbour.png large" })
+  await open.click()
+  const large = page.getByRole("dialog", { name: "harbour.png" })
+  await expect(large.getByRole("img", { name: "harbour.png" })).toBeVisible()
+  await expect(large.getByText("1 of 2")).toBeVisible()
+  await page.keyboard.press("ArrowRight")
+  await expect(
+    page.getByRole("dialog", { name: "meadow.png" }).getByRole("img", { name: "meadow.png" }),
+  ).toBeVisible()
+  await page.keyboard.press("ArrowRight")
+  await expect(large.getByText("1 of 2")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(open).toBeFocused()
+
+  // Each can be taken off again, from the keyboard as well as with the mouse.
+  await page.keyboard.press("Tab")
+  await expect(attached.getByRole("button", { name: "Remove harbour.png" })).toBeFocused()
+  await page.keyboard.press("Enter")
+  await expect(attached.locator("img")).toHaveCount(1)
+  await expect(harbour).toHaveCount(0)
+  await attached.getByRole("button", { name: "Remove meadow.png" }).click()
+  await expect(attached.locator("img")).toHaveCount(0)
+  await attached.getByRole("button", { name: "Remove packing-list.txt" }).click()
   await expect(attached).toHaveCount(0)
 })
 

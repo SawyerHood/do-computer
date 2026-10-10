@@ -8,25 +8,16 @@ import {
 import { ArrowUpIcon, MicrophoneIcon, PaperclipIcon, StopIcon, XIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useEffect, useRef, useState } from "react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { draftAtom } from "@/lib/atoms"
 import { pictureFor } from "@/lib/pictures"
 import { type DictationEnd, type DictationState, useDictation } from "@/lib/use-dictation"
 import { cn } from "@/lib/utils"
+import { type AttachedFile, AttachedFiles } from "./attached-files.tsx"
 import { Waveform } from "./waveform.tsx"
 
 const MAX_HEIGHT_PX = 200
-
-/** Something attached to a message: a file in the library, a picture for the agent to look at, or both. */
-type Attachment = {
-  id: string
-  name: string
-  /** Whether it is in the library, and so can be named to the agent as a file. */
-  stored: boolean
-  image?: MessageImage
-}
 
 /**
  * A pasted picture arrives named "image.png" every time. It is given the moment it was pasted,
@@ -77,7 +68,7 @@ export function Composer({
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
-  const [attached, setAttached] = useState<Attachment[]>([])
+  const [attached, setAttached] = useState<AttachedFile[]>([])
   const [uploading, setUploading] = useState(0)
   const [attachError, setAttachError] = useState<string>()
   // Dictated text joins whatever is already typed. It is put in the box to be read over, or
@@ -96,9 +87,9 @@ export function Composer({
     cancelDictation()
   }, [draftKey, cancelDictation])
 
-  const attach = async (files: Iterable<File> | null) => {
+  const attach = async (files: File[]) => {
     setAttachError(undefined)
-    for (const file of files ?? []) {
+    for (const file of files) {
       setUploading((count) => count + 1)
       // A picture is made ready for the agent to look at while the file itself goes to the
       // library. Either is enough to attach it: a picture that could not be saved is still seen.
@@ -183,39 +174,16 @@ export function Composer({
           ))}
         </div>
       ) : null}
-      {attached.length > 0 || uploading > 0 ? (
-        <ul aria-label="Attached files" className="flex flex-wrap gap-1.5 px-2">
-          {attached.map((file) => (
-            <li key={file.id}>
-              <Badge variant="outline" className="h-6 bg-surface pr-0.5 pl-2.5 font-normal">
-                <span className="max-w-48 truncate">{file.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`Remove ${file.name}`}
-                  className="size-5 text-muted-foreground"
-                  onClick={() =>
-                    setAttached((current) => current.filter((other) => other.id !== file.id))
-                  }
-                >
-                  <XIcon />
-                </Button>
-              </Badge>
-            </li>
-          ))}
-          {uploading > 0 ? (
-            <li className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-              <Spinner className="size-3" /> Attaching…
-            </li>
-          ) : null}
-          {!sees && attached.some((file) => file.image !== undefined) ? (
-            <li role="note" className="basis-full px-1 text-xs text-muted-foreground">
-              {agentName}’s model cannot look at pictures, so it gets these as files. Pick a model
-              that can on its page.
-            </li>
-          ) : null}
-        </ul>
-      ) : null}
+      <AttachedFiles
+        files={attached}
+        uploading={uploading}
+        note={
+          !sees && attached.some((file) => file.image !== undefined)
+            ? `${agentName}’s model cannot look at pictures, so it gets these as files. Pick a model that can on its page.`
+            : undefined
+        }
+        onRemove={(id) => setAttached((current) => current.filter((file) => file.id !== id))}
+      />
       <form
         className={cn(
           "flex gap-1 rounded-2xl border bg-surface p-1.5 shadow-sm focus-within:border-input",
@@ -233,7 +201,9 @@ export function Composer({
           hidden
           aria-label="Choose files to attach"
           onChange={(event) => {
-            void attach(event.target.files)
+            // Copied out first: emptying the picker empties its list too, and all but the first
+            // file would be gone by the time they were reached.
+            void attach([...(event.target.files ?? [])])
             event.target.value = ""
           }}
         />
