@@ -33,6 +33,18 @@ export function seedAuthStores(): void {
   for (const store of AUTH_STORES) shared.context[store] ??= new AsyncLocalStorage()
 }
 
+/**
+ * Better Auth is not to compare the tables with what it expects.
+ *
+ * It otherwise does when an instance is first used, once, and every call on that instance waits
+ * for that one comparison: a promise kept on the instance. On Workers it is never finished if
+ * the request it was started in goes away first, which a page does to one of its requests each
+ * time it loads, and every later call then waits for good. This is the promise that was found
+ * to be the one, after `seedAuthStores` had not been enough. The tables are brought up to date
+ * before an instance is made, so there is nothing for the comparison to find.
+ */
+export const NO_SHARED_SCHEMA_CHECK = { database: { validateSchema: false } } as const
+
 /** The stores as they are now, by name: for the test that says none is left to be waited for. */
 export function authStores(): Record<string, unknown> {
   const holder = globalThis as unknown as Record<symbol, Shared | undefined>

@@ -1,7 +1,14 @@
 import { AsyncLocalStorage } from "node:async_hooks"
 import { betterAuth } from "better-auth"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { askTwice, AUTH_STORES, authStores, seedAuthStores } from "./auth-guard.ts"
+import { DatabaseSync } from "node:sqlite"
+import {
+  askTwice,
+  AUTH_STORES,
+  authStores,
+  NO_SHARED_SCHEMA_CHECK,
+  seedAuthStores,
+} from "./auth-guard.ts"
 
 describe("Better Auth's stores", () => {
   it("are there before Better Auth asks for them, and are not made twice", () => {
@@ -25,6 +32,33 @@ describe("Better Auth's stores", () => {
     const stores = Object.keys(authStores()).filter((name) => name.endsWith("AsyncStorage"))
     expect(stores.sort()).toEqual([...AUTH_STORES].sort())
     for (const store of AUTH_STORES) expect(authStores()[store]).toBe(seeded[store])
+  })
+})
+
+describe("Better Auth's comparison of the tables", () => {
+  const options = {
+    secret: "a secret that is long enough for this test",
+    baseURL: "http://localhost",
+    emailAndPassword: { enabled: true },
+  }
+
+  it("is one promise that every call on an instance waits for, left as it comes", async () => {
+    const auth = betterAuth({ ...options, database: new DatabaseSync(":memory:") as never })
+    const check = (await auth.$context).checkSchema
+    // This is the promise that is never finished on Workers. If this fails, Better Auth no
+    // longer keeps one, and the constant may no longer be needed.
+    expect(check).toBeTypeOf("function")
+    expect(check!()).toBe(check!())
+  })
+
+  it("is not made at all as the app sets Better Auth up", async () => {
+    const auth = betterAuth({
+      ...options,
+      database: new DatabaseSync(":memory:") as never,
+      advanced: NO_SHARED_SCHEMA_CHECK,
+    })
+    expect((await auth.$context).checkSchema).toBeUndefined()
+    expect(await auth.api.getSession({ headers: new Headers() })).toBeNull()
   })
 })
 
