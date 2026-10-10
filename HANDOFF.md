@@ -1353,6 +1353,36 @@ Since then, newest last:
       test that waits five seconds: the one before in a test of two clients (item 35's gap).
       A failed run skips the deploy. `gh run rerun <id> --failed` runs the failed job again.
 
+37. **Creatures come back after the graphics card's process dies** (2026-10-10;
+    `packages/mascot/src/orb-core.js`, `apps/web/src/components/agent-avatar.tsx`,
+    `apps/desktop/src/main.ts`). The owner asked for the GPU restarts on their Mac (item 33)
+    to be fixed. What makes the card fault was not found. What the app does about it was
+    found wanting twice over, on that Mac, by killing the GPU process of a second copy of the
+    installed app (its own folder, `--remote-debugging-port`, a test server through an SSH
+    tunnel, driven from here with Playwright over CDP):
+    - **After one death, every creature stayed blank for good**, item 33's change
+      notwithstanding. The browser gives the WebGL context back within a second, and every
+      2D canvas too, wiped. three (r128) then makes every draw call and draws nothing. So a
+      renderer of the stage's own that has lost its context once is let go of and another
+      made, and a creature held still is drawn again once its canvas is back (`owed`). On
+      the Mac: blank for good before, drawn again within 1.5 s after.
+    - **After two deaths in a few seconds, Chromium refuses WebGL to the page** for as long
+      as the app runs. Chrome puts up a bar that offers to load the page again; Electron puts
+      up nothing. The app now calls `app.disableDomainBlockingFor3DAPIs()`. On the Mac, with
+      the same thing as a switch (`--disable-domain-blocking-for-3d-apis`): refused for good
+      before, drawn again within 1.5 s after. Where it is still refused, as in an app that
+      has not been updated, the still picture stands in after a second or so.
+    - **What was tried to find the fault, and did not:** the creature's own page with freshly
+      compiled shaders, every state and every reaction (five runs in Chrome 154, four in the
+      app's Electron 44); all hundred things to wear; the box opened five times over; the
+      real pages from signing up through chatting, a treat, the box, the wardrobe and typing
+      (twice). Once in those, as the box's window opened, the GPU process died twice in two
+      seconds with no report from macOS. The same steps again did not do it.
+    - **Checked here:** a browser test kills the browser's GPU process and fails without the
+      change (`e2e/agents.spec.ts`). The desktop test of two deaths is skipped where the
+      window has no 3D, which is every machine but GitHub's Mac.
+    - **The desktop app has to be released again** for its half: `desktop-v0.3.0`.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

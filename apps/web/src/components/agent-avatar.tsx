@@ -112,6 +112,16 @@ export function AgentAvatar({
     orb?.setColor(look.color)
   }, [orb, look])
 
+  // A browser that has lost its graphics card's process more than once gives no more of what
+  // the creature is drawn with, and what was drawn is wiped. The still picture stands in then,
+  // as it does where the creature could never be drawn, for as long as that lasts.
+  const [undrawn, setUndrawn] = useState(false)
+  useEffect(() => {
+    if (orb === undefined || orb === null) return setUndrawn(false)
+    const watch = setInterval(() => setUndrawn(orb.owed), 1_000)
+    return () => clearInterval(watch)
+  }, [orb])
+
   // Named by what it is and not by which object says so, since each answer brings a new object.
   const wearing = JSON.stringify(outfit ?? {})
   useEffect(() => {
@@ -166,14 +176,14 @@ export function AgentAvatar({
       )}
       {...(canPet ? petting.handlers : undefined)}
     >
-      {orb ? null : <img src={standIn} alt="" className="absolute inset-0 size-full" />}
+      {orb && !undrawn ? null : <img src={standIn} alt="" className="absolute inset-0 size-full" />}
       {/* Drawn a little past its box: the creature keeps room around itself for hops and rings. */}
       <canvas
         ref={canvas}
         aria-hidden
         className={cn(
           "pointer-events-none absolute top-[-12%] left-[-12%] size-[124%] max-w-none",
-          !orb && "invisible",
+          (!orb || undrawn) && "invisible",
         )}
       />
       {petting.hearts.map((heart) => (

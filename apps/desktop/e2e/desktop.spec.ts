@@ -170,6 +170,40 @@ test("signing in leads to confirming this computer, and then it is connected", a
   )
 })
 
+test("the window can still draw in 3D after the graphics card's process has died twice", async () => {
+  const main = await windowAt(url)
+  const draws = () =>
+    main.evaluate(() => document.createElement("canvas").getContext("webgl") !== null)
+  // A machine with no graphics card, as most build machines are, gives the window none to lose.
+  test.skip(!(await draws()), "The window cannot draw in 3D on this machine at all.")
+  // Twice in a few seconds is what makes Chromium refuse 3D to a page from then on.
+  for (let times = 0; times < 2; times++) {
+    const graphics = await app.evaluate(({ app }) =>
+      app
+        .getAppMetrics()
+        .filter((entry) => entry.type === "GPU")
+        .map((entry) => entry.pid),
+    )
+    expect(graphics.length).toBeGreaterThan(0)
+    for (const pid of graphics) process.kill(pid, "SIGKILL")
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ app }, before) =>
+            app
+              .getAppMetrics()
+              .some((entry) => entry.type === "GPU" && !before.includes(entry.pid)),
+          graphics,
+        ),
+      )
+      .toBe(true)
+  }
+  await expect.poll(draws, { timeout: 15_000 }).toBe(true)
+  // And goes on being able to, which a page that had been refused would not.
+  await new Promise((resolve) => setTimeout(resolve, 2_000))
+  expect(await draws()).toBe(true)
+})
+
 test("an agent works on this computer, and still can with the window closed", async () => {
   const main = await windowAt(url)
   // Closing the window leaves the app, and the daemon in it, running.

@@ -51,6 +51,11 @@ const MAC = process.platform === "darwin"
 const here = (...parts: string[]) => path.join(__dirname, ...parts)
 const page = (name: string) => here("pages", `${name}.html`)
 
+// A graphics card that is reset twice in a few seconds has Chromium refuse 3D to the page for
+// as long as the app runs. A browser says so and offers to load the page again; here nothing
+// would, and the agents' creatures would be flat pictures until the app was quit.
+app.disableDomainBlockingFor3DAPIs()
+
 // A run with a folder of its own: the tests', or a second copy beside the first.
 if (process.env.DC_DESKTOP_DATA) app.setPath("userData", process.env.DC_DESKTOP_DATA)
 else app.setName(NAME)

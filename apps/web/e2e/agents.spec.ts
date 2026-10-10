@@ -260,3 +260,47 @@ test("creatures keep their picture when the graphics card goes away, and move ag
   await page.waitForTimeout(300)
   expect(await drawn(page)).not.toContain(0)
 })
+
+test("creatures are drawn again after the graphics card's process dies", async ({
+  page,
+  browser,
+}) => {
+  await page.addInitScript(() => {
+    const lost = { times: 0 }
+    Object.assign(window, { lost })
+    const real = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...rest: unknown[]
+    ) {
+      const context = (real as (...args: unknown[]) => unknown).call(this, kind, ...rest)
+      if (kind !== "2d" && context !== null && !("watched" in this)) {
+        Object.assign(this, { watched: true })
+        this.addEventListener("webglcontextlost", () => lost.times++)
+      }
+      return context
+    } as typeof real
+  })
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  await expect.poll(() => drawn(page)).not.toContain(0)
+  // Long enough for the stills among them to have been held.
+  await page.waitForTimeout(600)
+
+  // The process that draws for the whole browser is killed, as a graphics card that is reset
+  // takes it down. The browser starts another and gives every canvas back, clear.
+  const session = await browser.newBrowserCDPSession()
+  const { processInfo } = await session.send("SystemInfo.getProcessInfo")
+  const graphics = processInfo.filter((entry) => entry.type === "GPU")
+  expect(graphics).toHaveLength(1)
+  process.kill(graphics[0]!.id, "SIGKILL")
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { lost: { times: number } }).lost.times))
+    .toBeGreaterThan(0)
+
+  // Those that move and those that are held are all drawn again, and stay drawn.
+  await expect.poll(() => drawn(page), { timeout: 15_000 }).not.toContain(0)
+  await page.waitForTimeout(1_500)
+  expect(await drawn(page)).not.toContain(0)
+})
