@@ -44,6 +44,13 @@ export type DesktopBridge = PageInfo & {
   share(options: { readOnly: boolean }): Promise<ShareAnswer>
   /** The first run is over. With `openAtLogin`, whether the app opens at sign-in from now on. */
   finish(options: { openAtLogin?: boolean }): Promise<void>
+  /**
+   * The picture the app is shown by while it runs: in the Dock on a Mac, on its window and
+   * the taskbar elsewhere. The page draws its owner's own agent, as a PNG's address, in the
+   * shape this computer's desktop wants. Null is the app's usual picture again. Once the app
+   * is quit it is the usual one, which is the only one the app's file has.
+   */
+  setIcon(picture: string | null): Promise<void>
 }
 
 /** The names the app and the script its windows are given call each other by. */
@@ -53,6 +60,7 @@ export const CHANNELS = {
   cancelSignIn: "page-cancel-sign-in",
   share: "page-share",
   finish: "page-finish",
+  icon: "page-icon",
 } as const
 
 /**
@@ -111,3 +119,24 @@ export function shareAnswer(sharing: Sharing): ShareAnswer | undefined {
 /** The provider a page asked to sign in with, if it is one there is. */
 export const provider = (asked: unknown): "github" | "google" | undefined =>
   asked === "github" || asked === "google" ? asked : undefined
+
+/** The most a picture's address may be: one of 1024 pixels a side is some tens of thousands. */
+const ICON_MOST = 2_000_000
+const PNG = "data:image/png;base64,"
+
+/**
+ * The picture a page asked the app to be shown by: a PNG's address, or null for the usual one.
+ * Undefined is anything else, which is left unanswered: a page is whatever the deployment serves.
+ */
+export function iconPicture(asked: unknown): string | null | undefined {
+  if (asked === null) return null
+  if (typeof asked !== "string" || asked.length > ICON_MOST) return undefined
+  if (!asked.startsWith(PNG) || !/^[A-Za-z0-9+/]+={0,2}$/.test(asked.slice(PNG.length))) {
+    return undefined
+  }
+  return asked
+}
+
+/** Whether a picture of this size can be what the app is shown by: square, and of a size icons are. */
+export const iconFits = (size: { width: number; height: number }): boolean =>
+  size.width === size.height && size.width >= 64 && size.width <= 1024

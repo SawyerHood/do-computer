@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useSetAtom } from "jotai"
 import { useEffect } from "react"
+import { useAppIcon } from "@/lib/app-icon"
 import { handingOver, welcomeOpenAtom } from "@/lib/welcome"
 
 export const Route = createFileRoute("/welcome")({ ssr: false, component: WelcomePage })
@@ -12,6 +13,8 @@ export const Route = createFileRoute("/welcome")({ ssr: false, component: Welcom
  */
 function WelcomePage() {
   const setOpen = useSetAtom(welcomeOpenAtom)
+  // Nobody has been met yet. In the desktop app, its picture is the egg until someone is.
+  useAppIcon(null)
   useEffect(() => {
     setOpen(true)
     return () => {

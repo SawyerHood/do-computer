@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   computerName,
+  iconFits,
+  iconPicture,
   mayUseBridge,
   provider,
   shareAnswer,
@@ -96,5 +98,33 @@ describe("the provider a page asks to sign in with", () => {
     expect(provider("evil&port=1")).toBeUndefined()
     expect(provider(undefined)).toBeUndefined()
     expect(provider({ toString: () => "github" })).toBeUndefined()
+  })
+})
+
+describe("the picture a page asks the app to be shown by", () => {
+  const png = `data:image/png;base64,${Buffer.from("not really a picture").toString("base64")}`
+
+  it("is a PNG's address, or nothing for the usual one", () => {
+    expect(iconPicture(png)).toBe(png)
+    expect(iconPicture(null)).toBeNull()
+  })
+
+  it("is nothing else a page could send", () => {
+    expect(iconPicture(undefined)).toBeUndefined()
+    expect(iconPicture("")).toBeUndefined()
+    expect(iconPicture({ toString: () => png })).toBeUndefined()
+    expect(iconPicture("https://do.example/icon.png")).toBeUndefined()
+    expect(iconPicture("file:///etc/passwd")).toBeUndefined()
+    expect(iconPicture("data:image/svg+xml;base64,PHN2Zy8+")).toBeUndefined()
+    expect(iconPicture("data:image/png;base64,<script>")).toBeUndefined()
+    expect(iconPicture(`data:image/png;base64,${"A".repeat(2_000_000)}`)).toBeUndefined()
+  })
+
+  it("is square, and neither a speck nor a poster", () => {
+    expect(iconFits({ width: 1024, height: 1024 })).toBe(true)
+    expect(iconFits({ width: 512, height: 512 })).toBe(true)
+    expect(iconFits({ width: 1024, height: 512 })).toBe(false)
+    expect(iconFits({ width: 16, height: 16 })).toBe(false)
+    expect(iconFits({ width: 4096, height: 4096 })).toBe(false)
   })
 })

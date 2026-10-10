@@ -40,6 +40,8 @@ import { createOverlay, type Overlay } from "./overlay.ts"
 import {
   CHANNELS,
   computerName,
+  iconFits,
+  iconPicture,
   mayUseBridge,
   type PageInfo,
   provider,
@@ -250,6 +252,27 @@ const canvas = () => (nativeTheme.shouldUseDarkColors ? "#121415" : "#f8fbfb")
 
 const icon = () => (MAC ? undefined : nativeImage.createFromPath(here("assets", "icon.png")))
 
+/** The picture a page of the deployment last asked the app to be shown by, if it asked. */
+let ownIcon: Electron.NativeImage | undefined
+
+/**
+ * Be shown by a picture a page drew, its owner's own agent, or by the usual one again. On a
+ * Mac that is the Dock's; elsewhere the main window's, which the taskbar shows. It lasts as
+ * long as the app runs: the app's file keeps the picture it was built with.
+ */
+function showIcon(asked: unknown): void {
+  const picture = iconPicture(asked)
+  if (picture === undefined) return
+  if (picture === null) ownIcon = undefined
+  else {
+    const image = nativeImage.createFromDataURL(picture)
+    if (image.isEmpty() || !iconFits(image.getSize())) return
+    ownIcon = image
+  }
+  if (MAC) app.dock?.setIcon(ownIcon ?? nativeImage.createFromPath(here("assets", "icon-mac.png")))
+  else if (alive(mainWindow)) mainWindow.setIcon(ownIcon ?? icon()!)
+}
+
 /** Links that lead away from the deployment open in the browser, where its owner is at home. */
 function keepToServer(window: BrowserWindow): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -279,7 +302,7 @@ function showMain(address?: string): void {
     title: NAME,
     backgroundColor: canvas(),
     autoHideMenuBar: true,
-    ...(MAC ? {} : { icon: icon()! }),
+    ...(MAC ? {} : { icon: ownIcon ?? icon()! }),
     webPreferences: webPreferences(),
   })
   mainWindow = window
@@ -555,6 +578,7 @@ function listenToServer(): void {
       changed()
     }),
   )
+  ipcMain.handle(CHANNELS.icon, served(showIcon))
 }
 
 /**
