@@ -48,21 +48,25 @@ function runner(options: {
     onRevoked: () => {},
     ...options,
   })
+  type Heard = { screen?: string; browser?: string; answers: AppAnswer[] }
+  // The stand-in writes the file over again each time it hears something, and a read can find
+  // it half written. What was last read whole is what it has heard.
+  let whole: Heard | undefined
   const heard = () => {
     try {
-      return JSON.parse(readFileSync(join(dir, "heard.json"), "utf8")) as {
-        screen?: string
-        browser?: string
-        answers: AppAnswer[]
-      }
+      whole = JSON.parse(readFileSync(join(dir, "heard.json"), "utf8")) as Heard
     } catch {
-      return undefined
+      // Not there yet, or being written.
     }
+    return whole
   }
   const until = async (met: () => boolean) => {
-    for (let tries = 0; tries < 200 && !met(); tries++)
+    let was = met()
+    for (let tries = 0; tries < 200 && !was; tries++) {
       await new Promise((resolve) => setTimeout(resolve, 25))
-    expect(met()).toBe(true)
+      was = met()
+    }
+    expect(was).toBe(true)
   }
   return { runner: running, heard, until }
 }

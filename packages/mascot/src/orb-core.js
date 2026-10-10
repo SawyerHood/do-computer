@@ -822,10 +822,12 @@ var Stage = {
     renderer.setPixelRatio(1);
     renderer.setClearColor(0x000000, 0);
     renderer.setScissorTest(true);
-    // three re-creates its GL state after a restore; we only have to allow it
+    var c = { renderer: renderer, size: 0, own: !!own, gone: false };
+    // The browser is let give the context back. A renderer handed to the stage is carried on
+    // with, as three re-creates its state. One of the stage's own is not: see `lost`.
     var el = renderer.domElement;
-    if (el && el.addEventListener) el.addEventListener('webglcontextlost', function (e) { e.preventDefault(); });
-    return (this.ctx[key] = { renderer: renderer, size: 0, own: !!own });
+    if (el && el.addEventListener) el.addEventListener('webglcontextlost', function (e) { e.preventDefault(); c.gone = true; });
+    return (this.ctx[key] = c);
   },
   cam: function () {
     if (!this.camera) {
@@ -856,20 +858,21 @@ var Stage = {
   frame: function (key) {
     if (this.ctx[key]) return this.ctx[key];
     var t = now();
-    if (t - (this.missedAt[key] || -1e9) < 3000) return null;
+    if (t - (this.missedAt[key] || -1e9) < 1000) return null;
     var c = this.get(key);
     if (!c) this.missedAt[key] = t;
     return c;
   },
-  // Whether the browser has taken the context away. It usually gives it back, and three then
-  // carries on. One of ours that has stayed away is let go of, so that a new one is asked for.
+  // Whether the browser has taken the context away, as it does when the graphics card is reset
+  // or its process dies. It gives it back within a second or so, but what three then draws with
+  // it is nothing at all: every call is made and the picture stays clear. So a renderer of the
+  // stage's own that has lost its context once is let go of, and the next frame asks for a new
+  // one, which draws.
   lost: function (key, c) {
     var gl = c.renderer.getContext ? c.renderer.getContext() : null;
-    if (!gl || !gl.isContextLost || !gl.isContextLost()) { c.lostAt = 0; return false; }
-    var t = now();
-    if (!c.lostAt) c.lostAt = t;
-    else if (c.own && t - c.lostAt > 3000) this.release(key);
-    return true;
+    var away = !!(gl && gl.isContextLost && gl.isContextLost());
+    if (c.own && (c.gone || away)) { this.release(key); return true; }
+    return away;
   },
   // Icosphere body with the antenna stalk and ball appended, so the whole figure is one draw call.
   body: function (detail) {
@@ -947,20 +950,22 @@ var Stage = {
     geo.setIndex(index);
     return (this.geos.ring = geo);
   },
+  // Draws the orb, and says whether it could.
   draw: function (orb) {
     var px = orb.px;
-    if (px < 2) return;
+    if (px < 2) return false;
     var key = orb.retro ? 'px' : 'aa';
     var c = this.frame(key);
     // Nothing can be drawn without a context. The picture that is there stays: copying from a
     // context that is gone would wipe it.
-    if (!c || this.lost(key, c)) return;
+    if (!c || this.lost(key, c)) return false;
     var r = c.renderer;
     if (px > c.size) { c.size = Math.min(2048, Math.ceil(px / 64) * 64); r.setSize(c.size, c.size, false); }
     this.drawAt(orb, r, 0, 0);
-    if (!orb.ctx) return;
+    if (!orb.ctx) return true;
     orb.ctx.clearRect(0, 0, px, px);
     orb.ctx.drawImage(r.domElement, 0, c.size - px, px, px, 0, 0, px, px);
+    return true;
   },
   // Draw one orb into a square of any renderer (x, y from the bottom left, in pixels). This is the whole
   // per-orb cost, so a list of avatars can be one canvas with one of these calls per row.
@@ -993,6 +998,11 @@ function Orb(canvas, opts) {
   if (!M4.a) { M4.a = new THREE.Matrix4(); M4.b = new THREE.Matrix4(); M4.rot = new THREE.Matrix4(); M4.e = new THREE.Euler(); }
   this.canvas = canvas || null;
   this.ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+  // Whether it is owed a picture: one that could not be drawn, or one the browser wiped. A
+  // canvas loses what is on it with the graphics card's process, and comes back clear.
+  this.owed = false;
+  var owing = this;
+  if (canvas && canvas.addEventListener) canvas.addEventListener('contextrestored', function () { owing.owed = true; });
   this.fixedSize = opts.size || 0;
   this.pixelRatio = opts.pixelRatio || 0;
   this.paused = false;
@@ -1893,7 +1903,7 @@ Orb.prototype.update = function (dt) {
   }
 };
 
-Orb.prototype.render = function () { Stage.draw(this); };
+Orb.prototype.render = function () { this.owed = !Stage.draw(this); };
 Orb.prototype.dispose = function () {
   if (this.worn) { this.worn.dispose(); this.worn = null; }
   Runner.remove(this);
@@ -1941,7 +1951,8 @@ var Runner = {
     if (fresh) this.rectsAt = t;
     for (var i = 0; i < this.orbs.length; i++) {
       var o = this.orbs[i];
-      if (o.paused) { o.pending = 0; continue; }
+      // one that is held still is not moved, but is given the picture it is owed
+      if (o.paused) { if (o.owed) o.render(); o.pending = 0; continue; }
       if (fresh || !o.rect) {
         o.resize();
         if (o.canvas && o.canvas.getBoundingClientRect) {

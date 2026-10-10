@@ -67,6 +67,8 @@ export interface Orb {
   render(): void
   dispose(): void
   paused: boolean
+  /** Whether it has no picture, having not been able to be drawn since it last needed to be. */
+  readonly owed: boolean
   reduced: boolean
   notice: boolean
   /** Draw its scene without it, for something else that is shown on its stage. */
