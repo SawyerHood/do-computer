@@ -3,6 +3,7 @@ import type {
   MascotState,
   MascotVariant,
   Orb,
+  SkyCore,
   Wardrobe,
 } from "@durable-computer/mascot"
 import type { Outfit } from "@durable-computer/protocol"
@@ -88,6 +89,26 @@ export function loadMascot(): Promise<MascotCore | null> {
     return core
   })
   return loading
+}
+
+let sky: SkyCore | undefined
+
+/**
+ * The sky a first egg comes down out of, with three.js: fetched when the first run is about to
+ * be shown. Null where it cannot be had, and the first run is then shown without it.
+ */
+export async function loadSky(): Promise<SkyCore | null> {
+  try {
+    const [three, { AgentOrbSky }] = await Promise.all([
+      import("three"),
+      import("@durable-computer/mascot"),
+    ])
+    sky ??= AgentOrbSky(three)
+    return sky
+  } catch (error) {
+    console.warn("The sky could not be drawn.", error)
+    return null
+  }
 }
 
 /**

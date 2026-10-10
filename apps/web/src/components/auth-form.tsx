@@ -1,15 +1,17 @@
 import { GithubLogoIcon, GoogleLogoIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
 import { meKey } from "@/lib/collections"
+import { desktop, signInThroughBrowser } from "@/lib/desktop"
 import { queryClient } from "@/lib/query"
 
 type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
+type Provider = "google" | "github"
 
 /**
  * Where to go once signed in: the page that sent the visitor here, when it named itself, such as
@@ -35,6 +37,17 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     queryFn: async (): Promise<Methods> => (await fetch("/api/auth-methods")).json(),
   })
   const signingUp = mode === "sign-up"
+  // In the desktop app: the provider whose sign-in is going on in the owner's browser.
+  const [waiting, setWaiting] = useState<Provider>()
+  const cancelled = useRef(false)
+
+  const signedIn = async () => {
+    // Whatever an earlier session left in this page is asked for again, starting with who
+    // is signed in.
+    queryClient.removeQueries({ queryKey: meKey })
+    void queryClient.invalidateQueries()
+    await navigate({ href: destination() })
+  }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -57,17 +70,43 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       setError(result.error.message ?? "That did not work. Check your details and try again.")
       return
     }
-    // Whatever an earlier session left in this page is asked for again, starting with who
-    // is signed in.
-    queryClient.removeQueries({ queryKey: meKey })
-    void queryClient.invalidateQueries()
-    await navigate({ href: destination() })
+    await signedIn()
   }
 
-  const social = (provider: "google" | "github") =>
-    authClient.signIn.social({ provider, callbackURL: destination() })
+  const social = async (provider: Provider) => {
+    const bridge = desktop()
+    if (bridge === undefined) {
+      await authClient.signIn.social({ provider, callbackURL: destination() })
+      return
+    }
+    // The app's window stays where it is. Its owner signs in in their own browser, where the
+    // provider knows them already, and the app hands the sign-in back to this page.
+    setError(undefined)
+    cancelled.current = false
+    setWaiting(provider)
+    const problem = await signInThroughBrowser(bridge, provider).catch(
+      () => "That sign-in could not be finished. Try again.",
+    )
+    setWaiting(undefined)
+    if (problem === undefined) await signedIn()
+    // Stopping it is not something that went wrong.
+    else if (!cancelled.current) setError(problem)
+  }
+  const cancel = () => {
+    cancelled.current = true
+    void desktop()?.cancelSignIn()
+  }
   // The way between signing in and signing up keeps where the visitor was headed.
   const carried = typeof location === "undefined" ? "" : location.search
+  // Someone new, headed nowhere in particular, is shown around first. Someone sent here by a
+  // page that wants them back creates the account and goes on to it.
+  const other = signingUp
+    ? `/login${ready ? carried : ""}`
+    : !ready
+      ? "/signup"
+      : new URLSearchParams(carried).has("next")
+        ? `/signup${carried}`
+        : "/welcome"
 
   return (
     <main className="flex h-dvh items-center justify-center overflow-y-auto p-6">
@@ -86,13 +125,28 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         {methods?.google || methods?.github ? (
           <div className="flex flex-col gap-2">
             {methods.google ? (
-              <Button variant="outline" onClick={() => social("google")}>
-                <GoogleLogoIcon weight="bold" /> Continue with Google
+              <Button
+                variant="outline"
+                disabled={waiting !== undefined}
+                onClick={() => social("google")}
+              >
+                <GoogleLogoIcon weight="bold" />{" "}
+                {waiting === "google" ? "Waiting for your browser…" : "Continue with Google"}
               </Button>
             ) : null}
             {methods.github ? (
-              <Button variant="outline" onClick={() => social("github")}>
-                <GithubLogoIcon weight="bold" /> Continue with GitHub
+              <Button
+                variant="outline"
+                disabled={waiting !== undefined}
+                onClick={() => social("github")}
+              >
+                <GithubLogoIcon weight="bold" />{" "}
+                {waiting === "github" ? "Waiting for your browser…" : "Continue with GitHub"}
+              </Button>
+            ) : null}
+            {waiting ? (
+              <Button variant="ghost" className="text-muted-foreground" onClick={cancel}>
+                Cancel
               </Button>
             ) : null}
             <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
@@ -128,17 +182,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               {error}
             </p>
           ) : null}
-          <Button type="submit" disabled={!ready || pending}>
+          <Button type="submit" disabled={!ready || pending || waiting !== undefined}>
             {pending ? "One moment…" : signingUp ? "Create account" : "Sign in"}
           </Button>
         </form>
 
         <p className="text-sm text-muted-foreground">
           {signingUp ? "Already have an account? " : "New here? "}
-          <a
-            href={`${signingUp ? "/login" : "/signup"}${ready ? carried : ""}`}
-            className="text-foreground underline underline-offset-3"
-          >
+          <a href={other} className="text-foreground underline underline-offset-3">
             {signingUp ? "Sign in" : "Create an account"}
           </a>
           {signingUp && methods?.signup === "invite" ? (

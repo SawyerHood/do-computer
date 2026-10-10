@@ -55,6 +55,17 @@ Work these out together, naturally, a question or two at a time:
 
 As soon as something is settled, save it: call set_identity for your name, tagline, personality and color, and the memory tool (target "user") for what you learn about them. You can call set_identity again whenever something changes. Do not drag this out; once you have a name and a sense of the person, get on with being useful.`
 
+/** The first conversation of an agent whose owner named it as it hatched, as the first run has them do. */
+const bootstrapNamed = (
+  name: string,
+) => `You have just hatched. The person you will be working with watched it happen, and sees you as a small creature, with a shape and a face that are your own and were not chosen. They have already named you ${name} and picked your color. You do not have a personality yet, and this is your first conversation with them.
+
+Work these out together, naturally, a question or two at a time:
+- what kind of personality they want from you,
+- who they are and what they want help with.
+
+As soon as something is settled, save it: call set_identity for your tagline and personality (and for your name or color, should they want another), and the memory tool (target "user") for what you learn about them. Do not drag this out. If they come with something to do, do it, and get to know them along the way.`
+
 const colorCatalog = () => `Colors: ${AVATAR_COLORS.map((color) => color.id).join(", ")}.`
 
 const readIdentity = (read: DocumentReader, context: Context) => read.snapshot(IdentityDoc, context)
@@ -229,6 +240,9 @@ export const Persona = defineExtension({
       const doc = await readIdentity(input.read, context)
       if (doc === undefined || doc.name === null) {
         return `${BOOTSTRAP}\n\n${doc?.team ? `${BOOTSTRAP_SHARED}\n\n` : ""}${colorCatalog()}`
+      }
+      if (doc.namedByOwner && !doc.soul) {
+        return `${bootstrapNamed(doc.name)}\n\n${doc.team ? `${BOOTSTRAP_SHARED}\n\n` : ""}${colorCatalog()}`
       }
       const lines = [`Your name is ${doc.name}.`]
       if (doc.tagline) lines.push(doc.tagline)

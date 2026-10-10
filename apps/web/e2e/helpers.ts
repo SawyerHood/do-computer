@@ -7,12 +7,34 @@ export const owner = {
   password: "correct horse battery",
 }
 
+/**
+ * Make an account, and give it a first agent. Someone new is taken to the first run to meet
+ * theirs, which `welcome.spec.ts` is about. For every other file the agent is made the plain
+ * way, with no name and still in its egg, and its chat is opened.
+ */
 export async function signUp(page: Page, account = owner) {
   await page.goto("/signup")
   await page.getByLabel("Name").fill(account.name)
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill(account.password)
   await page.getByRole("button", { name: "Create account" }).click()
+  // Either they are in, and at the first run, or the form says why not.
+  const made = await Promise.race([
+    page.waitForURL(/\/welcome$/).then(
+      () => true,
+      () => false,
+    ),
+    page
+      .getByRole("alert")
+      .waitFor()
+      .then(
+        () => false,
+        () => false,
+      ),
+  ])
+  if (!made) return
+  expect((await page.request.post("/api/agents")).status()).toBe(201)
+  await page.goto("/")
 }
 
 export async function signIn(page: Page) {

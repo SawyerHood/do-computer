@@ -20,6 +20,7 @@ import { queryClient } from "@/lib/query"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { startsMidway, useChat } from "@/lib/use-chat"
+import { meetingWith } from "@/lib/welcome"
 import { useMascotMood } from "@/lib/use-mascot-mood"
 import { useWide } from "@/lib/use-wide"
 import {
@@ -125,7 +126,60 @@ function Hatchling({
   )
 }
 
-function Welcome({ agent, face }: { agent: AgentSummary; face: React.ReactNode }) {
+/** What a new agent offers to start with, in its first hello. */
+const STARTERS = ["Show me what you can do", "Help me plan my week", "Research something for me"]
+const STARTERS_HERE = [
+  "Show me what you can do",
+  "Tidy up my Downloads folder",
+  "Look at a project with me",
+]
+
+function Welcome({
+  agent,
+  face,
+  onSay,
+}: {
+  agent: AgentSummary
+  face: React.ReactNode
+  /** Say this to it, as if it had been typed. */
+  onSay: (text: string) => void
+}) {
+  // Fresh from the first run, it says hello first: to whom, and with what it was given there.
+  const met = agent.name === null ? undefined : meetingWith(agent.id)
+  if (met !== undefined) {
+    const given = met.computer
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+        {face}
+        <h1 className="text-xl font-medium">
+          Hi {met.first}, I’m {agent.name}.
+        </h1>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {given === undefined
+            ? "Good to finally see you."
+            : given === null
+              ? "I am not on this computer yet. When you want me to work here, switch it on under This Computer in the tray."
+              : given.readOnly
+                ? "I can read files on this computer now, and nothing more. I can reach it while Do Computer is running, so I have left it in your tray."
+                : "I can work on this computer now: run commands, read and change files, and use a browser. I can reach it while Do Computer is running, so I have left it in your tray."}{" "}
+          What should we do first?
+        </p>
+        <div className="mt-2 flex flex-wrap justify-center gap-2">
+          {(given ? STARTERS_HERE : STARTERS).map((text) => (
+            <Button
+              key={text}
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={() => onSay(text)}
+            >
+              {text}
+            </Button>
+          ))}
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
       {face}
@@ -446,6 +500,7 @@ export function ChatView({
                       ) : (
                         <Welcome
                           agent={agent}
+                          onSay={(text) => void send(text)}
                           face={
                             // Where the panel is beside the chat, the creature is in it and not here too.
                             beside ? null : (

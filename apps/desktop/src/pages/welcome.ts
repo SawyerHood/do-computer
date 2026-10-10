@@ -9,7 +9,9 @@ const error = at<HTMLParagraphElement>("error")
 
 function show(state: AppState): void {
   server.value = state.suggestedServer
-  at("login-row").hidden = !state.canOpenAtLogin
+  // On a first run the deployment's welcome asks both of these, with the agent they are about.
+  at("share-row").hidden = !state.welcomed
+  at("login-row").hidden = !state.welcomed || !state.canOpenAtLogin
   if (state.server !== undefined) {
     // Coming back to choose another: as things are, not as a first run would have them.
     share.checked = state.sharing.state !== "off"

@@ -1847,7 +1847,11 @@ export class AgentActor implements Actor {
 
     const chats = await harness.commit(async (tx) => {
       const identity = await tx.doc(IdentityDoc)
-      if (name !== undefined) identity.name = name
+      if (name !== undefined) {
+        // Named by its owner and not in conversation: it still has itself to work out with them.
+        if (identity.name === null) identity.namedByOwner = true
+        identity.name = name
+      }
       if (tagline !== undefined) identity.tagline = tagline.trim() || null
       if (soul !== undefined) identity.soul = soul
       if (user !== undefined) identity.user = user

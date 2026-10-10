@@ -18,7 +18,7 @@ test("a visitor is sent to sign in", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
 })
 
-test("signing up creates an agent and opens its first chat", async ({ page }) => {
+test("a new account's first agent opens in its first chat", async ({ page }) => {
   await signUp(page)
   await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
   await expect(page.getByRole("heading", { name: "Say hello" })).toBeVisible()

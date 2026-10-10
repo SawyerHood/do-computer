@@ -16,6 +16,7 @@ import { pathToFileURL } from "node:url"
 import {
   app,
   BrowserWindow,
+  type IpcMainEvent,
   type IpcMainInvokeEvent,
   ipcMain,
   Menu,
@@ -32,9 +33,21 @@ import {
 import { UseState } from "@durable-computer/computers/use"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
+import { browserSignIn } from "./browser-sign-in.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
 import { loginPath } from "./login-path.ts"
 import { createOverlay, type Overlay } from "./overlay.ts"
+import {
+  CHANNELS,
+  computerName,
+  mayUseBridge,
+  type PageInfo,
+  provider,
+  type ShareAnswer,
+  shareAnswer,
+  sharingNow,
+  type SignInAnswer,
+} from "./page-bridge.ts"
 import { ScreenService } from "./screen.ts"
 import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
 import { isWebAddress, onServer, serverAddress } from "./server.ts"
@@ -47,6 +60,8 @@ declare const DEFAULT_SERVER: string
 const NAME = "Do Computer"
 /** How long a deployment has to say that it is one, when its address is entered. */
 const HEALTH_TIMEOUT_MS = 10_000
+/** How long the daemon has to get as far as a pairing, when a page asked to share this computer. */
+const SHARE_TIMEOUT_MS = 45_000
 const MAC = process.platform === "darwin"
 const here = (...parts: string[]) => path.join(__dirname, ...parts)
 const page = (name: string) => here("pages", `${name}.html`)
@@ -81,6 +96,10 @@ let commandPath: string | undefined
 /** Set when the owner has just asked to share this computer, so the page to confirm on is shown. */
 let showConfirm = false
 let confirmTimer: ReturnType<typeof setInterval> | undefined
+/** Told whenever something changed: whoever is waiting for the daemon to get somewhere. */
+const waiting = new Set<() => void>()
+/** The sign-in that is waiting for the owner's browser, if one is. */
+const browser = browserSignIn()
 
 const alive = (window: BrowserWindow | undefined): window is BrowserWindow =>
   window !== undefined && !window.isDestroyed()
@@ -88,6 +107,20 @@ const alive = (window: BrowserWindow | undefined): window is BrowserWindow =>
 /** The app started by itself at sign-in, where nobody asked to see it. */
 const startedHidden = () =>
   process.argv.includes(HIDDEN_FLAG) || (MAC && app.getLoginItemSettings().wasOpenedAtLogin)
+
+/**
+ * The deployment the app would use if nobody said otherwise: the one it was built or run for.
+ * A run can be told there is none, by naming an empty one, and then asks.
+ */
+const suggested = () => process.env.DC_DESKTOP_SERVER ?? DEFAULT_SERVER
+const canOpenAtLogin = () => app.isPackaged || process.env.DC_DESKTOP_AUTOSTART === "1"
+
+/**
+ * The page the window starts on. Until the first run is over that is the deployment's welcome,
+ * which asks who its owner is and whether agents may work here, however often the app is quit
+ * before it has been answered.
+ */
+const home = () => (settings.welcomed ? settings.server! : `${settings.server}/welcome`)
 
 // ---------------------------------------------------------------------------------------------
 // State, as the app's pages and the tray show it
@@ -174,7 +207,8 @@ function state(): AppState {
   const unavailable = screenUnavailable()
   return {
     ...(settings.server === undefined ? {} : { server: settings.server }),
-    suggestedServer: settings.server ?? (process.env.DC_DESKTOP_SERVER || DEFAULT_SERVER),
+    suggestedServer: settings.server ?? suggested(),
+    welcomed: settings.welcomed,
     sharing,
     headline: headline(sharing),
     readOnly: settings.readOnly,
@@ -183,7 +217,7 @@ function state(): AppState {
     ...(MAC ? { permissions: permissions() } : {}),
     browser: settings.browser,
     openAtLogin: settings.openAtLogin,
-    canOpenAtLogin: app.isPackaged || process.env.DC_DESKTOP_AUTOSTART === "1",
+    canOpenAtLogin: canOpenAtLogin(),
     log: runner?.lines ?? [],
     platform: process.platform,
   }
@@ -197,6 +231,7 @@ function changed(): void {
     }
   }
   drawTray()
+  for (const tell of [...waiting]) tell()
   void confirmWhenSignedIn()
 }
 
@@ -265,7 +300,7 @@ function showMain(address?: string): void {
   // Signing in is a change of page, and is what a pairing waits for.
   window.webContents.on("did-navigate", () => void confirmWhenSignedIn())
   window.webContents.on("did-navigate-in-page", () => void confirmWhenSignedIn())
-  void window.loadURL(address ?? settings.server)
+  void window.loadURL(address ?? home())
 }
 
 function ownWindow(name: string, options: { width: number; height: number; title: string }) {
@@ -319,6 +354,15 @@ function daemon(): DaemonRunner {
     },
   })
   return runner
+}
+
+/** Whether a deployment answers at an address, and says that it is one. */
+function healthy(server: string): Promise<boolean> {
+  // An address nothing answers at can take a system a long while to give up on.
+  return net
+    .fetch(`${server}/api/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) })
+    .then(async (response) => response.ok && (await response.json())?.ok === true)
+    .catch(() => false)
 }
 
 async function startSharing(): Promise<void> {
@@ -396,6 +440,138 @@ function own<Args extends unknown[], Result>(handler: (...args: Args) => Result)
   }
 }
 
+/**
+ * Whether whoever asks is the page the app answers: the top page of the main window, while it
+ * is on the deployment. That window can be led to anywhere on the web, and is given nothing there.
+ */
+function fromServer(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  const frame = event.senderFrame
+  if (frame === null || frame.isDestroyed()) return false
+  return mayUseBridge({
+    mainWindow: alive(mainWindow) && event.sender === mainWindow.webContents,
+    top: frame.parent === null,
+    url: frame.url,
+    server: settings.server,
+  })
+}
+
+/** Only a page of the deployment, in the main window, may ask. */
+function served<Args extends unknown[], Result>(handler: (...args: Args) => Result) {
+  return (event: IpcMainInvokeEvent, ...args: Args) => {
+    if (!fromServer(event)) throw new Error("Only a page of the deployment can ask this.")
+    return handler(...args)
+  }
+}
+
+/** What a page of the deployment is told as it loads. */
+function pageInfo(): PageInfo {
+  return {
+    platform: process.platform,
+    computer: computerName(os.hostname()),
+    canOpenAtLogin: canOpenAtLogin(),
+    welcomed: settings.welcomed,
+    sharing: sharingNow(runner?.sharing ?? { state: "off" }),
+  }
+}
+
+/** Sign in through the owner's browser, which comes back to this computer with a token. */
+async function signIn(asked: unknown): Promise<SignInAnswer> {
+  const server = settings.server
+  if (server === undefined) return { error: "Choose a server first." }
+  const answer = await browser.signIn(({ port, state }) => {
+    const address = new URL("/desktop/sign-in", server)
+    address.searchParams.set("port", String(port))
+    address.searchParams.set("state", state)
+    const through = provider(asked)
+    if (through !== undefined) address.searchParams.set("provider", through)
+    return shell.openExternal(address.href)
+  })
+  if ("token" in answer) {
+    // The owner is in their browser. Bring them back to where the rest happens.
+    showMain()
+    if (MAC) app.focus({ steal: true })
+  }
+  return answer
+}
+
+/** What the daemon makes of being started, once it has got far enough to say. */
+function paired(): Promise<ShareAnswer> {
+  return new Promise((resolve) => {
+    const settle = (answer: ShareAnswer) => {
+      clearTimeout(timer)
+      waiting.delete(look)
+      resolve(answer)
+    }
+    const look = () => {
+      const answer = shareAnswer(runner?.sharing ?? { state: "off" })
+      if (answer !== undefined) settle(answer)
+    }
+    const timer = setTimeout(
+      () => settle({ error: "This computer took too long to connect. Try again." }),
+      SHARE_TIMEOUT_MS,
+    )
+    waiting.add(look)
+    look()
+  })
+}
+
+/**
+ * What a page of the deployment can ask: see page-bridge.ts. It is little, because a page is
+ * whatever the deployment serves, and what agents may do on this computer is its owner's to say.
+ */
+function listenToServer(): void {
+  ipcMain.on(CHANNELS.info, (event) => {
+    event.returnValue = fromServer(event) ? pageInfo() : null
+  })
+  ipcMain.handle(CHANNELS.signIn, served(signIn))
+  ipcMain.handle(
+    CHANNELS.cancelSignIn,
+    served(() => browser.cancel()),
+  )
+  ipcMain.handle(
+    CHANNELS.share,
+    served(async (options: { readOnly?: unknown }): Promise<ShareAnswer> => {
+      // A page may ask this once, as part of the first run, where its owner is shown the
+      // question and answers it. From then on the decision to share this computer is made in
+      // the app's own pages, which no deployment can change or press for them.
+      if (settings.welcomed) {
+        return {
+          error: "Agents are given this computer in the app's own window, under This Computer.",
+        }
+      }
+      // The page that asked confirms the pairing itself. The window is not taken from it.
+      showConfirm = false
+      remember({ share: true, readOnly: options?.readOnly === true })
+      await runner?.stop()
+      await startSharing()
+      return paired()
+    }),
+  )
+  ipcMain.handle(
+    CHANNELS.finish,
+    served((options: { openAtLogin?: unknown }) => {
+      remember({ welcomed: true })
+      if (typeof options?.openAtLogin === "boolean") setOpenAtLogin(options.openAtLogin)
+      changed()
+    }),
+  )
+}
+
+/**
+ * A first run. An app that knows its deployment, and finds it there, opens straight on its
+ * welcome. One that does not asks for the address first.
+ */
+async function firstRun(): Promise<void> {
+  const server = serverAddress(suggested())
+  const found = server !== undefined && (await healthy(server))
+  // Its owner may have opened the app again meanwhile, and answered the form.
+  if (settings.server !== undefined) return
+  if (!found) return showWelcome()
+  remember({ server, share: false })
+  welcomeWindow?.close()
+  showMain()
+}
+
 function listen(): void {
   ipcMain.handle("state", own(state))
   ipcMain.handle(
@@ -403,15 +579,20 @@ function listen(): void {
     own(async (choice: { server?: unknown; share?: unknown; openAtLogin?: unknown }) => {
       const server = serverAddress(typeof choice?.server === "string" ? choice.server : "")
       if (server === undefined) return "That is not an address."
-      // An address nothing answers at can take a system a long while to give up on.
-      const healthy = await net
-        .fetch(`${server}/api/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) })
-        .then(async (response) => response.ok && (await response.json())?.ok === true)
-        .catch(() => false)
-      if (!healthy) return `There is no Do Computer at ${server}, or it cannot be reached.`
+      if (!(await healthy(server))) {
+        return `There is no Do Computer at ${server}, or it cannot be reached.`
+      }
       if (settings.server !== undefined && settings.server !== server) {
         // This computer is paired with the deployment it is leaving, and a daemon has one.
         await daemon().forget()
+      }
+      if (!settings.welcomed) {
+        // A first run: the deployment's welcome asks the rest, and nothing is shared before it has.
+        remember({ server, share: false })
+        await runner?.stop()
+        welcomeWindow?.close()
+        showMain(home())
+        return undefined
       }
       remember({ server, share: choice.share === true })
       setOpenAtLogin(choice.openAtLogin === true)
@@ -487,7 +668,7 @@ function listen(): void {
     "retry",
     own(() => {
       if (alive(mainWindow) && settings.server !== undefined) {
-        void mainWindow.loadURL(settings.server)
+        void mainWindow.loadURL(home())
       }
     }),
   )
@@ -642,9 +823,10 @@ if (!app.requestSingleInstanceLock()) {
     settings = loadSettings(settingsFile())
     limitPermissions()
     listen()
+    listenToServer()
     makeMenu()
     makeTray()
-    if (settings.server === undefined) showWelcome()
+    if (settings.server === undefined) void firstRun()
     else if (!startedHidden()) showMain()
     void startSharing()
     void probeDriver()

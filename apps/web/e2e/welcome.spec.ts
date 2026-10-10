@@ -1,0 +1,112 @@
+import type { Page } from "@playwright/test"
+import { expect, test } from "./fixtures.ts"
+import { composer, inOrder, owner } from "./helpers.ts"
+
+inOrder()
+
+// The scene is the same with less motion, without the fall and the waits: what is asked, and
+// what comes of the answers, is what these are about.
+test.use({ reducedMotion: "reduce" })
+
+/** The card under the egg, once it has said its piece and what it asks for can be answered. */
+async function card(page: Page, says: string | RegExp) {
+  const asked = page.locator("[data-card]")
+  await expect(asked.getByRole("status")).toHaveText(says)
+  return asked
+}
+
+test("someone new meets their first agent: it is named as it hatches, and says hello in its chat", async ({
+  page,
+}) => {
+  await page.goto("/welcome")
+  await (
+    await card(page, /Is somebody out there\?/)
+  )
+    .getByRole("button", { name: "Hello!" })
+    .click()
+
+  // Who they are is making an account.
+  const you = await card(page, /who are you\?/)
+  await you.getByLabel("Your name").fill(owner.name)
+  await you.getByLabel("Email").fill(owner.email)
+  await you.getByLabel("Password").fill(owner.password)
+  await you.getByRole("button", { name: "That’s me" }).click()
+
+  // It has no name until it is given one, and takes the color it is given too.
+  const naming = await card(
+    page,
+    `Nice to meet you, ${owner.name}. I don’t have a name yet. What will you call me?`,
+  )
+  await expect(naming.getByRole("button", { name: "That’s your name" })).toBeDisabled()
+  await naming.getByRole("button", { name: "Suggest a name" }).click()
+  await expect(naming.getByLabel("A name for it")).toHaveValue("Pip")
+  await naming.getByRole("radio", { name: "Rose" }).click()
+  await naming.getByRole("button", { name: "That’s your name" }).click()
+
+  // In a browser there is no computer to ask about: it hatches, and its chat is next.
+  const out = await card(page, `There you are, ${owner.name}! Shall we get started?`)
+  await out.getByRole("button", { name: "Start chatting with Pip" }).click()
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  await expect(page.locator("[data-welcome]")).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: `Hi ${owner.name}, I’m Pip.` })).toBeVisible()
+
+  // What it is called and how it looks are its own from the start, and it is out of its egg.
+  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
+    agents: { name: string; avatar: { color: string; seed?: string }; hatched: boolean }[]
+  }
+  expect(agents).toHaveLength(1)
+  expect(agents[0]).toMatchObject({ name: "Pip", avatar: { color: "rose" }, hatched: true })
+  expect(agents[0]!.avatar.seed).toBeTruthy()
+
+  // What it offers to start with is said for them.
+  await page.getByRole("button", { name: "Show me what you can do" }).click()
+  await expect(page.getByText("You said: Show me what you can do")).toBeVisible()
+  await expect(composer(page)).toBeVisible()
+})
+
+test("someone who has an agent is sent on from the first run to where they left off", async ({
+  page,
+}) => {
+  await page.goto("/login")
+  await page.getByLabel("Email").fill(owner.email)
+  await page.getByLabel("Password").fill(owner.password)
+  await page.getByRole("button", { name: "Sign in" }).click()
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+
+  await page.goto("/welcome")
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  await expect(page.locator("[data-welcome]")).toHaveCount(0)
+})
+
+test("the egg knows someone who signs in, and sends them on", async ({ page }) => {
+  await page.goto("/welcome")
+  await (
+    await card(page, /Is somebody out there\?/)
+  )
+    .getByRole("button", { name: "Hello!" })
+    .click()
+  const you = await card(page, /who are you\?/)
+  await you.getByRole("button", { name: "I already have an account" }).click()
+  await expect(you.getByLabel("Your name")).toHaveCount(0)
+
+  // What is wrong is said in the card, which can be tried again.
+  await you.getByLabel("Email").fill(owner.email)
+  await you.getByLabel("Password").fill("not the password")
+  await you.getByRole("button", { name: "Sign in" }).click()
+  await expect(you.getByRole("alert")).toBeVisible()
+
+  await you.getByLabel("Password").fill(owner.password)
+  await you.getByRole("button", { name: "Sign in" }).click()
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  await expect(page.locator("[data-welcome]")).toHaveCount(0)
+})
+
+test("the sign-in page sends someone new to the first run", async ({ page }) => {
+  await page.goto("/login")
+  // The link is the plain form's until the page's script has run.
+  const create = page.getByRole("link", { name: "Create an account" })
+  await expect(create).toHaveAttribute("href", "/welcome")
+  await create.click()
+  await page.waitForURL(/\/welcome$/)
+  await card(page, /Is somebody out there\?/)
+})

@@ -55,6 +55,7 @@ describe("what the app remembers", () => {
       openAtLogin: false,
       screen: false,
       browser: true,
+      welcomed: false,
     })
     saveSettings(file, {
       server: "https://do.example",
@@ -63,6 +64,7 @@ describe("what the app remembers", () => {
       openAtLogin: true,
       screen: true,
       browser: false,
+      welcomed: true,
     })
     expect(loadSettings(file)).toEqual({
       server: "https://do.example",
@@ -71,6 +73,7 @@ describe("what the app remembers", () => {
       openAtLogin: true,
       screen: true,
       browser: false,
+      welcomed: true,
     })
   })
 
@@ -83,7 +86,29 @@ describe("what the app remembers", () => {
       openAtLogin: false,
       screen: false,
       browser: true,
+      welcomed: false,
     })
+  })
+})
+
+describe("whether the first run is over", () => {
+  const saved = (content: object) => {
+    const file = join(scratch(), "settings.json")
+    writeFileSync(file, JSON.stringify(content))
+    return loadSettings(file).welcomed
+  }
+
+  it("is, for an app that was set up before there was a first run to be over", () => {
+    expect(saved({ server: "https://do.example", share: true })).toBe(true)
+  })
+
+  it("is not, for one that never chose a server", () => {
+    expect(saved({ share: false })).toBe(false)
+  })
+
+  it("is as it was written down, once it has been", () => {
+    expect(saved({ server: "https://do.example", welcomed: false })).toBe(false)
+    expect(saved({ server: "https://do.example", welcomed: true })).toBe(true)
   })
 })
 

@@ -58,9 +58,22 @@ export interface Orb {
   setPointer(clientX: number | null, clientY?: number): void
   /** The same without a page: a direction, and how strongly. */
   attend(x: number, y: number, strength: number): void
-  /** Play the hatch. `onDone` is called once, whether it played through or was skipped. */
-  hatch(options?: { onDone?: () => void }): void
+  /**
+   * Play the hatch. `onDone` is called once, whether it played through or was skipped, and
+   * `onOut` once before it, at the moment the shell breaks.
+   */
+  hatch(options?: { onDone?: () => void; onOut?: () => void }): void
   skipHatch(): void
+  /**
+   * How cracked the waiting egg is, from 0 (whole) to 1. It keeps its cracks while it waits, with
+   * a jolt as it gets each, and the hatch goes on from them.
+   */
+  crack(amount: number): void
+  /**
+   * Where it stands in its own picture, for a host that puts it on something: the ground under
+   * it, measured down from the top, and how tall its egg is, both as parts of the picture's side.
+   */
+  stance(): { ground: number; egg: number }
   resize(size?: number): void
   /** One step of its life, for a host that draws it itself. */
   update(seconds: number): void
@@ -73,6 +86,8 @@ export interface Orb {
   notice: boolean
   /** Draw its scene without it, for something else that is shown on its stage. */
   hidden: boolean
+  /** How much of its shadow is drawn, from 0 to 1: none under one that is in the air. */
+  shadow: number
   /** What it has on, kept by the wardrobe. Not for a host to set. */
   worn: { tick(seconds: number, time: number): void; fit(): void; dispose(): void } | null
   /** Called when it changes state by itself: `done` to `idle`, and after hatching. */
