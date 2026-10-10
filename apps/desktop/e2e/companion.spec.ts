@@ -59,6 +59,11 @@ async function creatureIn(pet: Page) {
         }))
         .catch(String)
       console.log("The companion's page:", JSON.stringify(had))
+      console.log(
+        "The app's windows:",
+        app.windows().map((page) => page.url()),
+      )
+      console.log("What the app printed:", printed.join("").slice(-4_000))
       throw error
     })
   return creature
@@ -107,7 +112,18 @@ async function openComputer(): Promise<Page> {
   return windowAt("computer.html")
 }
 
-const launch = () =>
+/** What the app has printed, for when it goes wrong on a machine nobody is at. */
+const printed: string[] = []
+
+async function launch(): Promise<ElectronApplication> {
+  const launched = await start()
+  const process = launched.process()
+  process.stderr?.on("data", (chunk) => printed.push(String(chunk)))
+  process.on("exit", (code, signal) => printed.push(`The app ended: ${code} ${signal}\n`))
+  return launched
+}
+
+const start = () =>
   electron.launch({
     ...(packed ? { executablePath: packed } : {}),
     // The creature is drawn in 3D. A Mac has a graphics card to do it with; elsewhere it is
@@ -124,6 +140,7 @@ const launch = () =>
       HOME: join(scratch, "home"),
       USERPROFILE: join(scratch, "home"),
       DC_DESKTOP_DATA: data,
+      ELECTRON_ENABLE_LOGGING: "1",
     },
   })
 

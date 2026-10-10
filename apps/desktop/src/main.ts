@@ -386,9 +386,15 @@ function syncCompanion(): void {
 function setCompanion(on: boolean): void {
   remember({ companion: on })
   syncCompanion()
-  makeMenu()
+  // The menu's own tick, where it was not the menu that was clicked. The menu is not made
+  // again for it: on Windows and Linux that gives it anew to every window there is.
+  const item = Menu.getApplicationMenu()?.getMenuItemById(COMPANION_ITEM)
+  if (item != null) item.checked = on
   changed()
 }
+
+/** What the File menu's item for the companion is known by. */
+const COMPANION_ITEM = "companion"
 
 let steppedAside: ReturnType<typeof setInterval> | undefined
 
@@ -853,6 +859,7 @@ function makeMenu(): void {
         { label: "Change Server…", click: showWelcome },
         { type: "separator" },
         {
+          id: COMPANION_ITEM,
           label: "Keep My Agent on the Desktop",
           type: "checkbox",
           checked: settings.companion,
