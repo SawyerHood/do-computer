@@ -131,8 +131,10 @@ machines, and that workspace's library.
 
 Things to know before choosing one:
 
-- **The built-in shell is not shared.** Where it is the default every agent gets its own, which
-  goes when the agent is deleted.
+- **On Node the built-in shell is not shared.** Its files are in one agent's database, so where
+  it is the default every agent gets its own, which goes when the agent is deleted. On
+  Cloudflare it is a machine like the others: a workspace is given one for its agents to share,
+  each in a folder of its own, and more can be added under Computers.
 - **On Cloudflare the built-in shell is [Cloudflare Computer](https://github.com/cloudflare/computer)'s.**
   Its files are in a Durable Object of its own (about 10 GB, read as they are needed), and each
   command runs in a Dynamic Worker started for it, which can reach those files and, through the
@@ -282,7 +284,7 @@ answering or someone stops the conversation.
   workspace has machines, and its agents share them. The default is
   [just-bash](https://github.com/vercel-labs/just-bash), a shell interpreter with a durable
   virtual filesystem that needs no machine; it has the usual text tools and `curl` for the
-  internet, but no real programs, and it is the one kind that each agent has to itself. For a
+  internet, but no real programs, and on Node it is the one kind that each agent has to itself. For a
   real Linux machine, see [Computers](#computers); where a deployment offers one, an agent also
   starts with a skill for driving a headless browser.
 - **Run schedules.** Ask for something later or regularly. Each run happens in its own chat and

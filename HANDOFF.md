@@ -426,8 +426,7 @@ Since then, newest last:
       (`computers.ts`) adds an open machine when an agent is made where it could use none. The
       built-in shell keeps its files in one agent's database, so each agent gets its own,
       `chosen`, and it cannot be shared or removed apart from its agent (`UNSHARED_KINDS`).
-      (On Cloudflare its files have been in an object of their own since item 47, kept under
-      the agent's id; it is still one agent's.)
+      (That is Node. On Cloudflare it is a machine like the others since item 47.)
     - **The record is told to agents, whole.** `tellMachines` puts every machine an agent can
       use to it (`PUT /computers`), and the agent replaces what it had. An agent that was not
       told catches up by asking its host (`ComputerDirectory.machines`) the first time a name
@@ -1898,8 +1897,17 @@ Since then, newest last:
       rule about private addresses is the same. On Node nothing changed: the shell inside the
       server, with `DurableFs`.
     - **Why an object of its own and not the agent's storage:** so that the shell could be a
-      workspace's machine later with no files to move. Whether it should be is the owner's to
-      say; it was left one per agent (`UNSHARED_KINDS`).
+      workspace's machine with no files to move.
+    - **It is a workspace's machine there** (the same day, after the owner sent a picture of
+      Add a computer offering only Daytona: "also this still shows daytona"). What is one
+      agent's alone now depends on where the server runs: `unsharedKinds(target)` in
+      `sandbox.ts` is `just-bash` on Node and nothing on Cloudflare, and a kind says so to the
+      app as `perAgent`. So on Cloudflare a workspace is given one shell, open to its agents,
+      each in a folder under `/workspace`; one can be added, opened, closed and removed like
+      any machine. A shell from the few hours before, which was one agent's, is a row with
+      that agent's id as its key and stays that agent's until someone opens it. Only a shell
+      whose key is the asking agent's id has old files moved into it. Daytona is still
+      offered beside it: taking a kind off offer cuts off the machines of that kind.
     - **Files from before.** `movedFromDatabase` copies what `dc_fs` holds in the agent's
       database into the object the first time the shell is used, then renames the tables to
       `dc_fs_moved` and `dc_fs_chunks_moved`. Nothing drops them. Modification times are not
@@ -1999,9 +2007,6 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   Telegram webhook pointing at an address that no longer exists, an R2 access token used for
   backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
   database and files that was taken before they were deleted. The old daemon is gone from that machine.
-- **Whether the built-in shell should be a workspace's machine on Cloudflare**, shared by its
-  agents like the others. Its files are in an object of their own since item 47, so nothing
-  would have to move; it was left one per agent because nobody was asked.
 - **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
   dashboard; the API token at hand cannot edit zone rules.
 - **Two credentials were pasted into a chat transcript**: the GitHub OAuth app's client secret

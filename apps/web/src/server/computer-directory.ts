@@ -22,7 +22,7 @@ import {
   peopleById,
 } from "./computer-access.ts"
 import { sendPush } from "./push.ts"
-import { UNSHARED_KINDS } from "./sandbox.ts"
+import { unsharedKinds } from "./sandbox.ts"
 
 /**
  * What an agent can find out about computers it is not connected to, and how it asks for one. It
@@ -43,6 +43,8 @@ export function computerDirectory(
     add: NonNullable<ComputerDirectory["add"]>
     remove: NonNullable<ComputerDirectory["remove"]>
   },
+  /** The kinds whose machine is one agent's alone, where the agents run. */
+  unshared: readonly string[] = unsharedKinds("node"),
 ): ComputerDirectory {
   /** Whose computers these are, in words an agent can repeat: a person's name, or a team's. */
   const owners = async (rows: readonly ComputerRow[]) => {
@@ -99,7 +101,7 @@ export function computerDirectory(
         return undefined
       }
       // A kind that is one agent's has no other folders to keep apart from: its home is the folder.
-      if (UNSHARED_KINDS.includes(row.kind)) return undefined
+      if (unshared.includes(row.kind)) return undefined
       const folder = await folderFor(db, row, agentId, agentName)
       const there = (await foldersOn(db, [computerId])).get(computerId) ?? []
       return {
@@ -107,7 +109,8 @@ export function computerDirectory(
         neighbors: there.filter((one) => one.agentId !== agentId).map((one) => one.path),
       }
     },
-    adopt: (agentId, machines, agentName) => adoptMachines(db, agentId, machines, agentName),
+    adopt: (agentId, machines, agentName) =>
+      adoptMachines(db, agentId, machines, agentName, undefined, unshared),
     ...(machines === undefined
       ? {}
       : {
