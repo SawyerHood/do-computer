@@ -220,9 +220,11 @@ test("a still picture of a creature is drawn though its page opened out of sight
   await expect.poll(() => drawn(page)).not.toContain(0)
 })
 
-test("creatures keep their picture when the graphics card goes away, and move again by another", async ({
-  page,
-}) => {
+/**
+ * Keep every context a page asks its graphics card for, in `window.made`. Returns what says how
+ * many there have been.
+ */
+async function keepContexts(page: Page) {
   await page.addInitScript(() => {
     const made: WebGLRenderingContext[] = []
     Object.assign(window, { made })
@@ -239,8 +241,48 @@ test("creatures keep their picture when the graphics card goes away, and move ag
       return context
     } as typeof real
   })
-  const made = () =>
+  return () =>
     page.evaluate(() => (window as unknown as { made: WebGLRenderingContext[] }).made.length)
+}
+
+test("going from one agent to another draws their creatures with the context that was there", async ({
+  page,
+}) => {
+  // Every creature on the page goes and others come. The context used to go with them, while
+  // the canvases still held what they had copied from it, and a new one was made for the next
+  // page. On a Mac that lost the browser its graphics card's process now and then.
+  const made = await keepContexts(page)
+  await signIn(page)
+  const created = await page.request.post("/api/agents")
+  const second = ((await created.json()) as { agent: { id: string } }).agent.id
+  await page.reload()
+  await expect(composer(page)).toBeVisible()
+  const agents = page.getByRole("navigation", { name: "Agents" })
+  if (!(await agents.isVisible())) {
+    await page.getByRole("button", { name: "Show the sidebar" }).click()
+  }
+  await agents.getByRole("link").last().click()
+  await expect(page).toHaveURL(new RegExp(`/a/${second}/c/\\d+`))
+  // With the sidebar shut, no creature stays on the page from one agent to the next.
+  await page.getByRole("button", { name: "Hide the sidebar" }).click()
+  await expect.poll(() => drawn(page)).not.toContain(0)
+  expect(await made()).toBe(1)
+
+  for (let move = 0; move < 6; move++) {
+    if (move % 2 === 0) await page.goBack()
+    else await page.goForward()
+    await page.waitForTimeout(150)
+  }
+  await expect.poll(() => drawn(page)).not.toContain(0)
+  expect(await made()).toBe(1)
+
+  expect((await page.request.delete(`/api/agents/${second}`)).ok()).toBe(true)
+})
+
+test("creatures keep their picture when the graphics card goes away, and move again by another", async ({
+  page,
+}) => {
+  const made = await keepContexts(page)
   await signIn(page)
   await expect(composer(page)).toBeVisible()
   await expect.poll(() => drawn(page)).not.toContain(0)

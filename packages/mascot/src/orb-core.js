@@ -32,7 +32,7 @@
                                         Runner.stop() / Runner.start() pause and resume all of them
    orb.reduced = true                   reduced motion
    orb.resize(size)                     new css size (or re-measure the canvas)
-   orb.dispose()                        remove it and free its materials
+   orb.dispose()                        remove it; its materials are freed a little later (Stage.retire)
    orb.onAuto = fn(state)               called when it changes state by itself (done -> idle, hatch -> idle)
    orb.hidden = true                    draw its scene without it: for something else shown on its stage
    orb.worn                             null, or what it has on (see wardrobe.js): { tick(dt, t), fit(), dispose() },
@@ -811,8 +811,12 @@ var RING_FRAG = [
    pixels, so it gets a context without antialiasing; only the look
    in use keeps a context alive.
    ================================================================ */
+// The longest side of the picture the orbs are drawn into together.
+var SHEET = 2048;
+// How long what an orb was drawn with is kept after it has gone.
+var LINGER_MS = 10000;
 var Stage = {
-  ctx: {}, camera: null, geos: {}, missedAt: {},
+  ctx: {}, camera: null, geos: {}, missedAt: {}, retired: [], tidying: 0,
   // key: 'px' (mascot, no antialiasing) or 'aa' (glass). Creates the renderer on first use.
   get: function (key) {
     if (this.ctx[key]) return this.ctx[key];
@@ -827,7 +831,7 @@ var Stage = {
     renderer.setPixelRatio(1);
     renderer.setClearColor(0x000000, 0);
     renderer.setScissorTest(true);
-    var c = { renderer: renderer, size: 0, own: !!own, gone: false };
+    var c = { renderer: renderer, w: 0, h: 0, own: !!own, gone: false };
     // The browser is let give the context back. A renderer handed to the stage is carried on
     // with, as three re-creates its state. One of the stage's own is not: see `lost`.
     var el = renderer.domElement;
@@ -856,6 +860,28 @@ var Stage = {
     for (var i = 0; i < orbs.length; i++) { if (orbs[i].retro) px = true; else aa = true; }
     if (!px) this.release('px');
     if (!aa) this.release('aa');
+  },
+  // An orb that has gone leaves its materials here, to be let go of in a while and not at once.
+  // Going from one page to the next takes every orb away and brings others. Let go of at once,
+  // the shaders went with the last orb and the context after them, and the next page had a
+  // new context made and every shader compiled again: a start's worth of work for the graphics
+  // card on every move. Worse, the context went while canvases still held what they had just
+  // copied from it, and on a Mac that now and then lost Chromium its graphics device: the GPU
+  // process restarts, and after three of those it runs with no graphics card at all. Kept for
+  // a while, the orbs that come find it all as it was left, and nothing is waiting on a
+  // context when it does go.
+  retire: function (materials) {
+    var self = this;
+    this.retired.push({ at: now(), materials: materials });
+    if (this.tidying) return;
+    this.tidying = setTimeout(function tidy() {
+      var t = now();
+      while (self.retired.length && t - self.retired[0].at >= LINGER_MS) {
+        self.retired.shift().materials.forEach(function (m) { m.dispose(); });
+      }
+      self.tidying = self.retired.length ? setTimeout(tidy, self.retired[0].at + LINGER_MS - t) : 0;
+      if (!self.tidying) self.sweep(Runner.orbs);
+    }, LINGER_MS);
   },
   count: function () { return Object.keys(this.ctx).length; },
   // The renderer for a frame. This is asked every frame, so one that could not be made is asked
@@ -957,20 +983,57 @@ var Stage = {
   },
   // Draws the orb, and says whether it could.
   draw: function (orb) {
-    var px = orb.px;
-    if (px < 2) return false;
-    var key = orb.retro ? 'px' : 'aa';
-    var c = this.frame(key);
-    // Nothing can be drawn without a context. The picture that is there stays: copying from a
-    // context that is gone would wipe it.
-    if (!c || this.lost(key, c)) return false;
-    var r = c.renderer;
-    if (px > c.size) { c.size = Math.min(2048, Math.ceil(px / 64) * 64); r.setSize(c.size, c.size, false); }
-    this.drawAt(orb, r, 0, 0);
-    if (!orb.ctx) return true;
-    orb.ctx.clearRect(0, 0, px, px);
-    orb.ctx.drawImage(r.domElement, 0, c.size - px, px, px, 0, 0, px, px);
-    return true;
+    if (orb.px < 2) return false;
+    this.sheet(orb.retro ? 'px' : 'aa', [orb]);
+    return !orb.owed;
+  },
+  // Draws every orb in the list, and leaves each one owed its picture where it could not.
+  drawAll: function (orbs) {
+    var px = [], aa = [];
+    for (var i = 0; i < orbs.length; i++) {
+      var o = orbs[i];
+      if (o.px < 2) o.owed = true; else (o.retro ? px : aa).push(o);
+    }
+    if (px.length) this.sheet('px', px);
+    if (aa.length) this.sheet('aa', aa);
+  },
+  // The orbs of one look, drawn side by side into the one picture and then each given its own
+  // square of it. Taking a picture out of the graphics card costs the same whatever is on it,
+  // so it is done once for all of them, and not once for each.
+  sheet: function (key, orbs) {
+    var i, o, c = this.frame(key);
+    // Nothing can be drawn without a context. The pictures that are there stay: copying from a
+    // context that is gone would wipe them.
+    if (!c || this.lost(key, c)) { for (i = 0; i < orbs.length; i++) orbs[i].owed = true; return; }
+    var r = c.renderer, from = 0;
+    while (from < orbs.length) {
+      // rows filled from the left, as many as fit in the tallest picture a card is sure to hold
+      var x = 0, y = 0, row = 0, w = 0, to = from;
+      for (; to < orbs.length; to++) {
+        o = orbs[to];
+        if (x > 0 && x + o.px > SHEET) { x = 0; y += row; row = 0; }
+        if (to > from && y + o.px > SHEET) break;
+        o.sx = x; o.sy = y;
+        x += o.px; if (x > w) w = x; if (o.px > row) row = o.px;
+      }
+      var h = y + row;
+      // Made larger only, and from the first with room for a page's worth. A new size is a new
+      // picture in the graphics card and the old one thrown away, which the canvases that were
+      // last drawn from it may not have finished with: see `retire`.
+      if (w > c.w || h > c.h) {
+        c.w = Math.min(SHEET, Math.max(c.w, 512, Math.ceil(w / 64) * 64));
+        c.h = Math.min(SHEET, Math.max(c.h, 256, Math.ceil(h / 64) * 64));
+        r.setSize(c.w, c.h, false);
+      }
+      for (i = from; i < to; i++) this.drawAt(orbs[i], r, orbs[i].sx, orbs[i].sy);
+      for (i = from; i < to; i++) {
+        o = orbs[i]; o.owed = false;
+        if (!o.ctx) continue;
+        o.ctx.clearRect(0, 0, o.px, o.px);
+        o.ctx.drawImage(r.domElement, o.sx, c.h - o.sy - o.px, o.px, o.px, 0, 0, o.px, o.px);
+      }
+      from = to;
+    }
   },
   // Draw one orb into a square of any renderer (x, y from the bottom left, in pixels). This is the whole
   // per-orb cost, so a list of avatars can be one canvas with one of these calls per row.
@@ -1932,12 +1995,11 @@ Orb.prototype.update = function (dt) {
   h.uGround.value.x *= this.shadow;
 };
 
-Orb.prototype.render = function () { this.owed = !Stage.draw(this); };
+Orb.prototype.render = function () { if (!Stage.draw(this)) this.owed = true; };
 Orb.prototype.dispose = function () {
   if (this.worn) { this.worn.dispose(); this.worn = null; }
   Runner.remove(this);
-  this.halo.material.dispose(); this.body.material.dispose(); this.eggMesh.material.dispose(); this.ring.material.dispose(); this.points.material.dispose();
-  Stage.sweep(Runner.orbs);
+  Stage.retire([this.halo.material, this.body.material, this.eggMesh.material, this.ring.material, this.points.material]);
 };
 
 /* ================================================================
@@ -1945,8 +2007,13 @@ Orb.prototype.dispose = function () {
    everything else it uses from the page is optional.
    ================================================================ */
 function now() { return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now(); }
+// The mascot is drawn at console frame rates: 30 a second, and 15 for the bystanders. A beat is
+// one of those frames. A screen shows 60 frames a second, or 120, or 144, and the orbs are
+// drawn on the ones a beat falls on, all of them together: the frames between are left alone,
+// so nothing on the page changes in them and nothing has to be put on the screen again.
+var BEAT_MS = 1000 / 30;
 var Runner = {
-  orbs: [], raf: 0, last: 0, frame: 0, fps: 0, running: false, rectsAt: 0, wired: false,
+  orbs: [], raf: 0, last: 0, frame: 0, beat: 0, beatAt: -1e9, fps: 0, running: false, rectsAt: 0, wired: false, due: [],
   add: function (orb, slow) { orb.half = !!slow; orb.parity = this.orbs.length % 6; this.orbs.push(orb); return orb; },
   remove: function (orb) { var i = this.orbs.indexOf(orb); if (i >= 0) this.orbs.splice(i, 1); },
   // page events, hooked up once and only where a page exists
@@ -1976,8 +2043,12 @@ var Runner = {
     var dt = Math.min(Math.max(raw, 0), 0.25);
     if (raw > 0) this.fps = this.fps ? lerp(this.fps, 1 / raw, 0.08) : 1 / raw;
     this.frame++;
+    // A frame that comes a little early for its beat is still the nearest one to it.
+    var beat = t - this.beatAt >= BEAT_MS - 4 || t < this.beatAt;
+    if (beat) { this.beat++; this.beatAt = t; }
     var fresh = t - this.rectsAt > 400, viewH = typeof window !== 'undefined' ? window.innerHeight : 1e9;
     if (fresh) this.rectsAt = t;
+    var due = this.due; due.length = 0;
     for (var i = 0; i < this.orbs.length; i++) {
       var o = this.orbs[i];
       // one that is held still is not moved, but is given the picture it is owed
@@ -1998,12 +2069,13 @@ var Runner = {
         o.attend(dx * nrm, dy * nrm, dist < reach ? 1 : 0);
       } else if (o.ptr.t > -1e8) { o.ptr.t = -1e9; o.attend(o.attn.x, o.attn.y, 0); }
       o.pending += dt;
-      // the mascot is drawn at console frame rates: 30 a second, 20 for the bystanders
-      var every = o.retro ? (o.half ? 3 : 2) : (o.half ? 2 : 1);
-      if ((this.frame + o.parity) % every) continue;
+      // The glass look is smooth, and keeps to the screen's own frames: every one, or every other.
+      if (o.retro ? !beat || (o.half && this.beat % 2) : (this.frame + o.parity) % (o.half ? 2 : 1)) continue;
       o.update(o.pending); o.pending = 0;
-      o.render();
+      due.push(o);
     }
+    if (due.length) Stage.drawAll(due);
+    due.length = 0;
   }
 };
 
