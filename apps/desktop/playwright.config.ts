@@ -10,6 +10,8 @@ export default defineConfig({
   timeout: 90_000,
   fullyParallel: false,
   workers: 1,
-  reporter: [["list"]],
+  // On CI a test that fails is run once more, as the web app's are, and named if it then passes.
+  retries: process.env.CI ? 1 : 0,
+  reporter: [["list"], ["../web/e2e/flaky.ts"]],
   use: { trace: "retain-on-failure" },
 })

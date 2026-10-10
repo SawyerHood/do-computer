@@ -73,11 +73,13 @@ jobs:
           # Asked for no files, Playwright runs them all.
           [ -n "$files" ] || exit 0
           pnpm exec playwright test --project=web $files
+      # What a failed test left: of one that passed when it was run again, too.
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: success() || failure()
         with:
           name: e2e-${{ matrix.share }}
           path: apps/web/test-results
+          if-no-files-found: ignore
           retention-days: 7
 
   # The mobile app's screens, through its web build. Making that build takes longer than the
@@ -106,10 +108,11 @@ jobs:
       - run: test -f apps/mobile/dist-web-test/index.html
       - run: pnpm --filter @durable-computer/web exec playwright test --project=mobile
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: success() || failure()
         with:
           name: e2e-mobile
           path: apps/web/test-results
+          if-no-files-found: ignore
           retention-days: 7
 
   # Deploys to Cloudflare once the tests pass on main. It only runs where the repository says
