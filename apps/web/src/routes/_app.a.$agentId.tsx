@@ -5,6 +5,7 @@ import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { CreatureWindows } from "@/components/creature/windows"
 import { AppShell } from "@/components/shell/app-shell"
+import { useAppIcon } from "@/lib/app-icon"
 import { mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentQuery, catchUpAgent, refreshAgent } from "@/lib/collections"
@@ -98,6 +99,7 @@ function AgentLayout() {
 
 function AgentPages({ agentId, agent }: { agentId: string; agent: AgentSummary | undefined }) {
   useAgentFavicon(agent)
+  useAppIcon(agent)
   return (
     <AppShell agentId={agentId} agent={agent}>
       <Outlet />

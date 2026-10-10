@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
 import { meKey } from "@/lib/collections"
+import { useUsualAppIcon } from "@/lib/app-icon"
 import { desktop, signInThroughBrowser } from "@/lib/desktop"
 import type { FrontDoor } from "@/lib/front-door"
 import { queryClient } from "@/lib/query"
@@ -33,6 +34,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   // the browser's own form submission, which signs nobody in, so the button waits for the script.
   const [ready, setReady] = useState(false)
   useEffect(() => setReady(true), [])
+  useUsualAppIcon()
   const { data: methods } = useQuery({
     queryKey: ["auth-methods"],
     queryFn: async (): Promise<FrontDoor> => (await fetch("/api/auth-methods")).json(),

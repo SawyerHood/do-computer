@@ -1,8 +1,10 @@
 // Draws the app's own pictures from its mascot: the tab's icon, the icons a phone and a
 // desktop show for the app, the tray's, and the mark on the desktop app's own pages. The
-// creature is the one grown from the seed "Do", in the app's teal, drawn by the same code that
-// draws every agent's. `node scripts/icons.mjs` writes them all where they are used; it needs a
-// Chromium that Playwright can start (PLAYWRIGHT_CHROMIUM_PATH names one that is already here).
+// creature is one grown from a seed, in the app's teal, drawn by the same code that draws every
+// agent's; where there is room it stands on the island of the first run at sunrise, as an
+// agent's own does in the desktop app's icon (see packages/mascot/src/portrait.js).
+// `node scripts/icons.mjs` writes them all where they are used; it needs a Chromium that
+// Playwright can start (PLAYWRIGHT_CHROMIUM_PATH names one that is already here).
 //
 // `node scripts/icons.mjs <folder>` writes them into a folder instead, to look at.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -15,38 +17,35 @@ const { chromium } = createRequire(path.join(root, "apps/web/package.json"))("@p
 
 /** What the creature is, and what it is doing in its picture. */
 const LOOK = {
-  seed: "Do",
+  seed: "agt_ct5dka",
   color: "#3b9d9d",
-  state: "speaking",
-  // Drawn with fewer than this many pixels its open mouth is a hole in its face, so there it
-  // listens instead, which is the same creature with its mouth shut.
+  state: "idle",
+  // Drawn with fewer than this many pixels its eyes are specks, so there it listens instead,
+  // which is the same creature with its eyes wide.
   small: { under: 40, state: "listening" },
   // The tray's creature while this computer is not shared: grey, and asleep.
   off: { color: "#737c80", state: "asleep" },
-  // The square behind it, from its middle out to its corners, and the shadow it stands over.
-  glow: ["#2a6466", "#235153", "#1d3f42", "#193033", "#172527"],
-  shadow: "#0b0d0e",
 }
 
 /**
- * Every picture. A tile is the creature on its dark square: `grid` is how many of the
- * creature's pixels the square is across, `scale` how large each is drawn, `tall` how much of
- * the square the creature takes, `round` how much of it the corners are rounded by, and
- * `inset` the clear room left around it. A sprite is the creature alone, without the ball
- * that floats over its head, in a picture `size` pixels across: `half` draws it at twice that
- * and reduces it, which is kinder to its eyes than the few pixels it would otherwise have.
+ * Every picture. A tile is the creature on its island: `grid` is how many of the creature's
+ * pixels the square is across, `scale` how large each is drawn, `zoom` how near it is stood
+ * to, `round` how much of it the corners are rounded by, and `inset` the clear room left
+ * around it. A sprite is the creature alone, without the ball that floats over its head, in a
+ * picture `size` pixels across: `half` draws it at twice that and reduces it, which is kinder
+ * to its eyes than the few pixels it would otherwise have.
  */
 const PICTURES = [
-  { file: "apps/web/public/icon-192.png", tile: { grid: 96, scale: 2, tall: 0.7, round: 0.225 } },
-  { file: "apps/web/public/icon-512.png", tile: { grid: 128, scale: 4, tall: 0.7, round: 0.225 } },
+  { file: "apps/web/public/icon-192.png", tile: { grid: 96, scale: 2, round: 0.225 } },
+  { file: "apps/web/public/icon-512.png", tile: { grid: 128, scale: 4, round: 0.225 } },
   // A phone cuts its own shape out of these two, so they have no corners and more room.
-  { file: "apps/web/public/icon-maskable-512.png", tile: { grid: 128, scale: 4, tall: 0.54 } },
-  { file: "apps/web/public/apple-touch-icon.png", tile: { grid: 90, scale: 2, tall: 0.66 } },
-  { file: "apps/desktop/assets/icon.png", tile: { grid: 128, scale: 8, tall: 0.7, round: 0.225 } },
+  { file: "apps/web/public/icon-maskable-512.png", tile: { grid: 128, scale: 4, zoom: 0.78 } },
+  { file: "apps/web/public/apple-touch-icon.png", tile: { grid: 90, scale: 2, zoom: 0.92 } },
+  { file: "apps/desktop/assets/icon.png", tile: { grid: 128, scale: 8, round: 0.225 } },
   // A Mac's icons are a square of 824 in a picture of 1024, which is how its own are drawn.
   {
     file: "apps/desktop/assets/icon-mac.png",
-    tile: { grid: 103, scale: 8, tall: 0.7, round: 0.225, inset: 100 },
+    tile: { grid: 103, scale: 8, round: 0.225, inset: 100 },
   },
   { file: "apps/desktop/assets/tray.png", sprite: { size: 18, half: true } },
   { file: "apps/desktop/assets/tray@2x.png", sprite: { size: 36 } },
@@ -62,8 +61,10 @@ const PICTURES = [
 
 /** Runs in the page: draws every picture, and answers with each as a PNG's address. */
 async function draw({ look, pictures }) {
-  // eslint-disable-next-line no-undef
+  /* eslint-disable no-undef */
   const AgentOrb = AgentOrbCore(THREE)
+  const portrait = AgentOrbPortrait(AgentOrb, AgentOrbSky(THREE))
+  /* eslint-enable no-undef */
   const canvasOf = (width, height = width) => {
     const canvas = document.createElement("canvas")
     canvas.width = width
@@ -176,55 +177,10 @@ async function draw({ look, pictures }) {
     return out
   }
 
-  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
-  const rgb = (hex) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16))
-
-  function tile({ grid, scale, tall, round = 0, inset = 0 }) {
-    const small = canvasOf(grid)
-    const context = small.getContext("2d")
-    const it = creature(Math.round(grid * 0.8), Math.round(grid * tall), { ball: true })
-    // The shadow lies a little under its foot, and the two together sit in the middle.
-    const gap = Math.max(2, Math.round(grid * 0.035))
-    const shadowTall = Math.max(2, Math.round(it.width * 0.07)) * 2
-    const top = Math.round((grid - (it.height + gap + shadowTall / 2)) / 2)
-    const left = Math.round((grid - it.width) / 2)
-    const ground = top + it.height + gap
-
-    // A glow behind it that fades to the corners in steps, each step dithered into the next,
-    // as the creature's own shading is.
-    const back = context.createImageData(grid, grid)
-    const steps = look.glow.map(rgb)
-    const dark = rgb(look.shadow)
-    const [cx, cy] = [grid / 2, top + it.height * 0.56]
-    for (let y = 0; y < grid; y++) {
-      for (let x = 0; x < grid; x++) {
-        const far = Math.hypot(x + 0.5 - cx, (y + 0.5 - cy) * 1.08) / (grid * 0.74)
-        const level = Math.min(steps.length - 1, far ** 0.85 * (steps.length - 1))
-        const threshold = (BAYER[(y % 4) * 4 + (x % 4)] + 0.5) / 16
-        let color = steps[Math.min(steps.length - 1, Math.floor(level) + (level % 1 > threshold))]
-        // The shadow: whole in its middle, a checker at its rim.
-        const under = Math.hypot(
-          (x + 0.5 - cx) / (it.width * 0.36),
-          (y - ground) / (shadowTall / 2),
-        )
-        if (under < 0.72 || (under < 1 && (x + y) % 2 === 0)) color = dark
-        back.data.set([...color, 255], (y * grid + x) * 4)
-      }
-    }
-    context.putImageData(back, 0, 0)
-    context.drawImage(it, left, top)
-
-    const side = grid * scale
-    const large = canvasOf(side + inset * 2)
-    const to = large.getContext("2d")
-    to.imageSmoothingEnabled = false
-    if (round > 0) {
-      to.beginPath()
-      to.roundRect(inset, inset, side, side, side * round)
-      to.clip()
-    }
-    to.drawImage(small, inset, inset, side, side)
-    return large
+  function tile({ grid, scale, zoom = 1, round = 0, inset = 0 }) {
+    const island = portrait.island({ grid, zoom, hour: portrait.HOURS.sunrise })
+    const small = portrait.tile(island, { seed: look.seed, color: look.color })
+    return portrait.framed(small, { scale, round, inset })
   }
 
   function sprite({ size, scale = 1, half = false, off = false, shape = false }) {
@@ -309,13 +265,16 @@ function ico(pngs) {
 }
 
 const read = (file) => readFileSync(path.join(root, file), "utf8")
-// The drawing code is a module in the app. Here it is one plain script on an empty page.
-const core = read("packages/mascot/src/orb-core.js").replace(
-  /\nexport \{ AgentOrbCore \}\s*$/,
-  "\n",
+// The drawing code is modules in the app. Here each is one plain script on an empty page.
+const plain = (file) => {
+  const script = read(file).replace(/\nexport \{ \w+ \}\s*$/, "\n")
+  if (script.includes("export {"))
+    throw new Error(`The export line of ${file} was not found where expected.`)
+  return script
+}
+const scripts = ["orb-core.js", "sky.js", "portrait.js"].map((file) =>
+  plain(`packages/mascot/src/${file}`),
 )
-if (core.includes("export {"))
-  throw new Error("The core's export line was not found where expected.")
 const three = readFileSync(
   createRequire(path.join(root, "apps/web/package.json")).resolve("three/build/three.min.js"),
   "utf8",
@@ -332,7 +291,9 @@ let drawn
 try {
   const page = await browser.newPage()
   page.on("pageerror", (error) => console.error(error))
-  await page.setContent(`<!doctype html><script>${three}</script><script>${core}</script>`)
+  await page.setContent(
+    `<!doctype html>${[three, ...scripts].map((script) => `<script>${script}</script>`).join("")}`,
+  )
   drawn = await page.evaluate(draw, { look: LOOK, pictures: PICTURES })
 } finally {
   await browser.close()

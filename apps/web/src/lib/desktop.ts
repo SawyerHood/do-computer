@@ -32,6 +32,12 @@ export type DesktopBridge = {
   }): Promise<{ code: string } | { connected: true } | { error: string }>
   /** The first run is over. With `openAtLogin`, whether the app opens at sign-in from now on. */
   finish(options: { openAtLogin?: boolean }): Promise<void>
+  /**
+   * The picture the app is shown by while it runs: in the Dock on a Mac, on its window and
+   * the taskbar elsewhere. A PNG's address, in the shape this computer's desktop wants, or
+   * null for the app's usual picture. An app older than this has no such thing to ask.
+   */
+  setIcon?(picture: string | null): Promise<void>
 }
 
 declare global {

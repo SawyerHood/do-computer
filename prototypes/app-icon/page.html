@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Do Computer: the icon is your character on its island</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #101214; color: #e6eaec; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 18px; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  h2 { font-size: 13px; margin: 26px 0 10px; color: #7fd6d0; font-weight: 600; }
+  p { margin: 0 0 10px; max-width: 74ch; color: #b4bcc0; }
+  .px { image-rendering: pixelated; image-rendering: crisp-edges; }
+  img { display: block; }
+  .picks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  button.pick { font: inherit; color: inherit; background: #1a1d20; border: 1px solid #2b3034; padding: 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; min-width: 92px; }
+  button.pick[aria-pressed="true"] { border-color: #3b9d9d; background: #162a2b; }
+  button.pick small { color: #8a9498; font-size: 11px; }
+  button.pick img { border-radius: 22.5%; }
+  .row { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-end; }
+  .cap { font-size: 11.5px; color: #8a9498; margin-top: 7px; max-width: 60ch; }
+  .squircle { border-radius: 22.5%; }
+
+  .wall { background: linear-gradient(160deg, #27496d, #6a4c7c 55%, #c9785c); padding: 40px 28px 10px; border-radius: 8px; display: inline-block; }
+  .dock { display: flex; align-items: flex-end; gap: 6px; padding: 6px 8px 8px; border-radius: 20px; background: rgba(240, 240, 245, .22); border: 1px solid rgba(255, 255, 255, .28); backdrop-filter: blur(8px); }
+  .dock .app { width: 56px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .dock .app i { width: 48px; height: 48px; border-radius: 22.5%; display: block; box-shadow: 0 2px 5px rgba(0, 0, 0, .35); }
+  .dock .app img { width: 48px; height: 48px; border-radius: 22.5%; box-shadow: 0 2px 5px rgba(0, 0, 0, .35); }
+  .dock .app b { width: 4px; height: 4px; border-radius: 50%; background: transparent; }
+  .dock .app.on b { background: rgba(255, 255, 255, .85); }
+  .dock .sep { width: 1px; height: 46px; background: rgba(255, 255, 255, .3); margin: 0 4px 9px; }
+
+  .strip { display: flex; align-items: center; }
+  .w11 { background: #1f1f23; color: #fff; height: 48px; padding: 0 14px; gap: 14px; font: 12px "Segoe UI", system-ui, sans-serif; width: 320px; }
+  .w11.light { background: #eef1f6; color: #111; }
+  .w11 .apps { display: flex; gap: 10px; margin-right: auto; align-items: center; }
+  .w11 .apps img { width: 26px; height: 26px; border-radius: 22.5%; }
+  .w11 .clock { text-align: right; line-height: 1.25; }
+  .mac { white-space: nowrap; height: 26px; padding: 0 12px; gap: 14px; font: 13px -apple-system, system-ui, sans-serif; width: 320px; justify-content: flex-end; background: rgba(246, 246, 246, .92); color: #111; }
+  .mac.dark { background: #26262a; color: #f2f2f2; }
+  .zoom { zoom: 2; }
+  .chrome { width: 420px; background: #dee1e6; padding: 8px 8px 0; display: flex; align-items: flex-end; font: 12px system-ui, sans-serif; color: #202124; }
+  .chrome .tab { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; width: 200px; border-radius: 8px 8px 0 0; white-space: nowrap; overflow: hidden; }
+  .chrome .tab.live { background: #fff; }
+  .chrome .tab u { margin-left: auto; text-decoration: none; opacity: .6; }
+  .chrome.dark { background: #202124; color: #e8eaed; }
+  .chrome.dark .tab.live { background: #35363a; }
+  .all { display: grid; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .all button { background: none; border: 2px solid transparent; padding: 0; cursor: pointer; border-radius: 22.5%; }
+  .all button[aria-pressed="true"] { border-color: #7fd6d0; }
+  .all img { border-radius: 22.5%; }
+  .all .head { color: #8a9498; font-size: 11.5px; align-self: center; white-space: nowrap; padding-right: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The icon is your character on its island</h1>
+  <p>Nothing clever: the creature exactly as the app draws it, at rest, in whatever it has on, standing on the island of the first run where it hatched. Island and creature are drawn by the app's own code at one pixel to one pixel of a 128 pixel square, which is then shown eight times as large. Pick an agent and an hour.</p>
+  <div class="picks" id="cast"></div>
+  <div class="picks" id="skies"></div>
+
+  <h2>Mac Dock</h2>
+  <div class="row">
+    <div>
+      <div class="wall"><div class="dock">
+        <div class="app on"><i style="background:linear-gradient(#4aa8ff,#1668e0)"></i><b></b></div>
+        <div class="app"><i style="background:linear-gradient(#f7f7f7,#cfd3d8)"></i><b></b></div>
+        <div class="app on"><img data-icon="tile" alt="Do Computer"><b></b></div>
+        <div class="app"><i style="background:linear-gradient(#ffd24a,#f08a1c)"></i><b></b></div>
+        <div class="app on"><i style="background:linear-gradient(#3c3f45,#1b1d21)"></i><b></b></div>
+        <div class="sep"></div>
+        <div class="app"><img data-icon="asleep" alt=""><b></b></div>
+      </div></div>
+      <div class="cap">In the Dock, running. On the right, past the line: what it could be when this computer is not shared (asleep, grey, at night).</div>
+    </div>
+    <div><img class="px squircle" data-icon="tile" width="256" height="256" alt=""><div class="cap">Twice its pixels</div></div>
+    <div><img class="px squircle" data-icon="tile" width="128" height="128" alt=""><div class="cap">Every pixel</div></div>
+  </div>
+
+  <h2>Windows taskbar and tray</h2>
+  <div class="row">
+    <div><div class="strip w11"><div class="apps"><img data-icon="tile" alt=""></div><img class="px" data-icon="16" width="16" height="16" alt=""><div class="clock">4:20 PM<br>10/10/2026</div></div><div class="cap">Taskbar and tray, dark</div></div>
+    <div><div class="strip w11 light"><div class="apps"><img data-icon="tile" alt=""></div><img class="px" data-icon="off16" width="16" height="16" alt=""><div class="clock">4:20 PM<br>10/10/2026</div></div><div class="cap">Light, not sharing</div></div>
+  </div>
+
+  <h2>Mac menu bar</h2>
+  <div class="row">
+    <div><div class="strip mac"><img class="px" data-icon="16" width="16" height="16" alt=""><span>100%</span><span>Sat Oct 10&nbsp; 4:20 PM</span></div><div class="cap">Light</div></div>
+    <div><div class="strip mac dark"><img class="px" data-icon="16" width="16" height="16" alt=""><span>100%</span><span>Sat Oct 10&nbsp; 4:20 PM</span></div><div class="cap">Dark</div></div>
+    <div><div class="strip mac dark zoom" style="width:130px"><img class="px" data-icon="16" width="16" height="16" alt=""><img class="px" data-icon="off16" width="16" height="16" alt=""><span>4:20 PM</span></div><div class="cap">Twice the size: sharing, and not</div></div>
+  </div>
+  <p class="cap">The tray has no room for an island: it is the character alone, as it is today.</p>
+
+  <h2>Favicon</h2>
+  <div class="row">
+    <div><div class="chrome"><div class="tab live"><img class="px" data-icon="16" width="16" height="16" alt="">Do Computer<u>×</u></div><div class="tab">New Tab<u>×</u></div></div><div class="cap">Light</div></div>
+    <div><div class="chrome dark"><div class="tab live"><img class="px" data-icon="16" width="16" height="16" alt="">Do Computer<u>×</u></div><div class="tab">New Tab<u>×</u></div></div><div class="cap">Dark</div></div>
+  </div>
+  <p class="cap">The tab already does this today: it shows the character of the agent whose chat is open.</p>
+
+  <h2>Everyone, at every hour</h2>
+  <div class="all" id="all"></div>
+</main>
+<script>
+/*DATA*/
+const state = { who: "boss", sky: "2" }
+const el = (tag, props = {}, ...kids) => {
+  const node = Object.assign(document.createElement(tag), props)
+  node.append(...kids)
+  return node
+}
+const src = (who, sky, key) => (key === "tile" ? DATA.icons[who].tiles[Number(sky)] : DATA.icons[who][key])
+function choose(change) {
+  Object.assign(state, change)
+  for (const node of document.querySelectorAll("[data-icon]")) node.src = src(state.who, state.sky, node.dataset.icon)
+  for (const node of document.querySelectorAll("[data-pick]")) {
+    const [who, sky] = node.dataset.pick.split("/")
+    node.setAttribute("aria-pressed", String((who === "" || who === state.who) && (sky === "" || sky === state.sky)))
+    node.querySelector("img").src = src(who || state.who, sky || state.sky, "tile")
+  }
+}
+function pick(where, { who = "", sky = "" }, side, ...words) {
+  const button = el("button", { className: where === "all" ? "" : "pick", type: "button", onclick: () => choose({ ...(who && { who }), ...(sky && { sky }) }) })
+  button.append(el("img", { width: side, height: side, alt: "", className: side % DATA.grid === 0 ? "px" : "" }), ...words)
+  button.dataset.pick = `${who}/${sky}`
+  document.getElementById(where).append(button)
+  return button
+}
+for (const who of DATA.cast) pick("cast", { who: who.id }, 64, el("span", {}, who.name), el("small", {}, who.note))
+for (const sky of DATA.skies) pick("skies", { sky: sky.id }, 64, el("span", {}, sky.name), el("small", {}, sky.note))
+const all = document.getElementById("all")
+all.style.gridTemplateColumns = `auto repeat(${DATA.cast.length}, max-content)`
+for (const sky of DATA.skies) {
+  all.append(el("div", { className: "head" }, sky.name))
+  for (const who of DATA.cast) pick("all", { who: who.id, sky: sky.id }, 96).title = `${who.name}, ${sky.name}`
+}
+choose({})
+</script>
+</body>
+</html>
