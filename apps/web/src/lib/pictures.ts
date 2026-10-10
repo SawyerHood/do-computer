@@ -52,3 +52,8 @@ export async function pictureFor(file: File): Promise<MessageImage | undefined> 
     bitmap.close()
   }
 }
+
+/** Where an `<img>` finds a picture that is held as base64. */
+export function pictureSrc(image: MessageImage): string {
+  return `data:${image.mimeType};base64,${image.data}`
+}
