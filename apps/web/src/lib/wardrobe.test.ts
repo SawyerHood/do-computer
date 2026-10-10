@@ -54,6 +54,22 @@ describe("what a creature can wear", () => {
     expect(sunk).toEqual([])
   })
 
+  it("lets every thing be worn for a while, what moves moving, and be shown out of a box", () => {
+    const orb = creature("Juniper")
+    orb.reduced = true
+    for (const item of WEAR_ITEMS) {
+      wardrobe.dress(orb, { [item.slot]: item.id })
+      live(orb, 0.5)
+      expect(bodyOf(orb).body.children, item.id).toHaveLength(1)
+      const box = wardrobe.unwrap(orb)
+      box.open({ id: item.id, tiers: ["#9aa3ad"] })
+      live(orb, 0.1)
+      expect(box.phase, item.id).toBe("shown")
+      box.dispose()
+    }
+    orb.dispose()
+  })
+
   it("gives a creature its ears, horn or antenna back when its hat comes off", () => {
     for (const seed of ["Juniper", "Pilar", "fitting/3", "fitting/8", "fitting/21"]) {
       const orb = creature(seed)
