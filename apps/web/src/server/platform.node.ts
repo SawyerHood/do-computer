@@ -4,6 +4,7 @@ import { join, resolve } from "node:path"
 import {
   createAgentActor,
   createAgentModels,
+  DEPLOYMENT_MODEL_ACCESS,
   createLibraryActor,
   createModelAccessActor,
   workspaceCredentials,
@@ -88,11 +89,15 @@ function create(): NodePlatform {
     factory: (host) => {
       // What the agent's workspace is signed in to, which its models are then called with.
       const access = () => signIns(host.name)
-      const models = createAgentModels(config, workspaceCredentials(access))
+      const models = createAgentModels(config, {
+        workspace: workspaceCredentials(access),
+        deployment: async () => modelAccess.get(DEPLOYMENT_MODEL_ACCESS),
+      })
       return createAgentActor(host, {
         models: models.models,
         defaultModel: models.defaultModel,
         modelOptions: models.options,
+        deploymentModels: models.offered,
         workspaceModels: () => workspaceModelOptions(access),
         computers,
         webSearch: models.webSearch,

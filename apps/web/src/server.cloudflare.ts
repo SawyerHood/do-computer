@@ -1,6 +1,7 @@
 import {
   createAgentActor,
   createAgentModels,
+  DEPLOYMENT_MODEL_ACCESS,
   createLibraryActor,
   createModelAccessActor,
   workspaceCredentials,
@@ -42,7 +43,9 @@ import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
 import { slackDirectory } from "./server/slack.ts"
 import { computerChoices } from "./server/sandbox.ts"
 
-export { SandboxObject } from "./server/sandbox.cloudflare.ts"
+export { SandboxObject, ShellGateway, ShellObject } from "./server/sandbox.cloudflare.ts"
+// How a built-in shell's Worker finds its way back to the object that keeps its files.
+export { WorkspaceServiceProxy } from "@durable-computer/sandbox/worker-shell/object"
 
 /** One Durable Object per agent. The sockets of those following it hibernate with it. */
 export const AgentObject = createDurableActorClass<Env>({
@@ -54,11 +57,15 @@ export const AgentObject = createDurableActorClass<Env>({
       durableObjectNamespace(env.MODEL_ACCESS),
     )
     const access = () => signIns(host.name)
-    const models = createAgentModels(config, workspaceCredentials(access))
+    const models = createAgentModels(config, {
+      workspace: workspaceCredentials(access),
+      deployment: async () => durableObjectNamespace(env.MODEL_ACCESS).get(DEPLOYMENT_MODEL_ACCESS),
+    })
     return createAgentActor(host, {
       models: models.models,
       defaultModel: models.defaultModel,
       modelOptions: models.options,
+      deploymentModels: models.offered,
       workspaceModels: () => workspaceModelOptions(access),
       computers: computerChoices(config, "cloudflare", cloudflareProviders(env)),
       webSearch: models.webSearch,

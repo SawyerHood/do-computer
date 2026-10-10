@@ -3,7 +3,13 @@
  * with `DC_DAEMON_FAKE_SCREEN=1`. Nothing on the computer is touched.
  */
 import { deflateSync } from "node:zlib"
-import { bytesToBase64, type Shot, type ShotPoint } from "@durable-computer/protocol"
+import {
+  bytesToBase64,
+  type ScreenWindow,
+  type Shot,
+  type ShotPoint,
+  windowName,
+} from "@durable-computer/protocol"
 import type { ScreenIO } from "./daemon-core.ts"
 import { UseState } from "./use.ts"
 
@@ -56,34 +62,86 @@ const HEIGHT = 400
 
 /**
  * The pretend screen: a plain picture with a mark wherever it was last clicked, and a band
- * along the bottom that grows with what was typed.
+ * along the bottom that grows with what was typed. It has two pretend windows, and one more for
+ * each app that is opened; a window's picture is the window's own size and another colour. As
+ * on a Mac, a drag is the one thing that cannot be done in a window behind what is in front.
  */
 export function fakeScreen(state = new UseState({ what: "the screen" })): ScreenIO {
   let seq = 0
   let pointer: ShotPoint | undefined
+  /** The window last worked in. None: the whole screen. */
+  let inWindow: ScreenWindow | undefined
   let typed = 0
+  const windows: ScreenWindow[] = [
+    { id: 11, app: "Notes", title: "Shopping", width: 400, height: 300, shown: true },
+    { id: 12, app: "Calculator", title: "Calculator", width: 230, height: 408, shown: false },
+  ]
   const shot = (): Shot => {
     const at = pointer
-    const band = Math.min(WIDTH, typed * 12)
-    const data = png(WIDTH, HEIGHT, (x, y) => {
+    const width = inWindow?.width ?? WIDTH
+    const height = inWindow?.height ?? HEIGHT
+    const band = Math.min(width, typed * 12)
+    const blue = inWindow === undefined ? 96 : 160
+    const data = png(width, height, (x, y) => {
       if (at !== undefined && Math.abs(x - at.x) < 9 && Math.abs(y - at.y) < 9) return [224, 96, 64]
-      if (y > HEIGHT - 24 && x < band) return [240, 240, 240]
-      return [36 + Math.round((x / WIDTH) * 40), 80 + Math.round((y / HEIGHT) * 60), 96]
+      if (y > height - 24 && x < band) return [240, 240, 240]
+      return [36 + Math.round((x / width) * 40), 80 + Math.round((y / height) * 60), blue]
     })
-    return { mimeType: "image/png", data: bytesToBase64(data), width: WIDTH, height: HEIGHT }
+    return { mimeType: "image/png", data: bytesToBase64(data), width, height }
+  }
+  const on = (window: ScreenWindow | undefined) => {
+    if (inWindow?.id !== window?.id) pointer = undefined
+    inWindow = window
   }
   return {
     async act(agent, action, say) {
       await state.enter(agent, say)
-      if ("x" in action) pointer = { x: action.x, y: action.y }
-      if (action.do === "drag") pointer = { x: action.toX, y: action.toY }
-      if (action.do === "click" || action.do === "double_click" || action.do === "right_click") {
-        state.clicks++
-      }
-      if (action.do === "type") typed += action.text.length
       seq++
       state.touch()
-      return { shot: shot(), ...(pointer === undefined ? {} : { pointer }) }
+      if (action.do === "windows") return { windows: [...windows] }
+      if (action.do === "open") {
+        const opened: ScreenWindow = {
+          id: 20 + windows.length,
+          app: action.app,
+          title: action.app,
+          width: 320,
+          height: 240,
+          shown: true,
+        }
+        windows.unshift(opened)
+        on(opened)
+        return { shot: shot(), window: opened, windows: [opened] }
+      }
+      const window =
+        action.do === "in_window" ? windows.find((each) => each.id === action.window) : undefined
+      if (action.do === "in_window" && window === undefined) {
+        throw new Error(
+          `There is no window ${action.window} on this computer now. Ask for \`windows\` to see the ones there are.`,
+        )
+      }
+      const act = action.do === "in_window" ? action.act : action
+      if (
+        window !== undefined &&
+        act.do === "drag" &&
+        action.do === "in_window" &&
+        !action.inFront
+      ) {
+        throw new Error(
+          "That could not be done behind what is in front: a drag moves the real pointer. Nothing was done. Do it again with `in_front: true`: the window is then brought forward for that one action, which takes the person's mouse and keyboard for a moment.",
+        )
+      }
+      on(window)
+      if ("x" in act && act.x !== undefined && act.y !== undefined) pointer = { x: act.x, y: act.y }
+      if (act.do === "drag") pointer = { x: act.toX, y: act.toY }
+      if (act.do === "click" || act.do === "double_click" || act.do === "right_click") {
+        state.clicks++
+      }
+      if (act.do === "type") typed += act.text.length
+      return {
+        shot: shot(),
+        ...(window === undefined ? {} : { window }),
+        ...(pointer === undefined ? {} : { pointer }),
+      }
     },
     async view(after, waitMs) {
       if (!state.active) return { active: false, seq }
@@ -100,6 +158,7 @@ export function fakeScreen(state = new UseState({ what: "the screen" })): Screen
         held: state.held,
         ...(state.say === undefined ? {} : { say: state.say }),
         ...(state.agent === undefined ? {} : { agent: state.agent }),
+        ...(inWindow === undefined ? {} : { title: windowName(inWindow) }),
       }
     },
     async hold(held) {

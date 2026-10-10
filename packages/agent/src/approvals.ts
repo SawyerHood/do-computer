@@ -99,7 +99,7 @@ const ABILITIES: readonly Ability[] = [
   {
     id: "tool:screen",
     label: "Use a computer's screen",
-    hint: "The mouse and keyboard of somebody's own computer, where its owner has switched that on.",
+    hint: "The programs on somebody's own computer, worked in their windows or with its mouse and keyboard, where its owner has switched that on.",
     tools: ["screen"],
   },
   {

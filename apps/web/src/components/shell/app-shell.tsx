@@ -223,7 +223,12 @@ export function AppShell({
       </Sheet>
 
       {agent === undefined ? null : <AgentSettings agent={agent} />}
-      <WorkspaceSettings workspace={workspace} me={me.user} agentId={agentId} />
+      <WorkspaceSettings
+        workspace={workspace}
+        me={me.user}
+        admin={me.admin === true}
+        agentId={agentId}
+      />
     </div>
   )
 }

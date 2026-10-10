@@ -17,10 +17,10 @@ export type Shot = { mimeType: string; data: string; width: number; height: numb
 export type ShotPoint = { x: number; y: number }
 
 /**
- * One thing done to a screen. Places are in the pixels of the picture the agent was last given
- * of it, which is not the screen's own size.
+ * One thing done to the whole screen, with the computer's own mouse and keyboard. Places are in
+ * the pixels of the picture the agent was last given of it, which is not the screen's own size.
  */
-export type ScreenAction =
+export type DesktopAction =
   | { do: "screenshot" }
   | { do: "click" | "double_click" | "right_click" | "move"; x: number; y: number }
   | { do: "drag"; x: number; y: number; toX: number; toY: number }
@@ -37,8 +37,47 @@ export type ScreenAction =
   | { do: "key"; keys: string }
   | { do: "wait"; seconds: number }
 
+/**
+ * One thing done to a single window, which need not be in front. Places are in the pixels of
+ * the picture the agent was last given of that window.
+ */
+export type WindowAct =
+  | { do: "screenshot" }
+  | { do: "click" | "double_click" | "right_click"; x: number; y: number }
+  | { do: "drag"; x: number; y: number; toX: number; toY: number }
+  | {
+      do: "scroll"
+      x: number
+      y: number
+      direction: "up" | "down" | "left" | "right"
+      amount?: number
+    }
+  /** With a place, the place is clicked first, which is what a field in a web page needs. */
+  | { do: "type"; text: string; x?: number; y?: number }
+  | { do: "key"; keys: string }
+  | { do: "wait"; seconds: number }
+
+/**
+ * One thing an agent does with a screen. What is done to a window is done behind whatever its
+ * owner has in front, without their mouse or keyboard, unless `inFront` asks for the window to
+ * be brought forward for it.
+ *
+ * The three that came with windows are actions of their own, and not more arguments to the
+ * old ones, so that an app from before them does nothing with one: it would otherwise click
+ * the place on the whole screen. Its answer then has no `window` or `windows` in it.
+ */
+export type ScreenAction =
+  | DesktopAction
+  | { do: "windows" }
+  /** Open an app by its name, without bringing it forward. */
+  | { do: "open"; app: string }
+  | { do: "in_window"; window: number; inFront?: boolean; act: WindowAct }
+
+/** What the `screen` tool calls the things it does. */
 export const SCREEN_ACTIONS = [
   "screenshot",
+  "windows",
+  "open",
   "click",
   "double_click",
   "right_click",
@@ -48,13 +87,43 @@ export const SCREEN_ACTIONS = [
   "type",
   "key",
   "wait",
-] as const satisfies readonly ScreenAction["do"][]
+] as const satisfies readonly Exclude<ScreenAction["do"], "in_window">[]
 
-/** What the screen looked like once an action was done. */
+/** A window on a computer's screen, as an agent is told of it. */
+export type ScreenWindow = {
+  /** What the window is asked for by. It lasts as long as the window does. */
+  id: number
+  app: string
+  title: string
+  /** Its size on the screen, in the screen's own points. */
+  width: number
+  height: number
+  /** False for one that is minimized, hidden, or on another desktop. */
+  shown: boolean
+}
+
+/** What a window is called for whoever reads it: its app, and its title where that says more. */
+export function windowName(window: Pick<ScreenWindow, "app" | "title">): string {
+  const app = window.app.trim()
+  const title = window.title.trim()
+  if (app === "") return title || "A window"
+  return title === "" || title === app ? app : `${app}: ${title}`
+}
+
+/**
+ * What came of an action: how the screen, or the window it was done in, looked afterwards.
+ * `windows` answers with no picture.
+ */
 export type ScreenActed = {
-  shot: Shot
+  shot?: Shot
   /** Where the agent's pointer is in `shot`, once it has been anywhere. */
   pointer?: ShotPoint
+  /** The window `shot` is of. Absent: the whole screen. */
+  window?: ScreenWindow
+  /** The windows there are, for `windows`, and those of the app, for `open`. */
+  windows?: ScreenWindow[]
+  /** Something the agent should know about how it went, where there is anything. */
+  note?: string
 }
 
 /** How a script run in a browser went. */
@@ -96,6 +165,7 @@ export type LiveView = {
   agent?: UsingAgent
   /** For a browser: the page in front. */
   url?: string
+  /** For a browser: the page's title. For a screen: the window the agent is working in, if it is in one. */
   title?: string
   /** For a browser: true when it is the owner's own Chrome. */
   own?: boolean
@@ -132,6 +202,7 @@ export type UseDetails = {
     height?: number
     pointer?: ShotPoint
     url?: string
+    /** For a browser: the page's title. For a screen: the window the step was done in, if it was in one. */
     title?: string
     own?: boolean
   }

@@ -426,6 +426,8 @@ Since then, newest last:
       (`computers.ts`) adds an open machine when an agent is made where it could use none. The
       built-in shell keeps its files in one agent's database, so each agent gets its own,
       `chosen`, and it cannot be shared or removed apart from its agent (`UNSHARED_KINDS`).
+      (On Cloudflare its files have been in an object of their own since item 47, kept under
+      the agent's id; it is still one agent's.)
     - **The record is told to agents, whole.** `tellMachines` puts every machine an agent can
       use to it (`PUT /computers`), and the agent replaces what it had. An agent that was not
       told catches up by asking its host (`ComputerDirectory.machines`) the first time a name
@@ -1460,6 +1462,32 @@ Since then, newest last:
       island are `sky.js` in the mascot package; the egg is the mascot's own, laid over it.
       Where WebGL is not to be had the same card is shown over a plain night. With less
       motion there is no fall and no waiting on the words.
+    - **Until the creature has landed it is in the scene only.** The chat comes up under the
+      scene a few tenths of a second before the creature leaves the island, and the chat's
+      own large picture of it was showing for that long: it was seen in two places at once
+      (the owner, of a recording: "you see pip in the left and right at the same time as he
+      starts to animate over"). The chat's large pictures are now kept out of sight from
+      before the page changes until the flight is over (`unseen` in `scene.tsx`), and the
+      scene is taken down in the same step as they are shown again. A browser test looks for
+      them after every frame for as long as the scene is there.
+    - **The egg is not shown until it is known where it starts.** It can be drawn before the
+      server has said whether anyone is signed in, and for as long as that answer took it
+      stood small in an empty night, before the sky had come up and before it was put at the
+      top to fall (the owner: "the egg flashes in the first frame before it appears"). One
+      frame on this machine; longer over a real network. `placed` in `scene.tsx` keeps it
+      out of sight until it has been sent to fall, or set down. `welcome-scene.spec.ts` holds
+      the server's answer back and looks; it is the one first-run file that draws the scene
+      (`creature: true`), the others run with WebGL off.
+    - **A card comes back closed.** What a card asks for opens under its words once they are
+      said. It was one element for every step, so it was still open on the last answer when
+      the card came back: the card faded in as tall as the next form, with that form showing
+      through, shut as the words began, and opened again when they were said (the owner:
+      "some snapping when animating between the forms"). It is now a new element for each
+      step (`key={view.step}`), which starts shut. The test counts closing transitions:
+      there are none. It is in `welcome.spec.ts`, where the scene is not drawn: beside the
+      drawn scene it failed on main the first time it ran there, because a build machine
+      that draws the sky in software wrote the egg's words too slowly for the test's wait,
+      and a failed run on main is a deploy that does not happen.
     - **What it asks**, each answer a crack in the shell: who they are (an account, or signing
       in, with the providers the deployment has), a name and a color for the agent, and, in
       the desktop app on its first run, whether it may work on this computer. Then it
@@ -1585,7 +1613,8 @@ Since then, newest last:
       CSS animations that run for good and cost about 4% of a core in the page and 3% in the
       GPU process while a box is waiting. A page that is not showing draws nothing, as before.
     - **Not known:** whether this is every way the GPU process dies. macOS recorded GPU
-      restarts of its own on 2026-10-09 (item 33), and none while these were reproduced.
+      restarts of its own on 2026-10-09 (item 33), and none while these were reproduced. (It
+      did record them: see item 45, which found the cause.)
 
 42. **What a thousand people would cost or break on Cloudflare** (2026-10-10;
     `apps/web/src/server/rate-limit.ts`, `packages/protocol/src/bytes.ts`,
@@ -1661,8 +1690,241 @@ Since then, newest last:
       deployed Worker.
     - **Mine, not the owner's:** the fingerprints in place of sending everything again; the
       fall back to streams; sixteen chats to a socket; leaving the mobile app as it is.
+44. **Agents work in one window, behind what the owner has in front** (2026-10-10;
+    `packages/protocol/src/screen.ts`, `packages/agent/src/uses.ts`,
+    `apps/desktop/src/screen.ts`, `screen-driver.ts`, `overlay.ts`). The owner asked whether
+    Cua has "a mode that lets the agent control your computer without taking over your mouse
+    and keyboard like codex computer use", and then for the app to be rewritten to use it. It
+    has: Cua Driver sends what is done in a window to that window's program alone, and until
+    now the app asked for everything on the whole screen, which is the one target the driver
+    can only do with the real pointer.
+    - **The `screen` tool** has two more actions and two more arguments. `windows` lists the
+      windows there are (id, app, title, size, and whether it is showing); `open` starts an app
+      by name without bringing it forward. With `window` set to an id, every other action is
+      done in that window alone, the picture that comes back is of that window whether or not
+      it can be seen, and places are in that picture. `in_front: true` has the window brought
+      forward for the one action. Without `window` everything is as it was: the whole screen,
+      with the computer's own mouse and keyboard. The agent is told to work in a window where
+      it can.
+    - **On the wire** the three new things are actions of their own (`windows`, `open`,
+      `in_window`, which carries the window and what to do in it), not arguments to the old
+      ones. An app from before does nothing with an action it does not know and answers with
+      a picture of the screen; had `window` been one more argument to `click`, it would have
+      clicked that place on the whole screen. The server knows an old app by its answer, which
+      has no `window` or `windows` in it, and tells the agent so. The answer's picture is now
+      optional (`windows` has none), and it can carry a `note`.
+    - **In the app** `ScreenService` finds the window by its id each time, takes a picture of
+      it before acting (the driver takes a place to be in the picture it last took, and a
+      picture taken for someone watching is taken apart from those), moves the places where
+      the window has changed size since the agent saw it, and answers with a picture taken
+      afterwards. A window that is gone afterwards (the agent closed it) answers with the
+      windows there are. Someone watching is shown the window the agent last worked in, with
+      its name where "The screen" was.
+    - **What the driver refuses** behind what is in front is told to the agent with what to ask
+      for: on a Mac a drag, and keys to a program with more than one window. Where it sent a
+      click or keys to the program without being able to tell whether they were taken, the
+      answer says so. Nothing is ever brought forward without the agent asking.
+    - **On the computer itself** the bar says "(agent) is working in the background", there is
+      no glow round the screen, and Esc is left to its owner, who is at their own work. The
+      agent's pointer is drawn only where the window is the one to be seen at that place.
+      With the whole screen, or a window brought forward, all of that is as before.
+    - **Two things found on the owner's Mac that were broken before this.** The driver ends
+      the name everything is asked under after five minutes without hearing it, and refuses
+      everything under it from then on: an agent that came back to a screen later was refused
+      until the app was started again. The app now starts the name again and asks once more
+      (`sessionEnded`). And a program made of web pages (Electron, Chrome) tells the system
+      what is in its window only once it has been asked, so the first click there pressed
+      nothing: the first picture an agent is given of a program's window now asks.
+    - **Checked on the owner's MacBook Air** (macOS 27, a signed build of the branch run as a
+      second copy against a server on the owner's Linux machine, while they were using the
+      Mac): through the whole chain, chat to driver, an agent listed the windows, opened
+      Calculator behind what was in front and worked a sum in it, with the pointer where it
+      was and the app in front unchanged; typed, pressed keys and scrolled in a TextEdit
+      window that was covered by others; filled in a form in an Electron window behind
+      Calculator; was refused a drag and did it with `in_front`; closed a window. Sonnet 5.5
+      was given "use the Calculator app to work out 127 × 49" with "do not take over my mouse
+      or keyboard" and did it in a window, unprompted, in about half a minute. It is the first
+      time an agent used a real screen on a Mac at all.
+    - **Not run:** Windows and Linux, where the driver can do much less behind what is in
+      front (on X11 little more than a left click; on Hyprland nothing), so that there an
+      agent will mostly be told to ask for `in_front` or use the whole screen. Nobody has
+      looked at the bar and the pointer by eye while an agent worked in a window. A window on
+      another desktop, a minimized one, a second display. Chrome and Safari themselves.
+    - **Mine, not the owner's:** that the whole screen stays as a way to work, for what is in
+      no window; that bringing a window forward is the agent's to ask for and is never done
+      for it; that the app's own windows are left out of the list; that the picture is of the
+      window and nothing is read from the system's outline of it; no glow and no Esc while
+      working behind; that a first picture wakes the program.
+    - **Learned the hard way:** a signed Mac app with one file changed inside it is not run by
+      macOS at all ("is damaged and can't be opened", a dialog on the owner's screen), so new
+      code cannot be tried in a copy of the installed app any more. What works: start the
+      installed app a second time with `--inspect=9230` and its own data folder, bundle the
+      code to try as one CommonJS file, and `require` it into that process over the
+      inspector, where the driver has the app's permissions; and for the whole chain, a
+      signed build of the branch from the Actions tab (`gh workflow run desktop.yml --ref
+<branch>`), run as a second copy from a folder of its own.
 
-44. **A landing page** (2026-10-10; `apps/web/src/components/landing`,
+45. **The creatures' own shader was what reset the Mac's graphics card** (2026-10-10;
+    `packages/mascot/src/orb-core.js`). The owner: "I'm still getting gpu crashes on my mac. Is
+    there anything out of the ordinary we are doing in this codebase that could cause it", and
+    then "I think it happens without screen use". It was the body's vertex shader, and it is
+    changed. Found on the owner's MacBook Air (M2, macOS 27.0.1) with a copy of the installed
+    app (Electron 44.7, Chromium 152) showing test pages, over SSH and CDP.
+    - **What a fault is.** macOS's log (`eventMessage CONTAINS "Caused GPU"`) names a process
+      whose work on the card hung or read a place that was not there, and the card is
+      restarted under everyone. It named WindowServer and Apple's own programs far more often
+      than the app. The app is the one that shows it: it is nearly always drawing, so it is
+      caught by every restart, and after three Chromium draws without the card (item 41). The
+      `gpuEvent-*.ips` files stopped being written on 2026-10-09 and are not the record.
+    - **What sets one off** is another program starting to draw while creatures are being
+      drawn: an app opening, the lock screen, the screen-use overlay. Opening Font Book did it
+      nearly every time. Counted as faults in the log over twelve openings (six where marked):
+      nothing of ours running, 0 in 21 openings of three apps; the app on a blank page, 0 in
+      21; a plain WebGL canvas, 0 (6); the same scene copied into eleven 2D canvases as the
+      creatures are, 0 (6); 2D canvases alone, 0 (6); eleven creatures, 7, 5 (6) and 11.
+    - **Which part.** Creatures without their bodies, 0 (6). Bodies with a plain fragment
+      shader and their own vertex shader, 9 (6); the other way about, 0 (6). In the vertex
+      shader, with the noise taken out, 0; with the shape worked out once for a vertex and
+      not three times, 0, and 0 with forty-one creatures. One creature alone, 0. It is not
+      load: the page that faults uses a tenth of the card, and one that uses a fifth does
+      not. It is not numbers that are no numbers: a page that sends vertices to infinity or
+      to NaN on purpose faults nothing. Why this shader does it is not known; it is the
+      driver's to answer.
+    - **Now** the noise is taken once for a vertex, with its slope (`snoise` gives both), and
+      the two neighbours the normal is found from are given the noise the slope says they
+      have. Eight takings of the noise in the shader became four. The old file against the
+      new, twelve openings each: 11 faults and 0. Forty-one creatures with the new, over
+      twenty-one openings of three apps: 0.
+    - **The look** is the same to the eye. Drawn side by side from the same moments on that
+      Mac, seven creatures in three states: those shaded flat are the same in every pixel,
+      and those shaded smooth differ in about one pixel in a hundred, dots of dither along
+      the edges of their shading.
+    - **Item 41 is wrong in one place:** macOS did record faults while the GPU process was
+      made to die there by going back and forth (22:37:57 and 22:41:59 that evening, the
+      app's GPU process named). Throwing the context away is one more way of setting off the
+      same fault, and keeping it for ten seconds made that rarer.
+    - **Not done:** the screen-use overlay and the pictures taken for someone watching
+      (every 400 ms, a `screencapture` each) were suspected first and are not the cause; they
+      are as they were. Nothing was reported to Apple or to Chromium.
+    - **Checked here:** the browser tests of the creatures pass with it (`e2e/agents.spec.ts`,
+      drawn in software). There is no test of the fault itself: it needs that Mac. How it was
+      counted: a copy of the app with `--remote-debugging-port`, a page of creatures, Font
+      Book opened with `open -a` and stopped with `pkill -x` twelve times, seven seconds
+      apart, then the log.
+    - **Not known:** whether other Macs or other versions of macOS do this; whether a
+      creature wearing things, or the box, can still set it off (neither uses the noise);
+      whether the owner's own app is quiet now, which it can only be once this is deployed,
+      since the app draws what do.computer serves.
+46. **A deployment names the models it offers, can be signed in to any provider, and the first
+    run asks what to think with** (2026-10-10; `packages/agent/src/models.ts`,
+    `model-access.ts`, `actor.ts`, `apps/web/src/server/models.ts`, `model-access.ts`,
+    `apps/web/src/components/settings/models.tsx`, `components/welcome/thinking.tsx`). The
+    owner asked that "any of the authentication methods can be ... set as ... the default
+    server one", for "a server level" list in the config of "the only … models you're allowed
+    to pick" (for do.computer: OpenRouter with Muse Spark 1.3 Contributor, Claude Haiku 5.5
+    and GPT-6 Luna), with people still free to "bring their own keys, their own logins" and
+    "pick anything they want", and for the first run to show the built-in models, "login with
+    ChatGPT or with Claude", and "a little … more section for all the other" providers.
+    - **`DC_MODELS`** is the list. Each name is a model's whole id or its OpenRouter id. The
+      deployment offers those, in that order, and new agents start on the first unless
+      `DC_DEFAULT_MODEL` names another of them. Nothing is checked against a catalog when the
+      server starts: a name that matches nothing offers nothing, and a deployment left with
+      nothing real offers the echo.
+    - **It is kept at the call, not only in the picker.** `createAgentModels` makes two sets
+      of models and puts one `Models` in front of them (`routed`): a model the deployment
+      names is called with the workspace's own sign-in, then the deployment's sign-in, then
+      its key; any other model is called with the workspace's sign-in or not at all. So an
+      agent that was set to another model before, or a workspace that signs out of its own
+      OpenRouter key, cannot spend the deployment's key on a model it does not name. Without
+      `DC_MODELS` there is one set and nothing is routed.
+    - **The server signed in** is the same actor a workspace has (`createModelAccessActor`),
+      under the name `deployment`, which no workspace has. The gateway's rule for a workspace
+      (`inWorkspace` in `server/model-access.ts`) lets someone named in `DC_ADMIN_EMAILS` in
+      under that name and nobody else, and where sign-up is open the address must be one a
+      social sign-in vouches for. So the routes, the client and the settings screen are the
+      ones there were: **Server models** in workspace settings is the Models section with
+      other words. An agent reads the deployment's credentials after its workspace's
+      (`credentialChain`), and asks which providers the deployment has at most twice a minute
+      (`cachedSignIns`), since that one actor is every agent's.
+    - **What a deployment offers is now asked each time** (`AgentModels.offered`,
+      `deploymentModels()` on the server, `deploymentModels` in the agent's options), since
+      someone can sign the server in while it runs. Its models are offered as its own, with
+      no word of who signed in.
+    - **A model both have is the workspace's** (`offeredModels`): a workspace signed in to a
+      provider runs that provider's models on its own account, the ones the deployment offers
+      too, and the picker now lists them under the workspace's sign-in. Before, such a model
+      was listed as the deployment's and still called with the workspace's credential.
+    - **An agent on a model the deployment stopped offering moves** to the one new agents
+      start on (`#keepRunnable`, looked at when the agent is first used and about once a
+      minute after). Only where the deployment still has the model's provider: an agent whose
+      workspace signed out of a provider nobody else has still says so in the chat, with the
+      ways back, as before.
+    - **The first run** has one more card, after the name: "What should I think with?". It
+      lists the deployment's models (the suggested few where there are hundreds), has "Sign
+      in with ChatGPT" and "Sign in with Claude" beside them and "More" for every provider and
+      key (the settings' own list and sign-in window), lists what was signed in to under its
+      own heading with its first model chosen, and sets the agent to what is chosen. Someone
+      who already has an agent is not asked.
+    - **The small models the server uses itself** (search, notes, judging, dictation) are
+      still OpenRouter's on `OPENROUTER_API_KEY`, are not narrowed by `DC_MODELS`, and are
+      not there on a deployment that is only signed in to something else.
+    - **Checked here:** unit tests of the list, the routing, the move, and the server's
+      sign-in and who may change it; browser tests of Server models and of the new card
+      (`models.spec.ts`, `welcome.spec.ts`); by eye, the card with the three models, with a
+      key added, and at phone width.
+    - **Not run:** a real key or subscription, as the server's or in the first run; the
+      Workers runtime; the desktop app's first run with the new card beyond its own test.
+    - **Mine, not the owner's:** that the server's sign-ins are changed by people named in
+      `DC_ADMIN_EMAILS`, from workspace settings; that only `OPENROUTER_API_KEY` is read from
+      the environment and every other key is typed in there; the name `DC_MODELS` and that it
+      takes OpenRouter ids; that a workspace's own sign-in wins for a model both have; the
+      move to the default model; where the card is in the first run, its words, and that it
+      lists a few models and not all; that the first run's choice is for that agent and does
+      not become the person's default for new ones.
+
+47. **On Cloudflare the built-in shell is Cloudflare Computer's** (2026-10-10;
+    `packages/sandbox/src/worker-shell`, `apps/web/src/server/sandbox.cloudflare.ts`). The
+    owner, of https://github.com/cloudflare/computer: "would it be possible to make this with
+    the just bash backend one of the built in computer options? We can configure this to be the
+    default on cloudflare runs. since it would be very cheap", and then "roll it out and
+    replace our just bash version please".
+    - **What it is.** The kind is still `just-bash`. On Cloudflare `cloudflareProviders` now
+      answers for it: `workerShellSandbox` talks over Workers RPC to a `ShellObject`, one
+      Durable Object per shell, named after the machine's key (the agent's id). The object
+      holds a `Workspace` from `@cloudflare/computer` over its own SQLite storage, with the
+      `WorkerShellBackend`: each command runs in just-bash in a Dynamic Worker (`LOADER`),
+      which reaches the files through `WorkspaceServiceProxy` and nothing else of the server.
+      Its requests leave through `ShellGateway`, which is `guardedFetch` as before, so the
+      rule about private addresses is the same. On Node nothing changed: the shell inside the
+      server, with `DurableFs`.
+    - **Why an object of its own and not the agent's storage:** so that the shell could be a
+      workspace's machine later with no files to move. Whether it should be is the owner's to
+      say; it was left one per agent (`UNSHARED_KINDS`).
+    - **Files from before.** `movedFromDatabase` copies what `dc_fs` holds in the agent's
+      database into the object the first time the shell is used, then renames the tables to
+      `dc_fs_moved` and `dc_fs_chunks_moved`. Nothing drops them. Modification times are not
+      kept.
+    - **What the package cannot do, found by trying.** `yq`, `sqlite3`, `python3` and `js-exec`
+      do not run in a Worker, so they are not offered; `jq`, `xan`, `file`,
+      `html-to-markdown`, `rg`, `gzip` and `tar` are. A command is answered only when it is
+      over, so nothing is streamed. `killExec` does nothing (the shell's Worker keeps the
+      running commands in an object that each call gets a new one of), so `abort` stops
+      waiting and the command runs on until its time is out: ten minutes at most
+      (`MAX_RUN_MS`, a number of mine). The object's log fills with "uncaught exception"
+      lines for files that `rg` looks for and does not find; they are the package's.
+      Appending to a file with `>>` sets its mode back to 644, which the shell inside the
+      server did not do; writing it anew does in both.
+    - **The `experimental` flag** the package's README asks for was not needed, in
+      vitest-pool-workers or in `vite dev`.
+    - **Tested:** `packages/sandbox/test/workers` runs both conformance suites, the network
+      rules, deletion and the move inside the Workers runtime; `scripts/smoke.sh` passes
+      against `vite dev` on Cloudflare with it. The move was also made for real: an agent
+      wrote a file, a link to it and a mode with the commit before this one, the same
+      `.wrangler` state was started with this one, and the agent read all three back.
+    - **Not known:** what it costs with real use; how it behaves with files of hundreds of
+      megabytes; `git`, which the package has (isomorphic-git) and which was not turned on.
+
+48. **A landing page** (2026-10-10; `apps/web/src/components/landing`,
     `apps/web/src/routes/index.tsx`, `prototypes/landing`). The owner: "Can you design a nice
     landing page for the site at do.computer that features our little guys! ... Ideally this
     can we an env variable that you can flip on (it should be on for our deployment). Also if
@@ -1775,6 +2037,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   Telegram webhook pointing at an address that no longer exists, an R2 access token used for
   backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
   database and files that was taken before they were deleted. The old daemon is gone from that machine.
+- **Whether the built-in shell should be a workspace's machine on Cloudflare**, shared by its
+  agents like the others. Its files are in an object of their own since item 47, so nothing
+  would have to move; it was left one per agent because nobody was asked.
 - **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
   dashboard; the API token at hand cannot edit zone rules.
 - **Two credentials were pasted into a chat transcript**: the GitHub OAuth app's client secret

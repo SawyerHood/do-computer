@@ -116,6 +116,28 @@ describe("what the bar says", () => {
       detail: "",
     })
   })
+
+  it("says the agent is in the background while it works behind what is in front, and promises nothing of Esc", () => {
+    expect(barOf({ agent: pip, say: " Adding up ", held: false, behind: true })).toEqual({
+      title: "Pip is working in the background",
+      detail: "Adding up",
+      button: { label: "Pause", act: "pause" },
+      esc: false,
+    })
+    expect(barOf({ agent: { ...pip, name: "" }, held: false, behind: true }).title).toBe(
+      "An agent is working in the background",
+    )
+    // Not behind is the same as never having been said.
+    expect(barOf({ agent: pip, held: false, behind: false })).toEqual(
+      barOf({ agent: pip, held: false }),
+    )
+  })
+
+  it("says a paused agent is paused, wherever it was working", () => {
+    expect(barOf({ agent: pip, held: true, behind: true })).toEqual(
+      barOf({ agent: pip, held: true }),
+    )
+  })
 })
 
 describe("the agent's pointer", () => {
@@ -152,6 +174,15 @@ describe("what the page is told to draw", () => {
       ripples: 2,
       top: 41,
       buttons: true,
+    })
+  })
+
+  it("says whether the agent is behind what is in front, where it was told", () => {
+    const state = { agent: pip, say: undefined, held: false }
+    expect(viewOf(state, undefined, 0, place)).not.toHaveProperty("behind")
+    expect(viewOf(state, undefined, 0, { ...place, behind: true })).toMatchObject({ behind: true })
+    expect(viewOf(state, undefined, 0, { ...place, behind: false })).toMatchObject({
+      behind: false,
     })
   })
 })
@@ -226,6 +257,33 @@ describe("the window over the screen", () => {
     expect(window().visible).toBe(true)
     state.hold(false)
     expect(fake.shortcuts.has("Escape")).toBe(true)
+  })
+
+  it("leaves Esc to its owner while the agent works behind what is in front, and takes it again after", async () => {
+    await state.enter(pip, undefined)
+    fake.say("overlay:ready")
+    expect(fake.shortcuts.has("Escape")).toBe(true)
+    overlay.behind(true)
+    expect(fake.shortcuts.has("Escape")).toBe(false)
+    expect(views().at(-1)).toMatchObject({ behind: true })
+    // Told the same again, the page is told nothing.
+    const told = views().length
+    overlay.behind(true)
+    expect(views()).toHaveLength(told)
+    overlay.behind(false)
+    expect(fake.shortcuts.has("Escape")).toBe(true)
+    expect(views().at(-1)).toMatchObject({ behind: false })
+  })
+
+  it("takes the pointer away when it is given no place for it", async () => {
+    await state.enter(pip, undefined)
+    fake.say("overlay:ready")
+    overlay.point({ x: 300, y: 200 }, true)
+    expect(views().at(-1)).toMatchObject({ pointer: { x: 300, y: 200 }, ripples: 1 })
+    overlay.point(undefined, true)
+    expect(views().at(-1)).not.toHaveProperty("pointer")
+    // A click at no place is not one to ripple for.
+    expect(views().at(-1)).toMatchObject({ ripples: 1 })
   })
 
   it("does what the bar's buttons ask", async () => {

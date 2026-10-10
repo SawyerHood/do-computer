@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers"
 import { d1Database, durableObjectNamespace } from "@durable-computer/runtime/cloudflare"
+import type { WorkerShellRpc } from "@durable-computer/sandbox/worker-shell"
 import { type Platform, readConfig } from "./platform.ts"
 import { cloudflareProviders } from "./sandbox.cloudflare.ts"
 import { computerChoices } from "./sandbox.ts"
@@ -12,6 +13,9 @@ export type Env = {
   LIBRARY: DurableObjectNamespace
   MODEL_ACCESS: DurableObjectNamespace
   SANDBOX: DurableObjectNamespace
+  SHELL: DurableObjectNamespace<Rpc.DurableObjectBranded & WorkerShellRpc>
+  /** Starts the Worker a built-in shell runs its commands in. */
+  LOADER: WorkerLoader
   BLOBS: R2Bucket
   /** Counts the calls anyone can make without an account. Absent where none is configured. */
   PUBLIC_LIMIT?: RateLimit

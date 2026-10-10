@@ -22,6 +22,7 @@ export const WORKSPACE_SECTIONS = [
   "models",
   "agents",
   "notifications",
+  "server",
 ] as const
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]
 

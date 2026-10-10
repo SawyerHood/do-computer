@@ -271,6 +271,14 @@ const pageOf = (use: Use, view: LiveView | undefined) =>
     "",
   )
 
+/**
+ * What on a screen the agent is at: the window it is working in, behind whatever is in front,
+ * or the whole screen.
+ */
+const screenOf = (use: Use, view: LiveView | undefined) =>
+  (view?.active ? view.title : use.steps.findLast((step) => step.shot !== undefined)?.title) ??
+  "The screen"
+
 /** The steps so far, and the one under way. */
 function StepList({ use, view, live }: { use: Use; view: LiveView | undefined; live: boolean }) {
   const end = useRef<HTMLLIElement>(null)
@@ -352,7 +360,7 @@ function UseLarge({ use, view, live }: { use: Use; view: LiveView | undefined; l
           <div className="border-b py-3 pr-12 pl-4">
             <DialogTitle className="text-[15px] font-semibold">{use.computer.name}</DialogTitle>
             <DialogDescription className="truncate text-[13px]">
-              {use.what === "screen" ? "The screen" : (page ?? "A browser")}
+              {use.what === "screen" ? screenOf(use, view) : (page ?? "A browser")}
               {use.startedAt !== undefined && live ? <Clock since={use.startedAt} /> : null}
             </DialogDescription>
           </div>
@@ -487,7 +495,13 @@ function Frame({ step, pointer, eager }: { step: UseStep; pointer: boolean; eage
 function UseEnded({ use }: { use: Use }) {
   const agentId = useAgentId()
   const name = useAgentsById().get(agentId)?.name ?? "It"
-  const [at, setAt] = useState(0)
+  // It opens on the first step there is a picture of: listing the windows leaves none.
+  const [at, setAt] = useState(() =>
+    Math.max(
+      0,
+      use.steps.findIndex((each) => each.shot !== undefined),
+    ),
+  )
   const count = use.steps.length
   const step = use.steps[Math.min(at, count - 1)]
   const [computer, rest] =
@@ -591,7 +605,7 @@ export function UseNow({ use, chatId }: { use: Use; chatId: string | undefined }
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm">
-              {use.what === "screen" ? "The screen" : "A browser"}
+              {use.what === "screen" ? screenOf(use, view) : "A browser"}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               {view?.held ? "Paused" : sayOf(use, view)}

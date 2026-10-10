@@ -15,6 +15,8 @@ export type SandboxFactory = (key: string, host?: ActorHost) => Sandbox | undefi
 export type RuntimeProviders = {
   /** Looks a host name up, where the runtime can, so a name pointing inside is refused too. */
   readonly resolveHost?: (hostname: string) => Promise<readonly string[]>
+  /** The built-in shell, where the runtime has somewhere better for it than inside the server. */
+  readonly shell?: (config: Config) => SandboxFactory
   readonly modal?: (config: Config) => SandboxFactory
   readonly cloudflare?: (config: Config) => SandboxFactory
 }
@@ -26,7 +28,7 @@ const KINDS: Record<SandboxKind, Omit<ComputerKind, "id">> = {
   "just-bash": {
     label: "Built-in shell",
     description:
-      "A lightweight shell inside this server. It has the usual text tools and curl, but no real programs such as git, a package manager or a browser.",
+      "A lightweight shell with no machine behind it. It has the usual text tools and curl, but no real programs such as git, a package manager or a browser.",
   },
   daytona: {
     label: "Daytona",
@@ -120,6 +122,7 @@ function factoryFor(
     case "none":
       return undefined
     case "just-bash": {
+      if (providers.shell !== undefined) return providers.shell(config)
       // This shell runs inside the server, so what it fetches leaves from the server's own
       // network. It may reach the public internet, over http or https, and nothing private.
       const fetcher = config.sandboxNetwork
@@ -158,7 +161,10 @@ function factoryFor(
   }
 }
 
-/** The kinds whose machine is one agent's and cannot serve another: its files are with the agent. */
+/**
+ * The kinds whose machine is one agent's and does not serve another. On Node its files are in
+ * the agent's own database; on Cloudflare they are kept under the agent's id.
+ */
 export const UNSHARED_KINDS: readonly string[] = ["just-bash"]
 
 /**

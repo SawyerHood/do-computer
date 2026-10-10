@@ -718,3 +718,80 @@ export async function workspaceModelOptions(access: ModelAccess): Promise<ModelO
   if (!response.ok) return []
   return ((await response.json()) as { models: ModelOption[] }).models
 }
+
+/**
+ * The name of the actor that keeps what the deployment itself is signed in to, among those
+ * that keep a workspace's. No workspace has it: one's own is `personal:` and an id, a team's
+ * is an id alone.
+ */
+export const DEPLOYMENT_MODEL_ACCESS = "deployment"
+
+/** The actor that keeps what the deployment is signed in to, for everyone's agents. */
+export type DeploymentAccess = ModelAccess
+
+/** The models the deployment is signed in to. None where nobody has signed it in, or it fails. */
+export const deploymentModelOptions = (access: DeploymentAccess): Promise<ModelOption[]> =>
+  workspaceModelOptions(access)
+
+/** How long an agent goes on what it last heard the deployment is signed in to. */
+const SIGN_INS_FRESH_MS = 30_000
+
+/**
+ * A store that is asked for a credential only where it is known to have one. Which providers
+ * it has is asked once and kept for half a minute. It is the deployment's, which every agent
+ * there is would otherwise ask on every call to a model, mostly to hear that it has nothing.
+ */
+export function cachedSignIns(
+  store: CredentialStore,
+  now: () => number = Date.now,
+): CredentialStore {
+  let known: { at: number; list: Promise<readonly CredentialInfo[]> } | undefined
+  const list = (): Promise<readonly CredentialInfo[]> => {
+    if (known === undefined || now() - known.at > SIGN_INS_FRESH_MS) {
+      const asked: Promise<readonly CredentialInfo[]> = store.list().catch(() => {
+        // Not kept: the next call asks again.
+        if (known?.list === asked) known = undefined
+        return []
+      })
+      known = { at: now(), list: asked }
+    }
+    return known.list
+  }
+  const read: CredentialStore["read"] = async (providerId, options) =>
+    (await list()).some((entry) => entry.providerId === providerId)
+      ? store.read(providerId, options)
+      : undefined
+  return {
+    read,
+    list,
+    modify: (providerId, _change, options) => read(providerId, options),
+    delete: (providerId, options) => store.delete(providerId, options),
+  }
+}
+
+/**
+ * Two stores read as one, the first one's credential for a provider before the second's: what
+ * a workspace is signed in to itself, then what the deployment is signed in to for everyone.
+ * Read only, as both are to an agent.
+ */
+export function credentialChain(
+  first: CredentialStore | undefined,
+  second: CredentialStore | undefined,
+): CredentialStore | undefined {
+  if (first === undefined || second === undefined) return first ?? second
+  const read: CredentialStore["read"] = async (providerId, options) =>
+    (await first.read(providerId, options)) ?? (await second.read(providerId, options))
+  return {
+    read,
+    async list(options) {
+      const mine = await first.list(options)
+      const seen = new Set(mine.map((entry) => entry.providerId))
+      return [
+        ...mine,
+        ...(await second.list(options)).filter((entry) => !seen.has(entry.providerId)),
+      ]
+    },
+    modify: (providerId, _change, options) => read(providerId, options),
+    delete: (providerId, options) => first.delete(providerId, options),
+  }
+}

@@ -50,6 +50,8 @@ pnpm run deploy
 
 Each agent is a Durable Object with its own SQLite storage; accounts and teams are in D1. Each
 team has one more Durable Object, which holds its members' connections for who is where.
+The built-in shell runs agents' commands in Dynamic Workers (the `worker_loaders` entry in
+`wrangler.jsonc`), which need the Workers Paid plan.
 
 Instead of editing `wrangler.jsonc`, a deployment's own values can come from the environment,
 which keeps them out of the repository. `pnpm run deploy` applies them to the build before it
@@ -68,7 +70,9 @@ runs the tests and nothing else.
 | Variable                                   | Meaning                                                                                                                                                           |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPENROUTER_API_KEY`                       | Pays for every call to the deployment's own models. A workspace signed in to a provider of its own pays for those. See [Models](#models).                         |
-| `DC_DEFAULT_MODEL`                         | OpenRouter model id new agents start on, unless their owner chose a default of their own. Default `anthropic/claude-sonnet-5.5`.                                  |
+| `DC_DEFAULT_MODEL`                         | Model new agents start on unless their owner chose one: `provider/model` or an OpenRouter id. Default `anthropic/claude-sonnet-5.5`, or the first of `DC_MODELS`. |
+| `DC_MODELS`                                | The only models the deployment itself offers, comma-separated: `provider/model` or OpenRouter ids. Default: all it can run. See [Models](#models).                |
+| `DC_ADMIN_EMAILS`                          | Comma-separated emails of those who may sign the deployment itself in to model providers, for everyone. See [Models](#models).                                    |
 | `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                              |
 | `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                  |
 | `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` and people invited to a team can sign up. |
@@ -118,18 +122,30 @@ the machines it shared, and offers to delete one that only it could use. Moving 
 another workspace takes along a machine only it could use; there it has that workspace's
 machines, and that workspace's library.
 
-| Kind         | The computer                                                                                  | Runs on          | What persists                                | Settings                                                                                                     |
-| ------------ | --------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace, in one agent's own database   | none                                                                                                         |
-| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                               | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
-| `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume) | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
-| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                 | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
-| `none`       | No machine is added. Agents can still work on computers of yours that are paired with them.   | Node, Cloudflare |                                              | none                                                                                                         |
+| Kind         | The computer                                                                                  | Runs on          | What persists                                                                                        | Settings                                                                                                     |
+| ------------ | --------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `just-bash`  | A shell interpreter with a virtual filesystem. No real programs; the internet through `curl`. | Node, Cloudflare | The workspace: on Node in one agent's own database, on Cloudflare in a Durable Object of the shell's | on Cloudflare, the `worker_loaders` entry in `wrangler.jsonc`                                                |
+| `daytona`    | A Linux machine on [Daytona](https://www.daytona.io)                                          | Node, Cloudflare | The whole disk                                                                                       | `DAYTONA_API_KEY`; optional `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DC_DAYTONA_SNAPSHOT` or `DC_DAYTONA_IMAGE` |
+| `modal`      | A Linux machine on [Modal](https://modal.com)                                                 | Node             | The workspace (`/workspace`, a Modal volume)                                                         | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`; optional `DC_MODAL_APP`, `DC_MODAL_IMAGE`, `MODAL_ENVIRONMENT`       |
+| `cloudflare` | A Linux machine on [Cloudflare Containers](https://developers.cloudflare.com/containers/)     | Cloudflare       | The whole disk, as snapshots                                                                         | the `containers` entry in `wrangler.jsonc`; optional `DC_CLOUDFLARE_IMAGE`, `DC_CLOUDFLARE_INSTANCE`         |
+| `none`       | No machine is added. Agents can still work on computers of yours that are paired with them.   | Node, Cloudflare |                                                                                                      | none                                                                                                         |
 
 Things to know before choosing one:
 
-- **The built-in shell cannot be shared.** Its files are in one agent's database, so where it
-  is the default every agent gets its own, which goes when the agent is deleted.
+- **The built-in shell is not shared.** Where it is the default every agent gets its own, which
+  goes when the agent is deleted.
+- **On Cloudflare the built-in shell is [Cloudflare Computer](https://github.com/cloudflare/computer)'s.**
+  Its files are in a Durable Object of its own (about 10 GB, read as they are needed), and each
+  command runs in a Dynamic Worker started for it, which can reach those files and, through the
+  server, the public internet, and nothing else. That needs the Workers Paid plan: Dynamic
+  Workers are billed per shell per day it is used, after the first thousand a month. The
+  package is a preview and says of itself that it is not for production. On Node the shell runs
+  inside the server, with every file held in memory (64 MB at most). A shell that ran inside a
+  Cloudflare deployment before this has its files moved over the first time it is used; the
+  old tables stay in the agent's database as `dc_fs_moved` and `dc_fs_chunks_moved`.
+- **What the Cloudflare shell does not do:** a command that its caller stops, or that runs past
+  its time, is no longer waited for but runs on until ten minutes are up, since the shell's
+  Worker cannot be told to stop; and what it prints arrives when it is over, not as it goes.
 - **Daytona** stops a machine after 15 minutes without use and starts the same machine again on
   the next command. A machine is only ever created when Daytona says there is none; if Daytona
   cannot be reached the agent is told so, and no empty replacement is made.
@@ -163,9 +179,31 @@ real account: treat the first deployment on either as a trial.
 
 ## Models
 
-A deployment with `OPENROUTER_API_KEY` offers every OpenRouter model that can call tools, and
-pays for them. Beyond that, a workspace can be signed in to a model provider of its own, and
-its agents can then be set to that provider's models:
+There are two places an agent's model can come from: the deployment, which offers its models to
+everyone, and the agent's workspace, which can be signed in to a provider with an account of its
+own.
+
+**The deployment's models.** A deployment with `OPENROUTER_API_KEY` offers every OpenRouter model
+that can call tools, and pays for them. It can also be signed in to any provider, in any of the
+ways a workspace can be (below): someone named in `DC_ADMIN_EMAILS` finds **Server models** in
+their workspace's settings, and what they sign the server in to there is offered to every
+workspace as the deployment's own. Where anyone can sign up (`DC_SIGNUP=open`), an admin's
+address also has to be one a Google or GitHub sign-in vouches for.
+
+`DC_MODELS` narrows what the deployment offers to the models it names, for example
+
+```sh
+DC_MODELS=meta/muse-spark-1.3-contributor,anthropic/claude-haiku-5.5,openai/gpt-6-luna
+```
+
+Each is a model's whole id (`anthropic/claude-haiku-5-5` for Anthropic's own) or its OpenRouter
+id. They are offered in that order, and new agents start on the first unless `DC_DEFAULT_MODEL`
+names another of them. The deployment's key and sign-ins are then used for those models and for
+no other, whatever an agent was set to before. The small models the server itself uses for web
+search, notes and dictation are not chosen by anyone and are not narrowed.
+
+**A workspace's own.** A workspace can be signed in to a model provider of its own, and its
+agents can then be set to any of that provider's models, whatever `DC_MODELS` says:
 
 - **With a subscription**, through the provider's own sign-in: Claude Pro or Max, ChatGPT (for
   OpenAI's models, and for Codex), GitHub Copilot, and a few more.
@@ -173,15 +211,23 @@ its agents can then be set to that provider's models:
   Anthropic, OpenAI, Google, OpenRouter, Groq, Mistral, xAI and some thirty others.
 
 A sign-in belongs to the workspace. Every agent in it can run on it, everyone in a team can set
-an agent to its models, and what they use counts against whoever signed in. Whoever signed in,
-or an admin of the team, can sign out; someone who leaves a team takes their sign-ins along.
-Keys and tokens are kept with the workspace and are never sent to a browser or shown to an
-agent.
+an agent to its models, and what they use counts against whoever signed in. That holds for a
+model the deployment offers too: a workspace signed in to its provider runs it on its own
+account. Whoever signed in, or an admin of the team, can sign out; someone who leaves a team
+takes their sign-ins along. Keys and tokens are kept on the server and are never sent to a
+browser or shown to an agent.
 
 It is under **Models** in a workspace's settings. A subscription is signed in to on the
 provider's own page, which ends with a code to paste back or asks for a short code shown in the
 app; nothing is installed and no address has to be registered with the provider. An agent's
 model picker then lists those models under where they come from.
+
+Someone new is asked in the first run what their agent should think with: one of the
+deployment's models, or one of their own, which they can sign in to there and then.
+
+An agent set to a model the deployment has since stopped offering goes on with the model new
+agents start on. One whose workspace signed out of its model's provider says so in the chat
+until it is signed in again or set to another model.
 
 Amazon Bedrock and Google Vertex are not offered: they sign in with files and roles of the
 machine the server runs on, which belong to no workspace.
@@ -189,7 +235,8 @@ machine the server runs on, which belong to no workspace.
 ## Limits worth knowing
 
 Every call to one of the deployment's models is paid from the one deployment key and there are
-no per-user limits yet, which is why sign-up is by invitation unless you open it. Everyone
+no per-user limits yet, which is why sign-up is by invitation unless you open it. `DC_MODELS`
+keeps what it can be spent on to the models you name. Everyone
 invited to a team spends on that key too. So do agents that write to each other, and an exchange between them runs until they stop
 answering or someone stops the conversation.
 
@@ -291,11 +338,15 @@ answering or someone stops the conversation.
   keeps a browser of its own, with its own sign-ins, which nobody sees but in the chat. Start
   the daemon with `--no-browser` to allow neither.
 - **Use your screen.** In the [desktop app](#desktop-app), under This Computer, you can let
-  agents use the computer's screen: they are shown it, and use the mouse and keyboard, through
-  [Cua Driver](https://github.com/trycua/cua). It is off until you switch it on there, and an
-  agent cannot switch it on. While one is at work its pointer is drawn on your screen in its
-  colour, with its name, and a bar says who it is and has Pause and Stop; Esc pauses too. A
-  daemon run by hand has no screen for agents.
+  agents use the computer's screen, through [Cua Driver](https://github.com/trycua/cua). They
+  work in one window at a time, behind whatever you have in front: they are shown that window
+  and click and type in it without your mouse or keyboard, so you can carry on with your own
+  work. What cannot be done that way (a drag on a Mac, most things on Linux) an agent does with
+  the window brought forward for a moment, or on the whole screen with the mouse and keyboard.
+  It is off until you switch it on there, and an agent cannot switch it on. While one is at
+  work a bar says who it is and has Pause and Stop, and its pointer is drawn in its colour,
+  with its name, where what it is clicking can be seen; while it has the whole screen there is
+  a glow round it and Esc pauses too. A daemon run by hand has no screen for agents.
 - **Watch either.** While an agent uses a screen or a browser, the chat has a small window of
   it, as it is, with the agent's pointer and what it is doing. It can be opened large, paused
   and stopped from there. Afterwards the window folds to one line, with the picture taken at
@@ -552,8 +603,9 @@ apps/desktop      the Electron app: the deployment in a window, and the daemon r
 packages/runtime  one actor host interface (SQLite, alarm, blobs, sockets) over Durable Objects and Node
 packages/agent    the agent actor: pi-durable harness, identity, chats, history, schedules, skills,
                   connectors, approvals, library
-packages/sandbox  the sandbox interface, its adapter to pi-durable, and the providers: just-bash,
-                  Daytona, Modal, Cloudflare Containers
+packages/sandbox  the sandbox interface, its adapter to pi-durable, and the providers: just-bash
+                  (inside the server on Node, Cloudflare Computer on Cloudflare), Daytona, Modal,
+                  Cloudflare Containers
 packages/computers  the daemon protocol and the actor that holds a paired computer's connection
 packages/protocol   types and reducers shared by server and clients
 packages/client     API client, and following an agent over a socket or an event stream, for the

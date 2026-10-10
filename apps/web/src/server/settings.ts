@@ -57,7 +57,7 @@ async function settings(user: SessionUser): Promise<UserSettings> {
   return {
     // One that nobody offers them any more, in any workspace, is no choice.
     defaultModel: model !== null && (await offersModelTo(model, user.id)) ? model : null,
-    deploymentDefaultModel: deploymentModels().defaultModel,
+    deploymentDefaultModel: (await deploymentModels()).defaultModel,
     defaultComputer: computer,
     deploymentDefaultComputer: deploymentComputers().default,
   }

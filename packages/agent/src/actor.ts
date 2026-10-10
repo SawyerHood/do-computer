@@ -100,8 +100,8 @@ import { harnessDocs, Library, LibraryDoc, LibraryError, LibraryStore } from "./
 import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
-import { mergeModelOptions } from "./model-providers.ts"
-import { ECHO_MODEL, parseModel } from "./models.ts"
+import { offeredModels } from "./model-providers.ts"
+import { type DeploymentModels, ECHO_MODEL, parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { type CheckResult, ScheduleError, Scheduler } from "./schedules.ts"
@@ -134,6 +134,8 @@ const MAX_TITLE_CHARS = 80
  * starts empty.
  */
 const MAX_BRANCH_TOKENS = 60_000
+/** How often an agent in use is looked at for a model its deployment has stopped offering. */
+const MODEL_CHECK_MS = 60_000
 /** What a side chat that branched off the main chat is told, once, where its own messages begin. */
 const BRANCH_NOTE =
   '<meta kind="side-chat">This is a side chat. It branched off your main chat here: everything above was said in the main chat, and you carry it with you. What is said from here on is said in this side chat only, and the main chat goes on without it.</meta>'
@@ -143,6 +145,12 @@ export type AgentActorOptions = {
   /** `provider/modelId` for agents that have not chosen a model. */
   readonly defaultModel: string
   readonly modelOptions: readonly ModelOption[]
+  /**
+   * What the deployment offers at the moment, where that can change while the server runs:
+   * someone can sign the deployment itself in to a provider, or out. Asked each time, and used
+   * in place of `defaultModel` and `modelOptions`.
+   */
+  readonly deploymentModels?: () => Promise<DeploymentModels>
   /**
    * The models of the providers the agent's workspace is signed in to, which it can run on as
    * well as `modelOptions`. Asked each time, since someone can sign in or out, and an agent can
@@ -454,6 +462,8 @@ export class AgentActor implements Actor {
   #wake: number | undefined
   /** The address the app was last reached at, as its gateway said. */
   #origin: string | undefined
+  /** When its model was last seen to be one that can be called. */
+  #modelSeenAt = Number.NEGATIVE_INFINITY
 
   constructor(host: ActorHost, options: AgentActorOptions) {
     this.#host = host
@@ -1083,7 +1093,7 @@ export class AgentActor implements Actor {
   }
 
   async alarm(): Promise<void> {
-    await this.#open()
+    await this.#keepRunnable(await this.#open())
     await this.#scheduler.tick(context)
     await this.#subagents.tick()
     await this.#jobs.tick()
@@ -1231,6 +1241,7 @@ export class AgentActor implements Actor {
     }
     const caller = readCaller(request)
     if (segments[0] === "destroy" && method === "POST") return this.#destroy(harness)
+    await this.#keepRunnable(harness)
     const identity = await this.#identity(harness)
 
     if (segments.length === 0) {
@@ -1626,7 +1637,7 @@ export class AgentActor implements Actor {
     if (typeof input.ownerId !== "string" || input.ownerId === "") {
       throw new HttpError(400, "ownerId is required")
     }
-    const model = input.model ?? this.#options.defaultModel
+    const model = input.model ?? (await this.#deployment()).defaultModel
     await this.#requireModel(model)
     // Where nobody says which machines there are, the agent gets one to itself.
     const machine = this.#hosted ? undefined : this.#ownMachine(this.#choices.default)
@@ -1655,20 +1666,80 @@ export class AgentActor implements Actor {
     return json(await this.#state(harness, await this.#identity(harness)))
   }
 
+  /** What the deployment offers everyone, and the model it starts new agents on. */
+  async #deployment(): Promise<DeploymentModels> {
+    return (
+      (await this.#options.deploymentModels?.()) ?? {
+        defaultModel: this.#options.defaultModel,
+        options: this.#options.modelOptions,
+      }
+    )
+  }
+
   /** Every model the agent can be set to: the deployment's, then its workspace's. */
   async #modelOptions(): Promise<ModelOption[]> {
     const workspace = (await this.#options.workspaceModels?.()) ?? []
-    return mergeModelOptions(this.#options.modelOptions, workspace)
+    return offeredModels((await this.#deployment()).options, workspace)
   }
 
   async #requireModel(model: string): Promise<void> {
-    const offered =
-      this.#options.modelOptions.some((option) => option.id === model) ||
-      ((await this.#options.workspaceModels?.()) ?? []).some((option) => option.id === model)
+    const offered = (await this.#modelOptions()).some((option) => option.id === model)
     if (!offered) throw new HttpError(400, `Unknown model "${model}"`)
     const ref = parseModel(model)
     if (this.#options.models.getModel(ref.provider, ref.modelId) === undefined) {
       throw new HttpError(400, `Model "${model}" is not available`)
+    }
+  }
+
+  /** Whether there is anything to call a model with: a key or a sign-in for its provider. */
+  async #runs(model: string): Promise<boolean> {
+    const { provider, modelId } = parseModel(model)
+    const found = this.#options.models.getModel(provider, modelId)
+    return found !== undefined && (await this.#options.models.getAuth(found)) !== undefined
+  }
+
+  /**
+   * Move the agent off a model the deployment has stopped offering, on to the one new agents
+   * start on. A deployment can come to name the models it pays for, and an agent left on
+   * another of its provider's would fail at every message, saying its workspace is not signed
+   * in to a provider nobody there ever signed in to. That is told by the deployment still
+   * having that provider to call while the agent's model has nothing to be called with. A
+   * model whose provider the deployment does not have is left alone: its workspace signed out
+   * of it, which the chat says, with the ways back.
+   *
+   * Looked at when the agent is first used and about once a minute while it is in use. Where it
+   * cannot be told whether the model still runs, the agent is left as it is.
+   */
+  async #keepRunnable(harness: Harness): Promise<void> {
+    const now = this.#host.now()
+    if (now - this.#modelSeenAt < MODEL_CHECK_MS) return
+    this.#modelSeenAt = now
+    try {
+      const identity = await harness.snapshot(IdentityDoc, context)
+      if (identity === undefined || identity.ownerId === "") return
+      const { models } = this.#options
+      if (!identity.model.includes("/") || (await this.#runs(identity.model))) return
+      if ((await models.getAuth(parseModel(identity.model).provider)) === undefined) return
+      const { defaultModel } = await this.#deployment()
+      if (defaultModel === identity.model || !(await this.#runs(defaultModel))) return
+      await this.#setModel(harness, defaultModel)
+    } catch {
+      // Asked again the next time: a sign-in that could not be read is not one that is gone.
+      this.#modelSeenAt = Number.NEGATIVE_INFINITY
+    }
+  }
+
+  /** Set the agent to a model. Its chats pick it up from their next request. */
+  async #setModel(harness: Harness, model: string): Promise<void> {
+    const chats = await harness.commit(async (tx) => {
+      const identity = await tx.doc(IdentityDoc)
+      if (model === identity.model) return []
+      identity.model = model
+      return Object.keys((await tx.doc(ChatsDoc)).chats)
+    }, context)
+    for (const id of chats) {
+      const conversation = await harness.conversation(Number(id) as ConversationId, context)
+      await conversation?.configure({ model: parseModel(model) }, context)
     }
   }
 
@@ -1902,7 +1973,7 @@ export class AgentActor implements Actor {
       avatar = parsed.avatar
     }
 
-    const chats = await harness.commit(async (tx) => {
+    await harness.commit(async (tx) => {
       const identity = await tx.doc(IdentityDoc)
       if (name !== undefined) {
         // Named by its owner and not in conversation: it still has itself to work out with them.
@@ -1920,17 +1991,9 @@ export class AgentActor implements Actor {
       if (whenBusy !== undefined) identity.whenBusy = whenBusy
       // Chats pick this up on their next message.
       if (thinking !== undefined) identity.thinking = thinking
-      if (model === undefined || model === identity.model) return []
-      identity.model = model
-      return Object.keys((await tx.doc(ChatsDoc)).chats)
     }, context)
     // A model change applies to existing chats from their next request.
-    if (model !== undefined) {
-      for (const id of chats) {
-        const conversation = await harness.conversation(Number(id) as ConversationId, context)
-        await conversation?.configure({ model: parseModel(model) }, context)
-      }
-    }
+    if (model !== undefined) await this.#setModel(harness, model)
   }
 
   async #chat(harness: Harness, chatId: string): Promise<Conversation> {

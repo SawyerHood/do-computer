@@ -9,13 +9,16 @@
     "./cloudflare": "./src/cloudflare/index.ts",
     "./cloudflare/object": "./src/cloudflare/object.ts",
     "./daytona": "./src/daytona/index.ts",
-    "./modal": "./src/modal/index.ts"
+    "./modal": "./src/modal/index.ts",
+    "./worker-shell": "./src/worker-shell/index.ts",
+    "./worker-shell/object": "./src/worker-shell/object.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "@cloudflare/computer": "0.5.0",
     "@daytona/sdk": "^0.218.0",
     "@durable-computer/protocol": "workspace:*",
     "@durable-computer/runtime": "workspace:*",
@@ -25,10 +28,12 @@
     "modal": "^0.11.0"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20261001.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "wrangler": "^4.146.0"
   }
 }

@@ -43,11 +43,78 @@ test("someone new meets their first agent: it is named as it hatches, and says h
   await naming.getByRole("radio", { name: "Rose" }).click()
   await naming.getByRole("button", { name: "That’s your name" }).click()
 
+  // What it thinks with is the deployment's own to begin with, which here is only an echo.
+  const thinking = await card(page, "Pip. I like that. What should I think with?")
+  const choices = thinking.getByRole("radiogroup", { name: "What it thinks with" })
+  await expect(choices.getByRole("radio")).toHaveCount(1)
+  await expect(choices.getByRole("radio", { name: /^Echo/ })).toBeChecked()
+  await expect(choices).toContainText("Built in")
+  // An account of their own is a press away for the two most have, and the rest are behind one more.
+  await thinking.getByRole("button", { name: "Sign in with Claude", exact: true }).click()
+  const claude = page.getByRole("dialog", { name: "Sign in with Claude Pro or Max" })
+  await expect(claude.getByRole("link", { name: "Open the sign-in page" })).toBeVisible()
+  await claude.getByRole("button", { name: "Cancel" }).click()
+  await expect(
+    thinking.getByRole("button", { name: "Sign in with ChatGPT", exact: true }),
+  ).toBeVisible()
+  await thinking.getByRole("button", { name: "More" }).click()
+  const providers = thinking.getByRole("region", { name: "Model providers" })
+  await providers.getByRole("button", { name: "Use a key for Anthropic" }).click()
+  const key = page.getByRole("dialog", { name: "Anthropic API key" })
+  await key.getByLabel("Key", { exact: true }).fill("sk-ant-api03-not-a-real-key")
+  await key.getByRole("button", { name: "Save" }).click()
+  await expect(key).toHaveCount(0)
+  // Saving a key there is not this card being answered: the egg is still asking.
+  await expect(thinking.getByRole("status")).toHaveText(/What should I think with\?/)
+  // What they signed in to is listed under its own name, and its first model is chosen.
+  await expect(providers).toHaveCount(0)
+  const theirs = choices.getByRole("group", { name: "Your Anthropic key" })
+  await expect(theirs.getByRole("radio", { name: "Claude Sonnet 5.5" })).toBeChecked()
+  await expect(thinking.getByRole("button", { name: "Use Claude Sonnet 5.5" })).toBeVisible()
+  await expect(thinking.getByText("Anthropic key", { exact: true })).toBeVisible()
+  await theirs.getByRole("radio", { name: "Claude Haiku 5.5" }).click()
+  await thinking.getByRole("button", { name: "Use Claude Haiku 5.5" }).click()
+
   // In a browser there is no computer to ask about: it hatches, and its chat is next.
   const out = await card(page, `There you are, ${owner.name}! Shall we get started?`)
+  // The chat comes up under the scene before the creature leaves the island for its place
+  // there. Until it has landed it is in the scene only: after each frame is drawn, the chat's
+  // own large pictures of it are looked for, for as long as the scene is still there. One that
+  // has only just come onto the page has not been drawn yet, so it counts the second time.
+  await page.evaluate(() => {
+    const seen = { twice: 0, frames: 0 }
+    Object.assign(window, { seenInTwoPlaces: seen })
+    let before = false
+    const count = () => {
+      const scene = document.querySelector("[data-welcome]")
+      if (scene === null) return
+      seen.frames++
+      const shown = [
+        ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Agent avatar"]'),
+      ].some(
+        (face) =>
+          !scene.contains(face) &&
+          face.offsetWidth >= 120 &&
+          getComputedStyle(face).visibility !== "hidden",
+      )
+      if (shown && before) seen.twice++
+      before = shown
+    }
+    const frame = () => {
+      setTimeout(count, 0)
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
   await out.getByRole("button", { name: "Start chatting with Pip" }).click()
   await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
   await expect(page.locator("[data-welcome]")).toHaveCount(0)
+  const seen = await page.evaluate(
+    () =>
+      (window as unknown as { seenInTwoPlaces: { twice: number; frames: number } }).seenInTwoPlaces,
+  )
+  expect(seen.frames).toBeGreaterThan(10)
+  expect(seen.twice).toBe(0)
   const hello = page.getByRole("heading", { name: `Hi ${owner.name}, I’m Pip.` })
   await expect(hello).toBeVisible()
 
@@ -60,11 +127,26 @@ test("someone new meets their first agent: it is named as it hatches, and says h
 
   // What it is called and how it looks are its own from the start, and it is out of its egg.
   const { agents } = (await (await page.request.get("/api/agents")).json()) as {
-    agents: { name: string; avatar: { color: string; seed?: string }; hatched: boolean }[]
+    agents: {
+      name: string
+      avatar: { color: string; seed?: string }
+      hatched: boolean
+      model: string
+    }[]
   }
   expect(agents).toHaveLength(1)
-  expect(agents[0]).toMatchObject({ name: "Pip", avatar: { color: "rose" }, hatched: true })
+  expect(agents[0]).toMatchObject({
+    name: "Pip",
+    avatar: { color: "rose" },
+    hatched: true,
+    model: "anthropic/claude-haiku-5-5",
+  })
   expect(agents[0]!.avatar.seed).toBeTruthy()
+
+  // The key was not a real one, so it is put back on the echo before it is asked anything.
+  const [{ id }] = (await (await page.request.get("/api/agents")).json()).agents as { id: string }[]
+  const back = await page.request.patch(`/api/agents/${id}`, { data: { model: "echo/echo-1" } })
+  expect(back.ok()).toBe(true)
 
   // What it offers to start with is said for them.
   await page.getByRole("button", { name: "Show me what you can do" }).click()
@@ -117,6 +199,35 @@ test("the sign-in page sends someone new to the first run", async ({ page }) => 
   await create.click()
   await page.waitForURL(/\/welcome$/)
   await card(page, /Is somebody out there\?/)
+})
+
+test("a card comes back closed, and opens once its words are said", async ({ page }) => {
+  // With the words written out as they are said, which is when a card has something to open.
+  // The scene is not drawn here: a machine that draws it in software writes the words too
+  // slowly to wait for, and the card is the same over the plain night.
+  await page.emulateMedia({ reducedMotion: "no-preference" })
+  await page.goto("/welcome")
+  const asked = page.locator("[data-card]")
+  await expect(asked.getByRole("status")).toHaveText(/Is somebody out there\?$/)
+
+  // What the card asks for only ever opens. It used to come back still open on the last answer,
+  // as tall as the next form, and shut as the words began: that is counted here.
+  await page.evaluate(() => {
+    const seen = { shut: 0 }
+    Object.assign(window, { seenShutting: seen })
+    document.addEventListener("transitionrun", (event) => {
+      const more = event.target as HTMLElement
+      if (event.propertyName === "grid-template-rows" && more.matches("[data-more][inert]")) {
+        seen.shut++
+      }
+    })
+  })
+  await asked.getByRole("button", { name: "Hello!" }).click()
+  await expect(asked.getByLabel("Your name")).toBeVisible()
+  const seen = await page.evaluate(
+    () => (window as unknown as { seenShutting: { shut: number } }).seenShutting,
+  )
+  expect(seen.shut).toBe(0)
 })
 
 test("on a phone held sideways the card leaves the egg its room, and the rest of it is scrolled to", async ({

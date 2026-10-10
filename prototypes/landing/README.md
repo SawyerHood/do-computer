@@ -5,7 +5,7 @@ the address opened on the sign-in form. It is not part of the app and nothing he
 it. Nothing in it signs anyone in.
 
 The owner chose the character select, in Jersey 25, and it was built the same day (HANDOFF.md,
-section 5, item 44). Where the app differs: `/signup` and `/welcome` are not closed to a visitor
+section 5, item 48). Where the app differs: `/signup` and `/welcome` are not closed to a visitor
 while sign-up is shut, since the first account and anyone invited still need them; the creatures
 are the app's own `AgentAvatar`, so the egg at the end shows no cracks before it hatches; and
 the line about hosting says "We run it for you, right here", since a page of the repository
