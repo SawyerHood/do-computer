@@ -60,6 +60,7 @@ import {
   type UpdateChatRequest,
   type UpdateScheduleRequest,
   type UpdateWorkspaceRequest,
+  type WorkspaceOptions,
   type UserSettings,
   type WorkspaceRole,
   type WorkspacesState,
@@ -305,6 +306,10 @@ export function createClient(options: ClientOptions) {
       const base = `/api/workspaces/${encodeURIComponent(workspaceId)}`
       return {
         update: (change: UpdateWorkspaceRequest) => patch<{ ok: true }>(base, change),
+        /** What the workspace has chosen for all its agents. */
+        options: () => request<WorkspaceOptions>(`${base}/settings`),
+        setOptions: (change: { showBrowser?: boolean }) =>
+          patch<{ ok: true }>(`${base}/settings`, change),
         /** Delete the team. It has to be empty of agents. */
         remove: () => request<{ ok: true }>(base, { method: "DELETE" }),
         invitations: async () =>

@@ -9,6 +9,7 @@ import {
   type SentInvitation,
   WORKSPACE_COLORS,
   type WorkspaceMember,
+  type WorkspaceOptions,
   type WorkspaceRole,
   type WorkspaceSummary,
 } from "@durable-computer/protocol"
@@ -340,6 +341,55 @@ export async function updateWorkspace(
   return { name: row?.name ?? "" }
 }
 
+/**
+ * Whether the browser a workspace's agents use on a computer opens in a window its owner can
+ * watch. It does until someone there says otherwise.
+ */
+export async function showsBrowser(db: AppDatabase, workspaceId: string): Promise<boolean> {
+  const row = await db.get<{ show_browser: number }>(
+    "SELECT show_browser FROM dc_workspace_settings WHERE workspace_id = ?",
+    workspaceId,
+  )
+  return row === undefined || row.show_browser !== 0
+}
+
+/** What a workspace has chosen for all its agents, for anyone in it to read. */
+export async function workspaceOptions(
+  db: AppDatabase,
+  who: Who,
+  workspaceId: string,
+): Promise<WorkspaceOptions> {
+  const role = await roleIn(db, who.id, workspaceId)
+  // Someone outside a workspace is not told that it exists.
+  if (role === undefined) throw new Refusal(404, "Workspace not found")
+  return { showBrowser: await showsBrowser(db, workspaceId), canChange: atLeast(role, "admin") }
+}
+
+/**
+ * Change what a workspace has chosen for all its agents: a team's admins may, and the owner of
+ * a personal workspace.
+ */
+export async function updateWorkspaceOptions(
+  db: AppDatabase,
+  who: Who,
+  workspaceId: string,
+  input: { showBrowser?: unknown },
+): Promise<void> {
+  const role = await roleIn(db, who.id, workspaceId)
+  if (role === undefined) throw new Refusal(404, "Workspace not found")
+  if (!atLeast(role, "admin")) throw new Refusal(403, "Only an admin can do that.")
+  if (input.showBrowser === undefined) return
+  if (typeof input.showBrowser !== "boolean") {
+    throw new Refusal(400, "Whether the browser is shown is true or false.")
+  }
+  await db.run(
+    `INSERT INTO dc_workspace_settings (workspace_id, show_browser) VALUES (?, ?)
+       ON CONFLICT (workspace_id) DO UPDATE SET show_browser = excluded.show_browser`,
+    workspaceId,
+    input.showBrowser ? 1 : 0,
+  )
+}
+
 /** Delete a team. It has to be empty of agents first: deleting those is a decision of its own. */
 export async function deleteWorkspace(
   db: AppDatabase,
@@ -358,6 +408,7 @@ export async function deleteWorkspace(
     { sql: "DELETE FROM dc_invitations WHERE workspace_id = ?", params: [workspaceId] },
     { sql: "DELETE FROM dc_members WHERE workspace_id = ?", params: [workspaceId] },
     { sql: "DELETE FROM dc_workspaces WHERE id = ?", params: [workspaceId] },
+    { sql: "DELETE FROM dc_workspace_settings WHERE workspace_id = ?", params: [workspaceId] },
   ])
 }
 

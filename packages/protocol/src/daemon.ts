@@ -111,6 +111,11 @@ export type BrowserFrame = {
   script?: string
   timeoutMs?: number
   say?: string
+  /**
+   * With `run`: whether the browser kept for agents has a window its owner can watch, as the
+   * agent's workspace has it. Absent, it has none, which is all an older server asks for.
+   */
+  shown?: boolean
   after?: number
   waitMs?: number
   held?: boolean

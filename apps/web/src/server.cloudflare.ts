@@ -17,6 +17,7 @@ import {
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { agentDirectory } from "./server/agent-directory.ts"
 import { createAgentBeside } from "./server/agents.ts"
+import { browserDirectory } from "./server/browser-directory.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
 import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
@@ -69,6 +70,7 @@ export const AgentObject = createDurableActorClass<Env>({
         { kinds: addableKinds, add: addMachineFor, remove: removeMachineFor },
       ),
       library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
+      showsBrowser: browserDirectory(d1Database(env.DB)),
       agentDirectory: agentDirectory(
         d1Database(env.DB),
         () => durableObjectNamespace(env.AGENT),

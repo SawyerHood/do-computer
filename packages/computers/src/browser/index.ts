@@ -12,6 +12,7 @@ import { ensureDevBrowser } from "./binary.ts"
 import {
   findChrome,
   findOwnBrowser,
+  hasDisplay,
   keptChromeArgs,
   listening,
   readDevToolsActivePort,
@@ -24,6 +25,11 @@ import { createPreview, type Preview } from "./preview.ts"
 export type NodeBrowserOptions = {
   /** A folder of the daemon's own to keep things in: the dev-browser binary, the profile of the browser kept for agents. */
   readonly dir: string
+  /**
+   * Whether the browser kept for agents has a window its owner can watch, for a call that does
+   * not say. Absent: it has none.
+   */
+  readonly shown?: boolean
   readonly log?: (line: string) => void
 }
 
@@ -41,6 +47,8 @@ type Session = {
   own: boolean
   /** The browser itself, where it is one this started. */
   chrome?: Supervised
+  /** Whether this one was started to have a window, whether or not it then could open one. */
+  windowed?: boolean
   preview: Preview
 }
 
@@ -48,8 +56,8 @@ const said = (error: unknown) => (error instanceof Error ? error.message : Strin
 
 /**
  * A browser on this computer for agents, run with dev-browser. It is the owner's own Chrome
- * where that is open and lets itself be used, and otherwise one without a window, kept for
- * agents with a profile of its own.
+ * where that is open and lets itself be used, and otherwise one kept for agents with a profile
+ * of its own, in a window where its owner asked to see it and there is a screen to show it on.
  */
 export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   const log = options.log ?? (() => {})
@@ -73,6 +81,8 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   let idleTimer: NodeJS.Timeout | undefined
   /** True from `close` until an agent next uses the browser: nothing is shown of it meanwhile. */
   let released = false
+  /** True once it has been said that the browser cannot be shown here. */
+  let saidUnseen = false
 
   state.onChange(() => session?.preview.bump())
 
@@ -92,6 +102,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       "DBUS_SESSION_BUS_ADDRESS",
       "DISPLAY",
       "WAYLAND_DISPLAY",
+      "XAUTHORITY",
       "HTTPS_PROXY",
       "HTTP_PROXY",
       "NO_PROXY",
@@ -170,7 +181,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     }
   }
 
-  async function launchKept(binary: string): Promise<Session> {
+  async function launchKept(binary: string, windowed: boolean): Promise<Session> {
     let chrome = findChrome(home)
     if (chrome === null) {
       log("browser: no Chrome on this computer; asking dev-browser to install one")
@@ -184,19 +195,30 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     }
     await mkdir(profile, { recursive: true })
     // Linux machines that do not let Chrome build its sandbox are common: try with it, then without.
-    const tries = process.platform === "linux" ? [true, false] : [true]
+    const sandboxes = process.platform === "linux" ? [true, false] : [true]
+    // A browser that cannot open its window is still a browser: it is then started without one.
+    const tries = (windowed ? [true, false] : [false]).flatMap((shown) =>
+      sandboxes.map((sandbox) => ({ shown, sandbox })),
+    )
     let failure: unknown
-    for (const sandbox of tries) {
+    for (const { shown, sandbox } of tries) {
       // One left by a browser that was killed would be read as this one's.
       await rm(join(profile, "DevToolsActivePort"), { force: true })
-      const program = supervise(chrome, keptChromeArgs(profile, sandbox), environment())
+      const program = supervise(
+        chrome,
+        keptChromeArgs(profile, sandbox, shown),
+        environment(),
+        shown,
+      )
       try {
         const endpoint = readDevToolsActivePort(
           await waitForFile(join(profile, "DevToolsActivePort"), program, "The browser"),
         )
         if (endpoint === null) throw new Error("The browser did not say where it can be reached.")
-        log(`browser: started ${chrome} for agents${sandbox ? "" : " (without its sandbox)"}`)
-        return { ...endpoint, own: false, chrome: program, preview: preview(endpoint.ws) }
+        log(
+          `browser: started ${chrome} for agents, ${shown ? "in a window" : "without a window"}${sandbox ? "" : " (without its sandbox)"}`,
+        )
+        return { ...endpoint, own: false, chrome: program, windowed, preview: preview(endpoint.ws) }
       } catch (error) {
         failure = error
         await program.close()
@@ -217,7 +239,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   }
 
   /** The browser to use now: the one in use where it is still there, and otherwise chosen again. */
-  async function ensureSession(binary: string): Promise<Session> {
+  async function ensureSession(binary: string, asked: boolean): Promise<Session> {
     const ownAllowed = process.env.DC_BROWSER_OWN !== "0"
     if (session) {
       const there = session.chrome
@@ -234,7 +256,22 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         session = { ...own, own: true, preview: preview(own.ws) }
       }
     }
-    session ??= await launchKept(binary)
+    // The one kept for agents is started again when it is asked for the other way: with a
+    // window where it had none, or without. Its profile is kept, so it stays signed in.
+    const windowed = asked && hasDisplay(process.platform, environment())
+    if (asked && !windowed && !saidUnseen) {
+      saidUnseen = true
+      log("browser: there is no display here to show a window on, so it runs without one")
+    }
+    if (session?.chrome && session.windowed !== windowed) {
+      log(
+        windowed
+          ? "browser: starting it again with a window, as the agent's workspace now asks"
+          : "browser: starting it again without a window, as the agent's workspace now asks",
+      )
+      await dropSession()
+    }
+    session ??= await launchKept(binary, windowed)
     return session
   }
 
@@ -279,7 +316,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     return shots
   }
 
-  async function runOne(script: string, timeoutMs: number): Promise<BrowserRan> {
+  async function runOne(script: string, timeoutMs: number, asked: boolean): Promise<BrowserRan> {
     released = false
     clearTimeout(idleTimer)
     let current: Session
@@ -287,7 +324,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     try {
       binary = await ensureDevBrowser(binDir, log)
       await ensureDaemon(binary)
-      current = await ensureSession(binary)
+      current = await ensureSession(binary, asked)
     } catch (error) {
       log(`browser: ${said(error)}`)
       return { output: "", error: said(error), shots: [], own: false }
@@ -365,12 +402,13 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   }
 
   return {
-    async run(agent: UsingAgent, script: string, { timeoutMs, say }): Promise<BrowserRan> {
+    async run(agent: UsingAgent, script: string, { timeoutMs, say, shown }): Promise<BrowserRan> {
+      const asked = shown ?? options.shown === true
       await state.enter(agent, say)
       // One script at a time: they share the browser, and dev-browser's pages in it.
       const result = queue.then(
-        () => runOne(script, timeoutMs),
-        () => runOne(script, timeoutMs),
+        () => runOne(script, timeoutMs, asked),
+        () => runOne(script, timeoutMs, asked),
       )
       queue = result
       try {

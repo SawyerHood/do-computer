@@ -31,7 +31,9 @@ import {
   renewInvitation,
   setRole,
   updateWorkspace,
+  updateWorkspaceOptions,
   withdrawInvitation,
+  workspaceOptions,
 } from "./teams.ts"
 
 /** Answer with what `work` resolves to, or with the refusal it threw. */
@@ -123,6 +125,26 @@ export async function patchWorkspace(
       )
       for (const agent of agents) await tellAgentItsTeam(agent.id, name).catch(() => false)
     }
+    await announce(workspaceId)
+  })
+}
+
+export function getWorkspaceOptions(user: SessionUser, workspaceId: string): Promise<Response> {
+  return answer(() => workspaceOptions(getPlatform().db, user, workspaceId))
+}
+
+/**
+ * Change what a workspace has chosen for all its agents. Nothing is sent to them: an agent asks
+ * each time it is about to act on a choice.
+ */
+export async function patchWorkspaceOptions(
+  user: SessionUser,
+  request: Request,
+  workspaceId: string,
+): Promise<Response> {
+  const input = await read<{ showBrowser?: unknown }>(request)
+  return answer(async () => {
+    await updateWorkspaceOptions(getPlatform().db, user, workspaceId, input)
     await announce(workspaceId)
   })
 }

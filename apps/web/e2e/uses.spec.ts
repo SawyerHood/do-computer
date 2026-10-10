@@ -1,11 +1,11 @@
 import { type ChildProcess, spawn } from "node:child_process"
-import { mkdtempSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, signIn } from "./helpers.ts"
+import { asOwner, closeSettings, composer, openWorkspaceSettings, signIn } from "./helpers.ts"
 
 asOwner()
 
@@ -164,5 +164,124 @@ test.describe("an agent using a computer's screen", () => {
     await expect(word.getByText("3 of 3")).toBeVisible()
     await word.getByRole("button", { name: "Step 2: Typing 4,820" }).click()
     await expect(word.getByText("2 of 3")).toBeVisible()
+  })
+})
+
+test.describe("the browser an agent uses on a computer", () => {
+  let daemon: ChildProcess | undefined
+  test.afterAll(() => void daemon?.kill())
+
+  test("is asked for in a window or out of sight, as the workspace's settings have it", async ({
+    page,
+    baseURL,
+  }) => {
+    test.setTimeout(90_000)
+    const home = mkdtempSync(join(tmpdir(), "dc-browses-"))
+    const dir = join(home, ".dc")
+    // Stand-ins for dev-browser and for Chrome. The first only says it is running. The second
+    // writes down whether it was started with a window, and stops: no browser is opened.
+    const started = join(home, "started")
+    writeFileSync(started, "")
+    const pid = join(dir, "browser", "dev-browser", "home", "daemon.pid")
+    const devBrowser = join(home, "dev-browser")
+    writeFileSync(
+      devBrowser,
+      `#!/usr/bin/env node
+const { mkdirSync, writeFileSync } = require("node:fs")
+if (process.argv[2] === "daemon") {
+  mkdirSync(${JSON.stringify(join(pid, ".."))}, { recursive: true })
+  writeFileSync(${JSON.stringify(pid)}, String(process.pid))
+  setInterval(() => {}, 1_000)
+}
+`,
+    )
+    const chrome = join(home, "chrome")
+    writeFileSync(
+      chrome,
+      `#!/usr/bin/env node
+require("node:fs").appendFileSync(
+  ${JSON.stringify(started)},
+  process.argv.some((arg) => arg.startsWith("--headless")) ? "hidden\\n" : "shown\\n",
+)
+process.exit(1)
+`,
+    )
+    for (const program of [devBrowser, chrome]) chmodSync(program, 0o755)
+    mkdirSync(dir, { recursive: true })
+    daemon = spawn(
+      "node",
+      [
+        fileURLToPath(new URL("../../daemon/dist/daemon.cjs", import.meta.url)),
+        baseURL!,
+        "--name",
+        "browse-laptop",
+      ],
+      {
+        env: {
+          ...process.env,
+          HOME: home,
+          DC_DAEMON_DIR: dir,
+          DC_DAEMON_POLL_MS: "200",
+          DC_DEV_BROWSER: devBrowser,
+          DEV_BROWSER_CHROME: chrome,
+          // Only the browser kept for agents is tried, not one the person running this has open.
+          DC_BROWSER_OWN: "0",
+          // A window is only tried where there is a screen. The stand-in opens nothing on it.
+          DISPLAY: ":99",
+        },
+      },
+    )
+    let output = ""
+    daemon.stdout!.on("data", (chunk) => (output += String(chunk)))
+    daemon.stderr!.on("data", (chunk) => (output += String(chunk)))
+    await expect
+      .poll(() => /http\S+\/pair\?code=[A-Z0-9-]+/.exec(output)?.[0], { timeout: 10_000 })
+      .toBeTruthy()
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await signIn(page)
+    await page.goto(/http\S+\/pair\?code=[A-Z0-9-]+/.exec(output)![0])
+    await page.getByRole("button", { name: "Connect this computer" }).click()
+    await expect(page.getByRole("heading", { name: "Connected" })).toBeVisible()
+    await expect.poll(() => output, { timeout: 15_000 }).toContain("Connected to")
+    await page.goto("/")
+
+    /** Have the agent use the browser, and say how Chrome was started for it, first try first. */
+    const browse = async () => {
+      const failed = () => output.split("stopped as soon as it was started").length - 1
+      const before = failed()
+      writeFileSync(started, "")
+      await composer(page).fill(
+        `/tool browser ${JSON.stringify({ computer: "browse-laptop", script: "1" })}`,
+      )
+      await page.keyboard.press("Enter")
+      // The stand-in never becomes a browser, which the daemon says once it has given up.
+      await expect.poll(failed, { timeout: 30_000 }).toBe(before + 1)
+      return readFileSync(started, "utf8").trim().split("\n")
+    }
+
+    // Nobody has chosen anything: the browser is asked for in a window first.
+    expect((await browse())[0]).toBe("shown")
+
+    await openWorkspaceSettings(page, "Computers")
+    const shows = page.getByRole("dialog").getByRole("switch", {
+      name: "Show the browser agents use",
+    })
+    await expect(shows).toBeChecked()
+    await shows.click()
+    await expect(shows).not.toBeChecked()
+    await expect(shows).toBeEnabled()
+    await closeSettings(page)
+
+    // The agent was running all along, and its next use of the browser is out of sight.
+    expect(await browse()).not.toContain("shown")
+
+    // It is kept: the settings say so when opened again.
+    await page.reload()
+    await openWorkspaceSettings(page, "Computers")
+    await expect(shows).not.toBeChecked()
+    await shows.click()
+    await expect(shows).toBeChecked()
+    await closeSettings(page)
+    expect((await browse())[0]).toBe("shown")
   })
 })

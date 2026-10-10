@@ -4,7 +4,12 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { nodeBrowserIO } from "../src/browser/index.ts"
 import { DEV_BROWSER, assetName, assetUrl } from "../src/browser/binary.ts"
-import { keptChromeArgs, ownDataDirs, readDevToolsActivePort } from "../src/browser/chrome.ts"
+import {
+  hasDisplay,
+  keptChromeArgs,
+  ownDataDirs,
+  readDevToolsActivePort,
+} from "../src/browser/chrome.ts"
 import { isJpeg, keepEnd, readFrames } from "../src/browser/frames.ts"
 import {
   POINTER_BINDING,
@@ -130,6 +135,26 @@ describe("the browser kept for agents", () => {
     expect(args).toContain("--window-size=1280,800")
     expect(args).not.toContain("--no-sandbox")
     expect(keptChromeArgs("/d/p", false)).toContain("--no-sandbox")
+  })
+
+  it("has a window where it is shown, and is otherwise the same", () => {
+    const hidden = keptChromeArgs("/d/p", true, false)
+    const shown = keptChromeArgs("/d/p", true, true)
+    expect(hidden).toContain("--headless=new")
+    expect(shown).not.toContain("--headless=new")
+    expect(shown).toEqual(hidden.filter((arg) => arg !== "--headless=new"))
+    expect(shown).toContain("--window-size=1280,800")
+    expect(keptChromeArgs("/d/p", false, true)).toContain("--no-sandbox")
+    expect(keptChromeArgs("/d/p", false, true)).not.toContain("--headless=new")
+  })
+
+  it("can be shown wherever there is a screen, which on Linux is where a display is named", () => {
+    expect(hasDisplay("linux", {})).toBe(false)
+    expect(hasDisplay("linux", { DISPLAY: "" })).toBe(false)
+    expect(hasDisplay("linux", { DISPLAY: ":0" })).toBe(true)
+    expect(hasDisplay("linux", { WAYLAND_DISPLAY: "wayland-0" })).toBe(true)
+    expect(hasDisplay("darwin", {})).toBe(true)
+    expect(hasDisplay("win32", {})).toBe(true)
   })
 })
 

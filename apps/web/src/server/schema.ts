@@ -198,6 +198,15 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     "ALTER TABLE dc_slack_apps DROP COLUMN client_id",
     "ALTER TABLE dc_slack_apps DROP COLUMN client_secret",
   ],
+  [
+    // What a workspace has chosen for all its agents. Kept by the workspace's id and not with
+    // the team, since a personal workspace has no row there. One that has chosen nothing has no
+    // row here either, and whether the browser its agents use is shown is then yes.
+    `CREATE TABLE dc_workspace_settings (
+      workspace_id TEXT PRIMARY KEY,
+      show_browser INTEGER NOT NULL DEFAULT 1
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"
