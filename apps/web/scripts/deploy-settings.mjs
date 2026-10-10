@@ -18,6 +18,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 const SETTINGS = [
   "DC_BASE_URL",
   "DC_SIGNUP",
+  "DC_LANDING",
   "DC_ALLOWED_EMAILS",
   "DC_DEFAULT_MODEL",
   "DC_SEARCH_MODEL",

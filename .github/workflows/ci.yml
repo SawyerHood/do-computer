@@ -137,6 +137,7 @@ jobs:
           DC_CUSTOM_DOMAIN: ${{ vars.DC_CUSTOM_DOMAIN }}
           DC_BASE_URL: ${{ vars.DC_BASE_URL }}
           DC_SIGNUP: ${{ vars.DC_SIGNUP }}
+          DC_LANDING: ${{ vars.DC_LANDING }}
           DC_ALLOWED_EMAILS: ${{ vars.DC_ALLOWED_EMAILS }}
           DC_DEFAULT_MODEL: ${{ vars.DC_DEFAULT_MODEL }}
           DC_SEARCH_MODEL: ${{ vars.DC_SEARCH_MODEL }}

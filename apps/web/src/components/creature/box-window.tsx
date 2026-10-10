@@ -19,7 +19,7 @@ import { Pixels } from "./pixels.tsx"
 import { SLOT_NAMES, Wearing } from "./wearing.tsx"
 
 /** What the window asks of the box it shows. */
-type BoxHandle = {
+export type BoxHandle = {
   /** It was pressed, and what is inside is being found out. */
   shake(): void
   /** It could not be opened after all. */
@@ -39,7 +39,7 @@ const tiersTo = (item: WearItem) =>
  * resolution, and opened there. Where the creature cannot be drawn, a picture of a box stands in
  * and what was inside is simply said.
  */
-function BoxStage({
+export function BoxStage({
   agent,
   handle,
   onPop,

@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
 import { meKey } from "@/lib/collections"
 import { desktop, signInThroughBrowser } from "@/lib/desktop"
+import type { FrontDoor } from "@/lib/front-door"
 import { queryClient } from "@/lib/query"
+import { cn } from "@/lib/utils"
 
-type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
 type Provider = "google" | "github"
 
 /**
@@ -34,7 +35,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   useEffect(() => setReady(true), [])
   const { data: methods } = useQuery({
     queryKey: ["auth-methods"],
-    queryFn: async (): Promise<Methods> => (await fetch("/api/auth-methods")).json(),
+    queryFn: async (): Promise<FrontDoor> => (await fetch("/api/auth-methods")).json(),
   })
   const signingUp = mode === "sign-up"
   // In the desktop app: the provider whose sign-in is going on in the owner's browser.
@@ -98,6 +99,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   }
   // The way between signing in and signing up keeps where the visitor was headed.
   const carried = typeof location === "undefined" ? "" : location.search
+  // Where the landing page says "coming soon", this page does not offer what that one withheld.
+  // Someone a page sent here to come back to it, as an invitation does, may still be new.
+  const shut =
+    !signingUp &&
+    methods?.landing === true &&
+    !methods.open &&
+    ready &&
+    !new URLSearchParams(carried).has("next")
   // Someone new, headed nowhere in particular, is shown around first. Someone sent here by a
   // page that wants them back creates the account and goes on to it.
   const other = signingUp
@@ -187,7 +196,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           </Button>
         </form>
 
-        <p className="text-sm text-muted-foreground">
+        <p className={cn("text-sm text-muted-foreground", shut && "hidden")}>
           {signingUp ? "Already have an account? " : "New here? "}
           <a href={other} className="text-foreground underline underline-offset-3">
             {signingUp ? "Sign in" : "Create an account"}
@@ -199,6 +208,14 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
             </span>
           ) : null}
         </p>
+        {shut ? (
+          <p className="rounded-lg bg-muted px-3.5 py-3 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              Do Computer is not open to everyone yet.
+            </span>{" "}
+            If a team invited you, use the link in your invitation.
+          </p>
+        ) : null}
       </div>
     </main>
   )

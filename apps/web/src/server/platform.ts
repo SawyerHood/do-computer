@@ -22,6 +22,11 @@ export type Config = {
   readonly githubClientSecret: string | undefined
   /** `open`, or `invite` to require an allowlisted email. Default `invite`. */
   readonly signup: "open" | "invite"
+  /**
+   * Whether someone who is not signed in is shown the landing page at `/`, and not sent
+   * straight to the sign-in form. Off unless `DC_LANDING=1`.
+   */
+  readonly landing: boolean
   /** Comma-separated emails allowed to sign up when `signup` is `invite`. */
   readonly allowedEmails: readonly string[]
   /** What kind of computer a new agent gets. Default `just-bash`. */
@@ -128,6 +133,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     githubClientId: optional("GITHUB_CLIENT_ID"),
     githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
     signup: env.DC_SIGNUP === "open" ? "open" : "invite",
+    landing: env.DC_LANDING === "1",
     allowedEmails: (env.DC_ALLOWED_EMAILS ?? "")
       .split(",")
       .map((email) => email.trim().toLowerCase())

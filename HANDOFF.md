@@ -53,7 +53,7 @@ deploying: "I don't want to make changes to this project". The deployment's valu
 
 - **GitHub repository variables:** `DC_D1_DATABASE_ID`, `DC_ROUTE`, `DC_ROUTE_ZONE`,
   `DC_BASE_URL`, `DC_SANDBOX`. Others the workflow passes through if set: `DC_CUSTOM_DOMAIN`,
-  `DC_SIGNUP`, `DC_ALLOWED_EMAILS`, `DC_DEFAULT_MODEL`, `DC_SEARCH_MODEL`, `DC_SUMMARY_MODEL`,
+  `DC_SIGNUP`, `DC_LANDING`, `DC_ALLOWED_EMAILS`, `DC_DEFAULT_MODEL`, `DC_SEARCH_MODEL`, `DC_SUMMARY_MODEL`,
   `DC_JUDGE_MODEL`, `DC_SANDBOX_KINDS`.
 - **GitHub repository secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 - **Worker secrets** (kept by Cloudflare across deploys): `DC_AUTH_SECRET`, `OPENROUTER_API_KEY`,
@@ -1661,6 +1661,44 @@ Since then, newest last:
       deployed Worker.
     - **Mine, not the owner's:** the fingerprints in place of sending everything again; the
       fall back to streams; sixteen chats to a socket; leaving the mobile app as it is.
+
+44. **A landing page** (2026-10-10; `apps/web/src/components/landing`,
+    `apps/web/src/routes/index.tsx`, `prototypes/landing`). The owner: "Can you design a nice
+    landing page for the site at do.computer that features our little guys! ... Ideally this
+    can we an env variable that you can flip on (it should be on for our deployment). Also if
+    open access isn't availible we should disable sign up and have coming soon with a small
+    link for if you have access already". Four looks were drawn; they chose the character
+    select, asked for it to say "your open source personal assistant" and not "little guy",
+    for pictures of the app, eight to choose from, and a pixel face that is easier to read.
+    - **`DC_LANDING=1`** makes `/` the landing page for whoever is not signed in. Without it
+      `/` leads to the sign-in form, as it always did: someone hosting it for themselves has
+      no use for a page that sells it. The workflow passes the variable through, and the
+      deploy script writes it into the build.
+    - **`/` is a route of its own**, no longer one of the pages behind sign-in. A visitor
+      with no session cookie is a stranger: the server draws the page and sends it whole, so
+      it is there before any script. For anyone with a session cookie, and for the desktop
+      app, the server sends the app's frame and the browser decides, as before: someone
+      signed in goes to their agent, and a session that has ended finds the landing page.
+    - **Whether a stranger may sign up** is `open` in what `/api/auth-methods` answers: true
+      where `DC_SIGNUP=open`, and where nobody has an account yet, since the first to arrive
+      is the deployment's owner. While it is false the page has no way to make an account:
+      "Coming soon", and "Already have access? Sign in". The sign-in form then drops "Create
+      an account", unless a page sent the visitor there to come back to it, as an invitation
+      does. `/signup` and `/welcome` are still there for whoever knows them: the server
+      refuses an account to anyone not invited, as it did.
+    - **The page**: one creature large on a pedestal, with the job it stands for and what it
+      is doing; eight to choose from, the last an egg; the app in a window whose tabs change
+      the picture, and in a phone where the window would be too small; six things it does,
+      each acted out; that it is open source, with the three lines that run it; the app's own
+      box opening; and an egg that hatches when pressed three times. The creatures are
+      `AgentAvatar`, as everywhere else, so where they cannot be drawn their still pictures
+      stand in. Its styles are one file under `.lp`, which is also what scrolls.
+    - **The pictures of the app** in `apps/web/public/landing` are real: taken from the built
+      server with a real model (`prototypes/landing/README.md` says how). They will go out of
+      date as the app changes.
+    - **Not done:** the repository is private, so the page's GitHub links lead nowhere until
+      it is made public; nothing collects the addresses of people who want to be told when it
+      opens; the page has no picture for a link's preview; and it has not been seen in Safari.
 
 ## 6. What the owner has said they want
 
