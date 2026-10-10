@@ -31,13 +31,14 @@ function AgentLayout() {
 
   useEffect(() => {
     // The stream tells of what changes while it is connected. Each time it connects, what
-    // changed before that is asked for: the first time, only what was fetched before now.
-    let since: number | undefined = Date.now()
+    // changed before that is asked for, the first time as much as after it was down: a page
+    // that opens as something changes has asked too soon to see it and too late to be told.
+    let back = false
     const subscription = client.agent(agentId).watch((event) => {
       if (event.type === "changed") refreshAgent(agentId, event.what)
       if (event.type === "ready") {
-        catchUpAgent(agentId, since)
-        since = undefined
+        catchUpAgent(agentId, back)
+        back = true
       }
     })
     return () => subscription.close()

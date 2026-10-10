@@ -126,6 +126,44 @@ test.describe("two clients on one chat", () => {
     await other.context().close()
   })
 
+  test("one that opens just as something changes is shown it", async ({
+    page,
+    browser,
+    baseURL,
+  }) => {
+    await signIn(page)
+    await newChat(page)
+    const forms = (on: Page) => on.getByRole("list", { name: "Secrets it asked for" })
+    const context = await browser.newContext({ baseURL })
+    const other = await context.newPage()
+    await signIn(other)
+    // The second one's stream of what changes on the agent is slow to be answered. It has
+    // asked for what there is, and is not yet being told of what changes.
+    let answer = () => {}
+    const held = new Promise<void>((resolve) => {
+      answer = resolve
+    })
+    await other.route(/\/api\/agents\/[^/]+\/events$/, async (route) => {
+      await held
+      await route.continue()
+    })
+    await other.goto(page.url())
+    await expect(composer(other)).toBeEnabled()
+
+    await say(page, `/tool request_secret ${JSON.stringify({ secrets: [{ name: "SOON_KEY" }] })}`)
+    await expect(forms(page).getByText("Juniper asks for a secret")).toBeVisible()
+    await expect(forms(other)).toHaveCount(0)
+
+    // Once it is listening it asks again for what it has, which is how it comes to see this.
+    answer()
+    await expect(forms(other).getByText("Juniper asks for a secret")).toBeVisible()
+    await forms(other).getByLabel("SOON_KEY", { exact: true }).fill("soon-1")
+    await forms(other).getByRole("button", { name: "Save secret" }).click()
+    await expect(forms(other)).toHaveCount(0)
+    await expect(forms(page)).toHaveCount(0)
+    await context.close()
+  })
+
   test("one that lost the server for a while is shown what changed meanwhile", async ({
     page,
     browser,
