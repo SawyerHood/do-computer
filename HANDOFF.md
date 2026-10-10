@@ -1255,7 +1255,14 @@ Since then, newest last:
       most every three seconds.
     - **Not done:** the context is still let go of whenever the last creature leaves the page
       and made again for the next, which is a new context for most moves between pages. That
-      costs time, not pictures. Whether either of the two is what the owner saw is not known.
+      costs time, not pictures.
+    - **What the owner's Mac had recorded** (read over SSH the next day): macOS restarted the
+      GPU five times on 2026-10-09 with the app's GPU process named as the cause
+      (`/Library/Logs/DiagnosticReports/gpuEvent-Do Computer Help-*.ips`, "MMU interrupt"),
+      each within a minute of the app starting, and Chrome's on other days. Each restart
+      takes the context away, which is the second of the two. Why the GPU faults is not
+      known: it is macOS 27.0.1 with Electron 44, and one fault came 0.3 s after "Metal
+      Compiling Shader" in the GPU process.
 
 34. **Who is signed in is never waited for for good** (2026-10-10;
     `apps/web/src/server/auth-guard.ts`, `server/auth.ts`). This is what the stuck frame of
