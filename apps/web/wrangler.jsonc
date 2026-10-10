@@ -10,11 +10,15 @@
       { "name": "AGENT", "class_name": "AgentObject" },
       { "name": "COMPUTER", "class_name": "ComputerObject" },
       { "name": "SANDBOX", "class_name": "SandboxObject" },
+      { "name": "SHELL", "class_name": "ShellObject" },
       { "name": "PRESENCE", "class_name": "PresenceObject" },
       { "name": "LIBRARY", "class_name": "LibraryObject" },
       { "name": "MODEL_ACCESS", "class_name": "ModelAccessObject" },
     ],
   },
+  // The built-in shell runs each agent's commands in a Worker of its own, started through this
+  // (Dynamic Workers, on the Workers Paid plan).
+  "worker_loaders": [{ "binding": "LOADER" }],
   // To give each agent a Linux machine on Cloudflare Containers (Workers Paid plan), uncomment
   // this and set DC_SANDBOX to "cloudflare" in `vars`. The machine starts from Cloudflare's
   // managed Debian image, so there is nothing to build.
@@ -26,6 +30,7 @@
     { "tag": "v4", "new_sqlite_classes": ["PresenceObject"] },
     { "tag": "v5", "new_sqlite_classes": ["LibraryObject"] },
     { "tag": "v6", "new_sqlite_classes": ["ModelAccessObject"] },
+    { "tag": "v7", "new_sqlite_classes": ["ShellObject"] },
   ],
   "d1_databases": [
     {

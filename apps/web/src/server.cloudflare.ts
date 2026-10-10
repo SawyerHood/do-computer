@@ -42,7 +42,9 @@ import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
 import { slackDirectory } from "./server/slack.ts"
 import { computerChoices } from "./server/sandbox.ts"
 
-export { SandboxObject } from "./server/sandbox.cloudflare.ts"
+export { SandboxObject, ShellGateway, ShellObject } from "./server/sandbox.cloudflare.ts"
+// How a built-in shell's Worker finds its way back to the object that keeps its files.
+export { WorkspaceServiceProxy } from "@durable-computer/sandbox/worker-shell/object"
 
 /** One Durable Object per agent. The sockets of those following it hibernate with it. */
 export const AgentObject = createDurableActorClass<Env>({
