@@ -126,6 +126,8 @@ export type Me = {
   google: boolean
   github: boolean
   signup: "open" | "invite"
+  /** Whether they may sign the deployment itself in to model providers, for everyone's agents. */
+  admin?: boolean
 }
 
 /** Everything about one agent that is not a chat transcript. */
