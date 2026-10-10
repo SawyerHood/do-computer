@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { client } from "@/lib/client"
-import { agentsKey, agentsQuery } from "@/lib/collections"
+import { agentsKey, agentsQuery, listedAgents } from "@/lib/collections"
 import { comingBackTo, lastAgent } from "@/lib/last-agent"
 import { queryClient } from "@/lib/query"
 
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_app/")({
       throw redirect({ to: "/a/$agentId", params: { agentId: last }, replace: true })
     }
     // The list the sidebar shows, asked for again only if it is no longer good.
-    const agents = await queryClient.fetchQuery(agentsQuery)
+    const agents = await listedAgents()
     let agent = agents.find((candidate) => candidate.id === last) ?? agents[0]
     if (agent === undefined) {
       agent = await client.createAgent()
