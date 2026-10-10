@@ -426,7 +426,7 @@ Since then, newest last:
       (`computers.ts`) adds an open machine when an agent is made where it could use none. The
       built-in shell keeps its files in one agent's database, so each agent gets its own,
       `chosen`, and it cannot be shared or removed apart from its agent (`UNSHARED_KINDS`).
-      (On Cloudflare its files have been in an object of their own since item 46, kept under
+      (On Cloudflare its files have been in an object of their own since item 47, kept under
       the agent's id; it is still one agent's.)
     - **The record is told to agents, whole.** `tellMachines` puts every machine an agent can
       use to it (`PUT /computers`), and the agent replaces what it had. An agent that was not
@@ -1882,7 +1882,7 @@ Since then, newest last:
       lists a few models and not all; that the first run's choice is for that agent and does
       not become the person's default for new ones.
 
-46. **On Cloudflare the built-in shell is Cloudflare Computer's** (2026-10-10;
+47. **On Cloudflare the built-in shell is Cloudflare Computer's** (2026-10-10;
     `packages/sandbox/src/worker-shell`, `apps/web/src/server/sandbox.cloudflare.ts`). The
     owner, of https://github.com/cloudflare/computer: "would it be possible to make this with
     the just bash backend one of the built in computer options? We can configure this to be the
@@ -2000,7 +2000,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
   database and files that was taken before they were deleted. The old daemon is gone from that machine.
 - **Whether the built-in shell should be a workspace's machine on Cloudflare**, shared by its
-  agents like the others. Its files are in an object of their own since item 46, so nothing
+  agents like the others. Its files are in an object of their own since item 47, so nothing
   would have to move; it was left one per agent because nobody was asked.
 - **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
   dashboard; the API token at hand cannot edit zone rules.
