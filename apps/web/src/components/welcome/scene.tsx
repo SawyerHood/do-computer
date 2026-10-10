@@ -717,7 +717,13 @@ export default function WelcomeScene() {
               <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary align-[-2px]" />
             )}
           </p>
+          {/* What a card asks for opens under its words once they are said. It is a new one for
+              each thing asked: kept, it was still open on the last answer when the card came
+              back, and the card came in tall, with the next form showing, and shut as the words
+              began. */}
           <div
+            key={view.step}
+            data-more
             className={cn(
               "grid transition-[grid-template-rows,opacity] duration-300",
               typed.said ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",

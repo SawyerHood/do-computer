@@ -1453,8 +1453,15 @@ Since then, newest last:
       top to fall (the owner: "the egg flashes in the first frame before it appears"). One
       frame on this machine; longer over a real network. `placed` in `scene.tsx` keeps it
       out of sight until it has been sent to fall, or set down. `welcome-scene.spec.ts` holds
-      the server's answer back and looks; it is the one first-run test that draws the scene
+      the server's answer back and looks; it is the one first-run file that draws the scene
       (`creature: true`), the others run with WebGL off.
+    - **A card comes back closed.** What a card asks for opens under its words once they are
+      said. It was one element for every step, so it was still open on the last answer when
+      the card came back: the card faded in as tall as the next form, with that form showing
+      through, shut as the words began, and opened again when they were said (the owner:
+      "some snapping when animating between the forms"). It is now a new element for each
+      step (`key={view.step}`), which starts shut. The test counts closing transitions:
+      there are none.
     - **What it asks**, each answer a crack in the shell: who they are (an account, or signing
       in, with the providers the deployment has), a name and a color for the agent, and, in
       the desktop app on its first run, whether it may work on this computer. Then it
