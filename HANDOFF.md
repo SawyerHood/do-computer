@@ -1810,6 +1810,72 @@ Since then, newest last:
       creature wearing things, or the box, can still set it off (neither uses the noise);
       whether the owner's own app is quiet now, which it can only be once this is deployed,
       since the app draws what do.computer serves.
+46. **A deployment names the models it offers, can be signed in to any provider, and the first
+    run asks what to think with** (2026-10-10; `packages/agent/src/models.ts`,
+    `model-access.ts`, `actor.ts`, `apps/web/src/server/models.ts`, `model-access.ts`,
+    `apps/web/src/components/settings/models.tsx`, `components/welcome/thinking.tsx`). The
+    owner asked that "any of the authentication methods can be ... set as ... the default
+    server one", for "a server level" list in the config of "the only … models you're allowed
+    to pick" (for do.computer: OpenRouter with Muse Spark 1.3 Contributor, Claude Haiku 5.5
+    and GPT-6 Luna), with people still free to "bring their own keys, their own logins" and
+    "pick anything they want", and for the first run to show the built-in models, "login with
+    ChatGPT or with Claude", and "a little … more section for all the other" providers.
+    - **`DC_MODELS`** is the list. Each name is a model's whole id or its OpenRouter id. The
+      deployment offers those, in that order, and new agents start on the first unless
+      `DC_DEFAULT_MODEL` names another of them. Nothing is checked against a catalog when the
+      server starts: a name that matches nothing offers nothing, and a deployment left with
+      nothing real offers the echo.
+    - **It is kept at the call, not only in the picker.** `createAgentModels` makes two sets
+      of models and puts one `Models` in front of them (`routed`): a model the deployment
+      names is called with the workspace's own sign-in, then the deployment's sign-in, then
+      its key; any other model is called with the workspace's sign-in or not at all. So an
+      agent that was set to another model before, or a workspace that signs out of its own
+      OpenRouter key, cannot spend the deployment's key on a model it does not name. Without
+      `DC_MODELS` there is one set and nothing is routed.
+    - **The server signed in** is the same actor a workspace has (`createModelAccessActor`),
+      under the name `deployment`, which no workspace has. The gateway's rule for a workspace
+      (`inWorkspace` in `server/model-access.ts`) lets someone named in `DC_ADMIN_EMAILS` in
+      under that name and nobody else, and where sign-up is open the address must be one a
+      social sign-in vouches for. So the routes, the client and the settings screen are the
+      ones there were: **Server models** in workspace settings is the Models section with
+      other words. An agent reads the deployment's credentials after its workspace's
+      (`credentialChain`), and asks which providers the deployment has at most twice a minute
+      (`cachedSignIns`), since that one actor is every agent's.
+    - **What a deployment offers is now asked each time** (`AgentModels.offered`,
+      `deploymentModels()` on the server, `deploymentModels` in the agent's options), since
+      someone can sign the server in while it runs. Its models are offered as its own, with
+      no word of who signed in.
+    - **A model both have is the workspace's** (`offeredModels`): a workspace signed in to a
+      provider runs that provider's models on its own account, the ones the deployment offers
+      too, and the picker now lists them under the workspace's sign-in. Before, such a model
+      was listed as the deployment's and still called with the workspace's credential.
+    - **An agent on a model the deployment stopped offering moves** to the one new agents
+      start on (`#keepRunnable`, looked at when the agent is first used and about once a
+      minute after). Only where the deployment still has the model's provider: an agent whose
+      workspace signed out of a provider nobody else has still says so in the chat, with the
+      ways back, as before.
+    - **The first run** has one more card, after the name: "What should I think with?". It
+      lists the deployment's models (the suggested few where there are hundreds), has "Sign
+      in with ChatGPT" and "Sign in with Claude" beside them and "More" for every provider and
+      key (the settings' own list and sign-in window), lists what was signed in to under its
+      own heading with its first model chosen, and sets the agent to what is chosen. Someone
+      who already has an agent is not asked.
+    - **The small models the server uses itself** (search, notes, judging, dictation) are
+      still OpenRouter's on `OPENROUTER_API_KEY`, are not narrowed by `DC_MODELS`, and are
+      not there on a deployment that is only signed in to something else.
+    - **Checked here:** unit tests of the list, the routing, the move, and the server's
+      sign-in and who may change it; browser tests of Server models and of the new card
+      (`models.spec.ts`, `welcome.spec.ts`); by eye, the card with the three models, with a
+      key added, and at phone width.
+    - **Not run:** a real key or subscription, as the server's or in the first run; the
+      Workers runtime; the desktop app's first run with the new card beyond its own test.
+    - **Mine, not the owner's:** that the server's sign-ins are changed by people named in
+      `DC_ADMIN_EMAILS`, from workspace settings; that only `OPENROUTER_API_KEY` is read from
+      the environment and every other key is typed in there; the name `DC_MODELS` and that it
+      takes OpenRouter ids; that a workspace's own sign-in wins for a model both have; the
+      move to the default model; where the card is in the first run, its words, and that it
+      lists a few models and not all; that the first run's choice is for that agent and does
+      not become the person's default for new ones.
 
 ## 6. What the owner has said they want
 

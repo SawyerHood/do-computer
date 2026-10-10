@@ -32,9 +32,10 @@ import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 import { handingOver, rememberMeeting, welcomeOpenAtom } from "@/lib/welcome"
 import { Stage } from "./stage.ts"
+import { Thinking } from "./thinking.tsx"
 
 /** What the card under the egg is asking. */
-type Step = "hello" | "you" | "name" | "computer" | "out"
+type Step = "hello" | "you" | "name" | "model" | "computer" | "out"
 /** What was said to "may I work on this computer?". */
 type Share = "yes" | "read" | "no"
 type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
@@ -98,10 +99,12 @@ function lineOf(view: View, here: boolean): string {
         : "Oh good, a voice! It’s dark inside this egg, so tell me: who are you?"
     case "name":
       return `Nice to meet you, ${first}. I don’t have a name yet. What will you call me?`
+    case "model":
+      return `${name}. I like that. What should I think with?`
     case "computer":
       return view.back
         ? `${first}, it’s you! I haven’t worked on this computer before. May I?`
-        : `${name}. I like that. One more thing before I come out: may I work on this computer?`
+        : "That will do nicely. One more thing before I come out: may I work on this computer?"
     case "out":
       if (view.back) {
         return view.share === "no"
@@ -205,8 +208,8 @@ function unseen(scene: HTMLElement): () => void {
 
 /**
  * The first run. An egg comes down out of the sky onto a little island and asks for what the
- * app needs: who its person is, what to call it, and, in the desktop app, whether it may work on
- * this computer. Each answer cracks its shell a little more; then it hatches, and takes its
+ * app needs: who its person is, what to call it, what to think with, and, in the desktop app,
+ * whether it may work on this computer. Each answer cracks its shell a little more; then it hatches, and takes its
  * person to its chat. It is shown over the page, by `WelcomeHost`, so that it is still there as
  * the chat comes up under it.
  */
@@ -530,8 +533,26 @@ export default function WelcomeScene() {
     drawing?.orb.crack(0.67)
     drawing?.sky.chips(hexOf(view.color))
     drawing?.sky.dawn(2)
-    if (here) return say("computer", { name })
-    patch({ name })
+    say("model", { name })
+  }
+
+  /** What it thinks with: the model it was made with, or another the person would rather. */
+  const thinks = async (model: string) => {
+    const made = agent.current
+    if (made === undefined) return
+    patch({ busy: true, error: undefined })
+    try {
+      if (model !== made.model) {
+        const state = await client.agent(made.id).update({ model })
+        queryClient.setQueryData(agentKey(made.id), state)
+        agent.current = { ...made, model }
+      }
+    } catch (error) {
+      return failed(error)
+    }
+    stage.current?.orb.pet(1)
+    stage.current?.sky.glow(0.6)
+    if (here) return say("computer")
     hatch(() => say("out"))
   }
 
@@ -620,7 +641,9 @@ export default function WelcomeScene() {
   /** A click on the scene itself: it brings the egg down at once, and a touch makes it hop. */
   const touched = (event: React.MouseEvent) => {
     const drawing = stage.current
-    if (drawing === null || (event.target as HTMLElement).closest("[data-card]")) return
+    const target = event.target as HTMLElement
+    // A window over the scene, such as a provider's sign-in, is not the scene being touched.
+    if (drawing === null || !root.current?.contains(target) || target.closest("[data-card]")) return
     if (drawing.sky.falling) return drawing.sky.land()
     const box = egg.current?.getBoundingClientRect()
     if (box === undefined) return
@@ -840,6 +863,15 @@ export default function WelcomeScene() {
                 )
               ) : view.step === "name" ? (
                 <Naming view={view} onColor={colored} onSubmit={named} />
+              ) : view.step === "model" ? (
+                <Thinking
+                  meId={queryClient.getQueryData<{ user: { id: string } }>(meKey)?.user.id ?? ""}
+                  name={view.name}
+                  current={agent.current?.model ?? ""}
+                  busy={view.busy}
+                  problem={<Problem said={view.error} />}
+                  onChosen={thinks}
+                />
               ) : view.step === "computer" ? (
                 view.pairing !== undefined ? (
                   <div className="mt-3 flex min-h-9 items-center gap-2.5 text-sm">

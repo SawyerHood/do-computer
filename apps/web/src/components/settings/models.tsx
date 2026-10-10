@@ -43,7 +43,7 @@ const heading = "pb-2.5 text-xs font-medium tracking-wide text-muted-foreground 
  * What a way of signing in is called on a button. pi names them for a list in a terminal,
  * "Anthropic (Claude Pro/Max)", where the provider is already said beside the button here.
  */
-function short(method: ModelLoginMethod): string {
+export function short(method: ModelLoginMethod): string {
   const inside = /^(.*?)\s*\(([^)]+)\)\s*$/.exec(method.label)
   const name =
     inside === null
@@ -58,7 +58,7 @@ function short(method: ModelLoginMethod): string {
  * Where a sign-in is kept, and so whose agents it is for: a workspace, or the deployment
  * itself, whose sign-ins are for everyone's.
  */
-type Scope = Pick<WorkspaceSummary, "id" | "name"> & {
+export type Scope = Pick<WorkspaceSummary, "id" | "name"> & {
   kind: WorkspaceSummary["kind"] | "deployment"
   role: WorkspaceRole
 }
@@ -194,7 +194,7 @@ function Typed({
  * whatever the sign-in says it is at: a choice, a page to open, a code to enter there,
  * something to type here.
  */
-function SignIn({
+export function ModelSignIn({
   workspace,
   provider,
   method,
@@ -583,17 +583,23 @@ function ProviderRow({
   )
 }
 
-function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
-  const server = workspace.kind === "deployment"
+/**
+ * The providers there are, each with the ways of signing a workspace in to it, the ones most
+ * asked for first and the rest behind one line. Signing in is a window over it.
+ */
+export function ModelProviderList({
+  workspace,
+  meId,
+  through = [],
+}: {
+  workspace: Scope
+  meId: string
+  /** The providers the deployment already offers models of, on its own account, by name. */
+  through?: readonly string[]
+}) {
   const { data: providers } = useSuspenseQuery({
     queryKey: modelProvidersKey(workspace.id),
     queryFn: () => client.workspace(workspace.id).modelProviders(),
-  })
-  const { data: models } = useQuery({
-    queryKey: workspaceModelsKey(workspace.id),
-    // The deployment's own are among what anyone can choose, wherever they are.
-    queryFn: () => client.models(server ? undefined : workspace.id),
-    staleTime: Number.POSITIVE_INFINITY,
   })
   const [more, setMore] = useState(false)
   const [signingIn, setSigningIn] = useState<{
@@ -609,10 +615,7 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
       void queryClient.invalidateQueries({ queryKey: modelsKey })
     },
   })
-
-  // The deployment's own models: the ones nobody signed in for.
-  const own = (models ?? []).filter((model) => model.signIn === undefined)
-  const through = [...new Set(own.map((model) => model.provider).filter(Boolean))]
+  const server = workspace.kind === "deployment"
   // With none set apart, as where there are only a few, all of them are shown.
   const any = providers.some((provider) => provider.featured)
   const first = providers.filter(
@@ -643,6 +646,54 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
   )
   return (
     <>
+      <ul className="divide-y rounded-2xl border">
+        {first.map(row)}
+        {more ? rest.map(row) : null}
+        {rest.length === 0 ? null : (
+          <li>
+            <button
+              type="button"
+              aria-expanded={more}
+              className="flex w-full items-center gap-1.5 px-3.5 py-2.5 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent"
+              onClick={() => setMore(!more)}
+            >
+              {more ? <CaretDownIcon /> : <CaretRightIcon />}
+              {more ? "Fewer" : `${rest.length} more`}
+            </button>
+          </li>
+        )}
+      </ul>
+      {signOut.isError ? (
+        <p role="alert" className="pt-2 text-sm text-destructive">
+          {signOut.error.message}
+        </p>
+      ) : null}
+      {signingIn === undefined ? null : (
+        <ModelSignIn
+          workspace={workspace}
+          provider={signingIn.provider}
+          method={signingIn.method}
+          onClose={() => setSigningIn(undefined)}
+        />
+      )}
+      {confirming}
+    </>
+  )
+}
+
+function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
+  const server = workspace.kind === "deployment"
+  const { data: models } = useQuery({
+    queryKey: workspaceModelsKey(workspace.id),
+    // The deployment's own are among what anyone can choose, wherever they are.
+    queryFn: () => client.models(server ? undefined : workspace.id),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+  // The deployment's own models: the ones nobody signed in for.
+  const own = (models ?? []).filter((model) => model.signIn === undefined)
+  const through = [...new Set(own.map((model) => model.provider).filter(Boolean))] as string[]
+  return (
+    <>
       {models === undefined ? null : (
         <div className="flex items-center gap-3 rounded-2xl border p-3.5">
           <Mark>
@@ -662,28 +713,7 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
       )}
       <section aria-label="Model providers">
         <h3 className={heading}>Model providers</h3>
-        <ul className="divide-y rounded-2xl border">
-          {first.map(row)}
-          {more ? rest.map(row) : null}
-          {rest.length === 0 ? null : (
-            <li>
-              <button
-                type="button"
-                aria-expanded={more}
-                className="flex w-full items-center gap-1.5 px-3.5 py-2.5 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent"
-                onClick={() => setMore(!more)}
-              >
-                {more ? <CaretDownIcon /> : <CaretRightIcon />}
-                {more ? "Fewer" : `${rest.length} more`}
-              </button>
-            </li>
-          )}
-        </ul>
-        {signOut.isError ? (
-          <p role="alert" className="pt-2 text-sm text-destructive">
-            {signOut.error.message}
-          </p>
-        ) : null}
+        <ModelProviderList workspace={workspace} meId={meId} through={through} />
         <p className="pt-2 text-xs text-muted-foreground">
           {server
             ? "A sign-in here is the server's: everyone's agents can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
@@ -693,15 +723,6 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
           Nobody is shown a key or a token again, and agents never see one.
         </p>
       </section>
-      {signingIn === undefined ? null : (
-        <SignIn
-          workspace={workspace}
-          provider={signingIn.provider}
-          method={signingIn.method}
-          onClose={() => setSigningIn(undefined)}
-        />
-      )}
-      {confirming}
     </>
   )
 }

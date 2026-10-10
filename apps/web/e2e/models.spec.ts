@@ -164,9 +164,9 @@ test.describe("the server's own models", () => {
     await page.getByRole("button", { name: "Models", exact: true }).click()
     await expect(page.getByText(/through OpenAI, paid for by this deployment/)).toBeVisible()
     const own = page.getByRole("region", { name: "Model providers" })
-    await expect(
-      own.getByRole("listitem").filter({ hasText: /^OOpenAI(?! Codex)/ }),
-    ).toContainText("Already here. Sign in to use your own account.")
+    await expect(own.getByRole("listitem").filter({ hasText: /^OOpenAI(?! Codex)/ })).toContainText(
+      "Already here. Sign in to use your own account.",
+    )
     await closeSettings(page)
     await openSettings(page, "Model and computer")
     const picker = page.getByRole("combobox", { name: "Model" })
@@ -177,4 +177,3 @@ test.describe("the server's own models", () => {
     await expect(list.getByText(/signed in by/)).toHaveCount(0)
   })
 })
-
