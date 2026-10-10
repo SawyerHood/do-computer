@@ -1594,9 +1594,8 @@ Since then, newest last:
       Windows say when; Linux does not). A window that has been hidden draws nothing. One
       that has not been shown yet is told it is showing, and draws: that is only the
       moments before it first shows, and the times it starts while the screen is in use.
-      `paintWhenInitiallyHidden: false` would stop that, and was taken out again when the
-      Windows machine's test never saw the creature with it; whether it was the cause is
-      not known. The page asks who is signed in while hidden too, or it would never come
+      `paintWhenInitiallyHidden: false` would stop that, and was left out: it is little to
+      save. The page asks who is signed in while hidden too, or it would never come
       back after its owner signed out and in.
     - **What it costs,** on the owner's MacBook Air with its own graphics card: at rest
       about 5% of a core in its page and 6% in the GPU process; before it was drawn on
@@ -1611,7 +1610,11 @@ Since then, newest last:
     - **Checked:** `apps/desktop/e2e/companion.spec.ts` and one test in `desktop.spec.ts`
       run the real window against the built server under Xvfb: switched on and off, what it
       says, leaning in, carried to another corner, kept across a restart, gone while the
-      screen is in use. Playwright tells every page it is showing, so no test of its can
+      screen is in use. The companion's file starts the app with `--disable-gpu`, as
+      `desktop.spec.ts` does: started to draw in software instead, the Windows build
+      machine's run lost sight of the app's windows at a different place each time (a page
+      closed under it, a window it never saw), while the same companion in `desktop.spec.ts`
+      passed there every time. Playwright tells every page it is showing, so no test of its can
       see that a hidden window stops drawing: that was seen once by hand, in a window of
       Electron's started plainly. On the owner's MacBook Air a second copy of the installed app with
       this build's files showed it over CDP: drawn by the graphics card, the bubble, the

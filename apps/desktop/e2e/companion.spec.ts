@@ -135,15 +135,10 @@ async function quit(): Promise<void> {
 const start = () =>
   electron.launch({
     ...(packed ? { executablePath: packed } : {}),
-    // The creature is drawn in 3D. A Mac has a graphics card to do it with; elsewhere it is
-    // done in software, so that a machine with no graphics card can run this too.
-    args: [
-      ...(packed ? [] : [appEntry]),
-      "--no-sandbox",
-      ...(process.platform === "darwin"
-        ? []
-        : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
-    ],
+    // A machine with no graphics card and a build machine's sandbox rules can both run it.
+    // Without one the creature is its still picture, which is all that is asked of it here:
+    // on the Windows build machine, drawing it in software lost the test its windows.
+    args: [...(packed ? [] : [appEntry]), "--no-sandbox", "--disable-gpu"],
     env: {
       ...process.env,
       HOME: join(scratch, "home"),
