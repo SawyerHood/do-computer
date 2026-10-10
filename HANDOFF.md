@@ -1257,6 +1257,33 @@ Since then, newest last:
       and made again for the next, which is a new context for most moves between pages. That
       costs time, not pictures. Whether either of the two is what the owner saw is not known.
 
+34. **Who is signed in is never waited for for good** (2026-10-10;
+    `apps/web/src/server/auth-guard.ts`, `server/auth.ts`). This is what the stuck frame of
+    item 32 was, found the day after by asking do.computer with curl: on about a quarter of
+    new connections every request that checks who is signed in (`/api/me`, `/api/agents`,
+    `/api/settings`, with no cookie at all) never answered, while `/api/health` and
+    `/api/auth-methods` on the same connection answered at once. In `wrangler tail` each
+    showed as `canceled` with 0 ms of CPU and the wall time the client waited. A connection
+    stays with one isolate, so an app on a bad one stayed stuck however often it was started.
+    - **The cause** is in Better Auth (1.7.7, `@better-auth/core/dist/async_hooks`): it keeps
+      the promise of `import("node:async_hooks")` for the life of the process and waits on it
+      in every call until its three stores are made. On Workers that promise is never settled
+      if the request that was running when it started goes away first. The same is described
+      at zenn.dev/coji/articles/cloudflare-workers-better-auth-hanging-promise, which names
+      better-auth issue 10315. The app's own `getAuth` kept a promise the same way until
+      2026-10-08 (pull request #25); this one is the library's.
+    - **The stores are made as the module loads** (`seedAuthStores`), from an import nothing
+      waits for, on Better Auth's shared object (`Symbol.for("better-auth:global")`). A test
+      makes a real call and fails if the library has a store that was not made for it, which
+      is what an upgrade that adds one would do.
+    - **`getUser` waits five seconds**, then lets go of the instance and asks a new one, and
+      after five more fails the request. It logs `[auth] no answer…` each time, which is what
+      to look for in the live logs if the frame is ever stuck again.
+    - **Not reproduced on this machine**: `wrangler dev` starts the Worker before any request
+      and passes on no cancellation. The only proof is the live site: ask `/api/health` and
+      then `/api/me` over one connection, a dozen times, each with a few seconds' limit.
+    - **Mine, not the owner's:** the five seconds and the second try.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -1353,14 +1380,6 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   web search and pictures. Probably a failure on Meta's or OpenRouter's side. Which model the
   agent was on is not known. The raw provider error is what the user saw; a friendlier message
   and a retry would be an improvement.
-
-- **The desktop app "sometimes gets stuck loading"** on the owner's Mac, 2026-10-09: the frame
-  of placeholders, for good. Thirty-one starts and reloads of the app against a local server
-  never stuck, and nothing unusual was in the live logs while they were followed. Which
-  request was waiting is not known: the owner was not asked for the Network tab before the
-  ways it could happen were closed (item 32). If it recurs, the page should now say what
-  failed; View, Toggle Developer Tools, Network in the app shows what is still waiting, and
-  `wrangler tail` shows a request that was given up on as `canceled`.
 
 ### Known gaps
 

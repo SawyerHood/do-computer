@@ -3,9 +3,13 @@ import { expo } from "@better-auth/expo"
 import { betterAuth, type BetterAuthOptions } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
+import { askTwice, seedAuthStores } from "./auth-guard.ts"
 import type { Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
 import { isInvited } from "./teams.ts"
+
+// Before anything of Better Auth's is called: see the function.
+seedAuthStores()
 
 /**
  * Names the auth tables this build expects. Bump it when the Better Auth version or its plugins
@@ -137,10 +141,28 @@ export type SessionUser = {
   emailVerified?: boolean
 }
 
-/** The signed-in user of a request, or undefined. */
+/** How long who is signed in is waited for. It is answered in milliseconds, or not at all. */
+const SESSION_PATIENCE_MS = 5_000
+
+/**
+ * The signed-in user of a request, or undefined.
+ *
+ * Every page waits on this, so it is not waited on for good. Better Auth keeps promises of its
+ * own, and on Workers one that its first request left behind is never settled (see
+ * `seedAuthStores`, which is for the one that was found). Should another be, the instance is
+ * let go of and a new one asked, and if that does not answer either the request fails.
+ */
 export async function getUser(request: Request): Promise<SessionUser | undefined> {
-  const auth = await getAuth()
-  const session = await auth.api.getSession({ headers: request.headers })
+  const session = await askTwice(
+    async () => (await getAuth()).api.getSession({ headers: request.headers }),
+    {
+      ms: SESSION_PATIENCE_MS,
+      renew: () => {
+        built = undefined
+      },
+      report: (message) => console.error(`[auth] ${message}`),
+    },
+  )
   return session?.user
 }
 
