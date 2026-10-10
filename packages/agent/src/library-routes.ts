@@ -34,7 +34,8 @@ export async function routeLibrary(
     if (declaredTooLarge(request.headers, MAX_LIBRARY_FILE_BYTES)) return tooLarge()
     // Counted as it arrives: the declared length is only what the sender says.
     try {
-      return await readLimited(request.body, MAX_LIBRARY_FILE_BYTES)
+      const declared = Number(request.headers.get("content-length") ?? "")
+      return await readLimited(request.body, MAX_LIBRARY_FILE_BYTES, declared)
     } catch (error) {
       if (error instanceof BodyTooLarge) return tooLarge()
       throw error

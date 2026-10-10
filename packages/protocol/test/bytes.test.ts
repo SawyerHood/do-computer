@@ -31,6 +31,34 @@ describe("readLimited", () => {
     expect([...(await readLimited(chunked, 3))]).toEqual([1, 2, 3])
   })
 
+  it("reads the same body whatever length the sender declared", async () => {
+    const pieces = () =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2, 3]))
+          controller.enqueue(new Uint8Array([4, 5]))
+          controller.enqueue(new Uint8Array([6]))
+          controller.close()
+        },
+      })
+    // Right, too little (ending inside a piece and between two), too much, more than is
+    // allowed, and not a length at all.
+    for (const declared of [6, 4, 3, 1, 0, 9, 1_000_000, -1, 2.5, Number.NaN]) {
+      const bytes = await readLimited(pieces(), 100, declared)
+      expect([...bytes], `declared ${declared}`).toEqual([1, 2, 3, 4, 5, 6])
+      // No longer than the body, so its buffer can be handed on as the body it is.
+      expect(bytes.buffer.byteLength, `declared ${declared}`).toBe(6)
+    }
+  })
+
+  it("holds a limit the declared length understates", async () => {
+    const { stream, state } = endless()
+    await expect(readLimited(stream, 10_000, 5_000)).rejects.toBeInstanceOf(BodyTooLarge)
+    expect(state.cancelled).toBe(true)
+    const exact = new Response(new Uint8Array(10).fill(1)).body
+    await expect(readLimited(exact, 9, 9)).rejects.toBeInstanceOf(BodyTooLarge)
+  })
+
   it("stops reading as soon as the limit is passed, and lets the sender go", async () => {
     const { stream, state } = endless()
     await expect(readLimited(stream, 10_000)).rejects.toBeInstanceOf(BodyTooLarge)

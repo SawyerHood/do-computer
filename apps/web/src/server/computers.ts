@@ -50,7 +50,12 @@ import { defaultComputerFor, deploymentComputers } from "./settings.ts"
 import { agentAccess, roleIn } from "./teams.ts"
 
 const PAIRING_TTL_MS = 10 * 60_000
-const MAX_PENDING_PAIRINGS = 200
+/**
+ * How many computers can be waiting to be confirmed at once, across everyone. One address can
+ * start twenty a minute where calls are counted (rate-limit.ts), so two hundred in the time a
+ * request lasts: this is ten times that, so that no one address can take every place.
+ */
+const MAX_PENDING_PAIRINGS = 2_000
 const MAX_COMPUTERS_PER_USER = 20
 /** How many machines a workspace can have. Each costs something to keep, even when idle. */
 const MAX_MACHINES_PER_WORKSPACE = 10

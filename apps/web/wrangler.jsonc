@@ -36,6 +36,12 @@
     },
   ],
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "durable-computer" }],
+  // How often one address may sign in, sign up or ask to pair a computer: the calls that need no
+  // account (src/server/rate-limit.ts). Counted per Cloudflare location, and not exactly. The
+  // namespace id is any number no other Worker on the account uses for something else.
+  "ratelimits": [
+    { "name": "PUBLIC_LIMIT", "namespace_id": "20261010", "simple": { "limit": 20, "period": 60 } },
+  ],
   "vars": { "DC_SIGNUP": "invite" },
   // Secrets (wrangler secret put): DC_AUTH_SECRET, OPENROUTER_API_KEY, and optionally
   // GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and

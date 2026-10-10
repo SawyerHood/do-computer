@@ -89,6 +89,21 @@ export type ClientOptions = {
    * carries the session, so it is not sent twice.
    */
   readonly credentials?: RequestCredentials
+  /**
+   * Whether anyone is looking, where the platform can tell: a browser's tab can be hidden. A
+   * stream nobody has looked at for a while is let go of, and asked for again when someone
+   * does. Without this, streams are kept for as long as they are subscribed to.
+   */
+  readonly attention?: Attention
+  /** How long nobody has to have been looking before a stream is let go of. Default a minute. */
+  readonly restAfterMs?: number
+}
+
+/** Says whether anyone is looking at what the client's streams feed. */
+export type Attention = {
+  here(): boolean
+  /** Call `changed` whenever that may have changed. Returns how to stop. */
+  watch(changed: () => void): () => void
 }
 
 export type Me = {
@@ -152,6 +167,53 @@ export type PresenceLink = Subscription & { update(where: PresenceUpdate): void 
 const PRESENCE_PING_MS = 30_000
 
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000]
+/**
+ * How long to wait before the next try: the delay of that try, and up to as long again. Every
+ * client of a server loses its connection at the same moment when the server is replaced, and
+ * without this they would all be back at the same moment too.
+ */
+const reconnectDelay = (attempt: number) =>
+  RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]! * (1 + Math.random())
+/**
+ * How long nobody has to have been looking before a stream is let go of. An open stream keeps
+ * the agent it follows in memory on the server, which is paid for by the second, and a tab left
+ * open in the background would keep it there for days.
+ */
+const REST_AFTER_MS = 60_000
+
+/** Call `then` once nobody has been looking for `ms` without a break. Returns how to stop. */
+function whenUnattended(attention: Attention, ms: number, then: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const look = () => {
+    if (attention.here()) {
+      clearTimeout(timer)
+      timer = undefined
+    } else {
+      timer ??= setTimeout(then, ms)
+    }
+  }
+  const stop = attention.watch(look)
+  look()
+  return () => {
+    stop()
+    clearTimeout(timer)
+  }
+}
+
+/** Resolves once someone is looking, or `signal` is aborted. */
+function attended(attention: Attention, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (attention.here() || signal.aborted) return resolve()
+    const look = () => {
+      if (!attention.here() && !signal.aborted) return
+      stop()
+      signal.removeEventListener("abort", look)
+      resolve()
+    }
+    const stop = attention.watch(look)
+    signal.addEventListener("abort", look)
+  })
+}
 /** How long a stream may say nothing, heartbeats included, before it is taken for lost. */
 const STREAM_SILENCE_MS = 3 * SSE_HEARTBEAT_MS
 
@@ -225,6 +287,17 @@ export function createClient(options: ClientOptions) {
           silence = setTimeout(() => lost.abort(), STREAM_SILENCE_MS)
         }
         hear()
+        // A stream nobody is looking at is let go of. Whoever comes back gets where things
+        // stand from the first event of the next connection, as after any other break.
+        let resting = false
+        const attention = options.attention
+        const unrest =
+          attention === undefined
+            ? undefined
+            : whenUnattended(attention, options.restAfterMs ?? REST_AFTER_MS, () => {
+                resting = true
+                lost.abort()
+              })
         try {
           const response = await send(path, {
             headers: { accept: "text/event-stream" },
@@ -244,12 +317,17 @@ export function createClient(options: ClientOptions) {
           // Fall through to reconnect.
         } finally {
           clearTimeout(silence)
+          unrest?.()
           controller.signal.removeEventListener("abort", give)
         }
         if (controller.signal.aborted) break
+        if (resting && options.attention !== undefined) {
+          // Not a failure, so it is not said to be one, and there is nothing to back off from.
+          await attended(options.attention, controller.signal)
+          continue
+        }
         onStatus?.("reconnecting")
-        const delay = RECONNECT_DELAYS_MS[Math.min(attempt++, RECONNECT_DELAYS_MS.length - 1)]!
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await new Promise((resolve) => setTimeout(resolve, reconnectDelay(attempt++)))
       }
       onStatus?.("closed")
     }
@@ -412,9 +490,7 @@ export function createClient(options: ClientOptions) {
               if (event.code === 4403) onEvent({ type: "changed" })
               // Turned away for good: signed out, or no longer in the team.
               if (closed || event.code === 4401 || event.code === 4403) return
-              const delay =
-                RECONNECT_DELAYS_MS[Math.min(attempt++, RECONNECT_DELAYS_MS.length - 1)]!
-              retry = setTimeout(connect, delay)
+              retry = setTimeout(connect, reconnectDelay(attempt++))
             }
           }
           connect()
