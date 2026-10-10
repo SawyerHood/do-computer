@@ -21,7 +21,7 @@ export type RuntimeProviders = {
   readonly cloudflare?: (config: Config) => SandboxFactory
 }
 
-type Target = "node" | "cloudflare"
+export type Target = "node" | "cloudflare"
 
 /** How each kind is put to whoever is choosing one, in the order they are offered. */
 const KINDS: Record<SandboxKind, Omit<ComputerKind, "id">> = {
@@ -107,7 +107,11 @@ export function offeredKinds(
   return {
     kinds: (Object.keys(KINDS) as SandboxKind[])
       .filter((kind) => offered.has(kind))
-      .map((id) => ({ id, ...KINDS[id] })),
+      .map((id) => ({
+        id,
+        ...KINDS[id],
+        ...(unsharedKinds(target).includes(id) ? { perAgent: true } : {}),
+      })),
     default: config.sandbox,
   }
 }
@@ -131,8 +135,8 @@ function factoryFor(
             resolve: providers.resolveHost,
           })
         : undefined
-      // Files live in the agent's own database, so this needs no other service on either
-      // runtime, and it is one agent's: nobody else can be given it.
+      // Files live in the agent's own database, so this needs no other service, and it is one
+      // agent's: nobody else can be given it.
       return (_key, host) =>
         host === undefined
           ? undefined
@@ -162,10 +166,12 @@ function factoryFor(
 }
 
 /**
- * The kinds whose machine is one agent's and does not serve another. On Node its files are in
- * the agent's own database; on Cloudflare they are kept under the agent's id.
+ * The kinds whose machine is one agent's and does not serve another. On Node the built-in shell
+ * keeps its files in its agent's own database, so it is one. On Cloudflare its files are in an
+ * object of their own, and it is a machine like the others.
  */
-export const UNSHARED_KINDS: readonly string[] = ["just-bash"]
+export const unsharedKinds = (target: Target): readonly string[] =>
+  target === "node" ? ["just-bash"] : []
 
 /**
  * The machines this deployment can make. A remote machine is created the first time something
