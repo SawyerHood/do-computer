@@ -45,6 +45,14 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # The Mac's app is signed where the repository has a certificate for it: CSC_LINK, a
+      # Developer ID Application certificate as a .p12 in base64, and CSC_KEY_PASSWORD. Apple
+      # checks it too (APPLE_API_KEY_P8, an App Store Connect key, with APPLE_API_KEY_ID and
+      # APPLE_API_ISSUER) for a release and for a run from the Actions tab. That takes minutes
+      # of a Mac's time, which a push to main goes without.
+      SIGN_MAC: ${{ matrix.name == 'macOS' && secrets.CSC_LINK != '' }}
+      NOTARIZE_MAC: ${{ matrix.name == 'macOS' && secrets.CSC_LINK != '' && secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/desktop-v')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -71,20 +79,54 @@ jobs:
         working-directory: apps/desktop
         # A release is the version its tag says, in the app and in the names of its files.
         run: |
-          version=""
+          flags=()
           case "$GITHUB_REF" in
-            refs/tags/desktop-v*) version="-c.extraMetadata.version=${GITHUB_REF_NAME#desktop-v}" ;;
+            refs/tags/desktop-v*) flags+=("-c.extraMetadata.version=${GITHUB_REF_NAME#desktop-v}") ;;
           esac
-          pnpm exec electron-builder --publish never $version
+          if [ "$SIGN_MAC" = true ]; then
+            # Named here and not for the whole step: the same names would have the Windows
+            # installer signed with a Mac's certificate.
+            export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+            # A certificate that will not sign fails the run. Left alone, the app is packed
+            # unsigned and the run passes.
+            flags+=(-c.mac.forceCodeSigning=true)
+            if [ "$NOTARIZE_MAC" = true ]; then
+              printf '%s\n' "$MAC_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+              export APPLE_API_KEY="$RUNNER_TEMP/AuthKey.p8"
+              export APPLE_API_KEY_ID="$MAC_API_KEY_ID" APPLE_API_ISSUER="$MAC_API_ISSUER"
+            fi
+          else
+            # Nobody's certificate signs it. Without this, one on the machine would be tried.
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            # On macOS it is still sealed, by no one.
+            flags+=(--config electron-builder.unsigned.yml)
+          fi
+          pnpm exec electron-builder --publish never "${flags[@]}"
         env:
-          # Nobody's certificate signs it. Without this, one on the machine would be tried.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # On macOS it is still sealed, by no one, and a pull request's build is too.
+          # A pull request's build is sealed too.
           CSC_FOR_PULL_REQUEST: "true"
+          MAC_CSC_LINK: ${{ secrets.CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          MAC_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          MAC_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          MAC_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
       - name: Check that the macOS app is sealed
         if: runner.os == 'macOS'
         working-directory: apps/desktop
-        run: codesign --verify --deep --strict --verbose=2 "release/mac-universal/Do Computer.app"
+        run: |
+          app="release/mac-universal/Do Computer.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          # Where there is a certificate, that it was the certificate that signed it, and
+          # where Apple was asked, that its answer is in the app.
+          if [ "$SIGN_MAC" = true ]; then
+            signed=$(codesign --display --verbose=2 "$app" 2>&1)
+            echo "$signed"
+            echo "$signed" | grep "^Authority=Developer ID Application" > /dev/null
+            echo "$signed" | grep "^Runtime Version=" > /dev/null
+          fi
+          if [ "$NOTARIZE_MAC" = true ]; then
+            xcrun stapler validate "$app"
+          fi
       - name: Run the packed app
         working-directory: apps/desktop
         run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test
@@ -122,6 +164,11 @@ jobs:
           pattern: do-computer-*
           merge-multiple: true
       - run: |
+          if [ "$SIGNED" = true ]; then
+            warning="The macOS app is signed and checked by Apple. Nobody has signed the Windows one, so Windows warns before opening it: choose More info, then Run anyway."
+          else
+            warning="Nobody has signed these, so macOS and Windows warn before opening them: on macOS allow the app under System Settings, Privacy & Security; on Windows choose More info, then Run anyway."
+          fi
           cat > notes.md <<'NOTES'
           Do Computer in a window of its own, which is also the daemon that lets your agents work on the computer it runs on.
 
@@ -129,9 +176,10 @@ jobs:
           - **Windows**: the `.exe` installer. Install [Git for Windows](https://gitforwindows.org) too, so that agents' commands run in bash.
           - **Linux**: the `.AppImage`. Make it executable (`chmod +x`) and run it.
 
-          Nobody has signed these, so macOS and Windows warn before opening them: on macOS allow the app under System Settings, Privacy & Security; on Windows choose More info, then Run anyway.
           NOTES
+          echo "$warning" >> notes.md
           gh release create "$GITHUB_REF_NAME" packed/* --repo "$GITHUB_REPOSITORY" \
             --title "Do Computer for desktop ${GITHUB_REF_NAME#desktop-v}" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}
+          SIGNED: ${{ secrets.CSC_LINK != '' && secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' }}

@@ -1,0 +1,8 @@
+# The app packed with no certificate: everything in electron-builder.yml, and the Mac's app
+# signed by nobody in particular. That is still signed, which a Mac with Apple's own chips
+# needs to run it at all, and without the stricter rules, which are for an app Apple has
+# checked and may keep one signed by no one from starting.
+extends: ./electron-builder.yml
+mac:
+  identity: "-"
+  hardenedRuntime: false

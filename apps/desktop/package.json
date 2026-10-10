@@ -12,7 +12,7 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "package": "pnpm build && electron-builder --publish never"
+    "package": "pnpm build && electron-builder --publish never --config electron-builder.unsigned.yml"
   },
   "devDependencies": {
     "@durable-computer/computers": "workspace:*",

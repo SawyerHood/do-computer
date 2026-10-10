@@ -498,10 +498,18 @@ git tag desktop-v0.2.0 && git push origin desktop-v0.2.0
 
 Things to know:
 
-- **Nobody has signed it.** macOS will not open a downloaded copy from a double click: allow
-  it under System Settings, Privacy & Security, or take the download's mark off it with
-  `xattr -dr com.apple.quarantine` and the path of the app. Windows shows "Windows protected
-  your PC": choose More info, then Run anyway. Neither has been tried on a real desktop yet.
+- **The Mac's app is signed where the repository has a certificate.** With the secrets
+  `CSC_LINK` (a Developer ID Application certificate, as a `.p12` in base64) and
+  `CSC_KEY_PASSWORD`, the `Desktop` workflow signs it, and with `APPLE_API_KEY_P8` (an App
+  Store Connect API key), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` Apple checks a release, so
+  that it opens from a double click. A signed app also keeps what its owner allowed it under
+  Accessibility and Screen Recording from one version to the next. One signed by nobody is
+  another app to macOS with every build: it has to be allowed both again (take the old entry
+  out of each list first), and macOS will not open a downloaded copy from a double click:
+  allow it under System Settings, Privacy & Security, or take the download's mark off it with
+  `xattr -dr com.apple.quarantine` and the path of the app.
+- **Nobody has signed the Windows one.** Windows shows "Windows protected your PC": choose
+  More info, then Run anyway. That has not been tried on a real desktop yet.
 - **The app does not update itself.** There is little in it to update: the window shows the
   server's own pages, and the daemon inside it replaces itself from the server like any other
   daemon. A newer app is installed over the old one.
