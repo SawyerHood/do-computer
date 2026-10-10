@@ -161,6 +161,20 @@ describe("a browser on a paired computer", () => {
     expect(daemonIO.audits[0]).toMatchObject({ kind: "browser", script: "page.title()" })
   })
 
+  it("is told whether to have a window only where the call says", async () => {
+    const asked: (boolean | undefined)[] = []
+    const theirs = browser()
+    theirs.run = async (_agent, _script, options) => {
+      asked.push(options.shown)
+      return { output: "", shots: [], own: false }
+    }
+    const { link } = wire(io({ browser: theirs }))
+    await link.use({ t: "browser", op: "run", agent: pip, script: "1" })
+    await link.use({ t: "browser", op: "run", agent: pip, script: "1", shown: true })
+    await link.use({ t: "browser", op: "run", agent: pip, script: "1", shown: false })
+    expect(asked).toEqual([undefined, true, false])
+  })
+
   it("passes on, as a refusal, what a browser that was stopped says", async () => {
     const stopped = browser()
     stopped.run = async () => {

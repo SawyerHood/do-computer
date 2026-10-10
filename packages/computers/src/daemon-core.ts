@@ -43,7 +43,7 @@ export interface BrowserIO {
   run(
     agent: UsingAgent,
     script: string,
-    options: { timeoutMs: number; say?: string },
+    options: { timeoutMs: number; say?: string; shown?: boolean },
   ): Promise<BrowserRan>
   view(after: number, waitMs: number): Promise<LiveView>
   hold(held: boolean): Promise<void>
@@ -414,6 +414,7 @@ export class DaemonCore {
           browser.run(agent, script, {
             timeoutMs,
             ...(frame.say === undefined ? {} : { say: frame.say }),
+            ...(frame.shown === undefined ? {} : { shown: frame.shown }),
           }),
         )
       }
