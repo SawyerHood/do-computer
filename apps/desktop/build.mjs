@@ -45,10 +45,11 @@ for (const file of ["welcome.html", "computer.html", "offline.html", "pages.css"
 }
 cpSync("assets", "dist/assets", { recursive: true })
 
-// What is drawn over the screen while an agent uses it: a page, and the script its window is given.
+// What is drawn over the screen while an agent uses it: a page, and the script its window is
+// given. The companion on the desktop is a page of the deployment, and has only a script.
 await build({
   ...common,
-  entryPoints: { "overlay-preload": "src/overlay-preload.ts" },
+  entryPoints: { "overlay-preload": "src/overlay-preload.ts", "pet-preload": "src/pet-preload.ts" },
   outdir: "dist",
   outExtension: { ".js": ".cjs" },
   platform: "node",

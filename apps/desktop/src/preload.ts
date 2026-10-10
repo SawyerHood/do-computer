@@ -20,6 +20,7 @@ if (location.protocol === "file:") {
     allow: (what, on) => ipcRenderer.invoke("allow", what, on),
     permit: (what) => ipcRenderer.invoke("permit", what),
     setOpenAtLogin: (on) => ipcRenderer.invoke("open-at-login", on),
+    setCompanion: (on) => ipcRenderer.invoke("companion", on),
     changeServer: () => ipcRenderer.invoke("change-server"),
     retry: () => ipcRenderer.invoke("retry"),
   }

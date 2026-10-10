@@ -5,6 +5,7 @@ const readOnly = at<HTMLInputElement>("read-only")
 const login = at<HTMLInputElement>("login")
 const screen = at<HTMLInputElement>("screen")
 const browser = at<HTMLInputElement>("browser")
+const companion = at<HTMLInputElement>("companion")
 const toggle = at<HTMLButtonElement>("toggle")
 const log = at<HTMLOListElement>("log")
 
@@ -59,6 +60,9 @@ function show(state: AppState): void {
     permission("accessibility", allowed.accessibility, "control this Mac")
     permission("recording", allowed.screenRecording, "record the screen")
   }
+  companion.checked = state.companion
+  // It is a page of the deployment, which there is none of before the first run is over.
+  companion.disabled = state.server === undefined || !state.welcomed
   at("login-row").hidden = !state.canOpenAtLogin
   login.checked = state.openAtLogin
   at("server").textContent = state.server ?? "None chosen yet"
@@ -99,6 +103,7 @@ toggle.addEventListener("click", () => {
 at("confirm").addEventListener("click", () => void window.desktop.confirm())
 at("change").addEventListener("click", () => void window.desktop.changeServer())
 login.addEventListener("change", () => void window.desktop.setOpenAtLogin(login.checked))
+companion.addEventListener("change", () => void window.desktop.setCompanion(companion.checked))
 
 window.desktop.watch(show)
 void window.desktop.state().then(show)

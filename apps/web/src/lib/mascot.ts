@@ -128,6 +128,21 @@ export function dressMascot(orb: Orb, outfit: Outfit | null | undefined): void {
   wardrobe?.dress(orb, outfit)
 }
 
+/**
+ * Set once the page is told where the pointer is from outside itself: the desktop app says
+ * where it is on the whole screen, for a creature that sits on the desktop. What the page sees
+ * of the pointer, which is only what crosses its own window, is then not heeded.
+ */
+let led = false
+
+/** The pointer is at a place the page was told of, which may be far outside it. */
+export function leadPointer(clientX: number, clientY: number): void {
+  led = true
+  for (const orb of drawing?.Runner.orbs ?? []) {
+    if (orb.notice) orb.setPointer(clientX, clientY)
+  }
+}
+
 /** Things every creature on the page reacts to: the pointer, the theme, and a wish for less motion. */
 function follow(core: MascotCore): void {
   const each = (act: (orb: Orb) => void) => {
@@ -135,10 +150,14 @@ function follow(core: MascotCore): void {
   }
   window.addEventListener(
     "pointermove",
-    (event) => each((orb) => orb.notice && orb.setPointer(event.clientX, event.clientY)),
+    (event) => {
+      if (!led) each((orb) => orb.notice && orb.setPointer(event.clientX, event.clientY))
+    },
     { passive: true },
   )
-  document.addEventListener("pointerleave", () => each((orb) => orb.setPointer(null)))
+  document.addEventListener("pointerleave", () => {
+    if (!led) each((orb) => orb.setPointer(null))
+  })
   new MutationObserver(() => each((orb) => orb.setTheme(isDark()))).observe(
     document.documentElement,
     { attributes: true, attributeFilter: ["class"] },

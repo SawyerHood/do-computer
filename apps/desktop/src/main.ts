@@ -34,6 +34,8 @@ import { UseState } from "@durable-computer/computers/use"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
 import { browserSignIn } from "./browser-sign-in.ts"
+import { type Companion, createCompanion } from "./companion.ts"
+import { agentAddress } from "./companion-place.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
 import { loginPath } from "./login-path.ts"
 import { createOverlay, type Overlay } from "./overlay.ts"
@@ -90,6 +92,7 @@ let runner: DaemonRunner | undefined
 let screenService: ScreenService | undefined
 let screenDriver: ScreenDriver | undefined
 let overlay: Overlay | undefined
+let companion: Companion | undefined
 let quitting = false
 /** The PATH commands run with, once it has been asked for. */
 let commandPath: string | undefined
@@ -183,6 +186,7 @@ async function probeDriver(): Promise<void> {
 function screenOf(): ScreenService {
   if (screenService !== undefined) return screenService
   const using = new UseState({ what: "the screen" })
+  using.onChange(() => stepAside(using))
   overlay = createOverlay({
     state: using,
     pagesDir: here("pages"),
@@ -216,6 +220,7 @@ function state(): AppState {
     ...(unavailable === undefined ? {} : { screenUnavailable: unavailable }),
     ...(MAC ? { permissions: permissions() } : {}),
     browser: settings.browser,
+    companion: settings.companion,
     openAtLogin: settings.openAtLogin,
     canOpenAtLogin: canOpenAtLogin(),
     log: runner?.lines ?? [],
@@ -330,8 +335,75 @@ function showWelcome(): void {
 /** How this computer is shared with agents. */
 function showComputer(): void {
   if (alive(computerWindow)) return computerWindow.focus()
-  computerWindow = ownWindow("computer", { width: 460, height: 680, title: "This Computer" })
+  computerWindow = ownWindow("computer", { width: 460, height: 780, title: "This Computer" })
   computerWindow.on("closed", () => (computerWindow = undefined))
+}
+
+// ---------------------------------------------------------------------------------------------
+// The companion on the desktop
+
+/** The agents of whoever is signed in to the window, by name. Nobody signed in has none. */
+async function agentNames(): Promise<{ id: string; name: string }[]> {
+  if (settings.server === undefined) return []
+  const response = await session.defaultSession.fetch(`${settings.server}/api/agents`)
+  if (!response.ok) return []
+  const { agents } = (await response.json()) as { agents?: { id?: unknown; name?: unknown }[] }
+  return (Array.isArray(agents) ? agents : []).flatMap((agent) =>
+    typeof agent.id === "string"
+      ? [{ id: agent.id, name: typeof agent.name === "string" ? agent.name : "New agent" }]
+      : [],
+  )
+}
+
+/** Open the window on an agent. One that is there already is only brought forward. */
+function showAgent(agentId: string, chatId?: string): void {
+  if (settings.server === undefined) return
+  const address = agentAddress(settings.server, agentId, chatId)
+  const there = alive(mainWindow) && mainWindow.webContents.getURL().startsWith(address)
+  showMain(there ? undefined : address)
+  if (MAC) app.focus({ steal: true })
+}
+
+/**
+ * Put the companion on the desktop if its owner wants it there, and take it off if not. It is
+ * a page of the deployment, so there is none before the first run is over.
+ */
+function syncCompanion(): void {
+  companion ??= createCompanion({
+    preload: here("pet-preload.cjs"),
+    server: () => settings.server,
+    agent: () => settings.companionAgent,
+    at: () => settings.companionAt,
+    remember,
+    agents: agentNames,
+    open: showAgent,
+    dismiss: () => setCompanion(false),
+  })
+  companion.show(settings.companion && settings.server !== undefined && settings.welcomed)
+}
+
+function setCompanion(on: boolean): void {
+  remember({ companion: on })
+  syncCompanion()
+  makeMenu()
+  changed()
+}
+
+let steppedAside: ReturnType<typeof setInterval> | undefined
+
+/**
+ * While an agent uses the screen the companion is in its way: it would be in the pictures the
+ * agent is given, and under its clicks. It goes for as long as that lasts, which ends by the
+ * clock and unannounced.
+ */
+function stepAside(using: UseState): void {
+  companion?.away(using.active)
+  if (!using.active) {
+    clearInterval(steppedAside)
+    steppedAside = undefined
+    return
+  }
+  steppedAside ??= setInterval(() => stepAside(using), 1_000)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -552,6 +624,7 @@ function listenToServer(): void {
     served((options: { openAtLogin?: unknown }) => {
       remember({ welcomed: true })
       if (typeof options?.openAtLogin === "boolean") setOpenAtLogin(options.openAtLogin)
+      syncCompanion()
       changed()
     }),
   )
@@ -595,6 +668,8 @@ function listen(): void {
         return undefined
       }
       remember({ server, share: choice.share === true })
+      // Its page is the deployment's, and so are the agents it can show.
+      companion?.reload()
       setOpenAtLogin(choice.openAtLogin === true)
       if (!settings.share) await runner?.stop()
       showConfirm = settings.share
@@ -661,6 +736,10 @@ function listen(): void {
     }),
   )
   ipcMain.handle(
+    "companion",
+    own((on: unknown) => setCompanion(on === true)),
+  )
+  ipcMain.handle(
     "change-server",
     own(() => showWelcome()),
   )
@@ -691,7 +770,13 @@ function drawTray(): void {
   const now = state()
   const shared = settings.share
   // The daemon says something with every command an agent runs. A menu that is open stays put.
-  const showing = JSON.stringify([now.headline, shared, settings.openAtLogin, settings.server])
+  const showing = JSON.stringify([
+    now.headline,
+    shared,
+    settings.openAtLogin,
+    settings.server,
+    settings.companion,
+  ])
   if (showing === drawn) return
   drawn = showing
   tray.setImage(trayImage(now.sharing.state === "connected"))
@@ -719,6 +804,13 @@ function drawTray(): void {
       },
       { label: "This Computer…", click: showComputer },
       { type: "separator" },
+      {
+        label: "Keep my agent on the desktop",
+        type: "checkbox",
+        checked: settings.companion,
+        enabled: settings.server !== undefined && settings.welcomed,
+        click: (item) => setCompanion(item.checked),
+      },
       {
         label: "Open at sign-in",
         type: "checkbox",
@@ -758,6 +850,13 @@ function makeMenu(): void {
       submenu: [
         { label: "This Computer…", accelerator: "CmdOrCtrl+,", click: showComputer },
         { label: "Change Server…", click: showWelcome },
+        { type: "separator" },
+        {
+          label: "Keep My Agent on the Desktop",
+          type: "checkbox",
+          checked: settings.companion,
+          click: (item) => setCompanion(item.checked),
+        },
         { type: "separator" },
         MAC ? { role: "close" } : { role: "quit" },
       ],
@@ -816,6 +915,7 @@ if (!app.requestSingleInstanceLock()) {
     // The daemon ends with the program either way; this is so that it ends first.
     void runner?.stop()
     overlay?.dispose()
+    companion?.dispose()
     void screenDriver?.dispose()
   })
   void app.whenReady().then(() => {
@@ -826,6 +926,7 @@ if (!app.requestSingleInstanceLock()) {
     listenToServer()
     makeMenu()
     makeTray()
+    syncCompanion()
     if (settings.server === undefined) void firstRun()
     else if (!startedHidden()) showMain()
     void startSharing()

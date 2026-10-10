@@ -11,6 +11,7 @@ import { draftAtom } from "./atoms.ts"
 import { client } from "./client.ts"
 import { approvalsKey } from "./collections.ts"
 import { feedMascot, IDLE, type MascotMood, mascotMoodAtom } from "./mascot.ts"
+import { tellCompanion } from "./pet.ts"
 
 /** How long it keeps listening after the last key, and looks troubled after a failure. */
 const LISTEN_MS = 2_500
@@ -54,6 +55,7 @@ export function useMascotMood(
     typed.current = draft
     if (draft === "") return setListening(false)
     feedMascot(face, "key")
+    tellCompanion(face)
     setListening(true)
     const timer = setTimeout(() => setListening(false), LISTEN_MS)
     return () => clearTimeout(timer)

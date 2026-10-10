@@ -56,6 +56,7 @@ describe("what the app remembers", () => {
       screen: false,
       browser: true,
       welcomed: false,
+      companion: false,
     })
     saveSettings(file, {
       server: "https://do.example",
@@ -65,6 +66,9 @@ describe("what the app remembers", () => {
       screen: true,
       browser: false,
       welcomed: true,
+      companion: true,
+      companionAgent: "agent-1",
+      companionAt: { x: 40, y: -20 },
     })
     expect(loadSettings(file)).toEqual({
       server: "https://do.example",
@@ -74,6 +78,9 @@ describe("what the app remembers", () => {
       screen: true,
       browser: false,
       welcomed: true,
+      companion: true,
+      companionAgent: "agent-1",
+      companionAt: { x: 40, y: -20 },
     })
   })
 
@@ -87,6 +94,7 @@ describe("what the app remembers", () => {
       screen: false,
       browser: true,
       welcomed: false,
+      companion: false,
     })
   })
 })

@@ -283,6 +283,34 @@ test("an agent uses the screen once its owner switches that on here, and not bef
   await expect(overlay.getByText("Clicking Save")).toBeVisible()
 })
 
+test("the agent kept on the desktop goes while an agent uses the screen", async () => {
+  const computer = await windowAt("computer.html")
+  /** Whether the companion's window is showing, or undefined where there is none. */
+  const showing = () =>
+    app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes("/desktop/pet"))
+        ?.isVisible(),
+    )
+  // The screen was used a moment ago, in the test before this one, and still counts as in
+  // use: the companion would be in the pictures the agent is given, and under its clicks.
+  await computer.getByLabel("Keep my agent on the desktop").check()
+  const pet = await windowAt("/desktop/pet")
+  await expect(pet.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  expect(await showing()).toBe(false)
+  // Its owner stops the agent, and the screen is their own again.
+  await app.evaluate(({ BrowserWindow }) => {
+    const overlay = BrowserWindow.getAllWindows().find((window) =>
+      window.webContents.getURL().includes("overlay.html"),
+    )
+    overlay?.webContents.executeJavaScript('window.overlay.act("stop")')
+  })
+  await expect.poll(showing).toBe(true)
+
+  await computer.getByLabel("Keep my agent on the desktop").uncheck()
+  await expect.poll(showing).toBeUndefined()
+})
+
 test("it can be switched off and on again without pairing again", async () => {
   const computer = await windowAt("computer.html")
   await computer.getByRole("button", { name: "Stop letting agents use it" }).click()

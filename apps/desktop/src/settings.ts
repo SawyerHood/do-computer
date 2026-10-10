@@ -20,6 +20,12 @@ export type Settings = {
    * may work on this computer. Until then the window opens on the deployment's welcome.
    */
   welcomed: boolean
+  /** Whether an agent's creature sits on the desktop, over the other windows. */
+  companion: boolean
+  /** The agent whose creature that is. Absent until one is chosen: the one last open is shown. */
+  companionAgent?: string
+  /** Where its owner last put it: the top left of the creature's square, on the screen. */
+  companionAt?: { x: number; y: number }
 }
 
 // The screen is everything its owner can see and do, so it is asked for. A browser is what a
@@ -31,6 +37,7 @@ export const DEFAULTS: Settings = {
   screen: false,
   browser: true,
   welcomed: false,
+  companion: false,
 }
 
 export function loadSettings(file: string): Settings {
@@ -38,6 +45,9 @@ export function loadSettings(file: string): Settings {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<Settings>
     const server =
       typeof parsed.server === "string" && parsed.server !== "" ? parsed.server : undefined
+    const at = parsed.companionAt
+    const placed =
+      typeof at?.x === "number" && typeof at?.y === "number" && isFinite(at.x) && isFinite(at.y)
     return {
       ...(server === undefined ? {} : { server }),
       share: parsed.share === true,
@@ -48,6 +58,11 @@ export function loadSettings(file: string): Settings {
       // An app from before there was a first run to be over wrote down nothing about it. One
       // that has a server was set up then, and its owner is not asked it all again.
       welcomed: parsed.welcomed === undefined ? server !== undefined : parsed.welcomed === true,
+      companion: parsed.companion === true,
+      ...(typeof parsed.companionAgent === "string" && parsed.companionAgent !== ""
+        ? { companionAgent: parsed.companionAgent }
+        : {}),
+      ...(placed ? { companionAt: { x: at!.x, y: at!.y } } : {}),
     }
   } catch {
     // Missing or unreadable: a first run.

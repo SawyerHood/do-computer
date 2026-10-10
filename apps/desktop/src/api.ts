@@ -23,6 +23,8 @@ export type AppState = {
   permissions?: { accessibility: boolean; screenRecording: boolean }
   /** Whether agents may use a browser here. */
   browser: boolean
+  /** Whether an agent's creature sits on the desktop, over the other windows. */
+  companion: boolean
   openAtLogin: boolean
   /** Whether this run of the app can be started at sign-in. One run from its source cannot. */
   canOpenAtLogin: boolean
@@ -57,6 +59,8 @@ export type DesktopApi = {
   /** Ask macOS for one of the things using the screen takes, or show where it is given. */
   permit(what: "accessibility" | "screenRecording"): Promise<void>
   setOpenAtLogin(on: boolean): Promise<void>
+  /** Put an agent's creature on the desktop, over the other windows, or take it off. */
+  setCompanion(on: boolean): Promise<void>
   /** Show the page where the deployment is chosen. */
   changeServer(): Promise<void>
   /** Load the deployment again, after it could not be reached. */

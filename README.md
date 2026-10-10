@@ -477,6 +477,16 @@ window shows whether the computer is connected and what agents did on it, and sw
 off and on again without pairing anew. To take the computer away for good, remove it under
 Computers, as with any other.
 
+**Your agent on the desktop.** Tick **Keep my agent on the desktop** under **This Computer…**,
+or in the tray menu, and the agent's creature sits over your other windows: a small window
+with nothing behind it that is never the one you type into. Beside the creature it says what
+the agent is doing as it works ("Running: pnpm test"), that it is done, with the start of its
+answer, that something went wrong, or that it needs your OK; clicking what it says opens that
+chat. The creature watches the pointer, leans in while you type to the agent, dozes when
+nothing moves, and can be petted. Drag it anywhere, double-click it to open the agent, and
+right-click it to choose another agent or to hide it. It steps out of the way while an agent
+uses the screen.
+
 ```sh
 pnpm desktop                                        # build it and run it from source
 pnpm --filter @durable-computer/desktop package     # pack it for this system, into apps/desktop/release
@@ -517,6 +527,10 @@ Things to know:
   running in the background ends when the daemon restarts, as it does to update itself.
 - **On Linux** a desktop without a tray (GNOME without the AppIndicator extension) has no icon
   to bring the window back with. Starting the app again does it.
+- **On Linux under Wayland** no program may say where its window goes or keep it over the
+  others, so the agent on the desktop is an ordinary small window there unless the desktop is
+  told otherwise: its window is titled `Do Computer Companion`, for a rule that floats and
+  pins it. Under X11 it works as it does elsewhere.
 
 ## Development
 

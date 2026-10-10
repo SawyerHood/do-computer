@@ -318,6 +318,55 @@
   }
 }
 
+/*
+ * The companion on the desktop: the page is a window with nothing in it but the creature and
+ * what it says, and whatever is behind the window shows through the rest.
+ */
+html.pet,
+html.pet body {
+  background: transparent;
+}
+
+/* What the companion says: it comes up from the creature, and its dots count while it works. */
+.pet-saying {
+  animation: pet-saying 0.22s steps(5, end);
+}
+
+@keyframes pet-saying {
+  from {
+    opacity: 0;
+    transform: translateY(var(--from, 6px)) scale(0.94);
+  }
+}
+
+.pet-dots i {
+  animation: pet-dot 1.2s steps(3, end) infinite;
+}
+.pet-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.pet-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pet-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-saying,
+  .pet-dots i {
+    animation: none;
+  }
+}
+
 /* A heart from petting an agent's creature: it rises from the hand in a few steps, like the creature moves. */
 .pet-heart {
   filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.22));

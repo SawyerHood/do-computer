@@ -25,6 +25,7 @@ import { Route as ApiMeRouteImport } from './routes/api/me'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as DesktopPetRouteImport } from './routes/desktop.pet'
 import { Route as DesktopSignInRouteImport } from './routes/desktop.sign-in'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
@@ -156,6 +157,11 @@ const ApiSettingsRoute = ApiSettingsRouteImport.update({
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesktopPetRoute = DesktopPetRouteImport.update({
+  id: '/desktop/pet',
+  path: '/desktop/pet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DesktopSignInRoute = DesktopSignInRouteImport.update({
@@ -457,6 +463,7 @@ export interface FileRoutesByFullPath {
   '/api/models': typeof ApiModelsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/desktop/pet': typeof DesktopPetRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
@@ -526,6 +533,7 @@ export interface FileRoutesByTo {
   '/api/models': typeof ApiModelsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/desktop/pet': typeof DesktopPetRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof AppIndexRoute
@@ -596,6 +604,7 @@ export interface FileRoutesById {
   '/api/models': typeof ApiModelsRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/desktop/pet': typeof DesktopPetRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_app/': typeof AppIndexRoute
@@ -669,6 +678,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/settings'
     | '/api/transcribe'
+    | '/desktop/pet'
     | '/desktop/sign-in'
     | '/invite/$token'
     | '/a/$agentId'
@@ -738,6 +748,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/settings'
     | '/api/transcribe'
+    | '/desktop/pet'
     | '/desktop/sign-in'
     | '/invite/$token'
     | '/'
@@ -807,6 +818,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/settings'
     | '/api/transcribe'
+    | '/desktop/pet'
     | '/desktop/sign-in'
     | '/invite/$token'
     | '/_app/'
@@ -878,6 +890,7 @@ export interface RootRouteChildren {
   ApiModelsRoute: typeof ApiModelsRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  DesktopPetRoute: typeof DesktopPetRoute
   DesktopSignInRoute: typeof DesktopSignInRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -1028,6 +1041,13 @@ declare module '@tanstack/react-router' {
       path: '/api/transcribe'
       fullPath: '/api/transcribe'
       preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/desktop/pet': {
+      id: '/desktop/pet'
+      path: '/desktop/pet'
+      fullPath: '/desktop/pet'
+      preLoaderRoute: typeof DesktopPetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/desktop/sign-in': {
@@ -1511,6 +1531,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiModelsRoute: ApiModelsRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  DesktopPetRoute: DesktopPetRoute,
   DesktopSignInRoute: DesktopSignInRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
