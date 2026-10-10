@@ -45,9 +45,38 @@ test("someone new meets their first agent: it is named as it hatches, and says h
 
   // In a browser there is no computer to ask about: it hatches, and its chat is next.
   const out = await card(page, `There you are, ${owner.name}! Shall we get started?`)
+  // The chat comes up under the scene before the creature leaves the island for its place
+  // there. Until it has landed it is in the scene only: after each frame is drawn, the chat's
+  // own large pictures of it are counted, for as long as the scene is still there.
+  await page.evaluate(() => {
+    const seen = { twice: 0, frames: 0 }
+    Object.assign(window, { seenInTwoPlaces: seen })
+    const count = () => {
+      const scene = document.querySelector("[data-welcome]")
+      if (scene === null) return
+      seen.frames++
+      for (const face of document.querySelectorAll<HTMLElement>(
+        '[role="img"][aria-label="Agent avatar"]',
+      )) {
+        if (scene.contains(face) || face.offsetWidth < 120) continue
+        if (getComputedStyle(face).visibility !== "hidden") seen.twice++
+      }
+    }
+    const frame = () => {
+      setTimeout(count, 0)
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })
   await out.getByRole("button", { name: "Start chatting with Pip" }).click()
   await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
   await expect(page.locator("[data-welcome]")).toHaveCount(0)
+  const seen = await page.evaluate(
+    () =>
+      (window as unknown as { seenInTwoPlaces: { twice: number; frames: number } }).seenInTwoPlaces,
+  )
+  expect(seen.frames).toBeGreaterThan(10)
+  expect(seen.twice).toBe(0)
   const hello = page.getByRole("heading", { name: `Hi ${owner.name}, I’m Pip.` })
   await expect(hello).toBeVisible()
 

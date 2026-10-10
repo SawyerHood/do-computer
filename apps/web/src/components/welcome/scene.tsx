@@ -148,30 +148,58 @@ function useTyped(text: string, key: string, on: boolean, each: (count: number) 
   }
 }
 
+/** The pictures of the creature under the scene that are large enough to be where it is going. */
+function places(scene: HTMLElement): HTMLElement[] {
+  return [
+    ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Agent avatar"]'),
+  ].filter((face) => !scene.contains(face) && face.offsetWidth >= 120)
+}
+
 /**
  * The picture of the creature in the chat that the one in the scene goes to: the largest one
  * on the page, once it has stopped moving about.
  */
-async function landing(scene: HTMLElement): Promise<{ host: HTMLElement; rect: DOMRect } | null> {
+async function landing(scene: HTMLElement): Promise<DOMRect | null> {
   let last: DOMRect | undefined
   for (let tries = 0; tries < 50; tries++) {
     await new Promise((resolve) => setTimeout(resolve, 100))
     let best: HTMLElement | undefined
-    for (const face of document.querySelectorAll<HTMLElement>(
-      '[role="img"][aria-label="Agent avatar"]',
-    )) {
-      if (scene.contains(face) || face.offsetWidth < 120) continue
+    for (const face of places(scene)) {
       if (best === undefined || face.offsetWidth > best.offsetWidth) best = face
     }
     const canvas = best?.querySelector("canvas")
     if (best === undefined || !canvas) continue
     const rect = canvas.getBoundingClientRect()
     if (last !== undefined && last.left === rect.left && last.top === rect.top && rect.width > 0) {
-      return { host: best, rect }
+      return rect
     }
     last = rect
   }
   return null
+}
+
+/**
+ * Keeps the chat's own pictures of the creature out of sight until the one in the scene has
+ * reached them. The chat comes up under the scene a while before the creature sets off, and it
+ * was seen in both places at once. They are looked for before every frame is drawn, since they
+ * come onto the page when the chat does. What is given back shows them again.
+ */
+function unseen(scene: HTMLElement): () => void {
+  const hidden = new Set<HTMLElement>()
+  let frame = 0
+  const look = () => {
+    for (const face of places(scene)) {
+      if (hidden.has(face)) continue
+      hidden.add(face)
+      face.style.visibility = "hidden"
+    }
+    frame = requestAnimationFrame(look)
+  }
+  look()
+  return () => {
+    cancelAnimationFrame(frame)
+    for (const face of hidden) face.style.visibility = ""
+  }
 }
 
 /**
@@ -558,17 +586,17 @@ export default function WelcomeScene() {
     handingOver.begin()
     patch({ on: false })
     setLeaving(true)
+    const show = root.current !== null ? unseen(root.current) : undefined
     await navigate({ to: "/a/$agentId", params: { agentId: met.id } })
     const drawing = stage.current
     const place = drawing !== null && root.current !== null ? await landing(root.current) : null
     if (drawing !== null && place !== null) {
-      place.host.style.visibility = "hidden"
-      drawing.fly(place.rect, FLIGHT_MS)
+      drawing.fly(place, FLIGHT_MS)
       await new Promise((resolve) => setTimeout(resolve, FLIGHT_MS + 50))
-      place.host.style.visibility = ""
     } else {
       await new Promise((resolve) => setTimeout(resolve, 700))
     }
+    show?.()
     handingOver.end()
     setOpen(false)
   }

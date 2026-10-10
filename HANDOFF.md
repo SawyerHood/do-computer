@@ -1439,6 +1439,13 @@ Since then, newest last:
       island are `sky.js` in the mascot package; the egg is the mascot's own, laid over it.
       Where WebGL is not to be had the same card is shown over a plain night. With less
       motion there is no fall and no waiting on the words.
+    - **Until the creature has landed it is in the scene only.** The chat comes up under the
+      scene a few tenths of a second before the creature leaves the island, and the chat's
+      own large picture of it was showing for that long: it was seen in two places at once
+      (the owner, of a recording: "you see pip in the left and right at the same time as he
+      starts to animate over"). The chat's large pictures are now kept out of sight from
+      before the page changes until the flight is over (`unseen` in `scene.tsx`). A browser
+      test counts them after every frame for as long as the scene is there.
     - **What it asks**, each answer a crack in the shell: who they are (an account, or signing
       in, with the providers the deployment has), a name and a color for the agent, and, in
       the desktop app on its first run, whether it may work on this computer. Then it
