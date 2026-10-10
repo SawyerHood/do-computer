@@ -267,13 +267,9 @@ process.exit(1)
       name: "Show the browser agents use",
     })
     await expect(shows).toBeChecked()
-    await shows.scrollIntoViewIfNeeded()
-    const shots = process.env.DC_SHOTS
-    if (shots) await page.screenshot({ path: join(shots, "workspace-settings-on.png") })
     await shows.click()
     await expect(shows).not.toBeChecked()
     await expect(shows).toBeEnabled()
-    if (shots) await page.screenshot({ path: join(shots, "workspace-settings-off.png") })
     await closeSettings(page)
 
     // The agent was running all along, and its next use of the browser is out of sight.

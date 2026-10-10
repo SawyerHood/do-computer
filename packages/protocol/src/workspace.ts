@@ -119,6 +119,17 @@ export type CreateWorkspaceRequest = {
 
 export type UpdateWorkspaceRequest = { name?: string; color?: string }
 
+/** What a workspace has chosen for all its agents. */
+export type WorkspaceOptions = {
+  /**
+   * Whether the browser its agents use on a computer opens in a window the computer's owner can
+   * watch, as opposed to working out of sight.
+   */
+  showBrowser: boolean
+  /** Whether the signed-in user may change any of this. */
+  canChange: boolean
+}
+
 /** Where someone is in a team right now, as the others see it. */
 export type Presence = {
   userId: string

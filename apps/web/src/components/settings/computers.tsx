@@ -622,7 +622,6 @@ function AddComputer({
   )
 }
 
-/** Kinds that cannot be added: no computer at all, and the shell that is one agent's alone. */
 /**
  * Whether the browser the workspace's agents use on a computer is shown there. Everyone in the
  * workspace sees what was chosen; those who may not change it see it as it is.
@@ -663,6 +662,7 @@ function ShownBrowser({ workspaceId }: { workspaceId: string }) {
   )
 }
 
+/** Kinds that cannot be added: no computer at all, and the shell that is one agent's alone. */
 const NOT_ADDED: readonly string[] = ["none", "just-bash"]
 
 /**

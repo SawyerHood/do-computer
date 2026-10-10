@@ -60,6 +60,7 @@ import {
   type UpdateChatRequest,
   type UpdateScheduleRequest,
   type UpdateWorkspaceRequest,
+  type WorkspaceOptions,
   type UserSettings,
   type WorkspaceRole,
   type WorkspacesState,
@@ -98,17 +99,6 @@ export type Me = {
 }
 
 /** Everything about one agent that is not a chat transcript. */
-/** What a workspace has chosen for all its agents. */
-export type WorkspaceOptions = {
-  /**
-   * Whether the browser its agents use on a computer opens in a window the computer's owner can
-   * watch, as opposed to working out of sight.
-   */
-  showBrowser: boolean
-  /** Whether the signed-in user may change any of this. */
-  canChange: boolean
-}
-
 export type AgentState = {
   agent: AgentSummary
   /** The user's IANA timezone as the agent knows it. */

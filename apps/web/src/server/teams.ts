@@ -9,10 +9,10 @@ import {
   type SentInvitation,
   WORKSPACE_COLORS,
   type WorkspaceMember,
+  type WorkspaceOptions,
   type WorkspaceRole,
   type WorkspaceSummary,
 } from "@durable-computer/protocol"
-import type { WorkspaceOptions } from "@durable-computer/client"
 import type { AppDatabase } from "@durable-computer/runtime"
 
 /**
