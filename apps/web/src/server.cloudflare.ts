@@ -15,6 +15,7 @@ import {
   r2Blobs,
 } from "@durable-computer/runtime/cloudflare"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
+import { env } from "cloudflare:workers"
 import { agentDirectory } from "./server/agent-directory.ts"
 import { createAgentBeside } from "./server/agents.ts"
 import { browserDirectory } from "./server/browser-directory.ts"
@@ -35,6 +36,7 @@ import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
 import { createPresenceActor } from "./server/presence-actor.ts"
 import { readConfig } from "./server/platform.ts"
 import { notifyPeople } from "./server/push.ts"
+import { overLimit } from "./server/rate-limit.ts"
 import { cloudflareProviders } from "./server/sandbox.cloudflare.ts"
 import { slackDirectory } from "./server/slack.ts"
 import { computerChoices } from "./server/sandbox.ts"
@@ -119,6 +121,9 @@ export const PresenceObject = createDurableActorClass<Env>({
 
 export default createServerEntry({
   fetch: async (request) => {
+    // Before anything is done for it: what anyone can call is only called so often.
+    const refused = await overLimit(request, (env as unknown as Env).PUBLIC_LIMIT)
+    if (refused !== undefined) return refused
     // A daemon's WebSocket goes straight to its computer's object; a framework in between
     // would not pass the upgrade through.
     if (new URL(request.url).pathname === CONNECT_PATH) {

@@ -13,6 +13,8 @@ export type Env = {
   MODEL_ACCESS: DurableObjectNamespace
   SANDBOX: DurableObjectNamespace
   BLOBS: R2Bucket
+  /** Counts the calls anyone can make without an account. Absent where none is configured. */
+  PUBLIC_LIMIT?: RateLimit
 } & Record<string, string | undefined>
 
 let platform: Platform | undefined

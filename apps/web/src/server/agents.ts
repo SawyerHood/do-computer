@@ -248,7 +248,10 @@ export async function proxyToAgent(
           : MAX_BODY_BYTES
     if (declaredTooLarge(request.headers, limit)) return fail(413, "That is too large to send.")
     try {
-      body = (await readLimited(request.body, limit)).slice().buffer
+      // The length the browser gave is passed on so that an upload is held in memory once.
+      // What is read is a buffer of its own, so it is handed on as it is and not copied.
+      const declared = Number(request.headers.get("content-length") ?? "")
+      body = (await readLimited(request.body, limit, declared)).buffer
     } catch (error) {
       if (error instanceof BodyTooLarge) return fail(413, "That is too large to send.")
       // The client went away mid-upload. Nobody is left to answer; this only keeps it quiet.

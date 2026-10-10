@@ -188,6 +188,87 @@ describe("client", () => {
     }
   })
 
+  it("lets go of a stream nobody is looking at, and asks again when someone is", async () => {
+    vi.useFakeTimers()
+    try {
+      const given: AbortSignal[] = []
+      const client = createClient({
+        baseUrl: "",
+        fetch: async (_input, init) => {
+          given.push(init!.signal!)
+          const later = given.length > 1
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(
+                  encodeSse({ type: "snapshot", state: { ...EMPTY_CHAT, busy: !later } }),
+                )
+                init!.signal!.addEventListener("abort", () => controller.error(new Error("gone")))
+              },
+            }),
+          )
+        },
+        attention: {
+          here: () => looking,
+          watch(changed) {
+            watching.add(changed)
+            return () => watching.delete(changed)
+          },
+        },
+        restAfterMs: 10_000,
+      })
+      let looking = true
+      const watching = new Set<() => void>()
+      const look = (now: boolean) => {
+        looking = now
+        for (const changed of [...watching]) changed()
+      }
+      const states: ChatState[] = []
+      const statuses: string[] = []
+      const subscription = client.agent("a").watchChat(
+        "1",
+        (next) => states.push(next),
+        (status) => statuses.push(status),
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(states.at(-1)?.busy).toBe(true)
+
+      // Away for less than the wait, and back: the stream is the same one.
+      look(false)
+      await vi.advanceTimersByTimeAsync(9_000)
+      look(true)
+      await vi.advanceTimersByTimeAsync(9_000)
+      expect(given).toHaveLength(1)
+      expect(given[0]!.aborted).toBe(false)
+
+      // Away for all of it: let go of, and not asked for again however long it lasts.
+      look(false)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(given[0]!.aborted).toBe(true)
+      await vi.advanceTimersByTimeAsync(3_600_000)
+      expect(given).toHaveLength(1)
+      // It did not fail, so it is not said to have.
+      expect(statuses).toEqual(["connecting", "open"])
+
+      // Back: asked for at once, and what changed meanwhile is in its first event.
+      look(true)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(given).toHaveLength(2)
+      expect(states.at(-1)?.busy).toBe(false)
+
+      // Closed while resting, it does not come back when someone looks.
+      look(false)
+      await vi.advanceTimersByTimeAsync(10_000)
+      subscription.close()
+      look(true)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(given).toHaveLength(2)
+      expect(watching.size).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("stops instead of retrying a stream the server refuses", async () => {
     let connections = 0
     const client = createClient({

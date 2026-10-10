@@ -1,7 +1,20 @@
-import { createClient } from "@durable-computer/client"
+import { type Attention, createClient } from "@durable-computer/client"
+
+/**
+ * Whether this tab is showing. A window that is hidden or minimized is not; one that is only
+ * behind another is, as far as a browser says.
+ */
+const attention: Attention = {
+  here: () => typeof document === "undefined" || document.visibilityState === "visible",
+  watch(changed) {
+    if (typeof document === "undefined") return () => {}
+    document.addEventListener("visibilitychange", changed)
+    return () => document.removeEventListener("visibilitychange", changed)
+  },
+}
 
 /** Same-origin API client; the session cookie rides along. */
-export const client = createClient({ baseUrl: "" })
+export const client = createClient({ baseUrl: "", attention })
 
 /** How long a page waits for the server before it says that the server has not answered. */
 const PATIENCE_MS = 15_000
