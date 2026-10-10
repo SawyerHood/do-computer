@@ -29,7 +29,8 @@ mac:
   # The stricter rules are for an app Apple has checked, and one signed by no one that asks
   # for them may not start.
   hardenedRuntime: false
-  icon: assets/icon.png
+  # A Mac's icons leave room around themselves, which this one does and the others do not.
+  icon: assets/icon-mac.png
   target:
     - target: dmg
       arch: [universal]

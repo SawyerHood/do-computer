@@ -79,6 +79,7 @@ pnpm dev                        # Node target on http://localhost:3000
 pnpm dev:cloudflare             # the same on the local Workers runtime
 scripts/smoke.sh <base-url>     # end-to-end check of a running deployment (fresh, open sign-up)
 pnpm --filter @durable-computer/mascot demo    # the creature's playground page
+node scripts/icons.mjs          # draws the app's icons again, from the creature grown from "Do"
 ```
 
 Without `OPENROUTER_API_KEY` the app answers with a built-in echo model. A message of the form
@@ -1468,6 +1469,33 @@ Since then, newest last:
       its own graphics card, through a whole first run against a server on another machine.
     - **Never run:** a real GitHub or Google sign-in through any of this; the token exchange
       on Workers (`adapter.consumeOne` against D1); Windows outside CI.
+
+40. **The app's icons are one of its creatures** (2026-10-10; `scripts/icons.mjs`,
+    `apps/web/public`, `apps/desktop/assets`, `apps/desktop/src/mark.ts`). The owner asked for
+    the logo, "default favicon and app icon from scratch", and said "Maybe use one of our
+    rendered mascots". It had been a flat teal oval with a smile.
+    - **Which creature:** the one the seed `Do` grows, in the teal the old logo had
+      (`#3b9d9d`): a drop with a ball floating over its head. `scripts/icons.mjs` draws it in
+      a Chromium with the app's own drawing code and writes every picture, so they are drawn
+      again by running it, and change with the creature.
+    - **The app's icon** is the creature on a dark teal square whose glow is dithered as the
+      creature's shading is: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` and
+      `apple-touch-icon.png` for a phone, `icon.png` for the desktop app, and `icon-mac.png`,
+      the same in a square of 824 inside 1024, which is how a Mac's own icons are drawn
+      (`electron-builder.yml` names it for the Mac).
+    - **The tab's icon and the mark** are the creature alone, without its ball: `favicon.svg`
+      is its 32 pixels as shapes, and the same file is the mark on the desktop app's own pages
+      (`assets/mark.svg`, an `<img>`, for which their rule about what they may load now
+      names images) and in the page a browser is shown after signing in (`src/mark.ts`).
+      `favicon.ico` is new, for whatever asks for that address without reading the page.
+    - **The tray** is the creature alone; while this computer is not shared it is grey and
+      asleep. `badge.png` is its shape in white with its eyes as holes.
+    - **Mine, not the owner's:** which creature; that it speaks in the large pictures and
+      listens in the small ones, where an open mouth is a hole; the square and its glow; no
+      ball below 48 pixels; the sleeping tray; the room around the Mac's icon.
+    - **Never seen:** any of it on a phone's home screen, in a Mac's Dock or menu bar, or in a
+      Windows taskbar. The pictures were looked at in Chromium, and the two pages in the
+      built app on Linux.
 
 ## 6. What the owner has said they want
 
