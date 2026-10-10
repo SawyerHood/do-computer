@@ -1,5 +1,10 @@
-import { encodeSse, SSE_HEADERS, SSE_HEARTBEAT } from "@durable-computer/protocol"
-import type { Actor, ActorHost } from "@durable-computer/runtime"
+import {
+  encodeSse,
+  type LibrarySocketMessage,
+  SSE_HEADERS,
+  SSE_HEARTBEAT,
+} from "@durable-computer/protocol"
+import type { Actor, ActorHost, ActorSocket } from "@durable-computer/runtime"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
 import {
   type Deleted,
@@ -161,8 +166,32 @@ export function createLibraryActor(host: ActorHost): Actor {
   })
   /** The open streams that are told when something changes. */
   const watchers = new Set<() => void>()
+  /**
+   * Say where the library stands, to one socket or to all of them. A socket does not keep the
+   * library in memory as a stream does, so it is what a client follows it over. One that is
+   * told a revision it already has does nothing.
+   */
+  const say = async (to: readonly ActorSocket[]) => {
+    if (to.length === 0) return
+    const frame = JSON.stringify({
+      type: "at",
+      rev: await store.rev(),
+    } satisfies LibrarySocketMessage)
+    for (const socket of to) socket.send(frame)
+  }
   store.onChange = () => {
     for (const tell of watchers) tell()
+    void say(host.sockets()).catch(() => {})
+  }
+  /**
+   * Sockets that were here before this was, as when the library was put away and has come
+   * back, are told where it stands: once, by whatever is asked of it first.
+   */
+  let greeted = false
+  const greet = async () => {
+    if (greeted) return
+    greeted = true
+    await say(host.sockets())
   }
 
   /** A stream that says when the library changed, for clients to read it again. */
@@ -275,7 +304,13 @@ export function createLibraryActor(host: ActorHost): Actor {
   }
 
   return {
+    async socketOpen(socket) {
+      // It is among those greeted, where it is the first thing to happen here.
+      if (!greeted) return greet()
+      await say([socket])
+    },
     async fetch(request) {
+      await greet()
       const url = new URL(request.url)
       let segments: string[]
       try {

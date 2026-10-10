@@ -1,6 +1,7 @@
 import { getPlatform } from "#platform"
 import type { SocketLike } from "@durable-computer/runtime/node"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
+import { admitToAgent, agentSocket } from "./server/agent-socket.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"
 import { admitToPresence, PRESENCE_PATH, presenceWorkspace } from "./server/presence.ts"
 
@@ -43,4 +44,24 @@ export async function acceptPresence(
   const admitted = await admitToPresence(request, workspaceId)
   if (admitted === undefined) return undefined
   return (socket) => getPlatform().connectPresence(workspaceId, socket, admitted)
+}
+
+/**
+ * The WebSocket an agent, or the library of its workspace, is followed over, for the HTTP
+ * server that owns the socket. Resolves with a function that attaches the accepted socket, with
+ * undefined when the request is not from someone who may use the agent, and with null when the
+ * address is not one of these at all.
+ */
+export async function acceptFollower(
+  request: Request,
+): Promise<((socket: SocketLike) => Promise<void>) | undefined | null> {
+  const followed = agentSocket(new URL(request.url).pathname)
+  if (followed === undefined) return null
+  const admitted = await admitToAgent(request, followed.agentId)
+  if (admitted === undefined) return undefined
+  const platform = getPlatform()
+  return (socket) =>
+    followed.library
+      ? platform.connectLibrary(admitted.workspaceId, socket, admitted.request)
+      : platform.connectAgent(followed.agentId, socket, admitted.request)
 }

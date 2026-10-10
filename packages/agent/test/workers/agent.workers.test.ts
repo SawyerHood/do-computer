@@ -1,9 +1,11 @@
 import { env } from "cloudflare:test"
 import {
+  type AgentSocketMessage,
   type ChatEvent,
   type ChatState,
   type ChatSummary,
   type ConnectorResult,
+  digest,
   EMPTY_CHAT,
   readSse,
   reduceChat,
@@ -296,4 +298,91 @@ describe("connectors in a Durable Object", () => {
     // The service saw the granted token, which the model never did.
     expect(mcp.calls.at(-1)?.authorization).toMatch(/^Bearer /)
   })
+})
+
+describe("an agent followed over a socket, in a Durable Object", () => {
+  /** A socket to the agent, as the gateway hands one on, and everything heard on it. */
+  async function connect(agent: string) {
+    const response = await bindings.AGENT.get(bindings.AGENT.idFromName(agent)).fetch(
+      new Request("http://actor/socket", {
+        headers: { upgrade: "websocket", "x-dc-actor-name": agent },
+      }),
+    )
+    const socket = response.webSocket
+    if (response.status !== 101 || socket === null) throw new Error("The agent did not upgrade")
+    const heard: AgentSocketMessage[] = []
+    let waiting: (() => void)[] = []
+    socket.addEventListener("message", (event) => {
+      heard.push(JSON.parse(String(event.data)) as AgentSocketMessage)
+      for (const look of waiting.splice(0)) look()
+    })
+    socket.accept()
+    const until = (done: () => boolean) =>
+      new Promise<void>((resolve) => {
+        const look = () => (done() ? resolve() : void waiting.push(look))
+        look()
+      })
+    const chat = (chatId: string) =>
+      heard.reduce(
+        (state, message) =>
+          message.type === "chat" && message.chat === chatId
+            ? reduceChat(state, message.event)
+            : state,
+        EMPTY_CHAT,
+      )
+    return { socket, heard, until, chat }
+  }
+
+  const answers = (state: ChatState) =>
+    state.busy
+      ? -1
+      : state.messages.filter((m) => m.role === "assistant" && m.status === "done").length
+
+  it(
+    "is put away with the socket still connected, and comes back to it where it left off",
+    { timeout: 60_000 },
+    async () => {
+      const agent = "agent-workers-socket"
+      await call(agent, "/init", "POST", { ownerId: "user-1" })
+      const chat = await call<ChatSummary>(agent, "/chats", "POST", {})
+      const { socket, heard, until, chat: held } = await connect(agent)
+      socket.send(JSON.stringify({ type: "follow", chat: chat.id }))
+      await call(agent, `/chats/${chat.id}/messages`, "POST", { text: "first", requestId: "1" })
+      await until(() => answers(held(chat.id)) === 1)
+      expect(heard[0]).toMatchObject({ type: "agent", event: { type: "ready" } })
+      expect(heard.some((message) => message.type === "resumed")).toBe(false)
+
+      // Left alone, with nothing to do and its socket open, the object is unloaded. A stream
+      // in the socket's place would have kept it in memory for as long as it was open.
+      // What follows an answer, such as its creature's treat, is told first.
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      const before = heard.length
+      const stood = digest(held(chat.id))
+      await new Promise((resolve) => setTimeout(resolve, 14_000))
+      expect(heard).toHaveLength(before)
+
+      await call(agent, `/chats/${chat.id}/messages`, "POST", { text: "second", requestId: "2" })
+      await until(() => answers(held(chat.id)) === 2)
+      const since = heard.slice(before)
+      // It came back with nothing in memory, and said where things stand: where they stood.
+      expect(since[0]).toMatchObject({ type: "resumed", chats: { [chat.id]: stood } })
+      // So the chat was not sent again, and the answer arrived as changes to what was held.
+      const kinds = since.flatMap((message) =>
+        message.type === "chat" ? [message.event.type] : [],
+      )
+      expect(kinds).not.toContain("snapshot")
+      expect(held(chat.id).messages.map((m) => m.role)).toEqual([
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+      ])
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      expect(JSON.parse(JSON.stringify(held(chat.id)))).toEqual(
+        await call<ChatState>(agent, `/chats/${chat.id}`),
+      )
+      expect(digest(held(chat.id))).toBe(digest(await call<ChatState>(agent, `/chats/${chat.id}`)))
+      socket.close(1000)
+    },
+  )
 })

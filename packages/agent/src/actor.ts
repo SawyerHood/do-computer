@@ -35,7 +35,13 @@ import {
   type ScheduleCheck,
   type UpdateScheduleRequest,
 } from "@durable-computer/protocol"
-import type { Actor, ActorHost, ActorNamespace, ActorStub } from "@durable-computer/runtime"
+import type {
+  Actor,
+  ActorHost,
+  ActorNamespace,
+  ActorSocket,
+  ActorStub,
+} from "@durable-computer/runtime"
 import type { Sandbox } from "@durable-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
@@ -70,6 +76,7 @@ import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
 import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
+import { Followers } from "./followers.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import {
   HistoryError,
@@ -160,6 +167,13 @@ export type AgentActorOptions = {
   readonly keepAliveMs?: number
   /** How long a command is waited for before it is left to run in the background. */
   readonly foregroundMs?: number
+  /**
+   * How long a chat that has gone quiet keeps what it last read in memory, so that its next
+   * run reads only what is newer. Default: ten minutes. It is kept by a timer, and where a
+   * pending timer keeps the agent itself in memory, as in a Durable Object, that is ten minutes
+   * of an idle agent paid for after every answer: pass 0 there, and nothing is kept.
+   */
+  readonly contextRetentionMs?: number
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
   readonly computerLinks?: ActorNamespace
   /**
@@ -419,8 +433,10 @@ export class AgentActor implements Actor {
   /** The harness, once it is open, for what is built before it and needs it later. */
   #opened: Harness | undefined
   #connectors: Connectors | undefined
-  /** How many clients are following each chat right now. */
+  /** How many clients are following each chat right now, over an event stream. */
   readonly #watchers = new Map<string, number>()
+  /** Those following over a socket, which does not keep the agent in memory. */
+  readonly #followers: Followers
   readonly #scheduler: Scheduler
   readonly #subagents: Subagents
   readonly #jobs: Jobs
@@ -454,6 +470,17 @@ export class AgentActor implements Actor {
           cause: error,
         }),
       )
+    this.#followers = new Followers({
+      host,
+      docs: TOLD.map(([what, doc]) => [what, doc] as const),
+      chat: (harness, chatId) =>
+        this.#chat(harness, chatId).catch((error: unknown) => {
+          if (error instanceof HttpError) return undefined
+          throw error
+        }),
+      context,
+      onError: (error) => options.onReport?.(error),
+    })
     this.#ownLibrary = new LibraryStore({
       docs: harnessDocs(() => {
         if (this.#opened === undefined) throw new Error("The agent is not open yet")
@@ -930,7 +957,12 @@ export class AgentActor implements Actor {
           registry,
           now: () => this.#host.now(),
           onReport: (error) => this.#options.onReport?.(error),
-          settings: { toolExecution: "parallel" },
+          settings: {
+            toolExecution: "parallel",
+            ...(this.#options.contextRetentionMs === undefined
+              ? {}
+              : { contextRetentionMs: this.#options.contextRetentionMs }),
+          },
         },
         context,
       )
@@ -997,6 +1029,9 @@ export class AgentActor implements Actor {
       schedules?.start(async () => {
         await this.#rearm().catch((error) => this.#options.onReport?.(error))
       })
+      // Before anything goes on: sockets that stayed while the agent was put away are told
+      // where things stand now, and of everything from here. An agent opens without them.
+      await this.#followers.attach(harness).catch((error) => this.#options.onReport?.(error))
       // Pick up whatever a previous process left unfinished.
       harness.resume()
       return harness
@@ -1057,11 +1092,33 @@ export class AgentActor implements Actor {
     await this.#rearm()
   }
 
+  /**
+   * Someone following the agent connected. Everything they follow comes over this one socket:
+   * the agent's documents from the start, and each chat they ask for.
+   */
+  async socketOpen(socket: ActorSocket): Promise<void> {
+    await this.#open()
+    await this.#followers.open(socket)
+  }
+
+  async socketMessage(socket: ActorSocket, data: string): Promise<void> {
+    // Opening the agent attaches its sockets again, where it had been put away.
+    await this.#open()
+    await this.#followers.message(socket, data)
+  }
+
+  async socketClose(socket: ActorSocket): Promise<void> {
+    // An agent that is not open is watching nothing, and is not opened to hear that.
+    if (this.#harness === undefined) return
+    await this.#followers.close(socket)
+  }
+
   /** Unfinished runs stay pending in the store; the next process resumes them. */
   async close(): Promise<void> {
     const harness = this.#harness
     this.#harness = undefined
     this.#opened = undefined
+    this.#followers.stop()
     this.#jobs.close()
     await this.#connectors?.close()
     await (await harness)?.close(context)
@@ -2167,7 +2224,7 @@ export class AgentActor implements Actor {
       const settled = await submission.wait(context)
       if (settled.status !== "done" || settled.type !== "input") return
       // Whether anyone saw it is asked now, at the moment it ended, and not after what follows.
-      const seen = (this.#watchers.get(chatId) ?? 0) > 0
+      const seen = (this.#watchers.get(chatId) ?? 0) > 0 || this.#followers.following(chatId)
       // What it says to another agent, or as a sub-agent of itself, is not an answer to anyone.
       const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
       if (kind === "chat" || kind === "slack") await this.#earnTreat()

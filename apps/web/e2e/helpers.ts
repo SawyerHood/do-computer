@@ -88,13 +88,26 @@ export async function newChat(page: Page) {
   const before = page.url()
   // The address changes a moment before the page does. Until the page is listening to the new
   // chat, the message box is still the old one's, and what is typed there stays behind with it.
-  const listening = page.waitForRequest((request) => {
-    const path = new URL(request.url()).pathname
-    return (
-      /\/chats\/\d+\/events$/.test(path) &&
-      !before.endsWith(path.replace(/^.*\/chats\/(\d+)\/events$/, "/c/$1"))
-    )
-  })
+  // It says so on the socket it follows the agent over, which is already open: so what it
+  // says there is listened to from inside the page.
+  const listening = page.evaluate(
+    (before) =>
+      new Promise<void>((resolve) => {
+        const send = WebSocket.prototype.send
+        WebSocket.prototype.send = function (data) {
+          send.call(this, data)
+          try {
+            const said = JSON.parse(String(data)) as { type?: string; chat?: string }
+            if (said.type !== "follow" || before.endsWith(`/c/${said.chat}`)) return
+            WebSocket.prototype.send = send
+            resolve()
+          } catch {
+            // Not something said to an agent.
+          }
+        }
+      }),
+    before,
+  )
   await sideChats(page).click()
   await page.getByRole("menuitem", { name: "New side chat" }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)

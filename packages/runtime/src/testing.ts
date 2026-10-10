@@ -21,6 +21,7 @@ const json = (value: unknown, status = 200) => Response.json(value, { status })
  * stub and a Node actor in process.
  */
 export function conformanceActor(host: ActorHost): Actor {
+  const born = crypto.randomUUID()
   let ready: Promise<void> | undefined
   const prepare = () =>
     (ready ??= host.sql.exec(
@@ -147,6 +148,9 @@ export function conformanceActor(host: ActorHost): Actor {
           return json({ ok: true })
         case "/sockets":
           return json({ count: host.sockets().length })
+        case "/born":
+          // Different each time the actor is made: it tells one loading of it from the next.
+          return json({ born })
         case "/stream": {
           const encoder = new TextEncoder()
           let count = 0
@@ -186,6 +190,13 @@ export function conformanceActor(host: ActorHost): Actor {
         socket.send("closed-others")
       } else if (data.startsWith("broadcast:")) {
         for (const each of host.sockets()) each.send(data.slice("broadcast:".length))
+      } else if (data.startsWith("keep:")) {
+        socket.keep(data.slice("keep:".length))
+        socket.send("kept")
+      } else if (data === "notes") {
+        // As the host lists them, which is how an actor that was unloaded finds them again.
+        const notes = host.sockets().map((each) => each.note ?? "-")
+        socket.send(`notes:${notes.sort().join(",")}`)
       } else {
         socket.send(`echo:${data}`)
       }
@@ -263,6 +274,29 @@ export function registerSocketConformance(
         async () =>
           (await call<{ count: number }>(options.namespace(), name, "/sockets")).count === 1,
       )
+      second.close(1000)
+    })
+
+    it("keeps a note with each socket, for the actor to find it by", async () => {
+      const name = options.uniqueName()
+      const first = await options.connect(name, "a")
+      await first.next()
+      const second = await options.connect(name, "b")
+      await second.next()
+      first.send("notes")
+      expect(await first.next()).toBe("notes:-,-")
+      first.send("keep:one")
+      expect(await first.next()).toBe("kept")
+      second.send("keep:two")
+      expect(await second.next()).toBe("kept")
+      second.send("notes")
+      expect(await second.next()).toBe("notes:one,two")
+      // What is kept takes the place of what was.
+      first.send("keep:three")
+      expect(await first.next()).toBe("kept")
+      first.send("notes")
+      expect(await first.next()).toBe("notes:three,two")
+      first.close(1000)
       second.close(1000)
     })
 

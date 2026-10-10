@@ -38,6 +38,9 @@ const KEY = Symbol.for("durable-computer.platform")
 export type NodePlatform = Platform & {
   connectComputer(name: string, socket: SocketLike, request: Request): Promise<void>
   connectPresence(name: string, socket: SocketLike, request: Request): Promise<void>
+  /** Someone following an agent, and someone following a workspace's library. */
+  connectAgent(name: string, socket: SocketLike, request: Request): Promise<void>
+  connectLibrary(name: string, socket: SocketLike, request: Request): Promise<void>
 }
 type Holder = { [KEY]?: NodePlatform }
 
@@ -69,6 +72,7 @@ function create(): NodePlatform {
     directory: join(directory, "libraries"),
     blobs: (name) => fileBlobs(join(directory, "blobs", "libraries", encodeURIComponent(name))),
     factory: (host) => createLibraryActor(host),
+    socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
     onError: (error, name) => console.error(`[library ${name}]`, error),
   })
   const modelAccess = new NodeActorNamespace({
@@ -113,6 +117,7 @@ function create(): NodePlatform {
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       })
     },
+    socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
     onError: (error, name) => console.error(`[agent ${name}] alarm failed`, error),
   })
   const presence = new NodeActorNamespace({
@@ -137,6 +142,8 @@ function create(): NodePlatform {
     machines: computers,
     connectComputer: (name, socket, request) => links.connect(name, socket, request),
     connectPresence: (name, socket, request) => presence.connect(name, socket, request),
+    connectAgent: (name, socket, request) => agents.connect(name, socket, request),
+    connectLibrary: (name, socket, request) => libraries.connect(name, socket, request),
   }
 }
 

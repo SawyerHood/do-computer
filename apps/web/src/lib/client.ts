@@ -13,8 +13,11 @@ const attention: Attention = {
   },
 }
 
-/** Same-origin API client; the session cookie rides along. */
-export const client = createClient({ baseUrl: "", attention })
+/**
+ * Same-origin API client; the session cookie rides along. Agents are followed over WebSockets,
+ * which a browser sends the session with too.
+ */
+export const client = createClient({ baseUrl: "", attention, sockets: true })
 
 /** How long a page waits for the server before it says that the server has not answered. */
 const PATIENCE_MS = 15_000
