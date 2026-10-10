@@ -1385,6 +1385,38 @@ Since then, newest last:
       has no 3D to lose, on GitHub's Mac included.
     - **The desktop app has to be released again** for its half: `desktop-v0.3.0`.
 
+38. **The browser an agent uses is in a window, unless its workspace says otherwise**
+    (2026-10-10; `packages/computers/src/browser`, `apps/web/src/server/teams.ts`,
+    `components/settings/computers.tsx`). The owner: "Would it be possible to start the
+    browsers that do computer controls on your computer headed so you can see them", and
+    while it was being built, "the browser being visible be default should be a toggle on and
+    off in your workspace settings".
+    - **The choice is the workspace's**, on until someone there switches it off: Workspace
+      settings, Computers, "Show the browser agents use". It is kept in a table of its own
+      (`dc_workspace_settings`, since a personal workspace has no row with the teams), read
+      and changed at `/api/workspaces/:id/settings`, by a team's admins and by the owner of a
+      personal workspace. A member sees it and cannot change it.
+    - **It travels with each use of the browser**: the agent asks its host what its workspace
+      has chosen (`showsBrowser`, from `browser-directory.ts`, on both servers) and sends
+      `shown` on the daemon's `browser` frame. So nothing is kept anywhere that can go stale,
+      a change holds from the next use, an older daemon ignores it, and the desktop app
+      needed no release.
+    - **On the computer** the browser kept for agents is started without `--headless` when
+      asked to be shown, and is closed and started again, with its profile, when it is
+      asked for the other way than it is running. With no display (Linux with neither
+      `DISPLAY` nor `WAYLAND_DISPLAY`) it stays out of sight and the log says so once. If it
+      cannot open a window it is started without one. The owner's own Chrome, where that is
+      what is used, is as it was.
+    - **Mine, not the owner's:** everything but those two sentences of theirs. No switch in
+      the desktop app, which I had begun and took out when they named workspace settings; no
+      flag for a daemon run by hand; that a member sees the switch disabled.
+    - **Never run:** a browser with a window on macOS or Windows, where nothing has been
+      seen of it: whether it comes to the front, where it opens, and on Windows whether the
+      window shows at all (the program that starts it was told to hide windows, and is now
+      told not to for this one). Under Xvfb on Linux it was started both ways and asked
+      which it was. Two workspaces that have chosen differently and share one computer
+      have the browser start again at each change of hands.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
