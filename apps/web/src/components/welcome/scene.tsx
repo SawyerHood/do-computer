@@ -384,6 +384,20 @@ export default function WelcomeScene() {
     }
   }, [])
 
+  // Where the scene cannot be drawn, the plain egg stands in the room above the card, and so
+  // has to be told where the card begins.
+  useEffect(() => {
+    const scene = root.current
+    const asked = card.current
+    if (drawn !== false || scene === null || asked === null) return
+    const measure = () => scene.style.setProperty("--card-top", `${asked.offsetTop}px`)
+    const watch = new ResizeObserver(measure)
+    watch.observe(scene)
+    watch.observe(asked)
+    measure()
+    return () => watch.disconnect()
+  }, [drawn])
+
   const typed = useTyped(lineOf(view, here), view.step, view.on, (count) => {
     const orb = stage.current?.orb
     if (orb === undefined) return
@@ -617,7 +631,7 @@ export default function WelcomeScene() {
       {falling ? (
         <button
           type="button"
-          className="absolute top-3.5 right-4 rounded-full px-3 py-1 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+          className="absolute top-[calc(0.875rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-full px-3 py-1 text-xs text-white/55 hover:bg-white/10 hover:text-white"
           onClick={(event) => {
             event.stopPropagation()
             stage.current?.sky.land()
@@ -633,8 +647,10 @@ export default function WelcomeScene() {
         data-on={view.on}
         // What is in a card that is not on show is not there to be tabbed to.
         inert={!view.on}
+        // On a small screen, or one a keyboard has taken half of, it stops short of the top, so
+        // that the egg keeps some room, and what it asks is scrolled to inside it.
         className={cn(
-          "absolute bottom-6 left-1/2 w-[min(37.5rem,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border bg-background p-5 text-foreground shadow-2xl transition-[opacity,translate] duration-200 select-text",
+          "absolute bottom-(--under) left-1/2 flex max-h-[calc(100%-5rem-var(--under))] w-[min(37.5rem,calc(100%-2rem))] -translate-x-1/2 flex-col rounded-2xl border bg-background p-5 text-foreground shadow-2xl transition-[opacity,translate] duration-200 select-text [--under:max(1.5rem,calc(env(safe-area-inset-bottom)+0.5rem))]",
           view.on ? "opacity-100" : "pointer-events-none translate-y-4 opacity-0",
         )}
         onClick={() => {
@@ -649,201 +665,203 @@ export default function WelcomeScene() {
           />
           {tag}
         </span>
-        <p role="status" className="mt-1 min-h-[3.2rem] text-[17px] leading-normal">
-          {typed.shown}
-          {typed.said ? null : (
-            <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary align-[-2px]" />
-          )}
-        </p>
-        <div
-          className={cn(
-            "grid transition-[grid-template-rows,opacity] duration-300",
-            typed.said ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-          )}
-          inert={!typed.said}
-        >
-          <div className="-m-1 min-h-0 overflow-hidden p-1">
-            {view.step === "hello" ? (
-              <div className="mt-3 flex justify-end">
-                <Button data-first onClick={() => say("you")}>
-                  Hello!
-                </Button>
-              </div>
-            ) : view.step === "you" ? (
-              view.waiting ? (
-                <div className="mt-3 flex items-center gap-2.5 text-sm">
-                  <Spinner className="text-muted-foreground" />
-                  <span className="flex-1">Waiting for your browser…</span>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      patch({ waiting: false })
-                      void bridge?.cancelSignIn()
-                    }}
-                  >
-                    Cancel
+        <div className="-mx-5 -mb-5 min-h-0 overflow-y-auto overscroll-contain px-5 pb-5">
+          <p role="status" className="mt-1 min-h-[3.2rem] text-[17px] leading-normal">
+            {typed.shown}
+            {typed.said ? null : (
+              <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary align-[-2px]" />
+            )}
+          </p>
+          <div
+            className={cn(
+              "grid transition-[grid-template-rows,opacity] duration-300",
+              typed.said ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+            )}
+            inert={!typed.said}
+          >
+            <div className="-m-1 min-h-0 overflow-hidden p-1">
+              {view.step === "hello" ? (
+                <div className="mt-3 flex justify-end">
+                  <Button data-first onClick={() => say("you")}>
+                    Hello!
                   </Button>
                 </div>
-              ) : (
-                <form className="mt-3 flex flex-col gap-3" onSubmit={account}>
-                  {methods?.github || methods?.google ? (
-                    <div className="flex flex-wrap gap-2">
-                      {methods.github ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => social("github")}
-                        >
-                          <GithubLogoIcon weight="bold" /> Continue with GitHub
-                        </Button>
-                      ) : null}
-                      {methods.google ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => social("google")}
-                        >
-                          <GoogleLogoIcon weight="bold" /> Continue with Google
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
-                    {view.signingIn ? null : (
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="welcome-name">Your name</Label>
-                        <Input
-                          id="welcome-name"
-                          name="name"
-                          autoComplete="name"
-                          required
-                          data-first
-                        />
-                      </div>
-                    )}
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="welcome-email">Email</Label>
-                      <Input
-                        id="welcome-email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
-                        required
-                        {...(view.signingIn ? { "data-first": true } : {})}
-                      />
-                    </div>
-                    <div
-                      className={cn("flex flex-col gap-1.5", !view.signingIn && "sm:col-span-2")}
-                    >
-                      <Label htmlFor="welcome-password">Password</Label>
-                      <Input
-                        id="welcome-password"
-                        name="password"
-                        type="password"
-                        required
-                        minLength={8}
-                        autoComplete={view.signingIn ? "current-password" : "new-password"}
-                      />
-                    </div>
-                  </div>
-                  <Problem said={view.error} />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                      {bridge === undefined ? null : <>On {location.host}</>}
-                      {!view.signingIn && methods?.signup === "invite"
-                        ? `${bridge === undefined ? "" : " · "}New accounts are by invitation here.`
-                        : null}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="text-muted-foreground"
-                      onClick={() => patch({ signingIn: !view.signingIn, error: undefined })}
-                    >
-                      {view.signingIn ? "I’m new here" : "I already have an account"}
-                    </Button>
-                    <Button type="submit" disabled={view.busy}>
-                      {view.busy ? "One moment…" : view.signingIn ? "Sign in" : "That’s me"}
-                    </Button>
-                  </div>
-                </form>
-              )
-            ) : view.step === "name" ? (
-              <Naming view={view} onColor={colored} onSubmit={named} />
-            ) : view.step === "computer" ? (
-              view.pairing !== undefined ? (
-                <div className="mt-3 flex min-h-9 items-center gap-2.5 text-sm">
-                  {view.pairing === "pairing" ? (
-                    <>
-                      <Spinner className="text-muted-foreground" />
-                      Pairing this computer with {view.name}…
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircleIcon className="size-[18px] text-primary" />
-                      <span>
-                        <span className="font-mono">{view.computer}</span> is paired
-                        {view.share === "read" ? ", read-only" : ""}.
-                      </span>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-3 flex flex-col gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    {view.name} would run commands and read and change files here, as you. It can
-                    reach this computer while Do Computer is running; closing the window leaves it
-                    in the tray.
-                  </p>
-                  {bridge?.canOpenAtLogin ? (
-                    <Label className="font-normal">
-                      <Checkbox
-                        checked={openAtLogin}
-                        onCheckedChange={(on) => setOpenAtLogin(on === true)}
-                      />
-                      Open Do Computer when I sign in to this computer
-                    </Label>
-                  ) : null}
-                  <Problem said={view.error} />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      className="text-muted-foreground"
-                      onClick={() => shared("no")}
-                    >
-                      Not now
-                    </Button>
-                    <span className="flex-1" />
+              ) : view.step === "you" ? (
+                view.waiting ? (
+                  <div className="mt-3 flex items-center gap-2.5 text-sm">
+                    <Spinner className="text-muted-foreground" />
+                    <span className="flex-1">Waiting for your browser…</span>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        patch({ share: "read" })
-                        void shared("read")
+                        patch({ waiting: false })
+                        void bridge?.cancelSignIn()
                       }}
                     >
-                      Only read files
-                    </Button>
-                    <Button
-                      data-first
-                      onClick={() => {
-                        patch({ share: "yes" })
-                        void shared("yes")
-                      }}
-                    >
-                      Yes, work here
+                      Cancel
                     </Button>
                   </div>
+                ) : (
+                  <form className="mt-3 flex flex-col gap-3" onSubmit={account}>
+                    {methods?.github || methods?.google ? (
+                      <div className="flex flex-wrap gap-2">
+                        {methods.github ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => social("github")}
+                          >
+                            <GithubLogoIcon weight="bold" /> Continue with GitHub
+                          </Button>
+                        ) : null}
+                        {methods.google ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => social("google")}
+                          >
+                            <GoogleLogoIcon weight="bold" /> Continue with Google
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                      {view.signingIn ? null : (
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="welcome-name">Your name</Label>
+                          <Input
+                            id="welcome-name"
+                            name="name"
+                            autoComplete="name"
+                            required
+                            data-first
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="welcome-email">Email</Label>
+                        <Input
+                          id="welcome-email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          required
+                          {...(view.signingIn ? { "data-first": true } : {})}
+                        />
+                      </div>
+                      <div
+                        className={cn("flex flex-col gap-1.5", !view.signingIn && "sm:col-span-2")}
+                      >
+                        <Label htmlFor="welcome-password">Password</Label>
+                        <Input
+                          id="welcome-password"
+                          name="password"
+                          type="password"
+                          required
+                          minLength={8}
+                          autoComplete={view.signingIn ? "current-password" : "new-password"}
+                        />
+                      </div>
+                    </div>
+                    <Problem said={view.error} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                        {bridge === undefined ? null : <>On {location.host}</>}
+                        {!view.signingIn && methods?.signup === "invite"
+                          ? `${bridge === undefined ? "" : " · "}New accounts are by invitation here.`
+                          : null}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => patch({ signingIn: !view.signingIn, error: undefined })}
+                      >
+                        {view.signingIn ? "I’m new here" : "I already have an account"}
+                      </Button>
+                      <Button type="submit" disabled={view.busy}>
+                        {view.busy ? "One moment…" : view.signingIn ? "Sign in" : "That’s me"}
+                      </Button>
+                    </div>
+                  </form>
+                )
+              ) : view.step === "name" ? (
+                <Naming view={view} onColor={colored} onSubmit={named} />
+              ) : view.step === "computer" ? (
+                view.pairing !== undefined ? (
+                  <div className="mt-3 flex min-h-9 items-center gap-2.5 text-sm">
+                    {view.pairing === "pairing" ? (
+                      <>
+                        <Spinner className="text-muted-foreground" />
+                        Pairing this computer with {view.name}…
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircleIcon className="size-[18px] text-primary" />
+                        <span>
+                          <span className="font-mono">{view.computer}</span> is paired
+                          {view.share === "read" ? ", read-only" : ""}.
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      {view.name} would run commands and read and change files here, as you. It can
+                      reach this computer while Do Computer is running; closing the window leaves it
+                      in the tray.
+                    </p>
+                    {bridge?.canOpenAtLogin ? (
+                      <Label className="font-normal">
+                        <Checkbox
+                          checked={openAtLogin}
+                          onCheckedChange={(on) => setOpenAtLogin(on === true)}
+                        />
+                        Open Do Computer when I sign in to this computer
+                      </Label>
+                    ) : null}
+                    <Problem said={view.error} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => shared("no")}
+                      >
+                        Not now
+                      </Button>
+                      <span className="flex-1" />
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          patch({ share: "read" })
+                          void shared("read")
+                        }}
+                      >
+                        Only read files
+                      </Button>
+                      <Button
+                        data-first
+                        onClick={() => {
+                          patch({ share: "yes" })
+                          void shared("yes")
+                        }}
+                      >
+                        Yes, work here
+                      </Button>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="mt-3 flex justify-end">
+                  <Button data-first disabled={view.busy} onClick={finish}>
+                    {view.back ? "Back to our chat" : `Start chatting with ${view.name}`}
+                  </Button>
                 </div>
-              )
-            ) : (
-              <div className="mt-3 flex justify-end">
-                <Button data-first disabled={view.busy} onClick={finish}>
-                  {view.back ? "Back to our chat" : `Start chatting with ${view.name}`}
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -910,7 +928,7 @@ function Naming({
             aria-checked={view.color === color.id}
             aria-label={color.label}
             title={color.label}
-            className="size-6.5 rounded-full transition-transform outline-none hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring/50 aria-checked:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--swatch)]"
+            className="relative size-6.5 rounded-full transition-transform outline-none after:absolute after:-inset-[5px] after:rounded-full hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring/50 aria-checked:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--swatch)]"
             style={{ backgroundColor: color.hex, "--swatch": color.hex } as React.CSSProperties}
             onClick={() => onColor(color.id)}
           />
@@ -947,30 +965,32 @@ function Plain({
     <div
       aria-hidden
       className={cn(
-        "absolute inset-0 flex items-start justify-center bg-linear-to-b from-[#05071a] via-[#0e1a3c] to-[#1b5560] pt-[12vh] transition-opacity duration-700",
+        "absolute inset-0 bg-linear-to-b from-[#05071a] via-[#0e1a3c] to-[#1b5560] transition-opacity duration-700",
         leaving && "opacity-0",
       )}
     >
-      {view.hatched ? (
-        <img
-          alt=""
-          className="size-40"
-          src={`data:image/svg+xml;utf8,${encodeURIComponent(
-            avatarSvg(agent?.avatar ?? { color: view.color, seed }, agent?.id ?? seed),
-          )}`}
-        />
-      ) : (
-        <svg viewBox="0 0 64 80" className="h-40">
-          <title>An egg</title>
-          <ellipse cx="32" cy="44" rx="24" ry="32" fill="#f4efe6" />
-          <path
-            d="M14 30c10 6 14 22 6 40M34 12c12 10 16 34 8 56"
-            fill="none"
-            stroke={hex}
-            strokeWidth="7"
+      <div className="flex h-[var(--card-top,50%)] items-center justify-center transition-[height] duration-300">
+        {view.hatched ? (
+          <img
+            alt=""
+            className="aspect-square h-[min(10rem,70%)]"
+            src={`data:image/svg+xml;utf8,${encodeURIComponent(
+              avatarSvg(agent?.avatar ?? { color: view.color, seed }, agent?.id ?? seed),
+            )}`}
           />
-        </svg>
-      )}
+        ) : (
+          <svg viewBox="0 0 64 80" className="h-[min(10rem,70%)]">
+            <title>An egg</title>
+            <ellipse cx="32" cy="44" rx="24" ry="32" fill="#f4efe6" />
+            <path
+              d="M14 30c10 6 14 22 6 40M34 12c12 10 16 34 8 56"
+              fill="none"
+              stroke={hex}
+              strokeWidth="7"
+            />
+          </svg>
+        )}
+      </div>
     </div>
   )
 }

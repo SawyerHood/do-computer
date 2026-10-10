@@ -48,7 +48,15 @@ test("someone new meets their first agent: it is named as it hatches, and says h
   await out.getByRole("button", { name: "Start chatting with Pip" }).click()
   await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
   await expect(page.locator("[data-welcome]")).toHaveCount(0)
-  await expect(page.getByRole("heading", { name: `Hi ${owner.name}, I’m Pip.` })).toBeVisible()
+  const hello = page.getByRole("heading", { name: `Hi ${owner.name}, I’m Pip.` })
+  await expect(hello).toBeVisible()
+
+  // On a phone the creature is over its hello, small enough that none of it is cut off above.
+  await page.setViewportSize({ width: 375, height: 667 })
+  await expect(hello.locator("..").getByRole("img", { name: "Agent avatar" })).toBeInViewport({
+    ratio: 1,
+  })
+  await page.setViewportSize({ width: 1280, height: 860 })
 
   // What it is called and how it looks are its own from the start, and it is out of its egg.
   const { agents } = (await (await page.request.get("/api/agents")).json()) as {
@@ -109,4 +117,23 @@ test("the sign-in page sends someone new to the first run", async ({ page }) => 
   await create.click()
   await page.waitForURL(/\/welcome$/)
   await card(page, /Is somebody out there\?/)
+})
+
+test("on a phone held sideways the card leaves the egg its room, and the rest of it is scrolled to", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 740, height: 360 })
+  await page.goto("/welcome")
+  await (
+    await card(page, /Is somebody out there\?/)
+  )
+    .getByRole("button", { name: "Hello!" })
+    .click()
+  const you = await card(page, /who are you\?/)
+  expect((await you.boundingBox())!.y).toBeGreaterThanOrEqual(80)
+
+  // What does not fit in the card is inside it, a scroll away.
+  const done = you.getByRole("button", { name: "That’s me" })
+  await done.scrollIntoViewIfNeeded()
+  await expect(done).toBeInViewport({ ratio: 0.95 })
 })

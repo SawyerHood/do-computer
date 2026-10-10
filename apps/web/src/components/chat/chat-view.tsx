@@ -149,7 +149,7 @@ function Welcome({
   if (met !== undefined) {
     const given = met.computer
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center [@media(max-height:600px)]:py-6">
         {face}
         <h1 className="text-xl font-medium">
           Hi {met.first}, I’m {agent.name}.
@@ -181,7 +181,7 @@ function Welcome({
     )
   }
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center [@media(max-height:600px)]:py-6">
       {face}
       <h1 className="text-xl font-medium">{agent.name ?? "Say hello"}</h1>
       <p className="max-w-sm text-sm text-muted-foreground">
@@ -505,7 +505,12 @@ export function ChatView({
                             // Where the panel is beside the chat, the creature is in it and not here too.
                             beside ? null : (
                               <span className="mb-6">
-                                <Hatchling agent={agent} hatch={hatch} className="size-72" />
+                                {/* On a short screen it is as large as lets the whole hello be seen. */}
+                                <Hatchling
+                                  agent={agent}
+                                  hatch={hatch}
+                                  className="size-[clamp(8rem,calc(100dvh-31rem),18rem)]"
+                                />
                               </span>
                             )
                           }

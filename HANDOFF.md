@@ -1467,6 +1467,15 @@ Since then, newest last:
       computer during the first run without a second question from the app.
     - **Run on a Mac once:** the packed build from this branch, on the owner's MacBook Air and
       its own graphics card, through a whole first run against a server on another machine.
+    - **On a phone** (2026-10-10, the owner asked whether it works there and then for what was
+      found to be fixed): the card stops 5rem short of the top and scrolls inside itself, so a
+      phone held sideways, or a page a keyboard has shrunk, keeps the egg in view and every
+      field in reach; the creature over the hello in the chat is sized to the height of the
+      screen (`100dvh - 31rem`, between 8rem and 18rem), where it used to be cut off above on
+      a screen under about 780px tall; the color swatches take a touch 5px outside themselves;
+      the plain egg stands in the room above the card. Tried in Chromium with touch at
+      375×667, 393×659, 360×740, 320×568, 375×548 and 740×360. Never on a phone or in
+      Safari: a keyboard that lies over the page and does not shrink it is not handled.
     - **Never run:** a real GitHub or Google sign-in through any of this; the token exchange
       on Workers (`adapter.consumeOne` against D1); Windows outside CI.
 
