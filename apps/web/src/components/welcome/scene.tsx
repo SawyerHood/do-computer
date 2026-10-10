@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useSetAtom } from "jotai"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -148,30 +149,58 @@ function useTyped(text: string, key: string, on: boolean, each: (count: number) 
   }
 }
 
+/** The pictures of the creature under the scene that are large enough to be where it is going. */
+function places(scene: HTMLElement): HTMLElement[] {
+  return [
+    ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Agent avatar"]'),
+  ].filter((face) => !scene.contains(face) && face.offsetWidth >= 120)
+}
+
 /**
  * The picture of the creature in the chat that the one in the scene goes to: the largest one
  * on the page, once it has stopped moving about.
  */
-async function landing(scene: HTMLElement): Promise<{ host: HTMLElement; rect: DOMRect } | null> {
+async function landing(scene: HTMLElement): Promise<DOMRect | null> {
   let last: DOMRect | undefined
   for (let tries = 0; tries < 50; tries++) {
     await new Promise((resolve) => setTimeout(resolve, 100))
     let best: HTMLElement | undefined
-    for (const face of document.querySelectorAll<HTMLElement>(
-      '[role="img"][aria-label="Agent avatar"]',
-    )) {
-      if (scene.contains(face) || face.offsetWidth < 120) continue
+    for (const face of places(scene)) {
       if (best === undefined || face.offsetWidth > best.offsetWidth) best = face
     }
     const canvas = best?.querySelector("canvas")
     if (best === undefined || !canvas) continue
     const rect = canvas.getBoundingClientRect()
     if (last !== undefined && last.left === rect.left && last.top === rect.top && rect.width > 0) {
-      return { host: best, rect }
+      return rect
     }
     last = rect
   }
   return null
+}
+
+/**
+ * Keeps the chat's own pictures of the creature out of sight until the one in the scene has
+ * reached them. The chat comes up under the scene a while before the creature sets off, and it
+ * was seen in both places at once. They are looked for before every frame is drawn, since they
+ * come onto the page when the chat does. What is given back shows them again.
+ */
+function unseen(scene: HTMLElement): () => void {
+  const hidden = new Set<HTMLElement>()
+  let frame = 0
+  const look = () => {
+    for (const face of places(scene)) {
+      if (hidden.has(face)) continue
+      hidden.add(face)
+      face.style.visibility = "hidden"
+    }
+    frame = requestAnimationFrame(look)
+  }
+  look()
+  return () => {
+    cancelAnimationFrame(frame)
+    for (const face of hidden) face.style.visibility = ""
+  }
 }
 
 /**
@@ -197,6 +226,12 @@ export default function WelcomeScene() {
   const gone = useRef(false)
   /** Whether the scene can be drawn. Undefined until that is known. */
   const [drawn, setDrawn] = useState<boolean>()
+  /**
+   * Whether the egg is where it starts: up in the sky to fall, or down on the island. Until it
+   * is known who is here that is not known either, and the egg, which can be drawn sooner, was
+   * seen standing in an empty night for as long as the answer took.
+   */
+  const [placed, setPlaced] = useState(false)
   const [falling, setFalling] = useState(false)
   const [titled, setTitled] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -345,11 +380,15 @@ export default function WelcomeScene() {
         },
       )
       if (gone.current) return
-      if (signedIn) return arrived()
+      if (signedIn) {
+        setPlaced(true)
+        return arrived()
+      }
       // A sign-in elsewhere that came back with nobody signed in says why in the address.
       const failed = new URLSearchParams(location.search).get("error")
       if (failed !== null || drawing === null || calm) {
         drawing?.sky.land()
+        setPlaced(true)
         return say(failed === null ? "hello" : "you", {
           ...(failed === null
             ? {}
@@ -369,13 +408,16 @@ export default function WelcomeScene() {
         later(() => say("hello"), 1100)
       }
       drawing.sky.fall()
+      setPlaced(true)
       setFalling(true)
       later(() => setTitled(true), 250)
       later(() => setTitled(false), 1900)
     }
     begin().catch((error: unknown) => {
       console.error(error)
-      if (!gone.current) say("you", { error: "Something went wrong. Try again." })
+      if (gone.current) return
+      setPlaced(true)
+      say("you", { error: "Something went wrong. Try again." })
     })
     return () => {
       gone.current = true
@@ -558,19 +600,21 @@ export default function WelcomeScene() {
     handingOver.begin()
     patch({ on: false })
     setLeaving(true)
+    const show = root.current !== null ? unseen(root.current) : undefined
     await navigate({ to: "/a/$agentId", params: { agentId: met.id } })
     const drawing = stage.current
     const place = drawing !== null && root.current !== null ? await landing(root.current) : null
     if (drawing !== null && place !== null) {
-      place.host.style.visibility = "hidden"
-      drawing.fly(place.rect, FLIGHT_MS)
+      drawing.fly(place, FLIGHT_MS)
       await new Promise((resolve) => setTimeout(resolve, FLIGHT_MS + 50))
-      place.host.style.visibility = ""
     } else {
       await new Promise((resolve) => setTimeout(resolve, 700))
     }
     handingOver.end()
-    setOpen(false)
+    // The scene goes and the chat's pictures show in one step, so that no frame has the
+    // creature twice and none is without it.
+    flushSync(() => setOpen(false))
+    show?.()
   }
 
   /** A click on the scene itself: it brings the egg down at once, and a touch makes it hop. */
@@ -608,9 +652,10 @@ export default function WelcomeScene() {
       <div
         ref={egg}
         aria-hidden
+        data-egg
         className={cn(
           "pointer-events-none absolute top-0 left-0 will-change-transform",
-          !drawn && "invisible",
+          !(drawn && placed) && "invisible",
         )}
       >
         <canvas ref={creature} className="block size-full" />
@@ -672,7 +717,13 @@ export default function WelcomeScene() {
               <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary align-[-2px]" />
             )}
           </p>
+          {/* What a card asks for opens under its words once they are said. It is a new one for
+              each thing asked: kept, it was still open on the last answer when the card came
+              back, and the card came in tall, with the next form showing, and shut as the words
+              began. */}
           <div
+            key={view.step}
+            data-more
             className={cn(
               "grid transition-[grid-template-rows,opacity] duration-300",
               typed.said ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
