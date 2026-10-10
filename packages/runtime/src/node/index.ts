@@ -17,6 +17,7 @@ import type {
   SocketAutoResponse,
   SqlValue,
 } from "../index.ts"
+import { checkSocketNote } from "../index.ts"
 import { FileBlobStore } from "./blobs.ts"
 
 export { FileBlobStore } from "./blobs.ts"
@@ -109,8 +110,16 @@ export class NodeActorNamespace implements ActorNamespace {
       return
     }
     const id = `s${++this.#socketCounter}`
+    let note: string | undefined
     const socket: ActorSocket = {
       id,
+      get note() {
+        return note
+      },
+      keep: (next) => {
+        checkSocketNote(next)
+        note = next
+      },
       send: (data) => {
         if (like.readyState !== SOCKET_OPEN) return false
         try {
@@ -128,11 +137,17 @@ export class NodeActorNamespace implements ActorNamespace {
     const report = (error: unknown) => this.#options.onError?.(error, name)
     const auto = this.#options.socketAutoResponse
     let closed = false
+    // The actor is found again each time, and not kept from when the socket opened: it may
+    // have been unloaded since, and it is whichever is loaded now that is told.
+    const tell = (what: (actor: Actor) => void | Promise<void>) =>
+      void this.#load(name)
+        .then(({ actor }) => what(actor))
+        .catch(report)
     const close = (code: number, reason: string) => {
       if (closed) return
       closed = true
       sockets.delete(id)
-      void Promise.resolve(actor.socketClose?.(socket, code, reason)).catch(report)
+      if (!this.#closed) tell((actor) => actor.socketClose?.(socket, code, reason))
     }
     like.on("message", (data, isBinary) => {
       if (isBinary) return
@@ -141,11 +156,28 @@ export class NodeActorNamespace implements ActorNamespace {
         socket.send(auto.response)
         return
       }
-      void Promise.resolve(actor.socketMessage?.(socket, text)).catch(report)
+      tell((actor) => actor.socketMessage?.(socket, text))
     })
     like.on("close", (code, reason) => close(code, String(reason ?? "")))
     like.on("error", () => close(1006, "socket error"))
     await actor.socketOpen(socket, request)
+  }
+
+  /**
+   * Unload the actor named `name` while its sockets stay connected, as a Durable Object that
+   * hibernates is. The next request, alarm or socket message loads it again. For tests of what
+   * an actor does when it comes back to sockets it has no memory of.
+   */
+  async evict(name: string): Promise<void> {
+    const loading = this.#instances.get(name)
+    if (loading === undefined) return
+    this.#instances.delete(name)
+    const instance = await loading
+    try {
+      await instance.actor.close?.()
+    } finally {
+      await instance.database.close()
+    }
   }
 
   /** Re-arm every recorded alarm. Call once after constructing the namespace. */

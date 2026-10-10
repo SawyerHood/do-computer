@@ -547,7 +547,8 @@ packages/sandbox  the sandbox interface, its adapter to pi-durable, and the prov
                   Daytona, Modal, Cloudflare Containers
 packages/computers  the daemon protocol and the actor that holds a paired computer's connection
 packages/protocol   types and reducers shared by server and clients
-packages/client     API client and reconnecting event streams, for the web and mobile apps
+packages/client     API client, and following an agent over a socket or an event stream, for the
+                    web and mobile apps
 ```
 
 Anything that touches a runtime is implemented for both and held to one conformance suite.

@@ -7,6 +7,7 @@ import {
   type AppDatabase,
   type ActorSocket,
   type BlobStore,
+  checkSocketNote,
   type SocketAutoResponse,
   type SqlValue,
 } from "../index.ts"
@@ -27,11 +28,24 @@ export type DurableActorOptions<Env> = {
   socketAutoResponse?: SocketAutoResponse
 }
 
-/** Wrap a hibernatable WebSocket; its id lives in the attachment, which survives hibernation. */
+type Attachment = { id?: string; note?: string } | null
+
+/**
+ * Wrap a hibernatable WebSocket; its id and its note live in the attachment, which survives
+ * hibernation.
+ */
 function actorSocket(socket: WebSocket): ActorSocket {
-  const attachment = socket.deserializeAttachment() as { id?: string } | null
+  const id = (socket.deserializeAttachment() as Attachment)?.id ?? ""
   return {
-    id: attachment?.id ?? "",
+    id,
+    // Read each time: another wrapper of the same socket may have kept something since.
+    get note() {
+      return (socket.deserializeAttachment() as Attachment)?.note
+    },
+    keep: (note) => {
+      checkSocketNote(note)
+      socket.serializeAttachment({ id, note })
+    },
     send: (data) => {
       try {
         socket.send(data)

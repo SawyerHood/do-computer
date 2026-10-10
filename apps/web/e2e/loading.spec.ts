@@ -4,6 +4,21 @@ import { asOwner, composer, signIn, tab } from "./helpers.ts"
 
 asOwner()
 
+const socketHolds = new WeakMap<Page, { held: boolean; waiting: (() => void)[] }>()
+
+/**
+ * Lets the sockets a page opens be held back by `holdRequests`. A page's sockets can only be
+ * stood in front of from before the page is loaded, so this is called first.
+ */
+async function holdableSockets(page: Page) {
+  const state = { held: false, waiting: [] as (() => void)[] }
+  socketHolds.set(page, state)
+  await page.routeWebSocket(/\/api\/agents\/[^/]+\/(library\/)?socket$/, async (socket) => {
+    if (state.held) await new Promise<void>((resolve) => state.waiting.push(resolve))
+    socket.connectToServer()
+  })
+}
+
 /**
  * Hold back everything the page asks the server for, until it is let through. What the page
  * shows meanwhile is what it shows without waiting. Returns what was asked for, by path, and
@@ -18,11 +33,17 @@ async function holdRequests(page: Page) {
     if (held) await new Promise<void>((resolve) => waiting.push(resolve))
     await route.continue()
   })
+  // What an agent says as it happens comes over a socket, which is held back as well.
+  const sockets = socketHolds.get(page)
+  if (sockets === undefined) throw new Error("Call holdableSockets before the page is loaded")
+  sockets.held = true
   return {
     asked,
     release: () => {
       held = false
       for (const resolve of waiting) resolve()
+      sockets.held = false
+      for (const resolve of sockets.waiting.splice(0)) resolve()
     },
   }
 }
@@ -42,6 +63,7 @@ test("the frame of the app is in the page as it is sent", async ({ page }) => {
 })
 
 test("choosing an agent moves the page before the server has answered", async ({ page }) => {
+  await holdableSockets(page)
   await signIn(page)
   await composer(page).fill("Said to Juniper")
   await page.keyboard.press("Enter")
@@ -80,6 +102,7 @@ test("choosing an agent moves the page before the server has answered", async ({
 })
 
 test("a tab's page is there at once, and its list when it arrives", async ({ page }) => {
+  await holdableSockets(page)
   await signIn(page)
   const server = await holdRequests(page)
   await tab(page, "Automations").click()
@@ -112,6 +135,7 @@ test("a session that has ended is found out by the next thing asked for", async 
 })
 
 test("a message is in the chat the moment it is sent", async ({ page }) => {
+  await holdableSockets(page)
   await signIn(page)
   await expect(composer(page)).toBeVisible()
   const server = await holdRequests(page)

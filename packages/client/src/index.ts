@@ -77,6 +77,20 @@ export class ApiError extends Error {
   }
 }
 
+import {
+  type Attention,
+  attended,
+  reconnectDelay,
+  REST_AFTER_MS,
+  type StreamStatus,
+  type Subscription,
+  whenUnattended,
+} from "./attention.ts"
+import { createFollowing, type SocketConstructor } from "./follow.ts"
+
+export type { Attention, StreamStatus, Subscription } from "./attention.ts"
+export type { SocketConstructor, SocketLike } from "./follow.ts"
+
 export type ClientOptions = {
   /** Origin of the deployment, or "" for same-origin requests from the web app. */
   readonly baseUrl: string
@@ -97,13 +111,14 @@ export type ClientOptions = {
   readonly attention?: Attention
   /** How long nobody has to have been looking before a stream is let go of. Default a minute. */
   readonly restAfterMs?: number
-}
-
-/** Says whether anyone is looking at what the client's streams feed. */
-export type Attention = {
-  here(): boolean
-  /** Call `changed` whenever that may have changed. Returns how to stop. */
-  watch(changed: () => void): () => void
+  /**
+   * Follow agents over WebSockets where they can be had, and over event streams where not. A
+   * socket does not keep an agent in memory on the server as a stream does. Needs a platform
+   * whose WebSockets carry the session, which is a browser on the app's own address.
+   */
+  readonly sockets?: boolean
+  /** `WebSocket` to use. Default: the platform's. */
+  readonly webSocket?: SocketConstructor
 }
 
 export type Me = {
@@ -156,64 +171,12 @@ export type PairingRequest = {
   readOnly: boolean
 }
 
-export type StreamStatus = "connecting" | "open" | "reconnecting" | "closed"
-
-export type Subscription = { close(): void }
-
 /** A place in a team's presence: say where this tab is, and stop. */
 export type PresenceLink = Subscription & { update(where: PresenceUpdate): void }
 
 /** How often a presence socket is pinged, so that whatever is between it and the server keeps it. */
 const PRESENCE_PING_MS = 30_000
 
-const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000]
-/**
- * How long to wait before the next try: the delay of that try, and up to as long again. Every
- * client of a server loses its connection at the same moment when the server is replaced, and
- * without this they would all be back at the same moment too.
- */
-const reconnectDelay = (attempt: number) =>
-  RECONNECT_DELAYS_MS[Math.min(attempt, RECONNECT_DELAYS_MS.length - 1)]! * (1 + Math.random())
-/**
- * How long nobody has to have been looking before a stream is let go of. An open stream keeps
- * the agent it follows in memory on the server, which is paid for by the second, and a tab left
- * open in the background would keep it there for days.
- */
-const REST_AFTER_MS = 60_000
-
-/** Call `then` once nobody has been looking for `ms` without a break. Returns how to stop. */
-function whenUnattended(attention: Attention, ms: number, then: () => void): () => void {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const look = () => {
-    if (attention.here()) {
-      clearTimeout(timer)
-      timer = undefined
-    } else {
-      timer ??= setTimeout(then, ms)
-    }
-  }
-  const stop = attention.watch(look)
-  look()
-  return () => {
-    stop()
-    clearTimeout(timer)
-  }
-}
-
-/** Resolves once someone is looking, or `signal` is aborted. */
-function attended(attention: Attention, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (attention.here() || signal.aborted) return resolve()
-    const look = () => {
-      if (!attention.here() && !signal.aborted) return
-      stop()
-      signal.removeEventListener("abort", look)
-      resolve()
-    }
-    const stop = attention.watch(look)
-    signal.addEventListener("abort", look)
-  })
-}
 /** How long a stream may say nothing, heartbeats included, before it is taken for lost. */
 const STREAM_SILENCE_MS = 3 * SSE_HEARTBEAT_MS
 
@@ -334,6 +297,51 @@ export function createClient(options: ClientOptions) {
     void run()
     return { close: () => controller.abort() }
   }
+
+  /** A chat by its event stream: its state as a client holds it, after every change. */
+  const chatStream = (
+    agentId: string,
+    chatId: string,
+    onState: (state: ChatState) => void,
+    onStatus?: (status: StreamStatus) => void,
+  ): Subscription => {
+    let state = EMPTY_CHAT
+    return stream<ChatEvent>(
+      `/api/agents/${encodeURIComponent(agentId)}/chats/${chatId}/events`,
+      (event) => {
+        state = reduceChat(state, event)
+        onState(state)
+      },
+      onStatus,
+    )
+  }
+  const agentStream = (
+    agentId: string,
+    onEvent: (event: AgentEvent) => void,
+    onStatus?: (status: StreamStatus) => void,
+  ): Subscription =>
+    stream<AgentEvent>(`/api/agents/${encodeURIComponent(agentId)}/events`, onEvent, onStatus)
+
+  const webSocket = options.webSocket ?? (globalThis as { WebSocket?: SocketConstructor }).WebSocket
+  const following =
+    options.sockets !== true || webSocket === undefined
+      ? undefined
+      : createFollowing({
+          baseUrl: options.baseUrl,
+          socket: webSocket,
+          attention: options.attention,
+          restAfterMs: options.restAfterMs,
+          probe: async (agentId) => {
+            try {
+              const response = await send(`/api/agents/${encodeURIComponent(agentId)}`)
+              void response.body?.cancel().catch(() => {})
+              return response.status
+            } catch {
+              return undefined
+            }
+          },
+          streams: { agent: agentStream, chat: chatStream },
+        })
 
   return {
     // Both take a signal, so that a page which waits for them can stop waiting.
@@ -801,19 +809,15 @@ export function createClient(options: ClientOptions) {
           onState: (state: ChatState) => void,
           onStatus?: (status: StreamStatus) => void,
         ): Subscription {
-          let state = EMPTY_CHAT
-          return stream<ChatEvent>(
-            `${base}/chats/${chatId}/events`,
-            (event) => {
-              state = reduceChat(state, event)
-              onState(state)
-            },
-            onStatus,
-          )
+          return following === undefined
+            ? chatStream(agentId, chatId, onState, onStatus)
+            : following.watchChat(agentId, chatId, onState, onStatus)
         },
         /** Calls `onEvent` when something about the agent changed and should be refetched. */
         watch: (onEvent: (event: AgentEvent) => void, onStatus?: (status: StreamStatus) => void) =>
-          stream<AgentEvent>(`${base}/events`, onEvent, onStatus),
+          following === undefined
+            ? agentStream(agentId, onEvent, onStatus)
+            : following.watch(agentId, onEvent, onStatus),
       }
     },
   }

@@ -17,6 +17,7 @@ import {
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { env } from "cloudflare:workers"
 import { agentDirectory } from "./server/agent-directory.ts"
+import { admitToAgent, agentSocket } from "./server/agent-socket.ts"
 import { createAgentBeside } from "./server/agents.ts"
 import { browserDirectory } from "./server/browser-directory.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
@@ -43,7 +44,7 @@ import { computerChoices } from "./server/sandbox.ts"
 
 export { SandboxObject } from "./server/sandbox.cloudflare.ts"
 
-/** One Durable Object per agent. */
+/** One Durable Object per agent. The sockets of those following it hibernate with it. */
 export const AgentObject = createDurableActorClass<Env>({
   create: (host, env) => {
     const config = readConfig(env)
@@ -64,6 +65,9 @@ export const AgentObject = createDurableActorClass<Env>({
       judge: models.judge,
       review: models.review,
       allowPrivateHosts: config.allowPrivateHosts,
+      // Nothing is kept in memory for a chat that has gone quiet: what keeps it is a timer,
+      // and a pending timer keeps the whole object from being put away.
+      contextRetentionMs: 0,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       computerDirectory: computerDirectory(
         d1Database(env.DB),
@@ -91,6 +95,7 @@ export const AgentObject = createDurableActorClass<Env>({
     })
   },
   blobs: (env, name) => r2Blobs(env.BLOBS, `agents/${encodeURIComponent(name)}/`),
+  socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
 })
 
 /** One Durable Object per paired computer. Its daemon's socket hibernates with it. */
@@ -100,10 +105,14 @@ export const ComputerObject = createDurableActorClass<Env>({
   socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
 })
 
-/** One Durable Object per workspace, keeping the library its agents share. */
+/**
+ * One Durable Object per workspace, keeping the library its agents share. The sockets of those
+ * following it hibernate with it.
+ */
 export const LibraryObject = createDurableActorClass<Env>({
   create: (host) => createLibraryActor(host),
   blobs: (env, name) => r2Blobs(env.BLOBS, `libraries/${encodeURIComponent(name)}/`),
+  socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
 })
 
 /** One Durable Object per workspace, keeping the model providers it is signed in to. */
@@ -143,6 +152,19 @@ export default createServerEntry({
       const admitted = await admitToPresence(request, workspaceId)
       if (admitted === undefined) return new Response("Unauthorized", { status: 401 })
       return getPlatform().presence.get(workspaceId).fetch(admitted)
+    }
+    // And so does the socket an agent, or its workspace's library, is followed over.
+    const followed = agentSocket(new URL(request.url).pathname)
+    if (followed !== undefined) {
+      if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+        return new Response("Expected a WebSocket", { status: 426 })
+      }
+      const admitted = await admitToAgent(request, followed.agentId)
+      if (admitted === undefined) return new Response("Unauthorized", { status: 401 })
+      const { agents, libraries } = getPlatform()
+      return followed.library
+        ? libraries.get(admitted.workspaceId).fetch(admitted.request)
+        : agents.get(followed.agentId).fetch(admitted.request)
     }
     return handler.fetch(request)
   },

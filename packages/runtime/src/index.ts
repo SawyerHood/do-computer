@@ -71,9 +71,26 @@ export interface ActorHost {
  */
 export interface ActorSocket {
   readonly id: string
+  /**
+   * What the actor last kept with the socket, or undefined. It stays with the socket for as
+   * long as the socket is open, whether or not the actor stayed in memory meanwhile, which is
+   * what lets an actor that was unloaded find out what each of its sockets was for.
+   */
+  readonly note: string | undefined
+  /** Keep `note` with the socket, in place of what was kept. At most `MAX_SOCKET_NOTE_CHARS`. */
+  keep(note: string): void
   /** False when the socket is no longer open and the message was not sent. */
   send(data: string): boolean
   close(code?: number, reason?: string): void
+}
+
+/** The most an actor can keep with a socket. A Durable Object allows sixteen kilobytes. */
+export const MAX_SOCKET_NOTE_CHARS = 1_000
+
+export function checkSocketNote(note: string): void {
+  if (note.length > MAX_SOCKET_NOTE_CHARS) {
+    throw new Error(`A socket's note can be at most ${MAX_SOCKET_NOTE_CHARS} characters`)
+  }
 }
 
 export interface Actor {

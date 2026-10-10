@@ -1566,6 +1566,81 @@ Since then, newest last:
     - **Not known:** whether this is every way the GPU process dies. macOS recorded GPU
       restarts of its own on 2026-10-09 (item 33), and none while these were reproduced.
 
+42. **What a thousand people would cost or break on Cloudflare** (2026-10-10;
+    `apps/web/src/server/rate-limit.ts`, `packages/protocol/src/bytes.ts`,
+    `packages/client/src/attention.ts`). The owner: "I want to roll this out for public launch
+    with 1000 users what are scaling issues on cloudflare that i should be aware of? Can you
+    fix any of those".
+    - **A hidden tab lets go of what it follows** a minute after it is hidden, and takes it up
+      again when it shows (`attention` in the client's options). It also no longer counts as
+      someone watching a chat, so an answer that arrives meanwhile is notified.
+    - **Signing in, signing up and asking to pair a computer are counted by address** with
+      Cloudflare's rate limiting binding (`PUBLIC_LIMIT` in `wrangler.jsonc`): twenty a
+      minute, then 429. Better Auth's own limiter counts in one isolate's memory. The places
+      for computers waiting to be paired went from 200 to 2,000, so that one address cannot
+      take them all.
+    - **On do.computer the count is loose.** Wrong sign-ins sent one after another from one
+      address: the first 54 were all answered 401, and of the next 36 thirteen were refused.
+      Cloudflare says the binding is "permissive, eventually consistent"; locally the 21st is
+      refused every time. It slows someone who keeps at it and does not stop a burst. A limit
+      that holds exactly is a rate limiting rule on the zone, or a count kept in an object.
+    - **An upload is held in memory once** where it was held three times in the Worker and
+      twice in the library's object: `readLimited` is told the declared length.
+    - **Reconnects wait a random part longer**, so the clients a deploy cuts off do not all
+      come back in the same instant.
+    - **Not done, and the owner's to decide:** no limit on what one person spends on the
+      deployment's model key; open sign-up has no check against bots; what the Daytona
+      account allows with a machine for each workspace; that every deploy cuts off everyone.
+    - **Mine, not the owner's:** the minute, the twenty a minute, the 2,000.
+
+43. **Agents are followed over sockets that hibernate** (2026-10-10;
+    `packages/protocol/src/socket.ts`, `packages/agent/src/followers.ts`,
+    `packages/client/src/follow.ts`, `apps/web/src/server/agent-socket.ts`). The owner, after
+    item 42: "do a move for us to hibernating web sockets".
+    - **Why.** An event stream keeps the agent's Durable Object in memory for as long as it is
+      open, and memory is paid for by the second: about $4 a month for one object kept all
+      month, and a page held two streams, the second of which kept the library's object too.
+      A WebSocket the runtime holds does not: an idle object is put away with its sockets
+      still connected.
+    - **One socket for each agent a page follows** (`/api/agents/<id>/socket`), carrying what
+      the agent's event stream said and every chat the page asks for (`follow`, `unfollow`),
+      and one to the library of its workspace (`/api/agents/<id>/library/socket`), which says
+      its revision. The gateway checks them as it checks presence. `client.agent(id).watch`
+      and `watchChat` are as they were; the web app turns sockets on (`sockets: true`).
+    - **What a socket follows is kept with the socket** (`ActorSocket.note`, a Durable
+      Object's attachment), because the agent comes back with nothing in memory. Opening the
+      agent attaches its sockets again, and each is told where things stand: `resumed`, with a
+      fingerprint (`digest`) of every document and of every chat it follows. A client that
+      holds something else asks again. Nothing changes while an agent is put away, so a
+      client that heard everything holds what is there and nothing is sent twice; the
+      fingerprints are for the agent that died without being put away.
+    - **pi-durable kept every agent in memory for ten minutes after each answer.** It keeps a
+      quiet chat's context by a timer, and means to keep none where timers cannot be
+      unreferenced. With `nodejs_compat` a timer has an `unref`, which does nothing, so the
+      timer was kept and a pending timer keeps a Durable Object from being put away. On
+      Cloudflare the agent is now made with `contextRetentionMs: 0`.
+    - **Checked in the Workers runtime:** a test follows a chat over a socket, leaves the
+      object alone for fourteen seconds, and asserts that it came back with `resumed` and
+      sent the next answer as changes (`agent.workers.test.ts`); it fails if anything keeps
+      the object in memory. In a browser against `DC_TARGET=cloudflare vite dev`: no event
+      stream was asked for, the object was put away within fifteen seconds of the page going
+      quiet, and reading the agent then took 34 ms against 20 ms from memory.
+    - **Where there is no socket, the streams.** A socket that cannot be had while the server
+      answers plainly is tried twice and then everything is followed by stream, for the
+      life of the page. That is what `pnpm dev` on Node does, whose dev server now refuses
+      the app's sockets at once where it used to leave them unanswered. The streams are
+      still served, and are what the mobile app uses and what `scripts/smoke.sh` reads.
+    - **`NodeActorNamespace.evict`** unloads an actor under its sockets, for testing what a
+      Durable Object does when it hibernates.
+    - **Not done:** the mobile app still follows by stream (its sockets would have to carry
+      the session by hand, and it has never been run on a phone); someone taken out of a team
+      keeps a socket they had open until it closes, as they kept a stream; a socket has no
+      way to slow an agent that sends faster than a client reads.
+    - **Not known:** what any of this costs on Cloudflare itself. Nothing here was run on a
+      deployed Worker.
+    - **Mine, not the owner's:** the fingerprints in place of sending everything again; the
+      fall back to streams; sixteen chats to a socket; leaving the mobile app as it is.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -1808,5 +1883,9 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   nothing on screen changes until all of them have returned. One fetch in the top one made
   every click in the app wait a round trip. Keep what it needs in the query client, and start
   a page's fetches in `loader` without awaiting them.
+- **A pending timer keeps a Durable Object in memory**, and so does an open stream or a
+  request still being answered. `unref` exists on a timer there and does nothing. An object
+  that should be put away while people have it open must hold none of these when idle; the
+  test in item 43 is how to find out, and wrapping `setTimeout` in a test is how to find which.
 - **A fresh deployment belongs to whoever signs up first.** The first account needs no
   invitation, so on a public address, sign up at once.

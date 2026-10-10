@@ -4,6 +4,9 @@ import { asOwner, closeSettings, composer, newChat, openSettings, signIn } from 
 
 asOwner()
 
+/** The socket a page follows an agent over. */
+const AGENT_SOCKET = /\/api\/agents\/[^/]+\/socket$/
+
 /**
  * The same person in a second browser, on the page the first one is on. It is listening to the
  * agent before anything is asked of it, which is when what it is told later is decided.
@@ -13,9 +16,11 @@ async function second(browser: Browser, baseURL: string | undefined, first: Page
   await context.addInitScript(severable)
   const page = await context.newPage()
   await signIn(page)
-  const listening = page.waitForResponse((response) =>
-    /\/api\/agents\/[^/]+\/events$/.test(new URL(response.url()).pathname),
-  )
+  const listening = page
+    .waitForEvent("websocket", (socket) => AGENT_SOCKET.test(new URL(socket.url()).pathname))
+    .then((socket) =>
+      socket.waitForEvent("framereceived", (frame) => String(frame.payload).includes('"ready"')),
+    )
   await page.goto(first.url())
   await listening
   await expect(composer(page)).toBeEnabled()
@@ -24,13 +29,27 @@ async function second(browser: Browser, baseURL: string | undefined, first: Page
 
 /**
  * Lets a test cut a page off from what the server sends it as it happens, the way a laptop that
- * slept or a network that changed does: the streams it was following end, and no new one is
- * answered until it is mended.
+ * slept or a network that changed does: the sockets and streams it was following end, and no
+ * new one is answered until it is mended.
  */
 function severable() {
   const fetch = window.fetch.bind(window)
   const streams = new Set<AbortController>()
+  const sockets = new Set<WebSocket>()
   let down = false
+  const Real = window.WebSocket
+  window.WebSocket = class extends Real {
+    constructor(url: string | URL, protocols?: string | string[]) {
+      const followed = /\/api\/agents\/[^/]+\/(library\/)?socket$/.test(
+        new URL(url, location.href).pathname,
+      )
+      // Cut off, it is asked of an address nothing answers at, and fails as a lost network does.
+      super(followed && down ? "ws://127.0.0.1:9/" : url, protocols)
+      if (!followed) return
+      sockets.add(this)
+      this.addEventListener("close", () => sockets.delete(this))
+    }
+  }
   window.fetch = async (input, init) => {
     const url = typeof input === "string" || input instanceof URL ? String(input) : input.url
     if (!/\/events$/.test(new URL(url, location.href).pathname)) return fetch(input, init)
@@ -45,6 +64,7 @@ function severable() {
       down = true
       for (const stream of streams) stream.abort()
       streams.clear()
+      for (const socket of [...sockets]) socket.close()
     },
     mend: () => {
       down = false
@@ -137,15 +157,15 @@ test.describe("two clients on one chat", () => {
     const context = await browser.newContext({ baseURL })
     const other = await context.newPage()
     await signIn(other)
-    // The second one's stream of what changes on the agent is slow to be answered. It has
-    // asked for what there is, and is not yet being told of what changes.
+    // The second one's socket to the agent is slow to be answered. It has asked for what
+    // there is, and is not yet being told of what changes.
     let answer = () => {}
     const held = new Promise<void>((resolve) => {
       answer = resolve
     })
-    await other.route(/\/api\/agents\/[^/]+\/events$/, async (route) => {
+    await other.routeWebSocket(AGENT_SOCKET, async (socket) => {
       await held
-      await route.continue()
+      socket.connectToServer()
     })
     await other.goto(page.url())
     await expect(composer(other)).toBeEnabled()

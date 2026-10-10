@@ -96,6 +96,26 @@ registerAppDatabaseConformance({ describe, it, expect }, "Node", async () => {
   return openNodeAppDatabase(join(mkdtempSync(join(tmpdir(), "dc-app-")), "app.sqlite")).app
 })
 
+describe("Node: an actor unloaded under its sockets", () => {
+  it("is loaded again by what a socket says, and finds its sockets and their notes", async () => {
+    const name = `agent:${++counter}`
+    const { server, client } = socketPair()
+    await namespace.connect(name, server, new Request("http://actor/connect?tag=x"))
+    await client.next()
+    client.send("keep:mine")
+    expect(await client.next()).toBe("kept")
+    await namespace.evict(name)
+    // Nothing of the actor is in memory now. The socket is still there, and so is its note.
+    client.send("notes")
+    expect(await client.next()).toBe("notes:mine")
+    const sockets = await namespace.get(name).fetch(new Request("http://actor/sockets"))
+    expect(await sockets.json()).toEqual({ count: 1 })
+    // One that is not loaded is not there to unload.
+    await namespace.evict(`agent:${++counter}`)
+    client.close(1000)
+  })
+})
+
 describe("Node: restart", () => {
   const call = async <T>(name: string, path: string) =>
     (await (await namespace.get(name).fetch(new Request(`http://actor${path}`))).json()) as T
