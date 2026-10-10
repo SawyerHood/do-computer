@@ -290,11 +290,15 @@ answering or someone stops the conversation.
   keeps a browser of its own, with its own sign-ins, which nobody sees but in the chat. Start
   the daemon with `--no-browser` to allow neither.
 - **Use your screen.** In the [desktop app](#desktop-app), under This Computer, you can let
-  agents use the computer's screen: they are shown it, and use the mouse and keyboard, through
-  [Cua Driver](https://github.com/trycua/cua). It is off until you switch it on there, and an
-  agent cannot switch it on. While one is at work its pointer is drawn on your screen in its
-  colour, with its name, and a bar says who it is and has Pause and Stop; Esc pauses too. A
-  daemon run by hand has no screen for agents.
+  agents use the computer's screen, through [Cua Driver](https://github.com/trycua/cua). They
+  work in one window at a time, behind whatever you have in front: they are shown that window
+  and click and type in it without your mouse or keyboard, so you can carry on with your own
+  work. What cannot be done that way (a drag on a Mac, most things on Linux) an agent does with
+  the window brought forward for a moment, or on the whole screen with the mouse and keyboard.
+  It is off until you switch it on there, and an agent cannot switch it on. While one is at
+  work a bar says who it is and has Pause and Stop, and its pointer is drawn in its colour,
+  with its name, where what it is clicking can be seen; while it has the whole screen there is
+  a glow round it and Esc pauses too. A daemon run by hand has no screen for agents.
 - **Watch either.** While an agent uses a screen or a browser, the chat has a small window of
   it, as it is, with the agent's pointer and what it is doing. It can be opened large, paused
   and stopped from there. Afterwards the window folds to one line, with the picture taken at

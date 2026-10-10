@@ -1,4 +1,10 @@
-import type { BrowserRan, LiveView, ScreenActed, UsingAgent } from "@durable-computer/protocol"
+import type {
+  BrowserRan,
+  LiveView,
+  ScreenActed,
+  ScreenWindow,
+  UsingAgent,
+} from "@durable-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { fakeScreen } from "../src/fake-screen.ts"
 import { type BrowserIO, DaemonCore, type DaemonIO, LinkCore, RemoteError } from "../src/index.ts"
@@ -64,7 +70,7 @@ describe("the screen of a paired computer", () => {
     expect(acted.pointer).toEqual({ x: 120, y: 80 })
     expect(acted.shot).toMatchObject({ mimeType: "image/png", width: 640, height: 400 })
     // A real picture, and not so large that it would not fit in one frame.
-    expect(Buffer.from(acted.shot.data, "base64").subarray(1, 4).toString()).toBe("PNG")
+    expect(Buffer.from(acted.shot!.data, "base64").subarray(1, 4).toString()).toBe("PNG")
     expect(daemonIO.audits[0]).toMatchObject({ kind: "screen", agent: "Pip", action: click })
   })
 
@@ -133,6 +139,128 @@ describe("the screen of a paired computer", () => {
     await new Promise((resolve) => setTimeout(resolve, 30))
     expect(daemon.busy).toBe(false)
     await watching
+  })
+})
+
+describe("the windows on the screen of a paired computer", () => {
+  const notes: ScreenWindow = {
+    id: 11,
+    app: "Notes",
+    title: "Shopping",
+    width: 400,
+    height: 300,
+    shown: true,
+  }
+  const calculator: ScreenWindow = {
+    id: 12,
+    app: "Calculator",
+    title: "Calculator",
+    width: 230,
+    height: 408,
+    shown: false,
+  }
+  const act = (link: LinkCore, action: Parameters<ReturnType<typeof fakeScreen>["act"]>[1]) =>
+    link.use({ t: "screen", op: "act", agent: pip, action }) as Promise<ScreenActed>
+  const view = (link: LinkCore) =>
+    link.use({ t: "screen", op: "view", after: 0, waitMs: 0 }) as Promise<LiveView>
+
+  it("are listed, the ones that cannot be seen too, with no picture", async () => {
+    const daemonIO = io({ screen: fakeScreen() })
+    const { link } = wire(daemonIO)
+    expect(await act(link, { do: "windows" })).toEqual({ windows: [notes, calculator] })
+    expect(daemonIO.audits[0]).toMatchObject({ kind: "screen", action: { do: "windows" } })
+  })
+
+  it("gain one for an app that is opened, which is answered with a picture of it", async () => {
+    const { link } = wire(io({ screen: fakeScreen() }))
+    const safari = { id: 22, app: "Safari", title: "Safari", width: 320, height: 240, shown: true }
+    const opened = await act(link, { do: "open", app: "Safari" })
+    expect(opened.window).toEqual(safari)
+    expect(opened.windows).toEqual([safari])
+    // The picture is of the window, at the window's own size.
+    expect(opened.shot).toMatchObject({ mimeType: "image/png", width: 320, height: 240 })
+    expect(opened.pointer).toBeUndefined()
+    // The newest is the nearest the front.
+    expect((await act(link, { do: "windows" })).windows).toEqual([safari, notes, calculator])
+  })
+
+  it("are worked in one at a time, and answer with how that window looks", async () => {
+    const daemonIO = io({ screen: fakeScreen() })
+    const { link } = wire(daemonIO)
+    const inNotes = { do: "in_window", window: 11, act: click } as const
+    const acted = await act(link, inNotes)
+    expect(acted.window).toEqual(notes)
+    expect(acted.pointer).toEqual({ x: 120, y: 80 })
+    expect(acted.shot).toMatchObject({ mimeType: "image/png", width: 400, height: 300 })
+    expect(Buffer.from(acted.shot!.data, "base64").subarray(1, 4).toString()).toBe("PNG")
+    expect(daemonIO.audits[0]).toMatchObject({ kind: "screen", agent: "Pip", action: inNotes })
+
+    // One that cannot be seen on the screen is worked in all the same.
+    const hidden = await act(link, { do: "in_window", window: 12, act: { do: "screenshot" } })
+    expect(hidden.window).toEqual(calculator)
+    expect(hidden.shot).toMatchObject({ width: 230, height: 408 })
+    // The pointer was in the other window, and is nowhere in this one yet.
+    expect(hidden.pointer).toBeUndefined()
+
+    // Text may come with the place to click first, and the keyboard is then there.
+    const typed = await act(link, {
+      do: "in_window",
+      window: 12,
+      act: { do: "type", text: "42", x: 30, y: 60 },
+    })
+    expect(typed.pointer).toEqual({ x: 30, y: 60 })
+  })
+
+  it("says so where there is no such window", async () => {
+    const { link } = wire(io({ screen: fakeScreen() }))
+    await expect(act(link, { do: "in_window", window: 99, act: click })).rejects.toThrow(
+      /There is no window 99 on this computer now\. Ask for `windows`/,
+    )
+  })
+
+  it("will not drag in one behind what is in front, and will once it is brought forward", async () => {
+    const { link } = wire(io({ screen: fakeScreen() }))
+    const drag = { do: "drag", x: 10, y: 20, toX: 200, toY: 150 } as const
+    const refused = await act(link, { do: "in_window", window: 11, act: drag }).catch(
+      (error: unknown) => error,
+    )
+    expect(refused).toBeInstanceOf(RemoteError)
+    expect((refused as RemoteError).message).toMatch(/could not be done behind what is in front/)
+    expect((refused as RemoteError).message).toMatch(
+      /Nothing was done\. Do it again with `in_front: true`/,
+    )
+    // Nothing was: the pointer has been nowhere.
+    expect((await act(link, { do: "screenshot" })).pointer).toBeUndefined()
+
+    const acted = await act(link, { do: "in_window", window: 11, inFront: true, act: drag })
+    expect(acted.window).toEqual(notes)
+    expect(acted.pointer).toEqual({ x: 200, y: 150 })
+    // On the whole screen a drag is done as it always was.
+    expect((await act(link, drag)).pointer).toEqual({ x: 200, y: 150 })
+  })
+
+  it("show someone watching the window being worked in, by its name", async () => {
+    const { link } = wire(io({ screen: fakeScreen() }))
+    await act(link, { do: "in_window", window: 11, act: click })
+    const inWindow = await view(link)
+    expect(inWindow).toMatchObject({
+      active: true,
+      title: "Notes: Shopping",
+      pointer: { x: 120, y: 80 },
+      clicks: 1,
+    })
+    expect(inWindow.shot).toMatchObject({ width: 400, height: 300 })
+
+    // Listing the windows leaves it where it was.
+    await act(link, { do: "windows" })
+    expect((await view(link)).title).toBe("Notes: Shopping")
+
+    // Back on the whole screen there is no window to name.
+    await act(link, { do: "screenshot" })
+    const whole = await view(link)
+    expect(whole).not.toHaveProperty("title")
+    expect(whole).not.toHaveProperty("pointer")
+    expect(whole.shot).toMatchObject({ width: 640, height: 400 })
   })
 })
 

@@ -44,6 +44,10 @@ body {
     opacity: 0.55;
   }
 }
+/* Working behind what is in front leaves the screen to its owner: no glow at all. */
+.behind .glow {
+  display: none;
+}
 .held .glow {
   box-shadow:
     inset 0 0 0 3px var(--amber),

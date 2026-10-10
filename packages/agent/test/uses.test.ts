@@ -1,7 +1,12 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { type BrowserIO, createComputerLinkActor, DaemonCore } from "@durable-computer/computers"
+import {
+  type BrowserIO,
+  createComputerLinkActor,
+  DaemonCore,
+  type ScreenIO,
+} from "@durable-computer/computers"
 import { fakeScreen } from "@durable-computer/computers/fake-screen"
 import { nodeDaemonIO } from "@durable-computer/computers/node"
 import type {
@@ -86,7 +91,7 @@ const pretendBrowser: BrowserIO = {
     const { shot } = await browser.shot.act(agent, { do: "screenshot" }, undefined)
     return {
       output: "Simple pricing",
-      shots: script.includes("shot()") ? [shot] : [],
+      shots: script.includes("shot()") && shot !== undefined ? [shot] : [],
       url: "https://tidewater.studio/pricing",
       title: "Pricing",
       own: true,
@@ -98,7 +103,11 @@ const pretendBrowser: BrowserIO = {
 }
 
 /** Run a daemon for computer `id`, connected to its link in memory. */
-async function startDaemon(id: string, things: { screen: boolean; browser: boolean }) {
+async function startDaemon(
+  id: string,
+  things: { screen: boolean; browser: boolean },
+  screen: ScreenIO = fakeScreen(),
+) {
   const home = mkdtempSync(join(tmpdir(), "dc-laptop-"))
   const listeners: ((data: unknown, binary: boolean) => void)[] = []
   const toDaemon: ((data: string) => void)[] = []
@@ -114,7 +123,7 @@ async function startDaemon(id: string, things: { screen: boolean; browser: boole
   const daemon = new DaemonCore(
     {
       ...nodeDaemonIO({ home, audit: () => {}, shell: "sh" }),
-      ...(things.screen ? { screen: fakeScreen() } : {}),
+      ...(things.screen ? { screen } : {}),
       ...(things.browser ? { browser: pretendBrowser } : {}),
     },
     (frame) => {
@@ -300,6 +309,155 @@ describe("the screen of somebody's own computer", () => {
   })
 })
 
+describe("a window on somebody's own computer", () => {
+  let chat: ChatSummary
+  /** One call of the screen tool, and what the model was then shown for it. */
+  const screen = async (computer: string, args: Record<string, unknown>) => {
+    let shown = ""
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("screen", { computer, ...args })], {
+        stopReason: "toolUse",
+      }),
+      (context) => {
+        shown = JSON.stringify(context.messages.at(-1))
+        return fauxAssistantMessage("done")
+      },
+    ])
+    const part = tools(await say(chat.id, "go on")).at(-1)!
+    return { part, shown }
+  }
+
+  it("is found in a list of them, which comes in words and with no picture", async () => {
+    chat = await call<ChatSummary>("/chats", "POST", {})
+    const { part, shown } = await screen("MacBook", { action: "windows" })
+    expect(part.status).toBe("done")
+    // A title that says no more than the app is left out, and one that cannot be seen is said to be.
+    expect(part.output).toBe(
+      [
+        "The windows on MacBook, the nearest the front first (id · app · title · size):",
+        "11 · Notes · Shopping · 400×300",
+        "12 · Calculator · 230×408 · not showing",
+        "Give an id as `window` to look at one and work in it. `open` starts an app that has no window here.",
+      ].join("\n"),
+    )
+    expect(shown).toContain("The windows on MacBook")
+    expect(shown).not.toContain('"type":"image"')
+    expect(useOf(part)).toEqual({
+      what: "screen",
+      computer: { id: "mac", name: "MacBook" },
+      say: "Looking at what is open",
+    })
+  })
+
+  it("is worked in by its id, and the answer and the chat both name it", async () => {
+    const { part, shown } = await screen("MacBook", { action: "click", window: 11, x: 120, y: 80 })
+    expect(part.status).toBe("done")
+    expect(part.output).toContain("Done. Window 11 (Notes: Shopping) now, 400 by 300:")
+    expect(shown.match(/"type":"image"/g)).toHaveLength(1)
+    // The picture is the window's, and the place is a place in it.
+    expect(useOf(part)).toMatchObject({
+      what: "screen",
+      say: "Clicking",
+      title: "Notes: Shopping",
+      width: 400,
+      height: 300,
+      pointer: { x: 120, y: 80 },
+    })
+    expect(typeof useOf(part).shot).toBe("string")
+    // Whoever watches is told which window too.
+    const view = await call<LiveView>("/use/view?computer=mac&what=screen&after=0")
+    expect(view).toMatchObject({
+      active: true,
+      title: "Notes: Shopping",
+      pointer: { x: 120, y: 80 },
+    })
+
+    // Only looking at one is not something done to it.
+    const looked = await screen("MacBook", { action: "screenshot", window: 12 })
+    expect(looked.part.output).toContain("Window 12 (Calculator), 230 by 408:")
+    expect(looked.part.output).not.toContain("Done.")
+    expect(useOf(looked.part)).toMatchObject({ say: "Looking at a window", title: "Calculator" })
+
+    // The whole screen has no window's name.
+    const whole = await screen("MacBook", { action: "screenshot" })
+    expect(whole.part.output).toContain("The screen, 640 by 400:")
+    expect(useOf(whole.part)).not.toHaveProperty("title")
+  })
+
+  it("is told what cannot be done behind what is in front, and how to have it done", async () => {
+    const drag = { action: "drag", window: 11, x: 10, y: 20, to_x: 200, to_y: 150 }
+    const { part } = await screen("MacBook", drag)
+    expect(part.status).toBe("error")
+    expect(part.output).toMatch(/could not be done behind what is in front/)
+    expect(part.output).toMatch(/Do it again with `in_front: true`/)
+    expect(useOf(part).shot).toBeUndefined()
+
+    const forward = await screen("MacBook", { ...drag, in_front: true })
+    expect(forward.part.status).toBe("done")
+    expect(forward.part.output).toContain("Done. Window 11 (Notes: Shopping) now, 400 by 300:")
+    expect(useOf(forward.part)).toMatchObject({ say: "Dragging", pointer: { x: 200, y: 150 } })
+  })
+
+  it("is told of a window that is not there, and of what is only for the whole screen", async () => {
+    const gone = await screen("MacBook", { action: "click", window: 99, x: 1, y: 1 })
+    expect(gone.part.status).toBe("error")
+    expect(gone.part.output).toMatch(/There is no window 99 on this computer now/)
+    const moved = await screen("MacBook", { action: "move", window: 11, x: 1, y: 1 })
+    expect(moved.part.status).toBe("error")
+    expect(moved.part.output).toMatch(/move is for the whole screen/)
+  })
+
+  it("gets one for an app it opens, with a picture of it", async () => {
+    const { part, shown } = await screen("MacBook", { action: "open", app: "Safari" })
+    expect(part.status).toBe("done")
+    expect(part.output).toContain(
+      "Opened Safari, behind what is in front. Its windows:\n22 · Safari · 320×240\nWindow 22 (Safari), 320 by 240:",
+    )
+    expect(shown.match(/"type":"image"/g)).toHaveLength(1)
+    expect(useOf(part)).toMatchObject({ say: "Opening Safari", title: "Safari", width: 320 })
+  })
+
+  it("is not to be had from an app from before there were windows, and the agent is told so", async () => {
+    // Such an app knows nothing of windows: whatever it is asked, it answers with the screen alone.
+    const whole = fakeScreen()
+    const old: ScreenIO = {
+      ...whole,
+      act: async (agent, _action, said) => {
+        const { shot } = await whole.act(agent, { do: "screenshot" }, said)
+        return { shot }
+      },
+    }
+    const home = await startDaemon("old", { screen: true, browser: false }, old)
+    await call("/computers/old", "PUT", {
+      name: "Old Mac",
+      platform: "darwin",
+      hostname: "old",
+      home,
+      readOnly: false,
+      pairedAt: 3,
+    })
+    for (const args of [
+      { action: "windows" },
+      { action: "open", app: "Notes" },
+      { action: "click", window: 11, x: 120, y: 80 },
+    ]) {
+      const { part, shown } = await screen("Old Mac", args)
+      expect(part.status).toBe("error")
+      expect(part.output).toMatch(
+        /^The Do Computer app on Old Mac is from before agents could work in a window, so nothing was done\./,
+      )
+      expect(part.output).toMatch(/leave out `window` and use the whole screen/)
+      expect(shown).toContain("The Do Computer app on Old Mac")
+      expect(shown).not.toContain('"type":"image"')
+      expect(useOf(part).shot).toBeUndefined()
+    }
+    // The whole screen is used there as it always was.
+    const still = await screen("Old Mac", { action: "screenshot" })
+    expect(still.part.status).toBe("done")
+    expect(still.part.output).toContain("The screen, 640 by 400:")
+  })
+})
+
 describe("a browser on somebody's own computer", () => {
   it("runs a script there, and shows the model the pictures it took", async () => {
     const chat = await call<ChatSummary>("/chats", "POST", {})
@@ -397,6 +555,92 @@ describe("what a call of the screen tool asks for", () => {
     })
     expect(screenAction({ action: "key", keys: " cmd+s " })).toEqual({ do: "key", keys: "cmd+s" })
     expect(screenAction({ action: "wait", seconds: 600 })).toEqual({ do: "wait", seconds: 10 })
+  })
+
+  it("is the same in a window, with the window's id and whether to bring it forward", () => {
+    expect(screenAction({ action: "click", window: 11, x: 10.4, y: 20.6 })).toEqual({
+      do: "in_window",
+      window: 11,
+      act: { do: "click", x: 10, y: 21 },
+    })
+    expect(
+      screenAction({ action: "drag", window: 11, in_front: true, x: 1, y: 2, to_x: 30, to_y: 40 }),
+    ).toEqual({
+      do: "in_window",
+      window: 11,
+      inFront: true,
+      act: { do: "drag", x: 1, y: 2, toX: 30, toY: 40 },
+    })
+    // Only asked for: a window is not brought forward by saying that it need not be.
+    expect(
+      screenAction({ action: "key", window: 11, in_front: false, keys: "enter" }),
+    ).not.toHaveProperty("inFront")
+    // Looking and waiting are in the window too, and not on the whole screen.
+    expect(screenAction({ action: "screenshot", window: 12 })).toEqual({
+      do: "in_window",
+      window: 12,
+      act: { do: "screenshot" },
+    })
+    expect(screenAction({ action: "wait", window: 12, seconds: 2 })).toEqual({
+      do: "in_window",
+      window: 12,
+      act: { do: "wait", seconds: 2 },
+    })
+    // Bringing forward means nothing without a window.
+    expect(screenAction({ action: "click", in_front: true, x: 1, y: 2 })).toEqual({
+      do: "click",
+      x: 1,
+      y: 2,
+    })
+  })
+
+  it("keeps the place given with text for a window, and not for the whole screen", () => {
+    expect(screenAction({ action: "type", window: 11, text: "milk", x: 30.2, y: 59.7 })).toEqual({
+      do: "in_window",
+      window: 11,
+      act: { do: "type", text: "milk", x: 30, y: 60 },
+    })
+    expect(screenAction({ action: "type", window: 11, text: "milk" })).toEqual({
+      do: "in_window",
+      window: 11,
+      act: { do: "type", text: "milk" },
+    })
+    // Half a place is no place.
+    expect(screenAction({ action: "type", window: 11, text: "milk", x: 30 })).toEqual({
+      do: "in_window",
+      window: 11,
+      act: { do: "type", text: "milk" },
+    })
+    expect(screenAction({ action: "type", text: "milk", x: 30, y: 60 })).toEqual({
+      do: "type",
+      text: "milk",
+    })
+  })
+
+  it("lists the windows and opens an app whatever else it is given", () => {
+    expect(screenAction({ action: "windows" })).toEqual({ do: "windows" })
+    expect(screenAction({ action: "windows", window: 11 })).toEqual({ do: "windows" })
+    expect(screenAction({ action: "open", app: " Notes " })).toEqual({ do: "open", app: "Notes" })
+    expect(screenAction({ action: "open", app: "Notes", window: 11 })).toEqual({
+      do: "open",
+      app: "Notes",
+    })
+  })
+
+  it("is refused in words where a window is asked for that cannot be, or for what has none", () => {
+    expect(screenAction({ action: "open" })).toMatch(/open needs app/)
+    expect(screenAction({ action: "open", app: "  " })).toMatch(/open needs app/)
+    expect(screenAction({ action: "move", window: 11, x: 1, y: 2 })).toMatch(
+      /move is for the whole screen/,
+    )
+    for (const window of [0, -3, 1.5, Number.NaN]) {
+      expect(screenAction({ action: "click", window, x: 1, y: 2 })).toMatch(
+        /window is the id of a window, a whole number/,
+      )
+    }
+    // What the action needs is still asked for.
+    expect(screenAction({ action: "click", window: 11 })).toMatch(/click needs x and y/)
+    expect(screenAction({ action: "swipe", window: 11 })).toMatch(/There is no action "swipe"/)
   })
 
   it("is refused in words where something it needs is missing", () => {

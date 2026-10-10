@@ -271,6 +271,14 @@ const pageOf = (use: Use, view: LiveView | undefined) =>
     "",
   )
 
+/**
+ * What on a screen the agent is at: the window it is working in, behind whatever is in front,
+ * or the whole screen.
+ */
+const screenOf = (use: Use, view: LiveView | undefined) =>
+  (view?.active ? view.title : use.steps.findLast((step) => step.shot !== undefined)?.title) ??
+  "The screen"
+
 /** The steps so far, and the one under way. */
 function StepList({ use, view, live }: { use: Use; view: LiveView | undefined; live: boolean }) {
   const end = useRef<HTMLLIElement>(null)
@@ -352,7 +360,7 @@ function UseLarge({ use, view, live }: { use: Use; view: LiveView | undefined; l
           <div className="border-b py-3 pr-12 pl-4">
             <DialogTitle className="text-[15px] font-semibold">{use.computer.name}</DialogTitle>
             <DialogDescription className="truncate text-[13px]">
-              {use.what === "screen" ? "The screen" : (page ?? "A browser")}
+              {use.what === "screen" ? screenOf(use, view) : (page ?? "A browser")}
               {use.startedAt !== undefined && live ? <Clock since={use.startedAt} /> : null}
             </DialogDescription>
           </div>
@@ -591,7 +599,7 @@ export function UseNow({ use, chatId }: { use: Use; chatId: string | undefined }
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm">
-              {use.what === "screen" ? "The screen" : "A browser"}
+              {use.what === "screen" ? screenOf(use, view) : "A browser"}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               {view?.held ? "Paused" : sayOf(use, view)}
