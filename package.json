@@ -1,6 +1,7 @@
 {
   "name": "durable-computer",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.15.0",
   "engines": {

@@ -625,4 +625,5 @@ Anything that touches a runtime is implemented for both and held to one conforma
 
 ## License
 
-MIT
+MIT. What in it is someone else's work, and on what terms, is in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -50,7 +50,7 @@ describe("web push", () => {
           "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
         auth: "BTBZMqHH6r4Tts7J_aSIgg",
       },
-      new TextEncoder().encode("When I grow up, I want to be a watermelon"),
+      fromBase64Url("V2hlbiBJIGdyb3cgdXAsIEkgd2FudCB0byBiZSBhIHdhdGVybWVsb24"),
       {
         sender: {
           publicKey:
