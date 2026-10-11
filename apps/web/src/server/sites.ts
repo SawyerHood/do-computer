@@ -11,6 +11,7 @@ import {
   sitesOf,
   stopSite,
 } from "./site-directory.ts"
+import { shownAs } from "./site-pages.tsx"
 import { roleIn } from "./teams.ts"
 
 /** The sites of the workspace an agent is in, for someone who may use the agent. */
@@ -20,7 +21,7 @@ export async function listSites(user: SessionUser, agentId: string): Promise<Res
   return json({ sites: await sitesOf(getPlatform().db, access.workspaceId) })
 }
 
-/** Someone shares a page or a folder of the library as a site. */
+/** Someone shares a file or a folder of the library with a link. */
 export async function createSite(
   user: SessionUser,
   request: Request,
@@ -233,15 +234,37 @@ export async function serveSite(request: Request, siteId: string): Promise<Respo
       })
     }
     const headers: Record<string, string> = { [LIBRARY_SITE_HEADER]: encodeURIComponent(row.path) }
+    // Someone going to a file is shown it, which is made anew each time. A page loading one
+    // is not sent what it already has.
+    const dest = request.headers.get("sec-fetch-dest")
     const cached = request.headers.get("if-none-match")
-    if (cached !== null) headers["if-none-match"] = cached
-    const response = await libraries
-      .get(row.workspace_id)
-      .fetch(
-        new Request(`http://library/site${rest.slice(slash)}`, { headers, signal: request.signal }),
-      )
+    if (cached !== null && dest !== "document" && dest !== "iframe" && dest !== "frame") {
+      headers["if-none-match"] = cached
+    }
+    const within = rest.slice(slash)
+    const response = await libraries.get(row.workspace_id).fetch(
+      new Request(`http://library/site${within}${url.search}`, {
+        headers,
+        signal: request.signal,
+      }),
+    )
     // The library answers in JSON, for the app. This is read by a browser.
-    return response.status === 404 ? missing() : response
+    if (response.status === 404) return missing()
+    // The file's own name: the last part of what was asked for, or of what is shared.
+    let asked = ""
+    try {
+      asked = decodeURIComponent(within.split("/").filter(Boolean).at(-1) ?? "")
+    } catch {
+      return missing()
+    }
+    const name = asked === "" ? row.path.slice(row.path.lastIndexOf("/") + 1) : asked
+    return shownAs(request, response, {
+      title: asked === "" ? row.title : asked,
+      name,
+      own: asked === "" ? "./" : encodeURIComponent(asked),
+      // What is shared, where this is it and not something within it.
+      ...(asked === "" ? { alone: row.path } : {}),
+    })
   }
   if (row.public !== 1) {
     const user = await getUser(request)

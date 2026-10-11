@@ -96,9 +96,9 @@ test("a visual is a file of the library, opened beside the chat and shared from 
   await visual.hover()
   await visual.getByRole("button", { name: "Share" }).click()
   const popover = page.getByRole("dialog")
-  await expect(popover.getByText("Share as a website")).toBeVisible()
+  await expect(popover.getByText("Share with a link")).toBeVisible()
   await popover.getByRole("button", { name: "Share", exact: true }).click()
-  await expect(popover.getByText("Shared as a website")).toBeVisible()
+  await expect(popover.getByText("Shared with a link")).toBeVisible()
   await expect(popover.getByRole("radio", { name: "Only you" })).toBeChecked()
   await page.screenshot({ path: "test-results/visual-share.png" })
   const address = await popover.getByRole("link").getAttribute("href")
@@ -120,9 +120,9 @@ test("a visual is a file of the library, opened beside the chat and shared from 
   await page.keyboard.press("Escape")
 
   // The document beside the chat says it is shared, and so does the library.
-  await expect(beside.getByRole("button", { name: "Shared as a website" })).toBeVisible()
+  await expect(beside.getByRole("button", { name: "Shared with a link" })).toBeVisible()
   await tab(page, "Library").click()
-  const sites = page.getByRole("region", { name: "Shared as websites" })
+  const sites = page.getByRole("region", { name: "Shared with a link" })
   await expect(sites.getByRole("link", { name: "Churn by plan" })).toBeVisible()
   await expect(sites.getByText("Public")).toBeVisible()
   await page.screenshot({ path: "test-results/library-shared.png" })
@@ -148,7 +148,7 @@ test("a site the agent shares is a card in the chat, which says who can open it 
       command:
         "mkdir -p library/sites/plan && printf '%s' '<h1>Launch plan</h1>' > library/sites/plan/index.html && echo made",
     },
-    "made",
+    /^made$/,
   )
   await tool(
     page,

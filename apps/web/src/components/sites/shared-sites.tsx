@@ -1,5 +1,5 @@
-import type { SiteSummary } from "@durable-computer/protocol"
-import { DotsThreeIcon, GlobeIcon } from "@phosphor-icons/react"
+import type { LibraryFile, SiteSummary } from "@durable-computer/protocol"
+import { DotsThreeIcon, GlobeIcon, LinkSimpleIcon } from "@phosphor-icons/react"
 import { useAgentsById } from "@/components/computer-requests"
 import { Button } from "@/components/ui/button"
 import { formatWhen } from "@/lib/library"
@@ -8,10 +8,16 @@ import { usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
 import { CopyLink, SharePopover, SitePill } from "./share.tsx"
 
 /**
- * What of the library is shared as a website: each with what it shares, who shared it and who
+ * What of the library is shared with a link: each with what it shares, who shared it and who
  * can open it, and the way to change that or stop. Nothing at all where nothing is shared.
  */
-export function SharedSites({ agentId, paths }: { agentId: string; paths: ReadonlySet<string> }) {
+export function SharedSites({
+  agentId,
+  files,
+}: {
+  agentId: string
+  files: readonly LibraryFile[]
+}) {
   const sites = useSites(agentId)
   const agents = useAgentsById()
   const people = usePeople(useWorkspaceOfAgent(agentId))
@@ -22,13 +28,13 @@ export function SharedSites({ agentId, paths }: { agentId: string; paths: Readon
       : site.userId !== null
         ? (people.get(site.userId)?.name ?? "Someone")
         : "Someone"
-  // A site whose page or front page has gone from the library has nothing to show.
+  // A site whose file has gone from the library, or whose folder has nothing in it, shows nothing.
   const empty = (site: SiteSummary) =>
-    !paths.has(site.path) && !paths.has(`${site.path}/index.html`)
+    !files.some((file) => file.path === site.path || file.path.startsWith(`${site.path}/`))
   return (
-    <section aria-label="Shared as websites" className="flex flex-col gap-3">
+    <section aria-label="Shared with a link" className="flex flex-col gap-3">
       <h2 className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-        <GlobeIcon className="size-3.5" /> Shared as websites
+        <LinkSimpleIcon className="size-3.5" /> Shared with a link
       </h2>
       <ul className="divide-y overflow-hidden rounded-2xl border bg-surface">
         {sites.map((site) => {

@@ -1,7 +1,7 @@
 import type { SiteSummary } from "@durable-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, owner, signIn, tool } from "./helpers.ts"
+import { asOwner, newChat, owner, signIn, tab, tool } from "./helpers.ts"
 
 asOwner()
 
@@ -32,7 +32,7 @@ test("a site the agent shares opens for its workspace, apart from the app", asyn
         "echo made",
       ].join(" && "),
     },
-    "made",
+    /^made$/,
   )
   await tool(
     page,
@@ -152,9 +152,9 @@ test("a site is opened by anyone once it is public, and by nobody once it is not
   ).toBeVisible()
   const page2 = (await page.locator("iframe").getAttribute("src"))!
   expect((await page.request.get(`${page2}sites/plan/index.html`)).status()).toBe(404)
-  // What is not a page cannot be shared.
+  // What is not in the library cannot be shared.
   const not = await page.request.post(`/api/agents/${agent}/sites`, {
-    data: { path: "sites/plan/style.css" },
+    data: { path: "sites/plan/nothing.css" },
   })
   expect(not.status()).toBe(400)
 
@@ -174,4 +174,143 @@ test("a site is opened by anyone once it is public, and by nobody once it is not
     ).status(),
   ).toBe(401)
   await visitor.close()
+})
+
+test("anything in the library is shared, and shown as what it is", async ({ page }) => {
+  await signIn(page)
+  const agent = agentOf(page)
+  await newChat(page)
+  await tool(
+    page,
+    "bash",
+    {
+      command: [
+        "mkdir -p library/notes library/exports",
+        `printf '%s\\n' '# The plan' '' 'Ship on **Friday**.' '' '![chart](chart.svg)' '' '[the numbers](data.csv)' > library/notes/plan.md`,
+        `printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="teal"/></svg>' > library/notes/chart.svg`,
+        `printf '%s' 'week,signups' > library/notes/data.csv`,
+        `printf '%s' '<p id="out">static</p><script>fetch("data.csv").then(r=>r.text()).then(t=>{document.getElementById("out").textContent="read:"+t})</script>' > library/notes/reader.html`,
+        "printf 'PK\\003\\004' > library/exports/report.zip",
+        "echo made",
+      ].join(" && "),
+    },
+    /^made$/,
+  )
+  const share = async (path: string) => {
+    const response = await page.request.post(`/api/agents/${agent}/sites`, { data: { path } })
+    expect(response.status(), path).toBe(201)
+    return ((await response.json()) as { site: SiteSummary }).site
+  }
+
+  // A folder with no front page is a list of what is in it.
+  const folder = await share("notes")
+  expect(folder).toMatchObject({ path: "notes", title: "Notes" })
+  await page.goto(`/s/${folder.id}`)
+  const frame = page.frameLocator("iframe")
+  await expect(frame.getByRole("heading", { name: "Notes" })).toBeVisible()
+  await expect(frame.getByRole("link")).toHaveText([
+    /chart\.svg/,
+    /data\.csv/,
+    /plan\.md/,
+    /reader\.html/,
+  ])
+  await page.screenshot({ path: "test-results/site-folder.png" })
+  // A document in it is read as a document, with the picture beside it.
+  await frame.getByRole("link", { name: /plan\.md/ }).click()
+  await expect(frame.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+  await expect(frame.locator("strong")).toHaveText("Friday")
+  await expect
+    .poll(() =>
+      frame
+        .getByRole("img", { name: "chart" })
+        .evaluate((img: HTMLImageElement) => img.naturalWidth),
+    )
+    .toBe(40)
+  await page.screenshot({ path: "test-results/site-document.png" })
+  // Text is shown as text, and a picture as the picture.
+  await frame.getByRole("link", { name: "the numbers" }).click()
+  await expect(frame.locator("pre")).toHaveText("week,signups")
+  await page.goto(`/s/${folder.id}/chart.svg`)
+  await expect
+    .poll(() => frame.getByRole("img").evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(40)
+  // A page in it that loads a file beside it is given the file, not a page about the file.
+  await page.goto(`/s/${folder.id}/reader.html`)
+  await expect(frame.locator("#out")).toHaveText("read:week,signups")
+
+  // A document shared by itself is the document.
+  const document = await share("notes/plan.md")
+  expect(document).toMatchObject({ path: "notes/plan.md", title: "Plan" })
+  await page.goto(`/s/${document.id}`)
+  await expect(page).toHaveTitle("Plan")
+  await expect(frame.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+  // It brings the picture it refers to, and nothing else that is beside it.
+  await expect
+    .poll(() =>
+      frame
+        .getByRole("img", { name: "chart" })
+        .evaluate((img: HTMLImageElement) => img.naturalWidth),
+    )
+    .toBe(40)
+  await page.screenshot({ path: "test-results/site-document-alone.png" })
+  const keyed = (await page.locator("iframe").getAttribute("src"))!
+  expect((await page.request.get(`${keyed}data.csv`)).status()).toBe(404)
+  expect((await page.request.get(`${keyed}?picture=notes%2Fchart.svg`)).status()).toBe(200)
+  expect((await page.request.get(`${keyed}?picture=notes%2Fdata.csv`)).status()).toBe(404)
+  expect((await page.request.get(`${keyed}?picture=secret.html`)).status()).toBe(404)
+
+  // What cannot be shown is offered as a download, under its own name.
+  const file = await share("exports/report.zip")
+  expect(file.title).toBe("report.zip")
+  await page.goto(`/s/${file.id}`)
+  await expect(frame.getByRole("heading", { name: "report.zip" })).toBeVisible()
+  await page.screenshot({ path: "test-results/site-download.png" })
+  const download = page.waitForEvent("download")
+  await frame.getByRole("link", { name: "Download" }).click()
+  expect((await download).suggestedFilename()).toBe("report.zip")
+})
+
+test("a file is shared from its card, from the library, and a folder from its row", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  // The card of a file the agent sent has the way to share it.
+  await tool(page, "send_file", { path: "library/exports/report.zip" }, /report\.zip/)
+  // It is shared already, by the test before this one, and the card says so.
+  await page.getByRole("button", { name: "report.zip is shared with a link" }).last().click()
+  const popover = page.getByRole("dialog")
+  await expect(popover.getByText("Shared with a link")).toBeVisible()
+  await expect(popover.getByRole("radio", { name: "Only you" })).toBeChecked()
+  await page.screenshot({ path: "test-results/file-card-share.png" })
+  await page.keyboard.press("Escape")
+
+  // In the library, a document has a Share button like a page's, and a shared file a mark.
+  await tab(page, "Library").click()
+  const files = page.getByRole("navigation", { name: "Files" })
+  await expect(files.getByRole("link", { name: "plan.md Shared with a link" })).toBeVisible()
+  await files.getByRole("link", { name: /data\.csv/ }).click()
+  await page.getByRole("button", { name: "Share", exact: true }).click()
+  await popover.getByRole("button", { name: "Share", exact: true }).click()
+  await expect(popover.getByText("Shared with a link")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("button", { name: "Shared with a link", exact: true })).toBeVisible()
+
+  // A folder is shared from its row among the files.
+  await files.getByRole("button", { name: "Share the folder exports" }).click()
+  await popover.getByRole("button", { name: "Share", exact: true }).click()
+  await expect(popover.getByText("Shared with a link")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(
+    files.getByRole("button", { name: "The folder exports is shared with a link" }),
+  ).toBeVisible()
+  await page.screenshot({ path: "test-results/library-tree-shared.png" })
+  // Back to the library's front page, by the way a file says where it is.
+  await page
+    .getByRole("navigation", { name: "Where this file is" })
+    .getByRole("link", { name: "Library" })
+    .click()
+  const shared = page.getByRole("region", { name: "Shared with a link" })
+  await expect(shared.getByRole("link", { name: "Exports", exact: true })).toBeVisible()
+  await expect(shared.getByRole("link", { name: "data.csv", exact: true })).toBeVisible()
 })

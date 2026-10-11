@@ -51,7 +51,7 @@ test("a document the agent writes opens from the chat, to be read and edited", a
   await beside.getByRole("link", { name: "Open in the Library" }).click()
   await expect(page).toHaveURL(/\/library\?path=notes%2Fmore\.md/)
   const files = page.getByRole("navigation", { name: "Files" })
-  await expect(files.getByRole("button", { name: "notes" })).toBeVisible()
+  await expect(files.getByRole("button", { name: "notes", exact: true })).toBeVisible()
   await files.getByRole("link", { name: "plan.md" }).click()
   await expect(files.getByRole("link", { name: "plan.md" })).toHaveAttribute("aria-current", "page")
   await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
@@ -147,6 +147,8 @@ test("a page the agent writes is shown as a page, apart from the app", async ({ 
   const anonymous = await page.request.fetch(address!, { headers: { cookie: "" } })
   expect(anonymous.status()).toBe(200)
   expect(anonymous.headers()["content-security-policy"]).toContain("sandbox")
+  // Its key opens the whole library, so a page is shown the files beside it and may not read them.
+  expect(anonymous.headers()["access-control-allow-origin"]).toBeUndefined()
   const forged = await page.request.fetch(address!.replace(/\/d\/([^/]+)\/[^/]+\//, "/d/$1/0-00/"))
   expect(forged.status()).toBe(404)
 })
@@ -157,13 +159,13 @@ test("the user can add, rename and delete files, and bring one back", async ({ p
   const files = page.getByRole("navigation", { name: "Files" })
 
   // An upload goes into the folder last clicked.
-  await files.getByRole("button", { name: "notes" }).click()
+  await files.getByRole("button", { name: "notes", exact: true }).click()
   await page.getByLabel("Choose a file to upload").setInputFiles({
     name: "notes from me.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("remember the milk"),
   })
-  await files.getByRole("button", { name: "notes" }).click()
+  await files.getByRole("button", { name: "notes", exact: true }).click()
   await files.getByRole("link", { name: "notes from me.txt" }).click()
   await expect(page).toHaveURL(
     /path=notes%2Fnotes\+from\+me\.txt|path=notes%2Fnotes%20from%20me\.txt/,
@@ -180,7 +182,7 @@ test("the user can add, rename and delete files, and bring one back", async ({ p
     "aria-current",
     "page",
   )
-  await expect(files.getByRole("button", { name: "lists" })).toBeVisible()
+  await expect(files.getByRole("button", { name: "lists", exact: true })).toBeVisible()
 
   await page.getByRole("button", { name: "More" }).click()
   await page.getByRole("menuitem", { name: "Delete" }).click()
@@ -228,7 +230,7 @@ test("a file attached to a message is one the agent can open", async ({ page }) 
   // It is also in the library, with the other things the user attached in chats.
   await tab(page, "Library").click()
   const files = page.getByRole("navigation", { name: "Files" })
-  await expect(files.getByRole("button", { name: "uploads" })).toBeVisible()
+  await expect(files.getByRole("button", { name: "uploads", exact: true })).toBeVisible()
   await expect(files.getByTitle("uploads/shopping.txt")).toBeVisible()
   // And in the agent's own folder, without it having to fetch the file first.
   await tab(page, "Chat").click()

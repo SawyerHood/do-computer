@@ -1,5 +1,5 @@
 import type { SiteSummary } from "@durable-computer/protocol"
-import { CheckIcon, CopyIcon, GlobeIcon, LockIcon } from "@phosphor-icons/react"
+import { CheckIcon, CopyIcon, GlobeIcon, LinkSimpleIcon, LockIcon } from "@phosphor-icons/react"
 import { type ReactElement, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
@@ -89,7 +89,7 @@ function Choice({
 }
 
 /**
- * Whether a page of the library is shared as a website, and who can open it. For one that is
+ * Whether something in the library is shared with a link, and who can open it. For one that is
  * not shared yet, the way to share it; for one that is, its address, the choice of who can open
  * it, and the way to stop.
  */
@@ -111,10 +111,10 @@ export function ShareControls({
     return (
       <>
         <PopoverTitle className="flex items-center gap-2 text-sm font-semibold">
-          <GlobeIcon className="size-4" /> Share as a website
+          <LinkSimpleIcon className="size-4" /> Share with a link
         </PopoverTitle>
         <p className="text-sm text-muted-foreground">
-          This gives the page a link of its own, which shows it as it is in the library.{" "}
+          This gives it a link of its own, which shows it as it is in the library.{" "}
           {audience.long === "Only you"
             ? "Only you can open it until you make it public."
             : `${audience.long} can open it, and nobody else until you make it public.`}
@@ -137,7 +137,7 @@ export function ShareControls({
   return (
     <>
       <PopoverTitle className="flex items-center gap-2 text-sm font-semibold">
-        <GlobeIcon className="size-4" /> Shared as a website
+        <LinkSimpleIcon className="size-4" /> Shared with a link
       </PopoverTitle>
       <div className="flex items-center gap-1 rounded-lg border bg-surface py-1 pr-1 pl-3">
         <a

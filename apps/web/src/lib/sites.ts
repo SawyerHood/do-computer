@@ -6,7 +6,7 @@ import { useWorkspaceOfAgent } from "@/lib/workspaces"
 
 export const sitesKey = (agentId: string) => ["agents", agentId, "sites"] as const
 
-/** What of the library of an agent's workspace is shared as a website. */
+/** What of the library of an agent's workspace is shared with a link. */
 export const sitesQuery = (agentId: string) =>
   queryOptions({
     queryKey: sitesKey(agentId),
@@ -16,17 +16,21 @@ export const sitesQuery = (agentId: string) =>
 export const useSites = (agentId: string) => useQuery(sitesQuery(agentId)).data
 
 /**
- * What sharing a page shares: the page, or the folder it is the front page of, since what such
- * a page links to is in there with it.
+ * What sharing a file shares: the file, or for a folder's front page the folder, since what
+ * such a page links to is in there with it.
  */
 export function sharedPathOf(path: string): string {
   const slash = path.lastIndexOf("/")
   return slash !== -1 && /^index\.html?$/i.test(path.slice(slash + 1)) ? path.slice(0, slash) : path
 }
 
-/** The site a page is shared as, if it is: by itself, or as the front page of a folder. */
-export const siteOfPage = (sites: readonly SiteSummary[] | undefined, path: string) =>
+/** The site a file is shared as, if it is: by itself, or as the front page of a folder. */
+export const siteOfFile = (sites: readonly SiteSummary[] | undefined, path: string) =>
   sites?.find((site) => site.path === sharedPathOf(path))
+
+/** The site a folder is shared as, if it is. */
+export const siteOfFolder = (sites: readonly SiteSummary[] | undefined, path: string) =>
+  sites?.find((site) => site.path === path)
 
 /**
  * A site's whole address, for opening and for sending to someone. The app asks its own server

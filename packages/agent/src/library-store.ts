@@ -1,8 +1,12 @@
-import type {
-  DeletedLibraryFile,
-  LibraryFile,
-  LibraryListing,
-  LibraryVersion,
+import {
+  type DeletedLibraryFile,
+  type LibraryFile,
+  type LibraryListing,
+  type LibraryVersion,
+  markdownFiles,
+  SITE_LISTING_HEADER,
+  type SiteEntry,
+  type SiteListing,
 } from "@durable-computer/protocol"
 import type { BlobStore } from "@durable-computer/runtime"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
@@ -20,6 +24,8 @@ const MAX_DELETED = 100
 export const LIBRARY_FOLDER = "library"
 /** Where files the user attaches in a chat are put. */
 export const UPLOADS_FOLDER = "uploads"
+/** The largest document that is read to see which pictures it refers to. */
+const MAX_REFERRING_BYTES = 1024 * 1024
 /** How long an address for viewing files stays the same. It works for up to twice as long. */
 const VIEW_WINDOW_MS = 6 * 60 * 60 * 1000
 
@@ -887,33 +893,93 @@ export class LibraryStore implements LibraryBackend {
     return this.#page(path, request, {
       sandbox: "sandbox allow-scripts allow-popups allow-forms allow-modals",
       opens: true,
+      // The address of a viewed file opens the whole library, so a page is not let read with it.
+      readable: false,
     })
   }
 
   /**
-   * Serve what a site shares: the page at `root`, or what is at `rest` in the folder `root`.
+   * Serve what a site shares: the file at `root`, or what is at `rest` in the folder `root`.
    * Nothing outside `root` is served, whatever is asked for. Whether the asker may open the site
-   * is for whoever calls this to have decided. Sandboxed as a viewed file is, and since a site
-   * is somewhere people are sent, a link it opens in a new tab is an ordinary page there.
+   * is for whoever calls this to have decided. The one exception is a Markdown document shared
+   * by itself: asked for a `picture` by its place in the library, it serves that picture if the
+   * document refers to it. A folder with no front page of its own is answered with a list of
+   * what is in it, marked as one, for the caller to show. Sandboxed
+   * as a viewed file is, and since a site is somewhere people are sent, a link it opens in a
+   * new tab is an ordinary page there.
    */
   async site(root: string, rest: string, request: Request): Promise<Response | undefined> {
-    const alone = (await this.list()).some((file) => file.path === root)
-    if (alone && rest !== "") return undefined
-    return this.#page(alone || rest === "" ? root : `${root}/${rest}`, request, {
-      sandbox:
-        "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads",
-      opens: false,
+    const sandbox =
+      "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads"
+    const files = await this.list()
+    const alone = files.find((file) => file.path === root)
+    if (alone !== undefined && rest !== "") return undefined
+    // A document shared by itself brings the pictures it refers to, and nothing else.
+    const picture = new URL(request.url).searchParams.get("picture")
+    if (alone !== undefined && picture !== null) {
+      const wanted = files.find((file) => file.path === picture)
+      if (wanted === undefined || !contentTypeFor(wanted.name).startsWith("image/"))
+        return undefined
+      if (contentTypeFor(alone.name) !== "text/markdown" || alone.size > MAX_REFERRING_BYTES) {
+        return undefined
+      }
+      const bytes = await this.bytes(alone)
+      if (bytes === undefined) return undefined
+      if (!markdownFiles(root, new TextDecoder().decode(bytes)).has(picture)) return undefined
+      return this.#page(picture, request, { sandbox, opens: false, readable: true })
+    }
+    const path = alone !== undefined || rest === "" ? root : `${root}/${rest}`
+    // A site's pages may read its files: they are all shared with whoever has the page.
+    const page = await this.#page(path, request, { sandbox, opens: false, readable: true })
+    if (page !== undefined || alone !== undefined) return page
+    const inside = files.filter((file) => file.path.startsWith(`${path}/`))
+    if (inside.length === 0) return undefined
+    // Its links are relative to the folder, so the folder's address has to end in a slash.
+    if (!new URL(request.url).pathname.endsWith("/")) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: `${encodeURIComponent(path.slice(path.lastIndexOf("/") + 1))}/` },
+      })
+    }
+    const entries = new Map<string, SiteEntry>()
+    for (const file of inside) {
+      const [name, ...deeper] = file.path.slice(path.length + 1).split("/")
+      if (deeper.length > 0) entries.set(`0${name}`, { name: name!, kind: "folder" })
+      else {
+        entries.set(`1${name}`, {
+          name: name!,
+          kind: "file",
+          size: file.size,
+          updatedAt: file.updatedAt,
+        })
+      }
+    }
+    const listing: SiteListing = {
+      folder: path === root ? "" : path.slice(root.length + 1),
+      // Folders first, then files, each in name order.
+      entries: [...entries.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, entry]) => entry),
+    }
+    return Response.json(listing, {
+      headers: {
+        [SITE_LISTING_HEADER]: "1",
+        "content-security-policy": sandbox,
+        "referrer-policy": "no-referrer",
+        "cache-control": "private, no-cache",
+      },
     })
   }
 
   /**
    * The file at `path` as what it is, or the front page of the folder there. `opens` is whether
-   * whoever shows the page can open a document that is not one in a viewer of its own.
+   * whoever shows the page can open a document that is not one in a viewer of its own, and
+   * `readable` whether a page may read the file, and not only show it.
    */
   async #page(
     path: string,
     request: Request,
-    options: { sandbox: string; opens: boolean },
+    options: { sandbox: string; opens: boolean; readable: boolean },
   ): Promise<Response | undefined> {
     const files = await this.list()
     const file =
@@ -943,6 +1009,10 @@ export class LibraryStore implements LibraryBackend {
       "cache-control": "private, no-cache",
       etag: `"${file.id}.${file.rev}"`,
     }
+    // A page has an origin that is nobody's, so to it the files beside it are another site's:
+    // it can show a picture of one, but not read its data, load a module or use a font,
+    // unless the file says anyone may read it.
+    if (options.readable) headers["access-control-allow-origin"] = "*"
     if (request.headers.get("if-none-match") === headers.etag) {
       return new Response(null, { status: 304, headers })
     }

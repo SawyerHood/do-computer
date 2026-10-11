@@ -18,7 +18,7 @@ import { SharePopover } from "@/components/sites/share"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { libraryQuery } from "@/lib/collections"
-import { siteOfPage, useSites } from "@/lib/sites"
+import { siteOfFile, useSites } from "@/lib/sites"
 import { useAppColors } from "@/lib/visual-theme"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
 
@@ -131,7 +131,7 @@ function FrameOf({ agentId, part }: { agentId: string; part: ToolPart }) {
                 <ArrowsOutSimpleIcon />
               </Button>
             )}
-            <SharePopover agentId={agentId} site={siteOfPage(sites, file.path)} path={file.path}>
+            <SharePopover agentId={agentId} site={siteOfFile(sites, file.path)} path={file.path}>
               <Button
                 variant="outline"
                 size="icon-sm"
