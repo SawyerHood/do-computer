@@ -23,6 +23,11 @@ import { isInherited } from "./own.ts"
 
 /** The header in which the gateway names the agent a request about a library came through. */
 export const LIBRARY_AGENT_HEADER = "x-dc-agent"
+/**
+ * The header in which the gateway names what a site shares: the page or the folder of the
+ * library that is its root. What is asked for is the rest of the address.
+ */
+export const LIBRARY_SITE_HEADER = "x-dc-site"
 /** The header that carries what a file is, where the body is its content. */
 export const LIBRARY_FILE_HEADER = "x-dc-file"
 
@@ -330,6 +335,13 @@ export function createLibraryActor(host: ActorHost): Actor {
           // The page's own path is taken apart again there, as it was sent.
           const raw = url.pathname.split("/").filter(Boolean).slice(1)
           return await routeLibraryView(store, request, raw)
+        }
+        if (segments[0] === "site" && request.method === "GET") {
+          // Only the gateway asks this, once it has decided the asker may open the site.
+          const root = decodeURIComponent(request.headers.get(LIBRARY_SITE_HEADER) ?? "")
+          if (root === "") return json({ error: "Not found" }, 404)
+          const response = await store.site(root, segments.slice(1).join("/"), request)
+          return response ?? json({ error: "Not found" }, 404)
         }
         if (segments[0] === "events" && request.method === "GET") return events()
         if (segments[0] === "rpc") return await rpc(request, segments.slice(1))

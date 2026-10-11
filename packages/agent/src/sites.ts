@@ -1,0 +1,186 @@
+import {
+  MAX_SITE_TITLE,
+  SHARE_TOOL,
+  sitePath,
+  siteRoot,
+  type SiteSummary,
+  siteTitleFor,
+} from "@durable-computer/protocol"
+import { Type } from "@earendil-works/pi-ai"
+import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
+import { LIBRARY_FOLDER, type LibraryBackend } from "./library-store.ts"
+
+/** Something about a site that the agent is told in words: there are too many, or it is gone. */
+export class SiteError extends Error {}
+
+/**
+ * The sites of an agent's workspace, and how one is shared. The host keeps them, since it is
+ * the host that serves them and decides who may open one. Which workspace an agent is in is
+ * looked up each time: an agent can be moved.
+ */
+export type SiteDirectory = {
+  /** The sites of the workspace of `agentId`, newest first. */
+  list(agentId: string): Promise<SiteSummary[]>
+  /**
+   * Share what is at `path` in the workspace's library, or say what it is already shared as.
+   * A site starts open to the workspace only.
+   */
+  publish(agentId: string, input: { path: string; title: string }): Promise<SiteSummary>
+  /** Let anyone with the address open a site, or only the workspace again. */
+  setPublic(agentId: string, siteId: string, open: boolean): Promise<SiteSummary | undefined>
+  /** Stop sharing a site. Its address then leads nowhere. */
+  remove(agentId: string, siteId: string): Promise<boolean>
+}
+
+export type SitesOptions = {
+  readonly agentId: string
+  readonly directory: SiteDirectory
+  /** Where the library is kept right now. */
+  readonly backend: () => Promise<LibraryBackend>
+  /** The address people reach the app at, which a site's address begins with. */
+  readonly appUrl: () => string | undefined
+}
+
+/**
+ * Lets the agent share a page of the library, or a folder of them, as a website with a link of
+ * its own. The people in the agent's workspace can open it; making it open to anyone is a
+ * separate step, which a person is asked about.
+ */
+export function sites(options: SitesOptions): Extension {
+  const { agentId, directory } = options
+  const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+  const address = (site: SiteSummary) => {
+    const app = options.appUrl()
+    return app === undefined ? sitePath(site.id) : `${app}${sitePath(site.id)}`
+  }
+  const who = (site: SiteSummary) =>
+    site.public
+      ? "anyone who has the link, without signing in"
+      : "people in this workspace, signed in"
+  /** The site meant by what the agent wrote: an id, an address, a title or a place in the library. */
+  const find = async (wanted: string | undefined): Promise<SiteSummary | string> => {
+    const text = wanted?.trim() ?? ""
+    if (text === "") return "Say which site: its link, its title or its path, as `list` shows them."
+    const all = await directory.list(agentId)
+    const id = /\/s\/([^/?#\s]+)/.exec(text)?.[1] ?? text
+    const path = text.replace(/^~?\/?library\//, "").replace(/\/+$/, "")
+    const site =
+      all.find((entry) => entry.id === id) ??
+      all.find(
+        (entry) => entry.path === path || entry.path === path.replace(/\/index\.html?$/i, ""),
+      ) ??
+      all.find((entry) => entry.title.toLowerCase() === text.toLowerCase())
+    return site ?? `There is no shared site "${text}". Use the list action to see them.`
+  }
+  const tool = defineTool({
+    name: SHARE_TOOL,
+    description:
+      "Share a page of the library, or a folder of them, as a website with a link of its own, which the person can send to others. " +
+      `action "publish" needs \`path\`: an HTML page in the library, or a folder that has an index.html, which is then the site's front page; a page that uses files beside it belongs in a folder of its own with them. It takes a \`title\`. ` +
+      "The site shows what is in the library there as it is now, so changing the files changes the site, and publishing the same place again gives the same link. " +
+      'A new site can be opened only by people in this workspace who are signed in. "public" lets anyone who has the link open it, and needs the person\'s approval: do it only when they ask for the page to be public. "private" makes it the workspace\'s only again. ' +
+      '"stop" stops sharing it, and "list" shows what is shared. "public", "private" and "stop" need `site`: its link, title or path.',
+    parameters: Type.Object({
+      action: Type.Union([
+        Type.Literal("publish"),
+        Type.Literal("public"),
+        Type.Literal("private"),
+        Type.Literal("stop"),
+        Type.Literal("list"),
+      ]),
+      path: Type.Optional(
+        Type.String({
+          description: `For publish: the page or folder, as it is in the library (under ~/${LIBRARY_FOLDER} on a machine)`,
+        }),
+      ),
+      title: Type.Optional(Type.String({ description: "For publish: what the site is called" })),
+      site: Type.Optional(
+        Type.String({ description: "For public, private and stop: its link, title or path" }),
+      ),
+    }),
+    execute: async (args) => {
+      try {
+        if (args.action === "list") {
+          const all = await directory.list(agentId)
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  all.length === 0
+                    ? "Nothing is shared as a site."
+                    : all
+                        .map(
+                          (site) =>
+                            `${site.title}: ${address(site)} (${site.path}, open to ${who(site)})`,
+                        )
+                        .join("\n"),
+              },
+            ],
+          }
+        }
+        if (args.action === "publish") {
+          const files = await (await options.backend()).list()
+          const root = siteRoot(
+            files.map((file) => file.path),
+            args.path ?? "",
+          )
+          if ("error" in root) return fail(root.error)
+          const title = (args.title ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_SITE_TITLE)
+          const site = await directory.publish(agentId, {
+            path: root.path,
+            title: title === "" ? siteTitleFor(root.path) : title,
+          })
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Shared ${site.path} as “${site.title}” at ${address(site)}. It can be opened by ${who(site)}. The person sees the link in the chat, with who can open it, and can change that there.`,
+              },
+            ],
+            details: { site },
+          }
+        }
+        const found = await find(args.site)
+        if (typeof found === "string") return fail(found)
+        if (args.action === "stop") {
+          await directory.remove(agentId, found.id)
+          return {
+            content: [
+              {
+                type: "text",
+                text: `“${found.title}” is no longer shared: ${address(found)} leads nowhere now. Its files are still in the library.`,
+              },
+            ],
+          }
+        }
+        const site = await directory.setPublic(agentId, found.id, args.action === "public")
+        if (site === undefined) return fail(`“${found.title}” is no longer shared.`)
+        return {
+          content: [
+            {
+              type: "text",
+              text: `“${site.title}” at ${address(site)} can now be opened by ${who(site)}.`,
+            },
+          ],
+          details: { site },
+        }
+      } catch (error) {
+        if (error instanceof SiteError) return fail(error.message)
+        throw error
+      }
+    },
+  })
+  return defineExtension({
+    name: "dc.sites",
+    tools: [tool],
+    sections: [
+      section("sites", () =>
+        [
+          `A page you wrote in the library, or a folder of pages with an index.html, can be shared as a website with the \`${SHARE_TOOL}\` tool: it gets a link of its own, which the person can send to anyone in the workspace. Use it when they ask for something to be shared, published or put on a page others can open; for something only they need to see, a visual or a file is enough.`,
+          "A site is open to the workspace's people only. Making it public is for when they ask for that, and they are asked to approve it.",
+        ].join(" "),
+      ),
+    ],
+  })
+}

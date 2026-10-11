@@ -207,6 +207,26 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       show_browser INTEGER NOT NULL DEFAULT 1
     )`,
   ],
+  [
+    // A page of a workspace's library, or a folder of them, shared as a website. Its id is what
+    // its address ends in. `public` says whether anyone with the address may open it, where
+    // otherwise only the workspace's people may. `secret` signs the addresses its files are
+    // served at. It was shared by an agent or by a person, and one place is shared once.
+    `CREATE TABLE dc_sites (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      title TEXT NOT NULL,
+      public INTEGER NOT NULL DEFAULT 0,
+      secret TEXT NOT NULL,
+      agent_id TEXT,
+      user_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (workspace_id, path)
+    )`,
+    "CREATE INDEX dc_sites_by_workspace ON dc_sites (workspace_id, created_at)",
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

@@ -100,6 +100,8 @@ import { harnessDocs, Library, LibraryDoc, LibraryError, LibraryStore } from "./
 import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
+import { type SiteDirectory, sites } from "./sites.ts"
+import { visuals } from "./visuals.ts"
 import { offeredModels } from "./model-providers.ts"
 import { type DeploymentModels, ECHO_MODEL, parseModel } from "./models.ts"
 import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers } from "./peers.ts"
@@ -196,6 +198,11 @@ export type AgentActorOptions = {
    * its own.
    */
   readonly library?: (agentId: string) => Promise<ActorStub | undefined>
+  /**
+   * The sites of the agent's workspace: pages of its library shared as websites. With it the
+   * agent can share one. Without it, nothing is shared.
+   */
+  readonly sites?: SiteDirectory
   /**
    * Whether the browser the agent uses on a computer opens in a window its owner can watch, as
    * the agent's workspace has it. Asked before each use of the browser, since the choice can be
@@ -914,6 +921,24 @@ export class AgentActor implements Actor {
       registry.install(this.#computers.extension)
       // Its tools take a computer too, as the wraps above say.
       registry.install(this.#library.extension)
+      // A page drawn into the chat, and one given a link, are both kept in the library.
+      const backend = async () => (await this.#sharedLibrary()) ?? this.#ownLibrary
+      registry.install(
+        visuals({
+          backend,
+          ...(this.#options.library === undefined ? {} : { agentId: this.#host.name }),
+        }),
+      )
+      if (this.#options.sites !== undefined) {
+        registry.install(
+          sites({
+            agentId: this.#host.name,
+            directory: this.#options.sites,
+            backend,
+            appUrl: () => this.#appUrl(),
+          }),
+        )
+      }
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
       registry.install(this.#jobs.extension)

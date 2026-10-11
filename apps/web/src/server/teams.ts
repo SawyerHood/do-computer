@@ -409,6 +409,7 @@ export async function deleteWorkspace(
     { sql: "DELETE FROM dc_members WHERE workspace_id = ?", params: [workspaceId] },
     { sql: "DELETE FROM dc_workspaces WHERE id = ?", params: [workspaceId] },
     { sql: "DELETE FROM dc_workspace_settings WHERE workspace_id = ?", params: [workspaceId] },
+    { sql: "DELETE FROM dc_sites WHERE workspace_id = ?", params: [workspaceId] },
   ])
 }
 

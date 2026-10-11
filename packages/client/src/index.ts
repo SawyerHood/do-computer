@@ -52,6 +52,8 @@ import {
   type SecretRequest,
   type SendMessageRequest,
   type SendMessageResponse,
+  sitePath,
+  type SiteSummary,
   type SentInvitation,
   type SkillDetail,
   type SkillSummary,
@@ -805,6 +807,27 @@ export function createClient(options: ClientOptions) {
           post<LibraryFile>(`${base}/library/${fileId}/revert`, { rev }),
         restoreLibraryFile: (fileId: string) =>
           request<LibraryFile>(`${base}/library/deleted/${fileId}/restore`, { method: "POST" }),
+        /** What of the library is shared as a website, newest first. */
+        sites: async () => (await request<{ sites: SiteSummary[] }>(`${base}/sites`)).sites,
+        /**
+         * Share a page of the library, or a folder with a front page, as a website. One that is
+         * shared already answers with the site it is.
+         */
+        shareSite: async (path: string, title?: string) =>
+          (await post<{ site: SiteSummary }>(`${base}/sites`, { path, title })).site,
+        /** Change a site's title, or whether anyone with its address can open it. */
+        updateSite: async (siteId: string, change: { public?: boolean; title?: string }) =>
+          (
+            await request<{ site: SiteSummary }>(`${base}/sites/${siteId}`, {
+              method: "PATCH",
+              body: JSON.stringify(change),
+            })
+          ).site,
+        /** Stop sharing a site. Its files stay in the library. */
+        removeSite: (siteId: string) =>
+          request<{ ok: true }>(`${base}/sites/${siteId}`, { method: "DELETE" }),
+        /** A site's address, for sending to someone. */
+        siteUrl: (siteId: string) => `${options.baseUrl}${sitePath(siteId)}`,
         /** Calls `onState` with each new state of the chat, starting from its current one. */
         watchChat(
           chatId: string,

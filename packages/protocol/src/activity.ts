@@ -1,6 +1,8 @@
 import type { LibraryFile } from "./agent.ts"
 import type { ChatMessage, ChatState, MessagePart, ToolPart } from "./chat.ts"
 import type { ShotPoint, UseDetails, UseWhat } from "./screen.ts"
+import { SHARE_TOOL, type SiteSummary } from "./sites.ts"
+import { VISUAL_TOOL } from "./visual.ts"
 
 const MAX_DETAIL = 72
 
@@ -55,6 +57,16 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return withDetail("Searching the web", text(args.query))
     case "send_file":
       return path === undefined ? "Sending you a file" : `Sending you ${fileName(path)}`
+    case "visual":
+      return withDetail("Drawing", text(args.title))
+    case "share": {
+      const what = text(args.site) ?? text(args.title) ?? text(args.path)
+      if (args.action === "publish") return withDetail("Sharing a site", what)
+      if (args.action === "public") return withDetail("Making a site public", what)
+      if (args.action === "private") return withDetail("Making a site private", what)
+      if (args.action === "stop") return withDetail("Stopping a site being shared", what)
+      return "Looking at the shared sites"
+    }
     case "schedule":
       if (args.action === "create")
         return withDetail("Scheduling", text(args.title) ?? text(args.prompt))
@@ -151,6 +163,8 @@ const PAST: Record<string, string> = {
   Adding: "Added",
   Asking: "Asked",
   Making: "Made",
+  Drawing: "Drew",
+  Sharing: "Shared",
 }
 
 /**
@@ -205,6 +219,8 @@ export function toolKind(name: string): WorkKind {
     case "send_file":
     case "library":
     case "skill":
+    case "visual":
+    case "share":
       return "file"
     case "web_search":
     case "history":
@@ -268,7 +284,8 @@ export function sentFiles(state: ChatState): LibraryFile[] {
   const files = new Map<string, LibraryFile>()
   for (const message of state.messages) {
     for (const part of message.parts) {
-      if (!isSentFile(part)) continue
+      // A visual is a file of the library too, drawn where a sent file is a card.
+      if (!isSentFile(part) && !isVisual(part)) continue
       const file = part.details as unknown as LibraryFile
       // Taken out first, so that it goes back in at the end.
       files.delete(file.id)
@@ -277,6 +294,32 @@ export function sentFiles(state: ChatState): LibraryFile[] {
   }
   return [...files.values()].reverse()
 }
+
+/**
+ * Whether a part is a visual the agent drew: a page of its own making, kept in the library and
+ * shown in the chat as the page itself. Its details are the file it is kept as.
+ */
+export function isVisual(part: MessagePart): part is ToolPart {
+  if (part.type !== "tool" || part.name !== VISUAL_TOOL || part.status !== "done") return false
+  const file = part.details as { id?: unknown; path?: unknown } | null | undefined
+  return typeof file?.id === "string" && typeof file.path === "string"
+}
+
+/**
+ * Whether a part is the agent sharing a site, or changing who can open one. That is shown too,
+ * as the site: its address, and who can open it now.
+ */
+export function isSiteShare(part: MessagePart): part is ToolPart {
+  if (part.type !== "tool" || part.name !== SHARE_TOOL || part.status !== "done") return false
+  const action = (part.args as { action?: unknown } | null)?.action
+  if (action !== "publish" && action !== "public" && action !== "private") return false
+  const site = (part.details as { site?: { id?: unknown } } | null | undefined)?.site
+  return typeof site?.id === "string"
+}
+
+/** The site a part is about, as it was when the agent shared it or changed it. */
+export const sharedSite = (part: ToolPart) =>
+  (part.details as unknown as { site: SiteSummary }).site
 
 /**
  * Whether a part is the agent starting a sub-agent. That is shown too, as a way into the
@@ -324,6 +367,8 @@ export function isShownPart(part: MessagePart): boolean {
     part.type === "image" ||
     part.type === "notice" ||
     isSentFile(part) ||
+    isVisual(part) ||
+    isSiteShare(part) ||
     isSubagentStart(part) ||
     isJobStart(part) ||
     isAgentMessage(part) ||

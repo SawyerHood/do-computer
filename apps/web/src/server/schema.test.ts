@@ -9,6 +9,19 @@ function database() {
   return openNodeAppDatabase(join(mkdtempSync(join(tmpdir(), "dc-schema-")), "app.sqlite")).app
 }
 
+/** The version of the schema at which a table is first there. */
+async function versionAdding(table: string): Promise<number> {
+  for (let version = 1; ; version++) {
+    const app = database()
+    await migrateAppDatabase(app, version)
+    const there = await app.get("SELECT name FROM sqlite_master WHERE name = ?", table)
+    if (there !== undefined) return version
+    if (Number(await readMeta(app, "schema_version")) < version) {
+      throw new Error(`No migration adds ${table}`)
+    }
+  }
+}
+
 describe("migrating the app database", () => {
   it("is done by several requests at once, each on its own", async () => {
     const app = database()
@@ -45,7 +58,7 @@ describe("migrating the app database", () => {
 
     // A database from before workspaces chose anything, with a team and an agent in it.
     const app = database()
-    await migrateAppDatabase(app, version - 1)
+    await migrateAppDatabase(app, (await versionAdding("dc_workspace_settings")) - 1)
     await expect(app.all("SELECT * FROM dc_workspace_settings")).rejects.toThrow()
     await app.run(
       "INSERT INTO dc_workspaces (id, name, color, created_by, created_at) VALUES ('team', 'Tidewater', 'moss', 'sawyer', 1)",
@@ -58,6 +71,28 @@ describe("migrating the app database", () => {
     await app.run("INSERT INTO dc_workspace_settings (workspace_id) VALUES ('personal:sawyer')")
     await expect(app.all("SELECT * FROM dc_workspace_settings")).resolves.toEqual([
       { workspace_id: "personal:sawyer", show_browser: 1 },
+    ])
+  })
+
+  it("gives sites somewhere to be kept, and one place in a workspace one site", async () => {
+    const app = database()
+    await migrateAppDatabase(app, (await versionAdding("dc_sites")) - 1)
+    await expect(app.all("SELECT * FROM dc_sites")).rejects.toThrow()
+    await migrateAppDatabase(app)
+    const share = (id: string, workspace: string) =>
+      app.run(
+        `INSERT INTO dc_sites (id, workspace_id, path, title, secret, created_at, updated_at)
+         VALUES (?, ?, 'sites/plan', 'Plan', 's', 1, 1)`,
+        id,
+        workspace,
+      )
+    await share("a", "team")
+    await share("b", "personal:sawyer")
+    await expect(share("c", "team")).rejects.toThrow()
+    // A site is the workspace's own until someone says otherwise.
+    await expect(app.all("SELECT id, public FROM dc_sites ORDER BY id")).resolves.toEqual([
+      { id: "a", public: 0 },
+      { id: "b", public: 0 },
     ])
   })
 

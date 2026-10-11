@@ -40,6 +40,7 @@ import { Route as ApiPushTestRouteImport } from './routes/api/push/test'
 import { Route as ApiPushUnregisterRouteImport } from './routes/api/push/unregister'
 import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
 import { Route as DAgentIdSplatRouteImport } from './routes/d.$agentId.$'
+import { Route as SSiteIdSplatRouteImport } from './routes/s.$siteId.$'
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
 import { Route as AppAAgentIdComputersRouteImport } from './routes/_app.a.$agentId.computers'
@@ -54,6 +55,7 @@ import { Route as AppWWorkspaceIdPeopleRouteImport } from './routes/_app.w.$work
 import { Route as ApiAgentsAgentIdSplatRouteImport } from './routes/api/agents/$agentId.$'
 import { Route as ApiAgentsAgentIdConnectorsRouteImport } from './routes/api/agents/$agentId.connectors'
 import { Route as ApiAgentsAgentIdMoveRouteImport } from './routes/api/agents/$agentId.move'
+import { Route as ApiAgentsAgentIdSitesRouteImport } from './routes/api/agents/$agentId.sites'
 import { Route as ApiAgentsAgentIdSlackRouteImport } from './routes/api/agents/$agentId.slack'
 import { Route as ApiComputersComputerIdUpdateRouteImport } from './routes/api/computers/$computerId.update'
 import { Route as ApiComputersPairConfirmRouteImport } from './routes/api/computers/pair.confirm'
@@ -67,6 +69,7 @@ import { Route as ApiSlackEventsAgentIdRouteImport } from './routes/api/slack/ev
 import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
 import { Route as ApiWorkspacesWorkspaceIdSettingsRouteImport } from './routes/api/workspaces/$workspaceId.settings'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
+import { Route as ApiAgentsAgentIdSitesSiteIdRouteImport } from './routes/api/agents/$agentId.sites.$siteId'
 import { Route as ApiComputersComputerIdAgentsAgentIdRouteImport } from './routes/api/computers/$computerId.agents.$agentId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
@@ -233,6 +236,11 @@ const DAgentIdSplatRoute = DAgentIdSplatRouteImport.update({
   path: '/d/$agentId/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SSiteIdSplatRoute = SSiteIdSplatRouteImport.update({
+  id: '/s/$siteId/$',
+  path: '/s/$siteId/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppAAgentIdIndexRoute = AppAAgentIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -302,6 +310,11 @@ const ApiAgentsAgentIdConnectorsRoute =
 const ApiAgentsAgentIdMoveRoute = ApiAgentsAgentIdMoveRouteImport.update({
   id: '/api/agents/$agentId/move',
   path: '/api/agents/$agentId/move',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentsAgentIdSitesRoute = ApiAgentsAgentIdSitesRouteImport.update({
+  id: '/api/agents/$agentId/sites',
+  path: '/api/agents/$agentId/sites',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAgentsAgentIdSlackRoute = ApiAgentsAgentIdSlackRouteImport.update({
@@ -374,6 +387,12 @@ const AppAAgentIdCChatIdRoute = AppAAgentIdCChatIdRouteImport.update({
   path: '/c/$chatId',
   getParentRoute: () => AppAAgentIdRoute,
 } as any)
+const ApiAgentsAgentIdSitesSiteIdRoute =
+  ApiAgentsAgentIdSitesSiteIdRouteImport.update({
+    id: '/$siteId',
+    path: '/$siteId',
+    getParentRoute: () => ApiAgentsAgentIdSitesRoute,
+  } as any)
 const ApiComputersComputerIdAgentsAgentIdRoute =
   ApiComputersComputerIdAgentsAgentIdRouteImport.update({
     id: '/agents/$agentId',
@@ -469,6 +488,7 @@ export interface FileRoutesByFullPath {
   '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
@@ -484,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
+  '/api/agents/$agentId/sites': typeof ApiAgentsAgentIdSitesRouteWithChildren
   '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
   '/api/computers/$computerId/update': typeof ApiComputersComputerIdUpdateRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
@@ -499,6 +520,7 @@ export interface FileRoutesByFullPath {
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/agents/$agentId/sites/$siteId': typeof ApiAgentsAgentIdSitesSiteIdRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
@@ -537,6 +559,7 @@ export interface FileRoutesByTo {
   '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents': typeof ApiAgentsIndexRoute
   '/api/computers': typeof ApiComputersIndexRoute
   '/api/workspaces': typeof ApiWorkspacesIndexRoute
@@ -552,6 +575,7 @@ export interface FileRoutesByTo {
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
+  '/api/agents/$agentId/sites': typeof ApiAgentsAgentIdSitesRouteWithChildren
   '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
   '/api/computers/$computerId/update': typeof ApiComputersComputerIdUpdateRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
@@ -567,6 +591,7 @@ export interface FileRoutesByTo {
   '/api/invitations/$key': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/agents/$agentId/sites/$siteId': typeof ApiAgentsAgentIdSitesSiteIdRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
@@ -609,6 +634,7 @@ export interface FileRoutesById {
   '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
@@ -624,6 +650,7 @@ export interface FileRoutesById {
   '/api/agents/$agentId/$': typeof ApiAgentsAgentIdSplatRoute
   '/api/agents/$agentId/connectors': typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   '/api/agents/$agentId/move': typeof ApiAgentsAgentIdMoveRoute
+  '/api/agents/$agentId/sites': typeof ApiAgentsAgentIdSitesRouteWithChildren
   '/api/agents/$agentId/slack': typeof ApiAgentsAgentIdSlackRoute
   '/api/computers/$computerId/update': typeof ApiComputersComputerIdUpdateRoute
   '/api/computers/pair/confirm': typeof ApiComputersPairConfirmRoute
@@ -639,6 +666,7 @@ export interface FileRoutesById {
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
+  '/api/agents/$agentId/sites/$siteId': typeof ApiAgentsAgentIdSitesSiteIdRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
@@ -681,6 +709,7 @@ export interface FileRouteTypes {
     | '/api/push/test'
     | '/api/push/unregister'
     | '/d/$agentId/$'
+    | '/s/$siteId/$'
     | '/api/agents/'
     | '/api/computers/'
     | '/api/workspaces/'
@@ -696,6 +725,7 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
     | '/api/agents/$agentId/move'
+    | '/api/agents/$agentId/sites'
     | '/api/agents/$agentId/slack'
     | '/api/computers/$computerId/update'
     | '/api/computers/pair/confirm'
@@ -711,6 +741,7 @@ export interface FileRouteTypes {
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/a/$agentId/c/$chatId'
+    | '/api/agents/$agentId/sites/$siteId'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
@@ -749,6 +780,7 @@ export interface FileRouteTypes {
     | '/api/push/test'
     | '/api/push/unregister'
     | '/d/$agentId/$'
+    | '/s/$siteId/$'
     | '/api/agents'
     | '/api/computers'
     | '/api/workspaces'
@@ -764,6 +796,7 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
     | '/api/agents/$agentId/move'
+    | '/api/agents/$agentId/sites'
     | '/api/agents/$agentId/slack'
     | '/api/computers/$computerId/update'
     | '/api/computers/pair/confirm'
@@ -779,6 +812,7 @@ export interface FileRouteTypes {
     | '/api/invitations/$key'
     | '/api/workspaces/$workspaceId'
     | '/a/$agentId/c/$chatId'
+    | '/api/agents/$agentId/sites/$siteId'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
@@ -820,6 +854,7 @@ export interface FileRouteTypes {
     | '/api/push/test'
     | '/api/push/unregister'
     | '/d/$agentId/$'
+    | '/s/$siteId/$'
     | '/api/agents/'
     | '/api/computers/'
     | '/api/workspaces/'
@@ -835,6 +870,7 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/$'
     | '/api/agents/$agentId/connectors'
     | '/api/agents/$agentId/move'
+    | '/api/agents/$agentId/sites'
     | '/api/agents/$agentId/slack'
     | '/api/computers/$computerId/update'
     | '/api/computers/pair/confirm'
@@ -850,6 +886,7 @@ export interface FileRouteTypes {
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/_app/a/$agentId/c/$chatId'
+    | '/api/agents/$agentId/sites/$siteId'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
@@ -889,12 +926,14 @@ export interface RootRouteChildren {
   ApiPushTestRoute: typeof ApiPushTestRoute
   ApiPushUnregisterRoute: typeof ApiPushUnregisterRoute
   DAgentIdSplatRoute: typeof DAgentIdSplatRoute
+  SSiteIdSplatRoute: typeof SSiteIdSplatRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
   ApiComputersIndexRoute: typeof ApiComputersIndexRoute
   ApiWorkspacesIndexRoute: typeof ApiWorkspacesIndexRoute
   ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
   ApiAgentsAgentIdConnectorsRoute: typeof ApiAgentsAgentIdConnectorsRouteWithChildren
   ApiAgentsAgentIdMoveRoute: typeof ApiAgentsAgentIdMoveRoute
+  ApiAgentsAgentIdSitesRoute: typeof ApiAgentsAgentIdSitesRouteWithChildren
   ApiAgentsAgentIdSlackRoute: typeof ApiAgentsAgentIdSlackRoute
   ApiComputersPairConfirmRoute: typeof ApiComputersPairConfirmRoute
   ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
@@ -1136,6 +1175,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DAgentIdSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$siteId/$': {
+      id: '/s/$siteId/$'
+      path: '/s/$siteId/$'
+      fullPath: '/s/$siteId/$'
+      preLoaderRoute: typeof SSiteIdSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/a/$agentId/': {
       id: '/_app/a/$agentId/'
       path: '/'
@@ -1234,6 +1280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentsAgentIdMoveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agents/$agentId/sites': {
+      id: '/api/agents/$agentId/sites'
+      path: '/api/agents/$agentId/sites'
+      fullPath: '/api/agents/$agentId/sites'
+      preLoaderRoute: typeof ApiAgentsAgentIdSitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/agents/$agentId/slack': {
       id: '/api/agents/$agentId/slack'
       path: '/api/agents/$agentId/slack'
@@ -1324,6 +1377,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/a/$agentId/c/$chatId'
       preLoaderRoute: typeof AppAAgentIdCChatIdRouteImport
       parentRoute: typeof AppAAgentIdRoute
+    }
+    '/api/agents/$agentId/sites/$siteId': {
+      id: '/api/agents/$agentId/sites/$siteId'
+      path: '/$siteId'
+      fullPath: '/api/agents/$agentId/sites/$siteId'
+      preLoaderRoute: typeof ApiAgentsAgentIdSitesSiteIdRouteImport
+      parentRoute: typeof ApiAgentsAgentIdSitesRoute
     }
     '/api/computers/$computerId/agents/$agentId': {
       id: '/api/computers/$computerId/agents/$agentId'
@@ -1495,6 +1555,19 @@ const ApiAgentsAgentIdConnectorsRouteWithChildren =
     ApiAgentsAgentIdConnectorsRouteChildren,
   )
 
+interface ApiAgentsAgentIdSitesRouteChildren {
+  ApiAgentsAgentIdSitesSiteIdRoute: typeof ApiAgentsAgentIdSitesSiteIdRoute
+}
+
+const ApiAgentsAgentIdSitesRouteChildren: ApiAgentsAgentIdSitesRouteChildren = {
+  ApiAgentsAgentIdSitesSiteIdRoute: ApiAgentsAgentIdSitesSiteIdRoute,
+}
+
+const ApiAgentsAgentIdSitesRouteWithChildren =
+  ApiAgentsAgentIdSitesRoute._addFileChildren(
+    ApiAgentsAgentIdSitesRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
@@ -1521,12 +1594,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPushTestRoute: ApiPushTestRoute,
   ApiPushUnregisterRoute: ApiPushUnregisterRoute,
   DAgentIdSplatRoute: DAgentIdSplatRoute,
+  SSiteIdSplatRoute: SSiteIdSplatRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
   ApiComputersIndexRoute: ApiComputersIndexRoute,
   ApiWorkspacesIndexRoute: ApiWorkspacesIndexRoute,
   ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
   ApiAgentsAgentIdConnectorsRoute: ApiAgentsAgentIdConnectorsRouteWithChildren,
   ApiAgentsAgentIdMoveRoute: ApiAgentsAgentIdMoveRoute,
+  ApiAgentsAgentIdSitesRoute: ApiAgentsAgentIdSitesRouteWithChildren,
   ApiAgentsAgentIdSlackRoute: ApiAgentsAgentIdSlackRoute,
   ApiComputersPairConfirmRoute: ApiComputersPairConfirmRoute,
   ApiComputersPairPollRoute: ApiComputersPairPollRoute,

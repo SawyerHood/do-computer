@@ -96,6 +96,22 @@ const ABILITIES: readonly Ability[] = [
     tools: ["write", "edit"],
   },
   { id: "tool:send_file", label: "Send you files", tools: ["send_file"] },
+  { id: "tool:visual", label: "Show you visuals", tools: ["visual"] },
+  {
+    id: "tool:share",
+    label: "Share pages with the workspace",
+    hint: "A page of the library, given a link that people in the workspace can open.",
+    tools: ["share"],
+    actions: ["publish", "private", "stop"],
+  },
+  {
+    id: "tool:share_public",
+    label: "Make shared pages public",
+    hint: "A public page can be opened by anyone who has its link, without signing in.",
+    tools: ["share"],
+    actions: ["public"],
+    ask: true,
+  },
   {
     id: "tool:screen",
     label: "Use a computer's screen",
@@ -180,6 +196,8 @@ const TOOL_TITLES: Record<string, string> = {
   edit: "Edit a file",
   read: "Read files",
   send_file: "Send you a file",
+  visual: "Show you a visual",
+  share: "See what is shared",
   web_search: "Search the web",
   schedule: "Create or change an automation",
   skill: "Save or change a skill",
@@ -269,6 +287,23 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
       word(args[key]) === "" ? [] : [`${key.replace("_", " ")}: ${word(args[key])}`],
     )
     return { title: "Change its settings", detail: changes.join("\n") }
+  }
+  if (call.name === "share" && typeof action === "string") {
+    const site = word(args.site)
+    if (action === "public") {
+      return {
+        title: "Make a shared page public",
+        detail: [site, "Anyone who has the link could open it."].filter(Boolean).join("\n"),
+      }
+    }
+    if (action === "publish") {
+      return {
+        title: "Share a page with the workspace",
+        detail: [word(args.title), word(args.path)].filter(Boolean).join(": "),
+      }
+    }
+    if (action === "private") return { title: "Make a shared page private again", detail: site }
+    if (action === "stop") return { title: "Stop sharing a page", detail: site }
   }
   if (call.name === "agents" && action === "create") {
     return {

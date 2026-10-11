@@ -28,7 +28,10 @@ export const Route = createFileRoute("/_app")({
   // This runs on every move from one page to another. Who is signed in is asked the first
   // time and kept, so that no move after it waits for the server before anything changes.
   beforeLoad: async ({ matches }) => {
-    if (queryClient.getQueryData(meKey) === undefined) fetchAhead(matches.at(-1)?.params ?? {})
+    if (queryClient.getQueryData(meKey) === undefined) {
+      // A page behind sign-in is an agent's or nobody's: a site's own address is not one.
+      fetchAhead((matches.at(-1)?.params ?? {}) as { agentId?: string; chatId?: string })
+    }
     try {
       return { me: await queryClient.ensureQueryData(meQuery) }
     } catch (error) {
