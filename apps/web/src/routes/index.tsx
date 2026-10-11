@@ -84,7 +84,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Do Computer is your open source personal assistant: an agent with a name, a memory and a computer of its own, which keeps working after you close the tab.",
+          "Meet your Dood: an open source personal assistant with a name, a memory and a computer of its own, which keeps working after you close the tab.",
       },
     ],
   }),

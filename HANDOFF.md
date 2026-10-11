@@ -1956,16 +1956,36 @@ Since then, newest last:
       an account", unless a page sent the visitor there to come back to it, as an invitation
       does. `/signup` and `/welcome` are still there for whoever knows them: the server
       refuses an account to anyone not invited, as it did.
-    - **The page**: one creature large on a pedestal, with the job it stands for and what it
-      is doing; eight to choose from, the last an egg; the app in a window whose tabs change
-      the picture, and in a phone where the window would be too small; six things it does,
-      each acted out; that it is open source, with the three lines that run it; the app's own
-      box opening; and an egg that hatches when pressed three times. The creatures are
-      `AgentAvatar`, as everywhere else, so where they cannot be drawn their still pictures
-      stand in. Its styles are one file under `.lp`, which is also what scrolls.
+    - **The page** was first a console's character select, at night, in a pixel face. On
+      2026-10-11 the owner found it had "too many agent blobs" under the select, pointed at
+      x.ai/bot and chatgpt.com/features/dots, asked for "a more professional version of this
+      site in the style of the references", and chose it from a mock-up
+      (`prototypes/landing-pro`): "i love it ... then build for real". What they kept from the
+      old one, in their words: "that rotating choose your character selection if you can switch
+      between the personas but it doesn't need to be a character select screen", and, of chips
+      of words tried in its place, "don't like the pill treatment liked the grid of guys more".
+    - **What it is now**: a light page in plain type, the same by day and by night. At the top,
+      the headline and the way in beside a panel: one creature large, which is each of eight in
+      turn (seven jobs and an egg) with what it was asked and what it is doing, and the eight
+      small under it in two rows of four; choosing one, or a mouse over one, stops the turning,
+      and the panel takes a tint of whoever is on it. Then the app in a window whose tabs change
+      the picture (a phone where the window would be too small); what it does, as small pictures
+      of the product drawn in HTML and played through their steps by a timer, three beside
+      their words on panels of color and two side by side; where it is, with Slack's own mark;
+      open source with the three lines that run it; the app's own box opening; questions; and
+      the way in again. Ten creatures: nine at the top, one under a hat. They are `AgentAvatar`,
+      as everywhere else, so where they cannot be drawn their still pictures stand in. Its
+      styles are one file under `.lp`, which is also what scrolls. The pixel face
+      (`@fontsource/jersey-25`) is gone from the app. "Download for Mac" leads to the
+      repository's latest release.
+    - **The page calls an agent a Dood** (2026-10-11). The owner, asked for another headline
+      than "Your open source personal assistant.": "I'm thinking of calling the agents Doods is
+      there anything with that for the headline", and to "Meet your Dood.", "Do it!". The name
+      is in the headline, the copy under it, the questions (the first is "What is a Dood?") and
+      the page's description. It is on this page only: the app itself still says "agent".
     - **The pictures of the app** in `apps/web/public/landing` are real: taken from the built
-      server with a real model (`prototypes/landing/README.md` says how). They will go out of
-      date as the app changes.
+      server with a real model (`prototypes/landing/README.md` says how), and are the light
+      ones. They will go out of date as the app changes.
     - **Not done:** the repository is private, so the page's GitHub links lead nowhere until
       it is made public; nothing collects the addresses of people who want to be told when it
       opens; the page has no picture for a link's preview; and it has not been seen in Safari.
