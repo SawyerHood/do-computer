@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as DaemonDotjsRouteImport } from './routes/daemon[.]js'
+import { Route as HatchRouteImport } from './routes/hatch'
 import { Route as InstallDotshRouteImport } from './routes/install[.]sh'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -26,6 +27,7 @@ import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as DesktopSignInRouteImport } from './routes/desktop.sign-in'
+import { Route as DoodDoodIdRouteImport } from './routes/dood.$doodId'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as AppWWorkspaceIdRouteImport } from './routes/_app.w.$workspaceId'
@@ -104,6 +106,11 @@ const DaemonDotjsRoute = DaemonDotjsRouteImport.update({
   path: '/daemon.js',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HatchRoute = HatchRouteImport.update({
+  id: '/hatch',
+  path: '/hatch',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstallDotshRoute = InstallDotshRouteImport.update({
   id: '/install.sh',
   path: '/install.sh',
@@ -172,6 +179,11 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
 const DesktopSignInRoute = DesktopSignInRouteImport.update({
   id: '/desktop/sign-in',
   path: '/desktop/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DoodDoodIdRoute = DoodDoodIdRouteImport.update({
+  id: '/dood/$doodId',
+  path: '/dood/$doodId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -511,6 +523,7 @@ const ApiWorkspacesWorkspaceIdModelLoginsLoginIdAnswerRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/daemon.js': typeof DaemonDotjsRoute
+  '/hatch': typeof HatchRoute
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
@@ -525,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
+  '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
@@ -592,6 +606,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/daemon.js': typeof DaemonDotjsRoute
+  '/hatch': typeof HatchRoute
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
@@ -606,6 +621,7 @@ export interface FileRoutesByTo {
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
+  '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
@@ -673,6 +689,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/daemon.js': typeof DaemonDotjsRoute
+  '/hatch': typeof HatchRoute
   '/install.sh': typeof InstallDotshRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
@@ -687,6 +704,7 @@ export interface FileRoutesById {
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
+  '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
@@ -756,6 +774,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/daemon.js'
+    | '/hatch'
     | '/install.sh'
     | '/login'
     | '/signup'
@@ -770,6 +789,7 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/api/transcribe'
     | '/desktop/sign-in'
+    | '/dood/$doodId'
     | '/invite/$token'
     | '/a/$agentId'
     | '/w/$workspaceId'
@@ -837,6 +857,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/daemon.js'
+    | '/hatch'
     | '/install.sh'
     | '/login'
     | '/signup'
@@ -851,6 +872,7 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/api/transcribe'
     | '/desktop/sign-in'
+    | '/dood/$doodId'
     | '/invite/$token'
     | '/api/auth/$'
     | '/api/computers/$computerId'
@@ -917,6 +939,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/daemon.js'
+    | '/hatch'
     | '/install.sh'
     | '/login'
     | '/signup'
@@ -931,6 +954,7 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/api/transcribe'
     | '/desktop/sign-in'
+    | '/dood/$doodId'
     | '/invite/$token'
     | '/_app/a/$agentId'
     | '/_app/w/$workspaceId'
@@ -1000,6 +1024,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   DaemonDotjsRoute: typeof DaemonDotjsRoute
+  HatchRoute: typeof HatchRoute
   InstallDotshRoute: typeof InstallDotshRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
@@ -1013,6 +1038,7 @@ export interface RootRouteChildren {
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   DesktopSignInRoute: typeof DesktopSignInRoute
+  DoodDoodIdRoute: typeof DoodDoodIdRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
@@ -1081,6 +1107,13 @@ declare module '@tanstack/react-router' {
       path: '/daemon.js'
       fullPath: '/daemon.js'
       preLoaderRoute: typeof DaemonDotjsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hatch': {
+      id: '/hatch'
+      path: '/hatch'
+      fullPath: '/hatch'
+      preLoaderRoute: typeof HatchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/install.sh': {
@@ -1179,6 +1212,13 @@ declare module '@tanstack/react-router' {
       path: '/desktop/sign-in'
       fullPath: '/desktop/sign-in'
       preLoaderRoute: typeof DesktopSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dood/$doodId': {
+      id: '/dood/$doodId'
+      path: '/dood/$doodId'
+      fullPath: '/dood/$doodId'
+      preLoaderRoute: typeof DoodDoodIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite/$token': {
@@ -1732,6 +1772,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   DaemonDotjsRoute: DaemonDotjsRoute,
+  HatchRoute: HatchRoute,
   InstallDotshRoute: InstallDotshRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
@@ -1745,6 +1786,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSettingsRoute: ApiSettingsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   DesktopSignInRoute: DesktopSignInRoute,
+  DoodDoodIdRoute: DoodDoodIdRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,
