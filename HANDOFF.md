@@ -2232,6 +2232,36 @@ Since then, newest last:
       to Composio's sign-in page, and the connector was left waiting with its rule on Ask
       first. Nothing was run on Workers.
 
+54. **The app database is read less** (2026-10-11; `apps/daemon/src/pairing.ts`, `main.ts`,
+    `apps/web/src/server/auth.ts`). The owner asked what is in D1, what its limits are with
+    thousands of users, and whether to move to Postgres. The answer was to stay: it holds only
+    who exists and who owns what, a few rows a person, read by key; chats, memory and the
+    library are in each agent's and workspace's own storage. One database answers one query at
+    a time, so what matters is how often it is asked. They then asked for the two things that
+    asked most to be fixed. The numbers below are mine.
+    - **A daemon waiting to be paired asks less often.** It asked every three seconds for as
+      long as nobody confirmed its code, which an app left installed and never signed in to
+      does for good: on do.computer that was four in five of a day's reads. It now asks every
+      three seconds for its first five minutes and every thirty seconds after (`pollDelay`),
+      about a tenth as often over a day. The price: a code confirmed more than five minutes
+      after the daemon started is collected within thirty seconds, not three.
+      `DC_DAEMON_POLL_MS` still sets the first pace, for tests.
+    - **Who is signed in is kept in a cookie for five minutes** (Better Auth's `cookieCache`,
+      `SESSION_CACHE_SECONDS`). Every signed-in request read the session and then its user. A
+      request that brings the cookie is answered from it, and one whose cookie has run out
+      reads the database and is given a new one, by the app's own routes as well as Better
+      Auth's. The price: a session ended from elsewhere, or a changed name, is believed on
+      other devices for up to five minutes. Signing out clears it on the device that did.
+    - **Not done:** a daemon in an installed desktop app is replaced only by a newer app, so
+      apps already installed and unpaired ask as before until a release. The mobile app keeps
+      its own cookies and is not given the new one by the app's routes, so its requests read
+      the database as before. Read replicas or smart placement, for people far from the
+      database, were described to the owner and not built.
+    - **Tested:** `apps/daemon/test/pairing.test.ts`. By hand on the Node server and on the
+      Workers runtime: signed up, deleted the session's row, and a request with the cookie was
+      still answered as signed in while one without it was refused; a request with no cookie
+      of the kind was given one by `/api/me`; signing out cleared both.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

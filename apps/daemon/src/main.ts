@@ -33,6 +33,7 @@ import {
 import WebSocket from "ws"
 import { parseArguments } from "./args.ts"
 import { BROWSER_ENV, type DaemonEvent, formatEvent, SCREEN_ENV } from "./events.ts"
+import { POLL_EAGER_MS, pollDelay } from "./pairing.ts"
 import { appScreen } from "./screen.ts"
 import { serviceFile } from "./service.ts"
 import { supervise } from "./supervisor.ts"
@@ -73,7 +74,7 @@ const UPDATE_PATH = path.join(CONFIG_DIR, "update.json")
 
 const PING_INTERVAL_MS = 30_000
 const PONG_DEADLINE_MS = 15_000
-const POLL_INTERVAL_MS = Number(process.env.DC_DAEMON_POLL_MS ?? 3_000)
+const POLL_INTERVAL_MS = Number(process.env.DC_DAEMON_POLL_MS ?? POLL_EAGER_MS)
 const MAX_BACKOFF_MS = 30_000
 /** How often a connected daemon asks whether there is a newer one. It also asks on connecting. */
 const UPDATE_EVERY_MS = Number(process.env.DC_DAEMON_UPDATE_MS ?? 6 * 60 * 60_000)
@@ -146,6 +147,7 @@ async function post<T>(server: string, route: string, body: unknown): Promise<T>
 }
 
 async function pair(server: string, readOnly: boolean, name: string | undefined): Promise<Config> {
+  const began = Date.now()
   for (;;) {
     const started = await post<{ code: string; pollToken: string; verifyUrl: string }>(
       server,
@@ -157,7 +159,7 @@ async function pair(server: string, readOnly: boolean, name: string | undefined)
     log(`and confirm the code ${started.code} while signed in. Waiting…`)
     tell({ event: "pairing", code: started.code, verifyUrl: started.verifyUrl })
     for (;;) {
-      await sleep(POLL_INTERVAL_MS)
+      await sleep(pollDelay(Date.now() - began, POLL_INTERVAL_MS))
       const result = await post<{
         status: "pending" | "approved" | "expired"
         computerId?: string
