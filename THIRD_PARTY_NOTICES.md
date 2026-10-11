@@ -39,16 +39,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### T3 Code
-
-How a visual's page is prepared and how it speaks to its frame, in
-`packages/protocol/src/visual.ts`, follows the HTML renders of
-[T3 Code](https://github.com/pingdotgg/t3code) (`packages/shared/src/htmlRender.ts`): the
-theme put at the start of the page's head, the fragment it arrives in, and the messages for
-the page's height and its links. It was written again for this app's colors and tools. MIT
-License, Copyright (c) 2026 T3 Tools Inc. The licence's text is the one in `LICENSE`, under
-that copyright line.
-
 ### shadcn/ui
 
 The components in `apps/web/src/components/ui` began as [shadcn/ui](https://ui.shadcn.com)
