@@ -1,0 +1,661 @@
+/*
+ * The guides: what anyone is shown under /docs. The landing page's colors and type, so that the
+ * two read as one site, and like it the same by day and by night. Everything is under `.dx`,
+ * which is also what scrolls, since the app's own pages never scroll the window.
+ */
+.dx {
+  --bg: #fafaf8;
+  --ink: #0d0d0c;
+  --dim: #6a6a66;
+  --faint: #9a9a94;
+  --line: #e7e5df;
+  --soft: #f2f0eb;
+  --teal: #0e8d86;
+
+  height: 100dvh;
+  overflow: hidden auto;
+  scroll-behavior: smooth;
+  scroll-padding-top: 92px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.5;
+  color-scheme: light;
+
+  code,
+  pre {
+    font-family: var(--font-mono);
+  }
+  .dx-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+    color: var(--ink);
+    img {
+      width: 26px;
+      height: 26px;
+    }
+  }
+  .dx-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 18px;
+    border-radius: 99px;
+    background: #ecebe6;
+    font-size: 14.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+    &:hover {
+      background: #e2e0da;
+    }
+  }
+  .dx-dark {
+    background: var(--ink);
+    color: #fff;
+    &:hover {
+      background: #2c2c2a;
+    }
+  }
+  .dx-soon {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 16px 0 13px;
+    border-radius: 99px;
+    box-shadow: inset 0 0 0 1px #d9d7d0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--dim);
+    i {
+      width: 7px;
+      height: 7px;
+      border-radius: 99px;
+      background: var(--teal);
+    }
+  }
+
+  /* The line along the top: the landing page's, with Docs in it. */
+  .dx-nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    height: 68px;
+    padding: 0 max(24px, 50% - 640px);
+    background: rgb(250 250 248 / 0.86);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    font-size: 14.5px;
+    color: #3a3a37;
+    white-space: nowrap;
+    nav {
+      display: flex;
+      gap: 26px;
+      margin-left: 22px;
+    }
+    a:not(.dx-button):hover {
+      color: #000;
+    }
+    nav [aria-current] {
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .dx-button {
+      height: 38px;
+      padding: 0 16px;
+      font-size: 14px;
+    }
+  }
+
+  /* Guides on the left, the guide in the middle, the hand-off to an agent on the right. */
+  .dx-page {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr) 296px;
+    grid-template-areas: "side head hand" "side doc hand";
+    grid-template-rows: auto 1fr;
+    column-gap: 64px;
+    width: min(1280px, 100% - 48px);
+    margin: 0 auto;
+    padding-top: 48px;
+  }
+  .dx-side {
+    grid-area: side;
+    position: sticky;
+    top: 108px;
+    align-self: start;
+    max-height: calc(100dvh - 140px);
+    overflow: auto;
+  }
+  .dx-guides {
+    h2 {
+      margin-bottom: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+    a {
+      display: block;
+      padding: 6px 12px;
+      margin: 0 -12px;
+      border-radius: 10px;
+      font-size: 14.5px;
+      color: #3a3a37;
+      &:hover {
+        color: #000;
+      }
+    }
+    a[aria-current="page"] {
+      background: var(--soft);
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .dx-parts {
+      margin: 6px 0 10px;
+      padding-left: 12px;
+      border-left: 1px solid var(--line);
+      a {
+        margin: 0;
+        padding: 4px 12px;
+        border-radius: 0;
+        font-size: 13.5px;
+        color: var(--dim);
+        &:hover {
+          color: var(--ink);
+        }
+      }
+      a[aria-current="location"] {
+        margin-left: -12px;
+        padding-left: 24px;
+        box-shadow: -1px 0 0 var(--ink);
+        color: var(--ink);
+        font-weight: 500;
+      }
+    }
+  }
+  .dx-menu {
+    display: none;
+  }
+
+  .dx-head {
+    grid-area: head;
+    .dx-crumb {
+      margin-bottom: 14px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--teal);
+    }
+    h1 {
+      font-size: clamp(38px, 4.4vw, 52px);
+      font-weight: 500;
+      letter-spacing: -0.035em;
+      line-height: 1.04;
+    }
+    p:not(.dx-crumb) {
+      max-width: 34em;
+      margin-top: 18px;
+      font-size: 18.5px;
+      line-height: 1.5;
+      color: var(--dim);
+    }
+  }
+
+  .dx-hand {
+    grid-area: hand;
+    position: sticky;
+    top: 108px;
+    align-self: start;
+  }
+  .dx-card {
+    padding: 22px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow:
+      inset 0 0 0 1px var(--line),
+      0 18px 40px rgb(40 36 20 / 0.06);
+    h2 {
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+    }
+    p {
+      margin-top: 8px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--dim);
+    }
+    pre {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--soft);
+      font-size: 12.5px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #2a2a28;
+      span {
+        white-space: nowrap;
+      }
+    }
+    .dx-button {
+      width: 100%;
+      margin-top: 12px;
+    }
+    .dx-also {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--dim);
+      a,
+      button {
+        text-align: left;
+        text-decoration: underline;
+        text-decoration-color: #cfcdc6;
+        text-underline-offset: 3px;
+        &:hover {
+          color: var(--ink);
+        }
+      }
+    }
+  }
+
+  /* The guide itself: everything here is drawn from plain Markdown. */
+  .dx-doc {
+    grid-area: doc;
+    min-width: 0;
+    max-width: 720px;
+    padding: 28px 0 40px;
+    font-size: 16px;
+    line-height: 1.65;
+    color: #2a2a28;
+    > * + * {
+      margin-top: 16px;
+    }
+    h2 {
+      margin-top: 60px;
+      padding-top: 28px;
+      border-top: 1px solid var(--line);
+      font-size: 27px;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      color: var(--ink);
+    }
+    h3 {
+      margin-top: 32px;
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    a {
+      text-decoration: underline;
+      text-decoration-color: #b9b7b0;
+      text-underline-offset: 3px;
+      &:hover {
+        text-decoration-color: var(--ink);
+      }
+    }
+    strong {
+      font-weight: 600;
+      color: var(--ink);
+    }
+    code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #ecebe6;
+      font-size: 0.84em;
+    }
+
+    /* A block of commands, and the button that copies it. */
+    .dx-code {
+      position: relative;
+      margin-top: 12px;
+      pre {
+        padding: 15px 52px 15px 18px;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px var(--line);
+        font-size: 13.5px;
+        line-height: 1.7;
+        overflow-x: auto;
+      }
+      code {
+        padding: 0;
+        background: none;
+        font-size: inherit;
+      }
+      button {
+        position: absolute;
+        top: 9px;
+        right: 9px;
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: #fff;
+        box-shadow: 0 0 0 4px #fff;
+        color: var(--faint);
+        &:hover {
+          background: var(--soft);
+          color: var(--ink);
+        }
+        &[data-copied] {
+          color: var(--teal);
+        }
+        svg {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+
+    /* A note set apart: the word to agents at the top. */
+    blockquote {
+      padding: 16px 20px;
+      border-radius: 16px;
+      background: var(--soft);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* A step that waits for the person. */
+    .dx-needs {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      margin-right: 2px;
+      padding: 0 9px;
+      border-radius: 99px;
+      background: #ffeec2;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: #6f4a00;
+      vertical-align: 1px;
+      white-space: nowrap;
+    }
+
+    /* How to tell a step worked. */
+    .dx-check {
+      position: relative;
+      padding-left: 26px;
+      font-size: 14.5px;
+      color: var(--dim);
+      &::before {
+        content: "";
+        position: absolute;
+        left: 2px;
+        top: 0.42em;
+        width: 15px;
+        height: 15px;
+        border-radius: 99px;
+        background: var(--teal)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 15' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.4 7.8l2.1 2 4-4.4'/%3E%3C/svg%3E");
+      }
+    }
+
+    /* Steps, each with its number in a ring. */
+    ol {
+      counter-reset: step;
+      > li {
+        position: relative;
+        padding-left: 46px;
+        counter-increment: step;
+        &::before {
+          content: counter(step);
+          position: absolute;
+          left: 0;
+          top: -1px;
+          display: grid;
+          place-items: center;
+          width: 30px;
+          height: 30px;
+          border-radius: 99px;
+          box-shadow: inset 0 0 0 1px #d9d7d0;
+          font: 500 13px var(--font-mono);
+          color: var(--ink);
+        }
+        > * + * {
+          margin-top: 12px;
+        }
+      }
+      > li + li {
+        margin-top: 30px;
+      }
+    }
+    ul {
+      padding-left: 22px;
+      list-style: disc;
+      li + li {
+        margin-top: 8px;
+      }
+      ::marker {
+        color: var(--faint);
+      }
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      font-size: 14.5px;
+      line-height: 1.5;
+    }
+    th,
+    td {
+      padding: 11px 18px 11px 0;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      font-weight: 500;
+      color: var(--ink);
+      border-bottom-color: #cfcdc6;
+    }
+    td:first-child {
+      color: var(--dim);
+      white-space: nowrap;
+    }
+  }
+
+  .dx-foot {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    width: min(1280px, 100% - 48px);
+    margin: 70px auto 0;
+    padding: 26px 0 34px;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--dim);
+    a:hover {
+      color: var(--ink);
+    }
+    .dx-brand {
+      font-size: 14.5px;
+      img {
+        width: 22px;
+        height: 22px;
+      }
+    }
+  }
+
+  /* Narrower: the hand-off goes between the title and the guide. */
+  @media (width <= 1180px) {
+    .dx-page {
+      grid-template-columns: 208px minmax(0, 1fr);
+      grid-template-areas: "side head" "side hand" "side doc";
+      grid-template-rows: auto auto 1fr;
+      column-gap: 52px;
+    }
+    .dx-hand {
+      position: static;
+      max-width: 720px;
+      margin-top: 30px;
+    }
+    .dx-card .dx-button {
+      width: auto;
+    }
+    .dx-card .dx-also {
+      justify-content: flex-start;
+      gap: 22px;
+    }
+    .dx-doc {
+      padding-top: 30px;
+    }
+  }
+
+  /* A phone: the guides fold into a line under the top. */
+  @media (width <= 820px) {
+    scroll-padding-top: 120px;
+    .dx-nav {
+      gap: 14px;
+      height: 60px;
+      padding: 0 16px;
+      /* The line under it says where this is. */
+      nav {
+        display: none;
+      }
+    }
+    .dx-menu {
+      display: block;
+      position: sticky;
+      top: 60px;
+      z-index: 19;
+      background: rgb(250 250 248 / 0.94);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+      summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 46px;
+        padding: 0 18px;
+        font-size: 14px;
+        color: var(--dim);
+        cursor: pointer;
+        list-style: none;
+        &::-webkit-details-marker {
+          display: none;
+        }
+        span::after {
+          content: "/";
+          margin-left: 8px;
+          color: #cfcdc6;
+        }
+        b {
+          font-weight: 500;
+          color: var(--ink);
+        }
+        &::after {
+          content: "";
+          width: 7px;
+          height: 7px;
+          margin-left: auto;
+          border-right: 1.6px solid var(--dim);
+          border-bottom: 1.6px solid var(--dim);
+          rotate: 45deg;
+          translate: 0 -2px;
+        }
+      }
+      &[open] summary::after {
+        rotate: -135deg;
+        translate: 0 2px;
+      }
+      > div {
+        padding: 6px 30px 18px;
+      }
+      .dx-guides h2 {
+        display: none;
+      }
+    }
+    .dx-page {
+      display: block;
+      width: calc(100% - 36px);
+      padding-top: 30px;
+    }
+    .dx-side {
+      display: none;
+    }
+    .dx-head p:not(.dx-crumb) {
+      font-size: 17px;
+    }
+    .dx-hand {
+      margin-top: 24px;
+    }
+    .dx-card {
+      padding: 18px;
+      border-radius: 18px;
+      .dx-button {
+        width: 100%;
+      }
+      .dx-also {
+        justify-content: space-between;
+      }
+    }
+    .dx-doc {
+      font-size: 15.5px;
+      h2 {
+        margin-top: 44px;
+        font-size: 23px;
+      }
+      .dx-code pre {
+        padding: 13px 44px 13px 14px;
+        font-size: 12.5px;
+      }
+      /* The number sits beside the step's first line, and what follows takes the full width. */
+      ol > li {
+        padding-left: 0;
+        &::before {
+          position: static;
+          float: left;
+          width: 26px;
+          height: 26px;
+          margin: 0 10px 0 0;
+          font-size: 12px;
+        }
+        > * + * {
+          clear: left;
+        }
+      }
+      td:first-child {
+        white-space: normal;
+      }
+    }
+    .dx-foot {
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      width: calc(100% - 36px);
+      .grow {
+        flex-basis: 100%;
+        height: 0;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    scroll-behavior: auto;
+  }
+}

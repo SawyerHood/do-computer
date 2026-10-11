@@ -1,0 +1,882 @@
+/* The landing page's colors and type, so that the docs read as the same site. */
+:root {
+  --bg: #fafaf8;
+  --ink: #0d0d0c;
+  --dim: #6a6a66;
+  --faint: #9a9a94;
+  --line: #e7e5df;
+  --soft: #f2f0eb;
+  --teal: #0e8d86;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 92px;
+}
+body {
+  margin: 0;
+  padding-bottom: 64px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+code,
+pre {
+  font-family: var(--mono);
+}
+.grow {
+  flex: 1;
+}
+.scene {
+  display: none;
+}
+.scene.on {
+  display: block;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  img {
+    width: 26px;
+    height: 26px;
+  }
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 99px;
+  background: #ecebe6;
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+  &:hover {
+    background: #e2e0da;
+  }
+  &.dark {
+    background: var(--ink);
+    color: #fff;
+    &:hover {
+      background: #2c2c2a;
+    }
+  }
+}
+.soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px 0 13px;
+  border-radius: 99px;
+  box-shadow: inset 0 0 0 1px #d9d7d0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dim);
+  i {
+    width: 7px;
+    height: 7px;
+    border-radius: 99px;
+    background: var(--teal);
+  }
+}
+
+/* The line along the top: the landing page's, with Docs in it. */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  height: 68px;
+  padding: 0 max(24px, 50% - 640px);
+  background: rgb(250 250 248 / 0.86);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+  font-size: 14.5px;
+  color: #3a3a37;
+  white-space: nowrap;
+  nav {
+    display: flex;
+    gap: 26px;
+    margin-left: 22px;
+  }
+  a:hover {
+    color: #000;
+  }
+  .here {
+    color: var(--ink);
+    font-weight: 500;
+  }
+}
+
+/* Guides on the left, the guide in the middle, the hand-off to an agent on the right. */
+.docs {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr) 296px;
+  grid-template-areas: "side head hand" "side doc hand";
+  grid-template-rows: auto 1fr;
+  column-gap: 64px;
+  width: min(1280px, 100% - 48px);
+  margin: 0 auto;
+  padding-top: 48px;
+}
+.side {
+  grid-area: side;
+  position: sticky;
+  top: 108px;
+  align-self: start;
+  max-height: calc(100vh - 180px);
+  overflow: auto;
+}
+.guides {
+  h4 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  a {
+    display: block;
+    padding: 6px 12px;
+    margin: 0 -12px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    color: #3a3a37;
+    &:hover {
+      color: #000;
+    }
+  }
+  .guide.on {
+    background: var(--soft);
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .parts {
+    margin: 6px 0 10px;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+    a {
+      margin: 0;
+      padding: 4px 12px;
+      font-size: 13.5px;
+      color: var(--dim);
+      &.at {
+        color: var(--ink);
+        font-weight: 500;
+        box-shadow: -1px 0 0 var(--ink);
+        margin-left: -12px;
+        padding-left: 24px;
+        border-radius: 0;
+      }
+    }
+  }
+}
+.menu {
+  display: none;
+}
+
+.head {
+  grid-area: head;
+  .crumb {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    color: var(--teal);
+    font-weight: 500;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(38px, 4.4vw, 52px);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
+  }
+  p:not(.crumb) {
+    max-width: 34em;
+    margin: 18px 0 0;
+    font-size: 18.5px;
+    line-height: 1.5;
+    color: var(--dim);
+  }
+}
+
+.hand {
+  grid-area: hand;
+  position: sticky;
+  top: 108px;
+  align-self: start;
+}
+.card {
+  padding: 22px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 18px 40px rgb(40 36 20 / 0.06);
+  h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  p {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--dim);
+  }
+  .prompt {
+    margin: 16px 0 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--soft);
+    font-size: 12.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: #2a2a28;
+    span {
+      white-space: nowrap;
+    }
+  }
+  .button {
+    width: 100%;
+    margin-top: 12px;
+  }
+  .also {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--dim);
+    a {
+      text-decoration: underline;
+      text-decoration-color: #cfcdc6;
+      text-underline-offset: 3px;
+      &:hover {
+        color: var(--ink);
+      }
+    }
+  }
+}
+
+/* The guide itself: everything here is drawn from plain Markdown. */
+.doc {
+  grid-area: doc;
+  min-width: 0;
+  max-width: 720px;
+  padding: 28px 0 40px;
+  font-size: 16px;
+  line-height: 1.65;
+  color: #2a2a28;
+  > * {
+    margin: 0;
+  }
+  > * + * {
+    margin-top: 16px;
+  }
+  h2 {
+    margin-top: 60px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    font-size: 27px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: var(--ink);
+  }
+  a {
+    text-decoration: underline;
+    text-decoration-color: #b9b7b0;
+    text-underline-offset: 3px;
+    &:hover {
+      text-decoration-color: var(--ink);
+    }
+  }
+  strong {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  code {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #ecebe6;
+    font-size: 0.84em;
+  }
+  pre {
+    position: relative;
+    margin: 12px 0 0;
+    padding: 15px 52px 15px 18px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 13.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    code {
+      padding: 0;
+      background: none;
+      font-size: inherit;
+    }
+  }
+  .copy {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: 0 0 0 4px #fff;
+    color: var(--faint);
+    &:hover {
+      background: var(--soft);
+      color: var(--ink);
+    }
+    &.done {
+      color: var(--teal);
+    }
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  /* A note set apart: the word to agents at the top. */
+  blockquote {
+    padding: 16px 20px;
+    border-radius: 16px;
+    background: var(--soft);
+    font-size: 15px;
+    line-height: 1.6;
+    p {
+      margin: 0;
+    }
+  }
+
+  /* A step that waits for the person. */
+  .needs {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    margin-right: 2px;
+    padding: 0 9px;
+    border-radius: 99px;
+    background: #ffeec2;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #6f4a00;
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+
+  /* How to tell a step worked. */
+  .check {
+    position: relative;
+    padding-left: 26px;
+    font-size: 14.5px;
+    color: var(--dim);
+    &::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 0.42em;
+      width: 15px;
+      height: 15px;
+      border-radius: 99px;
+      background: var(--teal)
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 15' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.4 7.8l2.1 2 4-4.4'/%3E%3C/svg%3E");
+    }
+  }
+
+  /* Steps, each with its number in a ring. */
+  ol {
+    list-style: none;
+    padding: 0;
+    counter-reset: step;
+    > li {
+      position: relative;
+      padding-left: 46px;
+      counter-increment: step;
+      &::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: -1px;
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 99px;
+        box-shadow: inset 0 0 0 1px #d9d7d0;
+        font: 500 13px var(--mono);
+        color: var(--ink);
+      }
+      > p {
+        margin: 0;
+      }
+      > * + * {
+        margin-top: 12px;
+      }
+    }
+    > li + li {
+      margin-top: 30px;
+    }
+  }
+  ul {
+    padding-left: 22px;
+    li + li {
+      margin-top: 8px;
+    }
+    ::marker {
+      color: var(--faint);
+    }
+  }
+
+  table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  th,
+  td {
+    padding: 11px 18px 11px 0;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    font-weight: 500;
+    color: var(--ink);
+    border-bottom-color: #cfcdc6;
+  }
+  td:first-child {
+    color: var(--dim);
+    white-space: nowrap;
+  }
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: min(1280px, 100% - 48px);
+  margin: 70px auto 0;
+  padding: 26px 0 34px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--dim);
+  a:hover {
+    color: var(--ink);
+  }
+  .brand {
+    font-size: 14.5px;
+    color: var(--ink);
+    img {
+      width: 22px;
+      height: 22px;
+    }
+  }
+}
+
+/* The two scenes that are not pages of the site. */
+.about {
+  width: min(860px, 100% - 48px);
+  margin: 0 auto;
+  padding: 56px 0 28px;
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 3.6vw, 40px);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+  p {
+    max-width: 38em;
+    margin: 14px 0 0;
+    font-size: 17px;
+    color: var(--dim);
+  }
+  code {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #ecebe6;
+    font-size: 0.84em;
+    color: var(--ink);
+  }
+}
+.window,
+.terminal {
+  width: min(860px, 100% - 48px);
+  margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 30px 70px rgb(40 36 20 / 0.12);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 46px;
+  padding: 0 16px;
+  font: 400 12.5px var(--mono);
+  i {
+    flex: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 99px;
+  }
+}
+.window {
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 30px 70px rgb(40 36 20 / 0.12);
+  .bar {
+    border-bottom: 1px solid var(--line);
+    background: var(--soft);
+    overflow-x: auto;
+    i {
+      background: #d9d7d0;
+    }
+  }
+  .tab {
+    flex: none;
+    height: 30px;
+    margin-left: 6px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font: inherit;
+    color: var(--dim);
+    &.on {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+  }
+  .raw {
+    margin: 0;
+    padding: 22px 24px 28px;
+    max-height: 68vh;
+    overflow: auto;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #2a2a28;
+  }
+}
+.terminal {
+  background: #121311;
+  color: #e9e9e4;
+  .bar {
+    border-bottom: 1px solid rgb(255 255 255 / 0.08);
+    color: #85857e;
+    i {
+      background: #33342f;
+    }
+    span {
+      margin-left: 10px;
+    }
+  }
+  pre {
+    margin: 0;
+    padding: 20px 22px 26px;
+    font-size: 13px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    b {
+      font-weight: 500;
+      color: #fff;
+    }
+    span {
+      color: #5fd9cf;
+    }
+    em {
+      font-style: normal;
+      color: #85857e;
+    }
+    u {
+      text-decoration: none;
+      padding: 1px 7px;
+      border-radius: 99px;
+      background: #ffeec2;
+      color: #6f4a00;
+      font-weight: 500;
+    }
+  }
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 78px;
+  z-index: 60;
+  translate: -50% 12px;
+  padding: 9px 16px;
+  border-radius: 99px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    translate 0.18s ease;
+  &.on {
+    opacity: 1;
+    translate: -50% 0;
+  }
+}
+
+/* The strip that switches scenes. Not part of the design. */
+#strip {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 48px;
+  padding: 0 14px;
+  background: #1b1c1a;
+  color: #b9b9b2;
+  font: 400 12px var(--mono);
+  overflow-x: auto;
+  white-space: nowrap;
+  a,
+  button {
+    flex: none;
+    height: 28px;
+    padding: 0 11px;
+    border-radius: 7px;
+    font: inherit;
+    line-height: 28px;
+    color: #b9b9b2;
+    &:hover {
+      color: #fff;
+    }
+    &.on {
+      background: #3a3b37;
+      color: #fff;
+    }
+  }
+  span {
+    flex: none;
+    margin-right: 6px;
+    color: #76766f;
+  }
+  i {
+    flex: 1;
+  }
+}
+
+/* Narrower: the hand-off goes between the title and the guide. */
+@media (width <= 1180px) {
+  .docs {
+    grid-template-columns: 208px minmax(0, 1fr);
+    grid-template-areas: "side head" "side hand" "side doc";
+    grid-template-rows: auto auto 1fr;
+    column-gap: 52px;
+  }
+  .hand {
+    position: static;
+    max-width: 720px;
+    margin-top: 30px;
+  }
+  .card .button {
+    width: auto;
+  }
+  .card .also {
+    justify-content: flex-start;
+    gap: 22px;
+  }
+  .doc {
+    padding-top: 30px;
+  }
+}
+
+/* A phone: the guides fold into a line under the top. */
+@media (width <= 820px) {
+  .nav {
+    gap: 18px;
+    height: 60px;
+    padding: 0 18px;
+    nav {
+      gap: 18px;
+      margin-left: 6px;
+      a:not(.here) {
+        display: none;
+      }
+    }
+    .soon {
+      display: none;
+    }
+  }
+  html {
+    scroll-padding-top: 120px;
+  }
+  .menu {
+    display: block;
+    position: sticky;
+    top: 60px;
+    z-index: 19;
+    background: rgb(250 250 248 / 0.94);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 46px;
+      padding: 0 18px;
+      font-size: 14px;
+      color: var(--dim);
+      cursor: pointer;
+      list-style: none;
+      &::-webkit-details-marker {
+        display: none;
+      }
+      span::after {
+        content: "/";
+        margin-left: 8px;
+        color: #cfcdc6;
+      }
+      b {
+        font-weight: 500;
+        color: var(--ink);
+      }
+      &::after {
+        content: "";
+        width: 7px;
+        height: 7px;
+        margin-left: auto;
+        border-right: 1.6px solid var(--dim);
+        border-bottom: 1.6px solid var(--dim);
+        rotate: 45deg;
+        translate: 0 -2px;
+      }
+    }
+    &[open] summary::after {
+      rotate: -135deg;
+      translate: 0 2px;
+    }
+    > div {
+      padding: 6px 30px 18px;
+    }
+    .guides h4 {
+      display: none;
+    }
+  }
+  .docs {
+    display: block;
+    width: calc(100% - 36px);
+    padding-top: 30px;
+  }
+  .side {
+    display: none;
+  }
+  .head p:not(.crumb) {
+    font-size: 17px;
+  }
+  .hand {
+    margin-top: 24px;
+  }
+  .card {
+    padding: 18px;
+    border-radius: 18px;
+    .button {
+      width: 100%;
+    }
+    .also {
+      justify-content: space-between;
+    }
+  }
+  .doc {
+    font-size: 15.5px;
+    h2 {
+      margin-top: 44px;
+      font-size: 23px;
+    }
+    pre {
+      padding: 13px 44px 13px 14px;
+      font-size: 12.5px;
+    }
+    ol > li {
+      padding-left: 0;
+      &::before {
+        position: static;
+        float: left;
+        width: 26px;
+        height: 26px;
+        margin: 0 10px 0 0;
+        font-size: 12px;
+      }
+      > pre,
+      > p + p {
+        clear: left;
+      }
+    }
+    td:first-child {
+      white-space: normal;
+    }
+  }
+  .foot {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    width: calc(100% - 36px);
+    .grow {
+      flex-basis: 100%;
+      height: 0;
+    }
+  }
+  .about {
+    width: calc(100% - 36px);
+    padding-top: 36px;
+  }
+  .window,
+  .terminal {
+    width: calc(100% - 36px);
+    border-radius: 16px;
+  }
+}

@@ -13,57 +13,33 @@ has [signed in to](#models). The agent loop is
 **Status:** early. The core works on both runtimes and is covered by tests; see
 [PLAN.md](./PLAN.md) for what is built and what is not.
 
-## Run it on Node
+## Run it yourself
 
 Needs Node 22.19 or newer and pnpm.
 
 ```sh
 pnpm install
 pnpm build
-OPENROUTER_API_KEY=sk-or-... pnpm start     # http://127.0.0.1:3000
+pnpm start     # http://127.0.0.1:3000
 ```
 
-Open the address, create an account, and say hello to your agent. Data lives in `.data/` under
-`apps/web` (set `DC_DATA_DIR` to move it): one SQLite file for accounts, and one per agent.
+Open the address, create an account, and say hello to your agent. Without a model key the app
+runs on a built-in echo model. It repeats what you say, and a message of the form
+`/tool <name> <json>` makes it call that tool, which is enough to try the computer, schedules and
+skills without spending anything.
 
-To reach it from another device, set `HOST` to the address to listen on and `DC_BASE_URL` to the
-address you will open, for example `HOST=0.0.0.0 DC_BASE_URL=http://my-box.local:3000`. Sign-in
-is only accepted from that one address. Plain http is fine for everything except dictation: a
-browser only offers the microphone to pages on https or localhost. On a tailnet,
-`tailscale serve --bg --https=3000 http://127.0.0.1:3000` gives you https with a real
-certificate.
+[The self-hosting guide](./docs/self-hosting.md) has the rest, a step at a time: a model key,
+other devices and https, keeping it running, and deploying to Cloudflare Workers.
 
-Without `OPENROUTER_API_KEY` the app runs on a built-in echo model. It repeats what you say, and a
-message of the form `/tool <name> <json>` makes it call that tool, which is enough to try the
-computer, schedules and skills without spending anything.
+Every deployment also serves its guides: as pages under `/docs`, and as the Markdown files they
+are written in at the same address with `.md` after it. The file is what to give an agent, to
+have it do the setting up. From this repository that is:
 
-## Deploy to Cloudflare
-
-```sh
-cd apps/web
-pnpm exec wrangler d1 create durable-computer      # put the printed id in wrangler.jsonc
-pnpm exec wrangler r2 bucket create durable-computer
-openssl rand -base64 32 | pnpm exec wrangler secret put DC_AUTH_SECRET
-pnpm exec wrangler secret put OPENROUTER_API_KEY
-pnpm run deploy
+```
+Follow https://raw.githubusercontent.com/SawyerHood/do-computer/main/docs/self-hosting.md and set up Do Computer for me.
 ```
 
-Each agent is a Durable Object with its own SQLite storage; accounts and teams are in D1. Each
-team has one more Durable Object, which holds its members' connections for who is where.
-The built-in shell runs agents' commands in Dynamic Workers (the `worker_loaders` entry in
-`wrangler.jsonc`), which need the Workers Paid plan.
-
-Instead of editing `wrangler.jsonc`, a deployment's own values can come from the environment,
-which keeps them out of the repository. `pnpm run deploy` applies them to the build before it
-uploads: `DC_D1_DATABASE_ID`, the address as `DC_ROUTE` (for example `agent.example.com/*`,
-with `DC_ROUTE_ZONE` if needed) or `DC_CUSTOM_DOMAIN`, and any of the plain settings below such
-as `DC_BASE_URL` and `DC_SANDBOX`. Keys stay Worker secrets, which a deploy leaves alone.
-
-To deploy from GitHub on every push to `main`, after the tests pass, give the repository the
-secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and the variable
-`DC_D1_DATABASE_ID`, plus variables for the address and settings above. The token needs to edit
-Workers scripts and routes and D1. Without that variable the deploy job is skipped, so a fork
-runs the tests and nothing else.
+A guide is a file in [`docs/`](./docs): adding one there adds it to the site.
 
 ## Configuration
 

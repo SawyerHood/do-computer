@@ -19,11 +19,8 @@ import { useEffect, useRef, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { type BoxHandle, BoxStage } from "@/components/creature/box-window"
 import { cheerMascot } from "@/lib/mascot"
+import { DOWNLOADS, REPOSITORY } from "@/lib/project"
 import { cn } from "@/lib/utils"
-
-/** Where the source is, and where the desktop app is given out. */
-const REPOSITORY = "https://github.com/SawyerHood/do-computer"
-const DOWNLOADS = `${REPOSITORY}/releases/latest`
 
 /** What a creature is shown doing: how it holds itself, and the line that says so. */
 type Step = readonly [
@@ -798,6 +795,9 @@ function OpenSource() {
         </p>
         <div className="lp-cta">
           <GitHubLink className="lp-button">Star on GitHub</GitHubLink>
+          <Link to="/docs/$slug" params={{ slug: "self-hosting" }} className="lp-button">
+            Host it yourself
+          </Link>
         </div>
       </div>
       <div className="lp-terminal">
@@ -1009,6 +1009,7 @@ export function Landing({ open }: { open: boolean }) {
           <a href="#places">Where it is</a>
           <a href="#open-source">Open source</a>
           <a href="#faq">Questions</a>
+          <Link to="/docs">Docs</Link>
         </nav>
         <span className="grow" />
         <Link to="/login">Sign in</Link>
@@ -1037,6 +1038,7 @@ export function Landing({ open }: { open: boolean }) {
         </span>
         <span>Open source, MIT</span>
         <span className="grow" />
+        <Link to="/docs">Docs</Link>
         <a href={REPOSITORY} target="_blank" rel="noreferrer">
           GitHub
         </a>
