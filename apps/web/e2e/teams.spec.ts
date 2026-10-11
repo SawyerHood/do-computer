@@ -1,16 +1,10 @@
 import type { Browser, Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { composer, owner, signUp } from "./helpers.ts"
+import { card, composer, introduce, owner, signUp } from "./helpers.ts"
 
 // The first account on the server is the owner's. Sign-up there is by invitation, so the second
 // person here can only get in by being asked to a team.
 const maya = { name: "Maya Okafor", email: "maya@example.com", password: "correct horse battery" }
-
-async function fill(page: Page, account: { name?: string; email: string; password: string }) {
-  if (account.name !== undefined) await page.getByLabel("Name").fill(account.name)
-  await page.getByLabel("Email").fill(account.email)
-  await page.getByLabel("Password").fill(account.password)
-}
 
 async function open(browser: Browser, baseURL: string | undefined) {
   const context = await browser.newContext({ baseURL, colorScheme: "dark" })
@@ -66,11 +60,30 @@ test("the invitation lets them sign up where sign-up is by invitation, and join"
   // Before being asked, the address could not have signed up here at all.
   await her.goto(link)
   await expect(her.getByRole("heading", { name: "Sawyer invited you to Tidewater" })).toBeVisible()
+  await her.emulateMedia({ reducedMotion: "reduce" })
   await her.getByRole("link", { name: "Create an account" }).click()
-  await fill(her, maya)
-  await her.getByRole("button", { name: "Create account" }).click()
-  // Signing up brings them back to the invitation, which they can now answer.
+  // Someone new makes their account in the first run, which keeps where they were headed.
+  const firstRun = (url: URL) =>
+    url.pathname === "/welcome" && url.searchParams.get("next") === link
+  await her.waitForURL(firstRun)
+  await introduce(her, maya)
+  await card(her, "Nice to meet you, Maya. I don’t have a name yet. What will you call me?")
+
+  // Until she has an agent of her own the invitation sends her back to meet it, as it would
+  // had she made the account some other way: by signing in with a provider, say.
+  await her.goto(link)
+  await her.waitForURL(firstRun)
+  const naming = await card(her, /What will you call me\?/)
+  await naming.getByLabel("A name for it").fill("Wren")
+  await naming.getByRole("button", { name: "That’s your name" }).click()
+  const thinking = await card(her, "Wren. I like that. What should I think with?")
+  await thinking.getByRole("button", { name: /^Use / }).click()
+
+  // The first run ends at the invitation and not in the chat, and now it can be answered.
+  const out = await card(her, "There you are, Maya! Shall we get started?")
+  await out.getByRole("button", { name: "On to your invitation" }).click()
   await her.waitForURL(new RegExp(`${link}$`))
+  await expect(her.locator("[data-welcome]")).toHaveCount(0)
   await her.getByRole("button", { name: "Join Tidewater" }).click()
   await expect(her.getByRole("heading", { name: "Tidewater", level: 1 })).toBeVisible()
   await expect(her.getByText("2 people · 0 agents")).toBeVisible()

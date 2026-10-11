@@ -1,19 +1,11 @@
-import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { composer, inOrder, owner } from "./helpers.ts"
+import { card, composer, inOrder, owner } from "./helpers.ts"
 
 inOrder()
 
 // The scene is the same with less motion, without the fall and the waits: what is asked, and
 // what comes of the answers, is what these are about.
 test.use({ reducedMotion: "reduce" })
-
-/** The card under the egg, once it has said its piece and what it asks for can be answered. */
-async function card(page: Page, says: string | RegExp) {
-  const asked = page.locator("[data-card]")
-  await expect(asked.getByRole("status")).toHaveText(says)
-  return asked
-}
 
 test("someone new meets their first agent: it is named as it hatches, and says hello in its chat", async ({
   page,
@@ -193,7 +185,7 @@ test("the egg knows someone who signs in, and sends them on", async ({ page }) =
 
 test("the sign-in page sends someone new to the first run", async ({ page }) => {
   await page.goto("/login")
-  // The link is the plain form's until the page's script has run.
+  // Until the page's script has run the link is to `/signup`, which leads to the same place.
   const create = page.getByRole("link", { name: "Create an account" })
   await expect(create).toHaveAttribute("href", "/welcome")
   await create.click()

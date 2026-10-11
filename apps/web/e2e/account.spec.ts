@@ -1,7 +1,9 @@
 import { expect, test } from "./fixtures.ts"
 import {
+  card,
   composer,
   inOrder,
+  introduce,
   openSettings,
   owner,
   sideChats,
@@ -26,9 +28,20 @@ test("a new account's first agent opens in its first chat", async ({ page }) => 
 })
 
 test("a second account is refused on an invite-only deployment", async ({ page }) => {
-  await signUp(page, { name: "Other", email: "other@example.com", password: owner.password })
-  await expect(page.getByRole("alert")).toContainText("invitation")
-  await expect(page).toHaveURL(/\/signup$/)
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  // There is no form to sign up on: its address leads to the first run, where an account is
+  // made by telling the egg who they are.
+  await page.goto("/signup")
+  await expect(page).toHaveURL(/\/welcome$/)
+  const you = await introduce(page, {
+    name: "Other",
+    email: "other@example.com",
+    password: owner.password,
+  })
+  await expect(you.getByRole("alert")).toContainText("invitation")
+  // The egg is still asking, and nobody is signed in.
+  await card(page, /who are you\?/)
+  expect((await page.request.get("/api/me")).status()).toBe(401)
 })
 
 test("a message is answered and streamed into the transcript", async ({ page }) => {

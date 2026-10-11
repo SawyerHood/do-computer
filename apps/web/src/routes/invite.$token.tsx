@@ -1,7 +1,7 @@
 import { ApiError } from "@durable-computer/client"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { FaceStack, names, WorkspaceTile } from "@/components/people"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -26,6 +26,21 @@ function InvitationPage() {
     queryFn: () => client.me().catch(() => null),
     retry: false,
   })
+  // Someone signed in who has no agent yet is new here, whichever way they signed in: they
+  // meet their own first, and the first run brings them back.
+  const { data: agents, isFetched: counted } = useQuery({
+    queryKey: ["invitation-agents", me?.user.id],
+    queryFn: async () => (await client.listAgents()).length,
+    enabled: me != null,
+    retry: false,
+    // Asked again each time the page is come to: they come back to it with an agent.
+    gcTime: 0,
+  })
+  const fresh = invitation !== undefined && agents === 0
+  const here = `/invite/${encodeURIComponent(token)}`
+  useEffect(() => {
+    if (fresh) void navigate({ to: "/welcome", search: { next: here }, replace: true })
+  }, [fresh, here, navigate])
   const [joining, setJoining] = useState(false)
   const [failure, setFailure] = useState<string>()
 
@@ -48,9 +63,9 @@ function InvitationPage() {
       </main>
     )
   }
-  if (invitation === undefined || !isFetched) return null
+  // Nothing is offered until it is known who is here, and that they are not on their way out.
+  if (invitation === undefined || !isFetched || (me != null && !counted) || fresh) return null
 
-  const here = `/invite/${encodeURIComponent(token)}`
   const join = async () => {
     setJoining(true)
     setFailure(undefined)
@@ -128,7 +143,7 @@ function InvitationPage() {
               Sign in to join
             </a>
             <a
-              href={`/signup?next=${encodeURIComponent(here)}`}
+              href={`/welcome?next=${encodeURIComponent(here)}`}
               className={cn(buttonVariants({ variant: "ghost" }), "mt-1 w-full")}
             >
               Create an account

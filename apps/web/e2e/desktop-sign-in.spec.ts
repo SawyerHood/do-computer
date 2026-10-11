@@ -117,6 +117,19 @@ test("someone who is not signed in signs in first, and is then asked", async ({ 
   await expect(page.getByRole("button", { name: "Use another account" })).toBeVisible()
 })
 
+test("someone new who the app sent here makes their account on the plain form", async ({
+  page,
+}) => {
+  // The app's own window is showing the first run. Its owner's browser is only where they
+  // sign in, so it is the one place that `/signup` is still a form.
+  const address = `/desktop/sign-in?port=45678&state=${STATE}`
+  await page.goto(`/login?next=${encodeURIComponent(address)}`)
+  await page.getByRole("link", { name: "Create an account" }).click()
+  await expect(page).toHaveURL(`/signup?next=${encodeURIComponent(address)}`)
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Create account" })).toBeVisible()
+})
+
 test("a link the app did not make goes nowhere", async ({ page }) => {
   for (const search of [
     "",
