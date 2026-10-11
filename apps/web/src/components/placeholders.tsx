@@ -55,11 +55,11 @@ export function TranscriptPlaceholder({ className, now }: { className?: string; 
   )
 }
 
-/** Where the message box will be. */
+/** Where the message box will be, as tall as it is with the cursor in it. */
 export function ComposerPlaceholder() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-4">
-      <div className="h-[3.375rem] rounded-2xl border bg-surface shadow-sm" />
+      <div className="h-[6.875rem] rounded-2xl border bg-surface shadow-sm" />
     </div>
   )
 }
