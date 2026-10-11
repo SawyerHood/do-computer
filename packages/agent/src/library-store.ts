@@ -3,6 +3,7 @@ import {
   type LibraryFile,
   type LibraryListing,
   type LibraryVersion,
+  markdownFiles,
   SITE_LISTING_HEADER,
   type SiteEntry,
   type SiteListing,
@@ -23,6 +24,8 @@ const MAX_DELETED = 100
 export const LIBRARY_FOLDER = "library"
 /** Where files the user attaches in a chat are put. */
 export const UPLOADS_FOLDER = "uploads"
+/** The largest document that is read to see which pictures it refers to. */
+const MAX_REFERRING_BYTES = 1024 * 1024
 /** How long an address for viewing files stays the same. It works for up to twice as long. */
 const VIEW_WINDOW_MS = 6 * 60 * 60 * 1000
 
@@ -898,8 +901,10 @@ export class LibraryStore implements LibraryBackend {
   /**
    * Serve what a site shares: the file at `root`, or what is at `rest` in the folder `root`.
    * Nothing outside `root` is served, whatever is asked for. Whether the asker may open the site
-   * is for whoever calls this to have decided. A folder with no front page of its own is
-   * answered with a list of what is in it, marked as one, for the caller to show. Sandboxed
+   * is for whoever calls this to have decided. The one exception is a Markdown document shared
+   * by itself: asked for a `picture` by its place in the library, it serves that picture if the
+   * document refers to it. A folder with no front page of its own is answered with a list of
+   * what is in it, marked as one, for the caller to show. Sandboxed
    * as a viewed file is, and since a site is somewhere people are sent, a link it opens in a
    * new tab is an ordinary page there.
    */
@@ -907,12 +912,26 @@ export class LibraryStore implements LibraryBackend {
     const sandbox =
       "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads"
     const files = await this.list()
-    const alone = files.some((file) => file.path === root)
-    if (alone && rest !== "") return undefined
-    const path = alone || rest === "" ? root : `${root}/${rest}`
+    const alone = files.find((file) => file.path === root)
+    if (alone !== undefined && rest !== "") return undefined
+    // A document shared by itself brings the pictures it refers to, and nothing else.
+    const picture = new URL(request.url).searchParams.get("picture")
+    if (alone !== undefined && picture !== null) {
+      const wanted = files.find((file) => file.path === picture)
+      if (wanted === undefined || !contentTypeFor(wanted.name).startsWith("image/"))
+        return undefined
+      if (contentTypeFor(alone.name) !== "text/markdown" || alone.size > MAX_REFERRING_BYTES) {
+        return undefined
+      }
+      const bytes = await this.bytes(alone)
+      if (bytes === undefined) return undefined
+      if (!markdownFiles(root, new TextDecoder().decode(bytes)).has(picture)) return undefined
+      return this.#page(picture, request, { sandbox, opens: false, readable: true })
+    }
+    const path = alone !== undefined || rest === "" ? root : `${root}/${rest}`
     // A site's pages may read its files: they are all shared with whoever has the page.
     const page = await this.#page(path, request, { sandbox, opens: false, readable: true })
-    if (page !== undefined || alone) return page
+    if (page !== undefined || alone !== undefined) return page
     const inside = files.filter((file) => file.path.startsWith(`${path}/`))
     if (inside.length === 0) return undefined
     // Its links are relative to the folder, so the folder's address has to end in a slash.

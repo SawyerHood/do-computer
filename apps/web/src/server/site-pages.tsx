@@ -1,4 +1,10 @@
-import { SITE_LISTING_HEADER, type SiteListing, themedPage } from "@durable-computer/protocol"
+import {
+  dirOf,
+  resolveLink,
+  SITE_LISTING_HEADER,
+  type SiteListing,
+  themedPage,
+} from "@durable-computer/protocol"
 import { renderToStaticMarkup } from "react-dom/server"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -71,8 +77,13 @@ const day = new Intl.DateTimeFormat("en", {
   timeZone: "UTC",
 })
 
-/** A Markdown document as a page to read. A link to somewhere else opens in a new tab. */
-function documentPage(title: string, text: string): string {
+/**
+ * A Markdown document as a page to read. A link to somewhere else opens in a new tab. For a
+ * document shared by itself, at `alone` in the library, a picture beside it is asked for by
+ * its place there, which is how the library serves the pictures such a document refers to.
+ */
+function documentPage(title: string, text: string, alone?: string): string {
+  const dir = alone === undefined ? undefined : dirOf(alone)
   const body = renderToStaticMarkup(
     <main className="doc">
       <ReactMarkdown
@@ -84,6 +95,17 @@ function documentPage(title: string, text: string): string {
             ) : (
               <a {...props} href={href} />
             ),
+          img: ({ node: _node, src, alt, ...props }) => {
+            const path =
+              dir === undefined || typeof src !== "string" ? undefined : resolveLink(dir, src)
+            return (
+              <img
+                {...props}
+                alt={alt ?? ""}
+                src={path === undefined ? src : `?picture=${encodeURIComponent(path)}`}
+              />
+            )
+          },
         }}
       >
         {text}
@@ -177,15 +199,18 @@ const isText = (type: string) =>
  * text, a list of a folder's files, or a download for what cannot be shown. When a page asks
  * for a file, as its stylesheet or its picture or its data, the file is what it gets.
  *
- * `name` is the file's own name, and `own` is its address as a link from itself.
+ * `name` is the file's own name, `own` is its address as a link from itself, and `alone` is
+ * its place in the library where it is the one thing shared.
  */
 export async function shownAs(
   request: Request,
   answer: Response,
-  what: { title: string; name: string; own: string },
+  what: { title: string; name: string; own: string; alone?: string },
 ): Promise<Response> {
   if (answer.status !== 200) return answer
   const url = new URL(request.url)
+  // A picture a document shared by itself refers to: only ever the picture.
+  if (url.searchParams.has("picture")) return answer
   const dest = request.headers.get("sec-fetch-dest")
   const visiting = dest === "document" || dest === "iframe" || dest === "frame"
   const listing = answer.headers.get(SITE_LISTING_HEADER) !== null
@@ -213,7 +238,7 @@ export async function shownAs(
           ? mediaPage(what.title, "audio", raw)
           : isText(type) && (known ?? 0) <= MAX_SHOWN_BYTES
             ? type === "text/markdown"
-              ? documentPage(what.title, await answer.text())
+              ? documentPage(what.title, await answer.text(), what.alone)
               : textPage(what.title, await answer.text())
             : downloadPage(what.title, what.name, known)
   return new Response(page, {
