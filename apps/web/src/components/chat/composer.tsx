@@ -32,8 +32,9 @@ function pasted(file: File): File {
 }
 
 /**
- * The message box. Enter sends, Shift+Enter adds a line. While the agent is working, sending
- * steers the run and the stop button aborts it.
+ * The message box: what is written across its whole width, and its buttons in a row underneath.
+ * Enter sends, Shift+Enter adds a line. While the agent is working, sending steers the run and
+ * the stop button aborts it.
  */
 export function Composer({
   draftKey,
@@ -184,110 +185,119 @@ export function Composer({
         }
         onRemove={(id) => setAttached((current) => current.filter((file) => file.id !== id))}
       />
-      <form
-        className={cn(
-          "flex gap-1 rounded-2xl border bg-surface p-1.5 shadow-sm focus-within:border-input",
-          dictating ? "items-center" : "items-end",
-        )}
-        onSubmit={(event) => {
-          event.preventDefault()
-          send()
-        }}
-      >
-        <input
-          ref={picker}
-          type="file"
-          multiple
-          hidden
-          aria-label="Choose files to attach"
-          onChange={(event) => {
-            // Copied out first: emptying the picker empties its list too, and all but the first
-            // file would be gone by the time they were reached.
-            void attach([...(event.target.files ?? [])])
-            event.target.value = ""
+      {/* The box grows into room that was kept for it, so that nothing above it moves. */}
+      <div className="flex min-h-[6.875rem] flex-col justify-end">
+        <form
+          // Room for a line over the buttons, and for two while it is being written in.
+          className="flex min-h-[5.375rem] cursor-text flex-col rounded-2xl border bg-surface shadow-sm transition-[min-height] duration-150 ease-out focus-within:min-h-[6.875rem] focus-within:border-input motion-reduce:transition-none"
+          onSubmit={(event) => {
+            event.preventDefault()
+            send()
           }}
-        />
-        {dictating ? (
-          <Dictating
-            state={dictation.state}
-            stream={dictation.stream}
-            onCancel={dictation.cancel}
-            onStop={dictation.stop}
+          // Pressing a button, or the room around what is written, does not take the cursor out
+          // of the message: the box would shrink under the press.
+          onMouseDown={(event) => {
+            if (event.target !== input.current) event.preventDefault()
+          }}
+          onClick={(event) => {
+            // Anywhere in the box that is not a button is a place to write.
+            if (!(event.target as Element).closest("button, textarea")) input.current?.focus()
+          }}
+        >
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            hidden
+            aria-label="Choose files to attach"
+            onChange={(event) => {
+              // Copied out first: emptying the picker empties its list too, and all but the
+              // first file would be gone by the time they were reached.
+              void attach([...(event.target.files ?? [])])
+              event.target.value = ""
+            }}
           />
-        ) : (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="text-muted-foreground"
-            onClick={() => picker.current?.click()}
-            aria-label="Attach a file"
-          >
-            <PaperclipIcon className="size-5" />
-          </Button>
-        )}
-        {/* Kept while dictating, out of sight, so that what was typed and where is not lost. */}
-        <textarea
-          ref={input}
-          rows={1}
-          value={draft}
-          placeholder={placeholder}
-          aria-label="Message"
-          className={cn(
-            "max-h-[200px] flex-1 resize-none bg-transparent px-1 py-1.5 text-[0.9375rem] leading-6 outline-none placeholder:text-muted-foreground",
-            dictating && "hidden",
-          )}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            onTyping?.(event.target.value.trim() !== "")
-          }}
-          onPaste={(event) => {
-            // A picture or a file on the clipboard is attached, as if it had been chosen. Text
-            // that came with it is still pasted as text.
-            const files = [...event.clipboardData.files]
-            if (files.length === 0) return
-            if (!event.clipboardData.types.includes("text/plain")) event.preventDefault()
-            void attach(files.map(pasted))
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              send()
-            }
-          }}
-        />
-        {dictating ? null : (
-          <>
-            {dictation.supported ? (
+          {dictating ? (
+            <Dictating
+              state={dictation.state}
+              stream={dictation.stream}
+              onCancel={dictation.cancel}
+              onStop={dictation.stop}
+            />
+          ) : null}
+          {/* Kept while dictating, out of sight, so that what was typed and where is not lost. */}
+          <textarea
+            ref={input}
+            rows={1}
+            value={draft}
+            placeholder={placeholder}
+            aria-label="Message"
+            className={cn(
+              "max-h-[200px] w-full shrink-0 resize-none bg-transparent px-3.5 pt-3 pb-1.5 text-[0.9375rem] leading-6 outline-none placeholder:text-muted-foreground",
+              dictating && "hidden",
+            )}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              onTyping?.(event.target.value.trim() !== "")
+            }}
+            onPaste={(event) => {
+              // A picture or a file on the clipboard is attached, as if it had been chosen. Text
+              // that came with it is still pasted as text.
+              const files = [...event.clipboardData.files]
+              if (files.length === 0) return
+              if (!event.clipboardData.types.includes("text/plain")) event.preventDefault()
+              void attach(files.map(pasted))
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                send()
+              }
+            }}
+          />
+          {dictating ? null : (
+            <div className="mt-auto flex items-center gap-1 px-1.5 pb-1.5">
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="text-muted-foreground"
-                onClick={dictation.start}
-                aria-label="Dictate"
+                className="mr-auto text-muted-foreground"
+                onClick={() => picker.current?.click()}
+                aria-label="Attach a file"
               >
-                <MicrophoneIcon className="size-5" />
+                <PaperclipIcon className="size-5" />
               </Button>
-            ) : null}
-            {busy && !ready && uploading === 0 ? (
-              <Button
-                type="button"
-                size="icon"
-                variant="secondary"
-                onClick={onStop}
-                aria-label="Stop"
-              >
-                <StopIcon weight="fill" />
-              </Button>
-            ) : (
-              <Button type="submit" size="icon" disabled={!ready} aria-label="Send">
-                <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
-              </Button>
-            )}
-          </>
-        )}
-      </form>
+              {dictation.supported ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={dictation.start}
+                  aria-label="Dictate"
+                >
+                  <MicrophoneIcon className="size-5" />
+                </Button>
+              ) : null}
+              {busy && !ready && uploading === 0 ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  onClick={onStop}
+                  aria-label="Stop"
+                >
+                  <StopIcon weight="fill" />
+                </Button>
+              ) : (
+                <Button type="submit" size="icon" disabled={!ready} aria-label="Send">
+                  <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
+                </Button>
+              )}
+            </div>
+          )}
+        </form>
+      </div>
       {(error ?? dictation.error ?? attachError) ? (
         <p role="alert" className="px-5 text-xs text-destructive">
           {error ?? dictation.error ?? attachError}
@@ -299,7 +309,7 @@ export function Composer({
 
 /**
  * The message box while it is listening: what the microphone hears, moving across where the
- * words would be. Stopping puts what was said in the box to be read over; sending sends it as it
+ * words would be, over its own row of buttons. Stopping puts what was said in the box to be read over; sending sends it as it
  * is; the cross throws it away. While the words are on their way the bars hold still and shine.
  */
 function Dictating({
@@ -321,57 +331,64 @@ function Dictating({
   }
   return (
     <>
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        className="rounded-full text-muted-foreground"
-        onClick={onCancel}
-        aria-label="Cancel dictating"
-        title="Cancel"
+      <div
+        className={cn(
+          "flex h-[4.125rem] items-center px-3.5",
+          transcribing && "animate-shine-across",
+        )}
       >
-        <XIcon />
-      </Button>
-      <div className={cn("h-7 min-w-0 flex-1 px-1", transcribing && "animate-shine-across")}>
-        <Waveform stream={stream} active={!transcribing} />
+        <Waveform stream={stream} active={!transcribing} className="h-7" />
       </div>
       <span className="sr-only" role="status">
         {transcribing ? "Turning what you said into text" : "Listening"}
       </span>
-      <Button
-        type="button"
-        size="icon"
-        variant="secondary"
-        className="disabled:opacity-100"
-        disabled={transcribing}
-        onClick={() => stop("draft")}
-        aria-label="Stop dictating"
-        title="Stop, and put it in the message"
-      >
-        {transcribing && end === "draft" ? (
-          <Spinner />
-        ) : (
-          <StopIcon weight="fill" className={cn(transcribing && "opacity-50")} />
-        )}
-      </Button>
-      <Button
-        type="button"
-        size="icon"
-        className="disabled:opacity-100"
-        disabled={transcribing}
-        onClick={() => stop("send")}
-        aria-label="Send what you said"
-        title="Send"
-      >
-        {transcribing && end === "send" ? (
-          <Spinner />
-        ) : (
-          <ArrowUpIcon
-            weight="bold"
-            className={cn("size-[1.125rem]", transcribing && "opacity-50")}
-          />
-        )}
-      </Button>
+      <div className="flex items-center gap-1 px-1.5 pb-1.5">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="mr-auto rounded-full text-muted-foreground"
+          onClick={onCancel}
+          aria-label="Cancel dictating"
+          title="Cancel"
+        >
+          <XIcon />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          className="disabled:opacity-100"
+          disabled={transcribing}
+          onClick={() => stop("draft")}
+          aria-label="Stop dictating"
+          title="Stop, and put it in the message"
+        >
+          {transcribing && end === "draft" ? (
+            <Spinner />
+          ) : (
+            <StopIcon weight="fill" className={cn(transcribing && "opacity-50")} />
+          )}
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          className="disabled:opacity-100"
+          disabled={transcribing}
+          onClick={() => stop("send")}
+          aria-label="Send what you said"
+          title="Send"
+        >
+          {transcribing && end === "send" ? (
+            <Spinner />
+          ) : (
+            <ArrowUpIcon
+              weight="bold"
+              className={cn("size-[1.125rem]", transcribing && "opacity-50")}
+            />
+          )}
+        </Button>
+      </div>
     </>
   )
 }

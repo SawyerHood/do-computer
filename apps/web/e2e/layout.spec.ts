@@ -194,6 +194,65 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   expect(await width()).toBe(640)
 })
 
+test("the message box has its buttons under what is written, and grows where room was kept", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  const box = composer(page)
+  const around = page.locator("form").filter({ has: box })
+  const said = page.getByRole("log").getByText("You said: Hello there")
+  await box.fill("Hello there")
+  await box.press("Enter")
+  await expect(said).toBeVisible()
+  const place = async (locator: typeof box) => (await locator.boundingBox())!
+  const settled = async (height: number) =>
+    expect.poll(async () => (await place(around)).height).toBe(height)
+
+  // With the cursor in it there is room for two lines, as wide as the border around them.
+  await expect(box).toBeFocused()
+  await settled(110)
+  const [text, open, clip, arrow, above] = await Promise.all([
+    place(box),
+    place(around),
+    place(page.getByRole("button", { name: "Attach a file" })),
+    place(page.getByRole("button", { name: "Send" })),
+    place(said),
+  ])
+  expect(text.width).toBe(open.width - 2)
+  // Its buttons are in a row under that: attaching at one end, sending at the other.
+  expect(clip.y).toBe(text.y + 66)
+  expect(arrow.y).toBe(clip.y)
+  expect(clip.x - open.x).toBeLessThan(12)
+  expect(open.x + open.width - (arrow.x + arrow.width)).toBeLessThan(12)
+
+  // Left alone it has room for one. Its foot stays where it was, and so does what was said above.
+  await box.blur()
+  await settled(86)
+  const shut = await place(around)
+  expect(shut.y + shut.height).toBe(open.y + open.height)
+  expect((await place(said)).y).toBe(above.y)
+
+  // Pressing anywhere in the box that is not a button puts the cursor in it.
+  await page.mouse.click(shut.x + shut.width / 2, shut.y + shut.height - 20)
+  await expect(box).toBeFocused()
+  await settled(110)
+  // And pressing there again, or a button, leaves it in: the box does not move under the press.
+  await page.mouse.click(open.x + open.width / 2, open.y + 55)
+  await expect(box).toBeFocused()
+  await box.fill("And again")
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(page.getByRole("log").getByText("You said: And again")).toBeVisible()
+  await expect(box).toBeFocused()
+  await expect(box).toHaveValue("")
+  await settled(110)
+
+  // More than two lines and it grows with them.
+  await box.fill("one\ntwo\nthree\nfour")
+  await settled(158)
+  await box.fill("")
+})
+
 test("the layout works at phone width", async ({ page }) => {
   await signIn(page)
   await composer(page).fill("What can you do?")
@@ -273,8 +332,8 @@ test("under a finger every field is written in at a size a phone does not zoom i
   await phone.goto("/")
   await expect(composer(phone)).toBeVisible()
   expect(await smallest(phone)).toBe(16)
-  // The box is still a line tall beside its buttons.
-  expect((await composer(phone).boundingBox())!.height).toBeLessThanOrEqual(40)
+  // The box is still a line tall over its buttons.
+  expect((await composer(phone).boundingBox())!.height).toBeLessThanOrEqual(42)
 
   // The fields of the agent's settings, which are smaller than the message box with a mouse.
   await openSettings(phone, "Identity")
