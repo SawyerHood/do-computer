@@ -437,6 +437,48 @@ describe("a site's files", () => {
     expect((await served(world, "drafts", "nothing/")).status).toBe(404)
   })
 
+  it("are a document's pictures too, where the document is what is shared", async () => {
+    const world = open()
+    await setup(world)
+    const SVG = '<svg xmlns="http://www.w3.org/2000/svg"/>'
+    await put(
+      world,
+      "notes/plan.md",
+      "# Plan\n\n![chart](chart.svg) ![logo](../brand/logo.svg) [numbers](data.csv) [page](page.html)",
+    )
+    await put(world, "notes/chart.svg", SVG)
+    await put(world, "notes/unused.svg", SVG)
+    await put(world, "notes/data.csv", "week,signups")
+    await put(world, "notes/page.html", "<p>page</p>")
+    await put(world, "brand/logo.svg", SVG)
+    await put(world, "brand/list.md", "![chart](../notes/unused.svg)")
+    const picture = (root: string, path: string) =>
+      served(world, root, `?picture=${encodeURIComponent(path)}`)
+
+    const chart = await picture("notes/plan.md", "notes/chart.svg")
+    expect(chart.status).toBe(200)
+    expect(chart.headers.get("content-type")).toBe("image/svg+xml")
+    expect(chart.headers.get("content-security-policy")).toMatch(/^sandbox /)
+    expect(await chart.text()).toBe(SVG)
+    // One in another folder, which the document reaches by its own path.
+    expect((await picture("notes/plan.md", "brand/logo.svg")).status).toBe(200)
+    // Not a picture it does not refer to, though it is beside it.
+    expect((await picture("notes/plan.md", "notes/unused.svg")).status).toBe(404)
+    // Not what it links to that is no picture, whatever it is.
+    expect((await picture("notes/plan.md", "notes/data.csv")).status).toBe(404)
+    expect((await picture("notes/plan.md", "notes/page.html")).status).toBe(404)
+    expect((await picture("notes/plan.md", "notes/plan.md")).status).toBe(404)
+    expect((await picture("notes/plan.md", "nowhere.svg")).status).toBe(404)
+    // The document itself is still what its address answers with.
+    expect(await (await served(world, "notes/plan.md", "")).text()).toContain("# Plan")
+    // What is shared that is not a document brings nothing with it.
+    expect((await picture("notes/chart.svg", "notes/unused.svg")).status).toBe(404)
+    expect((await picture("notes/page.html", "notes/chart.svg")).status).toBe(404)
+    // And in a shared folder a picture is asked for by its own address, as any file is.
+    const folder = await picture("notes", "brand/logo.svg")
+    expect(folder.headers.get(SITE_LISTING_HEADER)).toBe("1")
+  })
+
   it("are one file of any kind, for a site that shares a file", async () => {
     const world = open()
     await setup(world)

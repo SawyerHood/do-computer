@@ -238,14 +238,26 @@ test("anything in the library is shared, and shown as what it is", async ({ page
   await page.goto(`/s/${folder.id}/reader.html`)
   await expect(frame.locator("#out")).toHaveText("read:week,signups")
 
-  // A document shared by itself is the document, and nothing beside it.
+  // A document shared by itself is the document.
   const document = await share("notes/plan.md")
   expect(document).toMatchObject({ path: "notes/plan.md", title: "Plan" })
   await page.goto(`/s/${document.id}`)
   await expect(page).toHaveTitle("Plan")
   await expect(frame.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
+  // It brings the picture it refers to, and nothing else that is beside it.
+  await expect
+    .poll(() =>
+      frame
+        .getByRole("img", { name: "chart" })
+        .evaluate((img: HTMLImageElement) => img.naturalWidth),
+    )
+    .toBe(40)
+  await page.screenshot({ path: "test-results/site-document-alone.png" })
   const keyed = (await page.locator("iframe").getAttribute("src"))!
   expect((await page.request.get(`${keyed}data.csv`)).status()).toBe(404)
+  expect((await page.request.get(`${keyed}?picture=notes%2Fchart.svg`)).status()).toBe(200)
+  expect((await page.request.get(`${keyed}?picture=notes%2Fdata.csv`)).status()).toBe(404)
+  expect((await page.request.get(`${keyed}?picture=secret.html`)).status()).toBe(404)
 
   // What cannot be shown is offered as a download, under its own name.
   const file = await share("exports/report.zip")

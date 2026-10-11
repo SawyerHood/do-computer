@@ -242,9 +242,12 @@ export async function serveSite(request: Request, siteId: string): Promise<Respo
       headers["if-none-match"] = cached
     }
     const within = rest.slice(slash)
-    const response = await libraries
-      .get(row.workspace_id)
-      .fetch(new Request(`http://library/site${within}`, { headers, signal: request.signal }))
+    const response = await libraries.get(row.workspace_id).fetch(
+      new Request(`http://library/site${within}${url.search}`, {
+        headers,
+        signal: request.signal,
+      }),
+    )
     // The library answers in JSON, for the app. This is read by a browser.
     if (response.status === 404) return missing()
     // The file's own name: the last part of what was asked for, or of what is shared.
@@ -259,6 +262,8 @@ export async function serveSite(request: Request, siteId: string): Promise<Respo
       title: asked === "" ? row.title : asked,
       name,
       own: asked === "" ? "./" : encodeURIComponent(asked),
+      // What is shared, where this is it and not something within it.
+      ...(asked === "" ? { alone: row.path } : {}),
     })
   }
   if (row.public !== 1) {

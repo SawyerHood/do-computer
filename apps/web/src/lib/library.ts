@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@durable-computer/protocol"
+import { dirOf, type LibraryFile, resolveLink } from "@durable-computer/protocol"
 
 /** How a file is shown: each kind has a viewer of its own, and `other` only a download. */
 export type FileKind = "markdown" | "page" | "image" | "text" | "other"
@@ -42,33 +42,8 @@ export function kindOf(file: Pick<LibraryFile, "name" | "size">): FileKind {
 /** Whether the library can show a file. One sent before it showed documents has no place in it on record. */
 export const isViewable = (file: LibraryFile) => file.path !== undefined && kindOf(file) !== "other"
 
-/** The folder a path is in, or "" at the top. */
-export const dirOf = (path: string) =>
-  path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
-
-/**
- * Where a relative link from a document in `dir` leads within the library, or undefined when it
- * leads somewhere else: another site, a place on the same page, or above the top folder.
- */
-export function resolveLink(dir: string, href: string): string | undefined {
-  if (href === "" || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) return undefined
-  const [plain] = href.split(/[?#]/)
-  let decoded: string
-  try {
-    decoded = decodeURIComponent(plain ?? "")
-  } catch {
-    return undefined
-  }
-  const parts = decoded.startsWith("/") || dir === "" ? [] : dir.split("/")
-  for (const part of decoded.split("/")) {
-    if (part === "" || part === ".") continue
-    if (part === "..") {
-      if (parts.length === 0) return undefined
-      parts.pop()
-    } else parts.push(part)
-  }
-  return parts.length === 0 ? undefined : parts.join("/")
-}
+// Where a path is, and where a link from a document leads, are the server's to know too.
+export { dirOf, resolveLink }
 
 export type Folder = {
   name: string

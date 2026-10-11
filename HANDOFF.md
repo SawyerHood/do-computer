@@ -2121,10 +2121,19 @@ Since then, newest last:
       card in a chat has one; a folder is shared from its row in the tree, and a shared file
       or folder carries a lock or a globe there. The words are "Shared with a link" where
       they were "Shared as a website".
-    - **Mine, not the owner's:** how each kind is shown; that Markdown shared by itself is
-      shown without the pictures beside it, since a file shared alone serves nothing else,
-      and that sharing its folder is the way to have them; that a PDF is a download, as it
-      is in the library; 1 MB as the most text that is shown.
+    - **A document shared by itself brings its pictures.** A file shared alone serves nothing
+      beside it, so at first a Markdown document's own pictures did not load, and the owner
+      asked for them. The page made of the document asks for each picture beside it by its
+      place in the library (`?picture=notes/chart.svg` on the document's own address), and
+      the library serves it if the document refers to it and it is a picture
+      (`markdownFiles` in `packages/protocol/src/library-links.ts`, read from the document
+      as it is now). Nothing else rides along: not a picture the document does not name, and
+      not a file it only links to. In a shared folder a picture is at its own address, as
+      any file is.
+    - **Mine, not the owner's:** how each kind is shown; that a PDF is a download, as it is in
+      the library; 1 MB as the most text that is shown, and as the largest document read for
+      its pictures; that a document's links to other files beside it lead nowhere when it is
+      shared alone.
     - **Tested:** `apps/web/src/server/site-pages.test.ts`, and the last two tests of
       `apps/web/e2e/sites.spec.ts`. `scripts/smoke.sh` shares a document.
 52. **The desktop app keeps itself up to date** (2026-10-11; `apps/desktop/src/update.ts`,

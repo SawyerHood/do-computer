@@ -53,6 +53,26 @@ describe("what a site's address shows", () => {
     expect(text).toContain("--muted-foreground")
   })
 
+  it("asks for the pictures beside a document shared by itself by their places in the library", async () => {
+    const text = "![chart](chart.svg) ![logo](../brand/a%20b.png) ![out](https://example.com/x.png)"
+    const alone = await shownAs(asked("iframe"), file(text, "text/markdown"), {
+      ...what,
+      alone: "notes/plan.md",
+    })
+    const page = await alone.text()
+    expect(page).toContain('<img alt="chart" src="?picture=notes%2Fchart.svg"/>')
+    expect(page).toContain('<img alt="logo" src="?picture=brand%2Fa%20b.png"/>')
+    expect(page).toContain('<img alt="out" src="https://example.com/x.png"/>')
+    // In a shared folder a picture beside the document is at its own address already.
+    const within = await show(file(text, "text/markdown"))
+    expect(within.text).toContain('<img alt="chart" src="chart.svg"/>')
+    // And the picture asked for that way is the picture, to whoever asks.
+    const picture = file("<svg/>", "image/svg+xml")
+    expect(await shownAs(asked("iframe", "?picture=notes%2Fchart.svg"), picture, what)).toBe(
+      picture,
+    )
+  })
+
   it("is the file itself for a page that loads it, and for a browser that does not say", async () => {
     for (const dest of ["image", "style", "script", "empty", null]) {
       const { response, text } = await show(file("# Plan", "text/markdown"), dest)
