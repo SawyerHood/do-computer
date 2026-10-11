@@ -405,7 +405,7 @@ Each phase ends with both runtimes passing the same tests.
 
 ## 7. Ported from do-computer
 
-Source: `/home/sawyer/projects/do-browser/apps/do-computer`.
+Source: the older do-computer app, which this replaced.
 
 | Piece                          | Source                                                           | Change on the way in                             |
 | ------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
@@ -419,7 +419,7 @@ Source: `/home/sawyer/projects/do-browser/apps/do-computer`.
 | Memory caps and history search | `src/memory/`                                                    | Stored as pi-durable documents                   |
 
 Not ported: Flue and everything that reads its private tables, the Telegram delivery object, the
-restic backup system, the dobrowser.io auth hand-off.
+restic backup system, the auth hand-off from the older site.
 
 ## 8. Risks and spikes
 
@@ -457,4 +457,3 @@ These are unverified and are what phase 0 is for.
 - just-bash: https://github.com/vercel-labs/just-bash
 - Meta Muse security design: https://research.meta.ai/blog/security-and-safety-for-ai-agents-our-approach-with-muse
 - OpenClaw docs: https://docs.openclaw.ai ; Hermes Agent docs: https://hermes-agent.nousresearch.com/docs
-- do-computer plan docs: `/home/sawyer/projects/do-browser/do-computer-plans`
