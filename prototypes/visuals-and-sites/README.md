@@ -5,6 +5,11 @@ its own drawn in the chat, and share a page or a folder of pages from the librar
 with a link. It is drawn before any of it was built. It is not part of the app and nothing here
 is imported by it. Everything in it is pretend.
 
+It was built the same day, before the owner had answered it (HANDOFF.md, section 5, item 50).
+Where the app differs: the files in the library's tree carry no lock or globe; a document open
+beside a chat has no line along its bottom saying who shared it; in a workspace of one person
+the pill reads "Only you"; and the approval request has the app's usual buttons.
+
 ```sh
 node prototypes/visuals-and-sites/build.mjs     # writes index.html here; open it from the file system
 ```

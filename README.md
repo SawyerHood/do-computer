@@ -323,6 +323,13 @@ answering or someone stops the conversation.
   and a new machine gets them. Earlier contents of a file are kept as versions, and a
   deleted file can be brought back. A file the agent sends appears in the chat, and opens beside
   it.
+- **Show you things, and share them.** Where a chart, a table or a diagram says more than
+  prose, the agent draws one into the chat: a small page of its own, in the app's colors, kept in
+  the Library under `visuals/`. Any page in the Library, or a folder with an `index.html`, can be
+  shared as a website with a link of its own, by the agent or from the page's Share button. The
+  link opens for the people in the workspace, signed in, until someone chooses "Anyone with the
+  link"; an agent has to ask before making one public. A site shows the files as they are, so
+  it changes when they do. Pages an agent wrote run apart from the app and from your account.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
   prints a link; confirm it, say whose the computer is, and choose which agents get it. Those
   agents can then run commands and read and write files there, and everything they do is logged

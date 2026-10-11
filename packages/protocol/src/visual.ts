@@ -27,6 +27,11 @@ export type VisualTheme = {
   appearance: "light" | "dark"
   /** The color of the agent whose chat it is in, which the accent takes its hue from. */
   color?: string
+  /**
+   * It is shown in a chat, as part of an answer: the page then has no margin of its own, says
+   * how tall it is, and asks for its links to be opened. Anywhere else it is a page by itself.
+   */
+  inline?: boolean
 }
 
 const HOST_CONTEXT_CHANGED = "ui/notifications/host-context-changed"
@@ -78,26 +83,32 @@ const THEME_CSS =
   `@media (prefers-color-scheme:dark){:root:not([data-${THEME_KEY}]){${DARK_VARIABLES}}}` +
   "html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;" +
   "line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}" +
-  "html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}"
+  "html::-webkit-scrollbar{display:none}body{margin:0}" +
+  // By itself, in a tab or a viewer, it is a page with margins and a measure. In a chat it has
+  // neither: the answer around it gives it both.
+  ":root:not([data-dc-inline]) body{max-width:720px;margin:0 auto;padding:24px}" +
+  "code,kbd,pre,samp{font-family:var(--font-mono)}" +
+  "a{color:inherit;text-underline-offset:3px}"
 
 /**
  * Runs in the head, before the page's own styles and body, so the first paint is already in the
  * client's colors. The theme arrives in the address's fragment, which is then dropped so that a
  * page's own use of the fragment never meets it, and again by message whenever it changes. A
  * page in a frame says how tall it is, so the frame can fit it. A link to somewhere else never
- * replaces the page where it is shown: the client is asked to open it, or, where nobody has
- * said they are showing the page, it opens in a new tab.
+ * replaces the page where it is shown: in a chat the client is asked to open it, and anywhere
+ * else it opens in a new tab.
  */
 const BOOTSTRAP_SCRIPT =
   `(function(){var r=document.documentElement,f=window.parent!==window,k=false,n=0,h,o;` +
   `function a(t){if(!t||typeof t!=="object")return;` +
+  `if(t.inline===true&&f){k=true;r.setAttribute("data-dc-inline","");}` +
   `if(t.appearance==="light"||t.appearance==="dark")r.setAttribute("data-${THEME_KEY}",t.appearance);` +
   `if(typeof t.color==="string"&&/^[a-z0-9 .,%()#-]{1,80}$/i.test(t.color))r.style.setProperty("--agent-color",t.color);}` +
-  `try{var m=/[#&]${THEME_KEY}=([^&]*)/.exec(location.hash);if(m){k=f;a(JSON.parse(decodeURIComponent(m[1])));` +
+  `try{var m=/[#&]${THEME_KEY}=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));` +
   `history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}` +
   `window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;` +
   `if(e.source!==window.parent||!d||d.jsonrpc!=="2.0"||d.method!==${JSON.stringify(HOST_CONTEXT_CHANGED)}||!p)return;` +
-  `k=true;a({appearance:p.theme,color:p.styles&&p.styles.variables&&p.styles.variables["--agent-color"]});});` +
+  `a({appearance:p.theme,color:p.styles&&p.styles.variables&&p.styles.variables["--agent-color"]});});` +
   `document.addEventListener("click",function(e){var l=e.isTrusted&&e.composedPath?e.composedPath().find(function(t){` +
   `return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;` +
   `try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}` +

@@ -3,6 +3,7 @@ import {
   type ChatState,
   DEFAULT_THINKING,
   isSentFile,
+  isVisual,
   type LibraryFile,
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
@@ -783,7 +784,10 @@ export class SlackChats {
     if (directory.upload === undefined || contents === undefined) return []
     const posted = new Set(slack.files ?? [])
     const missed: string[] = []
-    const parts = (state?.messages ?? []).flatMap((message) => message.parts.filter(isSentFile))
+    // A visual is drawn in the app's chat. Slack has nowhere to draw it, so it goes as the file.
+    const parts = (state?.messages ?? []).flatMap((message) =>
+      message.parts.filter((part) => isSentFile(part) || isVisual(part)),
+    )
     for (const part of parts) {
       if (posted.has(part.toolCallId)) continue
       const file = part.details as unknown as LibraryFile
