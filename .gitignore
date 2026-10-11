@@ -37,5 +37,8 @@ prototypes/landing-pro/index.html
 # The teams mock-up, built from prototypes/teams/src
 prototypes/teams/index.html
 
+# The docs mock-up, built from prototypes/docs/src
+prototypes/docs/index.html
+
 # The desktop app, packed by electron-builder
 apps/desktop/release/

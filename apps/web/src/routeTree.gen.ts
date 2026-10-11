@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as DaemonDotjsRouteImport } from './routes/daemon[.]js'
 import { Route as HatchRouteImport } from './routes/hatch'
 import { Route as InstallDotshRouteImport } from './routes/install[.]sh'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as WelcomeRouteImport } from './routes/welcome'
@@ -27,6 +28,8 @@ import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as DesktopSignInRouteImport } from './routes/desktop.sign-in'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as DoodDoodIdRouteImport } from './routes/dood.$doodId'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
@@ -116,6 +119,11 @@ const InstallDotshRoute = InstallDotshRouteImport.update({
   path: '/install.sh',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -179,6 +187,16 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
 const DesktopSignInRoute = DesktopSignInRouteImport.update({
   id: '/desktop/sign-in',
   path: '/desktop/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsSlugRoute = DocsSlugRouteImport.update({
+  id: '/docs/$slug',
+  path: '/docs/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DoodDoodIdRoute = DoodDoodIdRouteImport.update({
@@ -525,6 +543,7 @@ export interface FileRoutesByFullPath {
   '/daemon.js': typeof DaemonDotjsRoute
   '/hatch': typeof HatchRoute
   '/install.sh': typeof InstallDotshRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/welcome': typeof WelcomeRoute
@@ -538,8 +557,10 @@ export interface FileRoutesByFullPath {
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/docs/': typeof DocsIndexRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -608,6 +629,7 @@ export interface FileRoutesByTo {
   '/daemon.js': typeof DaemonDotjsRoute
   '/hatch': typeof HatchRoute
   '/install.sh': typeof InstallDotshRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/welcome': typeof WelcomeRoute
@@ -621,8 +643,10 @@ export interface FileRoutesByTo {
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/docs': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
@@ -691,6 +715,7 @@ export interface FileRoutesById {
   '/daemon.js': typeof DaemonDotjsRoute
   '/hatch': typeof HatchRoute
   '/install.sh': typeof InstallDotshRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/welcome': typeof WelcomeRoute
@@ -704,8 +729,10 @@ export interface FileRoutesById {
   '/api/settings': typeof ApiSettingsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/desktop/sign-in': typeof DesktopSignInRoute
+  '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/docs/': typeof DocsIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -776,6 +803,7 @@ export interface FileRouteTypes {
     | '/daemon.js'
     | '/hatch'
     | '/install.sh'
+    | '/llms.txt'
     | '/login'
     | '/signup'
     | '/welcome'
@@ -789,8 +817,10 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/api/transcribe'
     | '/desktop/sign-in'
+    | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/docs/'
     | '/a/$agentId'
     | '/w/$workspaceId'
     | '/api/auth/$'
@@ -859,6 +889,7 @@ export interface FileRouteTypes {
     | '/daemon.js'
     | '/hatch'
     | '/install.sh'
+    | '/llms.txt'
     | '/login'
     | '/signup'
     | '/welcome'
@@ -872,8 +903,10 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/api/transcribe'
     | '/desktop/sign-in'
+    | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/docs'
     | '/api/auth/$'
     | '/api/computers/$computerId'
     | '/api/connectors/callback'
@@ -941,6 +974,7 @@ export interface FileRouteTypes {
     | '/daemon.js'
     | '/hatch'
     | '/install.sh'
+    | '/llms.txt'
     | '/login'
     | '/signup'
     | '/welcome'
@@ -954,8 +988,10 @@ export interface FileRouteTypes {
     | '/api/settings'
     | '/api/transcribe'
     | '/desktop/sign-in'
+    | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/docs/'
     | '/_app/a/$agentId'
     | '/_app/w/$workspaceId'
     | '/api/auth/$'
@@ -1026,6 +1062,7 @@ export interface RootRouteChildren {
   DaemonDotjsRoute: typeof DaemonDotjsRoute
   HatchRoute: typeof HatchRoute
   InstallDotshRoute: typeof InstallDotshRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   WelcomeRoute: typeof WelcomeRoute
@@ -1038,8 +1075,10 @@ export interface RootRouteChildren {
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   DesktopSignInRoute: typeof DesktopSignInRoute
+  DocsSlugRoute: typeof DocsSlugRoute
   DoodDoodIdRoute: typeof DoodDoodIdRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  DocsIndexRoute: typeof DocsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
   ApiConnectorsCallbackRoute: typeof ApiConnectorsCallbackRoute
@@ -1121,6 +1160,13 @@ declare module '@tanstack/react-router' {
       path: '/install.sh'
       fullPath: '/install.sh'
       preLoaderRoute: typeof InstallDotshRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1212,6 +1258,20 @@ declare module '@tanstack/react-router' {
       path: '/desktop/sign-in'
       fullPath: '/desktop/sign-in'
       preLoaderRoute: typeof DesktopSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/docs'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/$slug': {
+      id: '/docs/$slug'
+      path: '/docs/$slug'
+      fullPath: '/docs/$slug'
+      preLoaderRoute: typeof DocsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dood/$doodId': {
@@ -1774,6 +1834,7 @@ const rootRouteChildren: RootRouteChildren = {
   DaemonDotjsRoute: DaemonDotjsRoute,
   HatchRoute: HatchRoute,
   InstallDotshRoute: InstallDotshRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   WelcomeRoute: WelcomeRoute,
@@ -1786,8 +1847,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSettingsRoute: ApiSettingsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   DesktopSignInRoute: DesktopSignInRoute,
+  DocsSlugRoute: DocsSlugRoute,
   DoodDoodIdRoute: DoodDoodIdRoute,
   InviteTokenRoute: InviteTokenRoute,
+  DocsIndexRoute: DocsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,
   ApiConnectorsCallbackRoute: ApiConnectorsCallbackRoute,

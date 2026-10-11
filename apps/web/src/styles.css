@@ -4,6 +4,7 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
 @import "./components/landing/landing.css";
+@import "./components/docs/docs.css";
 
 @custom-variant dark (&:is(.dark *));
 

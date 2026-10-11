@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Do Computer · docs mock-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/*STYLE*/
+</style>
+</head>
+<body>
+
+<!-- The page: /docs/self-hosting -->
+<div class="scene" data-scene="page">
+  <header class="nav">
+    <a class="brand" href="#page"><img data-logo alt="">Do Computer</a>
+    <nav>
+      <a class="here" href="#page">Docs</a>
+      <a href="#page" data-toast="Leads to the repository on GitHub">GitHub</a>
+      <a href="#page" data-toast="Leads to the latest release">Download</a>
+    </nav>
+    <span class="grow"></span>
+    <a href="#page" data-toast="Leads to the sign-in form">Sign in</a>
+    <span class="soon"><i></i>Coming soon</span>
+  </header>
+
+  <details class="menu">
+    <summary><span>Docs</span><b>Self-hosting</b></summary>
+    <div data-guides></div>
+  </details>
+
+  <div class="docs">
+    <aside class="side" data-guides></aside>
+
+    <header class="head">
+      <p class="crumb">Guides</p>
+      <!--HEAD-->
+    </header>
+
+    <aside class="hand">
+      <div class="card">
+        <h2>Have an agent set it up</h2>
+        <p>Paste this into Claude Code, Codex or any agent with a terminal. It asks you for the few things only you can give.</p>
+        <pre class="prompt" data-prompt>Follow <span>https://do.computer/docs/</span><wbr><span>self-hosting.md</span> and set up Do Computer for me.</pre>
+        <button class="button dark" data-copy-prompt>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>
+          <span>Copy prompt</span>
+        </button>
+        <div class="also">
+          <a href="#page" data-copy-page>Copy page as Markdown</a>
+          <a href="#agent">View as Markdown</a>
+        </div>
+      </div>
+    </aside>
+
+    <article class="doc">
+      <!--BODY-->
+    </article>
+  </div>
+
+  <footer class="foot">
+    <span class="brand"><img data-logo alt="">Do Computer</span>
+    <span>Open source, MIT</span>
+    <span class="grow"></span>
+    <a href="#page">Docs</a>
+    <a href="#page">GitHub</a>
+    <a href="#page">Download</a>
+    <a href="#page">Sign in</a>
+  </footer>
+</div>
+
+<!-- What an agent gets: /docs/self-hosting.md and /llms.txt -->
+<div class="scene" data-scene="agent">
+  <div class="about">
+    <h1>The same guide, as an agent gets it</h1>
+    <p>Put <code>.md</code> after any guide's address and the answer is the Markdown file the page was drawn from, with nothing around it. <code>/llms.txt</code> lists every guide.</p>
+  </div>
+  <div class="window">
+    <div class="bar">
+      <i></i><i></i><i></i>
+      <button class="tab on" data-file="guide">do.computer/docs/self-hosting.md</button>
+      <button class="tab" data-file="llms">do.computer/llms.txt</button>
+    </div>
+    <pre class="raw" data-raw></pre>
+  </div>
+</div>
+
+<!-- An agent following the link -->
+<div class="scene" data-scene="run">
+  <div class="about">
+    <h1>An agent following it</h1>
+    <p>What the copied prompt leads to in someone's terminal. This is an illustration of the hand-off, not a page of the site.</p>
+  </div>
+  <div class="terminal">
+    <div class="bar"><i></i><i></i><i></i><span>~/code</span></div>
+<pre><b>&gt; Follow https://do.computer/docs/self-hosting.md and set up Do Computer for me.</b>
+
+<span>●</span> Fetch(https://do.computer/docs/self-hosting.md)
+  <em>└ 200 OK, text/markdown, SIZE</em>
+
+<span>●</span> The guide has two ways to run it. Which do you want?
+  <em>1. A machine of yours (this one)   2. Cloudflare</em>
+
+<b>&gt; cloudflare</b>
+
+<span>●</span> Bash(git clone https://github.com/SawyerHood/do-computer &amp;&amp; cd do-computer &amp;&amp; pnpm install)
+  <em>└ Done in 41s</em>
+
+<span>●</span> Bash(cd apps/web &amp;&amp; pnpm exec wrangler login)
+  <em>└ Opening a browser window…</em>
+
+<span>●</span> <u>Needs you:</u> sign in to Cloudflare in the window that opened, then tell me.
+
+<b>&gt; done</b>
+
+<span>●</span> Bash(pnpm exec wrangler whoami)
+  <em>└ You are logged in. Account: Ada's account</em>
+
+<span>●</span> Bash(pnpm exec wrangler d1 create durable-computer)
+  <em>└ database_id = "3f6c…a91e"</em>
+
+<span>●</span> Bash(pnpm exec wrangler r2 bucket create durable-computer)
+  <em>└ Created bucket durable-computer</em>
+
+<span>●</span> <u>Needs you:</u> the next command asks for your OpenRouter key. Paste it there, not here.
+
+<span>●</span> Bash(DC_D1_DATABASE_ID=3f6c…a91e pnpm run deploy)
+  <em>└ Deployed to https://durable-computer.ada.workers.dev</em>
+
+<span>●</span> Bash(curl -s https://durable-computer.ada.workers.dev/api/health)
+  <em>└ {"ok":true}</em>
+
+<span>●</span> It is running at https://durable-computer.ada.workers.dev. Open it and sign up:
+  the first account needs no invitation.</pre>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="strip"></div>
+
+<script>
+/*SCRIPT*/
+</script>
+</body>
+</html>

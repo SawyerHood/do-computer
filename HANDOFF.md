@@ -2322,6 +2322,33 @@ Since then, newest last:
       API: the list, letting someone in, a Dood woken into an agent, a treat reaching its
       actor, and both pages' heads. Not run: a real post on X, a sign-in with GitHub or Google
       along the way, the email, a phone, the deployed Worker.
+56. **Guides on the site, which an agent can be given** (2026-10-11; `docs/`,
+    `apps/web/src/lib/docs.ts`, `apps/web/src/components/docs`, `prototypes/docs`). The owner
+    asked for "a docs page on the website that has guides", the first being how to self host,
+    and that "you should also be able to give the guide to an agent via a link to set it up".
+    They chose the mock-up ("I love this can you build this for real"), said the README's
+    sections could be replaced, and that the guides are served on every deployment. The rest
+    is mine.
+    - **A guide is one Markdown file in `docs/`**, served twice: `/docs/<name>` is a page, sent
+      whole, and `/docs/<name>.md` is the file itself. So what a person reads and what their
+      agent follows are the same text. `/docs` opens the first guide, and `/llms.txt` lists
+      them. A file added to `docs/` is a guide; `ORDER` in `lib/docs.ts` says which come first.
+    - **The page** has the landing page's top line and colors, the guides at the side with the
+      open one's sections, and a card, "Have an agent set it up", whose prompt holds the
+      address of the file at that deployment. Three things are drawn specially and each is
+      plain Markdown in the file: `**Needs you:**` is the mark on a step that waits for the
+      person, a paragraph that starts `Check:` gets a tick, and a quote is a note set apart.
+    - **The guide, `docs/self-hosting.md`,** took over the README's "Run it on Node" and
+      "Deploy to Cloudflare". It is written to be followed by an agent as well: a note to
+      agents first, a check under each step, and keys only ever typed by the person. On Node a
+      key goes in a settings file read with `node --env-file`, which the user service reads
+      too, so no key passes through a chat.
+    - **What was run.** The Node half, from a clean clone on this machine: install, build,
+      start, the health check, the settings file, and the user service, which came back after
+      being killed. **The Cloudflare half has not been run from nothing.** Its order differs
+      from the old README's: it deploys before it sets the secrets, so that `wrangler secret
+put` never has to ask whether to make a Worker. The first person to follow it on a new
+      account is its test.
 
 ## 6. What the owner has said they want
 
