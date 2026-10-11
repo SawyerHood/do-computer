@@ -1,3 +1,4 @@
+import { type ChildProcess, execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { createServer, type Server } from "node:http"
@@ -39,6 +40,8 @@ releaseDate: '2026-10-11T00:00:00.000Z'
 
 let feed: Server
 let app: ElectronApplication
+/** The app's process, kept from when it started: it cannot be asked for once the app has gone. */
+let running: ChildProcess
 
 test.beforeAll(async () => {
   feed = createServer((request, response) => {
@@ -73,15 +76,25 @@ test.beforeAll(async () => {
       ...(process.platform === "linux" ? { APPIMAGE: appImage } : {}),
     },
   })
+  running = app.process()
 })
 
 test.afterAll(async () => {
   // An app that quits with a newer one fetched starts what it fetched, to take its place. On
   // Windows that is an installer, which what was fetched here is not: the app is ended instead.
-  if (process.platform === "win32") app?.process().kill()
-  else await app?.close().catch(() => {})
+  // Windows lets go of the app's folder only once every process of it has gone.
+  if (process.platform !== "win32") await app?.close().catch(() => {})
+  else if (running?.pid !== undefined && running.exitCode === null) {
+    const gone = new Promise((resolve) => running.once("exit", resolve))
+    try {
+      execFileSync("taskkill", ["/pid", String(running.pid), "/T", "/F"], { stdio: "ignore" })
+      await gone
+    } catch {
+      // It had gone already.
+    }
+  }
   feed?.close()
-  rmSync(scratch, { recursive: true, force: true, maxRetries: 5 })
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 })
 
 test.describe.configure({ mode: "serial" })
