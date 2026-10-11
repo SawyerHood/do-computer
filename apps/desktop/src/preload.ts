@@ -22,6 +22,7 @@ if (location.protocol === "file:") {
     setOpenAtLogin: (on) => ipcRenderer.invoke("open-at-login", on),
     changeServer: () => ipcRenderer.invoke("change-server"),
     retry: () => ipcRenderer.invoke("retry"),
+    update: () => ipcRenderer.invoke("update"),
   }
   contextBridge.exposeInMainWorld("desktop", api)
 } else if (location.protocol === "https:" || location.protocol === "http:") {

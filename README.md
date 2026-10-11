@@ -580,7 +580,8 @@ repository variable `DC_BASE_URL` is set, those open that deployment.
 
 Releases are made from tags. Pushing one named `desktop-v` and a version, `desktop-v0.2.0`,
 packs the app as that version and, once it has passed on all three systems, publishes a
-release with the three files:
+release with the three files, and with what the apps already installed read to update
+themselves (a `.zip` of the Mac's app, and a `latest*.yml` for each system):
 
 ```sh
 git tag desktop-v0.2.0 && git push origin desktop-v0.2.0
@@ -600,9 +601,24 @@ Things to know:
   `xattr -dr com.apple.quarantine` and the path of the app.
 - **Nobody has signed the Windows one.** Windows shows "Windows protected your PC": choose
   More info, then Run anyway. That has not been tried on a real desktop yet.
-- **The app does not update itself.** There is little in it to update: the window shows the
-  server's own pages, and the daemon inside it replaces itself from the server like any other
-  daemon. A newer app is installed over the old one.
+- **A release keeps itself up to date.** It looks at the repository's newest release when it
+  starts and every four hours, fetches a newer app, and becomes it: when it is quit, when
+  **Restart to Update** is chosen in the tray menu or under **This Computer…**, or by itself
+  once no window of it is showing and its daemon has been silent for five minutes. Restarted
+  that way it comes back without a window. The window's pages are the server's and the daemon
+  replaces itself from the server, as before; this is for the app around them. A copy that is
+  not a release (packed by hand, or by a run of the workflow that was not for a tag) stays as
+  it is, and This Computer says so. Things that follow from how each system does it:
+  - **macOS** takes a newer app only from whoever signed the one it has, so a fork with no
+    certificate has to be installed again by hand.
+  - **Windows** runs the newer installer without showing it. Nobody has signed it: what says
+    that it is the right file is that it came from the release, over HTTPS, with the checksum
+    the release names.
+  - **Linux** updates the AppImage, which is one file: a newer one is put where it was, named
+    for its version, and what opens the app at sign-in is pointed at it. A launcher you made
+    yourself is not. Run unpacked (`--appimage-extract`), the app cannot replace itself.
+- **A fork's releases update from the fork.** The address is the repository the workflow ran
+  in, and is put in the app as it is packed, not in a tracked file.
 - **The server has to be at least as new as the app.** The daemon takes whichever version its
   server serves, and one from before the desktop app does not know how to be part of it.
 - **It is a computer of its own.** The app keeps its daemon's credentials in its own folder, so

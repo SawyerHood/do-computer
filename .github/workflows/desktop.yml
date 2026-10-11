@@ -105,11 +105,18 @@ jobs:
           MAC_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       - name: Pack it
         working-directory: apps/desktop
-        # A release is the version its tag says, in the app and in the names of its files.
+        # A release is the version its tag says, in the app and in the names of its files. It
+        # is also told where releases are published, which is where it then looks for a newer
+        # one of itself: the files of whichever release is the newest. Packing writes down
+        # beside each what that is (latest*.yml), for the release before it to read.
         run: |
           flags=()
           case "$GITHUB_REF" in
-            refs/tags/desktop-v*) flags+=("-c.extraMetadata.version=${GITHUB_REF_NAME#desktop-v}") ;;
+            refs/tags/desktop-v*)
+              flags+=("-c.extraMetadata.version=${GITHUB_REF_NAME#desktop-v}")
+              flags+=(-c.publish.provider=generic)
+              flags+=("-c.publish.url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/latest/download")
+              ;;
           esac
           if [ "$SIGN_MAC" = true ]; then
             # The certificate is found in the keychain the step before made (CSC_KEYCHAIN).
@@ -155,14 +162,18 @@ jobs:
         working-directory: apps/desktop
         run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test
         env:
+          # A release looks for a newer one of itself. Not while it is being tested.
+          DC_DESKTOP_UPDATES: ""
           DC_DESKTOP_APP: ${{ github.workspace }}/apps/desktop/release/${{ runner.os == 'macOS' && 'mac-universal/Do Computer.app/Contents/MacOS/Do Computer' || runner.os == 'Windows' && 'win-unpacked/Do Computer.exe' || 'linux-unpacked/do-computer' }}
       - uses: actions/upload-artifact@v4
         with:
           name: do-computer-${{ matrix.name }}
           path: |
             apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
             apps/desktop/release/*.exe
             apps/desktop/release/*.AppImage
+            apps/desktop/release/latest*.yml
           if-no-files-found: error
           # Three apps are most of half a gigabyte, kept at a price for every day. A release
           # has its own copies; these are for trying a build, the longest when one was asked for.
@@ -201,6 +212,8 @@ jobs:
           - **macOS**: the `.dmg`, for Apple's chips and Intel's alike.
           - **Windows**: the `.exe` installer. Install [Git for Windows](https://gitforwindows.org) too, so that agents' commands run in bash.
           - **Linux**: the `.AppImage`. Make it executable (`chmod +x`) and run it.
+
+          Once installed it keeps itself up to date. The `.zip` and the `.yml` files are what it reads to do so.
 
           NOTES
           echo "$warning" >> notes.md
