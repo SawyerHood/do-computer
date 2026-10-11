@@ -1,0 +1,165 @@
+/* ---------- Visuals and shared sites mock-up: added to the two mock-ups' styles above ---------- */
+
+/* A visual in the chat: straight on the chat's background, as wide as the reply, in the app's colors. */
+.viz{position:relative;--v1:var(--teal-text);--v2:oklch(0.6 0.13 70);margin-bottom:14px}
+.dark .viz{--v2:oklch(0.8 0.12 78)}
+.viz .vt{display:flex;flex-wrap:wrap;align-items:center;gap:2px 16px;padding-right:72px;min-height:30px}
+.viz .vt b{font-size:15px;font-weight:600}
+.viz .lg{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted-foreground)}
+.viz .lg i{width:14px;height:0;border-top:2.5px solid var(--c);border-radius:2px}
+.viz .lg i+i,.viz .lg span+i{margin-left:8px}
+.viz svg.plot{display:block;width:100%;height:auto;margin-top:6px;overflow:visible}
+.viz svg.plot text{font-size:11px;fill:var(--muted-foreground);font-family:inherit}
+.viz svg.plot .g{stroke:var(--border);stroke-width:1}
+.viz svg.plot .ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.viz svg.plot .dot{stroke:var(--background);stroke-width:2}
+.viz svg.plot .v{font-weight:600;font-size:11.5px}
+.viz-acts{position:absolute;top:-2px;right:-4px;display:flex;gap:2px;opacity:.5;transition:opacity .15s;z-index:2}
+.viz:hover .viz-acts,.viz-acts.on,.phone .viz-acts{opacity:1}
+.viz-acts .ib.on{background:var(--accent);color:var(--foreground)}
+
+/* Who can open a shared site. */
+.wc{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px 0 7px;border-radius:99px;background:var(--accent);color:var(--muted-foreground);font-size:11.5px;font-weight:500;white-space:nowrap;flex:none}
+.wc.pub{background:color-mix(in oklch,var(--primary) 22%,transparent);color:var(--teal-text)}
+.wc.off{background:none;border:1px dashed var(--input)}
+
+/* A shared site in the transcript: built as a file's card is. */
+.sitec-w{position:relative;width:fit-content;max-width:100%;margin-bottom:12px}
+.sitec{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:10px 10px 10px 12px;min-width:0}
+.gl{width:36px;height:36px;border-radius:11px;background:var(--secondary);color:var(--muted-foreground);display:grid;place-items:center;flex:none}
+.sitec .w{min-width:0;margin-right:20px}
+.sitec .t{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:500}
+.sitec .a{font-family:var(--mono);font-size:12px;color:var(--muted-foreground);margin-top:2px;white-space:nowrap}
+.sitec .acts{display:flex;align-items:center;gap:6px;flex:none}
+.sitec .ib.on{background:var(--accent);color:var(--foreground)}
+.sitec.off .t b{color:var(--muted-foreground);font-weight:500}
+
+/* The share popover: a menu, as the app's others are. */
+.sharepop{position:absolute;right:0;top:calc(100% + 6px);z-index:21;width:376px;background:var(--popover);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 40px rgb(0 0 0/.28);padding:14px;animation:rise .15s ease-out;font-size:14px;text-align:left;cursor:default}
+.sharepop.up{top:auto;bottom:calc(100% + 6px)}
+.sharepop.left{right:auto;left:0}
+.sharepop h4{font-size:14px;font-weight:600;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.sharepop .lk{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;padding:4px 4px 4px 10px;background:var(--surface)}
+.sharepop .lk span{font-family:var(--mono);font-size:12.5px}
+.sharepop .lb{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);margin:14px 0 6px 2px}
+.wrow{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px 8px 8px;border-radius:10px;text-align:left}
+.wrow:hover{background:var(--accent)}
+.wrow .gl{width:30px;height:30px;border-radius:9px}
+.wrow .n{font-weight:500}
+.wrow .d{font-size:12px;color:var(--muted-foreground)}
+.rd{width:16px;height:16px;border-radius:99px;border:1.5px solid var(--input);flex:none;display:grid;place-items:center}
+.wrow.on .rd{border-color:var(--primary);background:var(--primary)}
+.wrow.on .rd::after{content:"";width:6px;height:6px;border-radius:99px;background:var(--primary-foreground)}
+.sharepop hr{border:0;border-top:1px solid var(--border);margin:10px -14px 8px}
+.sharepop .stopsh{height:30px;padding:0 8px;border-radius:8px;font-size:13px;color:var(--destructive)}
+.sharepop .stopsh:hover{background:color-mix(in oklch,var(--destructive) 12%,transparent)}
+
+/* The approval request above the message box, as the app draws it. */
+.foot{position:relative}
+.foot .ask{max-width:none;margin-bottom:10px;background:var(--surface)}
+.ask .from{font-size:12.5px;color:var(--muted-foreground)}
+
+/* The visual opened beside the chat, where the agent's panel is. */
+.panel.docp{width:54%}
+.docp .dh{height:52px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px 0 16px;border-bottom:1px solid var(--border)}
+.docp .dh .fn{font-family:var(--mono);font-size:12.5px}
+.docp .dh .sw-w{position:relative}
+.seg{display:inline-flex;background:var(--secondary);border-radius:9px;padding:2px;gap:2px}
+.seg button{height:24px;padding:0 10px;border-radius:7px;font-size:12.5px;font-weight:500;color:var(--muted-foreground)}
+.seg button.on{background:var(--background);color:var(--foreground);box-shadow:0 1px 2px rgb(0 0 0/.2)}
+.docp .pg{flex:1;min-height:0;overflow:auto;background:var(--background);padding:28px 28px 20px}
+.docp .pg .viz-acts{display:none}
+.docp pre.src{margin:0;font-family:var(--mono);font-size:12px;line-height:1.65;color:var(--muted-foreground);white-space:pre-wrap}
+.docp .df{flex:none;border-top:1px solid var(--border);padding:9px 16px;font-size:12.5px;color:var(--muted-foreground);display:flex;align-items:center;gap:8px}
+
+/* A pretend browser window, drawn plainly. */
+.brw-w{flex:1;min-width:0;display:flex;padding:22px 28px;background:var(--rail)}
+.brw{flex:1;min-width:0;display:flex;flex-direction:column;border:1px solid #3a3d42;border-radius:12px;overflow:hidden;box-shadow:0 20px 50px rgb(0 0 0/.3);background:#2a2c30;color:#c9cbcf}
+.brw-tabs{height:38px;flex:none;display:flex;align-items:flex-end;gap:8px;padding:0 12px}
+.brw-tabs .dots{display:flex;gap:7px;align-self:center;margin-right:8px}
+.brw-tabs .dots i{width:11px;height:11px;border-radius:99px;background:#4a4d53}
+.brw-tab{height:30px;min-width:200px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:9px 9px 0 0;background:#3a3d42;color:#e6e7e9;font-size:12.5px}
+.brw-bar{height:40px;flex:none;background:#3a3d42;display:flex;align-items:center;gap:6px;padding:0 12px;color:#9a9da3}
+.brw-url{flex:1;height:28px;border-radius:99px;background:#2a2c30;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:13px;color:#e6e7e9;margin:0 6px}
+.brw-url span{color:#9a9da3}
+.brw-body{flex:1;min-height:0;overflow:auto}
+
+/* The agent's page. Its own design, not the app's. */
+.lp{min-height:100%;background:#fbf8f3;color:#23201c;font-size:15px;line-height:1.55;padding:44px 24px 40px}
+.lp .in{max-width:860px;margin:0 auto}
+.lp .kick{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#0f766e}
+.lp h1{font-family:Georgia,"Times New Roman",serif;font-size:40px;font-weight:400;line-height:1.1;margin:6px 0 8px;letter-spacing:-.01em}
+.lp .sub{color:#6b655d;max-width:560px}
+.lp .steps{display:grid;grid-template-columns:repeat(4,1fr);margin:30px 0 8px;position:relative}
+.lp .steps::before{content:"";position:absolute;left:8px;right:8px;top:7px;border-top:2px solid #e2dbcf}
+.lp .steps div{position:relative;padding:26px 14px 0 0;font-size:13.5px;color:#6b655d}
+.lp .steps div::before{content:"";position:absolute;left:0;top:0;width:12px;height:12px;border-radius:99px;background:#fbf8f3;border:2px solid #b9b0a2}
+.lp .steps div.d::before{background:#0f766e;border-color:#0f766e}
+.lp .steps div.n::before{border-color:#0f766e;box-shadow:0 0 0 4px #0f766e22}
+.lp .steps b{display:block;color:#23201c;font-size:14.5px}
+.lp .steps small{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase}
+.lp .cols{display:grid;grid-template-columns:1.25fr 1fr;gap:40px;margin-top:30px}
+.lp h2{font-family:Georgia,"Times New Roman",serif;font-size:21px;font-weight:400;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #e2dbcf}
+.lp ul{list-style:none;margin:0;padding:0}
+.lp li{display:flex;align-items:flex-start;gap:10px;padding:7px 0}
+.lp li .bx{width:17px;height:17px;border-radius:5px;border:1.5px solid #b9b0a2;flex:none;margin-top:3px;display:grid;place-items:center;color:#fff}
+.lp li.d .bx{background:#0f766e;border-color:#0f766e}
+.lp li.d span.t{color:#6b655d}
+.lp li em{font-style:normal;font-size:12.5px;color:#6b655d;margin-left:auto;white-space:nowrap;padding-left:12px}
+.lp .aside{background:#f3eee5;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.lp .aside b{display:block;font-size:13px}
+.lp .aside .big{font-family:Georgia,serif;font-size:26px;line-height:1.2}
+.lp .aside p{font-size:13.5px;color:#6b655d;margin:2px 0 0}
+.lp .ft{margin-top:34px;font-size:12.5px;color:#8c857b}
+
+/* The same address for someone who may not open it. */
+.gate{min-height:100%;background:var(--background);color:var(--foreground);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:40px 24px}
+.gate .gl{width:44px;height:44px;border-radius:14px;margin-bottom:12px}
+.gate h1{font-size:19px;font-weight:500;margin:0}
+.gate p{color:var(--muted-foreground);margin:0 0 16px}
+.gate small{position:absolute;bottom:0;font-size:12px;color:var(--muted-foreground)}
+.gate{position:relative}
+.gate small{bottom:22px}
+
+/* The library's front page. */
+.ltree .th{display:flex;align-items:center;padding:14px 10px 8px 16px;font-size:14px;font-weight:500}
+.ltree .nodes{flex:1;overflow:auto;padding:0 8px 12px;display:flex;flex-direction:column;gap:1px}
+.ltree .sn{height:30px;font-size:13px;padding-left:calc(8px + var(--d,0)*16px);gap:7px}
+.ltree .sn .wc{margin-left:auto;height:18px;padding:0 5px;background:none}
+.lfront{flex:1;min-width:0;overflow:auto}
+.lfront .in{max-width:860px;margin:0 auto;padding:30px 28px 40px}
+.lfront h1{font-size:22px;font-weight:600;margin:0}
+.lfront .sub{color:var(--muted-foreground);margin:2px 0 0}
+.lfront h3{font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-foreground);margin:28px 0 8px 2px;display:flex;align-items:center;gap:8px}
+.lfront .rows{border:1px solid var(--border);border-radius:14px}
+.srow{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 14px;position:relative}
+.srow+.srow{border-top:1px solid var(--border)}
+.srow .n{font-weight:500;display:flex;align-items:center;gap:8px}
+.srow .d{font-size:12.5px;color:var(--muted-foreground);display:flex;align-items:center;gap:6px;margin-top:1px}
+.srow .d code{font-family:var(--mono);font-size:12px}
+.srow .by{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted-foreground);white-space:nowrap;width:176px;flex:none;--s:18px}
+.srow .wc-w{width:118px;flex:none}
+.srow .ib.on{background:var(--accent);color:var(--foreground)}
+.srow .none{color:var(--muted-foreground);padding:4px 0}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.fcard{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:14px;padding:10px 12px;text-align:left;min-width:0}
+.fcard:hover{background:var(--surface)}
+.fcard .gl{width:32px;height:32px;border-radius:10px}
+.fcard .n{font-size:13.5px;font-weight:500}
+.fcard .d{font-size:12px;color:var(--muted-foreground)}
+
+/* On a phone. */
+.phone-w.wide{width:320px}
+.phone .viz .vt b{font-size:14px}
+.phone .sitec{flex-wrap:wrap;gap:10px;padding:10px}
+.phone .sitec .w{flex:1;margin-right:0}
+.phone .sitec .acts{width:100%}
+.phone .sitec .acts .btn{flex:1}
+.phone .sitec .a{font-size:11.5px}
+
+/* A chat longer than the window scrolls, and does not push the message box off the page. */
+.acol .chat{min-height:0}
+.acol .foot{flex:none}
+
+/* Inter draws an x between two digits as a times sign. An address is not arithmetic. */
+.brw-url,.srow .d,.docp .df,.prose code,.sharepop .lk{font-feature-settings:"calt" 0}
