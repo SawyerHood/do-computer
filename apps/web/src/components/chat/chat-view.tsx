@@ -509,7 +509,7 @@ export function ChatView({
                                 <Hatchling
                                   agent={agent}
                                   hatch={hatch}
-                                  className="size-[clamp(8rem,calc(100dvh-31rem),18rem)]"
+                                  className="size-[clamp(6rem,calc(100dvh-34.5rem),18rem)]"
                                 />
                               </span>
                             )
