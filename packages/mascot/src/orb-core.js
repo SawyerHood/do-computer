@@ -321,6 +321,7 @@ function describeGenome(g, retro) {
    Shaders
    ================================================================ */
 // Simplex noise at v: its slope in xyz and its value in w.
+// From webgl-noise by Ian McEwan, Ashima Arts, and Stefan Gustavson (MIT): THIRD_PARTY_NOTICES.md.
 var NOISE = [
   'vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}',
   'vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}',

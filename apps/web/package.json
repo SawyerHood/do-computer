@@ -2,6 +2,7 @@
   "name": "@durable-computer/web",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "pnpm generate && vite dev --port 3000",

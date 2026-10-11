@@ -21,6 +21,9 @@ extraResources:
   - from: dist/driver/node_modules
     to: driver/node_modules
     filter: ["**/*"]
+  # Whose work the driver, the app's fonts and some of its code are, and on what terms.
+  - from: ../../THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 npmRebuild: false
 publish: null
 mac:

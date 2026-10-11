@@ -5,8 +5,12 @@ and shipped, what the owner has asked for and decided, what is unfinished, and w
 not been checked. `README.md` describes the product for someone hosting it; `PLAN.md` is the
 original plan with a status section. Where they disagree with this file, this file is newer.
 
-This file is specific to the owner's own deployment and working habits. Trim or remove it before
-the repository is made public.
+**This file is in a public repository, and everyone can read it.** Keep out of it, and out of
+every other tracked file: credentials, and where they are kept; the identifiers of accounts and
+deployments; the owner's machines, their names, their paths and how they are reached; other
+projects that are not public; what is left over on the owner's accounts; and a weakness of a
+running deployment that is not fixed yet. Tell the owner those privately. What belongs here is
+what was built, why, what the owner decided, and what has and has not been checked.
 
 ## 1. What this is
 
@@ -18,13 +22,12 @@ of its workspace, which the workspace's agents share, and they share one library
 Durable Object per agent) and on plain Node, from the same code. There is a web app (TanStack
 Start, shadcn, jotai, TanStack DB and Query, Better Auth) and an Expo mobile app.
 
-The owner is Sawyer. The repository is private: `SawyerHood/durable-computer`.
+The owner is Sawyer. The repository is `SawyerHood/do-computer`.
 
 ## 2. Where it runs
 
 - **Live:** https://do.computer, the Cloudflare Worker `durable-computer`, on the owner's
-  Cloudflare account. It replaced an older app ("do-computer", from the `do-browser` repository),
-  which was torn down on 2026-10-03.
+  Cloudflare account. It replaced an older app, which was torn down on 2026-10-03.
 - **Signing in:** GitHub sign-in is on, and so is email and password. The deployment is
   invite-only; the owner has the first account.
 - **A workspace** is given a Daytona machine there when an agent is made in one that has none
@@ -62,8 +65,6 @@ deploying: "I don't want to make changes to this project". The deployment's valu
 
 `apps/web/scripts/deploy-settings.mjs` applies those values to the built config before
 `wrangler deploy` uploads it; `pnpm --filter @durable-computer/web run deploy` is what CI runs.
-On the owner's Linux machine there is also `~/.config/durable-computer/deploy-do-computer.sh`,
-outside the repository, which does the same from that machine. Wrangler is signed in there.
 
 The address is a zone route (`do.computer/*`), not a custom domain, because the apex already has
 a proxied DNS record.
@@ -113,9 +114,9 @@ Layout, briefly (`README.md` has the full table):
 The code has a consistent voice: comments explain why in plain sentences, tests are named as
 statements of behaviour, and commit messages say what changed and why. Keep to it.
 
-### On the owner's Linux machine
+### On a Linux machine with no graphics card and no Docker
 
-These are facts about that one machine (`bee`), where most of this was built:
+Most of this was built on one, and these are what it took:
 
 - Browser tests use an already-downloaded Chromium:
   `PLAYWRIGHT_CHROMIUM_PATH=$HOME/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome pnpm exec playwright test`
@@ -126,14 +127,9 @@ These are facts about that one machine (`bee`), where most of this was built:
 - The local Workers runtime needs port 3112, because `apps/web/.dev.vars` sets the base URL to
   it, and `DC_SIGNUP=open` added to that file to sign up. Restore the file afterwards.
 - There is no Docker, so Cloudflare Containers cannot run locally.
-- Keys for real-service tests are in another project's file,
-  `~/projects/do-browser/apps/do-computer/.env` (OpenRouter, Daytona, and others). The owner
-  allowed their use for testing this project and for the do.computer deployment. Pass them to a
-  child process without printing them, never write them into this repository, and delete any
-  Daytona machines a test creates. That Cloudflare account holds other projects too: touch only
-  `durable-computer` resources.
-- The project is registered in the owner's `bb` tool as `proj_qbksnufyhz`. `bb` is not on the
-  PATH there; it runs as `node ~/projects/bb/packages/bb-app/dist/bb.js`.
+- Keys for real-service tests are not in this repository. Pass them to a child process without
+  printing them, never write them into a tracked file, and delete any Daytona machines a test
+  creates.
 
 ## 5. What was built, in order
 
@@ -1060,10 +1056,10 @@ Since then, newest last:
       sign-in. A daemon restarting under a running background command has not been tried on
       Windows, nor has the app against do.computer.
     - **Signing (2026-10-10).** The Mac's app is signed with the owner's Developer ID
-      (team 9QCU24SXK5) and checked by Apple, where the repository has the secrets `CSC_LINK`,
+      and checked by Apple, where the repository has the secrets `CSC_LINK`,
       `CSC_KEY_PASSWORD`, `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, which
       it now has. Why: an app signed by nobody is another app to macOS with every build, so
-      the owner's Mac refused Accessibility and Screen Recording to 0.3.1 while System
+      a Mac refused Accessibility and Screen Recording to 0.3.1 while System
       Settings showed both on, granted to 0.2.0 (`tccd` logs "Failed to match existing code
       requirement"). `electron-builder.yml` is the signed app (hardened runtime,
       `assets/entitlements.mac.plist`); `electron-builder.unsigned.yml` extends it for a pack
@@ -1073,7 +1069,7 @@ Since then, newest last:
       certificate's password for the keychain's, which macOS 26 refuses. Apple is asked for a
       release and for a run from the Actions tab, not for a push to main. A run from the
       Actions tab on the branch signed, was checked by Apple and passed the packed app's
-      tests, the driver's among them, and that build was installed on the owner's Mac.
+      tests, the driver's among them, and that build was installed on a Mac.
       **Mine, not the owner's:** asking Apple only then; no `disable-library-validation`,
       which the unsigned app had from electron-builder's defaults; the Apple Events
       entitlement, for `osascript` in an agent's command. **Never run:** whether the two
@@ -1236,13 +1232,13 @@ Since then, newest last:
       how the overlay looks on a real desktop, its clicks, its being kept out of pictures, and
       Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch,
       where Chrome may ask twice, once for dev-browser and once for the picture. The browser on
-      macOS. dev-browser has no Windows build, so on Windows the browser tool says so. On the
-      owner's Linux machine: the driver in Electron under Xvfb clicked, typed, scrolled and
+      macOS. dev-browser has no Windows build, so on Windows the browser tool says so. On a
+      Linux machine: the driver in Electron under Xvfb clicked, typed, scrolled and
       dragged in a real window; the browser ran for real through a built server and a real
       daemon, fetching dev-browser and a Chrome by itself.
     - **Learned the hard way:** an effect that hands React what `scrollIntoView` answered
       crashes on a newer Chrome, which answers with a promise that React then calls on the way
-      out. The Chromium on the owner's machine is older and did not show it; CI's did.
+      out. The Chromium this was built with is older and did not show it; CI's did.
 
 32. **A page that cannot start says so** (2026-10-09; `apps/web/src/lib/boot.ts`,
     `components/page-error.tsx`, `routes/_app.index.tsx`). The owner reported that the desktop
@@ -1286,7 +1282,7 @@ Since then, newest last:
     - **Not done:** the context is still let go of whenever the last creature leaves the page
       and made again for the next, which is a new context for most moves between pages. That
       costs time, not pictures.
-    - **What the owner's Mac had recorded** (read over SSH the next day): macOS restarted the
+    - **What the Mac had recorded** (read the next day): macOS restarted the
       GPU five times on 2026-10-09 with the app's GPU process named as the cause
       (`/Library/Logs/DiagnosticReports/gpuEvent-Do Computer Help-*.ips`, "MMU interrupt"),
       each within a minute of the app starting, and Chrome's on other days. Each restart
@@ -1388,8 +1384,8 @@ Since then, newest last:
     `apps/desktop/src/main.ts`). The owner asked for the GPU restarts on their Mac (item 33)
     to be fixed. What makes the card fault was not found. What the app does about it was
     found wanting twice over, on that Mac, by killing the GPU process of a second copy of the
-    installed app (its own folder, `--remote-debugging-port`, a test server through an SSH
-    tunnel, driven from here with Playwright over CDP):
+    installed app (its own folder, `--remote-debugging-port`, a test server on another
+    machine, driven from here with Playwright over CDP):
     - **After one death, every creature stayed blank for good**, item 33's change
       notwithstanding. The browser gives the WebGL context back within a second, and every
       2D canvas too, wiped. three (r128) then makes every draw call and draws nothing. So a
@@ -1534,7 +1530,7 @@ Since then, newest last:
       tab itself has just come back from the provider; the hello and its three starters; the
       scene for someone who signs in again on a new computer; that a page may share the
       computer during the first run without a second question from the app.
-    - **Run on a Mac once:** the packed build from this branch, on the owner's MacBook Air and
+    - **Run on a Mac once:** the packed build from this branch, on a MacBook Air and
       its own graphics card, through a whole first run against a server on another machine.
     - **On a phone** (2026-10-10, the owner asked whether it works there and then for what was
       found to be fixed): the card stops 5rem short of the top and scrolls inside itself, so a
@@ -1579,8 +1575,8 @@ Since then, newest last:
     `packages/mascot/src/orb-core.js`, `apps/web/e2e/agents.spec.ts`). The owner asked for a
     profile of the client, that it "doesn't melt your cpu or gpu", and while it was under way:
     "I'm also still getting the gpu crashes and it is mainly in the desktop app". Measured on
-    the owner's MacBook Air (Chrome 154 and the installed app, its own graphics card, over
-    SSH and CDP) and in headless Chromium here.
+    a MacBook Air (Chrome 154 and the installed app, its own graphics card, over
+    CDP) and in headless Chromium here.
     - **What was fine:** a chat of eighty long messages. Typing in it, scrolling it and an
       answer streaming into it each took 6 to 14% of one core's main thread. Nothing was
       changed there.
@@ -1642,18 +1638,15 @@ Since then, newest last:
       minute, then 429. Better Auth's own limiter counts in one isolate's memory. The places
       for computers waiting to be paired went from 200 to 2,000, so that one address cannot
       take them all.
-    - **On do.computer the count is loose.** Wrong sign-ins sent one after another from one
-      address: the first 54 were all answered 401, and of the next 36 thirteen were refused.
-      Cloudflare says the binding is "permissive, eventually consistent"; locally the 21st is
-      refused every time. It slows someone who keeps at it and does not stop a burst. A limit
-      that holds exactly is a rate limiting rule on the zone, or a count kept in an object.
+    - **The binding does not count exactly.** Cloudflare says it is "permissive, eventually
+      consistent"; locally the 21st is refused every time. A limit that holds exactly is a
+      rate limiting rule on the zone, or a count kept in an object.
     - **An upload is held in memory once** where it was held three times in the Worker and
       twice in the library's object: `readLimited` is told the declared length.
     - **Reconnects wait a random part longer**, so the clients a deploy cuts off do not all
       come back in the same instant.
-    - **Not done, and the owner's to decide:** no limit on what one person spends on the
-      deployment's model key; open sign-up has no check against bots; what the Daytona
-      account allows with a machine for each workspace; that every deploy cuts off everyone.
+    - **Not done, and the owner's to decide:** what the Daytona account allows with a machine
+      for each workspace; that every deploy cuts off everyone.
     - **Mine, not the owner's:** the minute, the twenty a minute, the 2,000.
 
 43. **Agents are followed over sockets that hibernate** (2026-10-10;
@@ -1696,9 +1689,8 @@ Since then, newest last:
     - **`NodeActorNamespace.evict`** unloads an actor under its sockets, for testing what a
       Durable Object does when it hibernates.
     - **Not done:** the mobile app still follows by stream (its sockets would have to carry
-      the session by hand, and it has never been run on a phone); someone taken out of a team
-      keeps a socket they had open until it closes, as they kept a stream; a socket has no
-      way to slow an agent that sends faster than a client reads.
+      the session by hand, and it has never been run on a phone); a socket has no way to slow
+      an agent that sends faster than a client reads.
     - **Not known:** what any of this costs on Cloudflare itself. Nothing here was run on a
       deployed Worker.
     - **Mine, not the owner's:** the fingerprints in place of sending everything again; the
@@ -1741,16 +1733,15 @@ Since then, newest last:
       no glow round the screen, and Esc is left to its owner, who is at their own work. The
       agent's pointer is drawn only where the window is the one to be seen at that place.
       With the whole screen, or a window brought forward, all of that is as before.
-    - **Two things found on the owner's Mac that were broken before this.** The driver ends
+    - **Two things found on a Mac that were broken before this.** The driver ends
       the name everything is asked under after five minutes without hearing it, and refuses
       everything under it from then on: an agent that came back to a screen later was refused
       until the app was started again. The app now starts the name again and asks once more
       (`sessionEnded`). And a program made of web pages (Electron, Chrome) tells the system
       what is in its window only once it has been asked, so the first click there pressed
       nothing: the first picture an agent is given of a program's window now asks.
-    - **Checked on the owner's MacBook Air** (macOS 27, a signed build of the branch run as a
-      second copy against a server on the owner's Linux machine, while they were using the
-      Mac): through the whole chain, chat to driver, an agent listed the windows, opened
+    - **Checked on a MacBook Air** (macOS 27, a signed build of the branch run as a
+      second copy against a server on another machine, while the Mac was in use): through the whole chain, chat to driver, an agent listed the windows, opened
       Calculator behind what was in front and worked a sum in it, with the pointer where it
       was and the app in front unchanged; typed, pressed keys and scrolled in a TextEdit
       window that was covered by others; filled in a form in an Electron window behind
@@ -1769,7 +1760,7 @@ Since then, newest last:
       window and nothing is read from the system's outline of it; no glow and no Esc while
       working behind; that a first picture wakes the program.
     - **Learned the hard way:** a signed Mac app with one file changed inside it is not run by
-      macOS at all ("is damaged and can't be opened", a dialog on the owner's screen), so new
+      macOS at all ("is damaged and can't be opened", a dialog on the screen), so new
       code cannot be tried in a copy of the installed app any more. What works: start the
       installed app a second time with `--inspect=9230` and its own data folder, bundle the
       code to try as one CommonJS file, and `require` it into that process over the
@@ -1781,8 +1772,8 @@ Since then, newest last:
     `packages/mascot/src/orb-core.js`). The owner: "I'm still getting gpu crashes on my mac. Is
     there anything out of the ordinary we are doing in this codebase that could cause it", and
     then "I think it happens without screen use". It was the body's vertex shader, and it is
-    changed. Found on the owner's MacBook Air (M2, macOS 27.0.1) with a copy of the installed
-    app (Electron 44.7, Chromium 152) showing test pages, over SSH and CDP.
+    changed. Found on a MacBook Air (M2, macOS 27.0.1) with a copy of the installed
+    app (Electron 44.7, Chromium 152) showing test pages, over CDP.
     - **What a fault is.** macOS's log (`eventMessage CONTAINS "Caused GPU"`) names a process
       whose work on the card hung or read a place that was not there, and the card is
       restarted under everyone. It named WindowServer and Apple's own programs far more often
@@ -2115,16 +2106,8 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 - **The console-mascot UI.** `prototypes/console-ui` is a click-through exploration of the whole
   UI in that style, with a ranked list of ideas in its README. The owner has looked at it and has
   not said which to build. Ask before building any of it.
-- **Old leftovers from the app this replaced**, which they were told about and have not asked to
-  have removed: about a dozen Daytona machines named `do-computer-*` (one was running), a
-  Telegram webhook pointing at an address that no longer exists, an R2 access token used for
-  backups, and `~/do-computer-archive-2026-10-03` on the Linux machine, a copy of the old
-  database and files that was taken before they were deleted. The old daemon is gone from that machine.
 - **`www.do.computer`** times out. It needs a redirect rule to the apex in the Cloudflare
-  dashboard; the API token at hand cannot edit zone rules.
-- **Two credentials were pasted into a chat transcript**: the GitHub OAuth app's client secret
-  and the Cloudflare API token used by CI. The owner was told they can be rotated. If they are,
-  the Worker secret and the repository secret need setting again.
+  dashboard.
 
 ### Bugs that were reported and not reproduced
 
@@ -2174,8 +2157,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   and paired computers included, by the owner's choice; only its Permissions limit it. The bot
   cannot search Slack: it reads the latest of a channel or a thread, and only where it has
   been added. Writing to a person needs a permission (`im:write`) that a Slack app made
-  before 2026-10-08 lacks; the agent is told so when it tries. The tokens are kept as they are
-  in the app database, as connectors' are in the agent's. Threads are listed in the agent's panel, which a narrow screen
+  before 2026-10-08 lacks; the agent is told so when it tries. Threads are listed in the agent's panel, which a narrow screen
   does not have: there a thread is reached from a notification or its address. The mobile app
   does not list them.
 - **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
@@ -2201,8 +2183,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   the mobile app on a device, Modal, Cloudflare Containers, sign-in with
   Google, and a connector that needs a sign-in against a real service. Sign-in with GitHub is
   configured on the live site; nobody has reported how it went.
-- **Not built:** usage limits, a rate limit on pairing codes, a reason and retry for provider
-  errors.
+- **Not built:** a reason and retry for provider errors.
 - **The creature** was only ever seen through software rendering and screenshots by whoever
   built it. Its author's own list of rough edges: at 24 px the command and file variants are
   hard to tell apart; flat-shaded bodies can show a large white highlight; the error state greys
@@ -2211,11 +2192,6 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   formats have no viewer; there are no empty folders, since a folder is only the paths of the
   files in it; a file's history shows who and when but not what changed; and a document changes
   on screen when the agent's tool call ends, not as it types, which the mock-up pretended.
-- **A page from the library can load anything from the internet**, and could send what is in
-  the library to wherever it likes, since it can read the files beside it. That is the price of
-  letting pages use scripts and fonts from elsewhere. Serving them from a second domain would
-  add a wall the sandbox already provides; forbidding outside requests would close this, and
-  break those pages.
 - **An activity entry shows a tick** when the agent answered, even if a step inside it failed.
 - **Thinking and full tool output** are not in the transcript by design. Tool output is in the
   panel's entries, on wide screens only, and so only for work big enough to have an entry;
@@ -2257,7 +2233,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 
 ## 9. Things that were learned the hard way
 
-- **`date +%s%3N` is not to be trusted where `date` is not GNU's.** The owner's machine has
+- **`date +%s%3N` is not to be trusted where `date` is not GNU's.** The machine this was built on has
   uutils coreutils, whose `date` now and then prints seconds and milliseconds that do not belong
   together, so a time taken with it went backwards about once in a hundred. CI and Daytona
   have GNU's and never showed it. The job runner measures with bash's `EPOCHREALTIME` instead.

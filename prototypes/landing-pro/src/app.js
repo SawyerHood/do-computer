@@ -13,7 +13,7 @@ var PAL = core ? core.PALETTE : {};
 var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 var app = document.getElementById("app"), strip = document.getElementById("strip");
 var LOGO = document.getElementById("logo").innerHTML;
-var REPO = "github.com/SawyerHood/durable-computer";
+var REPO = "github.com/SawyerHood/do-computer";
 var STATES = [["open", "Open to everyone"], ["soon", "Not open yet"]];
 var open = true;
 
@@ -172,7 +172,7 @@ function oss() {
   return '<section class="band oss" id="open-source"><div><h2>Yours, all the way down</h2>' +
     "<p>Do Computer is open source under the MIT license. Read every line, change what you like, and run it yourself, with your own model keys.</p>" +
     '<div class="cta"><a class="btn" href="#">' + ICON.github + "Star on GitHub</a></div></div>" +
-    '<div class="term"><p class="term-bar"><i></i><i></i><i></i><span>~/durable-computer</span></p><pre><span>$</span> git clone https://' + REPO +
+    '<div class="term"><p class="term-bar"><i></i><i></i><i></i><span>~/do-computer</span></p><pre><span>$</span> git clone https://' + REPO +
     "\n<span>$</span> pnpm install && pnpm build\n<span>$</span> OPENROUTER_API_KEY=sk-or-… pnpm start\n\n<em>  Listening on http://127.0.0.1:3000</em></pre></div>" +
     '<div class="plain">' +
     "<article><h3>Your data stays yours</h3><p>One SQLite file for each agent, wherever you put it.</p></article>" +
