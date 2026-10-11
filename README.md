@@ -43,29 +43,29 @@ A guide is a file in [`docs/`](./docs): adding one there adds it to the site.
 
 ## Configuration
 
-| Variable                                   | Meaning                                                                                                                                                           |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`                       | Pays for every call to the deployment's own models. A workspace signed in to a provider of its own pays for those. See [Models](#models).                         |
-| `DC_DEFAULT_MODEL`                         | Model new agents start on unless their owner chose one: `provider/model` or an OpenRouter id. Default `anthropic/claude-haiku-5.5`, or the first of `DC_MODELS`.  |
-| `DC_MODELS`                                | The only models the deployment itself offers, comma-separated: `provider/model` or OpenRouter ids. Default: all it can run. See [Models](#models).                |
-| `DC_ADMIN_EMAILS`                          | Comma-separated emails of those who may sign the deployment itself in to model providers, for everyone. See [Models](#models).                                    |
-| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                              |
-| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                  |
-| `DC_SIGNUP`                                | `invite` (default) or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` and people invited to a team can sign up. |
-| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                                        |
-| `DC_LANDING`                               | `1` shows the landing page at `/` to whoever is not signed in; without it `/` leads to the sign-in form. It says "coming soon" where sign-up is by invitation.    |
-| `RESEND_API_KEY`, `DC_EMAIL_FROM`          | Send team invitations by email through [Resend](https://resend.com), from that address. Without both, an invitation is a link to pass on.                         |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                                                       |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                                                       |
-| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                                                 |
-| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                                               |
-| `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`.                     |
-| `DC_REVIEW_MODEL`                          | OpenRouter model that notes where each chat stands, for the agent's other chats. Default: the model that reads web search results.                                |
-| `DC_SANDBOX`                               | The kind of machine a workspace is given: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                         |
-| `DC_SANDBOX_KINDS`                         | The kinds of machine on offer, comma-separated. Default: every kind that has what it needs.                                                                       |
-| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                                         |
-| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                                        |
-| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                                        |
+| Variable                                   | Meaning                                                                                                                                                                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY`                       | Pays for every call to the deployment's own models. A workspace signed in to a provider of its own pays for those. See [Models](#models).                                                                                                                                           |
+| `DC_DEFAULT_MODEL`                         | Model new agents start on unless their owner chose one: `provider/model` or an OpenRouter id. Default `anthropic/claude-haiku-5.5`, or the first of `DC_MODELS`.                                                                                                                    |
+| `DC_MODELS`                                | The only models the deployment itself offers, comma-separated: `provider/model` or OpenRouter ids. Default: all it can run. See [Models](#models).                                                                                                                                  |
+| `DC_ADMIN_EMAILS`                          | Comma-separated emails of those who may sign the deployment itself in to model providers, for everyone. See [Models](#models).                                                                                                                                                      |
+| `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                                                                                                                                                |
+| `DC_AUTH_SECRET`                           | Signs sessions. Required on Cloudflare; on Node one is generated and kept in the data directory.                                                                                                                                                                                    |
+| `DC_SIGNUP`                                | `invite` (default), `waitlist` or `open`. With `invite`, the first account needs no invitation; after that only `DC_ALLOWED_EMAILS` and people invited to a team can sign up. With `waitlist` anyone can, and waits: see [Doods and the waiting list](#doods-and-the-waiting-list). |
+| `DC_ALLOWED_EMAILS`                        | Comma-separated emails allowed to sign up.                                                                                                                                                                                                                                          |
+| `DC_LANDING`                               | `1` shows the landing page at `/` to whoever is not signed in; without it `/` leads to the sign-in form. It says "coming soon" where sign-up is by invitation.                                                                                                                      |
+| `RESEND_API_KEY`, `DC_EMAIL_FROM`          | Send team invitations by email through [Resend](https://resend.com), from that address. Without both, an invitation is a link to pass on.                                                                                                                                           |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Enable sign-in with Google.                                                                                                                                                                                                                                                         |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Enable sign-in with GitHub.                                                                                                                                                                                                                                                         |
+| `DC_TRANSCRIPTION_MODEL`                   | OpenRouter speech-to-text model for dictation. Default `openai/whisper-large-v3`.                                                                                                                                                                                                   |
+| `DC_SEARCH_MODEL`                          | OpenRouter model that reads web search results for the agent. Default `anthropic/claude-haiku-4.5`.                                                                                                                                                                                 |
+| `DC_JUDGE_MODEL`                           | OpenRouter model asked whether an agent meant to stop, when it ends on a progress update. Default `mistralai/mistral-small-3.2-24b-instruct`.                                                                                                                                       |
+| `DC_REVIEW_MODEL`                          | OpenRouter model that notes where each chat stands, for the agent's other chats. Default: the model that reads web search results.                                                                                                                                                  |
+| `DC_SANDBOX`                               | The kind of machine a workspace is given: `just-bash` (default), `daytona`, `modal`, `cloudflare` or `none`. See [Computers](#computers).                                                                                                                                           |
+| `DC_SANDBOX_KINDS`                         | The kinds of machine on offer, comma-separated. Default: every kind that has what it needs.                                                                                                                                                                                         |
+| `DC_SANDBOX_NETWORK`                       | `off` gives agents' computers no internet access, whichever kind they are. On by default.                                                                                                                                                                                           |
+| `DC_ALLOW_PRIVATE_HOSTS`                   | `1` lets connectors, skill installs and the built-in computer reach this machine and private networks, and use plain http.                                                                                                                                                          |
+| `DC_DATA_DIR`, `PORT`, `HOST`              | Node only.                                                                                                                                                                                                                                                                          |
 
 ## Computers
 
@@ -433,6 +433,35 @@ against your Composio account, not the deployment.
   account there, and every call an agent makes in one passes through it. You see and
   disconnect them at Composio. Removing Apps from an agent takes away the server's sign-in to
   your Composio account and leaves your accounts there as they were.
+
+## Doods and the waiting list
+
+A **Dood** is a creature anyone can hatch with no account, at `/hatch`: an egg comes down, they
+name it and choose its color, hatch another if they would rather, and keep one of the three
+things in its present. It then has a page of its own, `/dood/<id>`, where anyone can stroke it
+and give it a treat, one a day each. Both pages say in their heads that they are X's player
+card, so a post on X that links to one plays it inside the post, 480 pixels square, where X
+does that; elsewhere the link shows as a picture that opens the page. The pictures are in
+`apps/web/public/dood` (made by `prototypes/dood-embed/posters.mjs`): one of an egg, and one
+Dood of each color, since a Dood's own look cannot be drawn by the server.
+
+Whoever hatched one can **claim** it by signing in, from the browser they hatched it in. It
+becomes their first agent, named and looking as it did and wearing what it kept. From then on
+the treats people give it on its page are eaten by the agent's creature, and fill presents as
+its own treats do.
+
+With `DC_SIGNUP=waitlist` anyone can make an account, in the first run or by claiming a Dood,
+and has their Dood and nothing else: every other call answers 403 until they are let in. The
+app is for whoever was there before the list, the first account, the addresses
+`DC_ALLOWED_EMAILS` and `DC_ADMIN_EMAILS` name (once known to be theirs: sign in with Google
+or GitHub), and anyone invited to a team. Someone `DC_ADMIN_EMAILS` names lets the rest in one
+at a time under **Workspace settings → Waiting list**; with `RESEND_API_KEY` set they are sent
+an email. `DC_SIGNUP=open` lets everyone in at once. A Dood that waited becomes its owner's
+agent the first time they come back, with the treats it was given meanwhile.
+
+A name is shown to anyone under the deployment's own address. It is kept to 20 letters,
+digits and a little punctuation, and nothing that reads as a web address; there is no list of
+words it refuses. `DELETE /api/doods/<id>`, as someone `DC_ADMIN_EMAILS` names, takes one down.
 
 ## Trust
 

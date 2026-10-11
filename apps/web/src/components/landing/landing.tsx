@@ -218,14 +218,30 @@ function HaveAccess() {
   )
 }
 
-/** The way in, or while nobody new can sign up, that it is coming and the one small way left. */
-function WayIn({ open, children }: { open: boolean; children?: React.ReactNode }) {
+/**
+ * The way in, or while nobody new can sign up, that it is coming and the one small way left.
+ * Where there is a waiting list the way in is open: what is behind it is a Dood, and a wait.
+ */
+function WayIn({
+  open,
+  waitlist,
+  children,
+}: {
+  open: boolean
+  waitlist?: boolean
+  children?: React.ReactNode
+}) {
   return open ? (
     <div className="lp-cta">
       <Link to="/welcome" className="lp-button lp-dark">
-        Get started
+        {waitlist ? "Hatch your Dood" : "Get started"}
       </Link>
       {children}
+      {waitlist ? (
+        <p className="lp-have lp-wait">
+          The app has a waiting list. Your Dood keeps your place in it.
+        </p>
+      ) : null}
     </div>
   ) : (
     <div className="lp-cta lp-shut">
@@ -317,7 +333,7 @@ function TheApp() {
  * The top of the page: what it is and the way in, beside whoever it is just now. One creature is
  * large, and is each of the eight in turn until somebody chooses; the eight are under it.
  */
-function Hero({ open }: { open: boolean }) {
+function Hero({ open, waitlist }: { open: boolean; waitlist: boolean }) {
   const [chosen, setChosen] = useState(false)
   const [at, pick] = useRound(ROSTER.length, TURN_MS, chosen)
   const character = ROSTER[at]!
@@ -349,7 +365,7 @@ function Hero({ open }: { open: boolean }) {
             An open source assistant with a computer of its own. Ask in plain words, and it comes
             back with the work done.
           </p>
-          <WayIn open={open}>
+          <WayIn open={open} waitlist={waitlist}>
             <a className="lp-button" href={DOWNLOADS} target="_blank" rel="noreferrer">
               Download for Mac
             </a>
@@ -968,18 +984,20 @@ function Questions() {
 }
 
 /** The last word, and the way in once more. */
-function Ending({ open }: { open: boolean }) {
+function Ending({ open, waitlist }: { open: boolean; waitlist: boolean }) {
   return (
     <section className="lp-band">
       <div className="lp-end">
         <img src="/favicon.svg" alt="" />
         <h2>{open ? "Get your Dood" : "Nearly here"}</h2>
         <p>
-          {open
-            ? "It comes out of an egg, asks your name, and gets to work."
-            : "Do Computer is not open to everyone yet. It will be soon."}
+          {waitlist
+            ? "It comes out of an egg and asks your name. Then it waits with you for your turn."
+            : open
+              ? "It comes out of an egg, asks your name, and gets to work."
+              : "Do Computer is not open to everyone yet. It will be soon."}
         </p>
-        <WayIn open={open} />
+        <WayIn open={open} waitlist={waitlist} />
       </div>
     </section>
   )
@@ -989,9 +1007,9 @@ function Ending({ open }: { open: boolean }) {
  * What someone who is not signed in is shown at the deployment's own address, where it has a
  * landing page: who the agent is, what it does, that it is open source, and the way in. While
  * nobody new can sign up (`open` is false) the way in is "Coming soon", and one small link for
- * whoever has an account already.
+ * whoever has an account already. With a waiting list anyone can come in as far as their Dood.
  */
-export function Landing({ open }: { open: boolean }) {
+export function Landing({ open, waitlist = false }: { open: boolean; waitlist?: boolean }) {
   return (
     <main
       className="lp"
@@ -1015,7 +1033,7 @@ export function Landing({ open }: { open: boolean }) {
         <Link to="/login">Sign in</Link>
         {open ? (
           <Link to="/welcome" className="lp-button lp-dark lp-small">
-            Get started
+            {waitlist ? "Hatch your Dood" : "Get started"}
           </Link>
         ) : (
           <span className="lp-soon lp-small">
@@ -1024,13 +1042,13 @@ export function Landing({ open }: { open: boolean }) {
           </span>
         )}
       </header>
-      <Hero open={open} />
+      <Hero open={open} waitlist={waitlist} />
       <WhatItDoes />
       <Places />
       <OpenSource />
       <Hats />
       <Questions />
-      <Ending open={open} />
+      <Ending open={open} waitlist={waitlist} />
       <footer className="lp-foot">
         <span className="lp-brand">
           <img src="/favicon.svg" alt="" />

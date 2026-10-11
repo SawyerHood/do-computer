@@ -21,6 +21,9 @@ import {
   type ComputerKinds,
   type ComputerRequest,
   type ComputerSummary,
+  type Dood,
+  type MadeDood,
+  type NewDood,
   type ConfirmPairingRequest,
   type ConnectorResult,
   type ConnectorSummary,
@@ -127,9 +130,22 @@ export type Me = {
   user: { id: string; email: string; name: string; image?: string | null }
   google: boolean
   github: boolean
-  signup: "open" | "invite"
+  signup: "open" | "invite" | "waitlist"
   /** Whether they may sign the deployment itself in to model providers, for everyone's agents. */
   admin?: boolean
+  /** They have an account and are on the waiting list: the app itself is not theirs to use yet. */
+  waiting?: boolean
+  /** The Dood they hatched or claimed, until it is their agent. */
+  dood?: Dood
+}
+
+/** Someone on the waiting list, as those who run the deployment see them. */
+export type WaitingPerson = {
+  id: string
+  name: string
+  email: string
+  joinedAt: number
+  dood: { id: string; name: string; color: string; seed: string } | null
 }
 
 /** Everything about one agent that is not a chat transcript. */
@@ -350,6 +366,27 @@ export function createClient(options: ClientOptions) {
   return {
     // Both take a signal, so that a page which waits for them can stop waiting.
     me: (init?: { signal?: AbortSignal }) => request<Me>("/api/me", init),
+    /** Doods: creatures hatched with no account, on pages anyone can open. */
+    doods: {
+      make: (dood: NewDood) => post<MadeDood>("/api/doods", dood),
+      get: async (id: string) =>
+        (await request<{ dood: Dood }>(`/api/doods/${encodeURIComponent(id)}`)).dood,
+      pat: async (id: string, pats: number) =>
+        (await post<{ dood: Dood }>(`/api/doods/${encodeURIComponent(id)}/pats`, { pats })).dood,
+      /** Refused with the code `treat_given` where they have given it one today. */
+      treat: async (id: string) =>
+        (await post<{ dood: Dood }>(`/api/doods/${encodeURIComponent(id)}/treat`)).dood,
+      claim: async (id: string, key?: string) =>
+        (await post<{ dood: Dood }>(`/api/doods/${encodeURIComponent(id)}/claim`, { key })).dood,
+      /** It becomes their agent. Answers with the agent's id. */
+      wake: async (id: string) =>
+        (await post<{ agentId: string }>(`/api/doods/${encodeURIComponent(id)}/agent`)).agentId,
+    },
+    /** The waiting list, for those who run the deployment. */
+    waitlist: {
+      list: () => request<{ people: WaitingPerson[]; total: number }>("/api/waitlist"),
+      admit: (userId: string) => post<{ ok: true }>(`/api/waitlist/${encodeURIComponent(userId)}`),
+    },
     listAgents: async (init?: { signal?: AbortSignal }) =>
       (await request<{ agents: AgentSummary[] }>("/api/agents", init)).agents,
     /**

@@ -4,6 +4,7 @@ import type { ModelOption, ModelProvidersState } from "@durable-computer/protoco
 import { fail } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { roleIn } from "./teams.ts"
+import { vouchedFor } from "./waitlist.ts"
 
 /** Call the actor that keeps a workspace's sign-ins. The path is relative to it. */
 function callModelAccess(
@@ -48,8 +49,7 @@ async function providersOf(workspaceId: string): Promise<ModelProvidersState | u
  */
 export function isDeploymentAdmin(user: SessionUser): boolean {
   const { config } = getPlatform()
-  if (!config.adminEmails.includes(user.email.toLowerCase())) return false
-  return config.signup !== "open" || user.emailVerified === true
+  return config.adminEmails.includes(user.email.toLowerCase()) && vouchedFor(user)
 }
 
 /**

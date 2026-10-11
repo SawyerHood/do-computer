@@ -30,8 +30,12 @@ export type Config = {
   readonly googleClientSecret: string | undefined
   readonly githubClientId: string | undefined
   readonly githubClientSecret: string | undefined
-  /** `open`, or `invite` to require an allowlisted email. Default `invite`. */
-  readonly signup: "open" | "invite"
+  /**
+   * Who may use the app. `open`: anyone. `invite` (the default): the first account, those
+   * `allowedEmails` names and people invited to a team. `waitlist`: anyone may make an account,
+   * and those `invite` would let in use the app while everyone else waits to be.
+   */
+  readonly signup: "open" | "invite" | "waitlist"
   /**
    * Whether someone who is not signed in is shown the landing page at `/`, and not sent
    * straight to the sign-in form. Off unless `DC_LANDING=1`.
@@ -151,7 +155,8 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     googleClientSecret: optional("GOOGLE_CLIENT_SECRET"),
     githubClientId: optional("GITHUB_CLIENT_ID"),
     githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
-    signup: env.DC_SIGNUP === "open" ? "open" : "invite",
+    signup:
+      env.DC_SIGNUP === "open" ? "open" : env.DC_SIGNUP === "waitlist" ? "waitlist" : "invite",
     landing: env.DC_LANDING === "1",
     allowedEmails: listed("DC_ALLOWED_EMAILS").map((email) => email.toLowerCase()),
     sandbox: sandboxKind(optional("DC_SANDBOX")),

@@ -35,7 +35,7 @@ the yellow mark on a step that waits for the person, a paragraph that starts wit
 a tick, and a quote is a note set apart. Numbered steps get their number in a ring, and each
 block of commands a button to copy it.
 
-**It was built** the same day (HANDOFF.md, section 5, item 55): the owner wrote "I love this can
+**It was built** the same day (HANDOFF.md, section 5, item 56): the owner wrote "I love this can
 you build this for real". The guide the mock-up draws is now the app's own,
 `docs/self-hosting.md`, so it shows the guide as it is today, not as it was when it was shown.
 Where the app differs: the prompt gives the deployment's own address, not do.computer's, and

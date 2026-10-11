@@ -226,7 +226,7 @@ export function Docs({ guide, door, origin }: { guide: Guide; door: FrontDoor; o
         <Link to="/login">Sign in</Link>
         {door.open ? (
           <Link to="/welcome" className="dx-button dx-dark">
-            Get started
+            {door.signup === "waitlist" ? "Hatch your Dood" : "Get started"}
           </Link>
         ) : door.landing ? (
           <span className="dx-soon">

@@ -227,6 +227,42 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     )`,
     "CREATE INDEX dc_sites_by_workspace ON dc_sites (workspace_id, created_at)",
   ],
+  [
+    // A Dood: a creature hatched by someone with no account, on a page anyone can open. `key_hash`
+    // is of the key its hatcher keeps, which is what lets them claim it. `owner_id` is who did,
+    // and `agent_id` the agent it became. `joy` is how many treats it has toward its owner's next
+    // present, and `banked` how many it was given while its owner had no agent to give them to.
+    `CREATE TABLE dc_doods (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      seed TEXT NOT NULL,
+      outfit TEXT NOT NULL,
+      key_hash TEXT NOT NULL,
+      owner_id TEXT,
+      agent_id TEXT,
+      pats INTEGER NOT NULL DEFAULT 0,
+      treats INTEGER NOT NULL DEFAULT 0,
+      joy INTEGER NOT NULL DEFAULT 0,
+      banked INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    )`,
+    "CREATE INDEX dc_doods_by_owner ON dc_doods (owner_id, created_at)",
+    "CREATE INDEX dc_doods_by_agent ON dc_doods (agent_id)",
+    // Who has given a Dood its treat for the day. `giver` is a hash of where they asked from.
+    `CREATE TABLE dc_dood_treats (
+      dood_id TEXT NOT NULL,
+      giver TEXT NOT NULL,
+      day INTEGER NOT NULL,
+      PRIMARY KEY (dood_id, giver, day)
+    )`,
+    // Those let in off the waiting list (`DC_SIGNUP=waitlist`), and by whom where it was a person.
+    `CREATE TABLE dc_admitted (
+      user_id TEXT PRIMARY KEY,
+      admitted_at INTEGER NOT NULL,
+      admitted_by TEXT
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"
