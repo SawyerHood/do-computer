@@ -129,6 +129,10 @@
       font-size: 14px;
     }
   }
+  /* Under the buttons, on a line of its own: what the way in leads to while there is a list. */
+  .lp-wait {
+    flex-basis: 100%;
+  }
   .lp-have {
     font-size: 13.5px;
     color: var(--faint);

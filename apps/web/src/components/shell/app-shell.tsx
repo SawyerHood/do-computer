@@ -227,6 +227,7 @@ export function AppShell({
         workspace={workspace}
         me={me.user}
         admin={me.admin === true}
+        waitlist={me.signup === "waitlist"}
         agentId={agentId}
       />
     </div>

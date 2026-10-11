@@ -8,7 +8,7 @@ import { desktopHandoff } from "./desktop-handoff.ts"
 import type { Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
 import { isInvited } from "./teams.ts"
-import { isWaiting } from "./waitlist.ts"
+import { isWaiting, waitlistSince } from "./waitlist.ts"
 
 // Before anything of Better Auth's is called: see the function.
 seedAuthStores()
@@ -128,6 +128,8 @@ export async function getAuth(): Promise<Auth> {
   if (built !== undefined) return built
   const platform = getPlatform()
   await migrateAppDatabase(platform.db)
+  // From here on an account can be made: with a waiting list, it is one that waits.
+  if (platform.config.signup === "waitlist") await waitlistSince(platform.db)
   const options = authOptions(platform)
   // Migrate before building the instance, which checks for its tables as it starts.
   await migrateAuthTables(platform, options)

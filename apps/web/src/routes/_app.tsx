@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError, type Me } from "@durable-computer/client"
 import { createFileRoute, Outlet, redirect, useRouter } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppSkeleton } from "@/components/shell/app-skeleton"
@@ -32,12 +32,17 @@ export const Route = createFileRoute("/_app")({
       // A page behind sign-in is an agent's or nobody's: a site's own address is not one.
       fetchAhead((matches.at(-1)?.params ?? {}) as { agentId?: string; chatId?: string })
     }
+    let me: Me
     try {
-      return { me: await queryClient.ensureQueryData(meQuery) }
+      me = await queryClient.ensureQueryData(meQuery)
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) throw redirect({ to: "/login" })
       throw error
     }
+    // Someone on the waiting list has an account and nothing of the app: the first run is
+    // where their Dood is, and where they are told so.
+    if (me.waiting) throw redirect({ to: "/welcome", replace: true })
+    return { me }
   },
   component: SignedIn,
   // Sent with the page itself, so the frame is on screen before anything has been asked for.

@@ -5,6 +5,7 @@ import {
   type AvatarColorId,
   avatarLook,
   avatarSvg,
+  type Dood,
 } from "@durable-computer/protocol"
 import {
   CheckCircleIcon,
@@ -27,7 +28,7 @@ import { client } from "@/lib/client"
 import { agentKey, agentsKey, meKey } from "@/lib/collections"
 import { desktop, signInThroughBrowser } from "@/lib/desktop"
 import { lastAgent, rememberLastAgent } from "@/lib/last-agent"
-import { loadMascot, loadSky, prefersCalm } from "@/lib/mascot"
+import { loadMascot, loadSky, mascotWardrobe, prefersCalm } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 import { handingOver, rememberMeeting, sentFrom, welcomeOpenAtom } from "@/lib/welcome"
@@ -35,10 +36,10 @@ import { Stage } from "./stage.ts"
 import { Thinking } from "./thinking.tsx"
 
 /** What the card under the egg is asking. */
-type Step = "hello" | "you" | "name" | "model" | "computer" | "out"
+type Step = "hello" | "you" | "name" | "model" | "computer" | "out" | "wait"
 /** What was said to "may I work on this computer?". */
 type Share = "yes" | "read" | "no"
-type Methods = { google: boolean; github: boolean; signup: "open" | "invite" }
+type Methods = { google: boolean; github: boolean; signup: "open" | "invite" | "waitlist" }
 
 type View = {
   step: Step
@@ -58,6 +59,10 @@ type View = {
   hatched: boolean
   /** Someone the deployment knows: an agent of their own was in the egg. */
   back: boolean
+  /** It is a Dood that was hatched in a post, out already, and here to be claimed. */
+  fromPost: boolean
+  /** They are on the waiting list: what they hatch is theirs, and waits with them. */
+  listed: boolean
   share?: Share
   pairing?: "pairing" | "paired"
   /** What this computer is known as, once it is paired. */
@@ -94,8 +99,9 @@ function lineOf(view: View, here: boolean): string {
       return "Oof. That was a long way down. Hello? Is somebody out there?"
     case "you":
       if (view.waiting) return "I’ll wait here while you sign in in your browser."
-      return view.signingIn
-        ? "Have we met before? Tell me who you are and I’ll know."
+      if (view.signingIn) return "Have we met before? Tell me who you are and I’ll know."
+      return view.fromPost
+        ? `I’m ${name}! I hatched in a post, and I’d like to be yours. Who are you?`
         : "Oh good, a voice! It’s dark inside this egg, so tell me: who are you?"
     case "name":
       return `Nice to meet you, ${first}. I don’t have a name yet. What will you call me?`
@@ -105,6 +111,8 @@ function lineOf(view: View, here: boolean): string {
       return view.back
         ? `${first}, it’s you! I haven’t worked on this computer before. May I?`
         : "That will do nicely. One more thing before I come out: may I work on this computer?"
+    case "wait":
+      return `You’re on the list, ${first}. I’ll be right here, and we’ll get started the moment it’s your turn.`
     case "out":
       if (view.back) {
         return view.share === "no"
@@ -229,6 +237,16 @@ export default function WelcomeScene() {
   const card = useRef<HTMLDivElement>(null)
   const stage = useRef<Stage | null>(null)
   const agent = useRef<AgentSummary | undefined>(undefined)
+  /** The Dood this is about: one hatched in a post, or the one someone waiting has. */
+  const met = useRef<Dood | undefined>(undefined)
+  /** A Dood the address asks to be made theirs, with the key its hatcher was given. Read once. */
+  const claim = useRef(
+    (() => {
+      const asked = new URLSearchParams(typeof location === "undefined" ? "" : location.search)
+      const id = asked.get("dood")
+      return id === null || id === "" ? undefined : { id, key: asked.get("key") ?? "" }
+    })(),
+  )
   /** What the egg of a new agent grows from. Its agent is given the same, so it hatches as itself. */
   const seed = useRef(crypto.randomUUID().slice(0, 8))
   const gone = useRef(false)
@@ -255,6 +273,8 @@ export default function WelcomeScene() {
     color: "tide",
     hatched: false,
     back: false,
+    fromPost: false,
+    listed: false,
   })
   const seen = useRef(view)
   seen.current = view
@@ -278,7 +298,7 @@ export default function WelcomeScene() {
   const say = useCallback(
     (step: Step, change: Partial<View> = {}) => {
       patch({ on: false })
-      later(() => patch({ ...change, step, on: true, busy: false, error: undefined }), CARD_MS)
+      later(() => patch({ ...change, step, on: true, busy: false, error: change.error }), CARD_MS)
     },
     [patch, later],
   )
@@ -315,18 +335,85 @@ export default function WelcomeScene() {
   )
 
   /** Someone is signed in here now. What comes next depends on whether they have an agent. */
+  /** A Dood is on the island, out of its egg, as it was when it was last seen. */
+  const show = useCallback(
+    (dood: Dood) => {
+      met.current = dood
+      const color = AVATAR_COLORS.some((entry) => entry.id === dood.avatar.color)
+        ? (dood.avatar.color as AvatarColorId)
+        : seen.current.color
+      seed.current = dood.avatar.seed
+      const drawing = stage.current
+      if (drawing !== null) {
+        drawing.orb.setSeed(dood.avatar.seed)
+        drawing.orb.setColor(hexOf(color))
+        drawing.orb.setState("idle")
+        drawing.orb.notice = true
+        mascotWardrobe()?.dress(drawing.orb, dood.outfit)
+        drawing.sky.land()
+        drawing.sky.dawn(3, true)
+        drawing.measure()
+      }
+      patch({ name: dood.name, color, hatched: true })
+    },
+    [patch],
+  )
+
   const arrived = useCallback(async () => {
     queryClient.removeQueries({ queryKey: meKey })
-    const [me, agents] = await Promise.all([client.me(), client.listAgents()])
-    queryClient.setQueryData(meKey, me)
+    const [me, agents] = await Promise.all([
+      client.me(),
+      // Someone on the waiting list has no agents to list, and is told so.
+      client.listAgents().catch((error: unknown) => {
+        if (error instanceof ApiError && error.code === "waitlisted") return []
+        throw error
+      }),
+    ])
     const first = firstName(me.user.name)
     const drawing = stage.current
+    // A Dood they hatched in a post is made theirs before anything is asked.
+    let dood = me.dood
+    let problem: string | undefined
+    const asked = claim.current
+    if (asked !== undefined) {
+      claim.current = undefined
+      try {
+        dood = await client.doods.claim(asked.id, asked.key)
+      } catch (error) {
+        problem = error instanceof Error ? error.message : undefined
+      }
+    }
+    // What is kept says they have it, until it is their agent.
+    const { dood: _was, ...rest } = me
+    queryClient.setQueryData(meKey, dood === undefined ? rest : { ...rest, dood })
+    const settled = { first, signingIn: false, waiting: false, error: problem }
+    if (me.waiting) {
+      if (dood !== undefined) {
+        show(dood)
+        return say("wait", { ...settled, listed: true })
+      }
+      // Someone new, who will wait: what they hatch now is theirs, and waits with them.
+      drawing?.orb.crack(0.34)
+      drawing?.sky.chips(hexOf(seen.current.color))
+      drawing?.sky.dawn(1)
+      return say("name", { ...settled, listed: true })
+    }
+    if (dood !== undefined) {
+      // It is theirs, and the app is theirs to use: it becomes their agent as it is.
+      show(dood)
+      const agentId = await client.doods.wake(dood.id)
+      queryClient.setQueryData(meKey, rest)
+      const state = await client.agent(agentId).state()
+      queryClient.setQueryData(agentKey(agentId), state)
+      agent.current = state.agent
+      return say("out", settled)
+    }
     if (agents.length === 0) {
       // Someone new. Knowing who they are is the first crack.
       drawing?.orb.crack(0.34)
       drawing?.sky.chips(hexOf(seen.current.color))
       drawing?.sky.dawn(1)
-      return say("name", { first, signingIn: false, waiting: false })
+      return say("name", settled)
     }
     if (bridge === undefined || bridge.welcomed) {
       // They have been here before, and there is nothing to ask them: on to where they left
@@ -349,7 +436,7 @@ export default function WelcomeScene() {
       color: (theirs.avatar?.color as AvatarColorId | undefined) ?? seen.current.color,
     })
     hatch(() => (here ? say("computer") : say("out")))
-  }, [bridge, here, hatch, navigate, next, patch, say, setOpen])
+  }, [bridge, here, hatch, navigate, next, patch, say, setOpen, show])
 
   // The scene is set up once: what can be drawn, who is signed in, and so where it starts.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, as it opens
@@ -395,6 +482,21 @@ export default function WelcomeScene() {
       }
       // A sign-in elsewhere that came back with nobody signed in says why in the address.
       const failed = new URLSearchParams(location.search).get("error")
+      // A Dood that was hatched in a post is out already, and is the one asking.
+      const posted =
+        claim.current === undefined
+          ? undefined
+          : await client.doods.get(claim.current.id).catch(() => undefined)
+      if (gone.current) return
+      if (posted !== undefined) {
+        show(posted)
+        setPlaced(true)
+        return say("you", {
+          fromPost: true,
+          ...(failed === null ? {} : { error: "That sign-in did not work. Try again." }),
+        })
+      }
+      claim.current = undefined
       if (failed !== null || drawing === null || calm) {
         drawing?.sky.land()
         setPlaced(true)
@@ -505,9 +607,15 @@ export default function WelcomeScene() {
     patch({ error: undefined })
     // In a browser the page goes to the provider and comes back here, signed in.
     if (bridge === undefined) {
+      const back = new URLSearchParams()
+      if (next !== undefined) back.set("next", next)
+      if (claim.current !== undefined) {
+        back.set("dood", claim.current.id)
+        back.set("key", claim.current.key)
+      }
       return void authClient.signIn.social({
         provider,
-        callbackURL: next === undefined ? "/welcome" : `/welcome?next=${encodeURIComponent(next)}`,
+        callbackURL: back.size === 0 ? "/welcome" : `/welcome?${back}`,
       })
     }
     // In the app it is the owner's own browser that goes, and this window waits.
@@ -524,6 +632,23 @@ export default function WelcomeScene() {
     const name = String(new FormData(event.currentTarget).get("agent") ?? "").trim()
     if (name === "") return
     patch({ busy: true, error: undefined })
+    if (seen.current.listed) {
+      // The app is not theirs to use yet, so there is no agent to make: what hatches is a
+      // Dood of their own, which becomes their agent when they are let in.
+      let made: Dood
+      try {
+        made = (await client.doods.make({ name, color: view.color, seed: seed.current })).dood
+      } catch (error) {
+        return failed(error)
+      }
+      met.current = made
+      const drawing = stage.current
+      drawing?.orb.crack(0.67)
+      drawing?.sky.chips(hexOf(view.color))
+      drawing?.sky.dawn(2)
+      patch({ name: made.name })
+      return hatch(() => say("wait"))
+    }
     try {
       const made = agent.current ?? (await client.createAgent())
       agent.current = made
@@ -653,6 +778,22 @@ export default function WelcomeScene() {
     // creature twice and none is without it.
     flushSync(() => setOpen(false))
     show?.()
+  }
+
+  /** Someone waiting signs out, and is shown the front door again. */
+  const leave = async () => {
+    await authClient.signOut().catch(() => {})
+    window.location.assign("/")
+  }
+
+  /** Their Dood's own page, as a post of theirs: X's composer, with the words filled in. */
+  const post = (dood: Dood) => {
+    const address = new URL(`/dood/${encodeURIComponent(dood.id)}`, location.origin)
+    const words = new URLSearchParams({
+      text: `I hatched ${dood.name} 🥚 Hatch yours:`,
+      url: address.href,
+    })
+    window.open(`https://x.com/intent/post?${words}`, "_blank", "noopener")
   }
 
   /** A click on the scene itself: it brings the egg down at once, and a touch makes it hop. */
@@ -870,6 +1011,9 @@ export default function WelcomeScene() {
                         {!view.signingIn && methods?.signup === "invite"
                           ? `${bridge === undefined ? "" : " · "}New accounts are by invitation here.`
                           : null}
+                        {!view.signingIn && methods?.signup === "waitlist"
+                          ? `${bridge === undefined ? "" : " · "}New accounts join a waiting list.`
+                          : null}
                       </span>
                       <Button
                         type="button"
@@ -961,6 +1105,21 @@ export default function WelcomeScene() {
                     </div>
                   </div>
                 )
+              ) : view.step === "wait" ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
+                    Come back any time. {view.name} waits here, and is your agent from the day
+                    you are let in.
+                  </span>
+                  <Button variant="ghost" className="text-muted-foreground" onClick={leave}>
+                    Sign out
+                  </Button>
+                  {met.current === undefined ? null : (
+                    <Button data-first onClick={() => post(met.current!)}>
+                      Share {view.name}
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <div className="mt-3 flex justify-end">
                   <Button data-first disabled={view.busy} onClick={finish}>

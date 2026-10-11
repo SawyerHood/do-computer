@@ -17,7 +17,7 @@ import { isInvited } from "./teams.ts"
 
 const SINCE_KEY = "waitlist_since"
 
-type Known = { since?: number; in: Set<string> }
+type Known = { since?: number; first?: string; in: Set<string> }
 /** What has been found out about each database, for as long as this process has it. */
 const known = new WeakMap<AppDatabase, Known>()
 const knownOf = (db: AppDatabase): Known => {
@@ -26,8 +26,11 @@ const knownOf = (db: AppDatabase): Known => {
   return found
 }
 
-/** When this deployment first had a waiting list. Every account from before it is let in. */
-async function waitlistSince(db: AppDatabase): Promise<number> {
+/**
+ * When this deployment first had a waiting list. Every account from before it is let in, so it
+ * is written down before anyone can make one: as the sign-in is first set up.
+ */
+export async function waitlistSince(db: AppDatabase): Promise<number> {
   const state = knownOf(db)
   if (state.since !== undefined) return state.since
   let kept = await readMeta(db, SINCE_KEY)
@@ -43,6 +46,14 @@ async function waitlistSince(db: AppDatabase): Promise<number> {
   return (state.since = Number(kept))
 }
 
+/** The deployment's first account, which is its owner's. Undefined while nobody has one. */
+async function firstAccount(db: AppDatabase): Promise<string | undefined> {
+  const state = knownOf(db)
+  if (state.first !== undefined) return state.first
+  const row = await db.get<{ id: string }>("SELECT id FROM user ORDER BY createdAt, id LIMIT 1")
+  return (state.first = row?.id)
+}
+
 /** When an account was made. One that does not say is taken as new. */
 const madeAt = (user: SessionUser): number => {
   const at = new Date(user.createdAt ?? Number.NaN).getTime()
@@ -53,14 +64,15 @@ const madeAt = (user: SessionUser): number => {
  * Whether an address can be taken as its account's own. Where accounts are by invitation it
  * can. Where anyone can make one, whoever signed up with an address first would otherwise be
  * taken for its owner: there it has to be known to be theirs, as a social sign-in says, or
- * the account has to be from before anyone could.
+ * the account has to be from before anyone could, or the deployment's first, which is its
+ * owner's however it was made.
  */
 export function vouchedFor(user: SessionUser): boolean {
   const { config, db } = getPlatform()
   if (config.signup === "invite" || user.emailVerified === true) return true
   if (config.signup !== "waitlist") return false
-  const since = knownOf(db).since
-  return since !== undefined && madeAt(user) < since
+  const { since, first } = knownOf(db)
+  return first === user.id || (since !== undefined && madeAt(user) < since)
 }
 
 async function letIn(db: AppDatabase, userId: string, by: string | null): Promise<void> {
@@ -79,14 +91,19 @@ export async function isWaiting(user: SessionUser): Promise<boolean> {
   const state = knownOf(db)
   if (state.in.has(user.id)) return false
   const since = await waitlistSince(db)
-  const waiting = await stillWaiting(db, user, since)
+  const waiting = await stillWaiting(db, user, since, await firstAccount(db))
   if (!waiting) state.in.add(user.id)
   return waiting
 }
 
-async function stillWaiting(db: AppDatabase, user: SessionUser, since: number): Promise<boolean> {
+async function stillWaiting(
+  db: AppDatabase,
+  user: SessionUser,
+  since: number,
+  first: string | undefined,
+): Promise<boolean> {
   const { config } = getPlatform()
-  if (madeAt(user) < since) return false
+  if (madeAt(user) < since || first === user.id) return false
   const email = user.email.toLowerCase()
   const named = config.adminEmails.includes(email) || config.allowedEmails.includes(email)
   if (named && vouchedFor(user)) return false
@@ -95,13 +112,11 @@ async function stillWaiting(db: AppDatabase, user: SessionUser, since: number): 
     user.id,
   )
   if (row !== undefined) return false
-  // The first account of a deployment is its owner's.
-  const first = await db.get<{ id: string }>("SELECT id FROM user ORDER BY createdAt, id LIMIT 1")
   const member = await db.get<{ user_id: string }>(
     "SELECT user_id FROM dc_members WHERE user_id = ? LIMIT 1",
     user.id,
   )
-  if (first?.id === user.id || member !== undefined || (await isInvited(db, { email }))) {
+  if (member !== undefined || (await isInvited(db, { email }))) {
     await letIn(db, user.id, null)
     return false
   }
@@ -170,9 +185,9 @@ export async function listWaiting(): Promise<{ people: WaitingPerson[]; total: n
   )
   // The first account is the owner's and waits for nobody, though nothing says so until they
   // next come.
-  const first = await db.get<{ id: string }>("SELECT id FROM user ORDER BY createdAt, id LIMIT 1")
+  const first = await firstAccount(db)
   const people = rows
-    .filter((row) => row.id !== first?.id)
+    .filter((row) => row.id !== first)
     .map((row) => ({
       id: row.id,
       name: row.name,
