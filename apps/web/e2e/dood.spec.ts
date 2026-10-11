@@ -1,22 +1,16 @@
-import type { Page, TestInfo } from "@playwright/test"
+import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 
 // A Dood, hatched with no account on the page X plays inside a post, and met on its own page.
 // Both are drawn, in the square X gives them.
 test.use({ creature: true, viewport: { width: 480, height: 480 } })
-
-/** The same view in the smallest square a post is shown in, for someone to look at. */
-async function pictures(page: Page, testInfo: TestInfo, name: string) {
-  await page.waitForTimeout(1500)
-  await page.screenshot({ path: testInfo.outputPath(`${name}-480.png`) })
-  await page.setViewportSize({ width: 340, height: 340 })
-  await page.waitForTimeout(1500)
-  await page.screenshot({ path: testInfo.outputPath(`${name}-340.png`) })
-  await page.setViewportSize({ width: 480, height: 480 })
-}
+// A hatch is an egg, two hatchings and a box that opens, each played out in full, and drawn in
+// software where there is no graphics card: on CI's machines that alone is most of the time a
+// test is otherwise given.
+test.describe.configure({ timeout: 120_000 })
 
 /** Hatch one from the egg to the last panel. Answers with its id. */
-async function hatch(page: Page, name: string, testInfo?: TestInfo): Promise<string> {
+async function hatch(page: Page, name: string): Promise<string> {
   await page.goto("/hatch")
   const card = page.locator("[data-dood-card]")
   const says = page.getByRole("status")
@@ -31,17 +25,17 @@ async function hatch(page: Page, name: string, testInfo?: TestInfo): Promise<str
   await page.getByRole("radio", { name: "Moss" }).click()
   await page.getByRole("button", { name: "Hatch", exact: true }).click()
   const out = page.getByText(`${name} is out.`)
-  await expect(out).toBeVisible({ timeout: 20_000 })
+  await expect(out).toBeVisible({ timeout: 40_000 })
 
   // Another egg, as often as wanted: the same name on whatever is in it.
   await page.getByRole("button", { name: "Hatch another" }).click()
   await expect(out).toBeHidden()
-  await expect(out).toBeVisible({ timeout: 20_000 })
+  await expect(out).toBeVisible({ timeout: 40_000 })
   await page.getByRole("button", { name: `Keep ${name}` }).click()
 
   await expect(page.getByText(`${name} came with a present.`)).toBeVisible()
   await page.getByRole("button", { name: "Open it" }).click()
-  await expect(page.getByText(`Which one is ${name}'s?`)).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText(`Which one is ${name}'s?`)).toBeVisible({ timeout: 40_000 })
   const keep = page.getByRole("button", { name: "Pick one" })
   await expect(keep).toBeDisabled()
   // A hat where there is one: it is what stands highest, and has to be in the picture.
@@ -49,7 +43,6 @@ async function hatch(page: Page, name: string, testInfo?: TestInfo): Promise<str
   await (
     (await hat.count()) > 0 ? hat.first() : page.locator("button[aria-pressed]").nth(2)
   ).click()
-  if (testInfo) await pictures(page, testInfo, "choose")
   await page.getByRole("button", { name: /^Keep the / }).click()
 
   await expect(page.getByText(`${name} is ready.`)).toBeVisible()
@@ -65,14 +58,13 @@ async function hatch(page: Page, name: string, testInfo?: TestInfo): Promise<str
 
 test("a Dood is hatched, named, given one thing out of its present, and has a page", async ({
   page,
-}, testInfo) => {
-  const id = await hatch(page, "Pebble", testInfo)
+}) => {
+  const id = await hatch(page, "Pebble")
   await page.goto(`/dood/${id}`)
   await expect(page.getByText("Pebble", { exact: true })).toBeVisible()
   await expect(page.getByText("0 pats · 0 treats")).toBeVisible()
   // Whoever hatched it is offered it here too, for as long as nobody has claimed it.
   await expect(page.getByRole("link", { name: "Claim Pebble" })).toBeVisible()
-  await pictures(page, testInfo, "meet")
 })
 
 test("a treat counts once a day from one visitor", async ({ page }) => {
