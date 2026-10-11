@@ -80,11 +80,15 @@ describe("the waiting list", () => {
     expect(people[0]).toMatchObject({ name: "ada", email: "ada@example.com", dood: null })
   })
 
-  it("takes an account with no time of its own as new", async () => {
+  it("reads when an account was made where its session does not say", async () => {
+    await account("owner", false, 40)
+    const old = await account("old", false, 30)
     await waitlistSince(app)
-    await account("owner")
     const ada = await account("ada")
+    expect(await isWaiting({ ...old, createdAt: undefined })).toBe(false)
     expect(await isWaiting({ ...ada, createdAt: undefined })).toBe(true)
+    // An account there is no record of is taken as new.
+    expect(await isWaiting({ ...ada, id: "nobody", createdAt: undefined })).toBe(true)
   })
 
   it("lets someone in for good once whoever looks after it says so", async () => {

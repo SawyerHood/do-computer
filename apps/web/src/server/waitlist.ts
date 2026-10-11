@@ -17,12 +17,12 @@ import { isInvited } from "./teams.ts"
 
 const SINCE_KEY = "waitlist_since"
 
-type Known = { since?: number; first?: string; in: Set<string> }
+type Known = { since?: number; first?: string; in: Set<string>; made: Map<string, number> }
 /** What has been found out about each database, for as long as this process has it. */
 const known = new WeakMap<AppDatabase, Known>()
 const knownOf = (db: AppDatabase): Known => {
   let found = known.get(db)
-  if (found === undefined) known.set(db, (found = { in: new Set() }))
+  if (found === undefined) known.set(db, (found = { in: new Set(), made: new Map() }))
   return found
 }
 
@@ -54,10 +54,31 @@ async function firstAccount(db: AppDatabase): Promise<string | undefined> {
   return (state.first = row?.id)
 }
 
-/** When an account was made. One that does not say is taken as new. */
-const madeAt = (user: SessionUser): number => {
-  const at = new Date(user.createdAt ?? Number.NaN).getTime()
+const timeOf = (value: Date | string | number | null | undefined): number => {
+  const at = new Date(value ?? Number.NaN).getTime()
   return Number.isNaN(at) ? Number.POSITIVE_INFINITY : at
+}
+
+/**
+ * When an account was made, as far as is known without asking: what its session says, or what
+ * was read for it before. One nothing is known of is taken as new.
+ */
+const madeAt = (db: AppDatabase, user: SessionUser): number => {
+  const said = timeOf(user.createdAt)
+  return Number.isFinite(said) ? said : (knownOf(db).made.get(user.id) ?? said)
+}
+
+/** The same, read from the account itself where its session does not say. */
+async function readMadeAt(db: AppDatabase, user: SessionUser): Promise<number> {
+  const known = madeAt(db, user)
+  if (Number.isFinite(known)) return known
+  const row = await db.get<{ createdAt: string | number | null }>(
+    "SELECT createdAt FROM user WHERE id = ?",
+    user.id,
+  )
+  const read = timeOf(row?.createdAt)
+  if (Number.isFinite(read)) knownOf(db).made.set(user.id, read)
+  return read
 }
 
 /**
@@ -72,7 +93,7 @@ export function vouchedFor(user: SessionUser): boolean {
   if (config.signup === "invite" || user.emailVerified === true) return true
   if (config.signup !== "waitlist") return false
   const { since, first } = knownOf(db)
-  return first === user.id || (since !== undefined && madeAt(user) < since)
+  return first === user.id || (since !== undefined && madeAt(db, user) < since)
 }
 
 async function letIn(db: AppDatabase, userId: string, by: string | null): Promise<void> {
@@ -103,7 +124,7 @@ async function stillWaiting(
   first: string | undefined,
 ): Promise<boolean> {
   const { config } = getPlatform()
-  if (madeAt(user) < since || first === user.id) return false
+  if (first === user.id || (await readMadeAt(db, user)) < since) return false
   const email = user.email.toLowerCase()
   const named = config.adminEmails.includes(email) || config.allowedEmails.includes(email)
   if (named && vouchedFor(user)) return false

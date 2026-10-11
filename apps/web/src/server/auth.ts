@@ -19,6 +19,8 @@ seedAuthStores()
  */
 const AUTH_SCHEMA = "better-auth-1.7:email-password,social"
 const AUTH_SCHEMA_KEY = "auth_schema"
+/** How long a request is answered from the cookie that says who is signed in. */
+const SESSION_CACHE_SECONDS = 5 * 60
 /** URL scheme of the mobile app; must match `scheme` in apps/mobile/app.json. */
 export const MOBILE_SCHEME = "durablecomputer"
 
@@ -34,6 +36,11 @@ function authOptions(platform: Platform) {
     // A D1 binding on Cloudflare, a node:sqlite database on Node; both are SQLite dialects.
     database: platform.authDatabase as never,
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    // Who is signed in is kept in a signed cookie for this long, and a request that brings it
+    // is answered from it. Without it every request reads the session and its user from the
+    // database, which was most of what the database was read for by people. The price is that
+    // a session ended elsewhere, or a changed name, is believed for up to this long.
+    session: { cookieCache: { enabled: true, maxAge: SESSION_CACHE_SECONDS } },
     socialProviders: {
       ...(config.googleClientId && config.googleClientSecret
         ? { google: { clientId: config.googleClientId, clientSecret: config.googleClientSecret } }
