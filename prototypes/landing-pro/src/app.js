@@ -53,23 +53,28 @@ var ICON = {
 /* ---------- what the page says ---------- */
 var VIEWS = [["chat", "Chat"], ["library", "Library"], ["automations", "Automations"]];
 
-/* Who it can be: each a job the one agent does. The professional look's character select. */
-var JOBS = [
-  { job: "Planner", name: "Pip", seed: "Sorrel", color: "tide", about: "Trips, weeks, and what is for dinner. It plans the thing and puts the plan where you will find it.",
-    chat: [["you", "Three days in Lisbon in March. Keep it short."], ["it", "Done. The plan is in your library: Alfama first, Belém on day two, Sintra on day three."], ["file", "Lisbon-3-day-trip-March.md"]] },
-  { job: "Builder", name: "Biscuit", seed: "Biscuit", color: "honey", wear: { hat: "chef" }, about: "Writes the code, runs the tests, and fixes what broke, on a machine of its own.",
-    chat: [["you", "The checkout test is failing again."], ["it", "Fixed. It was a rounding bug in src/checkout.ts. All 14 tests pass now."]] },
-  { job: "Researcher", name: "Scout", seed: "Tarn", color: "moss", wear: { glasses: "goggles" }, about: "Reads the internet so you do not have to, and comes back with what matters and where it found it.",
-    chat: [["you", "Which e-ink tablet should I get?"], ["it", "I compared nine. The three worth your money are at the top of the document."], ["file", "tablets.md"]] },
-  { job: "Night shift", name: "Vesper", seed: "Vesper", color: "plum", wear: { hat: "nightcap" }, about: "Works to a schedule while you sleep. The morning brief is written before the coffee is.",
-    chat: [["you", "Every weekday at 8, brief me on the news."], ["it", "Scheduled. The first brief will be in your inbox tomorrow at 08:00."]] },
-  { job: "Teammate", name: "Juniper", seed: "Juniper", color: "moss", wear: { hat: "headphones" }, about: "Lives in Slack with the rest of the team, and answers when it is asked for by name.",
-    chat: [["you", "@Juniper is the pricing page live?"], ["it", "It is. Live since 9:12, and the old link redirects to it."]] },
-  { job: "Note keeper", name: "Mochi", seed: "Mochi", color: "rose", wear: { hat: "bunny", face: "blush" }, about: "Remembers what you said and where you put it, so you only have to say it once.",
-    chat: [["you", "I am vegetarian, and I like a window seat."], ["it", "Noted. I will keep both in mind from here on."]] },
-  { job: "House guest", name: "Sable", seed: "Sable", color: "clay", wear: { hat: "cowboy", neck: "bandana" }, about: "Works on your own Mac or PC when you let it in.",
-    chat: [["you", "Update everything on my Mac."], ["it", "I would like to run brew upgrade on your Mac."], ["ask", "Allow"]] }
+/* Who it can be: the eight of the character select. Each is a job the one agent does, with what
+   it is asked and what it is then seen doing: [state, kind of work, what its line says]. */
+var WHO = [
+  { job: "Planner", name: "Pip", seed: "Sorrel", color: "tide", about: "Trips, weeks, and what is for dinner.", ask: "Three days in Lisbon in March.",
+    steps: [["working", "search", "Searching flights to Lisbon"], ["working", "file", "Writing trip-plan.md"], ["done", "", "Done. It is in your library."]] },
+  { job: "Builder", name: "Biscuit", seed: "Biscuit", color: "honey", wear: { hat: "chef" }, about: "Writes the code, runs the tests, fixes what broke.", ask: "The checkout test is failing again.",
+    steps: [["working", "file", "Writing src/checkout.ts"], ["working", "command", "Running pnpm test"], ["done", "", "Done. 14 passed."]] },
+  { job: "Researcher", name: "Scout", seed: "Tarn", color: "moss", wear: { glasses: "goggles" }, about: "Reads the internet so you do not have to.", ask: "Which e-ink tablet should I get?",
+    steps: [["working", "search", "Searching best e-ink tablets"], ["thinking", "", "Comparing nine of them"], ["working", "file", "Writing tablets.md"]] },
+  { job: "Night shift", name: "Vesper", seed: "Vesper", color: "plum", wear: { hat: "nightcap" }, about: "Works to a schedule while you sleep.", ask: "Every weekday at 8, brief me on the news.",
+    steps: [["asleep", "", "07:59, asleep"], ["working", "search", "08:00, reading the news"], ["done", "", "08:02, the brief is in your inbox"]] },
+  { job: "Teammate", name: "Juniper", seed: "Juniper", color: "moss", wear: { hat: "headphones" }, about: "Lives in Slack. Answers when it is asked for.", ask: "@Juniper is the pricing page live?",
+    steps: [["listening", "", "#launch, Maya is typing"], ["speaking", "", "#launch, replying"], ["idle", "", "It is. Live since 9:12."]] },
+  { job: "Note keeper", name: "Mochi", seed: "Mochi", color: "rose", wear: { hat: "bunny", face: "blush" }, about: "Remembers what you said, and where you put it.", ask: "I am vegetarian, and I like a window seat.",
+    steps: [["working", "memory", "Noting: vegetarian"], ["working", "memory", "Noting: a window seat"], ["idle", "", "Remembers"]] },
+  { job: "House guest", name: "Sable", seed: "Sable", color: "clay", wear: { hat: "cowboy", neck: "bandana" }, about: "Works on your own computer, when you let it in.", ask: "Update everything on my Mac.",
+    steps: [["waiting", "", "Asking before brew upgrade"], ["working", "command", "Running brew upgrade"], ["done", "", "Done"]] },
+  { job: "Yours", name: "Yours", seed: "Olive", color: "tide", egg: true, about: "It comes out of an egg, and is nobody else's.",
+    steps: [["egg", "", "Not hatched yet"]] }
 ];
+/* How long the one at the top does each thing, and how long each is there before the next. */
+var STEP_MS = 2600, TURN_MS = 7800;
 
 var PLACES = [
   ["web", "Web", "Open it in any browser. Nothing to install."],
@@ -94,14 +99,17 @@ function cta(second) {
 }
 function nav() {
   return '<header class="nav"><a class="brand" href="#">' + LOGO + "Do Computer</a>" +
-    '<nav><a href="#does">What it does</a><a href="#jobs">Jobs</a><a href="#open-source">Open source</a><a href="#faq">FAQ</a></nav>' +
+    '<nav><a href="#does">What it does</a><a href="#places">Where it is</a><a href="#open-source">Open source</a><a href="#faq">FAQ</a></nav>' +
     '<span class="grow"></span><a class="lnk" href="#">Sign in</a>' +
     (open ? '<a class="btn dark small" href="#">Get started</a>' : '<span class="btn soon small"><i></i>Coming soon</span>') + "</header>";
 }
 function hero() {
   return '<section class="hero">' +
     '<a class="note" href="#open-source"><b>Open source</b> under the MIT license<span>' + ICON.arrow + "</span></a>" +
-    '<canvas class="hero-guy" data-guy="hero"></canvas>' +
+    '<div class="stage"><p class="bub you ask"></p><canvas class="hero-guy" data-guy="hero"></canvas><p class="doing"><i></i><span></span></p></div>' +
+    '<p class="chips" role="group" aria-label="Who it can be">' +
+    WHO.map(function (w, i) { return '<button data-who="' + i + '"><i style="background:' + (PAL[w.color] || "#888") + '"></i>' + w.job + "</button>"; }).join("") + "</p>" +
+    '<p class="about"></p>' +
     "<h1>Your open source<br>personal assistant.</h1>" +
     '<p class="sub">An assistant with a computer of its own. Ask in plain words, and it comes back with the work done.</p>' +
     cta('<a class="btn" href="#">Download for Mac</a>') +
@@ -149,12 +157,6 @@ function does() {
     '<article class="tile"><h3>It remembers</h3><p>It keeps notes on you and the work, so Tuesday starts where Monday ended.</p><div class="tile-pic" data-pic="memory">' + PIC.memory + "</div></article>" +
     '<article class="tile"><h3>One for the whole team</h3><p>Share one with your team or keep one to yourself. They hand work to each other while you get on with yours.</p><div class="tile-pic" data-pic="team">' + PIC.team + "</div></article>" +
     "</div></section>";
-}
-function jobs() {
-  return '<section class="band jobs" id="jobs"><div><h2>Give it a job</h2><p class="chips">' +
-    JOBS.map(function (j, i) { return '<button data-job="' + i + '">' + j.job + "</button>"; }).join("") +
-    '</p><p class="about"></p>' + cta() + "</div>" +
-    '<div class="handset"><p class="who"><canvas data-guy="job"></canvas><b></b></p><div class="thread"></div><p class="compose"><span></span></p></div></section>';
 }
 function places() {
   return '<section class="band" id="places"><div class="head"><h2>Right where you need it</h2><p>The same assistant, wherever you happen to be.</p></div><div class="places">' +
@@ -231,26 +233,37 @@ function pictures() {
     q(".handoff span", t).textContent = RELAY[i][1];
   });
 }
+/* Something that is said again comes up again. */
+function again(el) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
 function creatures() {
-  guy(q('[data-guy="hero"]'), "Sorrel", "tide");
-  var job = guy(q('[data-guy="job"]'), JOBS[0].seed, JOBS[0].color);
-  var own = false;
-  function to(i) {
-    var j = JOBS[i];
-    all("[data-job]").forEach(function (b, n) { b.classList.toggle("on", n === i); });
-    q(".jobs .about").innerHTML = "<b>" + esc(j.name) + ", the " + esc(j.job.toLowerCase()) + ".</b> " + esc(j.about);
-    q(".handset .who b").textContent = j.name;
-    q(".handset .compose span").textContent = "Message " + j.name;
-    q(".handset .thread").innerHTML = j.chat.map(function (c, n) {
-      var style = ' style="animation-delay:' + n * 0.35 + 's"';
-      if (c[0] === "file") return '<p class="file"' + style + "><i></i>" + esc(c[1]) + "</p>";
-      if (c[0] === "ask") return '<p class="ask"' + style + "><span>" + esc(c[1]) + "</span><span>Not now</span></p>";
-      return '<p class="bub' + (c[0] === "you" ? " you" : "") + '"' + style + ">" + esc(c[1]) + "</p>";
-    }).join("");
-    if (job) { job.setSeed(j.seed); job.setColor(PAL[j.color]); wardrobe.dress(job, j.wear || {}); job.cheer(); }
+  /* The one at the top is each of the eight in turn, until somebody chooses. */
+  var hero = guy(q('[data-guy="hero"]'), WHO[0].seed, WHO[0].color);
+  var ask = q(".ask"), doing = q(".doing"), about = q(".hero .about");
+  var own = false, at = -1, turn = 0;
+  function step(w, n, mine) {
+    if (mine !== turn) return;
+    var s = w.steps[n % w.steps.length];
+    if (hero) hero.setState(s[0], s[1] || undefined);
+    doing.className = "doing" + (s[0] === "idle" || s[0] === "asleep" || s[0] === "egg" ? " quiet" : "");
+    q("span", doing).textContent = s[2];
+    again(doing);
+    if (w.steps.length > 1) later(function () { step(w, n + 1, mine); }, STEP_MS);
   }
-  all("[data-job]").forEach(function (b, n) { b.addEventListener("click", function () { own = true; to(n); }); });
-  round(JOBS.length, 5200, function (i) { if (!own) to(i); });
+  function to(i) {
+    var w = WHO[i];
+    at = i;
+    turn++;
+    all("[data-who]").forEach(function (b, n) { b.classList.toggle("on", n === i); b.setAttribute("aria-pressed", n === i); });
+    about.innerHTML = "<b>" + (w.egg ? "Yours." : esc(w.name) + ", the " + esc(w.job.toLowerCase()) + ".") + "</b> " + esc(w.about);
+    ask.textContent = w.ask || "";
+    ask.hidden = !w.ask;
+    again(ask);
+    if (hero) { hero.setSeed(w.seed); hero.setColor(PAL[w.color]); wardrobe.dress(hero, w.wear || {}); if (!w.egg) hero.cheer(); }
+    step(w, 0, turn);
+  }
+  all("[data-who]").forEach(function (b, n) { b.addEventListener("click", function () { own = true; to(n); }); });
+  to(0);
+  (function next() { later(function () { if (own) return; to((at + 1) % WHO.length); next(); }, TURN_MS); })();
   var HATS = [{ hat: "party" }, { hat: "wizard" }, { hat: "crown" }, { glasses: "pixel" }, { hat: "cowboy", neck: "bandana" }, { hat: "chef" }];
   var worn = 0, dressed = guy(q('[data-guy="hats"]'), "Mochi", "honey", HATS[0]);
   q("[data-hat]").addEventListener("click", function () {
@@ -263,7 +276,7 @@ function draw() {
   gen++;
   orbs.forEach(function (o) { if (o.dispose) o.dispose(); });
   orbs = [];
-  app.innerHTML = nav() + hero() + does() + jobs() + places() + oss() + hats() + faq() + end();
+  app.innerHTML = nav() + hero() + does() + places() + oss() + hats() + faq() + end();
   strip.innerHTML = "<b>Mock-up: the professional look.</b>" + STATES.map(function (s) {
     return '<a href="#' + s[0] + '"' + ((s[0] === "open") === open ? ' class="on"' : "") + ">" + s[1] + "</a>";
   }).join("");

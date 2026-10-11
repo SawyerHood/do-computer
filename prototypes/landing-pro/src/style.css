@@ -44,8 +44,22 @@ svg.fill:not(.logo) { fill: currentColor; stroke: none; }
 .note b { font-weight: 600; color: var(--ink); }
 .note span { display: grid; place-items: center; width: 22px; height: 22px; margin-left: 4px; border-radius: 99px; background: #ecebe6; }
 .note svg { width: 12px; height: 12px; }
-.hero-guy { width: 148px; height: 148px; margin-top: 18px; cursor: pointer; }
-.hero h1 { font-size: clamp(44px, 6.4vw, 78px); margin-top: 14px; }
+/* Who it is just now, what it was asked, and what it is doing about it. */
+.stage { position: relative; display: grid; place-items: center; width: min(820px, 100%); margin-top: 10px; }
+.hero-guy { width: 196px; height: 196px; cursor: pointer; }
+.stage .ask, .stage .doing { position: absolute; max-width: 250px; font-size: 14.5px; line-height: 1.35; text-align: left; animation: rise .4s ease both; }
+.stage .ask { right: calc(50% + 118px); top: 44px; border-radius: 18px 18px 4px 18px; }
+.stage .doing { left: calc(50% + 118px); top: 98px; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 18px 18px 18px 4px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 6px 20px rgb(40 36 20 / .07); }
+.doing i { width: 7px; height: 7px; flex: none; border-radius: 99px; background: var(--teal); animation: blink 1.2s ease-in-out infinite; }
+.doing.quiet i { background: #c5c2b8; animation: none; }
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 960px; margin-top: 8px; }
+.chips button { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 11px; border-radius: 99px; box-shadow: inset 0 0 0 1px #dedcd5; font-size: 14px; color: #3a3a37; transition: background .15s ease, color .15s ease; }
+.chips button i { width: 9px; height: 9px; border-radius: 99px; }
+.chips button:hover { background: var(--soft); }
+.chips button.on { background: var(--ink); box-shadow: none; color: #fff; }
+.about { min-height: 1.5em; margin-top: 14px; font-size: 15.5px; color: var(--dim); }
+.about b { font-weight: 500; color: var(--ink); }
+.hero h1 { font-size: clamp(44px, 6.4vw, 78px); margin-top: 34px; }
 .sub { max-width: 31em; margin-top: 20px; font-size: clamp(18px, 1.7vw, 21px); line-height: 1.4; letter-spacing: -0.01em; color: var(--dim); text-wrap: balance; }
 .hero .cta { justify-content: center; }
 .win { width: min(1060px, 100%); margin-top: 60px; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgb(40 36 20 / .1); }
@@ -146,7 +160,7 @@ svg.fill:not(.logo) { fill: currentColor; stroke: none; }
 .bub { max-width: 86%; padding: 9px 13px; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .05); }
 .bub.you { align-self: flex-end; background: var(--ink); color: #fff; box-shadow: none; }
 .chat { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.chat [data-step], .handset .thread > * { transition: opacity .35s ease, translate .35s ease; }
+.chat [data-step] { transition: opacity .35s ease, translate .35s ease; }
 .chat [data-step]:not(.shown) { opacity: 0; translate: 0 8px; }
 .saved { align-self: flex-end; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--teal); }
 .saved svg { width: 13px; height: 13px; }
@@ -161,31 +175,6 @@ svg.fill:not(.logo) { fill: currentColor; stroke: none; }
 .handoff i { width: 5px; height: 5px; border-radius: 99px; background: currentColor; animation: blink 1s ease-in-out infinite; }
 .handoff i:nth-child(2) { animation-delay: .2s; }
 .handoff i:nth-child(3) { animation-delay: .4s; margin-right: 5px; }
-
-/* Give it a job: the character select, quietly. */
-.jobs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); gap: 56px; align-items: start; width: min(980px, 100% - 48px); }
-.jobs > div:first-child { padding-top: 26px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 400px; margin-top: 28px; }
-.chips button { height: 40px; padding: 0 16px; border-radius: 99px; box-shadow: inset 0 0 0 1px #d9d7d0; font-size: 15px; color: #3a3a37; transition: background .15s ease; }
-.chips button:hover { background: var(--soft); }
-.chips button.on { background: #e4f5f2; box-shadow: inset 0 0 0 1px #9fd9d2; color: #0b6f69; font-weight: 500; }
-.about { max-width: 25em; min-height: 5.6em; margin-top: 30px; font-size: 18px; line-height: 1.45; letter-spacing: -0.01em; color: var(--dim); }
-.about b { font-weight: 500; color: var(--ink); }
-.jobs .cta { margin-top: 18px; }
-.handset { justify-self: center; width: 316px; height: 560px; padding: 16px 14px 14px; border-radius: 48px; border: 3px solid #2b2b29; background: #fff; display: flex; flex-direction: column; box-shadow: 0 30px 70px rgb(40 36 20 / .12); }
-.who { display: grid; justify-items: center; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.who canvas { width: 92px; height: 92px; cursor: pointer; }
-.who b { padding: 2px 10px; border-radius: 99px; background: var(--soft); font-size: 13px; font-weight: 500; }
-.thread { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 2px; font-size: 14px; line-height: 1.4; }
-.thread > * { animation: rise .4s ease both; }
-.thread .bub { background: var(--soft); box-shadow: none; }
-.thread .bub.you { background: var(--ink); }
-.file { display: flex; align-items: center; gap: 9px; padding: 9px 13px 9px 10px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 500; }
-.file i { width: 22px; height: 26px; border-radius: 5px; background: #e4f5f2; box-shadow: inset 0 0 0 1px #9fd9d2; }
-.ask { display: flex; gap: 6px; }
-.ask span { height: 34px; padding: 0 15px; border-radius: 99px; box-shadow: inset 0 0 0 1px #d9d7d0; font-size: 13.5px; line-height: 34px; font-weight: 500; }
-.ask span:first-child { background: var(--ink); color: #fff; box-shadow: none; }
-.compose { height: 44px; padding: 0 16px; border-radius: 99px; box-shadow: inset 0 0 0 1px #d9d7d0; display: flex; align-items: center; font-size: 14px; color: var(--faint); }
 
 /* Where it is. */
 .places { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 56px; }
@@ -250,23 +239,23 @@ footer a:hover { color: var(--ink); }
 @media (width <= 900px) {
   .nav nav { display: none; }
   .band { margin-top: 96px; }
-  .feature, .feature.flip, .jobs, .oss, .faq { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .feature, .feature.flip, .oss, .faq { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .feature.flip .panel { order: 0; }
   .feature > div:last-child, .feature.flip > div:last-child { max-width: none; justify-self: start; padding: 0 6px; }
   .feature + .feature { margin-top: 48px; }
   .panel { height: auto; min-height: 380px; padding: 28px 16px; border-radius: 30px; }
   .panel.plum { padding-bottom: 0; min-height: 0; }
   .lock { height: 316px; margin-top: 8px; }
-  .handset { height: 470px; }
   .pair, .plain { grid-template-columns: minmax(0, 1fr); }
   .tile { padding: 26px 22px 0; border-radius: 30px; }
   .places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 36px; }
   .places article { padding: 22px 20px 24px; border-radius: 24px; }
   .places h3 { margin-top: 26px; }
-  .jobs > div:first-child { padding-top: 0; }
-  .about { min-height: 7em; }
   .hats { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; padding: 26px 24px 36px; border-radius: 30px; }
   .hats .cta { justify-content: center; }
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .stage .ask { display: none; }
+  .stage .doing { position: static; margin: 2px 0 12px; border-radius: 99px; }
   .win { margin-top: 44px; border-radius: 12px; }
   .win .bar { height: 38px; }
   .tabs { translate: 0 0; }
@@ -280,12 +269,13 @@ footer a:hover { color: var(--ink); }
   .band { width: calc(100% - 32px); }
   .hero { padding: 28px 16px 0; }
   .nav { gap: 14px; padding: 0 16px; }
-  .hero-guy { width: 124px; height: 124px; }
-  .handset { width: min(316px, 100%); }
+  .hero-guy { width: 164px; height: 164px; }
+  .chips button { height: 34px; padding: 0 12px 0 10px; font-size: 13.5px; }
+  .about { min-height: 3em; text-wrap: balance; }
   #strip b { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .tag i, .handoff i, .btn.soon i, .row.first i::after, .thread > * { animation: none; }
+  .tag i, .handoff i, .btn.soon i, .row.first i::after, .doing, .doing i, .ask { animation: none; }
   .pointer { transition: none; }
 }

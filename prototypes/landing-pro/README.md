@@ -25,19 +25,22 @@ phone, and questions at the end (Grok Bot). The mascot rare.
 
 **The page, top to bottom.**
 
-- The top: one creature, "Your open source personal assistant.", the way in, and the app in a
-  window whose tabs change the picture.
+- The top: one creature, which is each of eight in turn, as on the character select: the planner,
+  the builder and so on, the last an egg. Beside it are what it was asked and what it is doing
+  about it; under it the eight as chips, which choose one and stop the turning. Then "Your open
+  source personal assistant.", the way in, and the app in a window whose tabs change the picture.
+  (First drawn with one fixed creature at the top and the jobs as chips beside a phone further
+  down. The owner: "i still like that rotating choose your character selection if you can switch
+  between the personas but it doesn't need to be a character select screen".)
 - "It does the work, not just the talking.": three things beside a picture each (its own
   computer, a phone's lock screen, a schedule), then two side by side (memory, a team).
-- "Give it a job": what the character select becomes. Seven jobs as chips; choosing one changes
-  the creature at the head of a phone, its name, and the conversation under it.
 - "Right where you need it": web, desktop, phone, Slack.
 - Open source, with the three lines that run it, and three plain cards.
 - Hats, said once. "Try one on" only changes the hat: the box opening is the app's.
 - Questions, and "Get yours".
 
-There are three creatures on the page: at the top, in the phone, and under a hat.
+There are two creatures on the page: at the top, and under a hat.
 
-**Mine, not the owner's:** every line of copy, which features get a large picture, the jobs
-standing in for the character select, keeping the pixel creature on a page this plain, and
+**Mine, not the owner's:** every line of copy, which features get a large picture, the
+eight as chips of words rather than eight small creatures, keeping the pixel creature on a page this plain, and
 "Download for Mac" beside "Get started".
