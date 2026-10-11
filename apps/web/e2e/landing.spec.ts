@@ -32,6 +32,11 @@ test("a stranger is shown the landing page, sent whole, with the way in", async 
   // The app is shown, a page of it at a time.
   await page.getByRole("tab", { name: "Library" }).click()
   await expect(page.getByRole("img", { name: "Do Computer: Library" })).toBeVisible()
+  // What it does is shown as pictures of the app: below the eight and the one on the pedestal
+  // there are two creatures, the one that is dressed and the egg.
+  await expect(page.getByRole("heading", { name: "A computer of its own" })).toBeVisible()
+  await expect(page.locator(".lp-select [data-mood]")).toHaveCount(9)
+  await expect(page.locator(".lp [data-mood]")).toHaveCount(11)
 
   await page.getByRole("link", { name: "Press start" }).click()
   await expect(page).toHaveURL(/\/welcome$/)

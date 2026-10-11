@@ -1958,11 +1958,22 @@ Since then, newest last:
       refuses an account to anyone not invited, as it did.
     - **The page**: one creature large on a pedestal, with the job it stands for and what it
       is doing; eight to choose from, the last an egg; the app in a window whose tabs change
-      the picture, and in a phone where the window would be too small; six things it does,
-      each acted out; that it is open source, with the three lines that run it; the app's own
-      box opening; and an egg that hatches when pressed three times. The creatures are
-      `AgentAvatar`, as everywhere else, so where they cannot be drawn their still pictures
-      stand in. Its styles are one file under `.lp`, which is also what scrolls.
+      the picture, and in a phone where the window would be too small; six things it does;
+      that it is open source, with the three lines that run it; the app's own box opening;
+      and an egg that hatches when pressed three times. The creatures are `AgentAvatar`, as
+      everywhere else, so where they cannot be drawn their still pictures stand in. Its
+      styles are one file under `.lp`, which is also what scrolls.
+    - **Under the character select the creatures are few** (2026-10-11). The owner: "the
+      landing page has too many agent blobs. i like the character select screen but maybe
+      more variety on the rest of the page", pointing at x.ai/bot and chatgpt.com/features/dots.
+      The six things it does were six cards with a creature acting each out, eleven creatures
+      under the select in all. Now each is a small picture of the product, drawn in HTML and
+      played through its steps by a timer: two said beside a large picture (a browser its
+      pointer moves over with the commands under it; a phone's lock screen and what it is
+      sent) and four cards (a chat that remembers, a clock over a schedule, the four places
+      it can be talked to, a job going between three agents). Nobody sits on the terminal,
+      and the hats section has its picture on the left. Two creatures are left below the
+      select: the one that is dressed, and the egg.
     - **The pictures of the app** in `apps/web/public/landing` are real: taken from the built
       server with a real model (`prototypes/landing/README.md` says how). They will go out of
       date as the app changes.

@@ -560,41 +560,374 @@
     color: var(--dim);
   }
 
-  /* What it does. */
+  /* What it does: two things said beside a picture, then four cards with a small one each. */
+  .lp-feature {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 56px;
+    align-items: center;
+    margin-top: 56px;
+    h3 {
+      font: 400 clamp(34px, 3.5vw, 44px) / 0.95 var(--pixel);
+      margin-top: 12px;
+      text-wrap: balance;
+    }
+    & + .lp-feature {
+      margin-top: 24px;
+    }
+  }
+  .lp-flip {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    > .lp-vis {
+      order: -1;
+    }
+  }
+  /* The panel a picture sits on, in a color of its own. */
+  .lp-vis {
+    position: relative;
+    min-height: 420px;
+    padding: 34px 28px;
+    border-radius: 22px;
+    overflow: hidden;
+    background: radial-gradient(
+      130% 100% at 50% 100%,
+      var(--tone) 0,
+      color-mix(in srgb, var(--tone) 45%, #0b1030) 52%,
+      var(--panel) 100%
+    );
+    box-shadow: inset 0 0 0 1px var(--line);
+    display: grid;
+    place-items: center;
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: conic-gradient(
+          rgb(255 255 255 / 0.05) 25%,
+          transparent 0 50%,
+          rgb(255 255 255 / 0.05) 0 75%,
+          transparent 0
+        )
+        0 0 / 6px 6px;
+      mask-image: linear-gradient(transparent 30%, #000);
+    }
+    > * {
+      position: relative;
+    }
+  }
+  /* A piece of the app, as it looks in the dark. */
+  .lp-ui {
+    border-radius: 14px;
+    background: #14171a;
+    color: #e8eaed;
+    font-size: 13px;
+    line-height: 1.45;
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.12),
+      0 7px 0 rgb(0 0 0 / 0.28),
+      0 30px 60px rgb(0 0 0 / 0.4);
+  }
+  .lp-computer {
+    width: min(100%, 470px);
+    padding: 14px;
+  }
+  .lp-ui-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13.5px;
+    b {
+      font-weight: 600;
+    }
+  }
+  .lp-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px 0 8px;
+    border-radius: 99px;
+    font: 500 11px/1 var(--font-mono);
+    color: var(--teal);
+    background: rgb(69 224 210 / 0.13);
+    i {
+      width: 6px;
+      height: 6px;
+      background: currentColor;
+      animation: lp-blink 1s steps(2) infinite;
+    }
+    &[data-quiet="true"] i {
+      animation: none;
+    }
+  }
+  .lp-ui-says {
+    margin-top: 2px;
+    color: #a4abb3;
+  }
+  .lp-browser {
+    position: relative;
+    margin-top: 12px;
+    border-radius: 9px;
+    overflow: hidden;
+    background: #f3f4f1;
+    color: #1d2125;
+  }
+  .lp-browser-bar {
+    height: 26px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 10px;
+    background: #e3e5e0;
+    i {
+      width: 7px;
+      height: 7px;
+      border-radius: 99px;
+      background: #c2c5bf;
+    }
+    span {
+      margin: 0 auto;
+      translate: -16px 0;
+      width: 46%;
+      height: 15px;
+      border-radius: 99px;
+      background: #f3f4f1;
+      font: 400 9.5px/15px var(--font-mono);
+      color: #8a8f88;
+      text-align: center;
+    }
+  }
+  .lp-browser-page {
+    padding: 14px 16px 16px;
+    display: grid;
+    gap: 9px;
+  }
+  .lp-field {
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 99px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1.5px #cfd2cb;
+    font-size: 12.5px;
+    line-height: 30px;
+  }
+  .lp-result {
+    display: grid;
+    gap: 5px;
+    padding: 7px 9px;
+    margin: 0 -9px;
+    border-radius: 7px;
+    transition: background 0.3s ease;
+    b {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1a5fb4;
+    }
+    i {
+      height: 5px;
+      border-radius: 99px;
+      background: #d6d9d2;
+      &:last-child {
+        width: 62%;
+      }
+    }
+    &[data-lit="true"] {
+      background: rgb(14 141 134 / 0.14);
+    }
+  }
+  /* The agent's own pointer, which goes where the work is. */
+  .lp-pointer {
+    position: absolute;
+    left: 62%;
+    top: 48px;
+    display: flex;
+    align-items: flex-start;
+    transition:
+      left 0.8s cubic-bezier(0.3, 0.7, 0.2, 1),
+      top 0.8s cubic-bezier(0.3, 0.7, 0.2, 1);
+    svg {
+      width: 17px;
+      height: 17px;
+      fill: #111;
+      stroke: #fff;
+      stroke-width: 1.2;
+      stroke-linejoin: round;
+    }
+    b {
+      margin: 12px 0 0 -2px;
+      padding: 0 6px;
+      border-radius: 99px;
+      background: var(--teal-deep);
+      color: #fff;
+      font: 600 9.5px/16px var(--font-sans);
+    }
+    &[data-at="first"] {
+      left: 44%;
+      top: 92px;
+    }
+    &[data-at="third"] {
+      left: 36%;
+      top: 214px;
+    }
+    &[data-at="shell"] {
+      left: 80%;
+      top: 150px;
+    }
+  }
+  .lp-shell {
+    margin-top: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: #0a0c0e;
+    font-size: 11.5px;
+    line-height: 1.7;
+    color: #dfe3e8;
+    white-space: pre;
+    overflow: hidden;
+    span {
+      transition: opacity 0.3s ease;
+      &[data-shown="false"] {
+        opacity: 0;
+      }
+      &:last-child {
+        color: #8b949c;
+      }
+    }
+    i {
+      font-style: normal;
+      color: var(--teal);
+    }
+  }
+  /* A phone in a pocket: the time, and what it has been sent. */
+  .lp-lock {
+    width: 244px;
+    height: 352px;
+    padding: 30px 11px 12px;
+    border-radius: 36px;
+    border: 7px solid #0b0d12;
+    background: linear-gradient(#1c1746, #4a2d70 55%, #a2566e);
+    box-shadow:
+      0 7px 0 rgb(0 0 0 / 0.3),
+      0 30px 60px rgb(0 0 0 / 0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .lp-lock-date {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: rgb(255 255 255 / 0.8);
+  }
+  .lp-lock-time {
+    font: 400 76px/0.9 var(--pixel);
+    margin-top: 2px;
+  }
+  .lp-notes {
+    width: 100%;
+    margin-top: auto;
+    display: grid;
+    gap: 6px;
+  }
+  .lp-note {
+    display: flex;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 15px;
+    background: rgb(255 255 255 / 0.2);
+    font-size: 11.5px;
+    line-height: 1.35;
+    text-align: left;
+    transition:
+      opacity 0.4s ease,
+      translate 0.4s ease,
+      margin 0.4s ease;
+    img {
+      width: 22px;
+      height: 22px;
+      flex: none;
+    }
+    b {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+    em {
+      font-style: normal;
+      font-weight: 400;
+      color: rgb(255 255 255 / 0.6);
+    }
+    &[data-shown="false"] {
+      opacity: 0;
+      translate: 0 -10px;
+      margin-bottom: -58px;
+    }
+  }
+  .lp-note-old {
+    background: rgb(255 255 255 / 0.12);
+  }
+  .lp-lock-doing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 26px;
+    margin-top: 8px;
+    padding: 0 11px;
+    border-radius: 99px;
+    background: rgb(5 7 26 / 0.55);
+    font: 500 10.5px/1 var(--font-mono);
+    i {
+      width: 6px;
+      height: 6px;
+      background: var(--teal);
+      animation: lp-blink 1s steps(2) infinite;
+    }
+    &[data-quiet="true"] i {
+      background: var(--faint);
+      animation: none;
+    }
+  }
+
   .lp-cards {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-    margin-top: 44px;
+    margin-top: 40px;
   }
   .lp-card {
-    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px;
     background: var(--panel);
     box-shadow: inset 0 0 0 1px var(--line);
-    padding: 10px 10px 22px;
+    padding: 10px;
     h3 {
-      font-size: 19px;
+      font-size: 20px;
       font-weight: 600;
       letter-spacing: -0.015em;
-      margin: 18px 12px 0;
+      margin: 16px 16px 0;
     }
     > p {
-      font-size: 15px;
+      font-size: 15.5px;
       color: var(--dim);
-      margin: 7px 12px 0;
+      margin: 6px 16px 20px;
+      max-width: 30em;
       text-wrap: pretty;
     }
   }
   .lp-screen {
     position: relative;
-    height: 190px;
-    border-radius: 11px;
+    margin-top: auto;
+    height: 232px;
+    border-radius: 12px;
     overflow: hidden;
-    background: linear-gradient(#0a1030, #13264e 62%, var(--glow));
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 20px;
+    background: linear-gradient(#0a1030, #13264e 55%, var(--tone));
+    display: grid;
+    place-items: center;
+    padding: 0 22px;
+    font-size: 12.5px;
+    line-height: 1.4;
     &::before {
       content: "";
       position: absolute;
@@ -608,39 +941,281 @@
         0 0 / 6px 6px;
       mask-image: linear-gradient(transparent 35%, #000);
     }
-    .lp-line {
-      position: absolute;
-      left: 10px;
-      right: 10px;
-      bottom: 9px;
-      height: 24px;
-      font-size: 11.5px;
+    > * {
+      position: relative;
+      width: min(100%, 400px);
+    }
+    [data-shown] {
+      transition:
+        opacity 0.35s ease,
+        translate 0.35s ease;
+    }
+    [data-shown="false"] {
+      opacity: 0;
+      translate: 0 8px;
     }
   }
-  .lp-solo {
-    width: 104px;
-    height: 104px;
-    margin-bottom: 42px;
-  }
-  .lp-cast {
-    width: 76px;
-    height: 76px;
-    margin-bottom: 44px;
-  }
-  .lp-chips {
-    position: absolute;
-    right: 10px;
-    top: 10px;
+  /* It remembers: a chat, and the same chat weeks on. */
+  .lp-chat {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+  }
+  .lp-bubble {
+    max-width: 86%;
+    padding: 8px 12px;
+    border-radius: 13px;
+    background: #1d2125;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
+    color: #e8eaed;
+  }
+  .lp-you {
+    align-self: flex-end;
+    background: #2f6f8c;
+    box-shadow: none;
+    color: #fff;
+  }
+  .lp-saved {
+    align-self: flex-end;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font: 500 11px/1 var(--font-mono);
+    color: var(--teal);
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+  .lp-when {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 500 10px/1 var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #9aa3c4;
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line2);
+    }
+  }
+  /* Up before you are: a clock, and the list it works down. */
+  .lp-plan {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 20px;
+    align-items: center;
+    ul {
+      display: grid;
+      gap: 5px;
+    }
+    li {
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr) auto;
+      gap: 0 9px;
+      align-items: center;
+      padding: 7px 11px;
+      border-radius: 10px;
+      background: rgb(5 7 26 / 0.5);
+      box-shadow: inset 0 0 0 1px var(--line);
+      color: #9aa3c4;
+      i {
+        grid-row: span 2;
+        width: 8px;
+        height: 8px;
+        background: var(--faint);
+      }
+      b {
+        font-weight: 600;
+        color: #e8ebfa;
+      }
+      span {
+        grid-column: 2;
+        font-size: 11px;
+      }
+      em {
+        grid-area: 1 / 3 / span 2;
+        font: 500 10.5px/1 var(--font-mono);
+      }
+      &[data-state="running"],
+      &[data-state="done"] {
+        background: rgb(5 7 26 / 0.72);
+        box-shadow: inset 0 0 0 1.5px var(--teal);
+        i {
+          background: var(--teal);
+        }
+        em {
+          color: var(--teal);
+        }
+      }
+      &[data-state="running"] i {
+        animation: lp-blink 1s steps(2) infinite;
+      }
+    }
+  }
+  .lp-plan-clock {
+    display: grid;
     gap: 6px;
+    text-align: center;
+    b {
+      font: 400 54px/0.85 var(--pixel);
+      color: #fff;
+      text-shadow: 0 3px 0 rgb(0 0 0 / 0.4);
+      font-variant-numeric: tabular-nums;
+    }
     span {
-      height: 24px;
-      padding: 0 9px;
-      border-radius: 99px;
-      font: 500 11px/24px var(--font-mono);
-      background: rgb(5 7 26 / 0.6);
+      font: 500 10px/1 var(--font-mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #c9b48e;
+    }
+  }
+  /* Wherever you are: four places, lit a turn each, and what is said there. */
+  .lp-places {
+    display: grid;
+    gap: 14px;
+    > p:first-child {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+    span {
+      display: grid;
+      justify-items: center;
+      gap: 7px;
+      padding: 12px 0 10px;
+      border-radius: 10px;
+      background: rgb(5 7 26 / 0.5);
       box-shadow: inset 0 0 0 1px var(--line2);
-      color: #dfe4fa;
+      font: 500 10px/1 var(--font-mono);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #8f98b8;
+      transition:
+        translate 0.15s ease,
+        background 0.15s ease;
+      svg {
+        width: 26px;
+        height: 26px;
+      }
+      &[data-lit="true"] {
+        background: #14463f;
+        box-shadow:
+          inset 0 0 0 2px var(--teal),
+          0 4px 0 rgb(0 0 0 / 0.3);
+        translate: 0 -3px;
+        color: #fff;
+      }
+    }
+  }
+  .lp-said {
+    justify-self: center;
+    max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 13px;
+    background: #1d2125;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
+    color: #e8eaed;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: lp-rise 0.3s ease both;
+    b {
+      margin-right: 8px;
+      font: 500 10.5px/1 var(--font-mono);
+      color: var(--teal);
+    }
+  }
+  /* One for the whole team: the job, going from one to the next. */
+  .lp-relay {
+    display: grid;
+    gap: 16px;
+    justify-items: center;
+  }
+  .lp-relay-row {
+    position: relative;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 26px;
+    &::before {
+      content: "";
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      top: 50%;
+      border-top: 2px dashed rgb(255 255 255 / 0.22);
+    }
+    span {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 5px;
+      padding: 12px 0 11px;
+      border-radius: 10px;
+      background: #0d1433;
+      box-shadow: inset 0 0 0 1px var(--line2);
+      font: 500 10px/1 var(--font-mono);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #8f98b8;
+      transition:
+        translate 0.15s ease,
+        box-shadow 0.15s ease;
+      i {
+        width: 18px;
+        height: 18px;
+        margin-bottom: 3px;
+        background: var(--tone);
+        box-shadow:
+          inset -4px -4px 0 rgb(0 0 0 / 0.22),
+          inset 4px 4px 0 rgb(255 255 255 / 0.2);
+      }
+      b {
+        font: 600 13.5px/1 var(--font-sans);
+        letter-spacing: 0;
+        text-transform: none;
+        color: #e8ebfa;
+      }
+      &[data-lit="true"] {
+        box-shadow:
+          inset 0 0 0 2px var(--tone),
+          0 4px 0 rgb(0 0 0 / 0.3);
+        translate: 0 -3px;
+      }
+    }
+  }
+  .lp-relay-says {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 13px 0 11px;
+    border-radius: 99px;
+    background: rgb(5 7 26 / 0.6);
+    box-shadow: inset 0 0 0 1px var(--line2);
+    font: 500 11px/1 var(--font-mono);
+    color: #dfe4fa;
+    white-space: nowrap;
+    animation: lp-rise 0.3s ease both;
+    i {
+      width: 4px;
+      height: 4px;
+      background: var(--teal);
+      animation: lp-blink 0.9s steps(2) infinite;
+      &:nth-child(2) {
+        animation-delay: 0.3s;
+      }
+      &:nth-child(3) {
+        animation-delay: 0.6s;
+        margin-right: 5px;
+      }
     }
   }
 
@@ -670,8 +1245,6 @@
     }
   }
   .lp-terminal {
-    position: relative;
-    margin-top: 70px;
     border-radius: 14px;
     background: #090c1e;
     box-shadow:
@@ -722,16 +1295,13 @@
       margin-left: 10px;
     }
   }
-  /* Sitting on the terminal's top edge. */
-  .lp-perched {
-    position: absolute;
-    right: 34px;
-    bottom: calc(100% - 3px);
-    width: 84px;
-    height: 84px;
+  /* Hats: the picture comes first, so the page does not lean the same way twice running. */
+  .lp-hats {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    .lp-pad {
+      order: -1;
+    }
   }
-
-  /* Hats. */
   .lp-pad {
     position: relative;
     aspect-ratio: 1 / 0.86;
@@ -931,11 +1501,30 @@
       grid-template-columns: minmax(0, 1fr);
       gap: 28px;
     }
-    .lp-hats .lp-pad {
-      order: -1;
+    .lp-feature,
+    .lp-flip {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+      margin-top: 48px;
+      & + .lp-feature {
+        margin-top: 56px;
+      }
+      > .lp-vis {
+        order: 0;
+      }
+    }
+    .lp-vis {
+      min-height: 0;
+      padding: 28px 16px;
     }
     .lp-cards {
       grid-template-columns: minmax(0, 1fr);
+      margin-top: 56px;
+    }
+    .lp-screen {
+      height: auto;
+      min-height: 232px;
+      padding: 24px 16px;
     }
     .lp-foot {
       flex-wrap: wrap;
@@ -1017,8 +1606,26 @@
     .lp-lead {
       font-size: 16.5px;
     }
+    .lp-plan {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+    }
+    .lp-plan-clock {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 10px;
+      b {
+        font-size: 44px;
+      }
+    }
+    .lp-relay-row {
+      gap: 14px;
+    }
+    .lp-pointer {
+      scale: 0.9;
+    }
     .lp-terminal {
-      margin-top: 64px;
       pre {
         white-space: pre;
         overflow-x: auto;
@@ -1052,8 +1659,17 @@
     .lp-start i,
     .lp-choose i,
     .lp-pill i,
-    .lp-terminal pre b {
+    .lp-terminal pre b,
+    .lp-tag i,
+    .lp-lock-doing i,
+    .lp-plan li i,
+    .lp-relay-says i,
+    .lp-said,
+    .lp-relay-says {
       animation: none;
+    }
+    .lp-pointer {
+      transition: none;
     }
   }
 }
@@ -1061,6 +1677,12 @@
 @keyframes lp-blink {
   50% {
     opacity: 0.35;
+  }
+}
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    translate: 0 6px;
   }
 }
 @keyframes lp-slide {

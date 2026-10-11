@@ -6,7 +6,15 @@ import {
   type WearItem,
   wearItem,
 } from "@durable-computer/protocol"
-import { ArrowRightIcon, GithubLogoIcon } from "@phosphor-icons/react"
+import {
+  ArrowRightIcon,
+  BrowserIcon,
+  DesktopIcon,
+  DeviceMobileIcon,
+  GithubLogoIcon,
+  NotePencilIcon,
+  SlackLogoIcon,
+} from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
@@ -175,7 +183,6 @@ function Creature({
   seed = name,
   color,
   wear,
-  step,
   egg = false,
   quiet = false,
   className,
@@ -184,7 +191,6 @@ function Creature({
   seed?: string
   color: string
   wear?: Outfit
-  step?: Step
   egg?: boolean
   quiet?: boolean
   className?: string
@@ -194,7 +200,6 @@ function Creature({
       avatar={{ color, seed }}
       seed={`landing:${name}`}
       outfit={wear}
-      mood={step === undefined ? undefined : { state: step[0], variant: step[1] }}
       hatched={!egg}
       quiet={quiet}
       pettable={!quiet}
@@ -414,162 +419,320 @@ function TheApp() {
   )
 }
 
-type Act = {
-  title: string
-  text: string
-  /** The color its little screen fades into. */
-  glow: string
-  who: readonly { name: string; color: string; wear?: Outfit }[]
-  /** What is said, and how each of them holds itself while it is. */
-  steps: readonly (readonly [says: string, about: string | undefined, ...Step[]])[]
-  ms: number
-  chips?: readonly string[]
+/** A picture that plays through its steps: where it is now, and whether a step has been reached. */
+function usePlay(steps: number, ms: number): [at: number, reached: (step: number) => boolean] {
+  const [at] = useRound(steps, ms)
+  return [at, (step) => at >= step]
 }
 
-const still = (state: MascotState, variant?: MascotVariant): Step => [state, variant, ""]
+/** Where the pointer is on the page it is reading, and what the agent says it is doing there. */
+const ERRAND = [
+  ["field", "Searching for e-ink tablets"],
+  ["first", "Reading the reviews"],
+  ["third", "Comparing nine of them"],
+  ["shell", "Writing tablets.md"],
+  ["shell", "Done. It is in your library."],
+] as const
 
-const ACTS: readonly Act[] = [
-  {
-    title: "A computer of its own",
-    text: "It runs commands, writes files and clicks through a browser on its own machine in the cloud. Share your Mac or PC and it can work there too.",
-    glow: "#1d4a5a",
-    who: [{ name: "Tarn", color: "tide" }],
-    ms: 2_600,
-    steps: [
-      ["Thinking", undefined, still("thinking")],
-      ["Running", "git status", still("working", "command")],
-      ["Writing", "src/checkout.ts", still("working", "file")],
-      ["Running", "pnpm test", still("working", "command")],
-      ["Done · 14 passed", undefined, still("done")],
-    ],
-  },
-  {
-    title: "Still at it when you leave",
-    text: "Close the laptop. It keeps going, and your phone buzzes when the job is done.",
-    glow: "#3a2f6a",
-    who: [{ name: "Vesper", color: "plum", wear: { hat: "nightcap" } }],
-    ms: 3_200,
-    steps: [
-      ["You left 12 min ago ·", "deploy", still("working", "command")],
-      ["You left 19 min ago · checking the page", undefined, still("working", "search")],
-      ["Done · told your phone", undefined, still("done")],
-    ],
-  },
-  {
-    title: "It remembers",
-    text: "It keeps notes on you and the work, so Tuesday starts where Monday ended.",
-    glow: "#5a3350",
-    who: [{ name: "Pilar", color: "rose", wear: { glasses: "reading" } }],
-    ms: 2_800,
-    steps: [
-      ["Noting", "invoices go out on the 1st", still("working", "memory")],
-      ["Remembers", undefined, still("idle")],
-      ["Noting", "Maya signs off on copy", still("working", "memory")],
-      ["Remembers", undefined, still("idle")],
-    ],
-  },
-  {
-    title: "Up before you are",
-    text: "Give it a schedule. The morning brief is written before the coffee is.",
-    glow: "#6a4a30",
-    who: [{ name: "Wren", color: "honey" }],
-    ms: 2_800,
-    steps: [
-      ["07:59 · asleep", undefined, still("asleep")],
-      ["08:00 · reading the news", undefined, still("working", "search")],
-      ["08:01 · writing", "brief.md", still("working", "file")],
-      ["08:02 · in your inbox", undefined, still("done")],
-    ],
-  },
-  {
-    title: "Wherever you are",
-    text: "In a browser, as an app on your desktop, on your phone, and in Slack when someone asks for it by name.",
-    glow: "#1f5a46",
-    who: [{ name: "Juniper", color: "moss", wear: { hat: "headphones" } }],
-    chips: ["Web", "Desktop", "Phone", "Slack"],
-    ms: 2_800,
-    steps: [
-      ["#launch · Maya is typing", undefined, still("listening")],
-      ["#launch · replying", undefined, still("speaking")],
-      ["#launch", undefined, still("idle")],
-    ],
-  },
-  {
-    title: "One for the whole team",
-    text: "Share one with your team or keep one to yourself. They hand work to each other while you get on with yours.",
-    glow: "#24507a",
-    who: [
-      { name: "Juniper", color: "moss", wear: { hat: "sprout" } },
-      { name: "Wren", color: "honey", wear: { glasses: "browline" } },
-      { name: "Tarn", color: "tide", wear: { neck: "necktie" } },
-    ],
-    ms: 3_200,
-    steps: [
-      [
-        "Pip → Scout · can you check the pricing page?",
-        undefined,
-        still("speaking"),
-        still("idle"),
-        still("listening"),
-      ],
-      [
-        "Scout · reading the pricing page",
-        undefined,
-        still("idle"),
-        still("idle"),
-        still("working", "search"),
-      ],
-      [
-        "Scout → Ledger · the March numbers, please",
-        undefined,
-        still("idle"),
-        still("listening"),
-        still("speaking"),
-      ],
-      [
-        "Ledger · adding up March",
-        undefined,
-        still("idle"),
-        still("working", "command"),
-        still("idle"),
-      ],
-    ],
-  },
-]
-
-/** One thing it does, with whoever acts it out on a little screen. */
-function ActCard({ act, index }: { act: Act; index: number }) {
-  const [at] = useRound(act.steps.length, act.ms)
-  const [says, about, ...poses] = act.steps[at]!
-  const lead = poses[0]!
+/** Its own computer: a browser it clicks through, and the commands it runs under it. */
+function ComputerPicture() {
+  const [at, reached] = usePlay(ERRAND.length, 2_600)
+  const [where, says] = ERRAND[at]!
+  const done = at === ERRAND.length - 1
   return (
-    <article className="lp-card">
-      <div className="lp-screen" style={{ "--glow": act.glow } as React.CSSProperties}>
-        {act.chips === undefined ? null : (
-          <p className="lp-chips">
-            {act.chips.map((chip) => (
-              <span key={chip}>{chip}</span>
-            ))}
+    <div className="lp-vis" style={{ "--tone": "#17727c" } as React.CSSProperties} aria-hidden>
+      <div className="lp-ui lp-computer">
+        <p className="lp-ui-bar">
+          <b>Computer</b>
+          <span className="lp-tag" data-quiet={done}>
+            <i />
+            {done ? "Done" : "Pip is working"}
+          </span>
+        </p>
+        <p className="lp-ui-says">{says}</p>
+        <div className="lp-browser">
+          <p className="lp-browser-bar">
+            <i />
+            <i />
+            <i />
+            <span>search</span>
           </p>
-        )}
-        {act.who.map((who, place) => (
-          <AgentAvatar
-            key={who.name}
-            avatar={{ color: who.color, seed: who.name }}
-            seed={`landing:act${index}:${who.name}`}
-            outfit={who.wear}
-            mood={{ state: (poses[place] ?? lead)[0], variant: (poses[place] ?? lead)[1] }}
-            pettable
-            className={act.who.length > 1 ? "lp-cast" : "lp-solo"}
-          />
-        ))}
-        <Line step={[lead[0], lead[1], says, about]} />
+          <div className="lp-browser-page">
+            <p className="lp-field">{reached(0) ? "best e-ink tablets" : ""}</p>
+            {[
+              "The nine best e-ink tablets",
+              "Paper tablets, compared",
+              "Which one to write on",
+            ].map((title, row) => (
+              <p
+                key={title}
+                className="lp-result"
+                data-lit={(row === 0 && at === 1) || (row === 2 && at === 2)}
+              >
+                <b>{title}</b>
+                <i />
+                <i />
+              </p>
+            ))}
+          </div>
+          <span className="lp-pointer" data-at={where}>
+            <svg viewBox="0 0 16 16" role="presentation">
+              <path d="M2 1.5 13.5 7 8.6 8.6 7 13.5Z" />
+            </svg>
+            <b>Pip</b>
+          </span>
+        </div>
+        <pre className="lp-shell">
+          <span data-shown={reached(2)}>
+            <i>$</i> python compare.py reviews/
+          </span>
+          {"\n"}
+          <span data-shown={reached(3)}>{"  "}wrote library/tablets.md</span>
+        </pre>
       </div>
-      <h3>{act.title}</h3>
-      <p>{act.text}</p>
+    </div>
+  )
+}
+
+/** What the phone in a pocket shows while it works: the time, and what it sends when it is done. */
+const AWAY = [
+  ["6:12", "Running the deploy"],
+  ["6:19", "Checking the page"],
+  ["6:24", undefined],
+  ["6:24", undefined],
+] as const
+
+function AwayPicture() {
+  const [at] = usePlay(AWAY.length, 2_800)
+  const [time, doing] = AWAY[at]!
+  return (
+    <div className="lp-vis" style={{ "--tone": "#5b3d8f" } as React.CSSProperties} aria-hidden>
+      <div className="lp-lock">
+        <p className="lp-lock-date">Friday, March 6</p>
+        <p className="lp-lock-time">{time}</p>
+        <div className="lp-notes">
+          <p className="lp-note" data-shown={doing === undefined}>
+            <img src="/favicon.svg" alt="" />
+            <span>
+              <b>
+                Pip <em>now</em>
+              </b>
+              The deploy is live. All 14 tests pass.
+            </span>
+          </p>
+          <p className="lp-note lp-note-old">
+            <img src="/favicon.svg" alt="" />
+            <span>
+              <b>
+                Pip <em>12m ago</em>
+              </b>
+              On it. I will tell you when it is out.
+            </span>
+          </p>
+        </div>
+        <p className="lp-lock-doing" data-quiet={doing === undefined}>
+          <i />
+          {doing ?? "Done"}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** One of the two things the rest stands on, said beside a picture of it. */
+function Feature({
+  eyebrow,
+  title,
+  text,
+  ticks,
+  flip = false,
+  children,
+}: {
+  eyebrow: string
+  title: string
+  text: string
+  ticks?: readonly string[]
+  flip?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <article className={cn("lp-feature", flip && "lp-flip")}>
+      <div>
+        <p className="lp-eyebrow">{eyebrow}</p>
+        <h3>{title}</h3>
+        <p className="lp-lead">{text}</p>
+        {ticks === undefined ? null : (
+          <ul className="lp-ticks">
+            {ticks.map((tick) => (
+              <li key={tick}>{tick}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {children}
     </article>
   )
 }
+
+/** Something said once, kept, and used weeks later. */
+function MemoryPicture() {
+  const [, reached] = usePlay(4, 2_600)
+  return (
+    <div className="lp-chat">
+      <p className="lp-bubble lp-you">Dana signs off on copy. Invoices go out on the 1st.</p>
+      <p className="lp-saved" data-shown={reached(1)}>
+        <NotePencilIcon weight="bold" />
+        Saved to memory
+      </p>
+      <p className="lp-when" data-shown={reached(2)}>
+        Three weeks later
+      </p>
+      <p className="lp-bubble" data-shown={reached(2)}>
+        Copy is with Dana for sign-off, and the invoices are queued for the 1st.
+      </p>
+    </div>
+  )
+}
+
+/** The clock, and what the first job on the list says as it comes round. */
+const MORNING = [
+  ["07:59", "In 1 min", "waiting"],
+  ["08:00", "Reading the news", "running"],
+  ["08:01", "Writing brief.md", "running"],
+  ["08:02", "In your inbox", "done"],
+] as const
+
+function SchedulePicture() {
+  const [at] = usePlay(MORNING.length, 2_600)
+  const [clock, says, state] = MORNING[at]!
+  return (
+    <div className="lp-plan">
+      <p className="lp-plan-clock">
+        <b>{clock}</b>
+        <span>Tuesday</span>
+      </p>
+      <ul>
+        <li data-state={state}>
+          <i />
+          <b>Morning brief</b>
+          <span>Weekdays · 08:00</span>
+          <em>{says}</em>
+        </li>
+        <li>
+          <i />
+          <b>Week plan</b>
+          <span>Mondays · 09:00</span>
+          <em>In 6 days</em>
+        </li>
+        <li>
+          <i />
+          <b>Invoices</b>
+          <span>The 1st · 10:00</span>
+          <em>In 3 weeks</em>
+        </li>
+      </ul>
+    </div>
+  )
+}
+
+/** The places it can be talked to, and something said to it in each. */
+const PLACES = [
+  [BrowserIcon, "Web", "do.computer", "Plan my week around the offsite."],
+  [DesktopIcon, "Desktop", "Do Computer", "Tidy up my downloads folder."],
+  [DeviceMobileIcon, "Phone", "On the train", "Is the brief ready yet?"],
+  [SlackLogoIcon, "Slack", "#launch", "@Pip is the pricing page live?"],
+] as const
+
+function PlacesPicture() {
+  const [at] = usePlay(PLACES.length, 2_400)
+  const [, , where, said] = PLACES[at]!
+  return (
+    <div className="lp-places">
+      <p>
+        {PLACES.map(([Icon, name], place) => (
+          <span key={name} data-lit={place === at}>
+            <Icon weight={place === at ? "fill" : "regular"} />
+            {name}
+          </span>
+        ))}
+      </p>
+      <p className="lp-said" key={at}>
+        <b>{where}</b>
+        {said}
+      </p>
+    </div>
+  )
+}
+
+/** Three of a team's agents, and the job as it goes from one to the next. */
+const RELAY = [
+  [0, "Pip is asking Scout"],
+  [1, "Scout is reading the pricing page"],
+  [1, "Scout is looping in Ledger"],
+  [2, "Ledger is adding up March"],
+] as const
+
+const TEAM = [
+  ["Pip", "Planner", "#3f7f9c"],
+  ["Scout", "Research", "#6f8f4e"],
+  ["Ledger", "Numbers", "#c9952c"],
+] as const
+
+function TeamPicture() {
+  const [at] = usePlay(RELAY.length, 2_600)
+  const [who, says] = RELAY[at]!
+  return (
+    <div className="lp-relay">
+      <p className="lp-relay-row" data-at={who}>
+        {TEAM.map(([name, does, color], place) => (
+          <span
+            key={name}
+            data-lit={place === who}
+            style={{ "--tone": color } as React.CSSProperties}
+          >
+            <i />
+            <b>{name}</b>
+            {does}
+          </span>
+        ))}
+      </p>
+      <p className="lp-relay-says" key={at}>
+        <i />
+        <i />
+        <i />
+        {says}
+      </p>
+    </div>
+  )
+}
+
+/** The rest of what it does, each with a small picture of the app doing it. */
+const CARDS = [
+  [
+    "It remembers",
+    "It keeps notes on you and the work, so Tuesday starts where Monday ended.",
+    "#6b3a5c",
+    MemoryPicture,
+  ],
+  [
+    "Up before you are",
+    "Give it a schedule. The morning brief is written before the coffee is.",
+    "#7a5526",
+    SchedulePicture,
+  ],
+  [
+    "Wherever you are",
+    "In a browser, as an app on your desktop, on your phone, and in Slack when someone asks for it by name.",
+    "#1f5a46",
+    PlacesPicture,
+  ],
+  [
+    "One for the whole team",
+    "Share one with your team or keep one to yourself. They hand work to each other while you get on with yours.",
+    "#24507a",
+    TeamPicture,
+  ],
+] as const
 
 function WhatItDoes() {
   return (
@@ -587,9 +750,39 @@ function WhatItDoes() {
             done.
           </p>
         </div>
+        <Feature
+          eyebrow="Its own machine"
+          title="A computer of its own"
+          text="It has a machine in the cloud to do the job on, so the answer is the finished thing and not a list of steps for you."
+          ticks={[
+            "Runs commands and writes files",
+            "Clicks through a real browser",
+            "Works on your Mac or PC too, when you let it in",
+          ]}
+        >
+          <ComputerPicture />
+        </Feature>
+        <Feature
+          flip
+          eyebrow="In the background"
+          title="Still at it when you leave"
+          text="Close the laptop. It keeps going, and your phone buzzes when the job is done."
+        >
+          <AwayPicture />
+        </Feature>
         <div className="lp-cards">
-          {ACTS.map((act, index) => (
-            <ActCard key={act.title} act={act} index={index} />
+          {CARDS.map(([title, text, tone, Picture]) => (
+            <article key={title} className="lp-card">
+              <h3>{title}</h3>
+              <p>{text}</p>
+              <div
+                className="lp-screen"
+                style={{ "--tone": tone } as React.CSSProperties}
+                aria-hidden
+              >
+                <Picture />
+              </div>
+            </article>
           ))}
         </div>
       </div>
@@ -599,8 +792,6 @@ function WhatItDoes() {
 
 /** That it is open source, said with the three lines that run it. */
 function OpenSource() {
-  const [at] = useRound(3, 3_400)
-  const pose = ([still("working", "command"), still("done"), still("idle")] as const)[at]!
   return (
     <section className="lp-band">
       <div className="lp-wrap lp-split">
@@ -628,13 +819,6 @@ function OpenSource() {
           </div>
         </div>
         <div className="lp-terminal">
-          <Creature
-            name="Biscuit"
-            color="honey"
-            wear={{ hat: "chef" }}
-            step={pose}
-            className="lp-perched"
-          />
           <p className="lp-terminal-bar">
             <i />
             <i />
