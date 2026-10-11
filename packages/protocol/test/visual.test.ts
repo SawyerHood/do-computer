@@ -185,25 +185,36 @@ describe("what a site would serve", () => {
     expect(siteRoot(paths, "~/library/sites/plan")).toEqual({ path: "sites/plan", kind: "folder" })
   })
 
-  it("is one page, for a page named by itself", () => {
+  it("is one file, for a file named by itself, whatever kind it is", () => {
     expect(siteRoot(paths, "visuals/signups.html")).toEqual({
       path: "visuals/signups.html",
-      kind: "page",
+      kind: "file",
     })
-    // The library's own front page is a page: the whole library is never one site.
-    expect(siteRoot(paths, "index.html")).toEqual({ path: "index.html", kind: "page" })
+    expect(siteRoot(paths, "notes/todo.md")).toEqual({ path: "notes/todo.md", kind: "file" })
+    // The library's own front page is a file: the whole library is never one site.
+    expect(siteRoot(paths, "index.html")).toEqual({ path: "index.html", kind: "file" })
   })
 
-  it("is nothing, for what is not a page or has no front page", () => {
-    expect(siteRoot(paths, "notes/todo.md")).toHaveProperty("error")
-    expect(siteRoot(paths, "drafts")).toHaveProperty("error")
+  it("is a folder with no front page too, which is then a list of its files", () => {
+    expect(siteRoot(paths, "drafts")).toEqual({ path: "drafts", kind: "folder" })
+    expect(siteRoot(paths, "notes/")).toEqual({ path: "notes", kind: "folder" })
+  })
+
+  it("is nothing, for what is not there or is the whole library", () => {
     expect(siteRoot(paths, "nowhere")).toHaveProperty("error")
     expect(siteRoot(paths, "  ")).toHaveProperty("error")
+    expect(siteRoot(paths, "/")).toHaveProperty("error")
+    expect(siteRoot(paths, "~/library/")).toHaveProperty("error")
     expect(siteRoot(paths, "sites/../notes")).toHaveProperty("error")
+    // A name that only begins like a folder's is not that folder.
+    expect(siteRoot(paths, "note")).toHaveProperty("error")
   })
 
-  it("is called after its page or folder where nobody names it", () => {
+  it("is called after what it shares where nobody names it", () => {
     expect(siteTitleFor("sites/launch-plan")).toBe("Launch plan")
     expect(siteTitleFor("visuals/signups_q3.html")).toBe("Signups q3")
+    expect(siteTitleFor("notes/launch-checklist.md")).toBe("Launch checklist")
+    // Any other file keeps its name, which says what it is.
+    expect(siteTitleFor("exports/q3-report.pdf")).toBe("q3-report.pdf")
   })
 })

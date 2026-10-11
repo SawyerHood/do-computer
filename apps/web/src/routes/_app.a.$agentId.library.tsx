@@ -336,7 +336,7 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
                   “Recently deleted”.
                 </p>
               ) : null}
-              <SharedSites agentId={agentId} paths={paths} />
+              <SharedSites agentId={agentId} files={files} />
               {files.length === 0 ? (
                 <p className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
                   <UploadSimpleIcon className="size-5" />

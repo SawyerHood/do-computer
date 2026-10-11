@@ -8,7 +8,8 @@ is imported by it. Everything in it is pretend.
 It was built the same day, before the owner had answered it (HANDOFF.md, section 5, item 50).
 Where the app differs: the files in the library's tree carry no lock or globe; a document open
 beside a chat has no line along its bottom saying who shared it; in a workspace of one person
-the pill reads "Only you"; and the approval request has the app's usual buttons.
+the pill reads "Only you"; and the approval request has the app's usual buttons. Since then
+anything in the library can be shared, not only a page, and the words are "Shared with a link".
 
 ```sh
 node prototypes/visuals-and-sites/build.mjs     # writes index.html here; open it from the file system

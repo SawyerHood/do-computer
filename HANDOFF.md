@@ -2059,7 +2059,8 @@ Since then, newest last:
       by itself, in the library or as a site, has margins and a measure; in a chat it has
       neither. The frame is the library's `/d/<agent>/<key>/...` address (item 13), so it is
       sandboxed the same way and its script runs as nobody.
-    - **A site** is a page of the library, or a folder with an `index.html`, given an address:
+    - **A site** is a page of the library, or a folder with an `index.html` (and since item 51,
+      anything in it), given an address:
       `/s/<id>`, sixteen random characters. It is a row in `dc_sites` in the app database, by
       workspace. It shows what is in the library there as it is now; nothing is copied. A
       page named by itself is shared alone, and nothing beside it is served; naming a
@@ -2094,6 +2095,38 @@ Since then, newest last:
       `apps/web/src/server/sites.test.ts`, and in a browser `apps/web/e2e/visuals.spec.ts` and
       `sites.spec.ts`, which check that a site's script cannot read cookies, that its requests
       to the app go without the session, and that nothing outside the shared folder is served.
+51. **Anything in the library can be shared** (2026-10-11; `apps/web/src/server/site-pages.tsx`,
+    `LibraryStore.site`, `siteRoot` in `packages/protocol/src/sites.ts`). Item 50 shared only
+    pages. The owner asked "Is there a reason people can't share anything from their library?
+    That might unify things a bit", and there was none.
+    - **What is shared** is a file of any kind, alone, or a folder, with or without an
+      `index.html`. Naming a folder's `index.html` still shares the folder. The whole library
+      is never one site.
+    - **What its address shows** is decided where the file is asked for. A page is the page.
+      For someone going to anything else (`Sec-Fetch-Dest` of `document` or `iframe`), the
+      gateway makes a page of it in the app's colors: Markdown is rendered to read, text is
+      shown as text, a picture, a film or a sound is shown by itself, a folder with no front
+      page is a list of what is in it, and what cannot be shown, or is text over 1 MB, is its
+      name with a Download button. For a page that loads a file, as its picture, its
+      stylesheet or its data, the file is what it gets, and so it is for a browser that does
+      not say what it is asking for. `?download` hands the file over under its own name.
+    - **A site's page can read the files beside it.** A sandboxed page's origin is nobody's,
+      so to it the files beside it are another site's: it can show a picture of one but not
+      `fetch` it, load a module or use a font. A site's files now say
+      `Access-Control-Allow-Origin: *`: they are all shared with whoever has the page, and no
+      session goes with the request. A page in the library's own viewer (item 13) still
+      cannot, since the address it is viewed at opens the whole library. So a page that reads
+      a file beside it works as a site and not in the viewer.
+    - **In the app** every file in the library has the Share button, not only a page; a file's
+      card in a chat has one; a folder is shared from its row in the tree, and a shared file
+      or folder carries a lock or a globe there. The words are "Shared with a link" where
+      they were "Shared as a website".
+    - **Mine, not the owner's:** how each kind is shown; that Markdown shared by itself is
+      shown without the pictures beside it, since a file shared alone serves nothing else,
+      and that sharing its folder is the way to have them; that a PDF is a download, as it
+      is in the library; 1 MB as the most text that is shown.
+    - **Tested:** `apps/web/src/server/site-pages.test.ts`, and the last two tests of
+      `apps/web/e2e/sites.spec.ts`. `scripts/smoke.sh` shares a document.
 
 ## 6. What the owner has said they want
 

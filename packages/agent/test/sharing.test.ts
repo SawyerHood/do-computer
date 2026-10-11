@@ -12,6 +12,8 @@ import {
   type LibraryFile,
   type LibraryListing,
   readSse,
+  SITE_LISTING_HEADER,
+  type SiteListing,
   reduceChat,
   sharedSite,
   type SiteSummary,
@@ -275,21 +277,19 @@ describe("sharing a site", () => {
     expect(sharedSite(part)).toMatchObject({ path: "visuals/signups-q3.html", title: "Signups q3" })
   })
 
-  it("says why, for something that cannot be a site", async () => {
+  it("shares any file, and a folder with no front page of its own", async () => {
     const world = open()
     const chat = await setup(world)
     await put(world, "notes/todo.md", "- one")
     await put(world, "drafts/a.html", "<p>a</p>")
-    for (const [path, reason] of [
-      ["notes/todo.md", "is not a page"],
-      ["drafts", "has no index.html"],
-      ["nowhere", "There is no nowhere in the library"],
-    ] as const) {
-      const part = await use(world, chat.id, "share", { action: "publish", path })
-      expect(part.status).toBe("error")
-      expect(part.output).toContain(reason)
-    }
-    expect(world.sites).toEqual([])
+    const file = await use(world, chat.id, "share", { action: "publish", path: "notes/todo.md" })
+    expect(sharedSite(file)).toMatchObject({ path: "notes/todo.md", title: "Todo" })
+    const folder = await use(world, chat.id, "share", { action: "publish", path: "drafts" })
+    expect(sharedSite(folder)).toMatchObject({ path: "drafts", title: "Drafts" })
+    const missing = await use(world, chat.id, "share", { action: "publish", path: "nowhere" })
+    expect(missing.status).toBe("error")
+    expect(missing.output).toContain("There is no nowhere in the library")
+    expect(world.sites.length).toBe(2)
   })
 
   it("asks a person before making a site public, and does it once they say yes", async () => {
@@ -303,7 +303,7 @@ describe("sharing a site", () => {
     const { pending, subjects } = await call<ApprovalsState>(world, "/approvals")
     expect(pending).toMatchObject([
       {
-        title: "Make a shared page public",
+        title: "Make something shared public",
         detail: "Plan\nAnyone who has the link could open it.",
       },
     ])
@@ -365,6 +365,8 @@ describe("a site's files", () => {
     expect(policy).not.toContain("allow-same-origin")
     expect(policy).not.toContain("allow-top-navigation")
     expect(front.headers.get("referrer-policy")).toBe("no-referrer")
+    // A page of the site may read the site's files, which a page's own origin would not let it.
+    expect(front.headers.get("access-control-allow-origin")).toBe("*")
 
     const style = await served(world, "sites/plan", "style.css")
     expect(style.headers.get("content-type")).toBe("text/css; charset=utf-8")
@@ -393,6 +395,55 @@ describe("a site's files", () => {
     // What is beside it is not part of the site.
     expect((await served(world, "visuals/signups.html", "churn.html")).status).toBe(404)
     expect((await served(world, "visuals/signups.html", "../visuals/churn.html")).status).toBe(404)
+  })
+
+  it("are listed, for a folder with no front page of its own", async () => {
+    const world = open()
+    await setup(world)
+    await put(world, "drafts/b.md", "# B")
+    await put(world, "drafts/a.html", "<p>a</p>")
+    await put(world, "drafts/pics/one.svg", "<svg/>")
+    await put(world, "drafts/pics/deep/two.svg", "<svg/>")
+    await put(world, "draftsman.md", "not in it")
+    const list = await served(world, "drafts", "")
+    expect(list.status).toBe(200)
+    expect(list.headers.get(SITE_LISTING_HEADER)).toBe("1")
+    expect(list.headers.get("content-security-policy")).toMatch(/^sandbox /)
+    // Folders first, then files, by name: only what is directly inside.
+    expect((await list.json()) as SiteListing).toMatchObject({
+      folder: "",
+      entries: [
+        { name: "pics", kind: "folder" },
+        { name: "a.html", kind: "file", size: 8 },
+        { name: "b.md", kind: "file", size: 3 },
+      ],
+    })
+    // A folder within it is a list too, at an address that ends in a slash.
+    const inner = await served(world, "drafts", "pics")
+    expect(inner.status).toBe(302)
+    expect(inner.headers.get("location")).toBe("pics/")
+    expect((await (await served(world, "drafts", "pics/")).json()) as SiteListing).toMatchObject({
+      folder: "pics",
+      entries: [
+        { name: "deep", kind: "folder" },
+        { name: "one.svg", kind: "file" },
+      ],
+    })
+    // Its files are served as what they are, and a file that is not a page is not marked a list.
+    const document = await served(world, "drafts", "b.md")
+    expect(await document.text()).toBe("# B")
+    expect(document.headers.get("content-type")).toBe("text/markdown; charset=utf-8")
+    expect(document.headers.get(SITE_LISTING_HEADER)).toBeNull()
+    expect((await served(world, "drafts", "nothing/")).status).toBe(404)
+  })
+
+  it("are one file of any kind, for a site that shares a file", async () => {
+    const world = open()
+    await setup(world)
+    await put(world, "notes/todo.md", "- one")
+    await put(world, "notes/other.md", "- two")
+    expect(await (await served(world, "notes/todo.md", "")).text()).toBe("- one")
+    expect((await served(world, "notes/todo.md", "other.md")).status).toBe(404)
   })
 
   it("are not sent again to a browser that has them", async () => {

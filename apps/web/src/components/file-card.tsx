@@ -1,8 +1,16 @@
 import type { LibraryFile } from "@durable-computer/protocol"
-import { DownloadSimpleIcon, FileIcon } from "@phosphor-icons/react"
+import {
+  DownloadSimpleIcon,
+  FileIcon,
+  GlobeIcon,
+  LockIcon,
+  ShareNetworkIcon,
+} from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { client } from "@/lib/client"
+import { SharePopover } from "@/components/sites/share"
 import { formatBytes, isViewable } from "@/lib/library"
+import { siteOfFile, useSites } from "@/lib/sites"
 
 export { formatBytes }
 
@@ -25,6 +33,29 @@ export function FileCard({
 }) {
   const url = client.agent(agentId).libraryFileUrl(file.id)
   const viewable = isViewable(file)
+  // Shared with a link, or the way to share it. One from before files had a place has none.
+  const site = siteOfFile(useSites(agentId), file.path ?? "")
+  const share =
+    file.path === undefined ? null : (
+      <SharePopover agentId={agentId} site={site} path={file.path}>
+        <button
+          type="button"
+          aria-label={
+            site === undefined ? `Share ${file.name}` : `${file.name} is shared with a link`
+          }
+          title={site === undefined ? "Share with a link" : "Shared with a link"}
+          className="flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          {site === undefined ? (
+            <ShareNetworkIcon className="size-4" />
+          ) : site.public ? (
+            <GlobeIcon className="size-4" />
+          ) : (
+            <LockIcon className="size-4" />
+          )}
+        </button>
+      </SharePopover>
+    )
   const label = (
     <>
       <FileIcon className="size-5 shrink-0 text-muted-foreground" />
@@ -70,16 +101,20 @@ export function FileCard({
           >
             <DownloadSimpleIcon className="size-4" />
           </a>
+          {share}
         </div>
       ) : (
-        <a
-          href={url}
-          download={file.name}
-          className="flex w-fit max-w-full items-center gap-3 rounded-2xl border bg-surface py-2.5 pr-4 pl-3 text-sm hover:bg-accent"
-        >
-          {label}
-          <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
-        </a>
+        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl border bg-surface text-sm">
+          <a
+            href={url}
+            download={file.name}
+            className="flex min-w-0 items-center gap-3 py-2.5 pr-4 pl-3 hover:bg-accent"
+          >
+            {label}
+            <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
+          </a>
+          {share}
+        </div>
       )}
     </div>
   )
