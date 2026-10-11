@@ -8,6 +8,7 @@ import { desktopHandoff } from "./desktop-handoff.ts"
 import type { Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
 import { isInvited } from "./teams.ts"
+import { isWaiting } from "./waitlist.ts"
 
 // Before anything of Better Auth's is called: see the function.
 seedAuthStores()
@@ -52,7 +53,8 @@ function authOptions(platform: Platform) {
           oauth?: { providerId: string; profile?: Record<string, unknown> }
         }
       }) => {
-        if (source.action !== "create-user" || config.signup === "open") return
+        // With a waiting list anyone may make an account. What it lets them do is another matter.
+        if (source.action !== "create-user" || config.signup !== "invite") return
         const email = typeof user.email === "string" ? user.email.toLowerCase() : ""
         if (config.allowedEmails.includes(email)) return
         // The first account on a fresh deployment is its owner and needs no invitation.
@@ -142,20 +144,23 @@ export type SessionUser = {
   image?: string | null
   /** Whether the address is known to be theirs: a social sign-in vouches for it. */
   emailVerified?: boolean
+  /** When the account was made. */
+  createdAt?: Date | string | number
 }
 
 /** How long who is signed in is waited for. It is answered in milliseconds, or not at all. */
 const SESSION_PATIENCE_MS = 5_000
 
 /**
- * The signed-in user of a request, or undefined.
+ * Whoever is signed in, whether or not they may use the app yet: someone on the waiting list
+ * has an account and a session like anyone. Only for what such a person may do.
  *
  * Every page waits on this, so it is not waited on for good. Better Auth keeps promises of its
  * own, and on Workers one that its first request left behind is never settled (see
  * `seedAuthStores`, which is for the one that was found). Should another be, the instance is
  * let go of and a new one asked, and if that does not answer either the request fails.
  */
-export async function getUser(request: Request): Promise<SessionUser | undefined> {
+export async function getSignedIn(request: Request): Promise<SessionUser | undefined> {
   const session = await askTwice(
     async () => (await getAuth()).api.getSession({ headers: request.headers }),
     {
@@ -167,6 +172,15 @@ export async function getUser(request: Request): Promise<SessionUser | undefined
     },
   )
   return session?.user
+}
+
+/**
+ * The signed-in user of a request, if they may use the app; undefined for nobody, and for
+ * someone still on the waiting list. This is what everything of the app's asks.
+ */
+export async function getUser(request: Request): Promise<SessionUser | undefined> {
+  const user = await getSignedIn(request)
+  return user === undefined || (await isWaiting(user)) ? undefined : user
 }
 
 /** Sign-in options this deployment offers, for the login page. */
@@ -190,7 +204,7 @@ let anyAccount = false
 export async function frontDoor() {
   const platform = getPlatform()
   const { config } = platform
-  if (config.signup !== "open" && !anyAccount) {
+  if (config.signup === "invite" && !anyAccount) {
     anyAccount = await platform.db.get<{ id: string }>("SELECT id FROM user LIMIT 1").then(
       (found) => found !== undefined,
       // No table of accounts yet: nobody has asked to sign in since the deployment was made.
@@ -200,6 +214,7 @@ export async function frontDoor() {
   return {
     ...authMethods(),
     landing: config.landing,
-    open: config.signup === "open" || !anyAccount,
+    // With a waiting list a stranger may make an account too, and then waits.
+    open: config.signup !== "invite" || !anyAccount,
   }
 }

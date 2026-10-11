@@ -13,7 +13,7 @@ import {
   LIBRARY_AGENT_HEADER,
 } from "@durable-computer/agent"
 import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/protocol"
-import { getAuth, getUser, type SessionUser } from "./auth.ts"
+import { getAuth, getSignedIn, getUser, type SessionUser } from "./auth.ts"
 import { provideFor } from "./computers.ts"
 import { announce } from "./presence.ts"
 import { defaultModelFor } from "./settings.ts"
@@ -26,12 +26,28 @@ export const json = (value: unknown, status = 200) => Response.json(value, { sta
 export const fail = (status: number, error: string, code?: string) =>
   json({ error, code } satisfies ApiError, status)
 
-/** Run `handle` for the signed-in user, or answer 401. */
+/**
+ * Run `handle` for the signed-in user, or answer 401; and 403 for someone who is signed in and
+ * still on the waiting list, so that the app can tell the two apart.
+ */
 export async function withUser(
   request: Request,
   handle: (user: SessionUser) => Promise<Response>,
 ): Promise<Response> {
   const user = await getUser(request)
+  if (user !== undefined) return handle(user)
+  if ((await getSignedIn(request)) !== undefined) {
+    return fail(403, "You are on the waiting list. This opens when you are let in.", "waitlisted")
+  }
+  return fail(401, "Sign in first", "unauthenticated")
+}
+
+/** Run `handle` for whoever is signed in, on the waiting list or not; or answer 401. */
+export async function withSignedIn(
+  request: Request,
+  handle: (user: SessionUser) => Promise<Response>,
+): Promise<Response> {
+  const user = await getSignedIn(request)
   if (user === undefined) return fail(401, "Sign in first", "unauthenticated")
   return handle(user)
 }
@@ -77,9 +93,10 @@ export async function tellAgentItsTeam(agentId: string, team: string | null): Pr
  * Actor routes only the gateway may call. `computers` is the agent's record of what is paired to
  * it, which must only ever say what the pairing table says. `peers` is where another agent's
  * messages arrive, which must only ever come from an agent of the same workspace. `slack` is
- * where what was said in Slack arrives, which must only ever be what Slack signed.
+ * where what was said in Slack arrives, which must only ever be what Slack signed. `gifts` is
+ * what its creature is given from outside the app, which must only ever be what was counted here.
  */
-const INTERNAL = ["init", "destroy", "computers", "team", "peers", "slack"]
+const INTERNAL = ["init", "destroy", "computers", "team", "peers", "slack", "gifts"]
 
 /** The largest body forwarded to an agent: a library upload, and everything else. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024
@@ -123,7 +140,7 @@ export async function createAgent(user: SessionUser, request: Request): Promise<
  * Make an agent in a workspace, as `ownerId`, who is in it. Resolves with the agent, or with why
  * there is none.
  */
-async function makeAgent(
+export async function makeAgent(
   ownerId: string,
   workspaceId: string,
 ): Promise<{ agent: AgentSummary } | { status: number; error: string }> {

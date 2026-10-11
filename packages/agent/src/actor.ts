@@ -34,6 +34,7 @@ import {
   type UpdateChatRequest,
   type ScheduleCheck,
   type UpdateScheduleRequest,
+  wearItem,
 } from "@durable-computer/protocol"
 import type {
   Actor,
@@ -131,6 +132,8 @@ const KEEPALIVE_MS = 20_000
 const CHECK_TIMEOUT_MS = 60_000
 const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
+/** The most treats its creature is given from outside the app in one go. */
+const MAX_GIFTED_TREATS = 400
 /**
  * The most of the main chat a side chat will carry, in tokens as estimated. Past it, a side chat
  * starts empty.
@@ -1287,6 +1290,10 @@ export class AgentActor implements Actor {
       }
     }
     if (segments[0] === "events" && method === "GET") return this.#agentEvents(harness)
+    // What its creature was given from outside the app, from the gateway, which counted it.
+    if (segments[0] === "gifts" && method === "POST") {
+      return this.#gifted(harness, await body<{ treats?: unknown; item?: unknown }>(request))
+    }
     if (segments[0] === "creature") {
       if (segments[1] === undefined && method === "GET") return json(await this.#creature(harness))
       if (segments[1] === "feed" && method === "POST") return this.#feed(harness)
@@ -1923,6 +1930,33 @@ export class AgentActor implements Actor {
       return true
     }, context)
     if (!fed) throw new HttpError(409, "It has no treats to be given", "no_treats")
+    return json(await this.#creature(harness))
+  }
+
+  /**
+   * Its creature is given something by someone who is not its owner, on its own page: treats it
+   * eats there and then, which fill boxes as its own do, and a thing to wear, which it puts on.
+   */
+  async #gifted(harness: Harness, input: { treats?: unknown; item?: unknown }): Promise<Response> {
+    const treats =
+      typeof input.treats === "number" && Number.isInteger(input.treats)
+        ? Math.max(0, Math.min(MAX_GIFTED_TREATS, input.treats))
+        : 0
+    const item = typeof input.item === "string" ? wearItem(input.item) : undefined
+    await harness.commit(async (tx) => {
+      const creature = await tx.doc(CreatureDoc)
+      for (let given = 0; given < treats; given++) {
+        creature.fed++
+        if (!hasEverything(creature.owned) && ++creature.joy >= TREATS_PER_BOX) {
+          creature.joy = 0
+          creature.boxes++
+        }
+      }
+      if (item !== undefined) {
+        if (!creature.owned.includes(item.id)) creature.owned.push(item.id)
+        creature.outfit = { ...creature.outfit, [item.slot]: item.id }
+      }
+    }, context)
     return json(await this.#creature(harness))
   }
 

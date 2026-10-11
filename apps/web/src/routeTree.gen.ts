@@ -34,10 +34,13 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiComputersIndexRouteImport } from './routes/api/computers/index'
 import { Route as ApiComputersComputerIdRouteImport } from './routes/api/computers/$computerId'
 import { Route as ApiConnectorsCallbackRouteImport } from './routes/api/connectors/callback'
+import { Route as ApiDoodsIndexRouteImport } from './routes/api/doods/index'
 import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
 import { Route as ApiPushRegisterRouteImport } from './routes/api/push/register'
 import { Route as ApiPushTestRouteImport } from './routes/api/push/test'
 import { Route as ApiPushUnregisterRouteImport } from './routes/api/push/unregister'
+import { Route as ApiWaitlistIndexRouteImport } from './routes/api/waitlist/index'
+import { Route as ApiWaitlistUserIdRouteImport } from './routes/api/waitlist/$userId'
 import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
 import { Route as DAgentIdSplatRouteImport } from './routes/d.$agentId.$'
 import { Route as SSiteIdSplatRouteImport } from './routes/s.$siteId.$'
@@ -63,6 +66,11 @@ import { Route as ApiComputersPairPollRouteImport } from './routes/api/computers
 import { Route as ApiComputersPairStartRouteImport } from './routes/api/computers/pair.start'
 import { Route as ApiComputersRequestsIndexRouteImport } from './routes/api/computers/requests.index'
 import { Route as ApiComputersRequestsRequestIdRouteImport } from './routes/api/computers/requests.$requestId'
+import { Route as ApiDoodsDoodIdIndexRouteImport } from './routes/api/doods/$doodId.index'
+import { Route as ApiDoodsDoodIdAgentRouteImport } from './routes/api/doods/$doodId.agent'
+import { Route as ApiDoodsDoodIdClaimRouteImport } from './routes/api/doods/$doodId.claim'
+import { Route as ApiDoodsDoodIdPatsRouteImport } from './routes/api/doods/$doodId.pats'
+import { Route as ApiDoodsDoodIdTreatRouteImport } from './routes/api/doods/$doodId.treat'
 import { Route as ApiInvitationsKeyIndexRouteImport } from './routes/api/invitations/$key.index'
 import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invitations/$key.accept'
 import { Route as ApiSlackEventsAgentIdRouteImport } from './routes/api/slack/events.$agentId'
@@ -206,6 +214,11 @@ const ApiConnectorsCallbackRoute = ApiConnectorsCallbackRouteImport.update({
   path: '/api/connectors/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDoodsIndexRoute = ApiDoodsIndexRouteImport.update({
+  id: '/api/doods/',
+  path: '/api/doods/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPushKeyRoute = ApiPushKeyRouteImport.update({
   id: '/api/push/key',
   path: '/api/push/key',
@@ -224,6 +237,16 @@ const ApiPushTestRoute = ApiPushTestRouteImport.update({
 const ApiPushUnregisterRoute = ApiPushUnregisterRouteImport.update({
   id: '/api/push/unregister',
   path: '/api/push/unregister',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWaitlistIndexRoute = ApiWaitlistIndexRouteImport.update({
+  id: '/api/waitlist/',
+  path: '/api/waitlist/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWaitlistUserIdRoute = ApiWaitlistUserIdRouteImport.update({
+  id: '/api/waitlist/$userId',
+  path: '/api/waitlist/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkspacesIndexRoute = ApiWorkspacesIndexRouteImport.update({
@@ -355,6 +378,31 @@ const ApiComputersRequestsRequestIdRoute =
     path: '/api/computers/requests/$requestId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiDoodsDoodIdIndexRoute = ApiDoodsDoodIdIndexRouteImport.update({
+  id: '/api/doods/$doodId/',
+  path: '/api/doods/$doodId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDoodsDoodIdAgentRoute = ApiDoodsDoodIdAgentRouteImport.update({
+  id: '/api/doods/$doodId/agent',
+  path: '/api/doods/$doodId/agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDoodsDoodIdClaimRoute = ApiDoodsDoodIdClaimRouteImport.update({
+  id: '/api/doods/$doodId/claim',
+  path: '/api/doods/$doodId/claim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDoodsDoodIdPatsRoute = ApiDoodsDoodIdPatsRouteImport.update({
+  id: '/api/doods/$doodId/pats',
+  path: '/api/doods/$doodId/pats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDoodsDoodIdTreatRoute = ApiDoodsDoodIdTreatRouteImport.update({
+  id: '/api/doods/$doodId/treat',
+  path: '/api/doods/$doodId/treat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInvitationsKeyIndexRoute = ApiInvitationsKeyIndexRouteImport.update({
   id: '/api/invitations/$key/',
   path: '/api/invitations/$key/',
@@ -487,10 +535,13 @@ export interface FileRoutesByFullPath {
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
+  '/api/waitlist/$userId': typeof ApiWaitlistUserIdRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
+  '/api/doods/': typeof ApiDoodsIndexRoute
+  '/api/waitlist/': typeof ApiWaitlistIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
@@ -511,12 +562,17 @@ export interface FileRoutesByFullPath {
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
+  '/api/doods/$doodId/agent': typeof ApiDoodsDoodIdAgentRoute
+  '/api/doods/$doodId/claim': typeof ApiDoodsDoodIdClaimRoute
+  '/api/doods/$doodId/pats': typeof ApiDoodsDoodIdPatsRoute
+  '/api/doods/$doodId/treat': typeof ApiDoodsDoodIdTreatRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
   '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
   '/api/computers/requests/': typeof ApiComputersRequestsIndexRoute
+  '/api/doods/$doodId/': typeof ApiDoodsDoodIdIndexRoute
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
@@ -558,10 +614,13 @@ export interface FileRoutesByTo {
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
+  '/api/waitlist/$userId': typeof ApiWaitlistUserIdRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents': typeof ApiAgentsIndexRoute
   '/api/computers': typeof ApiComputersIndexRoute
+  '/api/doods': typeof ApiDoodsIndexRoute
+  '/api/waitlist': typeof ApiWaitlistIndexRoute
   '/api/workspaces': typeof ApiWorkspacesIndexRoute
   '/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/a/$agentId/computers': typeof AppAAgentIdComputersRoute
@@ -582,12 +641,17 @@ export interface FileRoutesByTo {
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
+  '/api/doods/$doodId/agent': typeof ApiDoodsDoodIdAgentRoute
+  '/api/doods/$doodId/claim': typeof ApiDoodsDoodIdClaimRoute
+  '/api/doods/$doodId/pats': typeof ApiDoodsDoodIdPatsRoute
+  '/api/doods/$doodId/treat': typeof ApiDoodsDoodIdTreatRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
   '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId': typeof AppWWorkspaceIdIndexRoute
   '/api/computers/requests': typeof ApiComputersRequestsIndexRoute
+  '/api/doods/$doodId': typeof ApiDoodsDoodIdIndexRoute
   '/api/invitations/$key': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
@@ -633,10 +697,13 @@ export interface FileRoutesById {
   '/api/push/register': typeof ApiPushRegisterRoute
   '/api/push/test': typeof ApiPushTestRoute
   '/api/push/unregister': typeof ApiPushUnregisterRoute
+  '/api/waitlist/$userId': typeof ApiWaitlistUserIdRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
   '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
+  '/api/doods/': typeof ApiDoodsIndexRoute
+  '/api/waitlist/': typeof ApiWaitlistIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
   '/_app/a/$agentId/automations': typeof AppAAgentIdAutomationsRoute
   '/_app/a/$agentId/computers': typeof AppAAgentIdComputersRoute
@@ -657,12 +724,17 @@ export interface FileRoutesById {
   '/api/computers/pair/poll': typeof ApiComputersPairPollRoute
   '/api/computers/pair/start': typeof ApiComputersPairStartRoute
   '/api/computers/requests/$requestId': typeof ApiComputersRequestsRequestIdRoute
+  '/api/doods/$doodId/agent': typeof ApiDoodsDoodIdAgentRoute
+  '/api/doods/$doodId/claim': typeof ApiDoodsDoodIdClaimRoute
+  '/api/doods/$doodId/pats': typeof ApiDoodsDoodIdPatsRoute
+  '/api/doods/$doodId/treat': typeof ApiDoodsDoodIdTreatRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
   '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
   '/api/computers/requests/': typeof ApiComputersRequestsIndexRoute
+  '/api/doods/$doodId/': typeof ApiDoodsDoodIdIndexRoute
   '/api/invitations/$key/': typeof ApiInvitationsKeyIndexRoute
   '/api/workspaces/$workspaceId/': typeof ApiWorkspacesWorkspaceIdIndexRoute
   '/_app/a/$agentId/c/$chatId': typeof AppAAgentIdCChatIdRoute
@@ -708,10 +780,13 @@ export interface FileRouteTypes {
     | '/api/push/register'
     | '/api/push/test'
     | '/api/push/unregister'
+    | '/api/waitlist/$userId'
     | '/d/$agentId/$'
     | '/s/$siteId/$'
     | '/api/agents/'
     | '/api/computers/'
+    | '/api/doods/'
+    | '/api/waitlist/'
     | '/api/workspaces/'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
@@ -732,12 +807,17 @@ export interface FileRouteTypes {
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
     | '/api/computers/requests/$requestId'
+    | '/api/doods/$doodId/agent'
+    | '/api/doods/$doodId/claim'
+    | '/api/doods/$doodId/pats'
+    | '/api/doods/$doodId/treat'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
     | '/api/workspaces/$workspaceId/settings'
     | '/a/$agentId/'
     | '/w/$workspaceId/'
     | '/api/computers/requests/'
+    | '/api/doods/$doodId/'
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/a/$agentId/c/$chatId'
@@ -779,10 +859,13 @@ export interface FileRouteTypes {
     | '/api/push/register'
     | '/api/push/test'
     | '/api/push/unregister'
+    | '/api/waitlist/$userId'
     | '/d/$agentId/$'
     | '/s/$siteId/$'
     | '/api/agents'
     | '/api/computers'
+    | '/api/doods'
+    | '/api/waitlist'
     | '/api/workspaces'
     | '/a/$agentId/automations'
     | '/a/$agentId/computers'
@@ -803,12 +886,17 @@ export interface FileRouteTypes {
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
     | '/api/computers/requests/$requestId'
+    | '/api/doods/$doodId/agent'
+    | '/api/doods/$doodId/claim'
+    | '/api/doods/$doodId/pats'
+    | '/api/doods/$doodId/treat'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
     | '/api/workspaces/$workspaceId/settings'
     | '/a/$agentId'
     | '/w/$workspaceId'
     | '/api/computers/requests'
+    | '/api/doods/$doodId'
     | '/api/invitations/$key'
     | '/api/workspaces/$workspaceId'
     | '/a/$agentId/c/$chatId'
@@ -853,10 +941,13 @@ export interface FileRouteTypes {
     | '/api/push/register'
     | '/api/push/test'
     | '/api/push/unregister'
+    | '/api/waitlist/$userId'
     | '/d/$agentId/$'
     | '/s/$siteId/$'
     | '/api/agents/'
     | '/api/computers/'
+    | '/api/doods/'
+    | '/api/waitlist/'
     | '/api/workspaces/'
     | '/_app/a/$agentId/automations'
     | '/_app/a/$agentId/computers'
@@ -877,12 +968,17 @@ export interface FileRouteTypes {
     | '/api/computers/pair/poll'
     | '/api/computers/pair/start'
     | '/api/computers/requests/$requestId'
+    | '/api/doods/$doodId/agent'
+    | '/api/doods/$doodId/claim'
+    | '/api/doods/$doodId/pats'
+    | '/api/doods/$doodId/treat'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
     | '/api/workspaces/$workspaceId/settings'
     | '/_app/a/$agentId/'
     | '/_app/w/$workspaceId/'
     | '/api/computers/requests/'
+    | '/api/doods/$doodId/'
     | '/api/invitations/$key/'
     | '/api/workspaces/$workspaceId/'
     | '/_app/a/$agentId/c/$chatId'
@@ -925,10 +1021,13 @@ export interface RootRouteChildren {
   ApiPushRegisterRoute: typeof ApiPushRegisterRoute
   ApiPushTestRoute: typeof ApiPushTestRoute
   ApiPushUnregisterRoute: typeof ApiPushUnregisterRoute
+  ApiWaitlistUserIdRoute: typeof ApiWaitlistUserIdRoute
   DAgentIdSplatRoute: typeof DAgentIdSplatRoute
   SSiteIdSplatRoute: typeof SSiteIdSplatRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
   ApiComputersIndexRoute: typeof ApiComputersIndexRoute
+  ApiDoodsIndexRoute: typeof ApiDoodsIndexRoute
+  ApiWaitlistIndexRoute: typeof ApiWaitlistIndexRoute
   ApiWorkspacesIndexRoute: typeof ApiWorkspacesIndexRoute
   ApiAgentsAgentIdSplatRoute: typeof ApiAgentsAgentIdSplatRoute
   ApiAgentsAgentIdConnectorsRoute: typeof ApiAgentsAgentIdConnectorsRouteWithChildren
@@ -939,10 +1038,15 @@ export interface RootRouteChildren {
   ApiComputersPairPollRoute: typeof ApiComputersPairPollRoute
   ApiComputersPairStartRoute: typeof ApiComputersPairStartRoute
   ApiComputersRequestsRequestIdRoute: typeof ApiComputersRequestsRequestIdRoute
+  ApiDoodsDoodIdAgentRoute: typeof ApiDoodsDoodIdAgentRoute
+  ApiDoodsDoodIdClaimRoute: typeof ApiDoodsDoodIdClaimRoute
+  ApiDoodsDoodIdPatsRoute: typeof ApiDoodsDoodIdPatsRoute
+  ApiDoodsDoodIdTreatRoute: typeof ApiDoodsDoodIdTreatRoute
   ApiInvitationsKeyAcceptRoute: typeof ApiInvitationsKeyAcceptRoute
   ApiSlackEventsAgentIdRoute: typeof ApiSlackEventsAgentIdRoute
   ApiWorkspacesWorkspaceIdSettingsRoute: typeof ApiWorkspacesWorkspaceIdSettingsRoute
   ApiComputersRequestsIndexRoute: typeof ApiComputersRequestsIndexRoute
+  ApiDoodsDoodIdIndexRoute: typeof ApiDoodsDoodIdIndexRoute
   ApiInvitationsKeyIndexRoute: typeof ApiInvitationsKeyIndexRoute
   ApiWorkspacesWorkspaceIdIndexRoute: typeof ApiWorkspacesWorkspaceIdIndexRoute
   ApiComputersPairRequestCodeRoute: typeof ApiComputersPairRequestCodeRoute
@@ -1133,6 +1237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConnectorsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/doods/': {
+      id: '/api/doods/'
+      path: '/api/doods'
+      fullPath: '/api/doods/'
+      preLoaderRoute: typeof ApiDoodsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/push/key': {
       id: '/api/push/key'
       path: '/api/push/key'
@@ -1159,6 +1270,20 @@ declare module '@tanstack/react-router' {
       path: '/api/push/unregister'
       fullPath: '/api/push/unregister'
       preLoaderRoute: typeof ApiPushUnregisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/waitlist/': {
+      id: '/api/waitlist/'
+      path: '/api/waitlist'
+      fullPath: '/api/waitlist/'
+      preLoaderRoute: typeof ApiWaitlistIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/waitlist/$userId': {
+      id: '/api/waitlist/$userId'
+      path: '/api/waitlist/$userId'
+      fullPath: '/api/waitlist/$userId'
+      preLoaderRoute: typeof ApiWaitlistUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/workspaces/': {
@@ -1334,6 +1459,41 @@ declare module '@tanstack/react-router' {
       path: '/api/computers/requests/$requestId'
       fullPath: '/api/computers/requests/$requestId'
       preLoaderRoute: typeof ApiComputersRequestsRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/doods/$doodId/': {
+      id: '/api/doods/$doodId/'
+      path: '/api/doods/$doodId'
+      fullPath: '/api/doods/$doodId/'
+      preLoaderRoute: typeof ApiDoodsDoodIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/doods/$doodId/agent': {
+      id: '/api/doods/$doodId/agent'
+      path: '/api/doods/$doodId/agent'
+      fullPath: '/api/doods/$doodId/agent'
+      preLoaderRoute: typeof ApiDoodsDoodIdAgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/doods/$doodId/claim': {
+      id: '/api/doods/$doodId/claim'
+      path: '/api/doods/$doodId/claim'
+      fullPath: '/api/doods/$doodId/claim'
+      preLoaderRoute: typeof ApiDoodsDoodIdClaimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/doods/$doodId/pats': {
+      id: '/api/doods/$doodId/pats'
+      path: '/api/doods/$doodId/pats'
+      fullPath: '/api/doods/$doodId/pats'
+      preLoaderRoute: typeof ApiDoodsDoodIdPatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/doods/$doodId/treat': {
+      id: '/api/doods/$doodId/treat'
+      path: '/api/doods/$doodId/treat'
+      fullPath: '/api/doods/$doodId/treat'
+      preLoaderRoute: typeof ApiDoodsDoodIdTreatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/invitations/$key/': {
@@ -1593,10 +1753,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPushRegisterRoute: ApiPushRegisterRoute,
   ApiPushTestRoute: ApiPushTestRoute,
   ApiPushUnregisterRoute: ApiPushUnregisterRoute,
+  ApiWaitlistUserIdRoute: ApiWaitlistUserIdRoute,
   DAgentIdSplatRoute: DAgentIdSplatRoute,
   SSiteIdSplatRoute: SSiteIdSplatRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
   ApiComputersIndexRoute: ApiComputersIndexRoute,
+  ApiDoodsIndexRoute: ApiDoodsIndexRoute,
+  ApiWaitlistIndexRoute: ApiWaitlistIndexRoute,
   ApiWorkspacesIndexRoute: ApiWorkspacesIndexRoute,
   ApiAgentsAgentIdSplatRoute: ApiAgentsAgentIdSplatRoute,
   ApiAgentsAgentIdConnectorsRoute: ApiAgentsAgentIdConnectorsRouteWithChildren,
@@ -1607,10 +1770,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiComputersPairPollRoute: ApiComputersPairPollRoute,
   ApiComputersPairStartRoute: ApiComputersPairStartRoute,
   ApiComputersRequestsRequestIdRoute: ApiComputersRequestsRequestIdRoute,
+  ApiDoodsDoodIdAgentRoute: ApiDoodsDoodIdAgentRoute,
+  ApiDoodsDoodIdClaimRoute: ApiDoodsDoodIdClaimRoute,
+  ApiDoodsDoodIdPatsRoute: ApiDoodsDoodIdPatsRoute,
+  ApiDoodsDoodIdTreatRoute: ApiDoodsDoodIdTreatRoute,
   ApiInvitationsKeyAcceptRoute: ApiInvitationsKeyAcceptRoute,
   ApiSlackEventsAgentIdRoute: ApiSlackEventsAgentIdRoute,
   ApiWorkspacesWorkspaceIdSettingsRoute: ApiWorkspacesWorkspaceIdSettingsRoute,
   ApiComputersRequestsIndexRoute: ApiComputersRequestsIndexRoute,
+  ApiDoodsDoodIdIndexRoute: ApiDoodsDoodIdIndexRoute,
   ApiInvitationsKeyIndexRoute: ApiInvitationsKeyIndexRoute,
   ApiWorkspacesWorkspaceIdIndexRoute: ApiWorkspacesWorkspaceIdIndexRoute,
   ApiComputersPairRequestCodeRoute: ApiComputersPairRequestCodeRoute,

@@ -1,3 +1,4 @@
+import { letInByInvitation } from "./waitlist.ts"
 import { getPlatform } from "#platform"
 import {
   type AgentSummary,
@@ -249,6 +250,7 @@ export async function getInvitation(user: SessionUser | undefined, key: string):
 export function acceptInvite(user: SessionUser, key: string): Promise<Response> {
   return answer(async () => {
     const joined = await acceptInvitation(getPlatform().db, user, key)
+    await letInByInvitation(user.id)
     await announce(joined.workspaceId)
     return joined
   })

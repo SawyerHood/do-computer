@@ -1,0 +1,128 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: #000;
+  color: #e7e9ea;
+  font: 15px/1.35 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+#app { min-height: 100%; padding-bottom: 120px; }
+
+/* The post, as X draws one that is open by itself. Pretend, and only as much of it as is needed. */
+.x-col { width: min(600px, 100%); margin: 0 auto; border-inline: 1px solid #2f3336; min-height: 100vh; }
+.x-head { display: flex; align-items: center; gap: 28px; height: 53px; padding: 0 16px; font-size: 20px; font-weight: 700; }
+.x-head span:first-child { font-weight: 400; font-size: 20px; }
+.x-post { padding: 12px 16px 0; border-bottom: 1px solid #2f3336; }
+.x-who { display: flex; align-items: center; gap: 10px; }
+.x-face { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; background: #16202a; }
+.x-face canvas { display: block; width: 100%; height: 100%; }
+.x-name { font-weight: 700; }
+.x-at, .x-meta, .x-from { color: #71767b; }
+.x-text { margin: 12px 0; font-size: 17px; line-height: 1.4; white-space: pre-line; }
+.x-text a, .x-link { color: #1d9bf0; }
+.x-from { font-size: 13px; margin: 4px 0 0; }
+.x-meta { padding: 14px 0; border-bottom: 1px solid #2f3336; }
+.x-meta b { color: #e7e9ea; font-weight: 700; }
+.x-acts { display: flex; gap: 20px; padding: 12px 0; color: #71767b; font-size: 13px; }
+.x-reply { display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #2f3336; }
+.x-reply p { margin: 2px 0 0; }
+.x-wide { position: relative; aspect-ratio: 1.91; border-radius: 16px; overflow: hidden; border: 1px solid #2f3336; cursor: pointer; }
+.x-tag { position: absolute; left: 12px; bottom: 12px; padding: 1px 6px; border-radius: 4px; background: rgb(0 0 0 / 0.77); font-size: 13px; }
+
+/* The card: the page of ours that X shows in the post. Everything inside it is ours. */
+.card { position: relative; aspect-ratio: 1; border-radius: 16px; overflow: hidden; border: 1px solid #2f3336; background: #0b1c26; user-select: none; touch-action: manipulation; }
+.card.fill { aspect-ratio: auto; height: 100%; border: 0; border-radius: 0; }
+.card canvas.sky { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.card .egg { position: absolute; top: 0; left: 0; pointer-events: none; will-change: transform; visibility: hidden; }
+.card .egg canvas { display: block; width: 100%; height: 100%; }
+.card .mark { position: absolute; top: 12px; left: 14px; font-size: 12px; font-weight: 600; color: rgb(255 255 255 / 0.6); letter-spacing: 0.01em; }
+.card .skip { position: absolute; top: 8px; right: 10px; padding: 4px 12px; border-radius: 99px; font-size: 12px; color: rgb(255 255 255 / 0.6); }
+.card .skip:hover { background: rgb(255 255 255 / 0.1); color: #fff; }
+.card .say { position: absolute; inset-inline: 0; bottom: 9%; text-align: center; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; text-shadow: 0 2px 0 rgb(0 0 0 / 0.35); pointer-events: none; transition: opacity 0.4s; }
+.card .say small { display: block; margin-top: 4px; font-size: 13px; font-weight: 500; opacity: 0.75; }
+.card .say[data-on="false"] { opacity: 0; }
+
+.card .panel { position: absolute; inset-inline: 12px; bottom: 12px; padding: 14px; border-radius: 14px; background: #fff; color: #171717; box-shadow: 0 10px 30px rgb(0 0 0 / 0.35); transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s; }
+.card .panel[data-on="false"] { transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+.panel p { margin: 0; }
+.panel .line { font-size: 16px; font-weight: 600; }
+.panel .sub { margin-top: 2px; font-size: 13px; color: #6b6b6b; }
+.panel .row { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.panel input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid #d9d9d9; border-radius: 10px; background: #fff; color: #171717; font-size: 16px; outline: none; }
+.panel input:focus { border-color: #171717; }
+.panel .dots { display: flex; gap: 7px; margin-top: 12px; }
+.panel .dot { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.45); }
+.panel .dot[aria-pressed="true"] { outline: 2px solid #171717; outline-offset: 2px; }
+.btn { height: 40px; padding: 0 16px; border-radius: 99px; font-weight: 600; font-size: 14px; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn.dark { background: #171717; color: #fff; }
+.btn.dark:hover { background: #000; }
+.btn.light { background: #efefef; color: #171717; }
+.btn.light:hover { background: #e4e4e4; }
+.btn.grow { flex: 1; }
+.btn[disabled] { opacity: 0.4; cursor: default; }
+.panel .count { margin-left: auto; font-size: 12px; color: #6b6b6b; font-variant-numeric: tabular-nums; }
+
+/* What X shows before the card is played: our picture, and its own play button. */
+.card .poster { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 0.18); cursor: pointer; }
+.card .poster[hidden] { display: none; }
+.poster .play { width: 68px; height: 68px; border-radius: 50%; background: #1d9bf0; border: 4px solid #fff; display: grid; place-items: center; }
+.poster .play::after { content: ""; margin-left: 5px; border: 13px solid transparent; border-left: 20px solid #fff; border-right: 0; }
+.poster h2 { position: absolute; inset-inline: 0; bottom: 8%; margin: 0; text-align: center; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 3px 0 rgb(0 0 0 / 0.3); }
+.poster h2 small { display: block; font-size: 14px; font-weight: 500; letter-spacing: 0; opacity: 0.8; margin-top: 4px; }
+
+/* Writing the post. */
+.x-dim { position: fixed; inset: 0; background: rgb(91 112 131 / 0.4); display: grid; place-items: start center; padding-top: 5vh; overflow: auto; }
+.x-compose { width: min(600px, calc(100% - 24px)); background: #000; border-radius: 16px; padding: 12px 16px 12px; margin-bottom: 140px; }
+.x-compose .x-text { font-size: 20px; }
+.x-compose .bar { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2f3336; margin-top: 12px; padding-top: 12px; color: #71767b; font-size: 13px; }
+.x-go { height: 36px; padding: 0 18px; border-radius: 99px; background: #eff3f4; color: #0f1419; font-weight: 700; }
+.x-compose .card { width: min(340px, 100%); }
+
+/* A browser window, for the page a button in the card opens. */
+.win { width: min(980px, calc(100% - 32px)); margin: 28px auto 0; border-radius: 12px; overflow: hidden; border: 1px solid #2f3336; background: #0b1c26; }
+.win .bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; background: #202327; }
+.win .bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a3f45; }
+.win .bar span { flex: 1; margin-left: 10px; height: 26px; border-radius: 8px; background: #2f3336; padding: 0 12px; font-size: 13px; line-height: 26px; color: #c4c9cc; }
+.win .body { height: min(600px, 68vh); }
+.win .panel { inset-inline: auto; left: 50%; width: min(440px, calc(100% - 24px)); translate: -50% 0; bottom: 24px; padding: 18px; }
+.win .panel .btn { height: 44px; }
+
+/* A phone. */
+.phone { width: 390px; max-width: calc(100% - 24px); height: 780px; margin: 24px auto 0; border-radius: 44px; border: 10px solid #1c1f23; background: #000; overflow: hidden; position: relative; }
+.phone .x-col { border: 0; min-height: 0; }
+.phone .sheet { position: absolute; inset: 0; background: #000; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.phone .sheet[data-on="true"] { transform: none; }
+.phone .sheet .bar { display: flex; align-items: center; gap: 12px; padding: 48px 16px 10px; font-size: 13px; color: #c4c9cc; background: #16181c; }
+.phone .sheet .bar b { color: #1d9bf0; font-weight: 600; font-size: 15px; }
+.phone .sheet .body { flex: 1; min-height: 0; }
+
+/* The two lines along the bottom. Not part of the design. */
+#strip { position: fixed; inset-inline: 0; bottom: 0; background: #111417; border-top: 1px solid #2f3336; padding: 10px 14px; font-size: 13px; z-index: 10; }
+#strip nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#strip nav b { margin-right: 6px; color: #71767b; font-weight: 600; }
+#strip button { padding: 5px 11px; border-radius: 99px; background: #202327; color: #c4c9cc; }
+#strip button[aria-current="true"] { background: #e7e9ea; color: #0f1419; font-weight: 600; }
+#strip p { margin: 8px 0 0; color: #9aa1a6; max-width: 110ch; }
+
+.card.wide { aspect-ratio: 1.91; cursor: pointer; }
+.card.wide .poster h2 { top: auto; bottom: 10px; left: 12px; right: auto; font-size: 13px; font-weight: 500; letter-spacing: 0; padding: 1px 6px; border-radius: 4px; background: rgb(0 0 0 / 0.77); text-shadow: none; }
+.card.wide .poster h2 small { display: none; }
+.x-compose .card { margin-top: 4px; }
+
+/* Three things out of a present, each on the Dood it would be worn by. */
+.panel .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.panel .tile { display: flex; flex-direction: column; align-items: center; padding: 6px 4px 8px; border-radius: 12px; background: #f3f3f3; color: #171717; }
+.panel .tile:hover { background: #ebebeb; }
+.panel .tile[aria-pressed="true"] { outline: 2px solid #171717; outline-offset: -2px; background: #fff; }
+.panel .tile canvas { width: 72px; height: 72px; }
+.panel .tile b { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2; }
+.panel .tile i { font-size: 11px; font-style: normal; font-weight: 600; text-transform: capitalize; }
+
+/* How near its owner's next present is. */
+.panel .meter { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: #6b6b6b; }
+.panel .pips { display: flex; gap: 4px; }
+.panel .pips i { width: 14px; height: 14px; border-radius: 4px; background: #e2e2e2; transition: background 0.3s; }
+.panel .pips i[data-on="true"] { background: #c9952c; }
+.panel .meter[data-full="true"] { color: #171717; font-weight: 600; }

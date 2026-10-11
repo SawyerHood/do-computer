@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { withUser } from "@/server/agents"
+import { withSignedIn } from "@/server/agents"
 import { acceptInvite } from "@/server/workspaces"
 
 export const Route = createFileRoute("/api/invitations/$key/accept")({
   server: {
     handlers: {
-      POST: ({ request, params }) => withUser(request, (user) => acceptInvite(user, params.key)),
+      // Someone on the waiting list may accept too: being asked into a team is what lets them in.
+      POST: ({ request, params }) =>
+        withSignedIn(request, (user) => acceptInvite(user, params.key)),
     },
   },
 })
