@@ -117,11 +117,19 @@ test("the agent's pointer turns up where it is put, then glides to the next plac
   // The first place is simply where it is: it does not come from the corner.
   expect(await pointerAt()).toEqual({ x: 420, y: 300 })
 
+  // Whether it glides is asked of the page, which says when its place begins to change over
+  // time. Where it is a moment later says nothing on a slow machine: it may have arrived.
+  const glides = () => page.evaluate(() => (globalThis as { glides?: number }).glides)
+  await page.evaluate(() => {
+    const seen = globalThis as { glides?: number }
+    seen.glides = 0
+    document.getElementById("pointer")!.addEventListener("transitionrun", (event) => {
+      if (event.propertyName === "transform") seen.glides! += 1
+    })
+  })
   await app.evaluate(() => globalThis.harness!.overlay.point({ x: 700, y: 380 }, true))
   await expect(page.locator("#pointer")).toHaveClass(/click/)
-  // Part of the way there a moment later, and there in the end.
-  const onTheWay = await pointerAt()
-  expect(onTheWay.x).toBeLessThan(700)
+  await expect.poll(glides).toBe(1)
   await expect.poll(pointerAt).toEqual({ x: 700, y: 380 })
   if (shots) {
     await showButtons()

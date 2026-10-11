@@ -19,7 +19,11 @@ export default defineConfig({
   // they do in software: a page that is right a moment late was failing a run there now and
   // then, and a failed run on main is a deploy that does not happen.
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
-  reporter: [["list"]],
+  // A test that fails there is run once more, with its file's tests before it and a server
+  // of its own. One that then passes does not fail the run. It is named as flaky at the end of
+  // the run and as a warning on it (see e2e/flaky.ts), and what its failure left is kept.
+  retries: process.env.CI ? 1 : 0,
+  reporter: [["list"], ["./e2e/flaky.ts"]],
   use: {
     colorScheme: "dark",
     viewport: { width: 1280, height: 860 },

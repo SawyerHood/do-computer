@@ -167,11 +167,13 @@ jobs:
           # Three apps are most of half a gigabyte, kept at a price for every day. A release
           # has its own copies; these are for trying a build, the longest when one was asked for.
           retention-days: ${{ github.event_name == 'workflow_dispatch' && 7 || 1 }}
+      # What a failed test left: of one that passed when it was run again, too.
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: success() || failure()
         with:
           name: desktop-test-results-${{ matrix.name }}
           path: apps/desktop/test-results
+          if-no-files-found: ignore
           retention-days: 7
 
   # A tag named desktop-v… makes a release with what was packed, once it ran on every system.

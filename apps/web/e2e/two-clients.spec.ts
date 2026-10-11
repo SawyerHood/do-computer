@@ -16,6 +16,9 @@ async function second(browser: Browser, baseURL: string | undefined, first: Page
   await context.addInitScript(severable)
   const page = await context.newPage()
   await signIn(page)
+  // Signing in opens the app, which may only now be starting to follow the agent. That page's
+  // socket ends with the page, so the page is left before the next one's socket is listened for.
+  await page.goto("about:blank")
   const listening = page
     .waitForEvent("websocket", (socket) => AGENT_SOCKET.test(new URL(socket.url()).pathname))
     .then((socket) =>
