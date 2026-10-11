@@ -10,7 +10,7 @@ export {
 } from "./actor.ts"
 export { type Caller, CALLER_HEADER, encodeCaller, readCaller, type SlackSender } from "./caller.ts"
 export type { JudgeOptions } from "./keep-going.ts"
-export { ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
+export { APPS_NAME, APPS_URL, ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
 export {
   ChatsDoc,
   type ChatRecord,

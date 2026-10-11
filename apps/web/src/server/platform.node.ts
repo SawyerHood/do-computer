@@ -125,6 +125,7 @@ function create(): NodePlatform {
         agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
         appUrl: config.baseUrl,
         slackDirectory: slackDirectory(app, { apiUrl: config.slackApiUrl }),
+        appsUrl: config.appsUrl,
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),

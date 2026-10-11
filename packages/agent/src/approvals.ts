@@ -159,7 +159,7 @@ const ABILITIES: readonly Ability[] = [
     label: "Add and change connectors",
     hint: "A connector gives the agent the tools of another service.",
     tools: ["connectors"],
-    actions: ["add", "reconnect", "enable", "disable", "remove"],
+    actions: ["add", "add_apps", "reconnect", "enable", "disable", "remove"],
     ask: true,
   },
   {
@@ -273,6 +273,12 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
     const url = word(args.url)
     if (action === "add") {
       return { title: "Add a connector", detail: [name, url].filter(Boolean).join(": ") }
+    }
+    if (action === "add_apps") {
+      return {
+        title: "Add a connector",
+        detail: "Apps: your accounts on other services, through Composio",
+      }
     }
     const verb: Record<string, string> = {
       reconnect: "Reconnect the connector",

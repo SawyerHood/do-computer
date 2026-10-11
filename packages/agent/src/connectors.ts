@@ -43,6 +43,44 @@ const EXTENSION_NAME = "dc.connectors"
 const TOOL = "connectors"
 /** How many of a connector's tools are named when the agent lists its connectors. */
 const MAX_TOOLS_NAMED = 12
+/**
+ * The most text one call's answer may carry into the conversation. A mailbox or a long document
+ * comes back whole otherwise, and is then paid for on every turn after.
+ */
+const MAX_RESULT_CHARS = 60_000
+
+/** What the connector that reaches people's own accounts on other services is called. */
+export const APPS_NAME = "Apps"
+/** Composio's MCP server, which each person signs in to with a Composio account of their own. */
+export const APPS_URL = "https://connect.composio.dev/mcp"
+/**
+ * Its tools that only look things up, or hand back a link to sign in to a service with. They
+ * are not asked about: whatever does things in someone's account is.
+ */
+const APPS_LOOKUPS = [
+  "COMPOSIO_SEARCH_TOOLS",
+  "COMPOSIO_GET_TOOL_SCHEMAS",
+  "COMPOSIO_MANAGE_CONNECTIONS",
+]
+
+/** An answer's text, cut where it is longer than a conversation should carry. */
+function bounded<T extends { type: string }>(content: T[]): T[] {
+  let left = MAX_RESULT_CHARS
+  return content.map((part) => {
+    const text = (part as { text?: unknown }).text
+    if (part.type !== "text" || typeof text !== "string") return part
+    if (text.length <= left) {
+      left -= text.length
+      return part
+    }
+    const kept = text.slice(0, left)
+    left = 0
+    return {
+      ...part,
+      text: `${kept}\n[Cut here: ${text.length - kept.length} more characters were left out. Ask for less at a time: fewer results, or only the fields you need.]`,
+    }
+  })
+}
 
 /** Entry kind of how a sign-in the agent asked for went, in the chat that asked. */
 export const CONNECTOR_ENTRY = "dc.connector"
@@ -117,6 +155,10 @@ export type ConnectorsOptions = {
     input: { chatId: string; name: string; url: string },
     context: Context,
   ) => Promise<{ fresh: boolean }>
+  /** Where Apps is. Only a test's stand-in is anywhere but at Composio. */
+  readonly appsUrl?: string
+  /** Called with the id of an Apps connector when it is added, before it is connected. */
+  readonly appsAdded?: (connectorId: string, context: Context) => Promise<void>
 }
 
 const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
@@ -174,7 +216,14 @@ export class Connectors {
           const connectors = Object.values(
             (await input.read.snapshot(ConnectorsDoc, context))?.connectors ?? {},
           ).sort((a, b) => a.addedAt - b.addedAt)
-          const how = `A connector is another service whose tools become yours: a calendar, an issue tracker, a database. The \`${TOOL}\` tool lists yours and adds one from the address of its MCP server.`
+          const apps = connectors.find((connector) => connector.kind === "apps")
+          const how = `A connector is another service whose tools become yours: a calendar, an issue tracker, a database. The \`${TOOL}\` tool lists yours and adds one from the address of its MCP server.${
+            apps === undefined
+              ? ` Its "add_apps" adds ${APPS_NAME}, which reaches the person's own accounts on other services (mail, calendars, documents, chat, code and many more) once they sign in to it: add it when they ask for something in one of their accounts and no connector of yours covers it.`
+              : apps.status === "connected"
+                ? ` ${APPS_NAME} reaches the person's own accounts on other services (mail, calendars, documents, chat, code and many more). Search it for the tools a task needs. Where an account is not connected yet it gives you a link: show the person that link to click, and go on once they say they have signed in.`
+                : ""
+          }`
           if (connectors.length === 0) return `${how} You have none yet.`
           return `${how}\n${connectors
             .map((connector) => `- ${connector.name}: ${stateOf({ id: "", ...connector })}`)
@@ -306,8 +355,14 @@ export class Connectors {
     context: Context,
   ): Promise<{ id: string; name: string } | undefined> {
     for (const connector of await this.list(context)) {
-      if (connector.tools.some((tool) => connectorToolName(connector.name, tool.name) === toolName))
-        return { id: connector.id, name: connector.name }
+      if (
+        connector.tools.some((tool) => connectorToolName(connector.name, tool.name) === toolName)
+      ) {
+        const lookup =
+          connector.kind === "apps" &&
+          APPS_LOOKUPS.some((name) => connectorToolName(connector.name, name) === toolName)
+        return lookup ? undefined : { id: connector.id, name: connector.name }
+      }
     }
     return undefined
   }
@@ -323,11 +378,19 @@ export class Connectors {
    * `askedIn` is the chat the agent added it from, where it is told how a sign-in went.
    */
   async add(
-    input: AddConnectorRequest,
+    request: AddConnectorRequest,
     redirectUrl: string,
     context: Context,
     askedIn?: string,
   ): Promise<ConnectorResult> {
+    const appsUrl = this.#options.appsUrl ?? APPS_URL
+    if ("apps" in request) {
+      // There is one of it: asked for again, the one there is is tried again.
+      const existing = (await this.list(context)).find((connector) => connector.kind === "apps")
+      if (existing !== undefined) return this.connect(existing.id, redirectUrl, context, askedIn)
+    }
+    const input: Exclude<AddConnectorRequest, { apps: true }> =
+      "apps" in request ? { name: APPS_NAME, url: appsUrl } : request
     const name = input.name?.trim()
     if (!name || name.length > 60)
       throw new ConnectorError("Give the connector a name of up to 60 characters.")
@@ -342,6 +405,8 @@ export class Connectors {
     // Starts with a letter so that it is never mistaken for a number, as "12345678" or "1e234567"
     // would be by anything that parses a URL's query the way JSON is parsed.
     const id = `c${crypto.randomUUID().slice(0, 8)}`
+    // Its address is what makes it Apps, however it came to be added.
+    const apps = url.toString() === new URL(appsUrl).toString()
     await this.#require().commit(async (tx) => {
       const { connectors } = await tx.doc(ConnectorsDoc)
       if (Object.keys(connectors).length >= MAX_CONNECTORS) {
@@ -355,6 +420,7 @@ export class Connectors {
       connectors[id] = {
         name,
         url: url.toString(),
+        ...(apps ? { kind: "apps" as const } : {}),
         enabled: true,
         status: "error",
         error: "Not connected yet.",
@@ -375,6 +441,7 @@ export class Connectors {
               : {}),
           },
     )
+    if (apps) await this.#options.appsAdded?.(id, context)
     return this.connect(id, redirectUrl, context, askedIn)
   }
 
@@ -606,11 +673,13 @@ export class Connectors {
         "See and change your connectors: other services, reached as MCP servers, whose tools become yours. " +
         'action "list" shows each one, how it is doing and the tools it gives you. "add" needs `name` (what to call it) and `url` (the address of its MCP server, which the person or its documentation gives you). ' +
         "If the service has people sign in, a Sign in button appears for the person beside the chat, and you are told here once they have. If it is reached with an access token instead, pass `needs_token: true`: the person is asked to type it into a form, and you never see it. Never ask for a token in the chat. " +
-        '"reconnect" tries one again; "enable" and "disable" turn one on and off; "remove" deletes it. Each of those needs `name`, from the list.',
+        '"reconnect" tries one again; "enable" and "disable" turn one on and off; "remove" deletes it. Each of those needs `name`, from the list. ' +
+        `"add_apps" adds ${APPS_NAME}, the connector that reaches the person's own accounts on other services through Composio, and needs nothing else: they sign in to it from the Sign in button.`,
       parameters: Type.Object({
         action: Type.Union([
           Type.Literal("list"),
           Type.Literal("add"),
+          Type.Literal("add_apps"),
           Type.Literal("reconnect"),
           Type.Literal("enable"),
           Type.Literal("disable"),
@@ -660,6 +729,28 @@ export class Connectors {
         const kind = own((await api.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind
         if (kind !== "chat") {
           return fail("Only a conversation with the user can change connectors.")
+        }
+        if (args.action === "add_apps") {
+          const redirectUrl = this.#options.redirectUrl?.()
+          if (redirectUrl === undefined) {
+            return fail(
+              "A connector cannot be added from here, because the address of the app is not known. The person can add it under Connectors.",
+            )
+          }
+          try {
+            const { connector } = await this.add({ apps: true }, redirectUrl, context, chatId)
+            return reply(
+              `${this.#outcome("Added", connector)}${
+                connector.status === "needs_auth"
+                  ? " What they sign in to is Composio, with an account of their own, which is free to make."
+                  : ""
+              }`,
+              connector,
+            )
+          } catch (error) {
+            if (error instanceof ConnectorError) return fail(error.message)
+            throw error
+          }
         }
         const wanted = (args.name ?? "").trim()
         if (wanted === "") return fail(`"${args.action}" needs name.`)
@@ -791,7 +882,7 @@ export class Connectors {
             result = await call()
           }
           // MCP reports a failing tool in its result, not as a protocol error.
-          return { content: toLlmContent(result), isError: result.isError === true }
+          return { content: bounded(toLlmContent(result)), isError: result.isError === true }
         } catch (error) {
           const message =
             error instanceof McpOAuthAuthorizationRequiredError

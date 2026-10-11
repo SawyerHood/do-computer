@@ -2128,6 +2128,51 @@ Since then, newest last:
     - **Tested:** `apps/web/src/server/site-pages.test.ts`, and the last two tests of
       `apps/web/e2e/sites.spec.ts`. `scripts/smoke.sh` shares a document.
 
+51. **Apps: people's own accounts on other services, through Composio** (2026-10-11;
+    `packages/agent/src/connectors.ts`, `apps/web/src/components/settings/connectors.tsx`).
+    The owner asked what a "1-click composio integration to connect all of your accounts for
+    agent access" would be like, said "Composio handles gmail right which is a huge one", and
+    then "please go forth and add the composio integration". In the same conversation they
+    asked for the default model to be Claude Haiku 5.5 (`DEFAULT_OPENROUTER_MODEL`). That is
+    what a deployment with only an OpenRouter key starts new agents on. One that names its
+    models and no default still starts on the first it names, so do.computer is unchanged
+    until `DC_DEFAULT_MODEL` is set for it.
+    - **What it is.** Apps is an ordinary connector whose address is Composio's own MCP server,
+      `https://connect.composio.dev/mcp` (`APPS_URL`). That server has people sign in with a
+      Composio account of their own and lets an app register itself, so the sign-in is the one
+      every connector has and the deployment holds no key. A connector at that
+      address has `kind: "apps"`, whether it was added by the button or typed in by hand.
+    - **Adding it** is `POST /connectors` with `{ "apps": true }`, which the Connect apps button
+      sends and which fills in the name and the address, or the agent's `connectors` tool with
+      `add_apps`, which asks leave like any change to connectors and puts a Sign in button
+      beside the chat. There is one: asked for again, it is the one there is, tried again.
+    - **Permissions.** When it is added, before anyone has signed in, its rule is set to Ask
+      first (`appsAdded`). Three of Composio's tools are let through (`APPS_LOOKUPS`): the
+      search, the schemas, and the one that makes a sign-in link for a service. Everything
+      else it offers is asked about, by name or not.
+    - **What any connector's call may bring back** is now cut at 60,000 characters, with a
+      line saying so. A mailbox came back whole otherwise.
+    - **`DC_APPS_URL`** moves Apps for the browser tests, as `DC_SLACK_API_URL` moves Slack.
+    - **A first version was built and thrown away the same day.** It used a Composio project
+      key held by the deployment (`COMPOSIO_API_KEY`), with accounts kept per workspace and
+      listed in the app. The owner asked "I thought composio lets people oauth themselves",
+      which it does, and then for the key to go: "add the per person button and replace the
+      key mode if possible". What that version showed about Composio's REST API is not needed
+      by anything here.
+    - **Mine, not the owner's:** Ask first to begin with, and which tools are let through; the
+      name Apps; that a hand-typed Composio address counts as Apps; the cut at 60,000
+      characters; no mock-up was made first.
+    - **Not done, or not known:** nobody has signed in to Composio through this, so which
+      tools its server offers a signed-in person is taken from the keyed version (search,
+      schemas, connections, run) and from Composio's documents. If their names differ, Apps
+      still works and simply asks about all of them. Composio's sandbox tools cannot be
+      switched off this way. A sign-in is per agent: a second agent signs in again. The
+      agent's chat is not told when someone finishes signing in to a service, only to Composio.
+    - **Tested:** `packages/agent/test/apps.test.ts` and `apps/web/e2e/connectors.spec.ts`,
+      against a stand-in. By hand, on the Node server with no setting at all: Connect apps led
+      to Composio's sign-in page, and the connector was left waiting with its rule on Ask
+      first. Nothing was run on Workers.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
