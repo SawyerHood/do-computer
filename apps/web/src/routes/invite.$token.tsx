@@ -46,7 +46,7 @@ function InvitationPage() {
 
   if (error) {
     return (
-      <main className="flex h-dvh items-center justify-center p-6">
+      <main className="flex h-dvh items-center justify-center bg-frame p-6">
         <div className="flex max-w-sm flex-col gap-2 text-center">
           <h1 className="text-xl font-semibold tracking-tight">
             This invitation is no longer good
@@ -87,8 +87,8 @@ function InvitationPage() {
   const team = invitation.workspace.name
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-rail p-6">
-      <div className="flex w-full max-w-md flex-col items-center rounded-2xl border bg-background px-8 pt-9 pb-7 text-center">
+    <main className="flex min-h-dvh items-center justify-center bg-frame p-6">
+      <div className="flex w-full max-w-md flex-col items-center rounded-2xl bg-background px-8 pt-9 pb-7 text-center shadow-card">
         <WorkspaceTile workspace={invitation.workspace} className="size-14" />
         <h1 className="mt-4 text-xl font-semibold tracking-tight">
           {invitation.invitedBy.name} invited you to {team}

@@ -73,8 +73,9 @@ function AssistantPart({ part }: { part: MessagePart }) {
   switch (part.type) {
     case "text":
       return (
-        <Bubble variant="secondary">
-          <BubbleContent>
+        // What the agent says is the page's own text, with nothing drawn around it.
+        <Bubble variant="ghost">
+          <BubbleContent className="px-1!">
             <Markdown text={part.text} />
           </BubbleContent>
         </Bubble>
@@ -402,9 +403,9 @@ function MessageView({
               <Bubble
                 key={index}
                 align="end"
-                variant={other === undefined ? "default" : "secondary"}
+                variant={other === undefined ? "tinted" : "secondary"}
               >
-                <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
+                <BubbleContent className="rounded-[1.125rem] px-4 py-2 text-base leading-[1.55] whitespace-pre-wrap">
                   {part.text}
                 </BubbleContent>
               </Bubble>
@@ -518,7 +519,7 @@ export function Transcript({
         <MessageScroller>
           <MessageScrollerViewport>
             {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
-            <MessageScrollerContent className="mx-auto w-full max-w-3xl justify-end gap-5 px-4 pt-24 pb-6">
+            <MessageScrollerContent className="mx-auto w-full max-w-[45rem] justify-end gap-6 px-4 pt-24 pb-6">
               {untouched && !state.busy ? empty : null}
               {before}
               {shown.map(({ message, failures }, index) => (

@@ -138,7 +138,7 @@ export function AgentMessageChip({ part }: { part: ToolPart }) {
     <Link
       to="/a/$agentId/c/$chatId"
       params={{ agentId, chatId }}
-      className="flex w-fit max-w-full items-center gap-2 rounded-2xl border bg-surface py-1.5 pr-2.5 pl-2 text-sm outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+      className="flex w-fit max-w-full items-center gap-2 rounded-2xl bg-card shadow-raised py-1.5 pr-2.5 pl-2 text-sm outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
     >
       <PeerFace agent={peer} agentId={agentId} className="size-6" />
       <span className="shrink-0 text-xs text-muted-foreground">Asked</span>

@@ -151,9 +151,7 @@ export function ShareControls({
         <CopyLink url={url} label="Copy" />
       </div>
       <div className="flex flex-col gap-1">
-        <p className="px-2 text-[0.6875rem] font-semibold tracking-wider text-muted-foreground uppercase">
-          Who can open it
-        </p>
+        <p className="px-2 text-[0.8125rem] font-medium text-muted-foreground">Who can open it</p>
         <RadioGroup
           aria-label="Who can open it"
           className="gap-0"

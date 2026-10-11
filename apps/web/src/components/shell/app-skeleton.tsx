@@ -28,7 +28,10 @@ export function AgentPanelPlaceholder({
     <aside
       data-loading
       aria-busy="true"
-      className={cn("relative flex shrink-0 flex-col border-l bg-rail/40", className)}
+      className={cn(
+        "relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50",
+        className,
+      )}
       style={{ width }}
     >
       <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5">
@@ -43,7 +46,7 @@ export function AgentPanelPlaceholder({
         </div>
       </div>
       <div className="flex-1 border-t">
-        <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
           What it did here
         </h3>
         <RowsPlaceholder now className="px-2.5" />
@@ -63,7 +66,7 @@ export function AppSkeleton() {
   return (
     <div data-loading aria-busy="true" aria-label="Loading" className="flex h-full min-h-0">
       <aside
-        className="hidden shrink-0 flex-col border-r bg-rail/60 md:[[data-sidebar=open]_&]:flex"
+        className="hidden shrink-0 flex-col md:[[data-sidebar=open]_&]:flex"
         style={{ width: "var(--kept-sidebar, 288px)" }}
       >
         <div className="flex items-center gap-2.5 px-3.5 pt-2.5 pb-1">
@@ -73,9 +76,7 @@ export function AppSkeleton() {
           </div>
         </div>
         <div className="flex h-11 items-center pl-4">
-          <h2 className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-            Agents
-          </h2>
+          <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Agents</h2>
         </div>
         <div className="flex-1 px-2">
           <AgentRowsPlaceholder now />

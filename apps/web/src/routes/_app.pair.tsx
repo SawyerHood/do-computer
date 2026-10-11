@@ -65,8 +65,8 @@ function PairPage() {
   const first = agentIds[0] ?? agents.data?.[0]?.id
 
   return (
-    <main className="flex h-dvh items-center justify-center overflow-y-auto p-6">
-      <div className="flex w-full max-w-md flex-col gap-5">
+    <main className="flex h-dvh items-center justify-center overflow-y-auto bg-frame p-4 sm:p-6">
+      <div className="flex w-full max-w-md flex-col gap-5 rounded-2xl bg-background p-6 shadow-card sm:p-8">
         <DesktopIcon className="size-8 text-muted-foreground" />
         {confirm.isSuccess ? (
           <>
@@ -107,7 +107,7 @@ function PairPage() {
                 Check that this is the machine you just ran the command on.
               </p>
             </div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-2xl border bg-surface p-4 text-sm">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-2xl bg-card shadow-raised p-4 text-sm">
               <dt className="text-muted-foreground">Code</dt>
               <dd className="font-mono">{pairing.data.code}</dd>
               <dt className="text-muted-foreground">Name</dt>

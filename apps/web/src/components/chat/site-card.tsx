@@ -38,7 +38,7 @@ function CardOf({ agentId, part }: { agentId: string; part: ToolPart }) {
     <div
       role="group"
       aria-label={`Site: ${then.title}`}
-      className="flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border bg-surface py-2.5 pr-2.5 pl-3 text-sm"
+      className="flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-card shadow-raised py-2.5 pr-2.5 pl-3 text-sm"
     >
       <span className="flex min-w-0 items-center gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-muted-foreground">

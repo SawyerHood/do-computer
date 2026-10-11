@@ -182,9 +182,7 @@ export function ModelPicker({
               ? row
               : (source: Source) => (
                   <ComboboxGroup key={source.value} items={source.items}>
-                    <ComboboxLabel className="pt-3 pb-1 font-medium tracking-wide uppercase">
-                      {source.value}
-                    </ComboboxLabel>
+                    <ComboboxLabel className="pt-3 pb-1 font-medium">{source.value}</ComboboxLabel>
                     <ComboboxCollection>{row}</ComboboxCollection>
                   </ComboboxGroup>
                 )}

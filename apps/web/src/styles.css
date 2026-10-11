@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
 @import "./components/landing/landing.css";
@@ -9,7 +10,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-sans);
   --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-background: var(--background);
@@ -32,6 +33,11 @@
   --color-ring: var(--ring);
   --color-rail: var(--rail);
   --color-surface: var(--surface);
+  --color-frame: var(--frame);
+  --color-hairline: var(--hairline);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-card: var(--elevation-card);
+  --shadow-float: var(--elevation-float);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -46,10 +52,25 @@
  * in step. The one accent is used for the user's own messages and primary actions. It takes its
  * hue from --agent-color, which is teal until an agent is open and that agent's color after: only
  * the hue and how vivid it is are taken, so the accent is as readable for a pale agent as a dark one.
+ *
+ * There are three levels above the frame the app sits in, and each is a hairline with a shadow
+ * under it: raised, for what is chosen in a list; card, for the page; and float, for what is
+ * over the page, such as the message box, a menu or a window. In the dark, where a shadow is
+ * not seen, each level is a step lighter than the one under it.
  */
 :root {
   --agent-color: oklch(0.5 0.08 195);
-  --canvas: oklch(0.985 0.003 212);
+  --canvas: oklch(0.997 0.001 212);
+  --frame: color-mix(in oklch, var(--ink) 4.5%, var(--canvas));
+  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
+  --shade: oklch(0.27 0.02 212);
+  --elevation-raised: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.07);
+  --elevation-card:
+    0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.04),
+    0 10px 28px -14px oklch(from var(--shade) l c h / 0.12);
+  --elevation-float:
+    0 0 0 1px var(--hairline), 0 2px 5px oklch(from var(--shade) l c h / 0.05),
+    0 22px 48px -22px oklch(from var(--shade) l c h / 0.26);
   --ink: oklch(0.27 0.008 212);
   --background: var(--canvas);
   --foreground: var(--ink);
@@ -75,8 +96,16 @@
 }
 
 .dark {
-  --canvas: oklch(0.19 0.004 212);
+  --canvas: oklch(0.212 0.004 212);
   --ink: oklch(0.9 0.006 212);
+  --frame: oklch(0.168 0.004 212);
+  --hairline: color-mix(in oklch, var(--ink) 11%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  --elevation-card: 0 0 0 1px var(--hairline);
+  --elevation-float:
+    0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.05),
+    0 22px 48px -22px oklch(0 0 0 / 0.7);
+  --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
   --popover: color-mix(in oklch, var(--ink) 5%, var(--canvas));
   --primary: oklch(from var(--agent-color) 0.52 c h);
   --primary-foreground: oklch(from var(--agent-color) 0.97 0.012 h);
@@ -99,6 +128,7 @@
   }
   html {
     @apply font-sans;
+    letter-spacing: -0.006em;
     color-scheme: light;
   }
   html.dark {
@@ -147,10 +177,10 @@
 /* Assistant prose: Markdown inside a bubble. */
 @layer components {
   .prose-chat {
-    @apply text-[0.9375rem] leading-relaxed;
+    @apply text-base leading-[1.65];
   }
   .prose-chat > * + * {
-    @apply mt-3;
+    @apply mt-3.5;
   }
   .prose-chat h1,
   .prose-chat h2,
@@ -176,13 +206,13 @@
     @apply border-l-2 border-border pl-3 text-muted-foreground;
   }
   .prose-chat code {
-    @apply rounded-sm bg-foreground/8 px-1 py-0.5 font-mono text-[0.85em];
+    @apply rounded-md border border-hairline bg-muted px-1.25 py-px font-mono text-[0.85em];
   }
   .prose-chat pre {
     @apply overflow-x-auto rounded-lg bg-foreground/8 p-3 font-mono text-[0.8125rem] leading-normal;
   }
   .prose-chat pre code {
-    @apply bg-transparent p-0;
+    @apply border-0 bg-transparent p-0;
   }
   .prose-chat table {
     @apply block w-full overflow-x-auto text-sm;
@@ -238,13 +268,13 @@
     @apply border-l-2 border-border pl-4 text-muted-foreground;
   }
   .prose-doc code {
-    @apply rounded-sm bg-foreground/8 px-1 py-0.5 font-mono text-[0.85em];
+    @apply rounded-md border border-hairline bg-muted px-1.25 py-px font-mono text-[0.85em];
   }
   .prose-doc pre {
     @apply overflow-x-auto rounded-xl bg-foreground/8 p-3.5 font-mono text-[0.8125rem] leading-normal;
   }
   .prose-doc pre code {
-    @apply bg-transparent p-0;
+    @apply border-0 bg-transparent p-0;
   }
   .prose-doc table {
     @apply block w-full overflow-x-auto text-sm;

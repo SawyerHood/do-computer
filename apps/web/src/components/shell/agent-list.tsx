@@ -119,7 +119,7 @@ function WhoIsWhere({
           onNavigate?.()
           openWorkspace("team")
         }}
-        className="flex w-full items-baseline justify-between rounded-md px-1 pb-1.5 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+        className="flex w-full items-baseline justify-between rounded-md px-1 pb-1.5 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
       >
         <span className="truncate">{workspace.name}</span>
         <span className="shrink-0">{others.length} here</span>
@@ -207,7 +207,7 @@ export function AgentList({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-0.5 pt-2 pr-2.5 pb-1.5 pl-4">
-        <h2 className="min-w-0 flex-1 truncate text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+        <h2 className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium text-muted-foreground">
           Agents
         </h2>
         <Button variant="ghost" size="icon-sm" onClick={newAgent} aria-label="New agent">
@@ -230,8 +230,11 @@ export function AgentList({
             <div
               key={agent.id}
               className={cn(
-                "group/agent flex shrink-0 items-center rounded-2xl [--face-ring:var(--rail)] hover:bg-accent",
-                active && "bg-accent",
+                "group/agent flex shrink-0 items-center rounded-xl",
+                // The one that is open is raised off the frame. The others darken under the pointer.
+                active
+                  ? "bg-card shadow-raised [--face-ring:var(--card)]"
+                  : "[--face-ring:var(--frame)] hover:bg-foreground/6",
               )}
             >
               <Link
@@ -239,7 +242,7 @@ export function AgentList({
                 params={{ agentId: agent.id }}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
-                className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl py-2 pr-1 pl-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2 pr-1 pl-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
               >
                 <AgentFace agent={agent} className="size-10" quiet />
                 <span className="min-w-0 flex-1">

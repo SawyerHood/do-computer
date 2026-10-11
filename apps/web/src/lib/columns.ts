@@ -59,6 +59,8 @@ export const agentPanelColumn = column("dc-agent-panel-width", { min: 256, max: 
  */
 export const docPanelColumn = column("dc-doc-panel-width", { min: 352, max: 1280, start: 640 })
 export const DOC_PANEL_LEAVES = "20rem"
+/** What is beside a chat is a card in the page, with this much between it and the page's edge. */
+export const BESIDE_GAP = "0.625rem"
 
 /**
  * A side chat open beside the main chat, in the panel's place. It leaves the main chat the room

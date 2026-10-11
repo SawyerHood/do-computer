@@ -37,7 +37,7 @@ import { modelProvidersKey, modelsKey, workspaceModelsKey } from "@/lib/collecti
 import { queryClient } from "@/lib/query"
 
 const good = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-const heading = "pb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase"
+const heading = "pb-2.5 text-[0.8125rem] font-medium text-muted-foreground"
 
 /**
  * What a way of signing in is called on a button. pi names them for a list in a terminal,

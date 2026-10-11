@@ -535,7 +535,7 @@ function AddComputer({
   return (
     <form
       aria-labelledby="add-computer"
-      className="flex flex-col gap-3 rounded-2xl border bg-surface p-4"
+      className="flex flex-col gap-3 rounded-2xl bg-card shadow-raised p-4"
       onSubmit={(event) => {
         event.preventDefault()
         add.mutate()

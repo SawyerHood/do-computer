@@ -21,6 +21,7 @@ import {
 } from "@/lib/atoms"
 import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
+import { cn } from "@/lib/utils"
 import { useSwipe } from "@/lib/use-swipe"
 import { usePresence, useWorkspaces } from "@/lib/workspaces"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
@@ -142,16 +143,13 @@ export function AppShell({
   })
 
   return (
-    <div ref={setShell} className="flex h-full min-h-0">
+    <div ref={setShell} className="flex h-full min-h-0 bg-frame">
       {/* The accent follows the open agent. Set on the root, so windows and menus have it too. */}
       {agent === undefined ? null : (
         <style>{`:root{--agent-color:${avatarLook(agent.avatar, agent.id).color}}`}</style>
       )}
       {sidebarOpen ? (
-        <aside
-          className="relative hidden shrink-0 border-r bg-rail/60 md:block"
-          style={{ width: sidebarWidth }}
-        >
+        <aside className="relative hidden shrink-0 md:block" style={{ width: sidebarWidth }}>
           <Sidebar
             workspace={workspace}
             settled={settled}
@@ -165,10 +163,16 @@ export function AppShell({
         </aside>
       ) : null}
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      {/* The page is a sheet on the frame, where there is room for a frame around it. */}
+      <main
+        className={cn(
+          "flex min-w-0 flex-1 flex-col bg-background md:my-2 md:mr-2 md:overflow-hidden md:rounded-2xl md:shadow-card",
+          !sidebarOpen && "md:ml-2",
+        )}
+      >
         {agentId === undefined ? (
           // A workspace with no agent open has nothing for a strip to say but its name.
-          <header className="flex h-13 shrink-0 items-center gap-1.5 border-b px-2.5 md:px-3">
+          <header className="flex h-13 shrink-0 items-center gap-1.5 px-2.5 md:px-3">
             <Button
               variant="ghost"
               size="icon-sm"

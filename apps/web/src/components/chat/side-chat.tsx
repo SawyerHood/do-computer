@@ -19,7 +19,7 @@ import { chatKey } from "@/lib/atoms"
 import { useArchiveSideChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { workspaceModelsKey } from "@/lib/collections"
-import { DOC_PANEL_LEAVES, sideChatColumn } from "@/lib/columns"
+import { BESIDE_GAP, DOC_PANEL_LEAVES, sideChatColumn } from "@/lib/columns"
 import { useChat } from "@/lib/use-chat"
 import { useWide } from "@/lib/use-wide"
 import { TeamContext, usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
@@ -65,7 +65,7 @@ export function SideChatBar({
   const wide = useWide()
   const archive = useArchiveSideChat(agent.id, main.id)
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-rail/30 pr-2 pl-1.5 text-sm">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 text-sm">
       <Link
         to="/a/$agentId/c/$chatId"
         params={{ agentId: agent.id, chatId: main.id }}
@@ -139,16 +139,14 @@ export function SideChat({
   return (
     <aside
       aria-label={`Side chat: ${chat.title}`}
-      className="relative flex shrink-0 flex-col border-l bg-rail/40"
-      style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES})` }}
+      className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
+      style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES} - ${BESIDE_GAP})` }}
     >
       <ResizeHandle column={sideChatColumn} edge="left" label="Resize the side chat" />
-      <header className="flex h-13 shrink-0 items-center gap-0.5 border-b pr-2 pl-3">
+      <header className="flex h-12 shrink-0 items-center gap-0.5 border-b pr-2 pl-3">
         <AgentFace agent={agent} className="size-7" still />
         <div className="min-w-0 flex-1 px-2 leading-tight">
-          <p className="truncate text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-            Side chat with {name}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">Side chat with {name}</p>
           <h2 className="truncate text-sm font-medium">{chat.title}</h2>
         </div>
         {live.status === "reconnecting" ? (

@@ -8,7 +8,7 @@ import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { libraryKey } from "@/lib/collections"
-import { DOC_PANEL_LEAVES, docPanelColumn } from "@/lib/columns"
+import { BESIDE_GAP, DOC_PANEL_LEAVES, docPanelColumn } from "@/lib/columns"
 import { type ViewMode, Viewer } from "./viewer.tsx"
 
 /**
@@ -44,8 +44,8 @@ export function DocPanel({
   return (
     <aside
       aria-label="Document"
-      className="relative hidden shrink-0 border-l bg-background xl:block"
-      style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES})` }}
+      className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border hidden shrink-0 bg-background xl:block"
+      style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES} - ${BESIDE_GAP})` }}
     >
       <ResizeHandle column={docPanelColumn} edge="left" label="Resize the document" />
       {listing === undefined ? (

@@ -28,7 +28,7 @@ import { agentsCollection } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { invitationsKey, refreshWorkspaces, useHere, whoIs } from "@/lib/workspaces"
 
-const heading = "mt-9 mb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase"
+const heading = "mt-9 mb-2.5 text-[0.8125rem] font-medium text-muted-foreground"
 const ROLE_WORDS: Record<WorkspaceRole, string> = {
   owner: "Owner",
   admin: "Admin",

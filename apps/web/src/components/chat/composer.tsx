@@ -161,7 +161,7 @@ export function Composer({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
+    <div className="mx-auto flex w-full max-w-[45rem] flex-col gap-2 px-4 pb-4">
       {queued.length > 0 ? (
         <div className="flex flex-col items-end gap-1">
           {queued.map((item) => (
@@ -189,7 +189,7 @@ export function Composer({
       <div className="flex min-h-[6.875rem] flex-col justify-end">
         <form
           // Room for a line over the buttons, and for two while it is being written in.
-          className="flex min-h-[5.375rem] cursor-text flex-col rounded-2xl border bg-surface shadow-sm transition-[min-height] duration-150 ease-out focus-within:min-h-[6.875rem] focus-within:border-input motion-reduce:transition-none"
+          className="flex min-h-[5.375rem] cursor-text flex-col rounded-[1.25rem] border border-transparent bg-popover shadow-float transition-[min-height] duration-150 ease-out focus-within:min-h-[6.875rem] motion-reduce:transition-none"
           onSubmit={(event) => {
             event.preventDefault()
             send()
@@ -233,7 +233,7 @@ export function Composer({
             placeholder={placeholder}
             aria-label="Message"
             className={cn(
-              "max-h-[200px] w-full shrink-0 resize-none bg-transparent px-3.5 pt-3 pb-1.5 text-[0.9375rem] leading-6 outline-none placeholder:text-muted-foreground",
+              "max-h-[200px] w-full shrink-0 resize-none bg-transparent px-4 pt-3 pb-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground",
               dictating && "hidden",
             )}
             onChange={(event) => {
@@ -286,11 +286,18 @@ export function Composer({
                   variant="secondary"
                   onClick={onStop}
                   aria-label="Stop"
+                  className="rounded-full"
                 >
                   <StopIcon weight="fill" />
                 </Button>
               ) : (
-                <Button type="submit" size="icon" disabled={!ready} aria-label="Send">
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!ready}
+                  aria-label="Send"
+                  className="rounded-full"
+                >
                   <ArrowUpIcon weight="bold" className="size-[1.125rem]" />
                 </Button>
               )}

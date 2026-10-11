@@ -56,8 +56,10 @@ const marker = (state: string) => ({
 
 function Column({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex h-dvh items-center justify-center overflow-y-auto p-6">
-      <div className="flex w-full max-w-sm flex-col gap-6">{children}</div>
+    <main className="flex h-dvh items-center justify-center overflow-y-auto bg-frame p-4 sm:p-6">
+      <div className="flex w-full max-w-[26rem] flex-col gap-6 rounded-2xl bg-background p-6 shadow-card sm:p-8">
+        {children}
+      </div>
     </main>
   )
 }

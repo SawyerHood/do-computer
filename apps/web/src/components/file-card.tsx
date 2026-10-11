@@ -71,7 +71,7 @@ export function FileCard({
         <img src={url} alt={file.name} loading="lazy" className="max-h-80 rounded-2xl border" />
       ) : null}
       {viewable ? (
-        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl border bg-surface text-sm">
+        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
           {onOpen === undefined ? (
             <Link
               to="/a/$agentId/library"
@@ -104,7 +104,7 @@ export function FileCard({
           {share}
         </div>
       ) : (
-        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl border bg-surface text-sm">
+        <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
           <a
             href={url}
             download={file.name}

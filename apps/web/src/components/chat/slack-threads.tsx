@@ -126,7 +126,7 @@ export function SlackBar({
   onStop: () => void
 }) {
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-rail/30 pr-3 pl-1.5 text-sm">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-3 pl-1.5 text-sm">
       {main === undefined ? null : (
         <Link
           to="/a/$agentId/c/$chatId"
