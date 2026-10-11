@@ -25,6 +25,9 @@ extraResources:
   - from: ../../THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md
 npmRebuild: false
+# Nowhere, unless the packing is told where: a release is, by the Desktop workflow, and then
+# knows where newer ones are published and keeps itself up to date from there. A copy packed
+# without that stays as it is.
 publish: null
 mac:
   category: public.app-category.productivity
@@ -40,6 +43,10 @@ mac:
   target:
     - target: dmg
       arch: [universal]
+    # What a Mac that has the app fetches to become the next version: macOS takes a newer
+    # app as a .zip, not as the .dmg its owner first opened.
+    - target: zip
+      arch: [universal]
   # The driver's programs for each kind of chip are the same files in both halves of the
   # app, which joining the halves takes for a mistake unless it is told to expect it.
   x64ArchFiles: "**/driver/node_modules/**"
@@ -49,6 +56,11 @@ mac:
 win:
   icon: assets/icon.png
   target: [nsis]
+# What an AppImage starts itself with: the newer of the two there are. The older one needs a
+# library (libfuse2) that Linux distributions no longer bring, and where it is missing the app
+# can only be run unpacked, which is a copy that cannot replace itself with a newer one.
+toolsets:
+  appimage: "1.0.3"
 linux:
   icon: assets/icon.png
   category: Utility

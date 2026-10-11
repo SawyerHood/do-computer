@@ -1,4 +1,5 @@
 import type { Sharing } from "./status.ts"
+import type { Update } from "./update.ts"
 
 /** Everything the app's own pages show. */
 export type AppState = {
@@ -29,6 +30,10 @@ export type AppState = {
   /** What the daemon said lately. */
   log: string[]
   platform: string
+  /** Which version of the app this is. */
+  version: string
+  /** Whether there is a newer one, and how far along taking its place is. */
+  update: Update
 }
 
 /**
@@ -61,6 +66,8 @@ export type DesktopApi = {
   changeServer(): Promise<void>
   /** Load the deployment again, after it could not be reached. */
   retry(): Promise<void>
+  /** Look for a newer app, or, when one has been fetched, restart as it. */
+  update(): Promise<void>
 }
 
 declare global {

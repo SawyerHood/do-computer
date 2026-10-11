@@ -9,7 +9,8 @@
  * The few pages that are the program's own (choosing the deployment, and how this computer is
  * shared) are files that come with it.
  */
-import { writeFileSync } from "node:fs"
+import { spawn } from "node:child_process"
+import { existsSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -30,6 +31,7 @@ import {
   systemPreferences,
   Tray,
 } from "electron"
+import { autoUpdater } from "electron-updater"
 import { UseState } from "@durable-computer/computers/use"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
@@ -55,6 +57,13 @@ import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./scree
 import { isWebAddress, onServer, serverAddress } from "./server.ts"
 import { DEFAULTS, loadSettings, type Settings, saveSettings } from "./settings.ts"
 import { headline } from "./status.ts"
+import {
+  afterUpdate,
+  mayRestart,
+  returningUnseen,
+  type Update,
+  type UpdateEvent,
+} from "./update.ts"
 
 /** The deployment the app was built for, if it was built for one. Otherwise it asks. */
 declare const DEFAULT_SERVER: string
@@ -64,6 +73,10 @@ const NAME = "Do Computer"
 const HEALTH_TIMEOUT_MS = 10_000
 /** How long the daemon has to get as far as a pairing, when a page asked to share this computer. */
 const SHARE_TIMEOUT_MS = 45_000
+/** How often the app looks for a newer one of itself. It runs for weeks without being started. */
+const UPDATE_EVERY_MS = Number(process.env.DC_DESKTOP_UPDATE_MS ?? 4 * 60 * 60_000)
+/** How often an app that has fetched a newer one looks whether it may restart as it. */
+const RESTART_LOOK_MS = 60_000
 const MAC = process.platform === "darwin"
 const here = (...parts: string[]) => path.join(__dirname, ...parts)
 const page = (name: string) => here("pages", `${name}.html`)
@@ -92,7 +105,11 @@ let runner: DaemonRunner | undefined
 let screenService: ScreenService | undefined
 let screenDriver: ScreenDriver | undefined
 let overlay: Overlay | undefined
+/** Whether an agent is using the screen, once one could be. */
+let usingScreen: UseState | undefined
 let quitting = false
+/** Whether there is a newer app than this one. Until it has looked, it is as new as it knows. */
+let update: Update = { state: "current" }
 /** The PATH commands run with, once it has been asked for. */
 let commandPath: string | undefined
 /** Set when the owner has just asked to share this computer, so the page to confirm on is shown. */
@@ -106,9 +123,14 @@ const browser = browserSignIn()
 const alive = (window: BrowserWindow | undefined): window is BrowserWindow =>
   window !== undefined && !window.isDestroyed()
 
-/** The app started by itself at sign-in, where nobody asked to see it. */
+/**
+ * The app started by itself, where nobody asked to see it: at sign-in, or as the newer one
+ * it restarted as while no window was showing.
+ */
 const startedHidden = () =>
-  process.argv.includes(HIDDEN_FLAG) || (MAC && app.getLoginItemSettings().wasOpenedAtLogin)
+  process.argv.includes(HIDDEN_FLAG) ||
+  (MAC && app.getLoginItemSettings().wasOpenedAtLogin) ||
+  returningUnseen(settings.restarted, Date.now())
 
 /**
  * The deployment the app would use if nobody said otherwise: the one it was built or run for.
@@ -185,6 +207,7 @@ async function probeDriver(): Promise<void> {
 function screenOf(): ScreenService {
   if (screenService !== undefined) return screenService
   const using = new UseState({ what: "the screen" })
+  usingScreen = using
   overlay = createOverlay({
     state: using,
     pagesDir: here("pages"),
@@ -222,6 +245,8 @@ function state(): AppState {
     canOpenAtLogin: canOpenAtLogin(),
     log: runner?.lines ?? [],
     platform: process.platform,
+    version: app.getVersion(),
+    update,
   }
 }
 
@@ -434,19 +459,154 @@ async function confirmWhenSignedIn(): Promise<void> {
   if (isWebAddress(address)) showMain(address)
 }
 
+/**
+ * Start the app at sign-in on Linux, or stop doing so. An AppImage runs from a folder that is
+ * gone when it stops, so the file itself is what is started: `file`, where it has just moved.
+ */
+function linuxAutostart(on: boolean, file = process.env.APPIMAGE || process.execPath): void {
+  setLinuxAutostart(on, {
+    home: os.homedir(),
+    configHome: process.env.XDG_CONFIG_HOME,
+    exec: file,
+  })
+}
+
 function setOpenAtLogin(on: boolean): void {
   remember({ openAtLogin: on })
   if (!state().canOpenAtLogin) return
   if (process.platform === "linux") {
-    setLinuxAutostart(on, {
-      home: os.homedir(),
-      configHome: process.env.XDG_CONFIG_HOME,
-      // An AppImage runs from a folder that is gone when it stops. The file itself is what stays.
-      exec: process.env.APPIMAGE || process.execPath,
-    })
+    linuxAutostart(on)
   } else {
     app.setLoginItemSettings({ openAtLogin: on, args: [HIDDEN_FLAG] })
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Keeping itself up to date
+
+/**
+ * Why this copy of the app does not update itself, if it does not. One that does was packed
+ * knowing where newer ones are published, which a release is (see `Pack it` in the Desktop
+ * workflow): electron-builder leaves that beside the app, in app-update.yml. A run can be told
+ * where to look instead, or, by naming nowhere, not to look.
+ */
+function notUpdating(): string | undefined {
+  const told = process.env.DC_DESKTOP_UPDATES
+  const packed = app.isPackaged && existsSync(path.join(process.resourcesPath, "app-update.yml"))
+  if (told === "" || (told === undefined && !packed)) {
+    return "Not a release: it stays as it is"
+  }
+  // The AppImage is one file, which a newer one can take the place of. An app unpacked from it,
+  // or put in place by a package, is not the app's to replace.
+  if (process.platform === "linux" && !process.env.APPIMAGE) {
+    return "Only the AppImage updates itself"
+  }
+  return undefined
+}
+
+function updated(event: UpdateEvent): void {
+  const before = JSON.stringify(update)
+  update = afterUpdate(update, event)
+  if (JSON.stringify(update) !== before) changed()
+}
+
+function lookForUpdate(): void {
+  // One that is here already is not fetched again. It is this that is restarted as.
+  if (update.state === "off" || update.state === "ready") return
+  // What goes wrong is said as an event too, which is where it is heard.
+  autoUpdater.checkForUpdates().catch(() => {})
+}
+
+/** The AppImage this app is, on Linux: the file a newer one takes the place of, or has. */
+let appImage = process.env.APPIMAGE
+
+/** Restart as the newer app that was fetched. `unseen`: with no window, as it was before. */
+function restartToUpdate(unseen: boolean): void {
+  if (update.state !== "ready") return
+  if (unseen) remember({ restarted: Date.now() })
+  // Closing a window otherwise only hides it, and the app would never get as far as quitting.
+  quitting = true
+  // On Windows the newer app is an installer: it is run without showing itself, and starts
+  // the app when it is done. A Mac does both by itself, and is told nothing.
+  if (process.platform !== "linux" || appImage === undefined) {
+    return autoUpdater.quitAndInstall(true, true)
+  }
+  // The newer AppImage is put in place, and this app quits. Left to start it, electron-updater
+  // starts it with nothing, and while this one is still here to be mistaken for it. So it is
+  // started with what this one was started with, which on some desktops is what it takes to
+  // start at all (--no-sandbox), and by a shell that waits until this one has gone. Electron's
+  // own way to start again runs from inside the AppImage, which is gone by then. The shell
+  // lets go of what it was handed open first: one of those is what keeps this AppImage
+  // mounted for as long as anything holds it, which the newer app would for as long as it ran.
+  autoUpdater.quitAndInstall(true, false)
+  // What goes wrong putting it in place is said before that returns, and then nothing quits.
+  if (update.state !== "ready") {
+    quitting = false
+    return
+  }
+  const args = process.argv.slice(app.isPackaged ? 1 : 2).filter((arg) => arg !== HIDDEN_FLAG)
+  spawn(
+    "/bin/sh",
+    [
+      "-c",
+      'exec 3<&- 4<&- 5<&- 6<&- 7<&- 8<&- 9<&-; while kill -0 "$0" 2>/dev/null; do sleep 0.2; done; exec "$@"',
+      String(process.pid),
+      appImage,
+      ...args,
+      ...(unseen ? [HIDDEN_FLAG] : []),
+    ],
+    { detached: true, stdio: "ignore" },
+  ).unref()
+}
+
+/** Restart as the newer app without being asked, once nobody would notice: see `mayRestart`. */
+function restartWhenQuiet(): void {
+  const showing = [mainWindow, computerWindow, welcomeWindow].some(
+    (window) => alive(window) && window.isVisible(),
+  )
+  const quiet = {
+    update,
+    showing,
+    usingScreen: usingScreen?.active === true,
+    quietMs: Date.now() - (runner?.heard ?? 0),
+  }
+  if (mayRestart(quiet)) restartToUpdate(true)
+}
+
+function startUpdating(): void {
+  const why = notUpdating()
+  if (why !== undefined) {
+    update = { state: "off", why }
+    return
+  }
+  const told = process.env.DC_DESKTOP_UPDATES
+  if (told !== undefined) {
+    // What electron-builder leaves beside a release, written for this run. JSON is YAML too.
+    const file = path.join(app.getPath("userData"), "app-update.yml")
+    writeFileSync(file, `${JSON.stringify({ provider: "generic", url: told })}\n`)
+    autoUpdater.updateConfigPath = file
+    // A run from the source is looked after too, when it is told where to look: the tests'.
+    autoUpdater.forceDevUpdateConfig = true
+  }
+  autoUpdater.on("checking-for-update", () => updated({ event: "checking" }))
+  autoUpdater.on("update-available", (info) => updated({ event: "found", version: info.version }))
+  autoUpdater.on("update-not-available", () => updated({ event: "none" }))
+  autoUpdater.on("download-progress", (progress) =>
+    updated({ event: "progress", percent: progress.percent }),
+  )
+  autoUpdater.on("update-downloaded", (info) =>
+    updated({ event: "fetched", version: info.version }),
+  )
+  autoUpdater.on("error", (error) => updated({ event: "error", message: error.message }))
+  // An AppImage named for its version is replaced by a file named for the newer one, and what
+  // starts the app at sign-in has to name that file.
+  autoUpdater.on("appimage-filename-updated", (file) => {
+    appImage = file
+    if (settings.openAtLogin && canOpenAtLogin()) linuxAutostart(true, file)
+  })
+  lookForUpdate()
+  setInterval(lookForUpdate, UPDATE_EVERY_MS)
+  setInterval(restartWhenQuiet, RESTART_LOOK_MS)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -689,6 +849,13 @@ function listen(): void {
     own(() => showWelcome()),
   )
   ipcMain.handle(
+    "update",
+    own(() => {
+      if (update.state === "ready") restartToUpdate(false)
+      else lookForUpdate()
+    }),
+  )
+  ipcMain.handle(
     "retry",
     own(() => {
       if (alive(mainWindow) && settings.server !== undefined) {
@@ -715,7 +882,14 @@ function drawTray(): void {
   const now = state()
   const shared = settings.share
   // The daemon says something with every command an agent runs. A menu that is open stays put.
-  const showing = JSON.stringify([now.headline, shared, settings.openAtLogin, settings.server])
+  const newer = update.state === "ready" ? update.version : undefined
+  const showing = JSON.stringify([
+    now.headline,
+    shared,
+    settings.openAtLogin,
+    settings.server,
+    newer,
+  ])
   if (showing === drawn) return
   drawn = showing
   tray.setImage(trayImage(now.sharing.state === "connected"))
@@ -754,6 +928,9 @@ function drawTray(): void {
         },
       },
       { type: "separator" },
+      ...(newer === undefined
+        ? []
+        : [{ label: `Restart to Update to ${newer}`, click: () => restartToUpdate(false) }]),
       { label: `Quit ${NAME}`, click: () => app.quit() },
     ]),
   )
@@ -824,7 +1001,12 @@ function limitPermissions(): void {
   })
 }
 
-if (!app.requestSingleInstanceLock()) {
+if (process.env.APPIMAGE_EXIT_AFTER_INSTALL === "true") {
+  // An AppImage that took an older one's place as that one quit is run once, by the old one,
+  // for whatever a new one sets up on its first run. This one sets up nothing, and its owner
+  // quit the app: it does not start.
+  app.exit(0)
+} else if (!app.requestSingleInstanceLock()) {
   // It is running already, perhaps with no window showing. That one shows itself.
   app.quit()
 } else {
@@ -854,5 +1036,6 @@ if (!app.requestSingleInstanceLock()) {
     else if (!startedHidden()) showMain()
     void startSharing()
     void probeDriver()
+    startUpdating()
   })
 }

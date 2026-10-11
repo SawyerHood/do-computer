@@ -1,4 +1,5 @@
 import type { AppState } from "../api.ts"
+import { updateAction, updateWords } from "../update.ts"
 
 const at = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const readOnly = at<HTMLInputElement>("read-only")
@@ -6,6 +7,7 @@ const login = at<HTMLInputElement>("login")
 const screen = at<HTMLInputElement>("screen")
 const browser = at<HTMLInputElement>("browser")
 const toggle = at<HTMLButtonElement>("toggle")
+const update = at<HTMLButtonElement>("update")
 const log = at<HTMLOListElement>("log")
 
 let now: AppState | undefined
@@ -62,6 +64,15 @@ function show(state: AppState): void {
   at("login-row").hidden = !state.canOpenAtLogin
   login.checked = state.openAtLogin
   at("server").textContent = state.server ?? "None chosen yet"
+  at("version").textContent = state.version
+  const words = at("update-words")
+  words.textContent = updateWords(state.update)
+  // What went wrong can be longer than the line, which is cut short.
+  words.parentElement!.title = words.textContent
+  const action = updateAction(state.update)
+  update.hidden = action === undefined
+  update.textContent = action ?? ""
+  update.disabled = false
 
   // Only what is new is added, so that what its owner selected or scrolled to stays put.
   const pinned = log.scrollTop + log.clientHeight >= log.scrollHeight - 4
@@ -99,6 +110,10 @@ toggle.addEventListener("click", () => {
 at("confirm").addEventListener("click", () => void window.desktop.confirm())
 at("change").addEventListener("click", () => void window.desktop.changeServer())
 login.addEventListener("change", () => void window.desktop.setOpenAtLogin(login.checked))
+update.addEventListener("click", () => {
+  update.disabled = true
+  void window.desktop.update()
+})
 
 window.desktop.watch(show)
 void window.desktop.state().then(show)

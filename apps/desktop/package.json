@@ -25,6 +25,7 @@
     "@typescript/native": "catalog:",
     "electron": "^44.0.0",
     "electron-builder": "^26.0.0",
+    "electron-updater": "^6.8.9",
     "esbuild": "^0.28.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
