@@ -4,10 +4,11 @@ import { createIsomorphicFn } from "@tanstack/react-start"
 export type FrontDoor = {
   google: boolean
   github: boolean
-  signup: "open" | "invite"
+  /** `waitlist`: anyone may make an account, and waits to be let in to the app itself. */
+  signup: "open" | "invite" | "waitlist"
   /** Whether `/` is the landing page for someone who is not signed in. */
   landing: boolean
-  /** Whether a stranger may make an account: sign-up is open, or nobody has one yet. */
+  /** Whether a stranger may make an account: sign-up is not by invitation, or nobody has one yet. */
   open: boolean
 }
 

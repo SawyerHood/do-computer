@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError, type Me } from "@durable-computer/client"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { createIsomorphicFn } from "@tanstack/react-start"
 import { getRequestHeader } from "@tanstack/react-start/server"
@@ -48,6 +48,10 @@ async function signedIn(): Promise<boolean> {
  * meet one.
  */
 async function goHome(): Promise<never> {
+  // Someone on the waiting list has only the first run to go to, where their Dood is. So has
+  // someone let in since they last came, whose Dood becomes their agent there.
+  const me = queryClient.getQueryData<Me>(meKey)
+  if (me?.waiting || me?.dood !== undefined) throw redirect({ to: "/welcome", replace: true })
   const last = lastAgent()
   // This is where the desktop app starts, every time. The agent it was left on is gone to
   // without waiting for the list, which takes as long as the slowest agent takes to answer.
@@ -95,5 +99,6 @@ export const Route = createFileRoute("/")({
 })
 
 function LandingPage() {
-  return <Landing open={Route.useLoaderData().open} />
+  const door = Route.useLoaderData()
+  return <Landing open={door.open} waitlist={door.signup === "waitlist"} />
 }

@@ -165,6 +165,25 @@ describe("an agent's creature", () => {
     expect(await refused.json()).toMatchObject({ code: "no_box" })
   })
 
+  it("eats what it is given on its own page, and wears what it came with", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    // Treats from outside the app are eaten there and then: none is left on its pile.
+    const fed = await call<CreatureState>(world, "/gifts", "POST", { treats: 5 })
+    expect(fed).toMatchObject({ treats: 0, fed: 5, joy: 1, boxes: 2 })
+    // What it kept out of its first present is its own, and on.
+    const dressed = await call<CreatureState>(world, "/gifts", "POST", { item: "tophat" })
+    expect(dressed).toMatchObject({ owned: ["tophat"], outfit: { hat: "tophat" }, fed: 5 })
+    // Given again, it has it once. What is not a thing, and what is not a number, is nothing.
+    const again = await call<CreatureState>(world, "/gifts", "POST", {
+      item: "tophat",
+      treats: "many",
+    })
+    expect(again).toEqual(dressed)
+    expect(await call<CreatureState>(world, "/gifts", "POST", { item: "no-such" })).toEqual(dressed)
+    expect(await call<CreatureState>(world, "/gifts", "POST", { treats: -3 })).toEqual(dressed)
+  })
+
   it("wears what it has, where it is worn, and nothing else", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })

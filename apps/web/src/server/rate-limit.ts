@@ -6,7 +6,8 @@ export type Limiter = { limit(options: { key: string }): Promise<{ success: bool
  *
  * Counted are the calls anyone can make without an account, each of which costs something that
  * every user shares: signing in or up hashes a password and writes to the database, and a
- * computer asking to be paired takes one of a fixed number of places. Everything else is
+ * computer asking to be paired takes one of a fixed number of places, and a Dood is a row
+ * anyone can make. Everything else is
  * either read-only or asked by someone signed in, whose account is what bounds it.
  *
  * They are counted by address, the only thing known about whoever is asking. Many people can
@@ -21,6 +22,10 @@ export function limitedAs(request: Request): string | undefined {
   const { pathname } = new URL(request.url)
   if (pathname === "/api/computers/pair/start") return `pair:${address}`
   if (pathname.startsWith("/api/auth/")) return `auth:${address}`
+  // A Dood is made, stroked and fed by people with no account. Strokes are told every few
+  // seconds for as long as someone is stroking, so they are counted apart from the rest.
+  if (/^\/api\/doods\/[^/]+\/pats$/.test(pathname)) return `pat:${address}`
+  if (pathname === "/api/doods" || pathname.startsWith("/api/doods/")) return `dood:${address}`
   return undefined
 }
 
