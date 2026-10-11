@@ -37,32 +37,33 @@ svg.fill:not(.logo) { fill: currentColor; stroke: none; }
 .nav nav a:hover, .lnk:hover { color: #000; }
 .lnk { color: #3a3a37; white-space: nowrap; }
 
-/* The top: one creature, the line, the way in, and the app itself. */
-.hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 44px 24px 0; }
-.note { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 14px; border-radius: 99px; font-size: 13.5px; color: #3a3a37; }
+/* The top: the line and the way in, beside whoever it is just now and the eight to choose from. */
+.hero { display: flex; flex-direction: column; align-items: center; padding: 30px 24px 0; }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr); gap: 56px; align-items: center; width: min(1160px, 100%); }
+.note { display: inline-flex; align-items: center; gap: 6px; height: 32px; margin-left: -14px; padding: 0 6px 0 14px; border-radius: 99px; font-size: 13.5px; color: #3a3a37; }
 .note:hover { background: var(--soft); }
 .note b { font-weight: 600; color: var(--ink); }
 .note span { display: grid; place-items: center; width: 22px; height: 22px; margin-left: 4px; border-radius: 99px; background: #ecebe6; }
 .note svg { width: 12px; height: 12px; }
+.hero h1 { font-size: clamp(42px, 5.3vw, 70px); margin-top: 16px; }
+.sub { max-width: 24em; margin-top: 22px; font-size: clamp(18px, 1.6vw, 21px); line-height: 1.4; letter-spacing: -0.01em; color: var(--dim); text-wrap: pretty; }
+.pick { --tint: #3f7f9c; padding: 22px; border-radius: 40px; background: color-mix(in srgb, var(--tint) 13%, #f6f4ef); transition: background .5s ease; }
 /* Who it is just now, what it was asked, and what it is doing about it. */
-.stage { position: relative; display: grid; place-items: center; width: min(820px, 100%); margin-top: 10px; }
-.hero-guy { width: 196px; height: 196px; cursor: pointer; }
-.stage .ask, .stage .doing { position: absolute; max-width: 250px; font-size: 14.5px; line-height: 1.35; text-align: left; animation: rise .4s ease both; }
-.stage .ask { right: calc(50% + 118px); top: 44px; border-radius: 18px 18px 4px 18px; }
-.stage .doing { left: calc(50% + 118px); top: 98px; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 18px 18px 18px 4px; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 6px 20px rgb(40 36 20 / .07); }
+.stage { position: relative; display: grid; place-items: center; height: 256px; }
+.hero-guy { width: 216px; height: 216px; cursor: pointer; }
+.stage .ask, .stage .doing { position: absolute; max-width: 200px; font-size: 14px; line-height: 1.35; text-align: left; animation: rise .4s ease both; }
+.stage .ask { left: 4px; top: 6px; border-radius: 18px 18px 18px 4px; }
+.stage .doing { right: 4px; bottom: 6px; display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; border-radius: 18px 4px 18px 18px; background: #fff; box-shadow: 0 6px 20px rgb(40 36 20 / .08); }
 .doing i { width: 7px; height: 7px; flex: none; border-radius: 99px; background: var(--teal); animation: blink 1.2s ease-in-out infinite; }
 .doing.quiet i { background: #c5c2b8; animation: none; }
-.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 960px; margin-top: 8px; }
-.chips button { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 11px; border-radius: 99px; box-shadow: inset 0 0 0 1px #dedcd5; font-size: 14px; color: #3a3a37; transition: background .15s ease, color .15s ease; }
-.chips button i { width: 9px; height: 9px; border-radius: 99px; }
-.chips button:hover { background: var(--soft); }
-.chips button.on { background: var(--ink); box-shadow: none; color: #fff; }
-.about { min-height: 1.5em; margin-top: 14px; font-size: 15.5px; color: var(--dim); }
+.about { min-height: 1.5em; margin: 4px 4px 14px; font-size: 15.5px; color: var(--dim); text-align: center; text-wrap: balance; }
 .about b { font-weight: 500; color: var(--ink); }
-.hero h1 { font-size: clamp(44px, 6.4vw, 78px); margin-top: 34px; }
-.sub { max-width: 31em; margin-top: 20px; font-size: clamp(18px, 1.7vw, 21px); line-height: 1.4; letter-spacing: -0.01em; color: var(--dim); text-wrap: balance; }
-.hero .cta { justify-content: center; }
-.win { width: min(1060px, 100%); margin-top: 60px; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgb(40 36 20 / .1); }
+.roster { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.roster button { display: grid; justify-items: center; gap: 4px; padding: 10px 0 9px; border-radius: 20px; background: rgb(255 255 255 / .62); font-size: 13px; font-weight: 500; color: var(--dim); transition: background .15s ease, box-shadow .15s ease, translate .15s ease; }
+.roster canvas { width: 58px; height: 58px; }
+.roster button:hover { background: #fff; }
+.roster button.on { background: #fff; color: var(--ink); box-shadow: 0 0 0 2px var(--ink), 0 8px 20px rgb(40 36 20 / .1); translate: 0 -2px; }
+.win { width: min(1060px, 100%); margin-top: 72px; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgb(40 36 20 / .1); }
 .win .bar { display: flex; align-items: center; gap: 7px; height: 44px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #fbfbf9; }
 .win .bar > i { width: 11px; height: 11px; border-radius: 99px; background: #dedcd5; }
 .tabs { display: flex; gap: 2px; margin: 0 auto; translate: -27px 0; padding: 3px; border-radius: 99px; background: #efeee9; }
@@ -253,9 +254,14 @@ footer a:hover { color: var(--ink); }
   .places h3 { margin-top: 26px; }
   .hats { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; padding: 26px 24px 36px; border-radius: 30px; }
   .hats .cta { justify-content: center; }
-  .stage { grid-template-columns: minmax(0, 1fr); }
-  .stage .ask { display: none; }
-  .stage .doing { position: static; margin: 2px 0 12px; border-radius: 99px; }
+  .top { display: flex; flex-direction: column; align-items: stretch; gap: 0; text-align: center; }
+  .pitch { display: contents; }
+  .note { order: 1; align-self: center; margin-left: 0; }
+  .hero h1 { order: 2; }
+  .sub { order: 3; align-self: center; margin-top: 16px; }
+  .pick { order: 4; margin-top: 26px; padding: 14px; border-radius: 30px; }
+  .hero .cta { order: 5; justify-content: center; }
+  .hero .have { order: 6; }
   .win { margin-top: 44px; border-radius: 12px; }
   .win .bar { height: 38px; }
   .tabs { translate: 0 0; }
@@ -267,11 +273,15 @@ footer a:hover { color: var(--ink); }
 }
 @media (width <= 520px) {
   .band { width: calc(100% - 32px); }
-  .hero { padding: 28px 16px 0; }
+  .hero { padding: 18px 16px 0; }
   .nav { gap: 14px; padding: 0 16px; }
-  .hero-guy { width: 164px; height: 164px; }
-  .chips button { height: 34px; padding: 0 12px 0 10px; font-size: 13.5px; }
-  .about { min-height: 3em; text-wrap: balance; }
+  .stage { height: 218px; }
+  .hero-guy { width: 172px; height: 172px; }
+  .stage .ask, .stage .doing { max-width: 150px; font-size: 13px; }
+  .roster { gap: 6px; }
+  .roster canvas { width: 48px; height: 48px; }
+  .roster button { border-radius: 16px; font-size: 12px; }
+  .about { min-height: 3em; }
   #strip b { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

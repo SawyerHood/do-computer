@@ -30,9 +30,9 @@ function round(count, ms, show) {
   show(0);
   (function next() { later(function () { at = (at + 1) % count; show(at); next(); }, ms); })();
 }
-function guy(canvas, seed, color, wear) {
+function guy(canvas, seed, color, wear, small) {
   if (!drawn) return null;
-  var orb = core.createOrb(canvas, { seed: seed, color: PAL[color], dark: false, reduced: calm, notice: true });
+  var orb = core.createOrb(canvas, { seed: seed, color: PAL[color], dark: false, reduced: calm, notice: !small, slow: !!small });
   if (wear) wardrobe.dress(orb, wear);
   orbs.push(orb);
   canvas.addEventListener("click", function () { orb.cheer(); });
@@ -104,15 +104,15 @@ function nav() {
     (open ? '<a class="btn dark small" href="#">Get started</a>' : '<span class="btn soon small"><i></i>Coming soon</span>') + "</header>";
 }
 function hero() {
-  return '<section class="hero">' +
+  return '<section class="hero"><div class="top"><div class="pitch">' +
     '<a class="note" href="#open-source"><b>Open source</b> under the MIT license<span>' + ICON.arrow + "</span></a>" +
-    '<div class="stage"><p class="bub you ask"></p><canvas class="hero-guy" data-guy="hero"></canvas><p class="doing"><i></i><span></span></p></div>' +
-    '<p class="chips" role="group" aria-label="Who it can be">' +
-    WHO.map(function (w, i) { return '<button data-who="' + i + '"><i style="background:' + (PAL[w.color] || "#888") + '"></i>' + w.job + "</button>"; }).join("") + "</p>" +
-    '<p class="about"></p>' +
-    "<h1>Your open source<br>personal assistant.</h1>" +
+    "<h1>Your open source personal assistant.</h1>" +
     '<p class="sub">An assistant with a computer of its own. Ask in plain words, and it comes back with the work done.</p>' +
-    cta('<a class="btn" href="#">Download for Mac</a>') +
+    cta('<a class="btn" href="#">Download for Mac</a>') + "</div>" +
+    '<div class="pick"><div class="stage"><p class="bub you ask"></p><canvas class="hero-guy" data-guy="hero"></canvas><p class="doing"><i></i><span></span></p></div>' +
+    '<p class="about"></p><div class="roster" role="group" aria-label="Who it can be">' +
+    WHO.map(function (w, i) { return '<button data-who="' + i + '" aria-label="' + esc(w.egg ? "Yours" : w.name + ", the " + w.job.toLowerCase()) + '"><canvas data-tile="' + i + '"></canvas><span>' + (w.egg ? "Yours" : w.name) + "</span></button>"; }).join("") +
+    "</div></div></div>" +
     '<div class="win"><div class="bar"><i></i><i></i><i></i><div class="tabs">' +
     VIEWS.map(function (v, i) { return '<button data-view="' + i + '">' + v[1] + "</button>"; }).join("") +
     '</div></div><img alt="" width="2040" height="1350"></div></section>';
@@ -238,7 +238,12 @@ function again(el) { el.style.animation = "none"; void el.offsetWidth; el.style.
 function creatures() {
   /* The one at the top is each of the eight in turn, until somebody chooses. */
   var hero = guy(q('[data-guy="hero"]'), WHO[0].seed, WHO[0].color);
-  var ask = q(".ask"), doing = q(".doing"), about = q(".hero .about");
+  var ask = q(".ask"), doing = q(".doing"), about = q(".hero .about"), pick = q(".pick");
+  /* The eight to choose from, small and at rest. */
+  all("[data-tile]").forEach(function (cv, i) {
+    var w = WHO[i], tile = guy(cv, w.seed, w.color, w.wear, true);
+    if (tile && w.egg) tile.setState("egg");
+  });
   var own = false, at = -1, turn = 0;
   function step(w, n, mine) {
     if (mine !== turn) return;
@@ -255,13 +260,18 @@ function creatures() {
     turn++;
     all("[data-who]").forEach(function (b, n) { b.classList.toggle("on", n === i); b.setAttribute("aria-pressed", n === i); });
     about.innerHTML = "<b>" + (w.egg ? "Yours." : esc(w.name) + ", the " + esc(w.job.toLowerCase()) + ".") + "</b> " + esc(w.about);
+    pick.style.setProperty("--tint", PAL[w.color] || "#888");
     ask.textContent = w.ask || "";
     ask.hidden = !w.ask;
     again(ask);
     if (hero) { hero.setSeed(w.seed); hero.setColor(PAL[w.color]); wardrobe.dress(hero, w.wear || {}); if (!w.egg) hero.cheer(); }
     step(w, 0, turn);
   }
-  all("[data-who]").forEach(function (b, n) { b.addEventListener("click", function () { own = true; to(n); }); });
+  all("[data-who]").forEach(function (b, n) {
+    b.addEventListener("click", function () { own = true; to(n); });
+    /* As on the character select: a mouse over one is enough to choose it. */
+    b.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse" && n !== at) { own = true; to(n); } });
+  });
   to(0);
   (function next() { later(function () { if (own) return; to((at + 1) % WHO.length); next(); }, TURN_MS); })();
   var HATS = [{ hat: "party" }, { hat: "wizard" }, { hat: "crown" }, { glasses: "pixel" }, { hat: "cowboy", neck: "bandana" }, { hat: "chef" }];

@@ -25,13 +25,16 @@ phone, and questions at the end (Grok Bot). The mascot rare.
 
 **The page, top to bottom.**
 
-- The top: one creature, which is each of eight in turn, as on the character select: the planner,
-  the builder and so on, the last an egg. Beside it are what it was asked and what it is doing
-  about it; under it the eight as chips, which choose one and stop the turning. Then "Your open
-  source personal assistant.", the way in, and the app in a window whose tabs change the picture.
-  (First drawn with one fixed creature at the top and the jobs as chips beside a phone further
-  down. The owner: "i still like that rotating choose your character selection if you can switch
-  between the personas but it doesn't need to be a character select screen".)
+- The top: "Your open source personal assistant." and the way in on the left; on the right a
+  panel with one creature large, which is each of eight in turn (the planner, the builder and so
+  on, the last an egg), what it was asked and what it is doing about it, and under it the eight
+  in two rows of four. Choosing one, or a mouse over one, stops the turning. The panel takes a
+  tint of whoever is on it. Then the app in a window whose tabs change the picture.
+  (Drawn three times. First one fixed creature at the top, with the jobs as chips beside a phone
+  further down. The owner: "i still like that rotating choose your character selection if you can
+  switch between the personas but it doesn't need to be a character select screen". Then the
+  eight as chips of words under the creature: "don't like the pill treatment liked the grid of
+  guys more".)
 - "It does the work, not just the talking.": three things beside a picture each (its own
   computer, a phone's lock screen, a schedule), then two side by side (memory, a team).
 - "Right where you need it": web, desktop, phone, Slack.
@@ -39,8 +42,8 @@ phone, and questions at the end (Grok Bot). The mascot rare.
 - Hats, said once. "Try one on" only changes the hat: the box opening is the app's.
 - Questions, and "Get yours".
 
-There are two creatures on the page: at the top, and under a hat.
+Under the top, with its one large creature and eight small, there is one more: under a hat.
 
 **Mine, not the owner's:** every line of copy, which features get a large picture, the
-eight as chips of words rather than eight small creatures, keeping the pixel creature on a page this plain, and
+tint of the panel, keeping the pixel creature on a page this plain, and
 "Download for Mac" beside "Get started".
