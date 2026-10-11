@@ -231,7 +231,7 @@ export function SubagentChip({ part }: { part: ToolPart }) {
     <Link
       to="/a/$agentId/c/$chatId"
       params={{ agentId, chatId }}
-      className="flex w-fit max-w-full items-center gap-2 rounded-2xl border bg-surface py-1.5 pr-2.5 pl-2 text-sm outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
+      className="flex w-fit max-w-full items-center gap-2 rounded-2xl bg-card shadow-raised py-1.5 pr-2.5 pl-2 text-sm outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
     >
       <SubagentFace agentId={agentId} chatId={chatId} status={status} className="size-6" />
       <span className="truncate font-medium">{title}</span>

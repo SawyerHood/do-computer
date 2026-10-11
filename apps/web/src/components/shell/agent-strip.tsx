@@ -41,7 +41,7 @@ export type AgentTab = "chat" | "library" | "automations"
 const lastChat = new Map<string, string>()
 
 const tab =
-  "relative flex h-full shrink-0 items-center px-2.5 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 aria-[current=page]:text-foreground aria-[current=page]:after:absolute aria-[current=page]:after:inset-x-2 aria-[current=page]:after:bottom-0 aria-[current=page]:after:h-0.5 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-primary"
+  "flex h-7 shrink-0 items-center rounded-[0.4375rem] px-3 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-raised dark:aria-[current=page]:bg-foreground/14"
 
 /** The agent's name, which is also the way to another agent without opening the sidebar. */
 function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: WorkspaceSummary }) {
@@ -168,7 +168,7 @@ export function AgentStrip({
   const name = agent?.name ?? "New agent"
 
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-x-1.5 border-b px-2.5 md:h-13 md:flex-nowrap md:px-3">
+    <header className="flex shrink-0 flex-wrap items-center gap-x-1.5 px-2.5 md:h-13 md:flex-nowrap md:px-3">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -203,44 +203,49 @@ export function AgentStrip({
       </div>
       <nav
         aria-label={agent === undefined ? "Pages" : `${name}'s pages`}
-        className="order-last -mx-1 flex h-10 w-full items-stretch border-t md:order-none md:mx-0 md:ml-1.5 md:h-full md:w-auto md:border-t-0"
+        className="order-last flex w-full pb-2 md:order-none md:ml-1.5 md:w-auto md:pb-0"
       >
-        {back === undefined ? (
+        {/* One control with the open page raised in it, as there is no rule for a line to sit on. */}
+        <div className="flex items-center gap-0.5 rounded-[0.625rem] bg-muted p-[3px]">
+          {back === undefined ? (
+            <Link
+              to="/a/$agentId"
+              params={{ agentId }}
+              // Every page of the agent is under this address, and none but the chat is this tab.
+              activeOptions={{ exact: true }}
+              aria-current={page === "chat" ? "page" : undefined}
+              className={tab}
+            >
+              Chat
+            </Link>
+          ) : (
+            <Link
+              to="/a/$agentId/c/$chatId"
+              params={{ agentId, chatId: back }}
+              aria-current={page === "chat" ? "page" : undefined}
+              className={tab}
+            >
+              Chat
+            </Link>
+          )}
           <Link
-            to="/a/$agentId"
+            to="/a/$agentId/library"
             params={{ agentId }}
-            aria-current={page === "chat" ? "page" : undefined}
+            search={{}}
+            aria-current={page === "library" ? "page" : undefined}
             className={tab}
           >
-            Chat
+            Library
           </Link>
-        ) : (
           <Link
-            to="/a/$agentId/c/$chatId"
-            params={{ agentId, chatId: back }}
-            aria-current={page === "chat" ? "page" : undefined}
+            to="/a/$agentId/automations"
+            params={{ agentId }}
+            aria-current={page === "automations" ? "page" : undefined}
             className={tab}
           >
-            Chat
+            Automations
           </Link>
-        )}
-        <Link
-          to="/a/$agentId/library"
-          params={{ agentId }}
-          search={{}}
-          aria-current={page === "library" ? "page" : undefined}
-          className={tab}
-        >
-          Library
-        </Link>
-        <Link
-          to="/a/$agentId/automations"
-          params={{ agentId }}
-          aria-current={page === "automations" ? "page" : undefined}
-          className={tab}
-        >
-          Automations
-        </Link>
+        </div>
       </nav>
       <div className="ml-auto flex items-center gap-0.5">
         {page === "chat" && present.length > 0 ? (

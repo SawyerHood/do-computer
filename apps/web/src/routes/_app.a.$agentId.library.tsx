@@ -79,7 +79,7 @@ function RecentCard({
       to="/a/$agentId/library"
       params={{ agentId }}
       search={{ path: file.path }}
-      className="flex flex-col overflow-hidden rounded-2xl border bg-surface outline-none hover:border-input focus-visible:ring-3 focus-visible:ring-ring/40"
+      className="flex flex-col overflow-hidden rounded-2xl bg-card shadow-raised outline-none hover:shadow-card focus-visible:ring-3 focus-visible:ring-ring/40"
     >
       <div className="relative h-32 overflow-hidden border-b bg-background">
         {kind === "image" ? (
@@ -345,9 +345,7 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
                 </p>
               ) : (
                 <section aria-label="Recent" className="flex flex-col gap-3">
-                  <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                    Recent
-                  </h2>
+                  <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Recent</h2>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3.5">
                     {recent.map((file) => (
                       <RecentCard

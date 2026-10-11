@@ -62,11 +62,11 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
   }
 
   return (
-    <div className="border-t p-2">
+    <div className="p-2">
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${me.name}: settings and signing out`}
-          className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
+          className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-foreground/6"
         >
           <PersonFace person={person} title="" className="size-7" />
           <span className="min-w-0 flex-1 truncate text-sm">{me.name}</span>
@@ -176,7 +176,7 @@ export function Sidebar({
   )
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)}>
-      <div className="flex items-center gap-0.5 px-2 pt-2.5 pb-1 [--face-ring:var(--rail)]">
+      <div className="flex items-center gap-0.5 px-2 pt-2.5 pb-1 [--face-ring:var(--frame)]">
         {settled ? (
           <WorkspaceMenu workspace={workspace} me={me} />
         ) : (
@@ -216,7 +216,7 @@ export function Sidebar({
             <Link
               to="/a/$agentId"
               params={{ agentId }}
-              className="mx-2 mt-1 flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+              className="mx-2 mt-1 flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-sm text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               <CaretLeftIcon className="size-3.5 shrink-0" />
               {agent === undefined ? null : <AgentFace agent={agent} className="size-5" quiet />}

@@ -394,7 +394,7 @@ function UseWindow({ use, view }: { use: Use; view: LiveView | undefined }) {
   return (
     <div
       data-use={use.what}
-      className="w-full max-w-[520px] overflow-hidden rounded-2xl border bg-surface"
+      className="w-full max-w-[520px] overflow-hidden rounded-2xl bg-card shadow-raised"
     >
       <div className="flex h-10 items-center gap-2 pr-1.5 pl-3 text-[13px]">
         <UseIcon use={use} className="size-[15px] shrink-0 text-muted-foreground" />
@@ -529,7 +529,7 @@ function UseEnded({ use }: { use: Use }) {
       </CollapsibleTrigger>
       <CollapsibleContent>
         {step === undefined ? null : (
-          <div className="mt-2 w-full max-w-[520px] overflow-hidden rounded-2xl border bg-surface">
+          <div className="mt-2 w-full max-w-[520px] overflow-hidden rounded-2xl bg-card shadow-raised">
             <Frame step={step} pointer eager />
             <div className="flex items-center gap-2 border-t px-3 py-2 text-[13px]">
               <b className="shrink-0 font-medium text-foreground">
@@ -589,7 +589,7 @@ export function UseNow({ use, chatId }: { use: Use; chatId: string | undefined }
   if (!live) return null
   return (
     <section aria-label={`On ${use.computer.name} now`} className="shrink-0 border-t">
-      <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
         On {use.computer.name} now
       </h3>
       <div className="flex items-center gap-2.5 px-2.5 pb-3">

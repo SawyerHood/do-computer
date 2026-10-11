@@ -59,7 +59,7 @@ export function TranscriptPlaceholder({ className, now }: { className?: string; 
 export function ComposerPlaceholder() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-4">
-      <div className="h-[6.875rem] rounded-2xl border bg-surface shadow-sm" />
+      <div className="h-[6.875rem] rounded-[1.25rem] bg-popover shadow-float" />
     </div>
   )
 }

@@ -270,7 +270,7 @@ export function AgentPanel({
   return (
     <aside
       aria-label={`About ${name}`}
-      className="relative flex shrink-0 flex-col border-l bg-rail/40"
+      className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
       style={{ width }}
     >
       <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
@@ -332,7 +332,7 @@ export function AgentPanel({
       )}
       {running.length === 0 ? null : (
         <div className="flex max-h-[40%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
             Running in the background
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
@@ -342,7 +342,7 @@ export function AgentPanel({
       )}
       {subagent !== undefined || subagents.length === 0 ? null : (
         <div className="flex max-h-[40%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
             Sub-agents in this chat
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
@@ -352,7 +352,7 @@ export function AgentPanel({
       )}
       {subagent !== undefined || threads.length === 0 ? null : (
         <div className="flex max-h-[30%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
             From other agents
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
@@ -362,7 +362,7 @@ export function AgentPanel({
       )}
       {subagent !== undefined || slack.length === 0 ? null : (
         <div className="flex max-h-[30%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
             From Slack
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
@@ -373,7 +373,7 @@ export function AgentPanel({
       {presence}
       {onOpenFile === undefined || files.length === 0 ? null : (
         <section aria-label="Shared here" className="flex max-h-[30%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
             Shared here
           </h3>
           <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2.5 pb-3">
@@ -384,7 +384,7 @@ export function AgentPanel({
         </section>
       )}
       <div hidden={chatless} className="flex min-h-0 flex-1 flex-col border-t">
-        <h3 className="px-5 pt-4 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
           What it did here
         </h3>
         {loading ? (

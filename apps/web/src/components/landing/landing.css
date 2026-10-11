@@ -19,7 +19,9 @@
   scroll-padding-top: 90px;
   background: var(--bg);
   color: var(--ink);
+  font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 16px;
+  letter-spacing: normal;
   line-height: 1.5;
   color-scheme: light;
 

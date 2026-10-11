@@ -47,7 +47,7 @@ text is the one in `LICENSE`, under that copyright line.
 
 ## Fonts served by the web app
 
-The web app is built with three fonts, taken from the [Fontsource](https://fontsource.org)
+The web app is built with four fonts, taken from the [Fontsource](https://fontsource.org)
 packages named below, and serves their files. Each is under the SIL Open Font License,
 Version 1.1.
 
@@ -55,7 +55,8 @@ Version 1.1.
   (https://github.com/scfried/soft-type-jersey)
 - **Inter** (`@fontsource-variable/inter`): Copyright 2016 The Inter Project Authors
   (https://github.com/rsms/inter)
-- **Geist Mono** (`@fontsource-variable/geist-mono`): Copyright 2024 The Geist Project Authors
+- **Geist** and **Geist Mono** (`@fontsource-variable/geist`,
+  `@fontsource-variable/geist-mono`): Copyright 2024 The Geist Project Authors
   (https://github.com/vercel/geist-font)
 
 ```

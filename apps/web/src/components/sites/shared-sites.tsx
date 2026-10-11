@@ -33,10 +33,10 @@ export function SharedSites({
     !files.some((file) => file.path === site.path || file.path.startsWith(`${site.path}/`))
   return (
     <section aria-label="Shared with a link" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+      <h2 className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-muted-foreground">
         <LinkSimpleIcon className="size-3.5" /> Shared with a link
       </h2>
-      <ul className="divide-y overflow-hidden rounded-2xl border bg-surface">
+      <ul className="divide-y overflow-hidden rounded-2xl bg-card shadow-raised">
         {sites.map((site) => {
           const url = siteUrl(site.id)
           return (

@@ -44,7 +44,7 @@ export function SettingsDialog<Id extends string>({
       <DialogContent className="flex h-dvh max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(42rem,calc(100dvh-3rem))] sm:max-w-4xl sm:flex-row sm:rounded-2xl">
         <nav
           aria-label={kind}
-          className="flex shrink-0 flex-col gap-0.5 border-b bg-rail/50 p-2.5 sm:w-56 sm:border-r sm:border-b-0"
+          className="flex shrink-0 flex-col gap-0.5 border-b bg-frame/70 p-2.5 sm:w-56 sm:border-b-0"
         >
           <div className="flex items-center gap-2.5 px-2 pt-1 pb-3 pr-12 sm:pr-2">
             {mark}
@@ -63,7 +63,7 @@ export function SettingsDialog<Id extends string>({
                 aria-current={entry.id === section ? "page" : undefined}
                 onClick={() => onSection(entry.id)}
                 className={cn(
-                  "h-8.5 justify-start gap-2.5 px-2.5 font-normal text-muted-foreground hover:bg-accent aria-[current=page]:bg-accent aria-[current=page]:text-foreground",
+                  "h-8.5 justify-start gap-2.5 px-2.5 font-normal text-muted-foreground hover:bg-foreground/6 aria-[current=page]:bg-card aria-[current=page]:text-foreground aria-[current=page]:shadow-raised",
                   entry.danger &&
                     "text-destructive hover:text-destructive aria-[current=page]:text-destructive sm:mt-3",
                 )}

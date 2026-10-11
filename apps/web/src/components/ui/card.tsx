@@ -11,8 +11,8 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        // The app's cards are flat: a border on the surface color, and no shadow.
-        "group/card flex flex-col gap-3 overflow-hidden rounded-2xl border bg-surface py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(4)] has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] *:[img:first-child]:rounded-t-2xl *:[img:last-child]:rounded-b-2xl",
+        // The app's cards are raised: a hairline on the page's own color, and a little shadow.
+        "group/card flex flex-col gap-3 overflow-hidden rounded-2xl bg-card shadow-raised py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(4)] has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] *:[img:first-child]:rounded-t-2xl *:[img:last-child]:rounded-b-2xl",
         className,
       )}
       {...props}

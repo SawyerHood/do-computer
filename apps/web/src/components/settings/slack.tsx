@@ -16,7 +16,7 @@ import { slackKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 
 const good = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-const heading = "pb-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase"
+const heading = "pb-2.5 text-[0.8125rem] font-medium text-muted-foreground"
 
 /** One step of putting the agent in Slack: its number, what to do, and what it needs. */
 function Step({
@@ -195,7 +195,7 @@ function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app:
   return (
     <>
       <div>
-        <div className="flex items-center gap-3 rounded-2xl border bg-surface p-3.5">
+        <div className="flex items-center gap-3 rounded-2xl bg-card shadow-raised p-3.5">
           <SlackMark />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-medium">

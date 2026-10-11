@@ -332,7 +332,7 @@ export function ChatView({
           {sub !== undefined ? (
             // A sub-agent's chat always says whose it is, and leads back to where it was started.
             <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
-              <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+              <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl bg-background/85 py-1 pr-2 pl-1.5 shadow-raised backdrop-blur">
                 <Link
                   to="/a/$agentId/c/$chatId"
                   params={{ agentId: agent.id, chatId: sub.parentId ?? chatId }}
@@ -372,7 +372,7 @@ export function ChatView({
           ) : thread?.peer !== undefined ? (
             // A conversation with another agent says who it is with, and leads to where they wrote from.
             <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
-              <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl border bg-background/85 py-1 pr-2 pl-1.5 shadow-sm backdrop-blur">
+              <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl bg-background/85 py-1 pr-2 pl-1.5 shadow-raised backdrop-blur">
                 <Link
                   to="/a/$agentId/c/$chatId"
                   params={{ agentId: thread.peer.agentId, chatId: thread.peer.chatId }}
@@ -415,7 +415,7 @@ export function ChatView({
                 !floats && "max-md:hidden",
               )}
             >
-              <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl border bg-background/85 py-1 pr-2.5 pl-1.5 shadow-sm backdrop-blur max-md:px-1.5">
+              <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl bg-background/85 py-1 pr-2.5 pl-1.5 shadow-raised backdrop-blur max-md:px-1.5">
                 {wide ? (
                   // Pressing the header brings the panel back.
                   <button
@@ -549,7 +549,7 @@ export function ChatView({
           />
           {sub !== undefined ? (
             // Where the message box would be. Its agent is the one who talks to it.
-            <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
+            <div className="mx-auto flex w-full max-w-[45rem] items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
               <AgentFace agent={agent} className="size-8" still />
               <p className="min-w-0 flex-1">
                 Only {name} talks to its sub-agents. To change what this one is doing, tell {name}.
@@ -568,7 +568,7 @@ export function ChatView({
             </div>
           ) : thread?.peer !== undefined ? (
             // Where the message box would be. The two agents are the ones who write here.
-            <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
+            <div className="mx-auto flex w-full max-w-[45rem] items-center gap-3 px-4 pt-1 pb-5 text-sm text-muted-foreground">
               <AgentFace agent={agent} className="size-8" still />
               <p className="min-w-0 flex-1">
                 Only {name} and {peerName} write here. To change what {name} is doing in it, tell{" "}
@@ -593,7 +593,7 @@ export function ChatView({
               {typing.length === 0 ? null : (
                 <p
                   role="status"
-                  className="mx-auto flex w-full max-w-3xl items-center gap-2 px-6 pb-1.5 text-xs text-muted-foreground"
+                  className="mx-auto flex w-full max-w-[45rem] items-center gap-2 px-6 pb-1.5 text-xs text-muted-foreground"
                 >
                   <FaceStack people={typing} className="size-[1.125rem]" />
                   {names(typing)} {typing.length === 1 ? "is" : "are"} typing…
@@ -658,7 +658,7 @@ export function ChatView({
           presence={
             team === undefined ? undefined : (
               <section aria-label="Here now" className="shrink-0 border-t px-5 pt-4 pb-3.5">
-                <h3 className="flex items-center justify-between pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <h3 className="flex items-center justify-between pb-2 text-[0.8125rem] font-medium text-muted-foreground">
                   Here now
                   {team.role === "member" ? null : (
                     <Button

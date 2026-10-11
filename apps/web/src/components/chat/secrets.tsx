@@ -59,7 +59,7 @@ function SecretForm({
   const { destination } = request
   const one = request.fields.length === 1
   return (
-    <li className="rounded-2xl border bg-surface p-3.5 shadow-sm">
+    <li className="rounded-2xl bg-card p-3.5 shadow-raised">
       <form
         className="flex flex-col gap-3"
         autoComplete="off"
@@ -261,7 +261,7 @@ function SignInCard({
   const busy = signIn.isPending || dismiss.isPending
   const error = signIn.error ?? dismiss.error
   return (
-    <li className="flex flex-col gap-2.5 rounded-2xl border bg-surface p-3.5 shadow-sm">
+    <li className="flex flex-col gap-2.5 rounded-2xl bg-card p-3.5 shadow-raised">
       <div className="flex items-start gap-2.5">
         <PlugsConnectedIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">

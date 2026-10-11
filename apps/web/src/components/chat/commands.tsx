@@ -246,7 +246,7 @@ export function CommandChip({ part }: { part: ToolPart }) {
     </>
   )
   const shape =
-    "flex w-fit max-w-full items-center gap-2 rounded-2xl border bg-surface py-1.5 pr-2.5 pl-2 text-left text-sm"
+    "flex w-fit max-w-full items-center gap-2 rounded-2xl bg-card shadow-raised py-1.5 pr-2.5 pl-2 text-left text-sm"
   if (agentId === undefined || job === undefined || !running || key === undefined) {
     return (
       <div data-testid="command-chip" className={shape}>
@@ -375,7 +375,7 @@ export function RunningCount({ agentId, jobs }: { agentId: string; jobs: JobSumm
           sideOffset={8}
           className="max-h-80 w-[28.75rem] max-w-[90vw] gap-0 overflow-y-auto p-1.5"
         >
-          <h3 className="px-2.5 py-1.5 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="px-2.5 py-1.5 text-[0.8125rem] font-medium text-muted-foreground">
             Running in the background
           </h3>
           <JobRows agentId={agentId} jobs={jobs} onOpen={() => setOpen(false)} />

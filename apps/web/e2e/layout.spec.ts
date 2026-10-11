@@ -171,15 +171,17 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
     await page.mouse.up()
   }
   expect(await width()).toBe(640)
-  // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288.
+  // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288. The page
+  // is a sheet with 8 of the frame showing at its edge, and the document a card 10 in from that.
+  const most = 1280 - 288 - 8 - 320 - 10
   await drag(-600)
-  expect(await width()).toBe(1280 - 288 - 320)
+  expect(await width()).toBe(most)
   // It comes back from where it is, with the pointer over the page it shows.
   await drag(72)
-  expect(await width()).toBe(600)
+  expect(await width()).toBe(most - 72)
   await edge.focus()
   await page.keyboard.press("ArrowLeft")
-  expect(await width()).toBe(616)
+  expect(await width()).toBe(most - 72 + 16)
 
   // It is as wide when a document is next opened, from its card as well, after a reload.
   await page.reload()
@@ -189,7 +191,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
     .first()
     .click()
   await expect(beside.getByRole("heading", { name: "Handout notes", level: 1 })).toBeVisible()
-  expect(await width()).toBe(616)
+  expect(await width()).toBe(most - 72 + 16)
   await edge.dblclick()
   expect(await width()).toBe(640)
 })
@@ -316,8 +318,8 @@ test("under a finger every field is written in at a size a phone does not zoom i
     )
   await signIn(page)
   await expect(composer(page)).toBeVisible()
-  // With a mouse the message box is the size of the chat around it.
-  expect(await smallest(page)).toBe(15)
+  // With a mouse the message box is the size of the chat around it, which is that size too.
+  expect(await smallest(page)).toBe(16)
 
   // Safari on a phone zooms the page in on a field whose text is under 16px, and leaves it so.
   // Held sideways the phone is as wide as this, where the fields would be at their smallest.

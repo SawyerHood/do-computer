@@ -46,7 +46,7 @@ export function ComputerRequestCard({
     onSettled: () => queryClient.invalidateQueries({ queryKey: computersKey }),
   })
   return (
-    <li className="flex flex-col gap-2.5 rounded-2xl border bg-surface p-3.5 shadow-sm">
+    <li className="flex flex-col gap-2.5 rounded-2xl bg-card p-3.5 shadow-raised">
       <div className="flex items-start gap-2.5">
         <DesktopIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">

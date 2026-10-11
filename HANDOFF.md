@@ -2350,6 +2350,44 @@ Since then, newest last:
 put` never has to ask whether to make a Worker. The first person to follow it on a new
       account is its test.
 
+57. **A restyle of every page** (2026-10-11; `apps/web/src/styles.css`, `components/ui`,
+    `components/shell`, `components/chat`, `prototypes/polish`). The owner showed T3 Code and
+    asked whether anything could be taken from it "to make the app look a little more
+    professional", naming "typeography, shadows, and layout". They saw the chat page restyled,
+    asked for "a restyle of all of the pages", and then for it to be merged. They did not answer
+    which typeface or whether their own messages should be pale, so both are mine.
+    - **Three levels over a frame.** The app sits in a tinted frame (`bg-frame`) and the page is
+      a rounded sheet on it. Above that are `shadow-raised` (what is chosen in a list, a card),
+      `shadow-card` (the page) and `shadow-float` (the message box, menus, windows). Each is a
+      hairline with a shadow under it, and in the dark theme each is a step lighter. They are
+      set in `styles.css`; nothing else should draw a shadow of its own.
+    - **Type.** Geist in place of Inter, which the landing page and the guides keep. What the
+      agent says is the page's own text at 16px with no bubble; a person's own messages are a
+      pale tint of the agent's color, and other people's stay grey. Labels are in sentence
+      case. The chat's column is 45rem.
+    - **The shell.** The sidebar has no line beside it and the strip none under it. The open
+      agent, the open file in the library and the open section of a settings window are raised
+      rows. The strip's tabs are one control. The agent's panel, a side chat and a document
+      beside a chat are cards in the sheet, `BESIDE_GAP` in from its edge, and a document is
+      still no wider than leaves the chat `DOC_PANEL_LEAVES`.
+    - **Fields and cards.** Fields are white with a hairline where they were grey fills. Cards
+      are white and raised where they were grey with a border: automations, computers, file
+      cards, and the cards an agent asks through. Sign-in, pairing a computer, the desktop
+      app's sign-in and an invitation are a card on the frame.
+    - **A fault it fixed.** With a file open in the library, the Chat tab was marked as the
+      open page as well as Library, because a link to the agent's own address is taken as open
+      on every page under it. That link is now matched exactly.
+    - **Left alone:** the landing page, the guides, the first run, the Dood pages, the creature
+      and the inside of its wardrobe, and the native app in `apps/mobile`.
+    - **What was looked at.** `prototypes/polish/tour.mjs` takes a picture of every page from a
+      running server, and was run against the build before and the build after: the chat, an
+      empty chat, a side chat, a document beside a chat, the library, automations, every
+      section of both settings windows, the menus, the wardrobe and sign-in, some of them in
+      the dark theme and at a phone's width. **Not seen:** an approval or a secret being asked
+      for, an agent using a screen, sub-agent chips, Slack threads and a team with other people
+      in it, which the echo model does not produce, and Safari. Three measurements in
+      `e2e/layout.spec.ts` changed with the look.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
