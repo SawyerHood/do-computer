@@ -263,7 +263,7 @@ const VIEWS = [
 function TheApp() {
   const [chosen, setChosen] = useState(false)
   const [at, show] = useRound(VIEWS.length, 6_500, chosen)
-  const [view, label, caption] = VIEWS[at]!
+  const [view, label] = VIEWS[at]!
   return (
     <div className="lp-shots" id="the-app">
       <div className="lp-window">
@@ -304,7 +304,14 @@ function TheApp() {
           loading="lazy"
         />
       </div>
-      <p className="lp-caption">{caption}</p>
+      {/* Set one over the other, as the eight are: the page under it does not move with the tabs. */}
+      <div className="lp-caption">
+        {VIEWS.map(([id, , caption], index) => (
+          <p key={id} data-shown={index === at} aria-hidden={index !== at}>
+            {caption}
+          </p>
+        ))}
+      </div>
     </div>
   )
 }
@@ -380,10 +387,16 @@ function Hero({ open }: { open: boolean }) {
               </span>
             </p>
           </div>
-          <p className="lp-about">
-            <b>{character.egg ? "Yours." : `${character.name}, ${character.job.toLowerCase()}.`}</b>{" "}
-            {character.about}
-          </p>
+          {/* All eight are set, one over the other, and only the one chosen shows: the panel is
+              as tall as the longest of them needs, whoever is on it. */}
+          <div className="lp-about">
+            {ROSTER.map((each, index) => (
+              <p key={each.name} data-shown={index === at} aria-hidden={index !== at}>
+                <b>{each.egg ? "Yours." : `${each.name}, ${each.job.toLowerCase()}.`}</b>{" "}
+                {each.about}
+              </p>
+            ))}
+          </div>
           <div className="lp-roster" role="group" aria-label="Who it can be">
             {ROSTER.map((each, index) => (
               <button

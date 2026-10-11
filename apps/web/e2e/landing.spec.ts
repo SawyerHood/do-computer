@@ -26,6 +26,18 @@ test("a stranger is shown the landing page, sent whole, with the way in", async 
   await page.getByRole("button", { name: "Biscuit: The builder" }).click()
   await expect(page.getByText("Biscuit, the builder.")).toBeVisible()
   await expect(page.getByText("The checkout test is failing again.")).toBeVisible()
+  // Whoever is chosen, the panel they stand on keeps its size, so nothing around it moves.
+  const panel = page.locator(".lp-pick")
+  const height = (await panel.boundingBox())?.height
+  for (const who of [
+    "Mochi: The note keeper",
+    "Sable: The house guest",
+    "Yours: Not hatched yet",
+  ]) {
+    await page.getByRole("button", { name: who }).click()
+    expect((await panel.boundingBox())?.height).toBe(height)
+  }
+  await page.getByRole("button", { name: "Biscuit: The builder" }).click()
   await expect(page.getByRole("button", { name: "Biscuit: The builder" })).toHaveAttribute(
     "aria-pressed",
     "true",
