@@ -13,14 +13,12 @@ test("a stranger is shown the landing page, sent whole, with the way in", async 
 }) => {
   // The page is there before any script is: it is what a search engine and a slow phone get.
   const sent = await (await request.get("/")).text()
-  expect(sent).toContain("personal assistant.")
+  expect(sent).toContain("Meet your Dood.")
   expect(sent).toContain("Get started")
 
   await page.goto("/")
   await expect(page).toHaveURL(/\/$/)
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Your open source personal assistant." }),
-  ).toBeVisible()
+  await expect(page.getByRole("heading", { level: 1, name: "Meet your Dood." })).toBeVisible()
   // Eight to choose from, and choosing one makes it the large one.
   await expect(page.locator("button[aria-pressed]")).toHaveCount(8)
   await page.getByRole("button", { name: "Biscuit: The builder" }).click()

@@ -22,7 +22,7 @@ import { cheerMascot } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
 /** Where the source is, and where the desktop app is given out. */
-const REPOSITORY = "https://github.com/SawyerHood/durable-computer"
+const REPOSITORY = "https://github.com/SawyerHood/do-computer"
 const DOWNLOADS = `${REPOSITORY}/releases/latest`
 
 /** What a creature is shown doing: how it holds itself, and the line that says so. */
@@ -50,8 +50,8 @@ type Character = {
 }
 
 /**
- * Who can be chosen. Each stands for something the one agent does, and the last is the egg a
- * new person's own comes in. Eight: two full rows of four, on a phone as on a desk.
+ * Who can be chosen. The page calls an agent a Dood. Each of these stands for something the one
+ * agent does, and the last is the egg a new person's own comes in. Eight: two full rows of four, on a phone as on a desk.
  */
 const ROSTER: readonly Character[] = [
   {
@@ -347,10 +347,10 @@ function Hero({ open }: { open: boolean }) {
               <ArrowUpRightIcon weight="bold" />
             </span>
           </a>
-          <h1>Your open source personal assistant.</h1>
+          <h1>Meet your Dood.</h1>
           <p className="lp-sub">
-            An assistant with a computer of its own. Ask in plain words, and it comes back with the
-            work done.
+            An open source assistant with a computer of its own. Ask in plain words, and it comes
+            back with the work done.
           </p>
           <WayIn open={open}>
             <a className="lp-button" href={DOWNLOADS} target="_blank" rel="noreferrer">
@@ -392,12 +392,12 @@ function Hero({ open }: { open: boolean }) {
           <div className="lp-about">
             {ROSTER.map((each, index) => (
               <p key={each.name} data-shown={index === at} aria-hidden={index !== at}>
-                <b>{each.egg ? "Yours." : `${each.name}, ${each.job.toLowerCase()}.`}</b>{" "}
+                <b>{each.egg ? "Your Dood." : `${each.name}, ${each.job.toLowerCase()}.`}</b>{" "}
                 {each.about}
               </p>
             ))}
           </div>
-          <div className="lp-roster" role="group" aria-label="Who it can be">
+          <div className="lp-roster" role="group" aria-label="Doods to choose from">
             {ROSTER.map((each, index) => (
               <button
                 key={each.name}
@@ -669,14 +669,14 @@ function WhatItDoes() {
           not just the talking.
         </h2>
         <p>
-          Ask in plain words. It works the job out on a real computer, and tells you when it is
-          done.
+          Ask in plain words. Your Dood works the job out on a real computer, and tells you when it
+          is done.
         </p>
       </div>
       <Feature
         tone="teal"
         title="A computer of its own"
-        text="It has a machine in the cloud to do the job on. It runs commands, writes files and clicks through a real browser, and can work on your Mac or PC when you let it in."
+        text="Every Dood has a machine in the cloud to do the job on. It runs commands, writes files and clicks through a real browser, and can work on your Mac or PC when you let it in."
       >
         <ComputerPicture />
       </Feature>
@@ -706,8 +706,8 @@ function WhatItDoes() {
         <article className="lp-tile-card">
           <h3>One for the whole team</h3>
           <p>
-            Share one with your team or keep one to yourself. They hand work to each other while you
-            get on with yours.
+            Share a Dood with your team or keep one to yourself. Doods hand work to each other while
+            you get on with yours.
           </p>
           <div className="lp-tile-picture" aria-hidden>
             <TeamPicture />
@@ -748,7 +748,7 @@ function Places() {
     <section className="lp-band" id="places">
       <div className="lp-head">
         <h2>Right where you need it</h2>
-        <p>The same assistant, wherever you happen to be.</p>
+        <p>The same Dood, wherever you happen to be.</p>
       </div>
       <div className="lp-places">
         <article>
@@ -777,7 +777,9 @@ function Places() {
             <SlackMark />
           </span>
           <h3>Slack</h3>
-          <p>Give it a seat in your workspace. It answers when someone asks for it by name.</p>
+          <p>
+            Give your Dood a seat in your workspace. It answers when someone asks for it by name.
+          </p>
         </article>
       </div>
     </section>
@@ -803,7 +805,7 @@ function OpenSource() {
           <i />
           <i />
           <i />
-          <span>~/durable-computer</span>
+          <span>~/do-computer</span>
         </p>
         <pre>
           <span>$</span> git clone {REPOSITORY}
@@ -818,7 +820,7 @@ function OpenSource() {
       <div className="lp-plain">
         <article>
           <h3>Your data stays yours</h3>
-          <p>One SQLite file for each agent, wherever you put it.</p>
+          <p>One SQLite file for each Dood, wherever you put it.</p>
         </article>
         <article>
           <h3>Any model</h3>
@@ -896,9 +898,9 @@ function Hats() {
           )}
         </div>
         <div>
-          <h3>Also, it wears hats</h3>
+          <h3>Also, Doods wear hats</h3>
           <p>
-            Work with it and it earns treats. Enough treats and a box turns up, with one of 200
+            Work with yours and it earns treats. Enough treats and a box turns up, with one of 200
             things to wear inside.
           </p>
           <div className="lp-cta">
@@ -920,8 +922,12 @@ function Hats() {
 /** What people ask, and the answers. */
 const QUESTIONS = [
   [
-    "How is this different from a chatbot?",
-    "A chatbot answers. Do Computer has a computer of its own: it runs commands, writes files and uses a browser, so what comes back is the finished thing. It keeps working after you close the tab, and tells you when it is done.",
+    "What is a Dood?",
+    "An assistant of your own, with a name, a memory and a computer. You ask it for things in plain words, and it does them.",
+  ],
+  [
+    "How is a Dood different from a chatbot?",
+    "A chatbot answers. A Dood has a computer of its own: it runs commands, writes files and uses a browser, so what comes back is the finished thing. It keeps working after you close the tab, and tells you when it is done.",
   ],
   [
     "Where does it do the work?",
@@ -933,15 +939,15 @@ const QUESTIONS = [
   ],
   [
     "Where is my data?",
-    "Each agent keeps its data in one SQLite file. If you host it yourself, that file is wherever you put it.",
+    "Each Dood keeps its data in one SQLite file. If you host it yourself, that file is wherever you put it.",
   ],
   [
     "Can I run it myself?",
-    "Yes. It is open source under the MIT license. Clone it, add a model key and start it, on a machine of your own or on your own Cloudflare account.",
+    "Yes. Do Computer is open source under the MIT license. Clone it, add a model key and start it, on a machine of your own or on your own Cloudflare account.",
   ],
   [
     "Can a team share one?",
-    "Yes. Share an agent with your team or keep one to yourself. Agents in the same workspace can hand work to each other.",
+    "Yes. Share a Dood with your team or keep one to yourself. Doods in the same workspace can hand work to each other.",
   ],
 ] as const
 
@@ -967,7 +973,7 @@ function Ending({ open }: { open: boolean }) {
     <section className="lp-band">
       <div className="lp-end">
         <img src="/favicon.svg" alt="" />
-        <h2>{open ? "Get yours" : "Nearly here"}</h2>
+        <h2>{open ? "Get your Dood" : "Nearly here"}</h2>
         <p>
           {open
             ? "It comes out of an egg, asks your name, and gets to work."

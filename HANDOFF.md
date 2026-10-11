@@ -1978,6 +1978,11 @@ Since then, newest last:
       styles are one file under `.lp`, which is also what scrolls. The pixel face
       (`@fontsource/jersey-25`) is gone from the app. "Download for Mac" leads to the
       repository's latest release.
+    - **The page calls an agent a Dood** (2026-10-11). The owner, asked for another headline
+      than "Your open source personal assistant.": "I'm thinking of calling the agents Doods is
+      there anything with that for the headline", and to "Meet your Dood.", "Do it!". The name
+      is in the headline, the copy under it, the questions (the first is "What is a Dood?") and
+      the page's description. It is on this page only: the app itself still says "agent".
     - **The pictures of the app** in `apps/web/public/landing` are real: taken from the built
       server with a real model (`prototypes/landing/README.md` says how), and are the light
       ones. They will go out of date as the app changes.
