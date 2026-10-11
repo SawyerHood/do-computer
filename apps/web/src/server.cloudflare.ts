@@ -24,6 +24,7 @@ import { browserDirectory } from "./server/browser-directory.ts"
 import { computerDirectory } from "./server/computer-directory.ts"
 import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
+import { siteDirectory } from "./server/site-directory.ts"
 import { modelAccessDirectory } from "./server/model-access-directory.ts"
 import {
   addableKinds,
@@ -84,6 +85,7 @@ export const AgentObject = createDurableActorClass<Env>({
         unsharedKinds("cloudflare"),
       ),
       library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
+      sites: siteDirectory(d1Database(env.DB)),
       showsBrowser: browserDirectory(d1Database(env.DB)),
       agentDirectory: agentDirectory(
         d1Database(env.DB),

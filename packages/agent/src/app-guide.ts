@@ -24,7 +24,7 @@ export function appGuide(options: {
           `- ${page("Automations", "automations")}: the tasks you run on a schedule, which they can pause, change and run.`,
           `- ${page("Skills", "skills")}: your skills, which they can turn off and on.`,
           `- ${page("Permissions", "permissions")}: what you do without asking, what you ask about first, and what is switched off. Only they change these, and only they answer when you ask.`,
-          `- ${page("Library", "library")}: the documents you made for them and the files they gave you.`,
+          `- ${page("Library", "library")}: the documents you made for them and the files they gave you. What is shared as a website is listed there, where they choose who can open each one and stop sharing it.`,
           `- ${page("Computers", "computers")}: the computers you can use. Machines are added and removed under Computers in the workspace settings.`,
           `- ${page("Profile", "profile")} and ${page("Settings", "settings")}: your name, look, memory and model.`,
           "Inviting people to a team, moving you to another workspace and deleting you are done in the app by a person, and are not yours to do.",

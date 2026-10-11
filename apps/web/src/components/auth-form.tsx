@@ -43,7 +43,11 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     // is signed in.
     queryClient.removeQueries({ queryKey: meKey })
     void queryClient.invalidateQueries()
-    await navigate({ href: destination() })
+    const next = destination()
+    // A shared site is not one of this app's pages: the server answers its address, so the
+    // browser is sent there and the app does not look for a page of its own.
+    if (next.startsWith("/s/")) return location.assign(next)
+    await navigate({ href: next })
   }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {

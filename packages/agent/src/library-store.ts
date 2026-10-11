@@ -884,6 +884,37 @@ export class LibraryStore implements LibraryBackend {
    */
   async view(token: string, path: string, request: Request): Promise<Response | undefined> {
     if (!(await this.#mayView(token))) return undefined
+    return this.#page(path, request, {
+      sandbox: "sandbox allow-scripts allow-popups allow-forms allow-modals",
+      opens: true,
+    })
+  }
+
+  /**
+   * Serve what a site shares: the page at `root`, or what is at `rest` in the folder `root`.
+   * Nothing outside `root` is served, whatever is asked for. Whether the asker may open the site
+   * is for whoever calls this to have decided. Sandboxed as a viewed file is, and since a site
+   * is somewhere people are sent, a link it opens in a new tab is an ordinary page there.
+   */
+  async site(root: string, rest: string, request: Request): Promise<Response | undefined> {
+    const alone = (await this.list()).some((file) => file.path === root)
+    if (alone && rest !== "") return undefined
+    return this.#page(alone || rest === "" ? root : `${root}/${rest}`, request, {
+      sandbox:
+        "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads",
+      opens: false,
+    })
+  }
+
+  /**
+   * The file at `path` as what it is, or the front page of the folder there. `opens` is whether
+   * whoever shows the page can open a document that is not one in a viewer of its own.
+   */
+  async #page(
+    path: string,
+    request: Request,
+    options: { sandbox: string; opens: boolean },
+  ): Promise<Response | undefined> {
     const files = await this.list()
     const file =
       files.find((entry) => entry.path === path) ??
@@ -906,7 +937,7 @@ export class LibraryStore implements LibraryBackend {
     const headers: Record<string, string> = {
       "content-type": isText(contentType) ? `${contentType}; charset=utf-8` : contentType,
       "x-content-type-options": "nosniff",
-      "content-security-policy": "sandbox allow-scripts allow-popups allow-forms allow-modals",
+      "content-security-policy": options.sandbox,
       // The address is the permission. It must not travel to whatever the page loads or links to.
       "referrer-policy": "no-referrer",
       "cache-control": "private, no-cache",
@@ -916,7 +947,11 @@ export class LibraryStore implements LibraryBackend {
       return new Response(null, { status: 304, headers })
     }
     // A link from a page to a document that is not a page: the app opens it in its own viewer.
-    if (request.headers.get("sec-fetch-dest") === "iframe" && contentType === "text/markdown") {
+    if (
+      options.opens &&
+      request.headers.get("sec-fetch-dest") === "iframe" &&
+      contentType === "text/markdown"
+    ) {
       const message = JSON.stringify({ type: "dc-library-open", path: file.path })
       return new Response(
         `<!doctype html><meta charset="utf-8"><script>parent.postMessage(${message.replaceAll("<", "\\u003c")},"*")</script>`,

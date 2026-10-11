@@ -55,6 +55,21 @@ STYLE=$(get "/api/agents/$AGENT/library" | field "['files']" | python3 -c "impor
 check "the user's edit is saved as a new revision" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/octet-stream" -X PUT "$BASE/api/agents/$AGENT/library/$STYLE?rev=0" -d 'h1{color:crimson}' | field "['rev']")" "1"
 tool '/tool bash {"command":"cat ~/library/site/style.css"}'
 wait_for "not d['busy'] and 'color:crimson' in $TEXTS" "the agent reads what the user changed"
+# Sharing: a visual the agent draws is a page of the library, and a page it shares as a site
+# opens for its workspace alone until someone makes it public.
+tool '/tool visual {"title":"Smoke chart","html":"<p>chart</p>"}'
+wait_for "not d['busy'] and 'Shown to the person' in $TEXTS" "the agent drew a visual into the chat"
+check "the visual is kept in the library" "$(get "/api/agents/$AGENT/library" | field "['files']" | python3 -c "import ast,sys; print(any(f['path']=='visuals/smoke-chart.html' for f in ast.literal_eval(sys.stdin.read())))")" "True"
+tool '/tool share {"action":"publish","path":"site","title":"Smoke site"}'
+wait_for "not d['busy'] and 'Shared site as' in $TEXTS" "the agent shared the page as a site"
+SITE=$(get "/api/agents/$AGENT/sites" | field "['sites'][0]['id']")
+check "a site is closed to someone who is not signed in" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$BASE/s/$SITE")" "401"
+FRAME=$(get "/s/$SITE" | python3 -c 'import re,sys; print(re.search(r"<iframe src=\"([^\"]+)\"", sys.stdin.read()).group(1))')
+check "its workspace is given the page, and what the page links to" "$(curl -sS -m 20 "$BASE${FRAME}style.css")" "h1{color:crimson}"
+check "a site's page is served sandboxed" "$(curl -sS -m 20 -o /dev/null -D - "$BASE$FRAME" | grep -ic '^content-security-policy: sandbox')" "1"
+check "a site's files need its key" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$BASE/s/$SITE/~0-00/")" "404"
+check "someone in the workspace makes it public" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PATCH "$BASE/api/agents/$AGENT/sites/$SITE" -d '{"public":true}' | field "['site']['public']")" "True"
+check "a public site opens with no sign-in" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$BASE/s/$SITE")" "200"
 SOON=$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=3)).isoformat())')
 tool "/tool schedule {\"action\":\"create\",\"schedule\":\"$SOON\",\"prompt\":\"Report in\",\"title\":\"Smoke schedule\"}"
 wait_for "any(p.get('kind')=='schedule' for m in d['messages'] for p in m['parts'])" "scheduled task ran by itself and reported back"
@@ -103,7 +118,14 @@ else
 fi
 # History: what was said can be found, and a chat's past can be read back.
 check "search finds what was said" "$(get "/api/agents/$AGENT/search?q=smoke%20test%20ping" | field "['hits'][0]['chatId']")" "$CHAT"
-check "a chat's earlier messages can be read" "$(get "/api/agents/$AGENT/chats/$CHAT/history" | field "['messages'][0]['parts'][0]['text']")" "smoke test ping"
+# A page of it at a time, back to where it began.
+PAGE=$(get "/api/agents/$AGENT/chats/$CHAT/history")
+for _ in $(seq 1 20); do
+  BEFORE=$(echo "$PAGE" | field "['before']")
+  [ "$BEFORE" = "None" ] && break
+  PAGE=$(get "/api/agents/$AGENT/chats/$CHAT/history?before=$BEFORE")
+done
+check "a chat's earlier messages can be read" "$(echo "$PAGE" | field "['messages'][0]['parts'][0]['text']")" "smoke test ping"
 check "usage is counted" "$(get "/api/agents/$AGENT/usage" | field "['chats'] >= 1")" "True"
 # Approvals: a tool set to ask first does not run until the user says so.
 patch() { curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PATCH "$BASE$1" -d "$2"; }

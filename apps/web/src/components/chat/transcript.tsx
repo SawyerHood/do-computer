@@ -6,6 +6,9 @@ import {
   foldFailures,
   isAgentMessage,
   isSentFile,
+  isSiteShare,
+  isVisual,
+  sharedSite,
   chatUses,
   isJobStart,
   isUse,
@@ -52,6 +55,8 @@ import { Markdown } from "./markdown.tsx"
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
 import { SentFile } from "./sent-file.tsx"
+import { SiteCard } from "./site-card.tsx"
+import { VisualFrame } from "./visual.tsx"
 import { SlackMark } from "./slack-threads.tsx"
 import { CommandChip, CommandWord } from "./commands.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
@@ -59,6 +64,8 @@ import { UsesContext, UseView } from "./uses.tsx"
 
 function AssistantPart({ part }: { part: MessagePart }) {
   if (isSentFile(part)) return <SentFile part={part} />
+  if (isVisual(part)) return <VisualFrame part={part} />
+  if (isSiteShare(part)) return <SiteCard part={part} />
   if (isSubagentStart(part)) return <SubagentChip part={part} />
   if (isJobStart(part)) return <CommandChip part={part} />
   if (isUse(part)) return <UseView part={part} />
@@ -417,9 +424,22 @@ function MessageView({
   return (
     <Message>
       <MessageContent>
-        {message.parts.filter(isShownPart).map((part, index) => (
-          <AssistantPart key={part.type === "tool" ? part.toolCallId : index} part={part} />
-        ))}
+        {message.parts
+          .filter(isShownPart)
+          // A site shared and then opened up in one answer is one card, which says how it stands.
+          .filter(
+            (part, index, shown) =>
+              !isSiteShare(part) ||
+              !shown
+                .slice(0, index)
+                .some(
+                  (earlier) =>
+                    isSiteShare(earlier) && sharedSite(earlier).id === sharedSite(part).id,
+                ),
+          )
+          .map((part, index) => (
+            <AssistantPart key={part.type === "tool" ? part.toolCallId : index} part={part} />
+          ))}
         {message.status === "error" ? (
           <ReplyError error={message.error} failures={failures} onRetry={onRetry} />
         ) : null}

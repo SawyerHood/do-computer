@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@durable-computer/protocol"
+import { type LibraryFile, VISUALS_FOLDER, visualThemeFragment } from "@durable-computer/protocol"
 import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
@@ -14,6 +14,7 @@ import {
   GlobeIcon,
   LockIcon,
   PencilSimpleIcon,
+  ShareNetworkIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -53,7 +54,10 @@ import { client } from "@/lib/client"
 import { libraryKey, libraryVersionsKey } from "@/lib/collections"
 import { formatBytes, formatFull, formatWhen, kindOf } from "@/lib/library"
 import { queryClient } from "@/lib/query"
+import { siteOfPage, useSites } from "@/lib/sites"
+import { useAppColors } from "@/lib/visual-theme"
 import { cn } from "@/lib/utils"
+import { SharePopover } from "@/components/sites/share"
 import { DocMarkdown } from "./doc-markdown.tsx"
 import { type SaveState, useDocument } from "./use-document.ts"
 
@@ -258,6 +262,9 @@ function PageView({
   onOpen: (path: string) => void
 }) {
   const url = client.agent(agentId).libraryViewUrl(view, file.path)
+  // A visual is in the app's colors wherever the app shows it. Any other page is its own.
+  const colors = useAppColors()
+  const themed = file.path.startsWith(`${VISUALS_FOLDER}/`)
   const frame = useRef<HTMLIFrameElement>(null)
   const [reloads, setReloads] = useState(0)
   useEffect(() => {
@@ -304,9 +311,9 @@ function PageView({
         </Button>
       </div>
       <iframe
-        key={`${stamp}:${reloads}`}
+        key={`${stamp}:${reloads}:${themed ? colors.appearance : ""}`}
         ref={frame}
-        src={url}
+        src={themed ? `${url}${visualThemeFragment(colors)}` : url}
         title={file.name}
         // No `allow-same-origin`: the page must not be the app, though the app serves it.
         sandbox="allow-scripts allow-popups allow-forms allow-modals"
@@ -447,6 +454,8 @@ export function Viewer({
   const [saveState, setSaveState] = useState<SaveState>("clean")
   const [renaming, setRenaming] = useState<string>()
   const paths = useMemo(() => new Set(files.map((entry) => entry.path)), [files])
+  // The site this page is shared as, if it is: alone, or as the front page of its folder.
+  const site = siteOfPage(useSites(agentId), file.path)
   // A page shows what is beside it, so it is as new as the newest file in its top folder.
   const stamp = useMemo(() => {
     const top = file.path.includes("/") ? `${file.path.split("/")[0]}/` : ""
@@ -584,6 +593,27 @@ export function Viewer({
               ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
             ]}
           />
+        ) : null}
+        {kind === "page" ? (
+          <SharePopover agentId={agentId} site={site} path={file.path}>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={site === undefined ? "Share" : "Shared as a website"}
+              title={site === undefined ? "Share as a website" : "Shared as a website"}
+            >
+              {site === undefined ? (
+                <ShareNetworkIcon />
+              ) : site.public ? (
+                <GlobeIcon />
+              ) : (
+                <LockIcon />
+              )}
+              <span className={cn(compact && "hidden")}>
+                {site === undefined ? "Share" : "Shared"}
+              </span>
+            </Button>
+          </SharePopover>
         ) : null}
         <History agentId={agentId} agentName={agentName} file={file} />
         <DropdownMenu>

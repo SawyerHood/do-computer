@@ -7,16 +7,20 @@ import {
   isJobStart,
   isSentFile,
   isShownPart,
+  isSiteShare,
   isVisibleMessage,
+  isVisual,
   jobOutcome,
   type LibraryFile,
   type MessagePart,
+  sharedSite,
   type ToolPart,
 } from "@durable-computer/protocol"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -64,6 +68,34 @@ function FileCard({ agentId, file }: { agentId: string; file: LibraryFile }) {
 }
 
 /**
+ * A site the agent shared, as it was when it shared it: what it is called and its address, which
+ * opens in the browser. Who can open it is changed on the web.
+ */
+function SharedSite({ part, agentId }: { part: ToolPart; agentId: string }) {
+  const theme = useTheme()
+  const session = useSession()
+  const site = sharedSite(part)
+  const url = session.client.agent(agentId).siteUrl(site.id)
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open the site ${site.title}`}
+      onPress={() => void Linking.openURL(url)}
+      style={[styles.file, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    >
+      <View style={{ flexShrink: 1 }}>
+        <Text weight="500" numberOfLines={1}>
+          {site.title}
+        </Text>
+        <Text tone="muted" size={12} numberOfLines={1}>
+          {url.replace(/^https?:\/\//, "")}
+        </Text>
+      </View>
+    </Pressable>
+  )
+}
+
+/**
  * A command the agent left running in the background. How it is getting on is read on the web;
  * word of its end comes into the chat here too.
  */
@@ -83,10 +115,12 @@ function LeftRunning({ part }: { part: ToolPart }) {
 
 function Part({ part, agentId }: { part: MessagePart; agentId: string }) {
   const theme = useTheme()
-  // The one tool call that is shown: a file the agent delivered, as the file.
-  if (isSentFile(part)) {
+  // A file the agent delivered is shown as the file. So is a visual it drew, which is a page
+  // of the library: drawing it in the chat is the web's.
+  if (isSentFile(part) || isVisual(part)) {
     return <FileCard agentId={agentId} file={part.details as unknown as LibraryFile} />
   }
+  if (isSiteShare(part)) return <SharedSite part={part} agentId={agentId} />
   if (isJobStart(part)) return <LeftRunning part={part} />
   switch (part.type) {
     case "text":

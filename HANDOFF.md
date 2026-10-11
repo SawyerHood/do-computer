@@ -2035,6 +2035,65 @@ Since then, newest last:
       creature.
     - **Tested:** `apps/web/e2e/app-icon.spec.ts`, where the app is stood in for by what it
       gives a page, and `apps/desktop/test/page-bridge.test.ts`.
+50. **Visuals in a chat, and pages of the library shared as websites** (2026-10-11;
+    `packages/protocol/src/visual.ts` and `sites.ts`, `packages/agent/src/visuals.ts` and
+    `sites.ts`, `apps/web/src/server/sites.ts` and `site-directory.ts`,
+    `apps/web/src/components/chat/visual.tsx` and `site-card.tsx`,
+    `apps/web/src/components/sites`). The owner asked for agents to be able to "create inline
+    visualizations (look at t3 code for how they can render code in the chat)" and "to be able
+    to share websites like claude artifacts. They are scoped so only people in the workspace
+    can see them for now and you can set to make them public". `prototypes/visuals-and-sites`
+    is the mock-up, which the owner was shown and had not answered when this was built.
+    - **A visual** is what T3 Code calls an HTML render, done the way it does it. The agent has
+      a `visual` tool that takes a title and one self-contained HTML page. The page is kept in
+      the library as `visuals/<title>.html`, and the chat shows it in a frame where the tool
+      call is: no border, on the chat's own background, as wide as the answer. It needs no
+      computer. The tool's result tells the agent that the person sees the page and not to
+      describe it.
+    - **What is put in the page** (`prepareVisual`), at the start of its head: the app's colors
+      as CSS variables, light and dark, and a short script. The script takes the theme from
+      the address's fragment and drops the fragment, takes later changes by message, says how
+      tall the page is whenever that changes, and has links to other sites opened by whoever
+      shows the page. The messages are the MCP Apps ones (`ui/notifications/size-changed`,
+      `ui/open-link`, `ui/notifications/host-context-changed`), as in T3 Code. A page shown
+      by itself, in the library or as a site, has margins and a measure; in a chat it has
+      neither. The frame is the library's `/d/<agent>/<key>/...` address (item 13), so it is
+      sandboxed the same way and its script runs as nobody.
+    - **A site** is a page of the library, or a folder with an `index.html`, given an address:
+      `/s/<id>`, sixteen random characters. It is a row in `dc_sites` in the app database, by
+      workspace. It shows what is in the library there as it is now; nothing is copied. A
+      page named by itself is shared alone, and nothing beside it is served; naming a
+      folder's `index.html` shares the folder.
+    - **Who may open one** is decided once, for the address itself: anyone if the site is
+      public, otherwise someone signed in who is in its workspace. Someone signed out is
+      shown a page that says so and sends them to sign in and back. The address answers
+      with nothing but a frame the size of the window. What the frame loads is
+      `/s/<id>/~<key>/<path>`, served by the workspace's library from the site's page or
+      folder (`LibraryStore.site`), with `Content-Security-Policy: sandbox` and no
+      `allow-same-origin`. A site's page is sent nobody's session, which is why its files
+      need the key: it is signed with a secret of the site's own, is the same for six hours
+      and works for up to twelve. Making a public site the workspace's again changes the
+      secret, so the keys already given out stop working at once.
+    - **The agent shares with a `share` tool**: `publish`, `public`, `private`, `stop`, `list`.
+      Publishing is allowed without asking. `public` is an ability of its own that asks a
+      person first (item 20's approvals), like adding a connector.
+    - **In the app:** a site the agent shared is a card in the chat, with its address, who can
+      open it now, Copy link, Open, and a menu to choose who can open it or stop. A visual
+      has two buttons when pointed at: open beside the chat, and share. A page open in the
+      library or beside a chat has a Share button, and the library's front page lists what
+      is shared. In a personal workspace "the workspace" reads "Only you".
+    - **Elsewhere:** the phone app shows a visual as a file to open and a site as a link.
+      Slack is sent a visual as the file.
+    - **Mine, not the owner's:** that a visual is a file in the library and not something
+      kept with the chat; that a site follows the library and is not a copy; that the agent
+      must ask before making one public, and can share with the workspace unasked; that any
+      member of a workspace can change or stop any of its sites; the frame around a site
+      with no bar of the app's on it; `noindex` on every site; 512 KB as the most a visual
+      can be and 200 sites to a workspace.
+    - **Tested:** `packages/protocol/test/visual.test.ts`, `packages/agent/test/sharing.test.ts`,
+      `apps/web/src/server/sites.test.ts`, and in a browser `apps/web/e2e/visuals.spec.ts` and
+      `sites.spec.ts`, which check that a site's script cannot read cookies, that its requests
+      to the app go without the session, and that nothing outside the shared folder is served.
 
 ## 6. What the owner has said they want
 
@@ -2192,6 +2251,12 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   formats have no viewer; there are no empty folders, since a folder is only the paths of the
   files in it; a file's history shows who and when but not what changed; and a document changes
   on screen when the agent's tool call ends, not as it types, which the mock-up pretended.
+- **Sites and visuals have rough edges:** a site is not told to the other people looking at a
+  workspace when it changes, so their lists catch up when they next ask; a site whose files
+  were moved or deleted stays listed and shows nothing; a visual keeps the agent's color it
+  was first shown in until it is loaded again; there is no check of how a visual looks before
+  it is shown, which T3 Code has (`html_preview`, a headless browser on the host); nothing was
+  run on a deployed Worker, in Safari, or with a real model writing the page.
 - **An activity entry shows a tick** when the agent answered, even if a step inside it failed.
 - **Thinking and full tool output** are not in the transcript by design. Tool output is in the
   panel's entries, on wide screens only, and so only for work big enough to have an entry;

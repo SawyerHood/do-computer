@@ -11,6 +11,7 @@ import { KindIcon, LibraryTree } from "@/components/library/tree"
 import { Loads } from "@/components/loads"
 import { DocPlaceholder, Placeholder, TreePlaceholder } from "@/components/placeholders"
 import { type ViewMode, Viewer } from "@/components/library/viewer"
+import { SharedSites } from "@/components/sites/shared-sites"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { sidebarSlotAtom } from "@/lib/atoms"
@@ -18,6 +19,7 @@ import { client } from "@/lib/client"
 import { agentQuery, libraryKey, libraryQuery, libraryTextKey } from "@/lib/collections"
 import { dirOf, formatWhen, kindOf } from "@/lib/library"
 import { queryClient } from "@/lib/query"
+import { sitesQuery } from "@/lib/sites"
 import { cn } from "@/lib/utils"
 import { useListedAgent } from "@/lib/workspaces"
 
@@ -43,6 +45,7 @@ export const Route = createFileRoute("/_app/a/$agentId/library")({
   // Pointing at the tab runs this too.
   loader: ({ params }) => {
     void queryClient.prefetchQuery(libraryQuery(params.agentId))
+    void queryClient.prefetchQuery(sitesQuery(params.agentId))
   },
   component: LibraryPage,
 })
@@ -333,6 +336,7 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
                   “Recently deleted”.
                 </p>
               ) : null}
+              <SharedSites agentId={agentId} paths={paths} />
               {files.length === 0 ? (
                 <p className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
                   <UploadSimpleIcon className="size-5" />

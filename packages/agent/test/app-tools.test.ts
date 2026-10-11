@@ -274,6 +274,7 @@ describe("abilities that ask first", () => {
     expect(initial.rules).toEqual({
       "tool:machines": "ask",
       "tool:connectors_change": "ask",
+      "tool:share_public": "ask",
       "tool:settings_change": "ask",
       "tool:agents_create": "ask",
     })

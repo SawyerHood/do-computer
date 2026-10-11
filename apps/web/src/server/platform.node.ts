@@ -26,6 +26,7 @@ import { browserDirectory } from "./browser-directory.ts"
 import { computerDirectory } from "./computer-directory.ts"
 import { servedDaemon } from "./daemon-version.ts"
 import { libraryDirectory } from "./library-directory.ts"
+import { siteDirectory } from "./site-directory.ts"
 import { modelAccessDirectory } from "./model-access-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
@@ -118,6 +119,7 @@ function create(): NodePlatform {
           unsharedKinds("node"),
         ),
         library: libraryDirectory(app, libraries),
+        sites: siteDirectory(app),
         showsBrowser: browserDirectory(app),
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
