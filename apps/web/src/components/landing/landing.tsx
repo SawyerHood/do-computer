@@ -1,19 +1,18 @@
 import type { MascotState, MascotVariant } from "@durable-computer/mascot"
 import {
+  AVATAR_COLORS,
   type Outfit,
-  RARITIES,
   rarityOf,
   type WearItem,
   wearItem,
 } from "@durable-computer/protocol"
 import {
-  ArrowRightIcon,
+  ArrowUpRightIcon,
   BrowserIcon,
   DesktopIcon,
   DeviceMobileIcon,
   GithubLogoIcon,
   NotePencilIcon,
-  SlackLogoIcon,
 } from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
@@ -22,8 +21,9 @@ import { type BoxHandle, BoxStage } from "@/components/creature/box-window"
 import { cheerMascot } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
 
-/** Where the source is. */
+/** Where the source is, and where the desktop app is given out. */
 const REPOSITORY = "https://github.com/SawyerHood/durable-computer"
+const DOWNLOADS = `${REPOSITORY}/releases/latest`
 
 /** What a creature is shown doing: how it holds itself, and the line that says so. */
 type Step = readonly [
@@ -42,6 +42,8 @@ type Character = {
   /** The job it stands for, and that job in a line. */
   job: string
   about: string
+  /** What it was asked, which the steps are its answer to. */
+  ask?: string
   steps: readonly Step[]
   /** Not out of its egg: the one a visitor would get. */
   egg?: boolean
@@ -58,6 +60,7 @@ const ROSTER: readonly Character[] = [
     color: "tide",
     job: "The planner",
     about: "Trips, weeks, and what is for dinner.",
+    ask: "Three days in Lisbon in March.",
     steps: [
       ["working", "search", "Searching", "flights to Lisbon"],
       ["working", "file", "Writing", "trip-plan.md"],
@@ -70,10 +73,11 @@ const ROSTER: readonly Character[] = [
     wear: { hat: "chef" },
     job: "The builder",
     about: "Writes the code, runs the tests, fixes what broke.",
+    ask: "The checkout test is failing again.",
     steps: [
       ["working", "file", "Writing", "src/checkout.ts"],
       ["working", "command", "Running", "pnpm test"],
-      ["done", undefined, "Done · 14 passed"],
+      ["done", undefined, "Done. 14 passed."],
     ],
   },
   {
@@ -83,6 +87,7 @@ const ROSTER: readonly Character[] = [
     wear: { glasses: "goggles" },
     job: "The researcher",
     about: "Reads the internet so you do not have to.",
+    ask: "Which e-ink tablet should I get?",
     steps: [
       ["working", "search", "Searching", "best e-ink tablets"],
       ["thinking", undefined, "Comparing nine of them"],
@@ -95,10 +100,11 @@ const ROSTER: readonly Character[] = [
     wear: { hat: "nightcap" },
     job: "The night shift",
     about: "Works to a schedule while you sleep.",
+    ask: "Every weekday at 8, brief me on the news.",
     steps: [
-      ["asleep", undefined, "07:59 · asleep"],
-      ["working", "search", "08:00 · reading the news"],
-      ["done", undefined, "08:02 · brief is in your inbox"],
+      ["asleep", undefined, "07:59, asleep"],
+      ["working", "search", "08:00, reading the news"],
+      ["done", undefined, "08:02, the brief is in your inbox"],
     ],
   },
   {
@@ -107,10 +113,11 @@ const ROSTER: readonly Character[] = [
     wear: { hat: "headphones" },
     job: "The teammate",
     about: "Lives in Slack. Answers when it is asked for.",
+    ask: "@Juniper is the pricing page live?",
     steps: [
-      ["listening", undefined, "#launch · Maya is typing"],
-      ["speaking", undefined, "#launch · replying"],
-      ["idle", undefined, "#launch"],
+      ["listening", undefined, "#launch, Maya is typing"],
+      ["speaking", undefined, "#launch, replying"],
+      ["idle", undefined, "It is. Live since 9:12."],
     ],
   },
   {
@@ -119,6 +126,7 @@ const ROSTER: readonly Character[] = [
     wear: { hat: "bunny", face: "blush" },
     job: "The note keeper",
     about: "Remembers what you said, and where you put it.",
+    ask: "I am vegetarian, and I like a window seat.",
     steps: [
       ["working", "memory", "Noting", "vegetarian"],
       ["working", "memory", "Noting", "likes a window seat"],
@@ -131,6 +139,7 @@ const ROSTER: readonly Character[] = [
     wear: { hat: "cowboy", neck: "bandana" },
     job: "The house guest",
     about: "Works on your own computer, when you let it in.",
+    ask: "Update everything on my Mac.",
     steps: [
       ["waiting", undefined, "Asking before", "brew upgrade"],
       ["working", "command", "Running", "brew upgrade"],
@@ -148,7 +157,7 @@ const ROSTER: readonly Character[] = [
   },
 ]
 
-/** How long the one on the pedestal does each thing, and how long each has the pedestal. */
+/** How long the large one does each thing, and how long each is the large one. */
 const STEP_MS = 2_600
 const TURN_MS = 7_800
 
@@ -161,20 +170,6 @@ function useRound(count: number, ms: number, stopped = false): [number, (at: num
     return () => clearInterval(timer)
   }, [count, ms, stopped])
   return [at % count, setAt]
-}
-
-/** What a creature is doing, as the app says it beside one. */
-function Line({ step, className }: { step: Step; className?: string }) {
-  const quiet = step[0] === "idle" || step[0] === "asleep"
-  return (
-    <p className={cn("lp-line", className)} data-quiet={quiet}>
-      <i />
-      <span>
-        {step[2]}
-        {step[3] === undefined ? null : <code> {step[3]}</code>}
-      </span>
-    </p>
-  )
 }
 
 /** One of them, by the name it has on this page. */
@@ -226,8 +221,99 @@ function HaveAccess() {
   )
 }
 
-/** The top of the page: a console's character select. */
-function Select({ open }: { open: boolean }) {
+/** The way in, or while nobody new can sign up, that it is coming and the one small way left. */
+function WayIn({ open, children }: { open: boolean; children?: React.ReactNode }) {
+  return open ? (
+    <div className="lp-cta">
+      <Link to="/welcome" className="lp-button lp-dark">
+        Get started
+      </Link>
+      {children}
+    </div>
+  ) : (
+    <div className="lp-cta lp-shut">
+      <p className="lp-soon">
+        <i />
+        Coming soon
+      </p>
+      <HaveAccess />
+    </div>
+  )
+}
+
+/** The pictures of the app, and what each is a picture of. */
+const VIEWS = [
+  [
+    "chat",
+    "Chat",
+    "A real conversation: a trip planned, a document written, a reminder set for Mondays.",
+  ],
+  [
+    "library",
+    "Library",
+    "What it writes is yours: documents and pages you can read, edit and share.",
+  ],
+  ["automations", "Automations", "Everything it does on a schedule, in one list you can pause."],
+] as const
+
+/**
+ * The app itself, in a window whose tabs change the picture. On a phone the window would be too
+ * small to read: its tabs stay, and a phone is the picture.
+ */
+function TheApp() {
+  const [chosen, setChosen] = useState(false)
+  const [at, show] = useRound(VIEWS.length, 6_500, chosen)
+  const [view, label, caption] = VIEWS[at]!
+  return (
+    <div className="lp-shots" id="the-app">
+      <div className="lp-window">
+        <div className="lp-window-bar">
+          <i />
+          <i />
+          <i />
+          <div role="tablist" aria-label="Pictures of the app">
+            {VIEWS.map(([id, name], index) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={index === at}
+                onClick={() => {
+                  setChosen(true)
+                  show(index)
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+        <img
+          src={`/landing/${view}.jpg`}
+          alt={`Do Computer: ${label}`}
+          width={2040}
+          height={1350}
+        />
+      </div>
+      <div className="lp-phone">
+        <img
+          src={`/landing/phone-${view}.jpg`}
+          alt={`Do Computer on a phone: ${label}`}
+          width={780}
+          height={1560}
+          loading="lazy"
+        />
+      </div>
+      <p className="lp-caption">{caption}</p>
+    </div>
+  )
+}
+
+/**
+ * The top of the page: what it is and the way in, beside whoever it is just now. One creature is
+ * large, and is each of the eight in turn until somebody chooses; the eight are under it.
+ */
+function Hero({ open }: { open: boolean }) {
   const [chosen, setChosen] = useState(false)
   const [at, pick] = useRound(ROSTER.length, TURN_MS, chosen)
   const character = ROSTER[at]!
@@ -236,60 +322,69 @@ function Select({ open }: { open: boolean }) {
     setChosen(true)
     pick(index)
   }
-  // biome-ignore lint/correctness/useExhaustiveDependencies: whoever takes the pedestal starts from the top, with a hop
+  // biome-ignore lint/correctness/useExhaustiveDependencies: whoever becomes the large one starts from the top, with a hop
   useEffect(() => {
     restart(0)
     cheerMascot("landing:stage")
   }, [at])
   const step = character.steps[doing] ?? character.steps[0]!
+  const tint = AVATAR_COLORS.find((color) => color.id === character.color)?.hex
 
   return (
-    <section className="lp-select">
-      <header className="lp-top">
-        <span className="lp-brand">
-          <img src="/favicon.svg" alt="" />
-          Do Computer
-        </span>
-        <span className="grow" />
-        <GitHubLink className="lp-gh">
-          <span>GitHub</span>
-        </GitHubLink>
-        {open ? <Link to="/login">Sign in</Link> : null}
-      </header>
-
-      <div className="lp-select-main">
-        <div className="lp-stage">
-          <span className="lp-beam" />
-          <AgentAvatar
-            avatar={{ color: character.color, seed: character.seed ?? character.name }}
-            seed="landing:stage"
-            outfit={character.wear ?? {}}
-            mood={{ state: step[0], variant: step[1] }}
-            hatched={character.egg !== true}
-            pettable
-            className="lp-stage-creature"
-          />
-          <p className="lp-plate">
-            <b>{character.egg ? "???" : character.name}</b>
-            <span>{character.job}</span>
+    <section className="lp-hero">
+      <div className="lp-top">
+        <div className="lp-pitch">
+          <a className="lp-flag" href="#open-source">
+            <b>Open source</b> under the MIT license
+            <span>
+              <ArrowUpRightIcon weight="bold" />
+            </span>
+          </a>
+          <h1>Your open source personal assistant.</h1>
+          <p className="lp-sub">
+            An assistant with a computer of its own. Ask in plain words, and it comes back with the
+            work done.
           </p>
-          <Line step={step} />
+          <WayIn open={open}>
+            <a className="lp-button" href={DOWNLOADS} target="_blank" rel="noreferrer">
+              Download for Mac
+            </a>
+          </WayIn>
         </div>
 
-        <div className="lp-side">
-          <p className="lp-eyebrow">Open source · MIT</p>
-          <h1>
-            Your open source
-            <br />
-            personal assistant.
-          </h1>
+        <div className="lp-pick" style={{ "--tint": tint } as React.CSSProperties}>
+          <div className="lp-stage">
+            {character.ask === undefined ? null : (
+              <p key={at} className="lp-bubble lp-you lp-ask">
+                {character.ask}
+              </p>
+            )}
+            <AgentAvatar
+              avatar={{ color: character.color, seed: character.seed ?? character.name }}
+              seed="landing:stage"
+              outfit={character.wear ?? {}}
+              mood={{ state: step[0], variant: step[1] }}
+              hatched={character.egg !== true}
+              pettable
+              className="lp-stage-creature"
+            />
+            <p
+              key={`${at}:${doing}`}
+              className="lp-doing"
+              data-quiet={step[0] === "idle" || step[0] === "asleep"}
+            >
+              <i />
+              <span>
+                {step[2]}
+                {step[3] === undefined ? null : ` ${step[3]}`}
+              </span>
+            </p>
+          </div>
           <p className="lp-about">
-            <b>{character.job}.</b> {character.about}
+            <b>{character.egg ? "Yours." : `${character.name}, ${character.job.toLowerCase()}.`}</b>{" "}
+            {character.about}
           </p>
-          <p className="lp-choose">
-            <i>▶</i>Choose yours
-          </p>
-          <div className="lp-roster">
+          <div className="lp-roster" role="group" aria-label="Who it can be">
             {ROSTER.map((each, index) => (
               <button
                 key={each.name}
@@ -310,111 +405,13 @@ function Select({ open }: { open: boolean }) {
                   quiet
                   className="lp-tile"
                 />
-                <span>{each.egg ? "???" : each.name}</span>
+                <span>{each.name}</span>
               </button>
             ))}
           </div>
-          {open ? (
-            <div className="lp-cta">
-              <Link to="/welcome" className="lp-button lp-start">
-                <i>▶</i>Press start
-              </Link>
-              <p>Any of them can do all of it. Yours comes in an egg.</p>
-            </div>
-          ) : (
-            <div className="lp-cta lp-shut">
-              <p className="lp-soon">Coming soon</p>
-              <HaveAccess />
-            </div>
-          )}
         </div>
       </div>
-
-      <a className="lp-more" href="#the-app">
-        ▼ What is this?
-      </a>
-    </section>
-  )
-}
-
-/** The pictures of the app, and what each is a picture of. */
-const VIEWS = [
-  [
-    "chat",
-    "Chat",
-    "A real conversation: a trip planned, a document written, a reminder set for Mondays.",
-  ],
-  [
-    "library",
-    "Library",
-    "What it writes is yours: documents and pages you can read, edit and share.",
-  ],
-  ["automations", "Automations", "Everything it does on a schedule, in one list you can pause."],
-] as const
-
-/**
- * The app itself, in a window whose tabs change the picture, with a phone beside it. On a phone
- * the window would be too small to read: its tabs stay, and the phone is the picture.
- */
-function TheApp() {
-  const [chosen, setChosen] = useState(false)
-  const [at, show] = useRound(VIEWS.length, 6_500, chosen)
-  const [view, label, caption] = VIEWS[at]!
-  return (
-    <section className="lp-band" id="the-app">
-      <div className="lp-wrap">
-        <div className="lp-head">
-          <p className="lp-eyebrow">The app</p>
-          <h2>Here is Pip, at work.</h2>
-          <p>
-            You talk to it in a chat. What it makes lands in a library. What it does on its own is a
-            list you can pause.
-          </p>
-        </div>
-        <div className="lp-shots">
-          <div className="lp-window">
-            <div className="lp-window-bar">
-              <i />
-              <i />
-              <i />
-              <div role="tablist" aria-label="Pictures of the app">
-                {VIEWS.map(([id, name], index) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={index === at}
-                    onClick={() => {
-                      setChosen(true)
-                      show(index)
-                    }}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-              <span>do.computer</span>
-            </div>
-            <img
-              src={`/landing/${view}.jpg`}
-              alt={`Do Computer: ${label}`}
-              width={2040}
-              height={1350}
-              loading="lazy"
-            />
-          </div>
-          <div className="lp-phone">
-            <img
-              src={`/landing/phone-${view}.jpg`}
-              alt={`Do Computer on a phone: ${label}`}
-              width={780}
-              height={1560}
-              loading="lazy"
-            />
-          </div>
-          <p className="lp-caption">{caption}</p>
-        </div>
-      </div>
+      <TheApp />
     </section>
   )
 }
@@ -430,8 +427,8 @@ const ERRAND = [
   ["field", "Searching for e-ink tablets"],
   ["first", "Reading the reviews"],
   ["third", "Comparing nine of them"],
-  ["shell", "Writing tablets.md"],
-  ["shell", "Done. It is in your library."],
+  ["rest", "Writing tablets.md"],
+  ["rest", "Done. It is in your library."],
 ] as const
 
 /** Its own computer: a browser it clicks through, and the commands it runs under it. */
@@ -440,30 +437,26 @@ function ComputerPicture() {
   const [where, says] = ERRAND[at]!
   const done = at === ERRAND.length - 1
   return (
-    <div className="lp-vis" style={{ "--tone": "#17727c" } as React.CSSProperties} aria-hidden>
-      <div className="lp-ui lp-computer">
-        <p className="lp-ui-bar">
-          <b>Computer</b>
-          <span className="lp-tag" data-quiet={done}>
-            <i />
-            {done ? "Done" : "Pip is working"}
-          </span>
+    <div className="lp-ui lp-computer">
+      <p className="lp-ui-bar">
+        <b>Computer</b>
+        <span className="lp-tag" data-quiet={done}>
+          <i />
+          {done ? "Done" : "Pip is working"}
+        </span>
+      </p>
+      <p className="lp-ui-says">{says}</p>
+      <div className="lp-browser">
+        <p className="lp-browser-bar">
+          <i />
+          <i />
+          <i />
+          <span>search</span>
         </p>
-        <p className="lp-ui-says">{says}</p>
-        <div className="lp-browser">
-          <p className="lp-browser-bar">
-            <i />
-            <i />
-            <i />
-            <span>search</span>
-          </p>
-          <div className="lp-browser-page">
-            <p className="lp-field">{reached(0) ? "best e-ink tablets" : ""}</p>
-            {[
-              "The nine best e-ink tablets",
-              "Paper tablets, compared",
-              "Which one to write on",
-            ].map((title, row) => (
+        <div className="lp-browser-page">
+          <p className="lp-field">best e-ink tablets</p>
+          {["The nine best e-ink tablets", "Paper tablets, compared", "Which one to write on"].map(
+            (title, row) => (
               <p
                 key={title}
                 className="lp-result"
@@ -473,104 +466,98 @@ function ComputerPicture() {
                 <i />
                 <i />
               </p>
-            ))}
-          </div>
-          <span className="lp-pointer" data-at={where}>
-            <svg viewBox="0 0 16 16" role="presentation">
-              <path d="M2 1.5 13.5 7 8.6 8.6 7 13.5Z" />
-            </svg>
-            <b>Pip</b>
-          </span>
+            ),
+          )}
         </div>
-        <pre className="lp-shell">
-          <span data-shown={reached(2)}>
-            <i>$</i> python compare.py reviews/
-          </span>
-          {"\n"}
-          <span data-shown={reached(3)}>{"  "}wrote library/tablets.md</span>
-        </pre>
+        <span className="lp-pointer" data-at={where}>
+          <svg viewBox="0 0 16 16" role="presentation">
+            <path d="M2 1.5 13.5 7 8.6 8.6 7 13.5Z" />
+          </svg>
+          <b>Pip</b>
+        </span>
       </div>
+      <pre className="lp-shell">
+        <span data-shown={reached(2)}>
+          <i>$</i> python compare.py reviews/
+        </span>
+        {"\n"}
+        <span data-shown={reached(3)}>{"  "}wrote library/tablets.md</span>
+      </pre>
     </div>
   )
 }
 
-/** What the phone in a pocket shows while it works: the time, and what it sends when it is done. */
-const AWAY = [
-  ["6:12", "Running the deploy"],
-  ["6:19", "Checking the page"],
-  ["6:24", undefined],
-  ["6:24", undefined],
-] as const
-
+/** What the phone in a pocket shows while it works: the time, and what it is sent when it is done. */
 function AwayPicture() {
-  const [at] = usePlay(AWAY.length, 2_800)
-  const [time, doing] = AWAY[at]!
+  const [at, reached] = usePlay(4, 2_800)
   return (
-    <div className="lp-vis" style={{ "--tone": "#5b3d8f" } as React.CSSProperties} aria-hidden>
-      <div className="lp-lock">
-        <p className="lp-lock-date">Friday, March 6</p>
-        <p className="lp-lock-time">{time}</p>
-        <div className="lp-notes">
-          <p className="lp-note" data-shown={doing === undefined}>
-            <img src="/favicon.svg" alt="" />
-            <span>
-              <b>
-                Pip <em>now</em>
-              </b>
-              The deploy is live. All 14 tests pass.
-            </span>
-          </p>
-          <p className="lp-note lp-note-old">
-            <img src="/favicon.svg" alt="" />
-            <span>
-              <b>
-                Pip <em>12m ago</em>
-              </b>
-              On it. I will tell you when it is out.
-            </span>
-          </p>
-        </div>
-        <p className="lp-lock-doing" data-quiet={doing === undefined}>
-          <i />
-          {doing ?? "Done"}
+    <div className="lp-lock">
+      <p className="lp-lock-date">Friday, March 6</p>
+      <p className="lp-lock-time">{["6:12", "6:19", "6:24", "6:24"][at]}</p>
+      <div className="lp-notes">
+        <p className="lp-note" data-shown={reached(2)}>
+          <img src="/favicon.svg" alt="" />
+          <span>
+            <b>
+              Pip <em>now</em>
+            </b>
+            The deploy is live. All 14 tests pass.
+          </span>
+        </p>
+        <p className="lp-note">
+          <img src="/favicon.svg" alt="" />
+          <span>
+            <b>
+              Pip <em>12m ago</em>
+            </b>
+            On it. I will tell you when it is out.
+          </span>
         </p>
       </div>
     </div>
   )
 }
 
-/** One of the two things the rest stands on, said beside a picture of it. */
-function Feature({
-  eyebrow,
-  title,
-  text,
-  ticks,
-  flip = false,
-  children,
-}: {
-  eyebrow: string
-  title: string
-  text: string
-  ticks?: readonly string[]
-  flip?: boolean
-  children: React.ReactNode
-}) {
+/** What the first job on the list says as its time comes round. */
+const MORNING = [
+  ["Weekdays at 08:00", "In 1 min", "waiting"],
+  ["Reading the news", "08:00", "running"],
+  ["Writing brief.md", "08:01", "running"],
+  ["In your inbox", "Done", "done"],
+] as const
+
+function PlanPicture() {
+  const [at] = usePlay(MORNING.length, 2_600)
+  const [says, when, state] = MORNING[at]!
   return (
-    <article className={cn("lp-feature", flip && "lp-flip")}>
-      <div>
-        <p className="lp-eyebrow">{eyebrow}</p>
-        <h3>{title}</h3>
-        <p className="lp-lead">{text}</p>
-        {ticks === undefined ? null : (
-          <ul className="lp-ticks">
-            {ticks.map((tick) => (
-              <li key={tick}>{tick}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-      {children}
-    </article>
+    <div className="lp-ui lp-plan">
+      <p className="lp-ui-label">Running</p>
+      <p className="lp-row" data-state={state}>
+        <i />
+        <span>
+          <b>Morning brief</b>
+          <em>{says}</em>
+        </span>
+        <time>{when}</time>
+      </p>
+      <p className="lp-ui-label">Scheduled</p>
+      <p className="lp-row">
+        <i />
+        <span>
+          <b>Week plan</b>
+          <em>Mondays at 09:00</em>
+        </span>
+        <time>In 6 days</time>
+      </p>
+      <p className="lp-row">
+        <i />
+        <span>
+          <b>Invoices</b>
+          <em>The 1st at 10:00</em>
+        </span>
+        <time>In 3 weeks</time>
+      </p>
+    </div>
   )
 }
 
@@ -582,83 +569,13 @@ function MemoryPicture() {
       <p className="lp-bubble lp-you">Dana signs off on copy. Invoices go out on the 1st.</p>
       <p className="lp-saved" data-shown={reached(1)}>
         <NotePencilIcon weight="bold" />
-        Saved to memory
+        Updated memory
       </p>
       <p className="lp-when" data-shown={reached(2)}>
         Three weeks later
       </p>
       <p className="lp-bubble" data-shown={reached(2)}>
         Copy is with Dana for sign-off, and the invoices are queued for the 1st.
-      </p>
-    </div>
-  )
-}
-
-/** The clock, and what the first job on the list says as it comes round. */
-const MORNING = [
-  ["07:59", "In 1 min", "waiting"],
-  ["08:00", "Reading the news", "running"],
-  ["08:01", "Writing brief.md", "running"],
-  ["08:02", "In your inbox", "done"],
-] as const
-
-function SchedulePicture() {
-  const [at] = usePlay(MORNING.length, 2_600)
-  const [clock, says, state] = MORNING[at]!
-  return (
-    <div className="lp-plan">
-      <p className="lp-plan-clock">
-        <b>{clock}</b>
-        <span>Tuesday</span>
-      </p>
-      <ul>
-        <li data-state={state}>
-          <i />
-          <b>Morning brief</b>
-          <span>Weekdays · 08:00</span>
-          <em>{says}</em>
-        </li>
-        <li>
-          <i />
-          <b>Week plan</b>
-          <span>Mondays · 09:00</span>
-          <em>In 6 days</em>
-        </li>
-        <li>
-          <i />
-          <b>Invoices</b>
-          <span>The 1st · 10:00</span>
-          <em>In 3 weeks</em>
-        </li>
-      </ul>
-    </div>
-  )
-}
-
-/** The places it can be talked to, and something said to it in each. */
-const PLACES = [
-  [BrowserIcon, "Web", "do.computer", "Plan my week around the offsite."],
-  [DesktopIcon, "Desktop", "Do Computer", "Tidy up my downloads folder."],
-  [DeviceMobileIcon, "Phone", "On the train", "Is the brief ready yet?"],
-  [SlackLogoIcon, "Slack", "#launch", "@Pip is the pricing page live?"],
-] as const
-
-function PlacesPicture() {
-  const [at] = usePlay(PLACES.length, 2_400)
-  const [, , where, said] = PLACES[at]!
-  return (
-    <div className="lp-places">
-      <p>
-        {PLACES.map(([Icon, name], place) => (
-          <span key={name} data-lit={place === at}>
-            <Icon weight={place === at ? "fill" : "regular"} />
-            {name}
-          </span>
-        ))}
-      </p>
-      <p className="lp-said" key={at}>
-        <b>{where}</b>
-        {said}
       </p>
     </div>
   )
@@ -673,9 +590,9 @@ const RELAY = [
 ] as const
 
 const TEAM = [
-  ["Pip", "Planner", "#3f7f9c"],
-  ["Scout", "Research", "#6f8f4e"],
-  ["Ledger", "Numbers", "#c9952c"],
+  ["Pip", "#3f7f9c"],
+  ["Scout", "#5f8a4e"],
+  ["Ledger", "#c9952c"],
 ] as const
 
 function TeamPicture() {
@@ -683,20 +600,16 @@ function TeamPicture() {
   const [who, says] = RELAY[at]!
   return (
     <div className="lp-relay">
-      <p className="lp-relay-row" data-at={who}>
-        {TEAM.map(([name, does, color], place) => (
-          <span
-            key={name}
-            data-lit={place === who}
-            style={{ "--tone": color } as React.CSSProperties}
-          >
-            <i />
-            <b>{name}</b>
-            {does}
+      <p className="lp-team">
+        {TEAM.map(([name, color], place) => (
+          <span key={name} data-lit={place === who}>
+            <i style={{ background: color }} />
+            {name}
           </span>
         ))}
       </p>
-      <p className="lp-relay-says" key={at}>
+      <p className="lp-bubble lp-you">Is the pricing page right for March?</p>
+      <p className="lp-handoff">
         <i />
         <i />
         <i />
@@ -706,85 +619,153 @@ function TeamPicture() {
   )
 }
 
-/** The rest of what it does, each with a small picture of the app doing it. */
-const CARDS = [
-  [
-    "It remembers",
-    "It keeps notes on you and the work, so Tuesday starts where Monday ended.",
-    "#6b3a5c",
-    MemoryPicture,
-  ],
-  [
-    "Up before you are",
-    "Give it a schedule. The morning brief is written before the coffee is.",
-    "#7a5526",
-    SchedulePicture,
-  ],
-  [
-    "Wherever you are",
-    "In a browser, as an app on your desktop, on your phone, and in Slack when someone asks for it by name.",
-    "#1f5a46",
-    PlacesPicture,
-  ],
-  [
-    "One for the whole team",
-    "Share one with your team or keep one to yourself. They hand work to each other while you get on with yours.",
-    "#24507a",
-    TeamPicture,
-  ],
-] as const
+/** One thing it does, said beside a picture of it on a panel of its own color. */
+function Feature({
+  tone,
+  title,
+  text,
+  flip = false,
+  children,
+}: {
+  tone: "teal" | "plum" | "honey"
+  title: string
+  text: string
+  flip?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <article className={cn("lp-feature", flip && "lp-flip")}>
+      <div className="lp-panel" data-tone={tone} aria-hidden>
+        {children}
+      </div>
+      <div>
+        <h3>{title}</h3>
+        <p>{text}</p>
+      </div>
+    </article>
+  )
+}
 
 function WhatItDoes() {
   return (
-    <section className="lp-band">
-      <div className="lp-wrap">
-        <div className="lp-head">
-          <p className="lp-eyebrow">What it does</p>
-          <h2>
-            It does the work,
-            <br />
-            not just the talking.
-          </h2>
+    <section className="lp-band" id="does">
+      <div className="lp-head">
+        <h2>
+          It does the work,
+          <br />
+          not just the talking.
+        </h2>
+        <p>
+          Ask in plain words. It works the job out on a real computer, and tells you when it is
+          done.
+        </p>
+      </div>
+      <Feature
+        tone="teal"
+        title="A computer of its own"
+        text="It has a machine in the cloud to do the job on. It runs commands, writes files and clicks through a real browser, and can work on your Mac or PC when you let it in."
+      >
+        <ComputerPicture />
+      </Feature>
+      <Feature
+        flip
+        tone="plum"
+        title="Still at it when you leave"
+        text="Close the laptop. It keeps going, and your phone buzzes when the job is done."
+      >
+        <AwayPicture />
+      </Feature>
+      <Feature
+        tone="honey"
+        title="Up before you are"
+        text="Give it a schedule. What it does on its own is a list you can read and pause."
+      >
+        <PlanPicture />
+      </Feature>
+      <div className="lp-pair">
+        <article className="lp-tile-card">
+          <h3>It remembers</h3>
+          <p>It keeps notes on you and the work, so Tuesday starts where Monday ended.</p>
+          <div className="lp-tile-picture" aria-hidden>
+            <MemoryPicture />
+          </div>
+        </article>
+        <article className="lp-tile-card">
+          <h3>One for the whole team</h3>
           <p>
-            Ask in plain words. It works the job out on a real computer, and tells you when it is
-            done.
+            Share one with your team or keep one to yourself. They hand work to each other while you
+            get on with yours.
           </p>
-        </div>
-        <Feature
-          eyebrow="Its own machine"
-          title="A computer of its own"
-          text="It has a machine in the cloud to do the job on, so the answer is the finished thing and not a list of steps for you."
-          ticks={[
-            "Runs commands and writes files",
-            "Clicks through a real browser",
-            "Works on your Mac or PC too, when you let it in",
-          ]}
-        >
-          <ComputerPicture />
-        </Feature>
-        <Feature
-          flip
-          eyebrow="In the background"
-          title="Still at it when you leave"
-          text="Close the laptop. It keeps going, and your phone buzzes when the job is done."
-        >
-          <AwayPicture />
-        </Feature>
-        <div className="lp-cards">
-          {CARDS.map(([title, text, tone, Picture]) => (
-            <article key={title} className="lp-card">
-              <h3>{title}</h3>
-              <p>{text}</p>
-              <div
-                className="lp-screen"
-                style={{ "--tone": tone } as React.CSSProperties}
-                aria-hidden
-              >
-                <Picture />
-              </div>
-            </article>
-          ))}
-        </div>
+          <div className="lp-tile-picture" aria-hidden>
+            <TeamPicture />
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+/** Slack's own mark, in its own four colors. */
+function SlackMark() {
+  return (
+    <svg viewBox="0 0 122.8 122.8" role="presentation">
+      <path
+        fill="#e01e5a"
+        d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z"
+      />
+      <path
+        fill="#36c5f0"
+        d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z"
+      />
+      <path
+        fill="#2eb67d"
+        d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z"
+      />
+      <path
+        fill="#ecb22e"
+        d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z"
+      />
+    </svg>
+  )
+}
+
+/** The places it can be talked to. */
+function Places() {
+  return (
+    <section className="lp-band" id="places">
+      <div className="lp-head">
+        <h2>Right where you need it</h2>
+        <p>The same assistant, wherever you happen to be.</p>
+      </div>
+      <div className="lp-places">
+        <article>
+          <span className="lp-mark">
+            <BrowserIcon />
+          </span>
+          <h3>Web</h3>
+          <p>Open it in any browser. Nothing to install.</p>
+        </article>
+        <article>
+          <span className="lp-mark">
+            <DesktopIcon />
+          </span>
+          <h3>Desktop</h3>
+          <p>An app for Mac, Windows and Linux, which can also let it work on that computer.</p>
+        </article>
+        <article>
+          <span className="lp-mark">
+            <DeviceMobileIcon />
+          </span>
+          <h3>Phone</h3>
+          <p>Add it to your home screen. It buzzes when the job is done.</p>
+        </article>
+        <article>
+          <span className="lp-mark">
+            <SlackMark />
+          </span>
+          <h3>Slack</h3>
+          <p>Give it a seat in your workspace. It answers when someone asks for it by name.</p>
+        </article>
       </div>
     </section>
   )
@@ -793,50 +774,47 @@ function WhatItDoes() {
 /** That it is open source, said with the three lines that run it. */
 function OpenSource() {
   return (
-    <section className="lp-band">
-      <div className="lp-wrap lp-split">
-        <div>
-          <p className="lp-eyebrow">Open source</p>
-          <h2>Yours, all the way down.</h2>
-          <p className="lp-lead">
-            Do Computer is open source under the MIT license. Read every line, change what you like,
-            and run it yourself: on a box in the cupboard or on your own Cloudflare account, with
-            your own model keys.
-          </p>
-          <ul className="lp-ticks">
-            <li>
-              <b>Your data stays yours.</b> One SQLite file for each agent, wherever you put it.
-            </li>
-            <li>
-              <b>Any model.</b> Through OpenRouter, or a provider you are signed in to.
-            </li>
-            <li>
-              <b>Or skip all that.</b> We run it for you, right here.
-            </li>
-          </ul>
-          <div className="lp-cta">
-            <GitHubLink className="lp-button lp-ghost">Star on GitHub</GitHubLink>
-          </div>
+    <section className="lp-band lp-oss" id="open-source">
+      <div>
+        <h2>Yours, all the way down</h2>
+        <p className="lp-lead">
+          Do Computer is open source under the MIT license. Read every line, change what you like,
+          and run it yourself, with your own model keys.
+        </p>
+        <div className="lp-cta">
+          <GitHubLink className="lp-button">Star on GitHub</GitHubLink>
         </div>
-        <div className="lp-terminal">
-          <p className="lp-terminal-bar">
-            <i />
-            <i />
-            <i />
-            <span>~/durable-computer</span>
-          </p>
-          <pre>
-            <span>$</span> git clone {REPOSITORY}
-            {"\n"}
-            <span>$</span> pnpm install && pnpm build
-            {"\n"}
-            <span>$</span> OPENROUTER_API_KEY=sk-or-… pnpm start
-            {"\n\n"}
-            <em>{"  "}Listening on http://127.0.0.1:3000</em>
-            {"\n"}
-            <em>{"  "}Open it, and say hello to your agent.</em> <b />
-          </pre>
-        </div>
+      </div>
+      <div className="lp-terminal">
+        <p className="lp-terminal-bar">
+          <i />
+          <i />
+          <i />
+          <span>~/durable-computer</span>
+        </p>
+        <pre>
+          <span>$</span> git clone {REPOSITORY}
+          {"\n"}
+          <span>$</span> pnpm install && pnpm build
+          {"\n"}
+          <span>$</span> OPENROUTER_API_KEY=sk-or-… pnpm start
+          {"\n\n"}
+          <em>{"  "}Listening on http://127.0.0.1:3000</em>
+        </pre>
+      </div>
+      <div className="lp-plain">
+        <article>
+          <h3>Your data stays yours</h3>
+          <p>One SQLite file for each agent, wherever you put it.</p>
+        </article>
+        <article>
+          <h3>Any model</h3>
+          <p>Through OpenRouter, or a provider you are signed in to.</p>
+        </article>
+        <article>
+          <h3>Or skip all that</h3>
+          <p>We run it for you, right here.</p>
+        </article>
       </div>
     </section>
   )
@@ -884,47 +862,19 @@ function Hats() {
   const rarity = found === undefined ? undefined : rarityOf(found.rarity)
   return (
     <section className="lp-band">
-      <div className="lp-wrap lp-split lp-hats">
-        <div>
-          <p className="lp-eyebrow">Also, hats</p>
-          <h2>Feed it. Dress it up.</h2>
-          <p className="lp-lead">
-            Work with it and it earns treats. Enough treats and a box turns up, with one of 200
-            things to wear inside. Some are much rarer than others.
-          </p>
-          <p className="lp-rarities">
-            {RARITIES.map((each) => (
-              <span key={each.id} style={{ "--tier": each.color } as React.CSSProperties}>
-                <i />
-                {each.label}
-              </span>
-            ))}
-          </p>
-          <div className="lp-cta">
-            <button
-              type="button"
-              className="lp-button lp-ghost"
-              disabled={opening || item === undefined}
-              onClick={() => setOpening(true)}
-            >
-              {opened === 0 ? "Open a box" : "Open another"}
-            </button>
-          </div>
-        </div>
-        <div className="lp-pad">
-          <div className="lp-pad-stage">
-            {opening ? (
-              <BoxStage
-                key={opened}
-                agent={{ id: "landing:box", avatar: { color: "honey", seed: "Mochi" } }}
-                handle={box}
-                onPop={() => undefined}
-                onShown={() => setFound(item)}
-              />
-            ) : (
-              <Creature name="Mochi" color="honey" wear={outfit} className="size-full" />
-            )}
-          </div>
+      <div className="lp-hats">
+        <div className="lp-hats-stage">
+          {opening ? (
+            <BoxStage
+              key={opened}
+              agent={{ id: "landing:box", avatar: { color: "honey", seed: "Mochi" } }}
+              handle={box}
+              onPop={() => undefined}
+              onShown={() => setFound(item)}
+            />
+          ) : (
+            <Creature name="Mochi" color="honey" wear={outfit} className="size-full" />
+          )}
           {found === undefined || rarity === undefined ? null : (
             <p className="lp-found" style={{ "--tier": rarity.color } as React.CSSProperties}>
               <b>{rarity.label}</b>
@@ -932,55 +882,86 @@ function Hats() {
             </p>
           )}
         </div>
+        <div>
+          <h3>Also, it wears hats</h3>
+          <p>
+            Work with it and it earns treats. Enough treats and a box turns up, with one of 200
+            things to wear inside.
+          </p>
+          <div className="lp-cta">
+            <button
+              type="button"
+              className="lp-button"
+              disabled={opening || item === undefined}
+              onClick={() => setOpening(true)}
+            >
+              {opened === 0 ? "Open a box" : "Open another"}
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   )
 }
 
-/** The egg at the end: pressed three times while the door is open, it hatches. Shut, it only rocks. */
-function Ending({ open }: { open: boolean }) {
-  const [presses, setPresses] = useState(0)
-  const [out, setOut] = useState(false)
+/** What people ask, and the answers. */
+const QUESTIONS = [
+  [
+    "How is this different from a chatbot?",
+    "A chatbot answers. Do Computer has a computer of its own: it runs commands, writes files and uses a browser, so what comes back is the finished thing. It keeps working after you close the tab, and tells you when it is done.",
+  ],
+  [
+    "Where does it do the work?",
+    "On its own machine in the cloud. If you install the desktop app and let it in, it can also work on your Mac or PC.",
+  ],
+  [
+    "Which models does it use?",
+    "Any model through OpenRouter, or a provider you are signed in to.",
+  ],
+  [
+    "Where is my data?",
+    "Each agent keeps its data in one SQLite file. If you host it yourself, that file is wherever you put it.",
+  ],
+  [
+    "Can I run it myself?",
+    "Yes. It is open source under the MIT license. Clone it, add a model key and start it, on a machine of your own or on your own Cloudflare account.",
+  ],
+  [
+    "Can a team share one?",
+    "Yes. Share an agent with your team or keep one to yourself. Agents in the same workspace can hand work to each other.",
+  ],
+] as const
+
+function Questions() {
   return (
-    <section className="lp-end">
-      <button
-        type="button"
-        aria-label={out ? "The one that hatched" : "The egg"}
-        onClick={() => setPresses((count) => count + 1)}
-      >
-        <AgentAvatar
-          avatar={{ color: "tide", seed: "Fig" }}
-          seed="landing:egg"
-          hatched={out}
-          hatching={open && presses >= 3 && !out}
-          onHatched={() => setOut(true)}
-          pettable
-          className="lp-egg"
-        />
-      </button>
-      <h2>{out ? "There you are." : "Yours has not hatched yet."}</h2>
-      {open ? (
-        <>
-          <p className="lp-lead">It comes down out of the sky, asks your name, and gets to work.</p>
-          <div className="lp-cta">
-            <Link to="/welcome" className="lp-button lp-start">
-              Hatch yours
-              <ArrowRightIcon weight="bold" />
-            </Link>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="lp-lead">Soon. The eggs are nearly ready.</p>
-          <div className="lp-cta lp-shut">
-            <p className="lp-pill">
-              <i />
-              Coming soon
-            </p>
-            <HaveAccess />
-          </div>
-        </>
-      )}
+    <section className="lp-band lp-faq" id="faq">
+      <h2>Questions</h2>
+      <div>
+        {QUESTIONS.map(([question, answer]) => (
+          <details key={question}>
+            <summary>{question}</summary>
+            <p>{answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** The last word, and the way in once more. */
+function Ending({ open }: { open: boolean }) {
+  return (
+    <section className="lp-band">
+      <div className="lp-end">
+        <img src="/favicon.svg" alt="" />
+        <h2>{open ? "Get yours" : "Nearly here"}</h2>
+        <p>
+          {open
+            ? "It comes out of an egg, asks your name, and gets to work."
+            : "Do Computer is not open to everyone yet. It will be soon."}
+        </p>
+        <WayIn open={open} />
+      </div>
     </section>
   )
 }
@@ -999,13 +980,38 @@ export function Landing({ open }: { open: boolean }) {
       // scrolls. Here it is this that scrolls, so the window is told.
       onScroll={() => window.dispatchEvent(new Event("scroll"))}
     >
-      <Select open={open} />
-      <TheApp />
+      <header className="lp-nav">
+        <span className="lp-brand">
+          <img src="/favicon.svg" alt="" />
+          Do Computer
+        </span>
+        <nav>
+          <a href="#does">What it does</a>
+          <a href="#places">Where it is</a>
+          <a href="#open-source">Open source</a>
+          <a href="#faq">Questions</a>
+        </nav>
+        <span className="grow" />
+        <Link to="/login">Sign in</Link>
+        {open ? (
+          <Link to="/welcome" className="lp-button lp-dark lp-small">
+            Get started
+          </Link>
+        ) : (
+          <span className="lp-soon lp-small">
+            <i />
+            Coming soon
+          </span>
+        )}
+      </header>
+      <Hero open={open} />
       <WhatItDoes />
+      <Places />
       <OpenSource />
       <Hats />
+      <Questions />
       <Ending open={open} />
-      <footer className="lp-wrap lp-foot">
+      <footer className="lp-foot">
         <span className="lp-brand">
           <img src="/favicon.svg" alt="" />
           Do Computer
@@ -1014,6 +1020,9 @@ export function Landing({ open }: { open: boolean }) {
         <span className="grow" />
         <a href={REPOSITORY} target="_blank" rel="noreferrer">
           GitHub
+        </a>
+        <a href={DOWNLOADS} target="_blank" rel="noreferrer">
+          Download
         </a>
         <Link to="/login">Sign in</Link>
       </footer>

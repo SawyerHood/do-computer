@@ -14,17 +14,18 @@ test("a stranger is shown the landing page, sent whole, with the way in", async 
   // The page is there before any script is: it is what a search engine and a slow phone get.
   const sent = await (await request.get("/")).text()
   expect(sent).toContain("personal assistant.")
-  expect(sent).toContain("Press start")
+  expect(sent).toContain("Get started")
 
   await page.goto("/")
   await expect(page).toHaveURL(/\/$/)
   await expect(
     page.getByRole("heading", { level: 1, name: "Your open source personal assistant." }),
   ).toBeVisible()
-  // Eight to choose from, and choosing one puts it on the pedestal.
+  // Eight to choose from, and choosing one makes it the large one.
   await expect(page.locator("button[aria-pressed]")).toHaveCount(8)
   await page.getByRole("button", { name: "Biscuit: The builder" }).click()
-  await expect(page.getByText("The builder.")).toBeVisible()
+  await expect(page.getByText("Biscuit, the builder.")).toBeVisible()
+  await expect(page.getByText("The checkout test is failing again.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Biscuit: The builder" })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -32,13 +33,13 @@ test("a stranger is shown the landing page, sent whole, with the way in", async 
   // The app is shown, a page of it at a time.
   await page.getByRole("tab", { name: "Library" }).click()
   await expect(page.getByRole("img", { name: "Do Computer: Library" })).toBeVisible()
-  // What it does is shown as pictures of the app: below the eight and the one on the pedestal
-  // there are two creatures, the one that is dressed and the egg.
+  // What it does is shown as pictures of the app: below the eight and the large one there is
+  // one creature more, the one that is dressed.
   await expect(page.getByRole("heading", { name: "A computer of its own" })).toBeVisible()
-  await expect(page.locator(".lp-select [data-mood]")).toHaveCount(9)
-  await expect(page.locator(".lp [data-mood]")).toHaveCount(11)
+  await expect(page.locator(".lp-pick [data-mood]")).toHaveCount(9)
+  await expect(page.locator(".lp [data-mood]")).toHaveCount(10)
 
-  await page.getByRole("link", { name: "Press start" }).click()
+  await page.getByRole("link", { name: "Get started" }).first().click()
   await expect(page).toHaveURL(/\/welcome$/)
 })
 
@@ -56,13 +57,12 @@ test("once nobody new can sign up, it says coming soon, with one small way in", 
 }) => {
   const sent = await (await request.get("/")).text()
   expect(sent).toContain("Coming soon")
-  expect(sent).not.toContain("Press start")
+  expect(sent).not.toContain("Get started")
 
   await page.goto("/")
   // Said as large as the button it stands in for, not as the small print beside one.
-  await expect(page.getByText("Coming soon").first()).toHaveCSS("font-size", "40px")
-  await expect(page.getByRole("link", { name: "Press start" })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Hatch yours" })).toHaveCount(0)
+  await expect(page.locator(".lp-pitch").getByText("Coming soon")).toHaveCSS("height", "46px")
+  await expect(page.getByRole("link", { name: "Get started" })).toHaveCount(0)
   await expect(page.locator('a[href="/welcome"], a[href="/signup"]')).toHaveCount(0)
 
   // The one way in is for whoever has an account, and the page it leads to offers no other.

@@ -4,8 +4,11 @@ The owner, after the landing page's lower half was redrawn with pictures of the 
 (2026-10-11): "can you also prototype a more professional version of this site in the style of the
 references i linked", the references being x.ai/bot and chatgpt.com/features/dots. This is that:
 the whole page again, light, in plain type, with no pixel face and no console. It is not part of
-the app, nothing here is imported by it, and nothing in it signs anyone in. Nothing has been
-chosen yet.
+the app, nothing here is imported by it, and nothing in it signs anyone in.
+
+The owner chose it ("i love it ... then build for real") and it was built the same day
+(HANDOFF.md, section 5, item 48). Where the app differs: the hats band opens the app's own box
+rather than only changing the hat, and on a phone the app is shown in a phone, as before.
 
 ```sh
 node prototypes/landing-pro/build.mjs     # writes index.html here; open it from the file system
