@@ -2232,6 +2232,67 @@ Since then, newest last:
       to Composio's sign-in page, and the connector was left waiting with its rule on Ask
       first. Nothing was run on Workers.
 
+54. **Doods in a post, and a waiting list** (2026-10-11; `apps/web/src/server/doods.ts`,
+    `apps/web/src/server/waitlist.ts`, `apps/web/src/components/dood`,
+    `packages/protocol/src/dood.ts`, `prototypes/dood-embed`). The owner linked a game that is
+    played inside a post on X and asked "Can we make it so you can hatch a Dood and share it
+    on twitter embedded?", with a button to sign up and claim it. To the mock-up: "I love
+    this!", treats given to a claimed one should "actually get presents", "a loot box present
+    with 3 choices in the flow", and "randomly reroll your guy if you don't like him". Then,
+    for claiming while the deployment is shut: "a new release mode called waitlist where the
+    admin and people they invite can use the app but everyone else is waitlisted".
+    - **How a page gets into a post.** X's player card: the page's head says `twitter:card`
+      `player`, its own address as `twitter:player`, 480 by 480, and a picture. X shows the
+      picture and, played, the page in a frame. The game the owner linked does exactly this.
+      X stopped playing such cards for some hours on 2026-10-08 and started again; whether it
+      plays one from this deployment's address is only found out by posting one.
+    - **A Dood** is a row of `dc_doods`: a name, a color, a seed, at most one thing on, and
+      the hash of a key its hatcher's browser keeps (`localStorage`, `dc-dood`). `/hatch` and
+      `/dood/<id>` are one component (`DoodCard`) over the first run's `Stage`. Making,
+      stroking and feeding one need no account and are counted by address (`rate-limit.ts`;
+      strokes apart from the rest, since they are told every four seconds). The three things
+      in a present follow from the seed (`dealPresent`), so the server can tell that what was
+      kept was in the box without keeping anything.
+    - **Claiming** is `/welcome?dood=<id>&key=<key>`: the first run with the Dood out already,
+      asking only who they are. Signed in, `POST /api/doods/:id/claim` makes it theirs and
+      `POST /api/doods/:id/agent` makes it their agent (`wakeDood`: an agent in their own
+      workspace, named and looking the same, with what it wore and the treats it was given
+      while it waited). A treat for one that is an agent goes to the actor's `/gifts`, which
+      only the gateway can call; the row keeps how far along the next present is, so that a
+      page anyone can open never wakes an agent to be drawn. A change of the agent's name,
+      look or outfit is copied to the row (`followAgent`, from the agents' proxy route).
+    - **The waiting list** is `DC_SIGNUP=waitlist`. `getUser` answers nobody for someone who
+      is waiting, which is what shuts the whole app, sockets included; `getSignedIn` is for
+      the few things they may do (`/api/me`, their Dood, accepting an invitation). What is
+      written down is who was let in (`dc_admitted`), never who waits, so that a failed write
+      leaves someone out. Let in without a row: accounts from before the list began (its
+      start is kept in `dc_meta` as the sign-in is first set up), the first account, the
+      addresses the settings name where they are vouched for, and anyone in a team or asked
+      into one by address. With any sign-up but `invite`, an address the settings name counts
+      only if it is verified, or the account is from before, or it is the first
+      (`vouchedFor`). Someone waiting is sent to `/welcome` from every page of the app, where
+      their Dood is; with none yet, the scene hatches one for them and not an agent.
+    - **Mine, not the owner's:** two taps to crack the egg; that the reroll keeps the name and
+      color and comes after the hatch; the three choices being a common, an uncommon and a
+      rare or epic thing; four treats a present (the app's own number); one treat a day from
+      an address; that an unclaimed Dood only counts its treats; that a Dood's picture in a
+      post is a stock one of its color; no list of refused words; that a waiting person who
+      signs up from the landing page gets no present to choose from (their agent has the
+      app's own first box); that being invited to a team lets someone in; the email on being
+      let in; every line of copy.
+    - **Not done:** nothing limits how many unclaimed Doods there can be beyond the rate
+      limit, and none is ever removed. The mobile and desktop apps know nothing of the list:
+      someone waiting who signs in to either is refused everywhere with a 403 the apps show
+      as an error. The list shows the 200 who have waited longest and has no search.
+    - **Tested:** `packages/protocol/test/dood.test.ts`, `packages/agent/test/creature.test.ts`
+      (gifts), `apps/web/src/server/waitlist.test.ts`, `apps/web/e2e/dood.spec.ts` and
+      `apps/web/e2e/waitlist.spec.ts`. By hand on the Node server, with the creature drawn:
+      the whole path from the egg at 480 by 480 to claiming, waiting, being let in and the
+      chat; the page in a frame of another origin. On the Workers runtime locally, over the
+      API: the list, letting someone in, a Dood woken into an agent, a treat reaching its
+      actor, and both pages' heads. Not run: a real post on X, a sign-in with GitHub or Google
+      along the way, the email, a phone, the deployed Worker.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

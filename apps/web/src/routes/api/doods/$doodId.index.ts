@@ -7,8 +7,7 @@ export const Route = createFileRoute("/api/doods/$doodId/")({
   server: {
     handlers: {
       GET: ({ params }) => getDood(params.doodId),
-      DELETE: ({ request, params }) =>
-        withUser(request, (user) => removeDood(params.doodId, user)),
+      DELETE: ({ request, params }) => withUser(request, (user) => removeDood(params.doodId, user)),
     },
   },
 })

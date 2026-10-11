@@ -43,8 +43,7 @@ type Row = {
 const MAX_UNWOKEN = 5
 const DAY_MS = 24 * 60 * 60_000
 
-const rowOf = (id: string) =>
-  getPlatform().db.get<Row>("SELECT * FROM dc_doods WHERE id = ?", id)
+const rowOf = (id: string) => getPlatform().db.get<Row>("SELECT * FROM dc_doods WHERE id = ?", id)
 
 function outfitOf(row: Row): Outfit {
   try {
@@ -213,7 +212,11 @@ async function gift(
 }
 
 /** Make it theirs: the key says it was they who hatched it. */
-export async function claimDood(id: string, request: Request, user: SessionUser): Promise<Response> {
+export async function claimDood(
+  id: string,
+  request: Request,
+  user: SessionUser,
+): Promise<Response> {
   const { db } = getPlatform()
   const row = await rowOf(id)
   if (row === undefined) return fail(404, "There is no such Dood.")
@@ -228,7 +231,8 @@ export async function claimDood(id: string, request: Request, user: SessionUser)
     // Only if nobody has in the meantime.
     await db.run("UPDATE dc_doods SET owner_id = ? WHERE id = ? AND owner_id IS NULL", user.id, id)
     const now = await rowOf(id)
-    if (now?.owner_id !== user.id) return fail(409, "Someone has claimed this Dood already.", "claimed")
+    if (now?.owner_id !== user.id)
+      return fail(409, "Someone has claimed this Dood already.", "claimed")
   }
   return getDood(id)
 }
@@ -272,11 +276,7 @@ export async function wakeDood(id: string, user: SessionUser): Promise<Response>
     treats: row.banked,
     ...(worn === undefined ? {} : { item: worn }),
   })
-  await db.run(
-    "UPDATE dc_doods SET banked = 0, joy = ? WHERE id = ?",
-    creature?.joy ?? row.joy,
-    id,
-  )
+  await db.run("UPDATE dc_doods SET banked = 0, joy = ? WHERE id = ?", creature?.joy ?? row.joy, id)
   return json({ agentId }, 201)
 }
 

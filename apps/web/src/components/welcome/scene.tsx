@@ -1108,8 +1108,8 @@ export default function WelcomeScene() {
               ) : view.step === "wait" ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
-                    Come back any time. {view.name} waits here, and is your agent from the day
-                    you are let in.
+                    Come back any time. {view.name} waits here, and is your agent from the day you
+                    are let in.
                   </span>
                   <Button variant="ghost" className="text-muted-foreground" onClick={leave}>
                     Sign out

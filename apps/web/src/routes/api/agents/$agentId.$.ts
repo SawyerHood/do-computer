@@ -25,7 +25,7 @@ const handle = async ({ request, params }: Input) => {
     if (said !== undefined) {
       await followAgent(
         params.agentId,
-        "outfit" in said ? { outfit: said.outfit } : ("agent" in said ? (said.agent ?? {}) : {}),
+        "outfit" in said ? { outfit: said.outfit } : "agent" in said ? (said.agent ?? {}) : {},
       ).catch(() => undefined)
     }
   }

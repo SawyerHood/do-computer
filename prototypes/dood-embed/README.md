@@ -6,6 +6,13 @@ and nothing here is imported by it. The post, the composer, the phone and the br
 pretend; the egg, the creature, what it wears, its box and the sky in the card are the app's own
 (`packages/mascot`).
 
+It was built the same day (HANDOFF.md, section 5, item 54). Where the app differs: there is no
+play button in the page, since X shows a picture of its own until the page is played; a Dood's
+address is `/dood/<id>`; sign-up on a deployment that is not open is a waiting list, where the
+Dood waits with its owner; and the presents a post's treats fill are opened in the app as any
+other, with no screen of their own. `posters.mjs` makes the pictures X shows, from
+`src/poster.js`.
+
 ```sh
 node prototypes/dood-embed/build.mjs     # writes index.html here; open it from the file system
 ```

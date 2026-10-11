@@ -385,8 +385,7 @@ export function createClient(options: ClientOptions) {
     /** The waiting list, for those who run the deployment. */
     waitlist: {
       list: () => request<{ people: WaitingPerson[]; total: number }>("/api/waitlist"),
-      admit: (userId: string) =>
-        post<{ ok: true }>(`/api/waitlist/${encodeURIComponent(userId)}`),
+      admit: (userId: string) => post<{ ok: true }>(`/api/waitlist/${encodeURIComponent(userId)}`),
     },
     listAgents: async (init?: { signal?: AbortSignal }) =>
       (await request<{ agents: AgentSummary[] }>("/api/agents", init)).agents,

@@ -33,6 +33,12 @@ describe("rate limit", () => {
     expect(limitedAs(ask("/api/computers/pair/start", { from: "2001:db8::1" }))).toBe(
       "pair:2001:db8::1",
     )
+    // A Dood is hatched, stroked and fed by people with no account.
+    for (const path of ["/api/doods", "/api/doods/abc/treat", "/api/doods/abc/claim"]) {
+      expect(limitedAs(ask(path, { from: "203.0.113.7" }))).toBe("dood:203.0.113.7")
+    }
+    expect(limitedAs(ask("/api/doods/abc/pats", { from: "203.0.113.7" }))).toBe("pat:203.0.113.7")
+    expect(limitedAs(ask("/api/doods/abc", { method: "GET", from: "203.0.113.7" }))).toBeUndefined()
   })
 
   it("counts nothing else", () => {

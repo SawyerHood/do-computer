@@ -35,6 +35,9 @@ const tiersTo = (item: WearItem) =>
   )
 const wearing = (item: WearItem) => ({ [item.slot]: item.id })
 
+/** How often the strokes made since the last time are told to the server. */
+const PATS_EVERY_MS = 4000
+
 /** The Dood this browser hatched last, and the key that claims it. */
 const KEPT = "dc-dood"
 type Kept = { id: string; key: string }
@@ -134,6 +137,9 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
   const heard = useRef(landed)
   heard.current = landed
 
+  // Set up once, with the look it starts with. What changes after is told to the creature as
+  // it changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, as it opens
   useEffect(() => {
     let gone = false
     const pending = timers.current
@@ -192,8 +198,6 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
       stage.current?.dispose()
       stage.current = null
     }
-    // The look it starts with. What changes after is told to the creature as it changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -215,7 +219,8 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
       pats.current.unsent -= count
       void client.doods.pat(id, count).catch(() => {})
     }
-    const timer = setInterval(send, 2000)
+    // Seldom enough that someone who strokes it for a whole minute is not taken for a flood.
+    const timer = setInterval(send, PATS_EVERY_MS)
     return () => {
       clearInterval(timer)
       send()
@@ -504,7 +509,7 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
                     stage.current?.orb.pet(typed.length % 12 < 6 ? 1 : -1)
                 }}
               />
-              <Pill dark type="submit" disabled={typed.trim() === ""}>
+              <Pill dark type="submit" className="flex-none" disabled={typed.trim() === ""}>
                 Hatch
               </Pill>
             </div>

@@ -22,7 +22,9 @@ export function limitedAs(request: Request): string | undefined {
   const { pathname } = new URL(request.url)
   if (pathname === "/api/computers/pair/start") return `pair:${address}`
   if (pathname.startsWith("/api/auth/")) return `auth:${address}`
-  // A Dood is made, stroked and fed by people with no account.
+  // A Dood is made, stroked and fed by people with no account. Strokes are told every few
+  // seconds for as long as someone is stroking, so they are counted apart from the rest.
+  if (/^\/api\/doods\/[^/]+\/pats$/.test(pathname)) return `pat:${address}`
   if (pathname === "/api/doods" || pathname.startsWith("/api/doods/")) return `dood:${address}`
   return undefined
 }

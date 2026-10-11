@@ -155,7 +155,8 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     googleClientSecret: optional("GOOGLE_CLIENT_SECRET"),
     githubClientId: optional("GITHUB_CLIENT_ID"),
     githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
-    signup: env.DC_SIGNUP === "open" ? "open" : env.DC_SIGNUP === "waitlist" ? "waitlist" : "invite",
+    signup:
+      env.DC_SIGNUP === "open" ? "open" : env.DC_SIGNUP === "waitlist" ? "waitlist" : "invite",
     landing: env.DC_LANDING === "1",
     allowedEmails: listed("DC_ALLOWED_EMAILS").map((email) => email.toLowerCase()),
     sandbox: sandboxKind(optional("DC_SANDBOX")),
