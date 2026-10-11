@@ -2127,8 +2127,58 @@ Since then, newest last:
       is in the library; 1 MB as the most text that is shown.
     - **Tested:** `apps/web/src/server/site-pages.test.ts`, and the last two tests of
       `apps/web/e2e/sites.spec.ts`. `scripts/smoke.sh` shares a document.
+52. **The desktop app keeps itself up to date** (2026-10-11; `apps/desktop/src/update.ts`,
+    `main.ts`, `electron-builder.yml`, `.github/workflows/desktop.yml`). The owner asked: "Can
+    you support updating in all of the desktop apps now that it is a public repo?" Until then
+    a newer app was installed by hand over the old one. They gave no design; the choices
+    below are mine.
+    - **A release reads the repository's newest release.** electron-updater does the work.
+      A tag's run packs the app knowing one address, `<repository>/releases/latest/download`
+      (flags to electron-builder in `Pack it`; nothing is in a tracked file, and a fork's
+      releases read the fork's), and packing leaves a `latest*.yml` beside each system's
+      file, which says the version, the file and its checksum. Those, and a `.zip` of the
+      Mac's app, are published with the release. The app asks for its system's `.yml` when it
+      starts and every four hours (`UPDATE_EVERY_MS`), and fetches what it names when that is
+      newer. The repository had to be public for this: a private one's files need a token.
+    - **Only a release does.** A copy packed by hand, or by a run that was not for a tag, has
+      no `app-update.yml` beside it and looks nowhere (`notUpdating`); it would otherwise be
+      replaced by the newest release within minutes of being tried. `DC_DESKTOP_UPDATES`
+      names another address for one run, or none: the tests use both.
+    - **When it becomes the newer one** (`restartToUpdate`, `mayRestart`): when it is quit;
+      when its owner chooses **Restart to Update** in the tray menu or under This Computer,
+      which shows the version and how far along it is; or by itself, once no window of it is
+      showing, no agent is using the screen and the daemon has said nothing for five minutes
+      (`QUIET_MS`). The app runs for weeks on machines nobody sits at, which is where it was
+      being installed by hand. Restarted by itself it opens no window when it comes back
+      (`restarted` in its settings). A command an agent left running for longer than five
+      silent minutes is cut off by that restart, as it is by the daemon's own after fifteen.
+    - **Each system's way.** macOS: Squirrel takes the `.zip`, and only from whoever signed
+      the app it has, so an unsigned build cannot update. Windows: the newer NSIS installer
+      is run unseen; it is unsigned, and what vouches for it is the release's checksum over
+      HTTPS. Linux: the AppImage file is replaced by one named for the newer version, the
+      file that opens the app at sign-in is pointed at it, and the app starts it itself, from
+      a shell that waits for the old one to go, with what the old one was started with:
+      electron-updater starts it with nothing, and Electron's own relaunch runs from the
+      AppImage's mount, which is gone by then. That shell closes what it was handed open, or
+      the old AppImage stays mounted for as long as the newer app runs.
+    - **The AppImage starts itself with the newer runtime** (`toolsets.appimage` 1.0.3). The
+      older one needs libfuse2, which the owner's Linux machine does not have: the app ran
+      there unpacked, and an unpacked copy cannot replace itself. The newer one mounted there.
+    - **Checked here, on Linux, with real AppImages:** a 0.9.0 started hidden against a feed
+      with 0.9.1 fetched it, replaced its file, rewrote the sign-in entry and was running as
+      0.9.1 with the same arguments a minute and a half later, the old mount gone; one with
+      its window showing fetched 0.9.2 and stayed as it was until it was quit, when the file
+      was replaced and nothing was left running; that 0.9.2, packed with the newer runtime,
+      then started. `apps/desktop/e2e/update.spec.ts` gives the app a feed of its own: on
+      every system it finds, fetches and offers the newer version, and on Linux restarting
+      puts the file in place and starts it. `test/update.test.ts` has the rules.
+      **Not checked:** an update on macOS or Windows from one real version to the next. What
+      is fetched in the test is no app, so there the test ends at the offer (on a Mac, at
+      macOS refusing it). The first release with this in it cannot be updated _to_ by the
+      apps before it, which have to be installed by hand once more; the release after that is
+      the first real trial on all three.
 
-51. **Apps: people's own accounts on other services, through Composio** (2026-10-11;
+53. **Apps: people's own accounts on other services, through Composio** (2026-10-11;
     `packages/agent/src/connectors.ts`, `apps/web/src/components/settings/connectors.tsx`).
     The owner asked what a "1-click composio integration to connect all of your accounts for
     agent access" would be like, said "Composio handles gmail right which is a huge one", and

@@ -75,6 +75,8 @@ export class DaemonRunner {
   sharing: Sharing = { state: "off" }
   /** What the daemon said lately, for its owner to read. */
   readonly lines: string[] = []
+  /** When the daemon last said anything, which it does with every command an agent runs. */
+  heard = 0
   readonly #options: RunnerOptions
   #child: ChildProcess | undefined
   /** What it was last started with, to start it again with. Undefined: it is meant to be off. */
@@ -197,6 +199,7 @@ export class DaemonRunner {
       let rest = ""
       stream?.setEncoding("utf8")
       stream?.on("data", (chunk: string) => {
+        this.heard = Date.now()
         const lines = (rest + chunk).split(/\r?\n/)
         rest = lines.pop() ?? ""
         for (const line of lines) {

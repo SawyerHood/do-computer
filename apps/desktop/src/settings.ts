@@ -20,6 +20,11 @@ export type Settings = {
    * may work on this computer. Until then the window opens on the deployment's welcome.
    */
   welcomed: boolean
+  /**
+   * When the app last restarted itself to update with no window showing, if it has. One that
+   * starts a moment after that shows none either.
+   */
+  restarted?: number
 }
 
 // The screen is everything its owner can see and do, so it is asked for. A browser is what a
@@ -48,6 +53,7 @@ export function loadSettings(file: string): Settings {
       // An app from before there was a first run to be over wrote down nothing about it. One
       // that has a server was set up then, and its owner is not asked it all again.
       welcomed: parsed.welcomed === undefined ? server !== undefined : parsed.welcomed === true,
+      ...(typeof parsed.restarted === "number" ? { restarted: parsed.restarted } : {}),
     }
   } catch {
     // Missing or unreadable: a first run.

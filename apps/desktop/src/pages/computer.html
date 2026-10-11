@@ -43,9 +43,9 @@
           <span class="grow">
             <strong>The screen</strong>
             <span class="quiet small">
-              They work in your apps' windows behind whatever you have in front, so your mouse
-              and keyboard stay yours. For what cannot be done that way they take them for a
-              moment. You can pause or stop them at any time.
+              They work in your apps' windows behind whatever you have in front, so your mouse and
+              keyboard stay yours. For what cannot be done that way they take them for a moment. You
+              can pause or stop them at any time.
             </span>
             <span id="screen-unavailable" class="quiet small" hidden></span>
           </span>
@@ -68,8 +68,8 @@
             <strong>A browser</strong>
             <span class="quiet small">
               They use your own Chrome when it is open and lets itself be used
-              (chrome://inspect/#remote-debugging), with everything you are signed in to.
-              Otherwise a browser of their own, which keeps its own sign-ins.
+              (chrome://inspect/#remote-debugging), with everything you are signed in to. Otherwise
+              a browser of their own, which keeps its own sign-ins.
             </span>
           </span>
           <input id="browser" class="switch" type="checkbox" role="switch" />
@@ -88,6 +88,15 @@
         <span class="quiet">Server</span>
         <span id="server" class="grow truncate"></span>
         <button id="change" class="link" type="button">Change…</button>
+      </div>
+      <div class="row small">
+        <span class="quiet">Version</span>
+        <span class="grow truncate">
+          <span id="version"></span>
+          <span class="quiet">·</span>
+          <span id="update-words" class="quiet"></span>
+        </span>
+        <button id="update" class="link" type="button"></button>
       </div>
       <h2>What happened here</h2>
       <ol id="log" class="log" aria-label="What the daemon did"></ol>
