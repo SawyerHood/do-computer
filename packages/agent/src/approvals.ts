@@ -99,15 +99,15 @@ const ABILITIES: readonly Ability[] = [
   { id: "tool:visual", label: "Show you visuals", tools: ["visual"] },
   {
     id: "tool:share",
-    label: "Share pages with the workspace",
-    hint: "A page of the library, given a link that people in the workspace can open.",
+    label: "Share files with the workspace",
+    hint: "Something in the library, given a link that people in the workspace can open.",
     tools: ["share"],
     actions: ["publish", "private", "stop"],
   },
   {
     id: "tool:share_public",
-    label: "Make shared pages public",
-    hint: "A public page can be opened by anyone who has its link, without signing in.",
+    label: "Make shared files public",
+    hint: "What is public can be opened by anyone who has its link, without signing in.",
     tools: ["share"],
     actions: ["public"],
     ask: true,
@@ -298,18 +298,18 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
     const site = word(args.site)
     if (action === "public") {
       return {
-        title: "Make a shared page public",
+        title: "Make something shared public",
         detail: [site, "Anyone who has the link could open it."].filter(Boolean).join("\n"),
       }
     }
     if (action === "publish") {
       return {
-        title: "Share a page with the workspace",
+        title: "Share something with the workspace",
         detail: [word(args.title), word(args.path)].filter(Boolean).join(": "),
       }
     }
-    if (action === "private") return { title: "Make a shared page private again", detail: site }
-    if (action === "stop") return { title: "Stop sharing a page", detail: site }
+    if (action === "private") return { title: "Make something shared private again", detail: site }
+    if (action === "stop") return { title: "Stop sharing something", detail: site }
   }
   if (call.name === "agents" && action === "create") {
     return {

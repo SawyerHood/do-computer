@@ -11,7 +11,9 @@ import {
   FolderIcon,
   FolderOpenIcon,
   GlobeIcon,
+  LockIcon,
   NotePencilIcon,
+  ShareNetworkIcon,
   TrashIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react"
@@ -20,7 +22,9 @@ import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { SharePopover } from "@/components/sites/share"
 import { type Folder, formatBytes, formatWhen, kindOf, treeOf } from "@/lib/library"
+import { siteOfFile, siteOfFolder, useSites } from "@/lib/sites"
 import { cn } from "@/lib/utils"
 
 /** The picture that stands for a file of each kind. Documents and pages get a little color. */
@@ -53,6 +57,7 @@ function FileRow({
   selected: boolean
   label?: string
 }) {
+  const site = siteOfFile(useSites(agentId), file.path)
   return (
     <li>
       <Link
@@ -66,6 +71,16 @@ function FileRow({
       >
         <KindIcon file={file} />
         <span className="truncate">{label ?? file.name}</span>
+        {site === undefined ? null : (
+          <span
+            role="img"
+            aria-label={site.public ? "Shared with anyone who has the link" : "Shared with a link"}
+            title={site.public ? "Shared with anyone who has the link" : "Shared with a link"}
+            className="ml-auto shrink-0"
+          >
+            {site.public ? <GlobeIcon className="size-3.5" /> : <LockIcon className="size-3.5" />}
+          </span>
+        )}
       </Link>
     </li>
   )
@@ -88,10 +103,12 @@ function FolderRows({
   toggle: (path: string) => void
   dir: string
 }) {
+  const sites = useSites(agentId)
   return (
     <>
       {folder.folders.map((child) => {
         const open = !closed.has(child.path)
+        const site = siteOfFolder(sites, child.path)
         return (
           <Collapsible
             key={child.path}
@@ -99,22 +116,50 @@ function FolderRows({
             onOpenChange={() => toggle(child.path)}
             render={<li />}
           >
-            <CollapsibleTrigger
-              className={cn(ROW, "text-foreground", dir === child.path && "bg-accent/60")}
-              style={{ paddingLeft: 8 + depth * 14 }}
-            >
-              {open ? (
-                <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
-              ) : (
-                <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
-              )}
-              {open ? (
-                <FolderOpenIcon className="size-4 shrink-0" />
-              ) : (
-                <FolderIcon className="size-4 shrink-0" />
-              )}
-              <span className="truncate">{child.name}</span>
-            </CollapsibleTrigger>
+            <div className="group/folder relative">
+              <CollapsibleTrigger
+                className={cn(ROW, "pr-8 text-foreground", dir === child.path && "bg-accent/60")}
+                style={{ paddingLeft: 8 + depth * 14 }}
+              >
+                {open ? (
+                  <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
+                ) : (
+                  <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
+                )}
+                {open ? (
+                  <FolderOpenIcon className="size-4 shrink-0" />
+                ) : (
+                  <FolderIcon className="size-4 shrink-0" />
+                )}
+                <span className="truncate">{child.name}</span>
+              </CollapsibleTrigger>
+              {/* A folder is shared from its row: the way to is there when it is pointed at,
+                and the mark that it is shared is there always. */}
+              <SharePopover agentId={agentId} site={site} path={child.path} align="start">
+                <button
+                  type="button"
+                  aria-label={
+                    site === undefined
+                      ? `Share the folder ${child.name}`
+                      : `The folder ${child.name} is shared with a link`
+                  }
+                  title={site === undefined ? "Share with a link" : "Shared with a link"}
+                  className={cn(
+                    "absolute top-1 right-1 grid size-6 place-items-center rounded-md text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40",
+                    site === undefined &&
+                      "opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 pointer-coarse:opacity-100",
+                  )}
+                >
+                  {site === undefined ? (
+                    <ShareNetworkIcon className="size-3.5" />
+                  ) : site.public ? (
+                    <GlobeIcon className="size-3.5" />
+                  ) : (
+                    <LockIcon className="size-3.5" />
+                  )}
+                </button>
+              </SharePopover>
+            </div>
             <CollapsibleContent render={<ul />}>
               <FolderRows
                 agentId={agentId}

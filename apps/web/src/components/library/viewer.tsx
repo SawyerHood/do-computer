@@ -54,7 +54,7 @@ import { client } from "@/lib/client"
 import { libraryKey, libraryVersionsKey } from "@/lib/collections"
 import { formatBytes, formatFull, formatWhen, kindOf } from "@/lib/library"
 import { queryClient } from "@/lib/query"
-import { siteOfPage, useSites } from "@/lib/sites"
+import { siteOfFile, useSites } from "@/lib/sites"
 import { useAppColors } from "@/lib/visual-theme"
 import { cn } from "@/lib/utils"
 import { SharePopover } from "@/components/sites/share"
@@ -454,8 +454,8 @@ export function Viewer({
   const [saveState, setSaveState] = useState<SaveState>("clean")
   const [renaming, setRenaming] = useState<string>()
   const paths = useMemo(() => new Set(files.map((entry) => entry.path)), [files])
-  // The site this page is shared as, if it is: alone, or as the front page of its folder.
-  const site = siteOfPage(useSites(agentId), file.path)
+  // The site this file is shared as, if it is: alone, or as the front page of its folder.
+  const site = siteOfFile(useSites(agentId), file.path)
   // A page shows what is beside it, so it is as new as the newest file in its top folder.
   const stamp = useMemo(() => {
     const top = file.path.includes("/") ? `${file.path.split("/")[0]}/` : ""
@@ -594,27 +594,20 @@ export function Viewer({
             ]}
           />
         ) : null}
-        {kind === "page" ? (
-          <SharePopover agentId={agentId} site={site} path={file.path}>
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label={site === undefined ? "Share" : "Shared as a website"}
-              title={site === undefined ? "Share as a website" : "Shared as a website"}
-            >
-              {site === undefined ? (
-                <ShareNetworkIcon />
-              ) : site.public ? (
-                <GlobeIcon />
-              ) : (
-                <LockIcon />
-              )}
-              <span className={cn(compact && "hidden")}>
-                {site === undefined ? "Share" : "Shared"}
-              </span>
-            </Button>
-          </SharePopover>
-        ) : null}
+        {/* Anything can be shared: a page as the page, and the rest as what each is. */}
+        <SharePopover agentId={agentId} site={site} path={file.path}>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={site === undefined ? "Share" : "Shared with a link"}
+            title={site === undefined ? "Share with a link" : "Shared with a link"}
+          >
+            {site === undefined ? <ShareNetworkIcon /> : site.public ? <GlobeIcon /> : <LockIcon />}
+            <span className={cn(compact && "hidden")}>
+              {site === undefined ? "Share" : "Shared"}
+            </span>
+          </Button>
+        </SharePopover>
         <History agentId={agentId} agentName={agentName} file={file} />
         <DropdownMenu>
           <DropdownMenuTrigger

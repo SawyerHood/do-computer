@@ -166,6 +166,24 @@ export function prepareVisual(html: string): string {
   return `<!doctype html><head>${head}</head>${html}`
 }
 
+/**
+ * A page of the app's own making in the same colors, for showing something by itself that is
+ * not a page: a document, a picture, a list of files. It follows the reader's light or dark,
+ * and has the margins and measure a visual has when it is shown by itself. `style` comes after
+ * the theme, and `body` is markup that is already safe to put in a page.
+ */
+export function themedPage(page: { title: string; style?: string; body: string }): string {
+  const escaped = page.title.replace(
+    /[&<>"]/g,
+    (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]!,
+  )
+  return (
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${escaped}</title>` +
+    `<style>${THEME_CSS}${page.style ?? ""}</style></head><body>${page.body}</body></html>`
+  )
+}
+
 /** What goes on the end of a visual's address, so that its first paint is in the client's colors. */
 export function visualThemeFragment(theme: VisualTheme): string {
   return `#${THEME_KEY}=${encodeURIComponent(JSON.stringify(theme))}`

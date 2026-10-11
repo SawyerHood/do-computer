@@ -42,9 +42,9 @@ export type SitesOptions = {
 }
 
 /**
- * Lets the agent share a page of the library, or a folder of them, as a website with a link of
- * its own. The people in the agent's workspace can open it; making it open to anyone is a
- * separate step, which a person is asked about.
+ * Lets the agent share a file of the library, or a folder of them, with a link of its own. The
+ * people in the agent's workspace can open it; making it open to anyone is a separate step,
+ * which a person is asked about.
  */
 export function sites(options: SitesOptions): Extension {
   const { agentId, directory } = options
@@ -75,10 +75,10 @@ export function sites(options: SitesOptions): Extension {
   const tool = defineTool({
     name: SHARE_TOOL,
     description:
-      "Share a page of the library, or a folder of them, as a website with a link of its own, which the person can send to others. " +
-      `action "publish" needs \`path\`: an HTML page in the library, or a folder that has an index.html, which is then the site's front page; a page that uses files beside it belongs in a folder of its own with them. It takes a \`title\`. ` +
-      "The site shows what is in the library there as it is now, so changing the files changes the site, and publishing the same place again gives the same link. " +
-      'A new site can be opened only by people in this workspace who are signed in. "public" lets anyone who has the link open it, and needs the person\'s approval: do it only when they ask for the page to be public. "private" makes it the workspace\'s only again. ' +
+      "Share something from the library with a link of its own, which the person can send to others. " +
+      `action "publish" needs \`path\`: a file or a folder, as it is in the library. A file is shared alone: an HTML page is shown as the page, a Markdown document as the document, a picture as the picture, and anything else as a download. A folder is shared whole: one with an index.html is a website that opens on it, so a page that uses files beside it belongs in a folder with them, and one without is shown as a list of its files. It takes a \`title\`. ` +
+      "The link shows what is in the library there as it is now, so changing the files changes what it shows, and publishing the same place again gives the same link. " +
+      'A new link can be opened only by people in this workspace who are signed in. "public" lets anyone who has the link open it, and needs the person\'s approval: do it only when they ask for it to be public. "private" makes it the workspace\'s only again. ' +
       '"stop" stops sharing it, and "list" shows what is shared. "public", "private" and "stop" need `site`: its link, title or path.',
     parameters: Type.Object({
       action: Type.Union([
@@ -90,7 +90,7 @@ export function sites(options: SitesOptions): Extension {
       ]),
       path: Type.Optional(
         Type.String({
-          description: `For publish: the page or folder, as it is in the library (under ~/${LIBRARY_FOLDER} on a machine)`,
+          description: `For publish: the file or folder, as it is in the library (under ~/${LIBRARY_FOLDER} on a machine)`,
         }),
       ),
       title: Type.Optional(Type.String({ description: "For publish: what the site is called" })),
@@ -177,8 +177,8 @@ export function sites(options: SitesOptions): Extension {
     sections: [
       section("sites", () =>
         [
-          `A page you wrote in the library, or a folder of pages with an index.html, can be shared as a website with the \`${SHARE_TOOL}\` tool: it gets a link of its own, which the person can send to anyone in the workspace. Use it when they ask for something to be shared, published or put on a page others can open; for something only they need to see, a visual or a file is enough.`,
-          "A site is open to the workspace's people only. Making it public is for when they ask for that, and they are asked to approve it.",
+          `Anything in the library can be shared with a link of its own with the \`${SHARE_TOOL}\` tool: a page, a document, a picture, any file, or a folder of them. A folder of pages with an index.html is a website. Use it when the person asks for something to be shared, published or put where others can open it; for something only they need to see, a visual or a file is enough.`,
+          "A link is open to the workspace's people only. Making it public is for when they ask for that, and they are asked to approve it.",
         ].join(" "),
       ),
     ],

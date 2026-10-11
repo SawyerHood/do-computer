@@ -70,6 +70,13 @@ check "a site's page is served sandboxed" "$(curl -sS -m 20 -o /dev/null -D - "$
 check "a site's files need its key" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$BASE/s/$SITE/~0-00/")" "404"
 check "someone in the workspace makes it public" "$(curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: application/json" -X PATCH "$BASE/api/agents/$AGENT/sites/$SITE" -d '{"public":true}' | field "['site']['public']")" "True"
 check "a public site opens with no sign-in" "$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$BASE/s/$SITE")" "200"
+# Anything in the library is shared: a document is shown as one to whoever goes to it, and is
+# the file itself to a page that loads it.
+curl -sS -m 20 -b "$JAR" -H "Origin: $BASE" -H "content-type: text/markdown" -X POST "$BASE/api/agents/$AGENT/library?path=smoke-notes.md" -d '# Smoke notes' >/dev/null
+DOC=$(post "/api/agents/$AGENT/sites" '{"path":"smoke-notes.md"}' | field "['site']['id']")
+DOCFRAME=$(get "/s/$DOC" | python3 -c 'import re,sys; print(re.search(r"<iframe src=\"([^\"]+)\"", sys.stdin.read()).group(1))')
+check "a shared document is shown as a document" "$(curl -sS -m 20 -H 'sec-fetch-dest: iframe' "$BASE$DOCFRAME" | grep -c '<h1>Smoke notes</h1>')" "1"
+check "and is the file itself to a page that loads it" "$(curl -sS -m 20 -H 'sec-fetch-dest: empty' "$BASE$DOCFRAME")" "# Smoke notes"
 SOON=$(python3 -c 'import datetime; print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=3)).isoformat())')
 tool "/tool schedule {\"action\":\"create\",\"schedule\":\"$SOON\",\"prompt\":\"Report in\",\"title\":\"Smoke schedule\"}"
 wait_for "any(p.get('kind')=='schedule' for m in d['messages'] for p in m['parts'])" "scheduled task ran by itself and reported back"
