@@ -94,6 +94,7 @@ export const AgentObject = createDurableActorClass<Env>({
       ),
       appUrl: config.baseUrl,
       slackDirectory: slackDirectory(d1Database(env.DB), { apiUrl: config.slackApiUrl }),
+      appsUrl: config.appsUrl,
       onNotify: (notification) =>
         void notifyPeople(
           d1Database(env.DB),

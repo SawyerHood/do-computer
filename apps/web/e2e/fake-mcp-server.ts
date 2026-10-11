@@ -22,9 +22,9 @@ const TOOLS = [
  * A remote MCP server for the browser tests, with its own sign-in. `/token/mcp` wants a fixed
  * token; `/oauth/mcp` wants the user to sign in, which here is a page with Allow and Deny.
  */
-export async function startFakeMcp() {
+export async function startFakeMcp(port = 0) {
   const server = createServer((request, response) => void handle(request, response))
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve))
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
   const send = (
