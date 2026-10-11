@@ -18,7 +18,7 @@ of its workspace, which the workspace's agents share, and they share one library
 Durable Object per agent) and on plain Node, from the same code. There is a web app (TanStack
 Start, shadcn, jotai, TanStack DB and Query, Better Auth) and an Expo mobile app.
 
-The owner is Sawyer. The repository is private: `SawyerHood/durable-computer`.
+The owner is Sawyer. The repository is private: `SawyerHood/do-computer`.
 
 ## 2. Where it runs
 

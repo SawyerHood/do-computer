@@ -13,7 +13,7 @@ var PAL = core ? core.PALETTE : {};
 var calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 var app = document.getElementById("app"), strip = document.getElementById("strip");
 var LOGO = document.getElementById("logo").innerHTML;
-var REPO = "github.com/SawyerHood/durable-computer";
+var REPO = "github.com/SawyerHood/do-computer";
 
 var LOOKS = [["c", "Character select"], ["a", "Earlier: sky island"], ["b", "Earlier: the app first"], ["d", "Earlier: daylight"]];
 var LIGHT = { b: true, d: true };
@@ -208,7 +208,7 @@ function ossBand() {
       '<ul class="ticks"><li><b>Your data stays yours.</b> One SQLite file for each agent, wherever you put it.</li><li><b>Any model.</b> Through OpenRouter, or a provider you are signed in to.</li><li><b>Or skip all that.</b> We run it for you at do.computer.</li></ul>' +
       '<div class="cta"><a class="btn ghost" data-say="github">' + GH + "Star on GitHub</a></div>" +
     "</div>" +
-    '<div class="term"><canvas data-term></canvas><div class="bar"><i></i><i></i><i></i><span>~/durable-computer</span></div>' +
+    '<div class="term"><canvas data-term></canvas><div class="bar"><i></i><i></i><i></i><span>~/do-computer</span></div>' +
       "<pre><span>$</span> git clone https://" + REPO + "\n<span>$</span> pnpm install &amp;&amp; pnpm build\n<span>$</span> OPENROUTER_API_KEY=sk-or-… pnpm start\n\n<em>  Listening on http://127.0.0.1:3000</em>\n<em>  Open it, and say hello to your agent.</em> <b></b></pre>" +
     "</div>" +
   "</div></section>";
