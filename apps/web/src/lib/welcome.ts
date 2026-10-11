@@ -7,6 +7,26 @@ import { atom } from "jotai"
  */
 export const welcomeOpenAtom = atom(false)
 
+/**
+ * The page that sent the visitor to sign in, or to the first run, to come back to it afterwards,
+ * when it named itself, as an invitation does. Only ever a path of this app, never an address
+ * someone else could choose.
+ */
+export function sentFrom(
+  search = typeof location === "undefined" ? "" : location.search,
+): string | undefined {
+  const next = new URLSearchParams(search).get("next") ?? ""
+  return /^\/(?![/\\])/.test(next) ? next : undefined
+}
+
+/**
+ * Whether that page is where the desktop app signs its owner in. The app shows the first run in
+ * its own window, so the browser it sent them to makes the account on the plain form and goes
+ * straight back.
+ */
+export const forDesktopApp = (next: string | undefined) =>
+  next !== undefined && /^\/desktop\/sign-in(?:[/?#]|$)/.test(next)
+
 let handing = false
 
 /**

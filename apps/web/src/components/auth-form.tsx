@@ -12,18 +12,12 @@ import { desktop, signInThroughBrowser } from "@/lib/desktop"
 import type { FrontDoor } from "@/lib/front-door"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
+import { sentFrom } from "@/lib/welcome"
 
 type Provider = "google" | "github"
 
-/**
- * Where to go once signed in: the page that sent the visitor here, when it named itself, such as
- * an invitation. Only ever a path of this app, never an address someone else could choose.
- */
-function destination(): string {
-  if (typeof location === "undefined") return "/"
-  const next = new URLSearchParams(location.search).get("next") ?? ""
-  return /^\/(?![/\\])/.test(next) ? next : "/"
-}
+/** Where to go once signed in: the page that sent the visitor here, when it named itself. */
+const destination = () => sentFrom() ?? "/"
 
 /** Sign in or create an account, with email and password or a configured provider. */
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
@@ -109,8 +103,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     !methods.open &&
     ready &&
     !new URLSearchParams(carried).has("next")
-  // Someone new, headed nowhere in particular, is shown around first. Someone sent here by a
-  // page that wants them back creates the account and goes on to it.
+  // Someone new makes their account in the first run. `/signup` leads there too, and keeps
+  // where they were headed: it is the link until the page's script has run, and for someone a
+  // page sent here to come back to it.
   const other = signingUp
     ? `/login${ready ? carried : ""}`
     : !ready

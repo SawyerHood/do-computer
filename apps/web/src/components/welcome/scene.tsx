@@ -30,7 +30,7 @@ import { lastAgent, rememberLastAgent } from "@/lib/last-agent"
 import { loadMascot, loadSky, prefersCalm } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
-import { handingOver, rememberMeeting, welcomeOpenAtom } from "@/lib/welcome"
+import { handingOver, rememberMeeting, sentFrom, welcomeOpenAtom } from "@/lib/welcome"
 import { Stage } from "./stage.ts"
 import { Thinking } from "./thinking.tsx"
 
@@ -217,6 +217,11 @@ export default function WelcomeScene() {
   const navigate = useNavigate()
   const setOpen = useSetAtom(welcomeOpenAtom)
   const bridge = desktop()
+  /**
+   * The page that sent them here to come back to it, as an invitation does. They are taken
+   * there when the scene is over, and not to the chat. Read once: the scene outlives its page.
+   */
+  const [next] = useState(() => sentFrom())
   const root = useRef<HTMLDivElement>(null)
   const skyCanvas = useRef<HTMLCanvasElement>(null)
   const egg = useRef<HTMLDivElement>(null)
@@ -324,8 +329,9 @@ export default function WelcomeScene() {
       return say("name", { first, signingIn: false, waiting: false })
     }
     if (bridge === undefined || bridge.welcomed) {
-      // They have been here before, and there is nothing to ask them: on to where they left off.
-      await navigate({ to: "/" })
+      // They have been here before, and there is nothing to ask them: on to where they left
+      // off, or to the page that sent them.
+      await navigate({ href: next ?? "/" })
       return setOpen(false)
     }
     // Their own agent is in the egg, and comes straight out to ask about this computer.
@@ -343,7 +349,7 @@ export default function WelcomeScene() {
       color: (theirs.avatar?.color as AvatarColorId | undefined) ?? seen.current.color,
     })
     hatch(() => (here ? say("computer") : say("out")))
-  }, [bridge, here, hatch, navigate, patch, say, setOpen])
+  }, [bridge, here, hatch, navigate, next, patch, say, setOpen])
 
   // The scene is set up once: what can be drawn, who is signed in, and so where it starts.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, as it opens
@@ -498,8 +504,12 @@ export default function WelcomeScene() {
   const social = async (provider: "google" | "github") => {
     patch({ error: undefined })
     // In a browser the page goes to the provider and comes back here, signed in.
-    if (bridge === undefined)
-      return void authClient.signIn.social({ provider, callbackURL: "/welcome" })
+    if (bridge === undefined) {
+      return void authClient.signIn.social({
+        provider,
+        callbackURL: next === undefined ? "/welcome" : `/welcome?next=${encodeURIComponent(next)}`,
+      })
+    }
     // In the app it is the owner's own browser that goes, and this window waits.
     patch({ waiting: true })
     const wrong = await signInThroughBrowser(bridge, provider)
@@ -621,6 +631,13 @@ export default function WelcomeScene() {
     handingOver.begin()
     patch({ on: false })
     setLeaving(true)
+    if (next !== undefined) {
+      // The page that sent them is where they go, and the creature is met again in its chat.
+      await navigate({ href: next })
+      await new Promise((resolve) => setTimeout(resolve, 700))
+      handingOver.end()
+      return setOpen(false)
+    }
     const show = root.current !== null ? unseen(root.current) : undefined
     await navigate({ to: "/a/$agentId", params: { agentId: met.id } })
     const drawing = stage.current
@@ -677,8 +694,10 @@ export default function WelcomeScene() {
         aria-hidden
         data-egg
         className={cn(
-          "pointer-events-none absolute top-0 left-0 will-change-transform",
+          "pointer-events-none absolute top-0 left-0 transition-opacity duration-700 will-change-transform",
           !(drawn && placed) && "invisible",
+          // Going to its chat it flies there. Going anywhere else it goes with the sky.
+          leaving && next !== undefined && "opacity-0",
         )}
       >
         <canvas ref={creature} className="block size-full" />
@@ -945,7 +964,13 @@ export default function WelcomeScene() {
               ) : (
                 <div className="mt-3 flex justify-end">
                   <Button data-first disabled={view.busy} onClick={finish}>
-                    {view.back ? "Back to our chat" : `Start chatting with ${view.name}`}
+                    {next?.startsWith("/invite/")
+                      ? "On to your invitation"
+                      : next !== undefined
+                        ? "Continue"
+                        : view.back
+                          ? "Back to our chat"
+                          : `Start chatting with ${view.name}`}
                   </Button>
                 </div>
               )}

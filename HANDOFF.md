@@ -1488,10 +1488,24 @@ Since then, newest last:
       the desktop app on its first run, whether it may work on this computer. Then it
       hatches. The agent is made as it is named, with the seed its egg was drawn from.
     - **Who is sent there:** someone with no agent (`_app.index.tsx` no longer makes one),
-      and "Create an account" on the sign-in page. `/signup` is still the plain form.
+      and "Create an account" on the sign-in page.
       Someone who has an agent is sent on, except in a desktop app that has not been
       through its first run: there their own agent comes out of the egg and asks about the
       computer.
+    - **Every account is made there** (2026-10-11; the owner: "anytime you sign up for an
+      account you get the welcome setup screen ... instead of the sign up so you get
+      onboarded"). `/signup` was still the plain form: whoever opened it made the account
+      there and met the egg only afterwards, and someone who signed up from an invitation
+      went back to it, joined, and never met an agent of their own. `/signup` now leads to
+      `/welcome` and carries `next`. A scene that was sent by a page (`sentFrom` in
+      `lib/welcome.ts`) ends at that page and not in the chat: "On to your invitation". An
+      invitation opened by someone signed in who has no agent sends them to the scene first,
+      which is how an account made by a provider on the sign-in page gets there too. The one
+      plain form left is `/signup?next=/desktop/sign-in…`, in the browser the desktop app sent
+      its owner to: the app's own window is showing the scene. The mobile app has its own
+      form and no scene. `signUp` in the browser tests makes the account over the API.
+      Not chosen by the owner: that someone invited meets an agent of their own before they
+      join, and that the scene then ends at the invitation.
     - **In its chat it says hello first**: the empty chat of an agent just met says who it is
       and what it was given, with three things to start with (`meetingWith`, kept for the
       window's life). These are the app's words, not a model's, and are gone once the chat has
@@ -1945,8 +1959,8 @@ Since then, newest last:
       is the deployment's owner. While it is false the page has no way to make an account:
       "Coming soon", and "Already have access? Sign in". The sign-in form then drops "Create
       an account", unless a page sent the visitor there to come back to it, as an invitation
-      does. `/signup` and `/welcome` are still there for whoever knows them: the server
-      refuses an account to anyone not invited, as it did.
+      does. `/welcome`, and `/signup` which leads to it, are still there for whoever knows
+      them: the server refuses an account to anyone not invited, as it did.
     - **The page** was first a console's character select, at night, in a pixel face. On
       2026-10-11 the owner found it had "too many agent blobs" under the select, pointed at
       x.ai/bot and chatgpt.com/features/dots, asked for "a more professional version of this

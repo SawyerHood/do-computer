@@ -8,33 +8,40 @@ export const owner = {
 }
 
 /**
- * Make an account, and give it a first agent. Someone new is taken to the first run to meet
- * theirs, which `welcome.spec.ts` is about. For every other file the agent is made the plain
- * way, with no name and still in its egg, and its chat is opened.
+ * Make an account, and give it a first agent. Someone new makes theirs in the first run, where
+ * they meet their agent, which `welcome.spec.ts` is about. For every other file both are made
+ * the plain way: the account with what the first run would send, the agent with no name and
+ * still in its egg, and its chat is opened.
  */
 export async function signUp(page: Page, account = owner) {
-  await page.goto("/signup")
-  await page.getByLabel("Name").fill(account.name)
-  await page.getByLabel("Email").fill(account.email)
-  await page.getByLabel("Password").fill(account.password)
-  await page.getByRole("button", { name: "Create account" }).click()
-  // Either they are in, and at the first run, or the form says why not.
-  const made = await Promise.race([
-    page.waitForURL(/\/welcome$/).then(
-      () => true,
-      () => false,
-    ),
-    page
-      .getByRole("alert")
-      .waitFor()
-      .then(
-        () => false,
-        () => false,
-      ),
-  ])
-  if (!made) return
+  expect((await page.request.post("/api/auth/sign-up/email", { data: account })).status()).toBe(200)
   expect((await page.request.post("/api/agents")).status()).toBe(201)
   await page.goto("/")
+}
+
+/**
+ * The card under the egg in the first run, once it has said its piece and what it asks for can
+ * be answered. Until then what is in it cannot be typed in or pressed.
+ */
+export async function card(page: Page, says: string | RegExp) {
+  const asked = page.locator("[data-card]")
+  await expect(asked.getByRole("status")).toHaveText(says)
+  return asked
+}
+
+/** Say hello to the egg, and tell it who they are: that is making an account. */
+export async function introduce(page: Page, account = owner) {
+  await (
+    await card(page, /Is somebody out there\?/)
+  )
+    .getByRole("button", { name: "Hello!" })
+    .click()
+  const you = await card(page, /who are you\?/)
+  await you.getByLabel("Your name").fill(account.name)
+  await you.getByLabel("Email").fill(account.email)
+  await you.getByLabel("Password").fill(account.password)
+  await you.getByRole("button", { name: "That’s me" }).click()
+  return you
 }
 
 export async function signIn(page: Page) {
