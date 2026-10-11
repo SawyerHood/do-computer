@@ -30,7 +30,7 @@ const CURATED = [
   "moonshotai/kimi-k3",
 ]
 
-export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5.5"
+export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-haiku-5.5"
 /** The model a deployment without a key runs on. It repeats what it is told. */
 export const ECHO_MODEL = "echo/echo-1"
 /**
@@ -302,7 +302,9 @@ export function createAgentModels(
 
   /** The one new agents start on, out of what is offered: the one configured, if it is there. */
   const startsOn = (options: readonly ModelOption[]): string => {
-    const wanted = config.defaultModel ?? DEFAULT_OPENROUTER_MODEL
+    // A deployment that names its models and no default starts on the first it names, whether
+    // or not the usual default is among them.
+    const wanted = config.defaultModel ?? (allowed === undefined ? DEFAULT_OPENROUTER_MODEL : "")
     const found = options.find(
       (option) => option.id === wanted || option.id === OPENROUTER + wanted,
     )

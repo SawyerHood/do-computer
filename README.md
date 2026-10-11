@@ -70,7 +70,7 @@ runs the tests and nothing else.
 | Variable                                   | Meaning                                                                                                                                                           |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OPENROUTER_API_KEY`                       | Pays for every call to the deployment's own models. A workspace signed in to a provider of its own pays for those. See [Models](#models).                         |
-| `DC_DEFAULT_MODEL`                         | Model new agents start on unless their owner chose one: `provider/model` or an OpenRouter id. Default `anthropic/claude-sonnet-5.5`, or the first of `DC_MODELS`. |
+| `DC_DEFAULT_MODEL`                         | Model new agents start on unless their owner chose one: `provider/model` or an OpenRouter id. Default `anthropic/claude-haiku-5.5`, or the first of `DC_MODELS`.  |
 | `DC_MODELS`                                | The only models the deployment itself offers, comma-separated: `provider/model` or OpenRouter ids. Default: all it can run. See [Models](#models).                |
 | `DC_ADMIN_EMAILS`                          | Comma-separated emails of those who may sign the deployment itself in to model providers, for everyone. See [Models](#models).                                    |
 | `DC_BASE_URL`                              | Public origin, for example `https://agent.example.com`. Needed behind a proxy and for sign-in with Google or GitHub.                                              |
@@ -313,7 +313,9 @@ answering or someone stops the conversation.
   with no network, and its cost shows up under Usage with everything else.
 - **Use your services.** Under Connectors, add a remote [MCP](https://modelcontextprotocol.io)
   server by its address, with an access token or by signing in to the service. Its tools become
-  the agent's. Tokens stay on the server; the agent never sees them.
+  the agent's. Tokens stay on the server; the agent never sees them. [Apps](#apps) is one
+  that needs no address: one button, a sign-in at Composio, and the agent reaches your own
+  accounts on Gmail, Google Calendar, Slack, Notion, GitHub and hundreds of other services.
 - **Write you documents.** A workspace has one Library, which all its agents share. On each of
   its machines the folder `~/library` is that library: what an agent writes there, by hand or
   with a program, appears in the app in the same folders, and so do the files you upload and the
@@ -428,6 +430,32 @@ The bot is all an agent is in Slack: it does nothing there as a person. A connec
 service can still be given a client ID and secret, for a service whose sign-in lets no app
 register itself.
 
+## Apps
+
+An agent's Connectors offer **Connect apps**. One click adds a connector called Apps, which is
+[Composio](https://composio.dev)'s MCP server, and sends you to Composio to sign in with an
+account of your own, which is free to make. From then on the agent reaches the accounts you
+connect there: Gmail, Google Calendar, Drive, Outlook, Slack, Notion, GitHub, Linear and
+hundreds more. An agent can also add Apps itself when you ask for something in one of your
+accounts: it asks leave as for any change to its connectors, and a Sign in button appears
+beside the chat.
+
+The deployment needs nothing for this: no key and no setting. Composio's calls are counted
+against your Composio account, not the deployment.
+
+- **Signing in to a service.** The first time a task needs one, the agent gives you a link in
+  the chat. The page is Composio's and says so.
+- **It asks first.** Apps starts on Ask first: finding tools and handing you a sign-in link go
+  ahead, and anything else waits for your answer, with what would be run in front of you.
+  Permissions can set it to Allow.
+- **Whose accounts.** Those of whoever signed in to Composio for that agent. In a team, that
+  is one person's accounts for everyone who uses the agent, as with any connector someone
+  signs in to. Each agent is signed in separately.
+- **What Composio holds.** The grants you give each service are kept by Composio, in your
+  account there, and every call an agent makes in one passes through it. You see and
+  disconnect them at Composio. Removing Apps from an agent takes away the server's sign-in to
+  your Composio account and leaves your accounts there as they were.
+
 ## Trust
 
 Agents act without asking first. That is the default on purpose, and it means a prompt injection
@@ -459,7 +487,8 @@ paired computer. What limits the damage:
   remembers is not on a machine, so another agent cannot change it there. Give an agent whose
   permissions you have limited a machine that only it can use.
 - **Secrets stay on the server.** Connector tokens and sign-in grants are never in the model's
-  context or on the agent's computer.
+  context or on the agent's computer. With [Apps](#apps), what you grant each service is kept
+  by Composio, in your account there; the server keeps only its sign-in to that account.
 - **The server will not be used to reach inside your network.** Connector addresses and skill
   installs must be https on a public host, re-checked on every redirect. The built-in computer
   runs inside the server, so what an agent fetches with `curl` there goes through the same check:

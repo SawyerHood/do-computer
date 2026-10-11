@@ -17,6 +17,8 @@ type Server = {
   url: string
   /** Where this server looks for Slack. Nothing is there unless a file's tests put it there. */
   slack: string
+  /** Where this server takes the Apps connector to be. Nothing is there either, until a test is. */
+  apps: string
   stop: () => void
 }
 
@@ -34,6 +36,7 @@ async function freePort(): Promise<number> {
 async function start(file: string, settings: Record<string, string>): Promise<Server> {
   const url = `http://127.0.0.1:${await freePort()}`
   const slack = `http://127.0.0.1:${await freePort()}`
+  const apps = `http://127.0.0.1:${await freePort()}`
   const data = mkdtempSync(join(tmpdir(), "dc-e2e-"))
   let errors = ""
   const child: ChildProcess = spawn("node", [entry], {
@@ -50,6 +53,8 @@ async function start(file: string, settings: Record<string, string>): Promise<Se
       DC_ALLOW_PRIVATE_HOSTS: "1",
       // The Slack tests stand in for Slack on this machine too.
       DC_SLACK_API_URL: `${slack}/api`,
+      // And for the service the Apps connector signs people in to.
+      DC_APPS_URL: `${apps}/oauth/mcp`,
       // Where the tests sign the server itself in to a model provider, their owner may.
       ...(file.endsWith("models.spec.ts") ? { DC_ADMIN_EMAILS: "owner@example.com" } : {}),
       ...settings,
@@ -76,7 +81,7 @@ async function start(file: string, settings: Record<string, string>): Promise<Se
       (response) => response.ok,
       () => false,
     )
-    if (up) return { file, url, slack, stop }
+    if (up) return { file, url, slack, apps, stop }
     if (Date.now() > deadline) {
       stop()
       throw new Error(`The server did not come up at ${url}.\n${errors}`)
@@ -90,6 +95,8 @@ type WorkerFixtures = {
     for: (file: string) => Promise<string>
     /** The address a file's server calls Slack at, for a stand-in to listen on. */
     slackFor: (file: string) => Promise<string>
+    /** The address a file's server takes the Apps connector to be at, for a stand-in to listen on. */
+    appsFor: (file: string) => Promise<string>
   }
   /** Whether the agent's creature is drawn live. Set with `test.use` by the tests that are about it. */
   creature: boolean
@@ -125,6 +132,7 @@ export const test = base.extend<object, WorkerFixtures>({
       await use({
         for: async (file) => (await serverFor(file)).url,
         slackFor: async (file) => (await serverFor(file)).slack,
+        appsFor: async (file) => (await serverFor(file)).apps,
       })
       server?.stop()
     },

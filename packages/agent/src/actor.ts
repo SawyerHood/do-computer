@@ -232,6 +232,11 @@ export type AgentActorOptions = {
   /** Gives the agent a web search tool. Absent: it has none. */
   readonly webSearch?: WebSearchOptions
   /**
+   * Where Apps is: the connector that reaches people's own accounts on other services. Default:
+   * Composio's MCP server. Only a test's stand-in is anywhere else.
+   */
+  readonly appsUrl?: string
+  /**
    * Has a small model judge, when a run ends on what could be a progress update, whether the
    * agent meant to go on, and sets it going again if so. Absent: a run ends where the agent stops.
    */
@@ -1027,6 +1032,11 @@ export class AgentActor implements Actor {
         allowPrivateHosts: this.#options.allowPrivateHosts,
         resolveHost: this.#options.resolveHost,
         redirectUrl: () => this.#connectorRedirect(),
+        appsUrl: this.#options.appsUrl,
+        // It can send mail as someone, so it starts out asking before it does anything.
+        appsAdded: async (id, c) => {
+          await this.#approvals.setRules({ [`connector:${id}`]: "ask" }, c)
+        },
         askToken: (input, c) =>
           this.#secrets.ask(
             {

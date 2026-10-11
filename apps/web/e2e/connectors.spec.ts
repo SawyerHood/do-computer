@@ -106,6 +106,40 @@ test.describe("connectors", () => {
     ).toBeVisible()
   })
 
+  test("Apps is one button and a sign-in, and asks before it does anything", async ({
+    page,
+    servers,
+  }, testInfo) => {
+    // The deployment is told Apps is here, where Composio's own server would be.
+    const apps = await startFakeMcp(Number(new URL(await servers.appsFor(testInfo.file)).port))
+    try {
+      await openConnectors(page)
+      await page.getByRole("button", { name: "Connect apps" }).click()
+      // Nothing to type: the service's own page, in the same tab, and back.
+      await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
+      await page.getByRole("link", { name: "Allow" }).click()
+      await expect(page.getByRole("status")).toContainText("Apps is connected.")
+      const card = page.getByRole("listitem").filter({ hasText: "through Composio" })
+      await expect(card.getByText("Connected", { exact: true })).toBeVisible()
+      // There is one of it: with it added, it is no longer offered.
+      await expect(page.getByRole("button", { name: "Connect apps" })).toHaveCount(0)
+
+      await newChat(page)
+      const waiting = page.getByRole("list", { name: "Waiting for your OK" })
+      await composer(page).fill("/tool apps__today {}")
+      await composer(page).press("Enter")
+      await expect(waiting.getByText(/Use Apps/)).toBeVisible()
+      await waiting.getByRole("button", { name: "Allow once" }).click()
+      await expect(waiting).toHaveCount(0)
+      await expect(composer(page)).toBeEnabled()
+      await composer(page).fill("/tool apps__today {}")
+      await composer(page).press("Enter")
+      await expect(page.getByRole("main").getByText("Dentist at 3pm").first()).toBeVisible()
+    } finally {
+      await apps.close()
+    }
+  })
+
   test("a sign-in link cannot be replayed", async ({ page }) => {
     await signIn(page)
     await page.goto("/api/connectors/callback?code=anything&state=made-up")

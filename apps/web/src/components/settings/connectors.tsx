@@ -66,6 +66,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
   })
   const status = STATUS[connector.status]
   const error = toggle.error ?? reconnect.error ?? remove.error
+  const apps = connector.kind === "apps"
 
   return (
     <li>
@@ -74,7 +75,11 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
           <CardTitle>
             <h2 className="truncate">{connector.name}</h2>
           </CardTitle>
-          <CardDescription className="truncate">{new URL(connector.url).host}</CardDescription>
+          <CardDescription className="truncate">
+            {apps
+              ? "Your accounts on other services, through Composio"
+              : new URL(connector.url).host}
+          </CardDescription>
           <CardAction>
             <Badge variant="secondary" className={status.tone}>
               {status.label}
@@ -82,7 +87,27 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
           </CardAction>
         </CardHeader>
         <CardContent>
-          {connector.status === "connected" ? (
+          {apps && connector.status === "connected" ? (
+            <p className="text-muted-foreground">
+              Ask your agent for something in Gmail, your calendar, Slack, Notion, GitHub or any
+              other service. The first time, it gives you a link to sign in to that service. It asks
+              before it does anything in an account of yours. Your accounts are kept at{" "}
+              <a
+                className="underline underline-offset-4"
+                href={new URL(connector.url).origin}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Composio
+              </a>
+              , where you can disconnect one.
+            </p>
+          ) : apps && connector.status === "needs_auth" ? (
+            <p className="text-muted-foreground">
+              Sign in with a Composio account, which is free to make. Your agent then reaches the
+              services you connect there.
+            </p>
+          ) : connector.status === "connected" ? (
             <p className="text-muted-foreground">
               {connector.tools.length === 0
                 ? "It offers no tools."
@@ -325,6 +350,46 @@ function Connected({ agentId, connected }: { agentId: string; connected: string 
           ))}
         </ul>
       ) : null}
+      {connectors.some((connector) => connector.kind === "apps") ? null : (
+        <AppsOffer agentId={agentId} />
+      )}
     </>
+  )
+}
+
+/** Offered until the agent has Apps: one button, and then a sign-in at Composio. */
+function AppsOffer({ agentId }: { agentId: string }) {
+  const connect = useMutation({
+    mutationFn: () => client.agent(agentId).addConnector({ apps: true }),
+    onSuccess: follow,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: connectorsKey(agentId) }),
+  })
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2>Your apps</h2>
+        </CardTitle>
+        <CardDescription>
+          Gmail, Google Calendar, Drive, Slack, Notion, GitHub and hundreds more, through Composio.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-muted-foreground">
+          You sign in with a Composio account, which is free to make, and then to each service the
+          first time it is needed. Your agent asks before it does anything in an account of yours.
+        </p>
+      </CardContent>
+      <CardFooter className="flex-wrap gap-2">
+        <Button size="sm" disabled={connect.isPending} onClick={() => connect.mutate()}>
+          {connect.isPending ? "Connecting…" : "Connect apps"}
+        </Button>
+        {connect.isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {connect.error.message}
+          </p>
+        ) : null}
+      </CardFooter>
+    </Card>
   )
 }

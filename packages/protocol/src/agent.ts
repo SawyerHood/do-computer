@@ -213,20 +213,28 @@ export type ConnectorSummary = {
    * in. The app offers the sign-in beside that chat, and the agent is told there how it went.
    */
   askedIn?: string
+  /**
+   * `apps`: Composio's MCP server, which reaches the accounts on other services of whoever
+   * signed in to it with their Composio account. It asks before it does anything in one.
+   */
+  kind?: "apps"
 }
 
-export type AddConnectorRequest = {
-  name: string
-  url: string
-  /** A fixed access token, for services that issue one instead of asking the user to sign in. */
-  token?: string
-  /**
-   * The id and secret of an app registered with the service by hand, for a service whose sign-in
-   * does not let an app register itself.
-   */
-  clientId?: string
-  clientSecret?: string
-}
+export type AddConnectorRequest =
+  | {
+      name: string
+      url: string
+      /** A fixed access token, for services that issue one instead of asking the user to sign in. */
+      token?: string
+      /**
+       * The id and secret of an app registered with the service by hand, for a service whose
+       * sign-in does not let an app register itself.
+       */
+      clientId?: string
+      clientSecret?: string
+    }
+  /** Apps, which needs no name or address: whoever adds it signs in to Composio. */
+  | { apps: true }
 
 /** The Slack app an agent is in Slack as, without its secrets. */
 export type SlackApp = {
