@@ -6,8 +6,10 @@ import { expect, test } from "./fixtures.ts"
 
 /**
  * The mobile app, running in a browser. Its web build is the same screens and logic as on a
- * phone, drawn by react-native-web, so these check everything but the native modules: secure
- * storage, push registration and the share sheet.
+ * phone, drawn by react-native-web, so these check everything but what only a phone has: its
+ * own bars, menus and sheets (here a menu is a list over the page, and a question before
+ * something is deleted is the browser's own), secure storage, push registration and the share
+ * sheet.
  *
  * The build is served under /__mobile on the deployment's own origin, which is how a browser
  * build would be hosted, so its session cookie works as usual.
@@ -26,6 +28,13 @@ async function open(page: Page, path = "/__mobile/") {
     const isFile = relative !== "" && existsSync(file) && statSync(file).isFile()
     await route.fulfill({ path: isFile ? file : join(dist, "index.html") })
   })
+  // The pages are handed over by the test and not by a server, so the browser cannot tell that
+  // they come from this machine, and would ask before it lets them open a socket to it: the
+  // sockets are how the app hears of anything. A browser that never asks has no such permission.
+  await page
+    .context()
+    .grantPermissions(["local-network-access"])
+    .catch(() => {})
   await page.goto(path)
 }
 
@@ -34,7 +43,36 @@ const account = {
   email: "mobile@example.com",
   password: "correct horse battery",
 }
-const composer = (page: Page) => page.getByLabel("Message", { exact: true })
+// A screen that was left for another is still in the page, out of sight, so what a test asks
+// for is asked of what can be seen: by role, or among the words that show.
+const composer = (page: Page) => page.getByRole("textbox", { name: "Message", exact: true })
+const words = (page: Page, text: string | RegExp, options?: { exact?: boolean }) =>
+  page.getByText(text, options).filter({ visible: true })
+const row = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^${name}`) })
+/** An agent's row in the list, which says its name, the latest from it, and when. */
+const agent = (page: Page, name: string) =>
+  page.getByRole("button", { name: new RegExp(`^${name}, `) })
+const back = (page: Page) => page.getByRole("link", { name: /(, back|^Go back)$/ })
+const item = (page: Page, name: string) => page.getByRole("menuitem", { name, exact: true })
+const agentId = async (page: Page) =>
+  ((await (await page.request.get("/api/agents")).json()) as { agents: { id: string }[] })
+    .agents[0]!.id
+
+/** Say yes to the next thing the app asks before doing, and give back what it asked. */
+function agree(page: Page): Promise<string> {
+  return new Promise((resolve) => {
+    page.once("dialog", (dialog) => {
+      resolve(dialog.message())
+      void dialog.accept()
+    })
+  })
+}
+
+async function send(page: Page, text: string) {
+  await composer(page).fill(text)
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(composer(page)).toHaveValue("")
+}
 
 async function signIn(page: Page) {
   await open(page)
@@ -42,197 +80,324 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill(account.password)
   await page.getByRole("button", { name: "Sign in" }).click()
-  await expect(page.getByRole("button", { name: "New chat" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible()
 }
 
-test("a new user signs up on the phone and meets a brand-new agent", async ({ page }) => {
+/** Signed in, and in the main chat of the agent the first test hatched. */
+async function openChat(page: Page) {
+  await signIn(page)
+  await agent(page, "Pip").click()
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
+}
+
+test("a new user signs up on the phone, hatches an agent and lands in its chat", async ({
+  page,
+}) => {
   await open(page)
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
-  // A browser build is served by its deployment, so there is no address to type.
-  await expect(page.getByLabel("Deployment address")).toHaveCount(0)
   await page.getByRole("button", { name: "Create an account" }).click()
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible()
   await page.getByLabel("Name").fill(account.name)
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill(account.password)
   await page.getByRole("button", { name: "Create account" }).click()
 
-  await expect(page.getByRole("heading", { name: "Your agent" })).toBeVisible()
-  await expect(page.getByText("Brand new, and not named yet")).toBeVisible()
-  await expect(page.getByText("No chats yet.")).toBeVisible()
-
-  // The agent is met as an egg, which hatches in its first chat, once.
+  // The first run: the agent is met as an egg, which is named and then hatches, once.
+  await expect(words(page, /I don’t have a name yet/)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByTestId("avatar-egg")).toBeVisible()
-  await page.getByRole("button", { name: "New chat" }).click()
-  await expect(page.getByText("It has no name yet")).toBeVisible()
+  await expect(page.getByRole("button", { name: "That’s your name" })).toBeDisabled()
+  await page.getByLabel("A name for it").fill("Pip")
+  await page.getByRole("radio", { name: "Moss" }).click()
+  await page.getByRole("button", { name: "That’s your name" }).click()
+
+  // What it thinks with is asked only where there is something to choose from.
+  const start = page.getByRole("button", { name: "Start chatting with Pip" })
+  const use = page.getByRole("button", { name: /^Use / })
+  await expect(start.or(use)).toBeVisible({ timeout: 15_000 })
+  if (await use.isVisible()) await use.click()
+  await expect(start).toBeVisible({ timeout: 20_000 })
   const hatched = async () =>
     (
       (await (await page.request.get("/api/agents")).json()) as {
-        agents: { hatched: boolean }[]
+        agents: { name: string; hatched: boolean }[]
       }
-    ).agents[0]!.hatched
-  await expect.poll(hatched, { timeout: 15_000 }).toBe(true)
+    ).agents[0]
+  await expect.poll(hatched, { timeout: 15_000 }).toMatchObject({ name: "Pip", hatched: true })
   await expect(page.getByTestId("avatar-egg")).toHaveCount(0)
+
+  await start.click()
+  await expect(page.getByRole("heading", { name: "Hi Phone, I’m Pip." })).toBeVisible()
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
   await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
 })
 
 test("wrong credentials are explained", async ({ page }) => {
   await open(page)
+  // A browser build is served by its deployment, so there is no address to type or change.
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
+  await expect(page.getByLabel("Deployment address")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Change server" })).toHaveCount(0)
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill("not the password")
   await page.getByRole("button", { name: "Sign in" }).click()
   await expect(page.getByRole("alert")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
+})
+
+test("signing in lands on the agents, and an agent's row opens its chat", async ({ page }) => {
+  await signIn(page)
+  await expect(agent(page, "Pip")).toBeVisible()
+  await agent(page, "Pip").click()
+  await expect(page.getByRole("button", { name: "Pip's page" })).toBeVisible()
+  // Nothing has been said in it yet, so it is the agent, large, and no longer in its egg.
+  await expect(page.getByRole("heading", { name: "Pip", exact: true })).toBeVisible()
+  await expect(words(page, "What would you like to do?")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
 })
 
 test("a chat streams the agent's reply and survives leaving and coming back", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("button", { name: "New chat" }).click()
-  await expect(page.getByText("It has no name yet")).toBeVisible()
-  await composer(page).fill("hello from the phone")
-  await page.getByRole("button", { name: "Send" }).click()
-  await expect(composer(page)).toHaveValue("")
-  await expect(page.getByText("You said: hello from the phone")).toBeVisible()
+  await openChat(page)
+  await send(page, "hello from the phone")
+  await expect(words(page, /You said: hello from the phone/)).toBeVisible()
+  // Stop is there only while the agent works, and the hello gives way to the conversation.
+  await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)
+  await expect(words(page, "What would you like to do?")).toHaveCount(0)
 
-  await page.getByRole("button", { name: "Back to chats" }).click()
-  await page.getByRole("link", { name: "hello from the phone" }).click()
-  await expect(page.getByText("You said: hello from the phone")).toBeVisible()
+  // The row in the list says the latest from the agent, and leads back to the same chat.
+  await back(page).click()
+  await expect(agent(page, "Pip")).toContainText("You said: hello from the phone")
+  await agent(page, "Pip").click()
+  await expect(words(page, /You said: hello from the phone/)).toBeVisible()
 })
 
 test("the agent's work leaves only its answer, and a sent file can be opened", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("link", { name: "hello from the phone" }).click()
-  await composer(page).fill('/tool set_identity {"name":"Pip","tagline":"Small but mighty"}')
-  await page.getByRole("button", { name: "Send" }).click()
-  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
-
-  await composer(page).fill('/tool write {"path":"list.md","content":"- eggs\\n- flour\\n"}')
-  await page.getByRole("button", { name: "Send" }).click()
-  await expect(page.getByText(/Successfully wrote to list\.md/).first()).toBeVisible()
-  // The calls themselves are not in the transcript, only what the agent said.
-  await expect(page.getByRole("button", { name: "Named itself Pip" })).toHaveCount(0)
+  await openChat(page)
+  await send(page, '/tool write {"path":"list.md","content":"- eggs\\n- flour\\n"}')
+  await expect(words(page, /Successfully wrote to list\.md/).first()).toBeVisible()
+  // The call itself is not in the transcript, only what the agent said.
   await expect(page.getByRole("button", { name: "Wrote list.md" })).toHaveCount(0)
 
-  await composer(page).fill('/tool send_file {"path":"list.md"}')
-  await page.getByRole("button", { name: "Send" }).click()
-  // Opening hands the file's address to the browser, which downloads it with the session.
+  await send(page, '/tool send_file {"path":"list.md"}')
+  const file = page.getByRole("button", { name: /^list\.md, \d+ B$/ })
+  await expect(file).toBeVisible()
+  // Downloading hands the file's address to the browser, which fetches it with the session.
   const fetched = page
     .context()
-    .waitForEvent("response", (response) => response.url().includes("/library/"))
-  await page.getByRole("button", { name: "Open list.md" }).click()
+    .waitForEvent("response", (response) => /\/library\/[^/?]+$/.test(response.url()))
+  await page.getByRole("button", { name: "Download list.md" }).click()
   expect((await fetched).headers()["content-disposition"]).toContain("list.md")
+
+  // A document opens where it is kept, in the library.
+  await file.click()
+  await expect(page.getByRole("tablist", { name: "How to show it" })).toBeVisible()
+  await expect(words(page, "eggs")).toBeVisible()
 })
 
 test("a request for approval can be answered from the phone", async ({ page }) => {
-  await signIn(page)
-  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
-    agents: { id: string }[]
-  }
-  const rules = `/api/agents/${agents[0]!.id}/approvals/rules`
+  await openChat(page)
+  const rules = `/api/agents/${await agentId(page)}/approvals/rules`
   await page.request.patch(rules, { data: { "tool:bash": "ask" } })
   try {
-    await page.getByRole("link", { name: "hello from the phone" }).click()
-    await composer(page).fill('/tool bash {"command":"echo from-the-phone"}')
-    await page.getByRole("button", { name: "Send" }).click()
-    await expect(page.getByText("Pip wants to: Run commands")).toBeVisible()
-    await expect(page.getByText("echo from-the-phone", { exact: true })).toBeVisible()
+    await send(page, '/tool bash {"command":"echo from-the-phone"}')
+    // It waits above the composer, which is still there to write in.
+    await expect(words(page, "Pip asks first · from this chat")).toBeVisible()
+    await expect(words(page, "echo from-the-phone", { exact: true })).toBeVisible()
+    const top = async (of: ReturnType<typeof words>) => (await of.boundingBox())!.y
+    const asking = await top(words(page, "Pip asks first · from this chat"))
+    expect(asking).toBeGreaterThan(await top(words(page, /^\/tool bash/)))
+    expect(asking).toBeLessThan(await top(composer(page)))
 
     await page.getByRole("button", { name: "Allow once" }).click()
-    await expect(page.getByText("Pip wants to: Run commands")).toHaveCount(0)
+    await expect(words(page, "Pip asks first · from this chat")).toHaveCount(0)
+    // The answer is told to the agent, and is in the transcript as a note of its own.
     await expect(
-      page.getByText("Approved: Run commands: echo from-the-phone", { exact: true }),
+      words(page, "Approved: Run commands: echo from-the-phone", { exact: true }),
     ).toBeVisible()
   } finally {
     await page.request.patch(rules, { data: { "tool:bash": "allow" } })
   }
 })
 
+test("Markdown in a reply is rendered, not shown as markup", async ({ page }) => {
+  await openChat(page)
+  await send(page, "a list:\n\n- one\n- **two**")
+  await expect(words(page, "two", { exact: true })).toBeVisible()
+  await expect(words(page, "**two**")).toHaveCount(1) // only in the user's own bubble
+})
+
 test("earlier messages can be brought back after a chat was started fresh", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("link", { name: "hello from the phone" }).click()
-  await expect(page.getByText("You said: hello from the phone")).toBeVisible()
-  const chatId = new URL(page.url()).pathname.split("/").at(-1)!
-  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
-    agents: { id: string }[]
-  }
-  await page.request.post(`/api/agents/${agents[0]!.id}/chats/${chatId}/reset`, { data: {} })
+  await openChat(page)
+  await expect(words(page, /You said: hello from the phone/)).toBeVisible()
+  await page.getByRole("button", { name: "More", exact: true }).click()
+  const asked = agree(page)
+  await item(page, "Start fresh").click()
+  expect(await asked).toContain("Start fresh?")
 
   // The transcript now starts at the fresh start, and offers what came before it.
-  await expect(page.getByText("You said: hello from the phone")).toHaveCount(0)
+  await expect(words(page, /You said: hello from the phone/)).toHaveCount(0)
   await page.getByRole("button", { name: "Show earlier messages" }).click()
-  await expect(page.getByText("You said: hello from the phone")).toBeVisible()
+  await expect(words(page, /You said: hello from the phone/)).toBeVisible()
   await expect(page.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
 })
 
-test("Markdown in a reply is rendered, not shown as markup", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("link", { name: "hello from the phone" }).click()
-  await composer(page).fill("a list:\n\n- one\n- **two**")
-  await page.getByRole("button", { name: "Send" }).click()
-  await expect(page.getByText("two", { exact: true })).toBeVisible()
-  await expect(page.getByText("**two**")).toHaveCount(1) // only in the user's own bubble
-})
+test("the agent's page says what it is and has, and a skill can be switched off and on", async ({
+  page,
+}) => {
+  await openChat(page)
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await expect(page.getByRole("heading", { name: "Pip" }).first()).toBeVisible()
+  for (const name of [
+    "Profile",
+    "Memory",
+    "Model and computers",
+    "Skills",
+    "Connectors",
+    "Permissions",
+    "Usage",
+  ]) {
+    await expect(row(page, name)).toBeVisible()
+  }
+  await expect(row(page, "Model and computers")).toContainText("Echo")
 
-test("automations made in chat can be run and removed from their tab", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("link", { name: "hello from the phone" }).click()
-  await composer(page).fill(
-    '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Stretch","title":"Stretch break"}',
-  )
-  await page.getByRole("button", { name: "Send" }).click()
-  // The echo model repeats what the tool told it, which says the schedule exists.
-  await expect(page.getByText(/Scheduled\. [0-9a-f]{8}: "Stretch break"/).first()).toBeVisible()
-  await page.getByRole("button", { name: "Back to chats" }).click()
-
-  await page.getByRole("tab", { name: "Automations" }).click()
-  await expect(page.getByText("Stretch break")).toBeVisible()
-  await expect(page.getByText("Active", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "Pause" }).click()
-  await expect(page.getByText("Paused", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "Run now" }).click()
-  await expect(page.getByText(/Last run/)).toBeVisible({ timeout: 15_000 })
-  await page.getByRole("button", { name: "Delete Stretch break" }).click()
-  await expect(page.getByText("Nothing scheduled yet.")).toBeVisible()
-})
-
-test("skills can be read and switched off", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("tab", { name: "Skills" }).click()
-  await expect(page.getByText("writing-skills")).toBeVisible()
-  const toggle = page.getByLabel("Use writing-skills")
+  await row(page, "Skills").click()
+  await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible()
+  await expect(row(page, "planning-automations")).toContainText("Built in")
+  const toggle = page.getByRole("switch", { name: "Use writing-skills" })
   await expect(toggle).toBeChecked()
   await toggle.click()
   await expect(toggle).not.toBeChecked()
+  // It is the agent's setting and not the page's: it is still off when the page is read again.
   await page.reload()
-  await page.getByRole("tab", { name: "Skills" }).click()
-  await expect(page.getByLabel("Use writing-skills")).not.toBeChecked()
+  await expect(toggle).not.toBeChecked()
+  await toggle.click()
+  await expect(toggle).toBeChecked()
 })
 
-test("the library lists what the agent sent and lets it be deleted", async ({ page }) => {
-  await signIn(page)
-  await page.getByRole("tab", { name: "Library" }).click()
-  await expect(page.getByText("list.md")).toBeVisible()
-  await expect(page.getByText(/from your agent/)).toBeVisible()
-  await page.getByRole("button", { name: "Delete list.md" }).click()
-  await expect(page.getByText("Nothing here yet.")).toBeVisible()
+test("the library shows what the agent wrote, and a deleted file can be restored", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(page, '/tool write {"path":"library/plan.md","content":"# Plan\\n\\nBuy a kite.\\n"}')
+  await expect(words(page, /Successfully wrote/).last()).toBeVisible()
+  await page.getByRole("button", { name: "More", exact: true }).click()
+  await item(page, "Library").click()
+
+  await expect(page.getByRole("heading", { name: "Library" })).toBeVisible()
+  // What the agent sent in chat is kept here too, and says who it is from.
+  await expect(row(page, "list\\.md")).toContainText("Pip")
+  await row(page, "plan\\.md").click()
+  await expect(page.getByRole("tablist", { name: "How to show it" })).toBeVisible()
+  await expect(words(page, "Buy a kite.")).toBeVisible()
+  await back(page).click()
+
+  // Deleting asks first, and what is deleted can be had back.
+  await page.getByRole("button", { name: "More for plan.md" }).click()
+  const asked = agree(page)
+  await item(page, "Delete").click()
+  expect(await asked).toContain("plan.md")
+  await expect(row(page, "plan\\.md")).toHaveCount(0)
+  await expect(row(page, "list\\.md")).toBeVisible()
+
+  await row(page, "Recently deleted").click()
+  await page.getByRole("button", { name: "Restore plan.md" }).click()
+  await expect(page.getByRole("button", { name: "Restore plan.md" })).toHaveCount(0)
+  await back(page).click()
+  await expect(row(page, "plan\\.md")).toBeVisible()
 })
 
-test("a second agent can be created and switched to, and signing out ends the session", async ({
+test("automations made in chat can be paused, resumed, run and deleted", async ({ page }) => {
+  await openChat(page)
+  await send(
+    page,
+    '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Stretch","title":"Stretch break"}',
+  )
+  // The echo model repeats what the tool told it, which says the schedule exists.
+  await expect(words(page, /Scheduled\. [0-9a-f]{8}: "Stretch break"/).first()).toBeVisible()
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await page.getByRole("button", { name: "Automations", exact: true }).click()
+
+  const automation = page.getByRole("button", { name: "Stretch break", exact: true })
+  await expect(automation).toContainText("Every 6 hours")
+  await expect(automation).toContainText("Active")
+  await automation.click()
+  const active = page.getByRole("switch", { name: "Active" })
+  await active.click()
+  await expect(active).not.toBeChecked()
+  await expect(words(page, "Paused", { exact: true })).toBeVisible()
+  await active.click()
+  await expect(active).toBeChecked()
+
+  await expect(words(page, "It has not run yet.")).toBeVisible()
+  await page.getByRole("button", { name: "Run now" }).click()
+  await expect(words(page, "It has not run yet.")).toHaveCount(0, { timeout: 15_000 })
+
+  const asked = agree(page)
+  await page.getByRole("button", { name: "Delete Stretch break" }).click()
+  expect(await asked).toContain("Stretch break")
+  await expect(words(page, "Nothing scheduled yet.")).toBeVisible()
+})
+
+test("a side chat is started from the agent's side chats and is listed there afterwards", async ({
+  page,
+}) => {
+  await openChat(page)
+  await page.getByRole("button", { name: "Pip's side chats" }).click()
+  await expect(page.getByRole("heading", { name: "Side chats" })).toBeVisible()
+  await expect(words(page, /^None yet\./)).toBeVisible()
+  await page.getByRole("button", { name: "New side chat" }).click()
+
+  await send(page, "an aside about kites")
+  await expect(words(page, /You said: an aside about kites/)).toBeVisible()
+  await expect(page).toHaveURL(/\/a\/[^/]+\/c\/[^/]+$/)
+
+  // The main chat is as it was, and the side chat is in its list.
+  await back(page).click()
+  await expect(words(page, /You said: an aside about kites/)).toHaveCount(0)
+  await page.getByRole("button", { name: "Pip's side chats" }).click()
+  await expect(row(page, "an aside about kites")).toBeVisible()
+})
+
+test("a second agent hatches and names itself, settings show who and what there is, and signing out ends the session", async ({
   page,
 }) => {
   await signIn(page)
-  await page.getByRole("tab", { name: "You" }).click()
-  await expect(page.getByRole("button", { name: "Switch to Pip" })).toBeVisible()
-  await page.getByRole("button", { name: "New agent" }).click()
-  await expect(page.getByRole("button", { name: "Switch to New agent" })).toBeVisible()
-  await page.getByRole("tab", { name: "Chats" }).click()
-  await expect(page.getByRole("heading", { name: "Your agent" })).toBeVisible()
+  await page.getByRole("button", { name: "New", exact: true }).click()
+  await item(page, "New agent").click()
+  // It is met in its own chat as an egg with no name, which hatches there, once.
+  await expect(page).toHaveURL(/\/a\/[^/]+$/)
+  await expect(page.getByRole("heading", { name: "Say hello" })).toBeVisible()
+  await expect(words(page, /It has no name yet/)).toBeVisible()
+  const unhatched = async () =>
+    (
+      (await (await page.request.get("/api/agents")).json()) as { agents: { hatched: boolean }[] }
+    ).agents.filter((each) => !each.hatched).length
+  await expect.poll(unhatched, { timeout: 15_000 }).toBe(0)
+  await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0)
+  await expect(composer(page)).toHaveAttribute("placeholder", "Say hello")
+  // The name it gives itself is told to the page as it happens, and to the list behind it.
+  await send(page, '/tool set_identity {"name":"Dot","tagline":"Small but mighty"}')
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Dot")
+  await expect(page.getByRole("button", { name: "Dot's page" })).toBeVisible()
+  await back(page).click()
+  await expect(agent(page, "Dot")).toBeVisible()
+  await expect(agent(page, "Pip")).toBeVisible()
 
-  await page.getByRole("tab", { name: "You" }).click()
-  await page.getByRole("button", { name: "Switch to Pip" }).click()
-  await page.getByRole("tab", { name: "Chats" }).click()
-  await expect(page.getByRole("heading", { name: "Pip" })).toBeVisible()
+  await page.getByRole("button", { name: "Phone user: settings and signing out" }).click()
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible()
+  await expect(words(page, "Phone user", { exact: true })).toBeVisible()
+  await expect(words(page, /^mobile@example\.com/)).toBeVisible()
+  await expect(row(page, "Notifications")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Personal: workspace settings" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Pip's settings" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Dot's settings" })).toBeVisible()
+  await row(page, "General").click()
+  await expect(page.getByRole("heading", { name: "General" })).toBeVisible()
+  await back(page).click()
 
-  await page.getByRole("tab", { name: "You" }).click()
+  const asked = agree(page)
   await page.getByRole("button", { name: "Sign out" }).click()
+  expect(await asked).toContain("Sign out")
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
   await open(page)
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()

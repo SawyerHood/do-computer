@@ -96,7 +96,7 @@ jobs:
         id: mobile-build
         with:
           path: apps/mobile/dist-web-test
-          key: mobile-web-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app/**', 'apps/mobile/src/**', 'apps/mobile/*.js', 'apps/mobile/*.ts', 'apps/mobile/*.json', 'packages/client/src/**', 'packages/client/package.json', 'packages/mascot/src/**', 'packages/mascot/package.json', 'packages/protocol/src/**', 'packages/protocol/package.json') }}
+          key: mobile-web-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app/**', 'apps/mobile/src/**', 'apps/mobile/assets/**', 'apps/mobile/*.js', 'apps/mobile/*.ts', 'apps/mobile/*.json', 'packages/client/src/**', 'packages/client/package.json', 'packages/mascot/src/**', 'packages/mascot/package.json', 'packages/protocol/src/**', 'packages/protocol/package.json') }}
       - name: Build the server, fetching the browser meanwhile
         run: |
           pnpm --filter @durable-computer/web exec playwright install --only-shell chromium &

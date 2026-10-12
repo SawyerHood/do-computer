@@ -2656,6 +2656,63 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       so rows there change only when the list is next asked for. The native app in
       `apps/mobile` is as it was.
 
+64. **The native app does what the web app does on a phone, and is laid out as an iOS app**
+    (2026-10-12; `apps/mobile`, `packages/client/src/index.ts`, `apps/web/e2e/mobile.spec.ts`,
+    `scripts/island.mjs`, `scripts/icons.mjs`, `prototypes/ios-app`). The owner asked for "a
+    full pass on the mobile app to make sure it has all of the features of the mobile web and
+    … make it feel like a native ios app", chose from a mock-up (`prototypes/ios-app`), and
+    then asked for it to be built and tried on their MacBook Air. The app was five tabs for
+    one agent. It was written again from its data layer up; only the creature's drawing, the
+    Markdown parser and the dictation and push helpers were kept.
+    - **Layout.** No tab bar. The app opens on the agents under their workspaces
+      (`app/(app)/index.tsx`), as the web's sidebar has them, with the latest line pushed
+      over the person's feed. An agent's row opens its main chat. The agent's name in a chat
+      opens a page of its own (`a/[agentId]/info.tsx`) that holds what the web splits between
+      the agent's panel and its settings, so a phone has the running work, the files shared in
+      a chat, the steps behind an answer and Start fresh. Settings are a sheet from the
+      person's face. `app/(app)/_layout.tsx` names the routes that arrive as sheets.
+    - **The kit** is `apps/mobile/src/ui`: text in iOS's styles, grouped rows, buttons, SF
+      Symbols on iOS and drawings elsewhere (`icons.ts`), Liquid Glass where there is any
+      (`expo-glass-effect`), the bar's own buttons and pull-down menus (`Stack.Toolbar`),
+      swipe actions, haptics, and a confirmation before anything that cannot be taken back. A
+      file that has an iOS version beside it (`menu.ios.tsx`) must not import its own base
+      name: on iOS that is itself.
+    - **What it shares with the web.** `packages/client` opens its feed and presence sockets
+      with the constructor it is given, so the phone passes one that sends its session
+      cookie, and follows agents over sockets as the web does. Nothing else outside
+      `apps/mobile` changed but the browser tests and the icon script.
+    - **Four things that had never worked on a device**, found by running it: the session
+      cookie was read as if it were at hand when the auth library hands it over later, so no
+      signed-in request could succeed; three.js could not start in a GL view, which has no
+      canvas of its own, so no creature was ever drawn; a phone's JavaScript has no `crypto`,
+      which the shared code makes ids with, so nothing could be sent; and two GL views
+      started at the same moment do not always both reach the screen, so each now waits its
+      turn (`src/ui/gl-turn.ts`).
+    - **Checked.** Built on the owner's MacBook Air (Xcode 27, an iPhone 17 simulator on iOS 27) and driven there with Maestro against the built Node server: signing in and out,
+      the agents list with the feed changing a row, a chat with a streamed reply and the
+      keyboard up, the side chats sheet, the agent's page and each of its settings pages,
+      the wardrobe, opening a box and wearing what was in it, the library with a folder, a
+      Markdown document and a table, the share sheet, automations and one automation,
+      settings and General, new team, pairing, and the first run as far as the naming card.
+      `apps/web/e2e/mobile.spec.ts` was written again for the new app (13 tests through the
+      browser build), and the app's unit tests grew from 1 file to 8.
+    - **Not seen:** a physical phone; Android; dark mode on the simulator; a real model;
+      dictation, the camera, the photo picker and attaching files; a visual, a screen in use,
+      sub-agents and background commands in a native chat (their code is the web's rules,
+      drawn natively, and only type-checked and run in the browser build); a team with other
+      people; a paired computer; signing a workspace in to a model provider; GitHub and
+      Google sign-in; an invitation; push notifications; the rest of the first run after the
+      name (the browser tests do go through it). Signing up in the simulator stopped at the
+      system's strong-password offer, which the test tool could not answer. Creatures start
+      one after another, about half a second each in the simulator, with their still
+      picture until then. A hold on a row brings up the system's sheet of actions and not a
+      context menu with a preview: the menu views either hid the row from VoiceOver or let
+      it be only as wide as its words.
+    - **Chosen without the owner being asked:** no tab bar and the agent's page (both were in
+      the mock-up they approved), turn-taking for creatures, do.computer as the server a
+      phone starts on, sockets for following agents, and leaving the mock-up's "Outside the
+      app" extras unbuilt.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -2748,8 +2805,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 ### Known gaps
 
 - **Teams:** there are no private chats in a team, though the mock-up had an "Only you" one;
-  no invite link that anyone can ask to join by; and no teams in the mobile app, which lists
-  every agent the user can reach and shows no authors or presence. A side chat's spinner in
+  and no invite link that anyone can ask to join by. A side chat's spinner in
   the strip's menu knows about sub-agents everywhere but about the agent itself only in a chat
   on screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
   it does on the built server and on Workers. Invitation email has never been sent for real.
@@ -2757,12 +2813,11 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 - **Main and side chats:** a side chat cannot
   be renamed or brought back from the app once archived (the API can do both). Someone typing
   in a side chat that is beside the main chat is not shown as typing, and is counted as being
-  in the main chat. The mobile app still lists every chat alike.
+  in the main chat.
 
 - **Agents writing to each other:** nothing limits an exchange, by the owner's choice; one is
   ended by stopping the conversation from its chat. Sub-agents and scheduled runs cannot send.
-  Nothing on the sender's side shows that it is waiting to hear back. The native app shows the
-  replies and cannot open the conversations.
+  Nothing on the sender's side shows that it is waiting to hear back.
 - **Slack:** a picture attached there is looked at only by a model that takes pictures, and
   only as the smaller copy Slack makes; at most five files of a message are taken in. A Slack
   app made before files were added lacks the two permissions for them (`files:read`,
@@ -2776,10 +2831,8 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   cannot search Slack: it reads the latest of a channel or a thread, and only where it has
   been added. Writing to a person needs a permission (`im:write`) that a Slack app made
   before 2026-10-08 lacks; the agent is told so when it tries. Threads are listed in the agent's panel, which a narrow screen
-  does not have: there a thread is reached from a notification or its address. The mobile app
-  does not list them.
-- **Sub-agents on mobile** are only their reports, shown in the chat that started them. Their
-  own chats cannot be opened there, and nothing shows that one is at work.
+  does not have: there a thread is reached from a notification or its address. The native app
+  lists them on the agent's page.
 - **Machines:** agents on one machine are not walled off from each other, by the owner's
   choice of sharing; a Unix user per agent would be the wall and was not built. The built-in
   shell cannot be shared. A machine cannot be renamed. Nothing shows what a machine costs or
@@ -2788,17 +2841,19 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   move of an agent's own library into its workspace's runs once, when the agent is next
   opened, and cannot be undone.
 - **What the agent can do in the app:** the form for secrets, the Sign in card and the notes
-  about them are in the web app only. A secret the agent asked for is in a file on a computer it
+  about them are in the web app and the native app (item 64). A secret the agent asked for is in a file on a computer it
   works on, so it is kept out of the conversation and not out of the agent's reach. In a thread
   from Slack the agent can do none of this, since the cards that go with it are in the app. Left for
   later from the audit: putting back a deleted library file or an older version, opening a
   machine to chosen agents, renaming a chat, and a list of who is in the team.
-- **Mobile** has no model picker, connectors, permissions or file attaching, and
-  no agent panel. Its creature is checked only through the app's web build. It shows the answer
-  to an agent's request for a computer but cannot give one: the notification opens the chat,
-  and the request is answered on the web.
+- **Mobile** was rebuilt on 2026-10-12 to do what the web app does on a phone (item 64, which
+  says what of it was seen running and what was not). Not built there: answering an ask from
+  the lock screen, a Live Activity, and sending to an agent from another app's share sheet,
+  which were in the mock-up as extras; and anything for Android beyond what the shared code
+  gives it.
 - **Never run for real:** two agents sharing a machine on Modal or Cloudflare Containers,
-  the mobile app on a device, Modal, Cloudflare Containers, sign-in with
+  the mobile app on a physical phone (it has run in an iOS simulator), Modal, Cloudflare
+  Containers, sign-in with
   Google, and a connector that needs a sign-in against a real service. Sign-in with GitHub is
   configured on the live site; nobody has reported how it went.
 - **Not built:** a reason and retry for provider errors.
@@ -2806,7 +2861,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   built it. Its author's own list of rough edges: at 24 px the command and file variants are
   hard to tell apart; flat-shaded bodies can show a large white highlight; the error state greys
   the eye whites; the alternative "glass" look is less finished and unused by the app.
-- **The library** on mobile is still the flat list with downloads. On the web, PDFs and other
+- **The library:** on the web, PDFs and other
   formats have no viewer; there are no empty folders, since a folder is only the paths of the
   files in it; a file's history shows who and when but not what changed; and a document changes
   on screen when the agent's tool call ends, not as it types, which the mock-up pretended.

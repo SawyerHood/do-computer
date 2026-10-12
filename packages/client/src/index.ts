@@ -121,10 +121,14 @@ export type ClientOptions = {
   /**
    * Follow agents over WebSockets where they can be had, and over event streams where not. A
    * socket does not keep an agent in memory on the server as a stream does. Needs a platform
-   * whose WebSockets carry the session, which is a browser on the app's own address.
+   * whose WebSockets carry the session, which is a browser on the app's own address, or a
+   * `webSocket` that sends it.
    */
   readonly sockets?: boolean
-  /** `WebSocket` to use. Default: the platform's. */
+  /**
+   * `WebSocket` to use, for following agents, for presence and for the feed. Default: the
+   * platform's. A phone passes one that sends its session cookie, which its own does not.
+   */
   readonly webSocket?: SocketConstructor
 }
 
@@ -345,6 +349,10 @@ export function createClient(options: ClientOptions) {
     stream<AgentEvent>(`/api/agents/${encodeURIComponent(agentId)}/events`, onEvent, onStatus)
 
   const webSocket = options.webSocket ?? (globalThis as { WebSocket?: SocketConstructor }).WebSocket
+  // Presence and the feed are sockets of their own. They are opened with the same constructor,
+  // so that a platform whose sockets do not carry the session can pass one that does.
+  const Socket = webSocket as unknown as typeof WebSocket
+  const OPEN = 1
   const following =
     options.sockets !== true || webSocket === undefined
       ? undefined
@@ -504,7 +512,7 @@ export function createClient(options: ClientOptions) {
         /**
          * Join the team's presence: hear where everyone is and when the team changes, and say
          * where this tab is. Reconnects with backoff, saying again where it is each time. Needs
-         * a platform with WebSockets that carry the session, which is a browser.
+         * a platform with WebSockets that carry the session: a browser, or one given `webSocket`.
          */
         presence(onEvent: (event: PresenceEvent) => void): PresenceLink {
           let socket: WebSocket | undefined
@@ -517,7 +525,7 @@ export function createClient(options: ClientOptions) {
           const url = `${origin.replace(/^http/, "ws")}/api/presence/${encodeURIComponent(workspaceId)}`
           const connect = () => {
             if (closed) return
-            const current = new WebSocket(url)
+            const current = new Socket(url)
             socket = current
             current.onopen = () => {
               attempt = 0
@@ -548,7 +556,7 @@ export function createClient(options: ClientOptions) {
           return {
             update(next) {
               where = next
-              if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(next))
+              if (socket?.readyState === OPEN) socket.send(JSON.stringify(next))
             },
             close() {
               closed = true
@@ -565,8 +573,8 @@ export function createClient(options: ClientOptions) {
      * at work or waiting on someone, and that the user looked at one from somewhere else.
      * `connected` is called each time the socket is up, with `again` after a break: what was
      * said while it was down was said to nobody, so that is when to ask for the list of agents
-     * again. Reconnects with backoff. Needs a platform with WebSockets that carry the session,
-     * which is a browser.
+     * again. Reconnects with backoff. Needs a platform with WebSockets that carry the session:
+     * a browser, or one given `webSocket`.
      */
     feed(
       userId: string,
@@ -583,7 +591,7 @@ export function createClient(options: ClientOptions) {
       const url = `${origin.replace(/^http/, "ws")}/api/presence/${encodeURIComponent(personalWorkspaceId(userId))}`
       const connect = () => {
         if (closed) return
-        const current = new WebSocket(url)
+        const current = new Socket(url)
         socket = current
         current.onopen = () => {
           attempt = 0

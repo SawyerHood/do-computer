@@ -41,6 +41,8 @@ const PICTURES = [
   // A phone cuts its own shape out of these two, so they have no corners and more room.
   { file: "apps/web/public/icon-maskable-512.png", tile: { grid: 128, scale: 4, zoom: 0.78 } },
   { file: "apps/web/public/apple-touch-icon.png", tile: { grid: 90, scale: 2, zoom: 0.92 } },
+  // The phone app's own, which iOS also cuts to its shape: 1024 across, as the App Store asks.
+  { file: "apps/mobile/assets/icon.png", tile: { grid: 128, scale: 8, zoom: 0.92 } },
   { file: "apps/desktop/assets/icon.png", tile: { grid: 128, scale: 8, round: 0.225 } },
   // A Mac's icons are a square of 824 in a picture of 1024, which is how its own are drawn.
   {

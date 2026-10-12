@@ -1,15 +1,18 @@
-import { type Client, createClient } from "@durable-computer/client"
+import { type Client, createClient, type SocketConstructor } from "@durable-computer/client"
 import { expoClient } from "@better-auth/expo/client"
 import { createAuthClient } from "better-auth/react"
 import { fetch as expoFetch } from "expo/fetch"
 import * as SecureStore from "expo-secure-store"
 import { atom, getDefaultStore } from "jotai"
-import { Platform } from "react-native"
+import { AppState, Platform } from "react-native"
 import { storage } from "./storage.ts"
 
 const SERVER_KEY = "dc.server"
 const AGENT_KEY = "dc.agent"
 const SCHEME = "durablecomputer"
+
+/** Where the app is hosted for everyone. Someone who hosts their own names it when signing in. */
+export const DEFAULT_SERVER = "https://do.computer"
 
 /** A browser build is served by the deployment it talks to; a device has to be told where that is. */
 const initialServer =
@@ -64,6 +67,50 @@ export type Session = { server: string; auth: Auth; client: Client }
 
 let current: Session | undefined
 
+/** The session cookie each auth client was last seen to hold, as a header's value. */
+const cookies = new WeakMap<Auth, string>()
+
+/**
+ * The session cookie as it is now, read from where the auth client keeps it. On a phone that is
+ * the secure store, which is read without blocking, so this cannot be had at once.
+ */
+async function readCookie(auth: Auth): Promise<string> {
+  if (Platform.OS === "web") return ""
+  const cookie = await (auth as unknown as { getCookie(): Promise<string> }).getCookie()
+  cookies.set(auth, cookie)
+  return cookie
+}
+
+/**
+ * The session cookie as a header's value, for what cannot wait for it: the one last read, which
+ * every request to the server reads again. "" where the platform keeps its own, and before the
+ * first request.
+ */
+export const cookieOf = (auth: Auth): string => cookies.get(auth) ?? ""
+
+/** The headers that carry the session, for what fetches by itself: a picture, a web view, a download. */
+export const authHeaders = (auth: Auth): Record<string, string> => {
+  const cookie = cookieOf(auth)
+  return cookie ? { cookie } : {}
+}
+
+/**
+ * A WebSocket that carries the session. A phone's own sends no cookie, so the server would take
+ * it for nobody's; React Native's takes headers as a third argument, which a browser's does not.
+ */
+function socketFor(server: string, auth: Auth) {
+  const Native = WebSocket as unknown as new (
+    url: string,
+    protocols?: string[] | null,
+    options?: { headers: Record<string, string> },
+  ) => WebSocket
+  return class SessionSocket extends Native {
+    constructor(url: string) {
+      super(url, null, { headers: { cookie: cookieOf(auth), origin: server } })
+    }
+  }
+}
+
 /** The auth and API clients for a server. One pair per server address, reused across screens. */
 export function sessionFor(server: string): Session {
   if (current?.server === server) return current
@@ -74,10 +121,25 @@ export function sessionFor(server: string): Session {
     // The platform fetch on a device cannot stream a response body; Expo's can.
     fetch: native ? (expoFetch as unknown as typeof fetch) : undefined,
     credentials: native ? "omit" : "include",
-    headers: (): Record<string, string> => {
-      const cookie = native ? (auth as unknown as { getCookie(): string }).getCookie() : ""
+    headers: async (): Promise<Record<string, string>> => {
+      const cookie = await readCookie(auth)
       return cookie ? { cookie } : {}
     },
+    // Agents are followed over sockets, which do not keep them in memory on the server as
+    // event streams do, and the list of agents hears of each over the person's own feed.
+    sockets: true,
+    webSocket: native ? (socketFor(server, auth) as unknown as SocketConstructor) : undefined,
+    // An app that is not in front is not being looked at: what it follows is let go of after
+    // a while, and taken up again when it comes back.
+    attention: native
+      ? {
+          here: () => AppState.currentState === "active",
+          watch: (changed) => {
+            const subscription = AppState.addEventListener("change", changed)
+            return () => subscription.remove()
+          },
+        }
+      : undefined,
   })
   current = { server, auth, client }
   return current
