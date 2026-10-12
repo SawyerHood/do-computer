@@ -4,8 +4,10 @@ import { join } from "node:path"
 import {
   type AgentEvent,
   type AgentSummary,
+  type ChatState,
   type CreatureState,
   readSse,
+  TREAT_EVERY_MS,
   TREATS_PER_BOX,
   WEAR_ITEMS,
   wearItem,
@@ -22,6 +24,8 @@ type World = {
   reports: unknown[]
   /** What chance says next. Each box asks twice: for a rarity, then for a thing of it. */
   chance: number[]
+  /** How far ahead of the real time the agent takes it to be. */
+  ahead: number
 }
 
 const worlds: World[] = []
@@ -47,10 +51,11 @@ function open(): World {
         random: () => chance.shift() ?? 0,
         onReport: (error) => reports.push(error),
       }),
+    now: () => Date.now() + world.ahead,
     onError: (error) => reports.push(error),
   })
   namespace.start()
-  const world = { namespace, faux, reports, chance }
+  const world: World = { namespace, faux, reports, chance, ahead: 0 }
   worlds.push(world)
   return world
 }
@@ -88,16 +93,25 @@ async function until<T>(read: () => Promise<T>, good: (value: T) => boolean): Pr
 
 const creature = (world: World) => call<CreatureState>(world, "/creature")
 
-/** An agent with one chat, and its creature once it has been answered in it `answers` times. */
+/** Ask the agent something in a chat of its: question `turn`, which it has an answer ready for. */
+async function ask(world: World, chatId: string, turn: number): Promise<void> {
+  world.faux.setResponses([fauxAssistantMessage([fauxText(`Answer ${turn}.`)])])
+  await call(world, `/chats/${chatId}/messages`, "POST", {
+    requestId: `question-${turn}`,
+    text: `Question ${turn}`,
+  })
+}
+
+/**
+ * An agent with one chat, and its creature once it has been answered in it `answers` times, an
+ * hour apart: it has earned a treat for each.
+ */
 async function answered(world: World, answers: number): Promise<CreatureState> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
   const { id } = await call<{ id: string }>(world, "/chats", "POST", {})
   for (let turn = 1; turn <= answers; turn++) {
-    world.faux.setResponses([fauxAssistantMessage([fauxText(`Answer ${turn}.`)])])
-    await call(world, `/chats/${id}/messages`, "POST", {
-      requestId: `question-${turn}`,
-      text: `Question ${turn}`,
-    })
+    if (turn > 1) world.ahead += TREAT_EVERY_MS
+    await ask(world, id, turn)
     await until(
       () => creature(world),
       (state) => state.treats === turn,
@@ -122,9 +136,40 @@ describe("an agent's creature", () => {
     expect(agent.outfit).toEqual({})
   })
 
-  it("earns a treat each time the agent answers someone", async () => {
+  it("earns a treat when the agent answers someone, and another an hour later", async () => {
     const world = open()
     expect((await answered(world, 2)).treats).toBe(2)
+    expect(world.reports).toEqual([])
+  })
+
+  it("earns one treat an hour at most, however often the agent answers", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    const { id } = await call<{ id: string }>(world, "/chats", "POST", {})
+    const answer = async (turn: number) => {
+      await ask(world, id, turn)
+      await until(
+        () => call<ChatState>(world, `/chats/${id}`),
+        (chat) => !chat.busy && JSON.stringify(chat.messages).includes(`Answer ${turn}.`),
+      )
+    }
+    await answer(1)
+    await until(
+      () => creature(world),
+      (state) => state.treats === 1,
+    )
+    // Answered twice more within the hour, and it has the one treat still.
+    world.ahead += TREAT_EVERY_MS - 60_000
+    await answer(2)
+    await answer(3)
+    expect((await creature(world)).treats).toBe(1)
+    // The hour is up: the next answer earns one.
+    world.ahead += 60_000
+    await answer(4)
+    await until(
+      () => creature(world),
+      (state) => state.treats === 2,
+    )
     expect(world.reports).toEqual([])
   })
 

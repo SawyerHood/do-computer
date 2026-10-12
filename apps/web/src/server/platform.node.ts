@@ -105,6 +105,7 @@ function create(): NodePlatform {
         judge: models.judge,
         review: models.review,
         allowPrivateHosts: config.allowPrivateHosts,
+        treatEveryMs: config.treatEveryMs,
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
         computerDirectory: computerDirectory(

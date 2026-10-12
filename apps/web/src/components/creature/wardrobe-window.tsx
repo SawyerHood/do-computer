@@ -194,8 +194,8 @@ export function WardrobeWindow({
             })}
           </ul>
           <p className="mt-4 hidden text-xs text-muted-foreground sm:block">
-            {name} earns a treat each time it answers. Enough treats and it finds a box, with
-            something new to wear inside.
+            {name} earns a treat when it answers, one an hour at most. Enough treats and it finds a
+            box, with something new to wear inside.
           </p>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pt-3 pb-3 sm:px-7 sm:pt-7">

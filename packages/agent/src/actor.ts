@@ -30,6 +30,7 @@ import {
   SSE_HEARTBEAT,
   SSE_HEARTBEAT_MS,
   THINKING_LEVELS,
+  TREAT_EVERY_MS,
   TREATS_PER_BOX,
   type UpdateChatRequest,
   type ScheduleCheck,
@@ -176,6 +177,8 @@ export type AgentActorOptions = {
   readonly onReport?: (error: unknown) => void
   /** Chance, as numbers from 0 up to 1: what decides the thing in a box. `Math.random` if left out. */
   readonly random?: () => number
+  /** How long its creature waits after earning a treat before it can earn another. An hour if left out. */
+  readonly treatEveryMs?: number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
   /** How long a command is waited for before it is left to run in the background. */
@@ -1901,14 +1904,23 @@ export class AgentActor implements Actor {
     return { ...creature, owned: [...creature.owned], outfit: { ...creature.outfit } }
   }
 
-  /** The agent answered someone, or a scheduled run of its came to something: a treat for its creature. */
+  /**
+   * The agent answered someone, or a scheduled run of its came to something: a treat for its
+   * creature, unless it earned one within the hour. However much the agent is used, its treats
+   * come no faster than that.
+   */
   async #earnTreat(): Promise<void> {
     if (this.#harness === undefined) return
+    const now = this.#host.now()
+    const every = this.#options.treatEveryMs ?? TREAT_EVERY_MS
     try {
       await (
         await this.#harness
       ).commit(async (tx) => {
-        ;(await tx.doc(CreatureDoc)).treats++
+        const creature = await tx.doc(CreatureDoc)
+        if (creature.earnedAt !== undefined && now - creature.earnedAt < every) return
+        creature.treats++
+        creature.earnedAt = now
       }, context)
     } catch (error) {
       this.#options.onReport?.(error)

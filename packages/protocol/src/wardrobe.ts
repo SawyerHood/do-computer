@@ -1,7 +1,7 @@
 /**
- * What an agent's creature can be given and can wear. It earns treats by answering; treats fill a
- * box; a box holds one thing to wear that it does not have yet. None of it changes what the agent
- * can do: it is there to be enjoyed.
+ * What an agent's creature can be given and can wear. It earns treats by answering, one an hour at
+ * most; treats fill a box; a box holds one thing to wear that it does not have yet. None of it
+ * changes what the agent can do: it is there to be enjoyed.
  */
 
 /** Where on the creature a thing is worn. It wears one thing in each place at most. */
@@ -244,6 +244,9 @@ export type Outfit = Partial<Record<WearSlot, string>>
 /** How many treats fill a box. */
 export const TREATS_PER_BOX = 4
 
+/** How long a creature that has earned a treat waits before it can earn another. */
+export const TREAT_EVERY_MS = 60 * 60 * 1000
+
 /** The treats there are. Which one a creature is handed next is only for show. */
 export const TREAT_KINDS = ["cookie", "onigiri", "apple", "donut"] as const
 export type TreatKind = (typeof TREAT_KINDS)[number]
@@ -251,6 +254,8 @@ export type TreatKind = (typeof TREAT_KINDS)[number]
 export type CreatureState = {
   /** Treats it has earned and not been given yet. */
   treats: number
+  /** When it last earned one. Left out until it has. */
+  earnedAt?: number
   /** Treats it has been given, ever. */
   fed: number
   /** Treats given since its last box, out of `TREATS_PER_BOX`. */

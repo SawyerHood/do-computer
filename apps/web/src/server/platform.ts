@@ -76,6 +76,8 @@ export type Config = {
   readonly slackApiUrl: string | undefined
   /** Where the Apps connector is. Only a test's stand-in is anywhere but at Composio. */
   readonly appsUrl: string | undefined
+  /** How long a creature waits between the treats it earns. Only a test has it anything but an hour. */
+  readonly treatEveryMs: number | undefined
   /** For sending invitations by email, through Resend. Without both, invitations are links only. */
   readonly email: {
     readonly resendApiKey: string | undefined
@@ -136,6 +138,9 @@ function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undef
 
 export function readConfig(env: Record<string, string | undefined>): Config {
   const optional = (name: string) => (env[name] === "" ? undefined : env[name])
+  /** A length of time in milliseconds. Anything that is not a whole number from 0 up is as if unset. */
+  const wholeNumber = (value: string | undefined) =>
+    value !== undefined && /^\d+$/.test(value) ? Number(value) : undefined
   const listed = (name: string) =>
     (env[name] ?? "")
       .split(",")
@@ -186,6 +191,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
     slackApiUrl: optional("DC_SLACK_API_URL"),
     appsUrl: optional("DC_APPS_URL"),
+    treatEveryMs: wholeNumber(optional("DC_TREAT_EVERY_MS")),
     email: { resendApiKey: optional("RESEND_API_KEY"), from: optional("DC_EMAIL_FROM") },
   }
 }

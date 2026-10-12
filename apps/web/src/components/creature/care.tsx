@@ -247,7 +247,7 @@ export function CreatureCare({
             aria-busy={held !== null}
             title={
               count === 0
-                ? `No treats. ${name} earns one each time it answers.`
+                ? `No treats. ${name} earns one when it answers, one an hour at most.`
                 : "Carry a treat onto it, or press"
             }
             // A new pile when another treat lands on it, so that it is seen to land.

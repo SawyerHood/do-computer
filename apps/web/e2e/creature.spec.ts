@@ -4,7 +4,12 @@ import { asOwner, composer, signIn } from "./helpers.ts"
 import type { Page } from "@playwright/test"
 
 // Wide enough for the agent's panel to be beside the chat, where its creature is looked after.
-test.use({ creature: true, viewport: { width: 1440, height: 900 } })
+// It earns one treat an hour at most: here it earns one for every answer, to have a few to give.
+test.use({
+  creature: true,
+  settings: { DC_TREAT_EVERY_MS: "0" },
+  viewport: { width: 1440, height: 900 },
+})
 
 asOwner()
 
@@ -30,7 +35,7 @@ async function say(page: Page, text: string) {
   await expect(page.getByRole("log").getByText(`You said: ${text}`)).toBeVisible()
 }
 
-test("the creature earns a treat each time the agent answers, and is given them one at a time", async ({
+test("the creature earns treats as the agent answers, and is given them one at a time", async ({
   page,
 }) => {
   await open(page)

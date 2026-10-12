@@ -703,8 +703,12 @@ Since then, newest last:
     `packages/protocol/src/wardrobe.ts`, `prototypes/gamification`). The owner asked for a
     little gamification of the creature, chose from two rounds of a mock-up, and asked for it to
     be built. None of it changes what an agent can do.
-    - **The loop.** The creature earns a treat each time its agent answers someone in a chat or
-      in Slack, and each time a scheduled run reports. A treat is given by carrying it onto the
+    - **The loop.** The creature earns a treat when its agent answers someone in a chat or in
+      Slack, and when a scheduled run reports, one an hour at most (`TREAT_EVERY_MS`; the owner
+      found that a treat for every answer came "waaaaay too quickly", 2026-10-12). The hour is
+      counted from the last treat it earned (`earnedAt` in `CreatureDoc`), so a box takes four
+      hours of use at the least. The browser tests set `DC_TREAT_EVERY_MS` to 0 to earn several
+      in a row; nothing else should. A treat is given by carrying it onto the
       creature or pressing the pile; it opens its mouth, eats it in three bites and is pleased.
       A treat that is carried is followed from the window and not from the pile: a treat earned
       meanwhile makes the pile anew, and a pile that held the pointer never heard it let go, so
@@ -2609,7 +2613,7 @@ tiers; a hundred things in all, not a hundred of each kind; little room taken, s
 mainly like a productivity app", with no bond level and the treats beside the creature; a page of
 its own for looking after it on a phone; hats that do not sit inside heads, whatever the seed;
 and the box opened with "a really juicy three.js opening animation like the hatching". Chosen for
-them and not confirmed: one treat for each answer, four treats to a box, the odds, that a box
+them and not confirmed: four treats to a box, the odds, that a box
 never repeats a thing, that every creature starts with a box, that ears flop or lie flat under a
 hat, and that a team shares one creature with one outfit.
 
