@@ -1,9 +1,9 @@
-# durable-computer: build plan
+# Do Computer: build plan
 
 **Status:** milestone 1 is built, as of 2026-10-02, on the `build/skeleton` branch. Section 0
 says what exists, where the build departed from this plan, and what has not been checked against
 a real service. The rest of the document is the plan as it was agreed, kept as the record of why.
-**Working name:** durable-computer. **License:** MIT.
+**Name:** Do Computer (first called durable-computer). **License:** MIT.
 
 An open-source, self-hostable, always-on personal agent in the style of Meta Muse. Each agent has a
 name, an avatar, a personality, memory and its own computer. It keeps working when the client is

@@ -165,7 +165,7 @@ To deploy from GitHub on every push to `main` instead, give your fork the secret
 
 ## Settings
 
-These are the ones most deployments set. On a machine of yours they are lines in the settings file. On Cloudflare the keys are secrets, and the rest go in front of the deploy command, beside `DC_D1_DATABASE_ID`. The [README](https://github.com/SawyerHood/do-computer#configuration) has the full list.
+These are the ones most deployments set. On a machine of yours they are lines in the settings file. On Cloudflare the keys are secrets, and the rest go in front of the deploy command, beside `DC_D1_DATABASE_ID`. The [configuration reference](https://github.com/SawyerHood/do-computer/blob/main/docs/reference/configuration.md) has the full list.
 
 | Setting              | What it does                                                                                        |
 | -------------------- | --------------------------------------------------------------------------------------------------- |
