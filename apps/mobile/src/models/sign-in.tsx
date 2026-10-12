@@ -1,4 +1,4 @@
-import type { ModelLogin, ModelLoginPrompt } from "@durable-computer/protocol"
+import type { ModelLogin, ModelLoginPrompt } from "@do-computer/protocol"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import * as Clipboard from "expo-clipboard"
 import { Stack, useRouter } from "expo-router"

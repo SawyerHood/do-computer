@@ -1,11 +1,11 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createComputerLinkActor, DaemonCore } from "@durable-computer/computers"
-import { nodeDaemonIO } from "@durable-computer/computers/node"
-import type { ApprovalsState, ChatState, ChatSummary, ToolPart } from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace, type SocketLike } from "@durable-computer/runtime/node"
-import { justBashSandbox } from "@durable-computer/sandbox"
+import { createComputerLinkActor, DaemonCore } from "@do-computer/computers"
+import { nodeDaemonIO } from "@do-computer/computers/node"
+import type { ApprovalsState, ChatState, ChatSummary, ToolPart } from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
+import { justBashSandbox } from "@do-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

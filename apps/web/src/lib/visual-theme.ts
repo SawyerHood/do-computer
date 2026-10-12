@@ -1,4 +1,4 @@
-import type { VisualTheme } from "@durable-computer/protocol"
+import type { VisualTheme } from "@do-computer/protocol"
 import { useMemo, useSyncExternalStore } from "react"
 
 /** Told whenever the page goes from light to dark or back, which is a class on its root. */

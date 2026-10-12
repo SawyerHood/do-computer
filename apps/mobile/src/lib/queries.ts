@@ -1,5 +1,5 @@
-import type { AgentState, Me } from "@durable-computer/client"
-import type { AgentSummary, FeedEvent, WorkspacesState } from "@durable-computer/protocol"
+import type { AgentState, Me } from "@do-computer/client"
+import type { AgentSummary, FeedEvent, WorkspacesState } from "@do-computer/protocol"
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { useEffect } from "react"

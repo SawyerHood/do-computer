@@ -15,7 +15,7 @@ import {
   type ScreenFrame,
   USE_HELD_WAIT_MS,
   VIEW_WAIT_MS,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 export type RemoteErrorCode = DaemonErrorCode | "offline" | "timeout"
 

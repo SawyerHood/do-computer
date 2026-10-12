@@ -1,4 +1,4 @@
-import type { AgentSummary } from "@durable-computer/protocol"
+import type { AgentSummary } from "@do-computer/protocol"
 import { useAtom } from "jotai"
 import { useEffect } from "react"
 import { creatureBoxAtom, creatureWardrobeAtom, useCreature } from "@/lib/creature"

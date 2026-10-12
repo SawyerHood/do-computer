@@ -1,4 +1,4 @@
-import { nearestThinking, PAIRED_COMPUTER, type ThinkingLevel } from "@durable-computer/protocol"
+import { nearestThinking, PAIRED_COMPUTER, type ThinkingLevel } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"

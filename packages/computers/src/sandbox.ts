@@ -1,4 +1,4 @@
-import type { ActorStub } from "@durable-computer/runtime"
+import type { ActorStub } from "@do-computer/runtime"
 import {
   type DirectoryEntry,
   type ExecOptions,
@@ -12,7 +12,7 @@ import {
   SandboxError,
   type SandboxErrorCode,
   type SandboxFs,
-} from "@durable-computer/sandbox"
+} from "@do-computer/sandbox"
 import type { LinkStatus } from "./link-actor.ts"
 
 /** Error codes of a paired computer, as the codes file tools understand. */

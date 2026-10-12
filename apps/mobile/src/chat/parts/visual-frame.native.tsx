@@ -1,4 +1,4 @@
-import { readVisualHeight, type VisualTheme } from "@durable-computer/protocol"
+import { readVisualHeight, type VisualTheme } from "@do-computer/protocol"
 import { useEffect, useMemo, useRef } from "react"
 import { Linking, Platform, View } from "react-native"
 import { WebView } from "react-native-webview"

@@ -1,7 +1,7 @@
 // A small app that is nothing but the overlay, for overlay.spec.ts to drive: the real window
 // and the real page, with a made-up agent and a clock the test can move.
 import { join } from "node:path"
-import { UseState } from "@durable-computer/computers/use"
+import { UseState } from "@do-computer/computers/use"
 import { app } from "electron"
 import { createOverlay, type Overlay } from "../src/overlay.ts"
 

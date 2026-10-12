@@ -5,7 +5,7 @@ import {
   siteRoot,
   type SiteSummary,
   siteTitleFor,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { LIBRARY_FOLDER, type LibraryBackend } from "./library-store.ts"

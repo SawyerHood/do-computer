@@ -1,4 +1,4 @@
-import type { ChatSummary } from "@durable-computer/protocol"
+import type { ChatSummary } from "@do-computer/protocol"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useCallback } from "react"
 import { client } from "./client.ts"

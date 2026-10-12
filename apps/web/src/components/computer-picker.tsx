@@ -1,4 +1,4 @@
-import type { ComputerKind } from "@durable-computer/protocol"
+import type { ComputerKind } from "@do-computer/protocol"
 import { useId } from "react"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 

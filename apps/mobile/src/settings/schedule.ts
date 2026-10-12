@@ -1,4 +1,4 @@
-import type { ScheduleSummary } from "@durable-computer/protocol"
+import type { ScheduleSummary } from "@do-computer/protocol"
 
 /** A moment as an automation's rows say it: "Mon, Oct 12, 9:00 AM". */
 export const when = (at: number) =>

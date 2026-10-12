@@ -3,8 +3,8 @@ import type {
   ComputerKind,
   ComputerRequest,
   ComputerSummary,
-} from "@durable-computer/protocol"
-import { isPersonalWorkspace, PAIRED_COMPUTER } from "@durable-computer/protocol"
+} from "@do-computer/protocol"
+import { isPersonalWorkspace, PAIRED_COMPUTER } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import * as Clipboard from "expo-clipboard"
 import { useMemo, useState } from "react"

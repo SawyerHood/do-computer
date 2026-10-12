@@ -1,4 +1,4 @@
-import { sitePath, type SiteSummary } from "@durable-computer/protocol"
+import { sitePath, type SiteSummary } from "@do-computer/protocol"
 import { queryOptions, useMutation, useQuery } from "@tanstack/react-query"
 import { client } from "@/lib/client"
 import { queryClient } from "@/lib/query"

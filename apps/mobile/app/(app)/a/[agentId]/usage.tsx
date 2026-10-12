@@ -1,4 +1,4 @@
-import type { AgentUsage } from "@durable-computer/protocol"
+import type { AgentUsage } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams } from "expo-router"
 import { useState } from "react"

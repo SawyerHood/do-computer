@@ -12,7 +12,7 @@ export async function findGithubUser(
 ): Promise<GithubUser | undefined> {
   const headers: Record<string, string> = {
     accept: "application/vnd.github+json",
-    "user-agent": "durable-computer",
+    "user-agent": "do-computer",
   }
   if (config.githubClientId && config.githubClientSecret) {
     headers.authorization = `Basic ${btoa(`${config.githubClientId}:${config.githubClientSecret}`)}`

@@ -6,13 +6,13 @@ import {
   type MascotVariant,
   type Orb,
   type Wardrobe,
-} from "@durable-computer/mascot"
+} from "@do-computer/mascot"
 import {
   type Avatar as AvatarSpec,
   avatarLook,
   avatarSvg,
   type Outfit,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { type ExpoWebGLRenderingContext, GLView } from "expo-gl"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AccessibilityInfo, PixelRatio, useColorScheme, View } from "react-native"

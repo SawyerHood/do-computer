@@ -1,4 +1,4 @@
-import { guardedFetch } from "@durable-computer/runtime"
+import { guardedFetch } from "@do-computer/runtime"
 import type { WorkerShellRpc } from "../../src/worker-shell/index.ts"
 import { createShellGatewayClass, createWorkerShellClass } from "../../src/worker-shell/object.ts"
 

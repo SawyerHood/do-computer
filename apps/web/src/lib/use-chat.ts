@@ -3,7 +3,7 @@ import {
   continuesMain,
   type MessageImage,
   randomId,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { chatKey, earlierAtom, sendingAtom } from "./atoms.ts"

@@ -1,4 +1,4 @@
-import { BodyTooLarge, declaredTooLarge, readLimited } from "@durable-computer/protocol"
+import { BodyTooLarge, declaredTooLarge, readLimited } from "@do-computer/protocol"
 import {
   cleanLibraryPath,
   LibraryConflict,

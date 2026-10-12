@@ -64,7 +64,7 @@ deploying: "I don't want to make changes to this project". The deployment's valu
   with `DC_EMAIL_FROM` as a repository variable, to send invitations by email; neither is set.
 
 `apps/web/scripts/deploy-settings.mjs` applies those values to the built config before
-`wrangler deploy` uploads it; `pnpm --filter @durable-computer/web run deploy` is what CI runs.
+`wrangler deploy` uploads it; `pnpm --filter @do-computer/web run deploy` is what CI runs.
 
 The address is a zone route (`do.computer/*`), not a custom domain, because the apex already has
 a proxied DNS record.
@@ -79,7 +79,7 @@ pnpm test:e2e                   # builds, then browser tests of the web app and 
 pnpm dev                        # Node target on http://localhost:3000
 pnpm dev:cloudflare             # the same on the local Workers runtime
 scripts/smoke.sh <base-url>     # end-to-end check of a running deployment (fresh, open sign-up)
-pnpm --filter @durable-computer/mascot demo    # the creature's playground page
+pnpm --filter @do-computer/mascot demo    # the creature's playground page
 node scripts/icons.mjs          # draws the app's icons again: its creature on the first run's island
 ```
 
@@ -121,7 +121,7 @@ Most of this was built on one, and these are what it took:
 - Browser tests use an already-downloaded Chromium:
   `PLAYWRIGHT_CHROMIUM_PATH=$HOME/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome pnpm exec playwright test`
   from `apps/web`, after `pnpm build:node` and
-  `pnpm --filter @durable-computer/mobile export:web:test`.
+  `pnpm --filter @do-computer/mobile export:web:test`.
 - For a headless browser to draw the creature, launch Chromium with
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist`.
 - The local Workers runtime needs port 3112, because `apps/web/.dev.vars` sets the base URL to
@@ -535,8 +535,8 @@ Since then, newest last:
     - **The app is called Do Computer.** The owner said so when they saw "durable" under the
       home screen icon. That is the name wherever a person reads one: the page's title, the
       manifest, notifications, invitations, sign-in, the name given to connectors and to
-      OpenRouter, the mobile app and the daemon's service. The repository and its packages keep
-      `durable-computer`.
+      OpenRouter, the mobile app and the daemon's service. The packages were `@durable-computer/*`
+      until item 66.
     - **Checked:** the encryption against the example in the RFC; a real push service
       (Mozilla's) taking a message signed this way and delivering it, and refusing a stranger's
       key; and on the Workers dev server, an agent's answer in a chat nobody had open arriving
@@ -2533,9 +2533,9 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       `docs/images` is built into the web app. They are six of `prototypes/polish/tour.mjs`'s,
       made 1600 wide (its README says how).
     - **The name.** `PLAN.md`'s title and the old mock-ups that said "durable computer" say Do
-      Computer. Still named durable-computer, and not changed: the `@durable-computer/*`
-      packages, the Worker, database and bucket, and `~/.durable-computer` on a paired
-      computer. Renaming those changes running deployments and paired machines.
+      Computer. Still named durable-computer, and not changed then: the packages (renamed in
+      item 66), the Worker, database and bucket, and `~/.durable-computer` on a paired
+      computer. Renaming those last changes running deployments and paired machines.
 62. **The sidebar lists every workspace's agents** (2026-10-12;
     `apps/web/src/components/shell/agent-list.tsx`, `workspace-menu.tsx`, `sidebar.tsx`,
     `lib/atoms.ts`). The owner sent a picture of another app's list of agents (headings that
@@ -2758,6 +2758,32 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       the mock-up they approved), turn-taking for creatures, do.computer as the server a
       phone starts on, sockets for following agents, and leaving the mock-up's "Outside the
       app" extras unbuilt.
+
+66. **The packages are `@do-computer/*`, and the phone app has names of its own**
+    (2026-10-12; every `package.json`, every import, `.github/workflows`,
+    `apps/mobile/app.config.ts`, `apps/web/src/server/auth.ts`). The owner asked how much work
+    it would be to call everything do-computer and whether it would break the live site, and
+    then for the parts that would not.
+    - **Renamed:** the package scope (`@durable-computer/*` to `@do-computer/*`) and the
+      root package; the name the server gives itself to GitHub, to connectors and in a few
+      labels (`user-agent`, the MCP client name, the label on a Daytona machine, the default
+      address notifications are signed with); and the phone app's Expo slug, its address
+      scheme (`docomputer://`, which the server trusts sign-ins from and must match), and its
+      ids: `computer.do.app` on iOS, beside the desktop app's `computer.do.desktop`, and
+      `com.docomputer.app` on Android, where a part of a package name may not be `do`.
+    - **Not renamed, on purpose:** the Worker, the D1 database and the R2 bucket
+      (`durable-computer` in `wrangler.jsonc`): a Worker's Durable Objects belong to it by
+      name, so a renamed one would start without any agent's chats or memory, and the
+      database and bucket cannot be renamed at all. `~/.durable-computer` on a paired
+      computer, the daemon's service names and its command: a daemon that looked elsewhere
+      would lose its pairing. The default Modal app, which is where existing machines are
+      found. None of these is seen by anyone using the app.
+    - **For whoever runs commands by hand:** `pnpm --filter @do-computer/web …` where it was
+      `@durable-computer/web`. A script outside the repository that names a package has to
+      be changed with it.
+    - **Checked:** `pnpm check`, every package's tests, the web and desktop builds, and the
+      browser tests. **Not seen:** a deploy from the renamed tree, and a phone app built
+      under the new ids, which nobody had installed under the old ones.
 
 ## 6. What the owner has said they want
 

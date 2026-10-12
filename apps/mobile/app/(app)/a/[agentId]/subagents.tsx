@@ -1,4 +1,4 @@
-import type { ChatSummary } from "@durable-computer/protocol"
+import type { ChatSummary } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { isAtWork, subagentSeed, subagentsOf, subagentWords } from "@/chat/chats"

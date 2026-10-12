@@ -1,4 +1,4 @@
-import type { ModelOption } from "@durable-computer/protocol"
+import type { ModelOption } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { sources } from "./welcome-models.ts"
 

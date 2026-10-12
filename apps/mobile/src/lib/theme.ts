@@ -1,4 +1,4 @@
-import { type Avatar, AVATAR_COLORS, avatarLook } from "@durable-computer/protocol"
+import { type Avatar, AVATAR_COLORS, avatarLook } from "@do-computer/protocol"
 import { useMemo } from "react"
 import { PlatformColor, Platform, useColorScheme } from "react-native"
 

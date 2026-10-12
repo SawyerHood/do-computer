@@ -1,4 +1,4 @@
-import { sharedSite, type SiteSummary, type ToolPart } from "@durable-computer/protocol"
+import { sharedSite, type SiteSummary, type ToolPart } from "@do-computer/protocol"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import * as Clipboard from "expo-clipboard"
 import { useRouter } from "expo-router"

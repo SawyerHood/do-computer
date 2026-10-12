@@ -1,4 +1,4 @@
-import type { AgentLatest, Person } from "@durable-computer/protocol"
+import type { AgentLatest, Person } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { isUnread, latestFirst, latestWords, when } from "./latest.ts"
 

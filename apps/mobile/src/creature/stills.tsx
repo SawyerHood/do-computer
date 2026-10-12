@@ -3,7 +3,7 @@ import {
   avatarLook,
   type Outfit,
   type WearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { type ExpoWebGLRenderingContext, GLView } from "expo-gl"
 import { Image } from "expo-image"
 import { useEffect, useState } from "react"

@@ -1,4 +1,4 @@
-import { dirOf, type LibraryFile, resolveLink } from "@durable-computer/protocol"
+import { dirOf, type LibraryFile, resolveLink } from "@do-computer/protocol"
 
 /** How a file is shown: each kind has a viewer of its own, and `other` only a download. */
 export type FileKind = "markdown" | "page" | "image" | "text" | "other"

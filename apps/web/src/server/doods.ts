@@ -11,7 +11,7 @@ import {
   parseDoodName,
   personalWorkspaceId,
   TREATS_PER_BOX,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { callAgent, fail, json, makeAgent } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { isDeploymentAdmin } from "./model-access.ts"

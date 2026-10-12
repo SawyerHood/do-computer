@@ -3,8 +3,8 @@
  * app, which answers here. Who is using the screen, and whether they may, is `UseState`'s to
  * say; this does what was asked and takes the pictures.
  */
-import { UseRefused, type UseState } from "@durable-computer/computers/use"
-import type { AppAnswer, AppCall } from "@durable-computer/daemon/events"
+import { UseRefused, type UseState } from "@do-computer/computers/use"
+import type { AppAnswer, AppCall } from "@do-computer/daemon/events"
 import {
   type DesktopAction,
   type LiveView,
@@ -16,7 +16,7 @@ import {
   type ShotPoint,
   type WindowAct,
   windowName,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type { DriverWindow, Picture, ScreenDriver } from "./screen-driver.ts"
 
 /** How long the screen is given to show what an action did, before its picture is taken. */

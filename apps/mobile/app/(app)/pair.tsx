@@ -1,4 +1,4 @@
-import { personalWorkspaceId } from "@durable-computer/protocol"
+import { personalWorkspaceId } from "@do-computer/protocol"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { type ReactNode, useEffect, useState } from "react"
@@ -46,7 +46,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 /**
  * Where the code a daemon prints leads: the person agrees to pair that computer, and says whose
- * it is and which agents can use it. Opened with a code by `durablecomputer://pair?code=…`, or
+ * it is and which agents can use it. Opened with a code by `docomputer://pair?code=…`, or
  * with none, to type one.
  */
 export default function Pair() {

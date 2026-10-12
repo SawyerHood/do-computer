@@ -1,11 +1,11 @@
-import type { AgentState } from "@durable-computer/client"
+import type { AgentState } from "@do-computer/client"
 import type {
   AgentSummary,
   ChatSummary,
   NoticePart,
   SubagentStatus,
   ToolPart,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   CaretRightIcon,
   CheckCircleIcon,

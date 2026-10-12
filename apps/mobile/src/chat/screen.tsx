@@ -1,4 +1,4 @@
-import { continuesMain, type MessageImage, randomId } from "@durable-computer/protocol"
+import { continuesMain, type MessageImage, randomId } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type Href, Stack, useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"

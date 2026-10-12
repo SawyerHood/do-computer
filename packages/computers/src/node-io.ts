@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { promises as fs } from "node:fs"
 import * as path from "node:path"
-import { EXEC_STDIO_CAP, type RemoteFileStat } from "@durable-computer/protocol"
+import { EXEC_STDIO_CAP, type RemoteFileStat } from "@do-computer/protocol"
 import type { DaemonIO } from "./daemon-core.ts"
 import { killTree } from "./kill.ts"
 import { nodeJobs } from "./node-jobs.ts"

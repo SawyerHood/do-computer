@@ -1,4 +1,4 @@
-import type { ModelOption, UserSettings } from "@durable-computer/protocol"
+import type { ModelOption, UserSettings } from "@do-computer/protocol"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ActivityIndicator } from "react-native"
 import { keys } from "@/lib/queries"

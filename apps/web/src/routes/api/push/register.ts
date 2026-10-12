@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import { checkAddress } from "@durable-computer/runtime"
+import { checkAddress } from "@do-computer/runtime"
 import { createFileRoute } from "@tanstack/react-router"
 import { fail, json, withUser } from "@/server/agents"
 import { isExpoPushToken, registerBrowser, registerPushToken } from "@/server/push"

@@ -1,4 +1,4 @@
-import type { SqliteDatabase, SqliteExecutor } from "@durable-computer/runtime"
+import type { SqliteDatabase, SqliteExecutor } from "@do-computer/runtime"
 import { type IFileSystem, InMemoryFs } from "just-bash/browser"
 
 /** Durable Object SQLite caps a row at 2 MB, so file content is stored in pieces. */

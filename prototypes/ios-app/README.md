@@ -36,7 +36,7 @@ in `src/creatures-specs.json` into `src/creatures.json`; run it again when the s
 
 The pictures of the app as it is come from `shoot.mjs`, which photographs every page of the web
 app and of the native app's web build at 390 by 844. It needs what `prototypes/polish/README.md`
-sets up (a built server and `setup.mjs`) and `pnpm --filter @durable-computer/mobile
+sets up (a built server and `setup.mjs`) and `pnpm --filter @do-computer/mobile
 export:web:test`. The build reads five of them as JPEGs from `shots/`, which is not kept in the
 repository; without them the page is built with those pictures missing.
 

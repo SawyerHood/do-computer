@@ -1,6 +1,6 @@
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import type { UseState } from "@durable-computer/computers/use"
+import type { UseState } from "@do-computer/computers/use"
 import { BrowserWindow, globalShortcut, type IpcMainEvent, ipcMain, screen } from "electron"
 import type { OverlayAct, OverlayView } from "./pages/overlay.ts"
 

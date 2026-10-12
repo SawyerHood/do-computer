@@ -4,7 +4,7 @@ import {
   hasEverything,
   WEAR_ITEMS,
   type WearSlot,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 // What is said about a creature's things and its boxes: words only, so that they can be tested.
 

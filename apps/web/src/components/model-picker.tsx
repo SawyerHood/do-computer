@@ -1,4 +1,4 @@
-import { filterModels, type ModelOption } from "@durable-computer/protocol"
+import { filterModels, type ModelOption } from "@do-computer/protocol"
 import { useMemo, useState } from "react"
 import {
   Combobox,

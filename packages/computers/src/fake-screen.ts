@@ -9,7 +9,7 @@ import {
   type Shot,
   type ShotPoint,
   windowName,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type { ScreenIO } from "./daemon-core.ts"
 import { UseState } from "./use.ts"
 

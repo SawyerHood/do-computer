@@ -3,8 +3,8 @@ import {
   type LibrarySocketMessage,
   SSE_HEADERS,
   SSE_HEARTBEAT,
-} from "@durable-computer/protocol"
-import type { Actor, ActorHost, ActorSocket } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { Actor, ActorHost, ActorSocket } from "@do-computer/runtime"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
 import {
   type Deleted,

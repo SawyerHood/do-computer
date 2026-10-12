@@ -4,7 +4,7 @@ import {
   type MessageImage,
   type QueuedInput,
   randomId,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { ArrowUpIcon, MicrophoneIcon, PaperclipIcon, StopIcon, XIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { useEffect, useRef, useState } from "react"

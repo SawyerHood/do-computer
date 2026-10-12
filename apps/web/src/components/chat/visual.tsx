@@ -9,7 +9,7 @@ import {
   type VisualTheme,
   visualThemeFragment,
   visualThemeMessage,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { ArrowsOutSimpleIcon, ShareNetworkIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"

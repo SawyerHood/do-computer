@@ -1,6 +1,6 @@
 // Takes pictures, at a phone's size, of the web app and of the native app's web build, so the
 // two can be put side by side. It needs a built server with prototypes/polish/setup.mjs run
-// against it, and `pnpm --filter @durable-computer/mobile export:web:test`. See README.md.
+// against it, and `pnpm --filter @do-computer/mobile export:web:test`. See README.md.
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs"
 import { createRequire } from "node:module"
 import { join } from "node:path"

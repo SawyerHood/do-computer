@@ -154,7 +154,7 @@ describe("daytona: finding and starting the machine", () => {
       name,
       autoStopInterval: 15,
       autoDeleteInterval: -1,
-      labels: { "durable-computer": "Agent_1" },
+      labels: { "do-computer": "Agent_1" },
     })
 
     await sandbox.exec("true")

@@ -3,7 +3,7 @@ import {
   type CreatureState,
   topTreat,
   type TreatKind,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { View } from "react-native"
 import Animated, {

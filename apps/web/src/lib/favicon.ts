@@ -1,4 +1,4 @@
-import { type AgentSummary, avatarLook, avatarSvg } from "@durable-computer/protocol"
+import { type AgentSummary, avatarLook, avatarSvg } from "@do-computer/protocol"
 import { useEffect } from "react"
 import { dressMascot, isDark, loadMascot } from "@/lib/mascot"
 

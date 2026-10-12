@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatUsage } from "@durable-computer/protocol"
+import type { ChatMessage, ChatUsage } from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import {

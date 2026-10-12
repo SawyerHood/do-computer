@@ -4,7 +4,7 @@ import {
   visualResult,
   type VisualTheme,
   visualThemeMessage,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { createElement, type ReactNode, useEffect, useRef } from "react"
 
 export type VisualPageProps = {

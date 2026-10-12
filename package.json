@@ -1,5 +1,5 @@
 {
-  "name": "durable-computer",
+  "name": "do-computer",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -8,17 +8,17 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @durable-computer/web dev",
-    "dev:cloudflare": "pnpm --filter @durable-computer/web dev:cloudflare",
-    "build": "pnpm --filter @durable-computer/web build",
-    "start": "pnpm --filter @durable-computer/web start",
-    "deploy": "pnpm --filter @durable-computer/web run deploy",
+    "dev": "pnpm --filter @do-computer/web dev",
+    "dev:cloudflare": "pnpm --filter @do-computer/web dev:cloudflare",
+    "build": "pnpm --filter @do-computer/web build",
+    "start": "pnpm --filter @do-computer/web start",
+    "deploy": "pnpm --filter @do-computer/web run deploy",
     "check": "pnpm -r run check",
     "test": "pnpm -r run test",
-    "test:e2e": "pnpm --filter @durable-computer/web test:e2e",
+    "test:e2e": "pnpm --filter @do-computer/web test:e2e",
     "format": "prettier --write .",
-    "mobile": "pnpm --filter @durable-computer/mobile start",
-    "desktop": "pnpm --filter @durable-computer/desktop start"
+    "mobile": "pnpm --filter @do-computer/mobile start",
+    "desktop": "pnpm --filter @do-computer/desktop start"
   },
   "devDependencies": {
     "prettier": "^3.8.3",

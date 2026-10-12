@@ -1,6 +1,6 @@
 import { getPlatform } from "#platform"
-import { LIBRARY_SITE_HEADER, remoteLibrary, SiteError } from "@durable-computer/agent"
-import { isPersonalWorkspace, sitePath, siteRoot, siteTitleFor } from "@durable-computer/protocol"
+import { LIBRARY_SITE_HEADER, remoteLibrary, SiteError } from "@do-computer/agent"
+import { isPersonalWorkspace, sitePath, siteRoot, siteTitleFor } from "@do-computer/protocol"
 import { agentFor, fail, json } from "./agents.ts"
 import { getUser, type SessionUser } from "./auth.ts"
 import {

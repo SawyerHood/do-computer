@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@durable-computer/protocol"
+import type { LibraryFile } from "@do-computer/protocol"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 
 const store = getDefaultStore()

@@ -10,7 +10,7 @@ import {
   PING_FRAME,
   PONG_FRAME,
   reduceChat,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   type Attention,
   attended,

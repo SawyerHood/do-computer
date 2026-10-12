@@ -1,4 +1,4 @@
-import type { Client } from "@durable-computer/client"
+import type { Client } from "@do-computer/client"
 import * as Notifications from "expo-notifications"
 import { useCallback, useEffect, useState } from "react"
 import { AppState, Platform } from "react-native"

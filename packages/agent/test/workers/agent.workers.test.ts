@@ -9,8 +9,8 @@ import {
   EMPTY_CHAT,
   readSse,
   reduceChat,
-} from "@durable-computer/protocol"
-import { durableObjectNamespace } from "@durable-computer/runtime/cloudflare"
+} from "@do-computer/protocol"
+import { durableObjectNamespace } from "@do-computer/runtime/cloudflare"
 import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux"
 import { describe, expect, it } from "vitest"
 import { CONNECTOR_REDIRECT_HEADER } from "../../src/index.ts"

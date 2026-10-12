@@ -1,4 +1,4 @@
-import type { AppDatabase } from "@durable-computer/runtime"
+import type { AppDatabase } from "@do-computer/runtime"
 
 /** Ordered schema history of the app database. Append; never edit a shipped entry. */
 const MIGRATIONS: readonly (readonly string[])[] = [

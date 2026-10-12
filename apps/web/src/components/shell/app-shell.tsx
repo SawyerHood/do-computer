@@ -3,7 +3,7 @@ import {
   avatarLook,
   personalWorkspaceId,
   type WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { ListIcon, SidebarSimpleIcon } from "@phosphor-icons/react"
 import { useLocation, useParams, useRouteContext } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"

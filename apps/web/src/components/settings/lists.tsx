@@ -1,4 +1,4 @@
-import type { AgentSummary, InvitationPreview, WorkspaceSummary } from "@durable-computer/protocol"
+import type { AgentSummary, InvitationPreview, WorkspaceSummary } from "@do-computer/protocol"
 import { CaretRightIcon, PlusIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"

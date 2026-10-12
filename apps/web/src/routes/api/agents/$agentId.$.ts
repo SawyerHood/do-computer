@@ -1,4 +1,4 @@
-import type { Outfit } from "@durable-computer/protocol"
+import type { Outfit } from "@do-computer/protocol"
 import { createFileRoute } from "@tanstack/react-router"
 import { deleteAgent } from "@/server/agent-delete"
 import { proxyToAgent, withUser } from "@/server/agents"

@@ -1,4 +1,4 @@
-import { formatEvent, parseEvent } from "@durable-computer/daemon/events"
+import { formatEvent, parseEvent } from "@do-computer/daemon/events"
 import { describe, expect, it } from "vitest"
 import { after, headline, type Sharing } from "../src/status.ts"
 

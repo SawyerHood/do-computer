@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers"
-import { d1Database, durableObjectNamespace } from "@durable-computer/runtime/cloudflare"
-import type { WorkerShellRpc } from "@durable-computer/sandbox/worker-shell"
+import { d1Database, durableObjectNamespace } from "@do-computer/runtime/cloudflare"
+import type { WorkerShellRpc } from "@do-computer/sandbox/worker-shell"
 import { type Platform, readConfig } from "./platform.ts"
 import { cloudflareProviders } from "./sandbox.cloudflare.ts"
 import { computerChoices } from "./sandbox.ts"

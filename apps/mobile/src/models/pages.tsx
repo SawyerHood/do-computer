@@ -1,4 +1,4 @@
-import type { ModelLoginMethod, ModelOption, ModelProvider } from "@durable-computer/protocol"
+import type { ModelLoginMethod, ModelOption, ModelProvider } from "@do-computer/protocol"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useRouter } from "expo-router"
 import { useState } from "react"

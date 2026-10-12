@@ -8,7 +8,7 @@ import {
   type LibrarySocketMessage,
   PING_FRAME,
   PONG_FRAME,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createClient, type SocketLike } from "../src/index.ts"
 

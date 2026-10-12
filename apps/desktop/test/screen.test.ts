@@ -1,14 +1,14 @@
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { UseState } from "@durable-computer/computers/use"
+import { UseState } from "@do-computer/computers/use"
 import {
   type LiveView,
   type ScreenActed,
   type ScreenAction,
   type WindowAct,
   windowName as named,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { inSight, resized, ScreenService } from "../src/screen.ts"
 import {

@@ -2,7 +2,7 @@ import {
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
   type MessageImage,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 /** What one picture may take of a message's allowance, so that a full set still fits. */
 const BUDGET = Math.floor(MAX_MESSAGE_IMAGE_CHARS / MAX_MESSAGE_IMAGES) - 1_000

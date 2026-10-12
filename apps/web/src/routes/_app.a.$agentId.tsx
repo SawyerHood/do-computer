@@ -1,5 +1,5 @@
-import { ApiError } from "@durable-computer/client"
-import type { AgentSummary } from "@durable-computer/protocol"
+import { ApiError } from "@do-computer/client"
+import type { AgentSummary } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { useEffect } from "react"

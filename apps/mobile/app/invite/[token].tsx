@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError } from "@do-computer/client"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type Href, useLocalSearchParams, useRouter } from "expo-router"
 import { useAtomValue, useSetAtom } from "jotai"
@@ -20,7 +20,7 @@ function names(people: readonly { name: string }[]): string {
 }
 
 /**
- * An invitation to a team, for whoever holds its link: `durablecomputer://invite/<token>` opens
+ * An invitation to a team, for whoever holds its link: `docomputer://invite/<token>` opens
  * it. Seen before signing in, and answered after. Someone who signs in or makes an account from
  * here is brought back to it.
  */

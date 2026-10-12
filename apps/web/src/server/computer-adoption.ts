@@ -1,6 +1,6 @@
-import type { AgentComputer } from "@durable-computer/agent"
-import { personalWorkspaceId } from "@durable-computer/protocol"
-import type { AppDatabase } from "@durable-computer/runtime"
+import type { AgentComputer } from "@do-computer/agent"
+import { personalWorkspaceId } from "@do-computer/protocol"
+import type { AppDatabase } from "@do-computer/runtime"
 import { type ComputerRow, grant, machinesOf } from "./computer-access.ts"
 import { unsharedKinds } from "./sandbox.ts"
 

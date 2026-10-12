@@ -1,5 +1,5 @@
-import { personalWorkspaceId } from "@durable-computer/protocol"
-import type { ActorNamespace, ActorStub, AppDatabase } from "@durable-computer/runtime"
+import { personalWorkspaceId } from "@do-computer/protocol"
+import type { ActorNamespace, ActorStub, AppDatabase } from "@do-computer/runtime"
 
 /**
  * Where an agent's library is: the one its workspace keeps for all its agents. It runs where the

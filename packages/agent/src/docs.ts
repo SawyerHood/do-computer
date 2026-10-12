@@ -7,7 +7,7 @@ import {
   type ScheduleCheck,
   type SubagentStatus,
   type ThinkingLevel,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { defineDoc } from "@earendil-works/pi-durable"
 
 /**

@@ -1,4 +1,4 @@
-import { SITE_LISTING_HEADER, type SiteListing } from "@durable-computer/protocol"
+import { SITE_LISTING_HEADER, type SiteListing } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { shownAs } from "./site-pages.tsx"
 

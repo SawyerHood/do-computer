@@ -1,5 +1,5 @@
-import { type AgentActivity, type FeedEvent, personalWorkspaceId } from "@durable-computer/protocol"
-import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
+import { type AgentActivity, type FeedEvent, personalWorkspaceId } from "@do-computer/protocol"
+import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 import { peopleOfAgent } from "./teams.ts"
 
 /**

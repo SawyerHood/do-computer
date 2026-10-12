@@ -1,8 +1,8 @@
-import type { ComputerChoices } from "@durable-computer/agent"
-import type { ComputerKind } from "@durable-computer/protocol"
-import { type ActorHost, guardedFetch } from "@durable-computer/runtime"
-import { justBashSandbox, type Sandbox } from "@durable-computer/sandbox"
-import { daytonaSandbox } from "@durable-computer/sandbox/daytona"
+import type { ComputerChoices } from "@do-computer/agent"
+import type { ComputerKind } from "@do-computer/protocol"
+import { type ActorHost, guardedFetch } from "@do-computer/runtime"
+import { justBashSandbox, type Sandbox } from "@do-computer/sandbox"
+import { daytonaSandbox } from "@do-computer/sandbox/daytona"
 import { type Config, ConfigError, type SandboxKind } from "./platform.ts"
 
 /**

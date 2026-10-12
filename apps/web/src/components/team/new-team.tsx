@@ -2,7 +2,7 @@ import {
   type InviteResult,
   personalWorkspaceId,
   WORKSPACE_COLORS,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { CheckIcon } from "@phosphor-icons/react"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { useNavigate } from "@tanstack/react-router"

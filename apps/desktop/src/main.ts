@@ -33,7 +33,7 @@ import {
   Tray,
 } from "electron"
 import { autoUpdater } from "electron-updater"
-import { UseState } from "@durable-computer/computers/use"
+import { UseState } from "@do-computer/computers/use"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
 import { browserSignIn } from "./browser-sign-in.ts"

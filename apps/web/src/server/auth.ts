@@ -22,7 +22,7 @@ const AUTH_SCHEMA_KEY = "auth_schema"
 /** How long a request is answered from the cookie that says who is signed in. */
 const SESSION_CACHE_SECONDS = 5 * 60
 /** URL scheme of the mobile app; must match `scheme` in apps/mobile/app.json. */
-export const MOBILE_SCHEME = "durablecomputer"
+export const MOBILE_SCHEME = "docomputer"
 
 function authOptions(platform: Platform) {
   const { config } = platform

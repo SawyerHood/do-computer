@@ -1,4 +1,4 @@
-import type { LibraryFile, LibraryVersion } from "@durable-computer/protocol"
+import type { LibraryFile, LibraryVersion } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"

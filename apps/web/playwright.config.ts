@@ -5,7 +5,7 @@ import { defineConfig } from "@playwright/test"
  * (see e2e/fixtures.ts), so the files run side by side while the tests in a file run in order.
  *
  * Build first: `pnpm build:node`, and for the mobile app's tests
- * `pnpm --filter @durable-computer/mobile export:web:test`. Set PLAYWRIGHT_CHROMIUM_PATH to use an already-installed Chromium
+ * `pnpm --filter @do-computer/mobile export:web:test`. Set PLAYWRIGHT_CHROMIUM_PATH to use an already-installed Chromium
  * instead of the one `playwright install chromium` downloads.
  */
 export default defineConfig({

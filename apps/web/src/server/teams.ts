@@ -12,8 +12,8 @@ import {
   type WorkspaceOptions,
   type WorkspaceRole,
   type WorkspaceSummary,
-} from "@durable-computer/protocol"
-import type { AppDatabase } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { AppDatabase } from "@do-computer/runtime"
 
 /**
  * Teams, their members and their invitations, as rows in the app database. Nothing here knows

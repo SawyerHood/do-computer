@@ -1,4 +1,4 @@
-import { RARITIES } from "@durable-computer/protocol"
+import { RARITIES } from "@do-computer/protocol"
 import { expect, test } from "./fixtures.ts"
 import { asOwner, signIn } from "./helpers.ts"
 import type { Page } from "@playwright/test"

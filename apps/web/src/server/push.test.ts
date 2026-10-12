@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { openNodeAppDatabase } from "@durable-computer/runtime/node"
+import { openNodeAppDatabase } from "@do-computer/runtime/node"
 import { describe, expect, it } from "vitest"
 import {
   isExpoPushToken,

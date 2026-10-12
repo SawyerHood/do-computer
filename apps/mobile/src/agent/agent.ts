@@ -1,7 +1,7 @@
 // What the pages of one agent share: who it is, which workspace it is in, saving a change to
 // it, moving it, and the words and numbers that more than one of them shows. The words are the
 // web app's (apps/web/src/components/settings/profile.tsx, model-picker.tsx, thinking-picker.tsx).
-import type { AgentPatch, AgentState } from "@durable-computer/client"
+import type { AgentPatch, AgentState } from "@do-computer/client"
 import {
   type AgentSummary,
   AVATAR_COLORS,
@@ -11,7 +11,7 @@ import {
   type ModelOption,
   type ThinkingLevel,
   type WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useState } from "react"
 import { keys, useAgentState, useAgentSummary, useWorkspaces } from "@/lib/queries"

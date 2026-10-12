@@ -38,15 +38,15 @@ import {
   type ScheduleCheck,
   type UpdateScheduleRequest,
   wearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type {
   Actor,
   ActorHost,
   ActorNamespace,
   ActorSocket,
   ActorStub,
-} from "@durable-computer/runtime"
-import type { Sandbox } from "@durable-computer/sandbox"
+} from "@do-computer/runtime"
+import type { Sandbox } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"

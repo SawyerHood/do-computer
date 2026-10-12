@@ -1,4 +1,4 @@
-import { LOG_TOOL } from "@durable-computer/protocol"
+import { LOG_TOOL } from "@do-computer/protocol"
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"
 import { ChatsDoc } from "./docs.ts"

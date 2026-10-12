@@ -1,6 +1,6 @@
 import { getPlatform } from "#platform"
-import { CALLER_HEADER, encodeCaller } from "@durable-computer/agent"
-import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/protocol"
+import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
+import { isPersonalWorkspace, personalWorkspaceId } from "@do-computer/protocol"
 import { getUser } from "./auth.ts"
 import { roleIn } from "./teams.ts"
 

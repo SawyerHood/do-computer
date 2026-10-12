@@ -6,15 +6,15 @@ import {
   createModelAccessActor,
   workspaceCredentials,
   workspaceModelOptions,
-} from "@durable-computer/agent"
-import { createComputerLinkActor } from "@durable-computer/computers"
-import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
+} from "@do-computer/agent"
+import { createComputerLinkActor } from "@do-computer/computers"
+import { PING_FRAME, PONG_FRAME } from "@do-computer/protocol"
 import {
   createDurableActorClass,
   d1Database,
   durableObjectNamespace,
   r2Blobs,
-} from "@durable-computer/runtime/cloudflare"
+} from "@do-computer/runtime/cloudflare"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { env } from "cloudflare:workers"
 import { agentDirectory } from "./server/agent-directory.ts"
@@ -47,7 +47,7 @@ import { computerChoices, unsharedKinds } from "./server/sandbox.ts"
 
 export { SandboxObject, ShellGateway, ShellObject } from "./server/sandbox.cloudflare.ts"
 // How a built-in shell's Worker finds its way back to the object that keeps its files.
-export { WorkspaceServiceProxy } from "@durable-computer/sandbox/worker-shell/object"
+export { WorkspaceServiceProxy } from "@do-computer/sandbox/worker-shell/object"
 
 /** One Durable Object per agent. The sockets of those following it hibernate with it. */
 export const AgentObject = createDurableActorClass<Env>({

@@ -1,4 +1,4 @@
-import type { LibraryFile, SiteSummary } from "@durable-computer/protocol"
+import type { LibraryFile, SiteSummary } from "@do-computer/protocol"
 import type { ReactNode } from "react"
 import { Platform, View } from "react-native"
 import { formatBytes } from "@/lib/files"

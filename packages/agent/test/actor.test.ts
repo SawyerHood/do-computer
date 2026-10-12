@@ -12,8 +12,8 @@ import {
   EMPTY_CHAT,
   readSse,
   reduceChat,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -22,8 +22,8 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
-import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
-import type { Sandbox } from "@durable-computer/sandbox"
+import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
+import type { Sandbox } from "@do-computer/sandbox"
 import {
   type AgentNotification,
   CALLER_HEADER,

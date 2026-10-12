@@ -3,9 +3,9 @@
  * way to a screen of its own: the Do Computer app does, and a daemon the app runs asks it.
  * A daemon run by hand has no screen for agents.
  */
-import type { ScreenIO } from "@durable-computer/computers/daemon"
-import { UseRefused } from "@durable-computer/computers/use"
-import type { LiveView, ScreenActed } from "@durable-computer/protocol"
+import type { ScreenIO } from "@do-computer/computers/daemon"
+import { UseRefused } from "@do-computer/computers/use"
+import type { LiveView, ScreenActed } from "@do-computer/protocol"
 import { type AppAnswer, type AppCall, formatCall, parseAnswer } from "./events.ts"
 
 /**

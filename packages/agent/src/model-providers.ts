@@ -1,4 +1,4 @@
-import type { ModelLoginMethod, ModelOption } from "@durable-computer/protocol"
+import type { ModelLoginMethod, ModelOption } from "@do-computer/protocol"
 import type { Api, Model } from "@earendil-works/pi-ai"
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth"
 import { getSupportedThinkingLevels, type Provider } from "@earendil-works/pi-ai/models"

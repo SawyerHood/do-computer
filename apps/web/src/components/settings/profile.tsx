@@ -1,4 +1,4 @@
-import type { AgentPatch, AgentState } from "@durable-computer/client"
+import type { AgentPatch, AgentState } from "@do-computer/client"
 import {
   type AgentUsage,
   type Avatar,
@@ -8,7 +8,7 @@ import {
   PAIRED_COMPUTER,
   randomId,
   type ThinkingLevel,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"

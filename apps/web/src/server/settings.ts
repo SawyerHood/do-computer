@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import type { ComputerKinds, UserSettings } from "@durable-computer/protocol"
+import type { ComputerKinds, UserSettings } from "@do-computer/protocol"
 import { fail, json } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { defaultModelIn, deploymentModels, offersModel, offersModelTo } from "./models.ts"

@@ -5,8 +5,8 @@ import type {
   Orb,
   SkyCore,
   Wardrobe,
-} from "@durable-computer/mascot"
-import type { Outfit } from "@durable-computer/protocol"
+} from "@do-computer/mascot"
+import type { Outfit } from "@do-computer/protocol"
 import { atom } from "jotai"
 
 /** What an agent's creature is doing right now. */
@@ -41,7 +41,7 @@ async function tryMascot(): Promise<MascotCore | null> {
   try {
     const [three, { AgentOrbCore, AgentOrbWardrobe }] = await Promise.all([
       import("three"),
-      import("@durable-computer/mascot"),
+      import("@do-computer/mascot"),
     ])
     drawing ??= AgentOrbCore(three)
     // No WebGL here, or none to spare.
@@ -101,7 +101,7 @@ export async function loadSky(): Promise<SkyCore | null> {
   try {
     const [three, { AgentOrbSky }] = await Promise.all([
       import("three"),
-      import("@durable-computer/mascot"),
+      import("@do-computer/mascot"),
     ])
     sky ??= AgentOrbSky(three)
     return sky

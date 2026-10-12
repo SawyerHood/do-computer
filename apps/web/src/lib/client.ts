@@ -1,4 +1,4 @@
-import { type Attention, createClient } from "@durable-computer/client"
+import { type Attention, createClient } from "@do-computer/client"
 
 /**
  * Whether this tab is showing. A window that is hidden or minimized is not; one that is only

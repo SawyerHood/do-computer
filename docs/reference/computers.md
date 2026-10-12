@@ -81,7 +81,7 @@ Things to know before choosing one:
 Daytona has been run for real, on Node and in the Workers runtime: creating the machine, the
 shell, file tools, stopping and coming back with its files, moving an agent to it from the
 built-in shell and back, and deletion. To repeat that against
-your own account: `DAYTONA_API_KEY=... pnpm --filter @durable-computer/sandbox exec vitest run
+your own account: `DAYTONA_API_KEY=... pnpm --filter @do-computer/sandbox exec vitest run
 test/daytona.live.test.ts` (it creates one machine and deletes it). Modal and Cloudflare
 Containers are tested against stand-ins that run real commands, and have not yet been run with a
 real account: treat the first deployment on either as a trial.

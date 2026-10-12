@@ -28,7 +28,7 @@ jobs:
       - run: pnpm check
       # Whether or not the checks passed, so that one run says everything that is wrong.
       - if: success() || failure()
-        run: pnpm --filter '!@durable-computer/agent' run test
+        run: pnpm --filter '!@do-computer/agent' run test
 
   # The agent's tests take as long as all the others together, so they have a machine of their
   # own.
@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm --filter '@durable-computer/agent' run test
+      - run: pnpm --filter '@do-computer/agent' run test
 
   # Browser tests against the built Node server, with a real daemon. Each file of them has a
   # server to itself, so the files are dealt out over several machines, where two run at a time:
@@ -62,8 +62,8 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Build the server, fetching the browser meanwhile
         run: |
-          pnpm --filter @durable-computer/web exec playwright install --only-shell chromium &
-          pnpm --filter @durable-computer/web build:node
+          pnpm --filter @do-computer/web exec playwright install --only-shell chromium &
+          pnpm --filter @do-computer/web build:node
           wait $!
       - name: Run this machine's share of the files
         working-directory: apps/web
@@ -99,14 +99,14 @@ jobs:
           key: mobile-web-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app/**', 'apps/mobile/src/**', 'apps/mobile/assets/**', 'apps/mobile/*.js', 'apps/mobile/*.ts', 'apps/mobile/*.json', 'packages/client/src/**', 'packages/client/package.json', 'packages/mascot/src/**', 'packages/mascot/package.json', 'packages/protocol/src/**', 'packages/protocol/package.json') }}
       - name: Build the server, fetching the browser meanwhile
         run: |
-          pnpm --filter @durable-computer/web exec playwright install --only-shell chromium &
-          pnpm --filter @durable-computer/web build:node
+          pnpm --filter @do-computer/web exec playwright install --only-shell chromium &
+          pnpm --filter @do-computer/web build:node
           wait $!
       - if: steps.mobile-build.outputs.cache-hit != 'true'
-        run: pnpm --filter @durable-computer/mobile export:web:test
+        run: pnpm --filter @do-computer/mobile export:web:test
       # Without the build these tests skip themselves, which here would pass for nothing.
       - run: test -f apps/mobile/dist-web-test/index.html
-      - run: pnpm --filter @durable-computer/web exec playwright test --project=mobile
+      - run: pnpm --filter @do-computer/web exec playwright test --project=mobile
       - uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
@@ -130,7 +130,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm --filter @durable-computer/web run deploy
+      - run: pnpm --filter @do-computer/web run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

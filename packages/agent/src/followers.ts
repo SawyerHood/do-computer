@@ -8,8 +8,8 @@ import {
   digest,
   type DocDigests,
   MAX_FOLLOWED_CHATS,
-} from "@durable-computer/protocol"
-import type { ActorHost, ActorSocket } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { ActorHost, ActorSocket } from "@do-computer/runtime"
 import type { Context } from "@earendil-works/chord"
 import type {
   Conversation,

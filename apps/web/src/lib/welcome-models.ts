@@ -1,4 +1,4 @@
-import type { ModelOption } from "@durable-computer/protocol"
+import type { ModelOption } from "@do-computer/protocol"
 
 /** As many models of one place as the first run's card offers. The rest are in the agent's settings. */
 const SHOWN = 6

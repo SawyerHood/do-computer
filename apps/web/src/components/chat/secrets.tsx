@@ -2,7 +2,7 @@ import {
   type ConnectorSummary,
   MAX_SECRET_CHARS,
   type SecretRequest,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { EyeIcon, EyeSlashIcon, KeyIcon, PlugsConnectedIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"

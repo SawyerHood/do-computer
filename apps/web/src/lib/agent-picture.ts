@@ -1,4 +1,4 @@
-import { type Avatar, avatarLook, avatarSvg, type Outfit } from "@durable-computer/protocol"
+import { type Avatar, avatarLook, avatarSvg, type Outfit } from "@do-computer/protocol"
 import { dressMascot, loadMascot } from "./mascot.ts"
 
 /** Slack asks for an app's icon to be square and between 512 and 2000 pixels a side. */

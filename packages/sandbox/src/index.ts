@@ -2,7 +2,7 @@ import type { SandboxJobs } from "./jobs.ts"
 
 export { SandboxEnv } from "./env.ts"
 export { createJustBashSandbox, type JustBashOptions, justBashSandbox } from "./just-bash/index.ts"
-export { JOB_LOG_CAP_BYTES } from "@durable-computer/protocol"
+export { JOB_LOG_CAP_BYTES } from "@do-computer/protocol"
 export {
   type JobFollowed,
   type JobFollowOptions,

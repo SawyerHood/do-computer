@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import { BodyTooLarge, declaredTooLarge, readLimited } from "@durable-computer/protocol"
+import { BodyTooLarge, declaredTooLarge, readLimited } from "@do-computer/protocol"
 import { fail, json } from "./agents.ts"
 
 /** Dictation is a sentence or two; this is minutes of compressed audio. */

@@ -1,10 +1,10 @@
-import type { AgentState } from "@durable-computer/client"
+import type { AgentState } from "@do-computer/client"
 import type {
   AgentSummary,
   ChatSummary,
   Person,
   WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { ChatsIcon, PlusIcon } from "@phosphor-icons/react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"

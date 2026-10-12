@@ -3,7 +3,7 @@ import {
   type ChatUsage,
   toolSummary,
   type ToolPart,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import {

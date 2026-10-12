@@ -1,4 +1,4 @@
-import type { InviteResult } from "@durable-computer/protocol"
+import type { InviteResult } from "@do-computer/protocol"
 import * as Clipboard from "expo-clipboard"
 import { useState } from "react"
 import { Platform, Pressable, TextInput, View } from "react-native"

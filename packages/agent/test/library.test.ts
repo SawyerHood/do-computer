@@ -1,9 +1,9 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ChatState, ChatSummary, LibraryFile, ToolPart } from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import { justBashSandbox } from "@durable-computer/sandbox"
+import type { ChatState, ChatSummary, LibraryFile, ToolPart } from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import { justBashSandbox } from "@do-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

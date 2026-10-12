@@ -1,4 +1,4 @@
-import type { DaemonEvent } from "@durable-computer/daemon/events"
+import type { DaemonEvent } from "@do-computer/daemon/events"
 
 /** How things stand between this computer and the agents, as the app shows it. */
 export type Sharing =

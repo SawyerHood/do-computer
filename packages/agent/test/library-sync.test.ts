@@ -8,9 +8,9 @@ import type {
   LibraryListing,
   LibraryVersion,
   ToolPart,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import { justBashSandbox } from "@durable-computer/sandbox"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import { justBashSandbox } from "@do-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -20,7 +20,7 @@ import {
 import { afterAll, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 import { cleanLibraryPath, isLibraryPath } from "../src/library.ts"
-import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
+import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { type Base, type Listed, listFolder, plan, type Stored } from "../src/library-sync.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-library-sync-"))

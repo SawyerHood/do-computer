@@ -1,14 +1,14 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createModelAccessActor } from "@durable-computer/agent"
+import { createModelAccessActor } from "@do-computer/agent"
 import {
   type ModelLogin,
   type ModelOption,
   type ModelProvidersState,
   personalWorkspaceId,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "@durable-computer/runtime/node"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "@do-computer/runtime/node"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { SessionUser } from "./auth.ts"
 import { readConfig } from "./platform.ts"

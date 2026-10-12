@@ -1,8 +1,8 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { type AgentSummary, personalWorkspaceId } from "@durable-computer/protocol"
-import { openNodeAppDatabase } from "@durable-computer/runtime/node"
+import { type AgentSummary, personalWorkspaceId } from "@do-computer/protocol"
+import { openNodeAppDatabase } from "@do-computer/runtime/node"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { SessionUser } from "./auth.ts"
 import { readConfig } from "./platform.ts"
@@ -36,7 +36,7 @@ vi.mock("#platform", () => ({
 const { listAgents } = await import("./agents.ts")
 const { deleteAgent } = await import("./agent-delete.ts")
 const { markAgentSeen } = await import("./agent-seen.ts")
-type Db = import("@durable-computer/runtime").AppDatabase
+type Db = import("@do-computer/runtime").AppDatabase
 
 const db = () => world.db as Db
 const person = (id: string): SessionUser => ({ id, name: id, email: `${id}@example.com` })

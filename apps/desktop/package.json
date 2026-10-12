@@ -1,5 +1,5 @@
 {
-  "name": "@durable-computer/desktop",
+  "name": "@do-computer/desktop",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -8,7 +8,7 @@
   "type": "module",
   "main": "dist/main.cjs",
   "scripts": {
-    "build": "pnpm --filter @durable-computer/daemon build && node build.mjs",
+    "build": "pnpm --filter @do-computer/daemon build && node build.mjs",
     "start": "pnpm build && electron .",
     "check": "tsc --noEmit",
     "test": "vitest run",
@@ -16,9 +16,9 @@
     "package": "pnpm build && electron-builder --publish never --config electron-builder.unsigned.yml"
   },
   "devDependencies": {
-    "@durable-computer/computers": "workspace:*",
-    "@durable-computer/daemon": "workspace:*",
-    "@durable-computer/protocol": "workspace:*",
+    "@do-computer/computers": "workspace:*",
+    "@do-computer/daemon": "workspace:*",
+    "@do-computer/protocol": "workspace:*",
     "@playwright/test": "^1.63.0",
     "@trycua/cua-driver": "0.34.1",
     "@types/node": "catalog:",

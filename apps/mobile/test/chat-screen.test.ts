@@ -1,5 +1,5 @@
-import type { ChatMessage, ChatState, ChatSummary } from "@durable-computer/protocol"
-import { EMPTY_CHAT } from "@durable-computer/protocol"
+import type { ChatMessage, ChatState, ChatSummary } from "@do-computer/protocol"
+import { EMPTY_CHAT } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import {
   ago,

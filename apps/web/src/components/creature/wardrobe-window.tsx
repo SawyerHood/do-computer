@@ -8,7 +8,7 @@ import {
   type WearItem,
   type WearSlot,
   wearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { LockIcon, XIcon } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
 import { type ReactNode, useMemo, useRef, useState } from "react"

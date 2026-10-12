@@ -5,7 +5,7 @@ import {
   encodeSse,
   SSE_HEARTBEAT,
   SSE_HEARTBEAT_MS,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { describe, expect, it, vi } from "vitest"
 import { ApiError, createClient } from "../src/index.ts"
 

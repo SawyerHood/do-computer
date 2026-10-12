@@ -1,4 +1,4 @@
-import { BOX_EVERY_MS, type CreatureState, type Outfit } from "@durable-computer/protocol"
+import { BOX_EVERY_MS, type CreatureState, type Outfit } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { atom } from "jotai"
 import { useEffect } from "react"

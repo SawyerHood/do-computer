@@ -1,5 +1,5 @@
 {
-  "name": "@durable-computer/agent",
+  "name": "@do-computer/agent",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -12,10 +12,10 @@
     "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
-    "@durable-computer/computers": "workspace:*",
-    "@durable-computer/protocol": "workspace:*",
-    "@durable-computer/runtime": "workspace:*",
-    "@durable-computer/sandbox": "workspace:*",
+    "@do-computer/computers": "workspace:*",
+    "@do-computer/protocol": "workspace:*",
+    "@do-computer/runtime": "workspace:*",
+    "@do-computer/sandbox": "workspace:*",
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-durable": "catalog:",

@@ -11,8 +11,8 @@ import {
   EMPTY_CHAT,
   MAX_FOLLOWED_CHATS,
   reduceChat,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace, type SocketLike } from "@durable-computer/runtime/node"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"

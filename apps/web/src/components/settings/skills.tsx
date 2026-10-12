@@ -1,4 +1,4 @@
-import type { SkillSummary } from "@durable-computer/protocol"
+import type { SkillSummary } from "@do-computer/protocol"
 import { CaretRightIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"

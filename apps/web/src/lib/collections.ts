@@ -1,5 +1,5 @@
-import type { AgentState } from "@durable-computer/client"
-import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
+import type { AgentState } from "@do-computer/client"
+import type { AgentSummary, ChatSummary } from "@do-computer/protocol"
 import { queryCollectionOptions } from "@tanstack/query-db-collection"
 import { CancelledError, queryOptions } from "@tanstack/react-query"
 import { createCollection } from "@tanstack/react-db"

@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import type { AgentSummary, ConnectSlackRequest } from "@durable-computer/protocol"
+import type { AgentSummary, ConnectSlackRequest } from "@do-computer/protocol"
 import { agentFor, callAgent, fail, json } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import {

@@ -1,5 +1,5 @@
 import { PassThrough } from "node:stream"
-import { UseRefused } from "@durable-computer/computers/use"
+import { UseRefused } from "@do-computer/computers/use"
 import { describe, expect, it } from "vitest"
 import { type AppCall, parseCall } from "../src/events.ts"
 import { appScreen } from "../src/screen.ts"

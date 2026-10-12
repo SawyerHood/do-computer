@@ -1,4 +1,4 @@
-import { type LibraryFile, resolveLink } from "@durable-computer/protocol"
+import { type LibraryFile, resolveLink } from "@do-computer/protocol"
 import { Image } from "expo-image"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"

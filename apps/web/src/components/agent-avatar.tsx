@@ -1,11 +1,11 @@
-import type { MascotCore, Orb } from "@durable-computer/mascot"
+import type { MascotCore, Orb } from "@do-computer/mascot"
 import {
   type AgentSummary,
   type Avatar,
   avatarLook,
   avatarSvg,
   type Outfit,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useAtomValue } from "jotai"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {

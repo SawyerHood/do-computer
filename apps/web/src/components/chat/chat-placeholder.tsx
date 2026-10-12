@@ -1,4 +1,4 @@
-import { type AgentSummary, EMPTY_CHAT } from "@durable-computer/protocol"
+import { type AgentSummary, EMPTY_CHAT } from "@do-computer/protocol"
 import { useAtomValue } from "jotai"
 import { AgentFace } from "@/components/agent-avatar"
 import { ComposerPlaceholder, TranscriptPlaceholder } from "@/components/placeholders"

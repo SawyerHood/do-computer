@@ -6,8 +6,8 @@ import {
   type DeploymentModels,
   ECHO_MODEL,
   offeredModels,
-} from "@durable-computer/agent"
-import type { ModelOption } from "@durable-computer/protocol"
+} from "@do-computer/agent"
+import type { ModelOption } from "@do-computer/protocol"
 import { fail, json } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { modelsSignedInTo } from "./model-access.ts"

@@ -1,4 +1,4 @@
-import type { SiteSummary } from "@durable-computer/protocol"
+import type { SiteSummary } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
 import { asOwner, newChat, owner, signIn, tab, tool } from "./helpers.ts"

@@ -1,4 +1,4 @@
-import type { PresenceLink } from "@durable-computer/client"
+import type { PresenceLink } from "@do-computer/client"
 import {
   type AgentSummary,
   isPersonalWorkspace,
@@ -6,7 +6,7 @@ import {
   type Presence,
   type WorkspacesState,
   type WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { queryOptions, useQuery } from "@tanstack/react-query"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { atom, getDefaultStore, useAtomValue } from "jotai"

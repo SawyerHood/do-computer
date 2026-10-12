@@ -10,7 +10,7 @@ import {
   MESSAGE_IMAGE_TYPES,
   type MessageImage,
   type SubagentStatus,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

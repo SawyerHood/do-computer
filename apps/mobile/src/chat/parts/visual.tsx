@@ -5,7 +5,7 @@ import {
   visualFrameHeight,
   type VisualTheme,
   visualThemeFragment,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { memo, useCallback, useMemo, useRef, useState } from "react"

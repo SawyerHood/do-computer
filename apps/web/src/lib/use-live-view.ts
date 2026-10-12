@@ -1,4 +1,4 @@
-import type { LiveView, UseWhat } from "@durable-computer/protocol"
+import type { LiveView, UseWhat } from "@do-computer/protocol"
 import { useEffect, useSyncExternalStore } from "react"
 import { client } from "./client.ts"
 

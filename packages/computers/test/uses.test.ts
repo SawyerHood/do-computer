@@ -4,7 +4,7 @@ import type {
   ScreenActed,
   ScreenWindow,
   UsingAgent,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { fakeScreen } from "../src/fake-screen.ts"
 import { type BrowserIO, DaemonCore, type DaemonIO, LinkCore, RemoteError } from "../src/index.ts"

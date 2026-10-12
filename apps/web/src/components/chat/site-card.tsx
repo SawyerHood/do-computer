@@ -1,4 +1,4 @@
-import { sharedSite, type ToolPart } from "@durable-computer/protocol"
+import { sharedSite, type ToolPart } from "@do-computer/protocol"
 import { ArrowSquareOutIcon, CaretDownIcon, GlobeIcon } from "@phosphor-icons/react"
 import { useContext, useEffect, useRef } from "react"
 import { CopyLink, SharePopover, SitePill } from "@/components/sites/share"

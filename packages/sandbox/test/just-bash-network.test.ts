@@ -1,4 +1,4 @@
-import { guardedFetch } from "@durable-computer/runtime"
+import { guardedFetch } from "@do-computer/runtime"
 import { openNodeSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/node"
 import { describe, expect, it } from "vitest"
 import { createJustBashSandbox } from "../src/index.ts"

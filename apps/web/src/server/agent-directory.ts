@@ -1,6 +1,6 @@
-import type { AgentDirectory, PeerAgent } from "@durable-computer/agent"
-import { type AgentSummary, personalWorkspaceId } from "@durable-computer/protocol"
-import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
+import type { AgentDirectory, PeerAgent } from "@do-computer/agent"
+import { type AgentSummary, personalWorkspaceId } from "@do-computer/protocol"
+import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 
 type Row = { id: string; owner_id: string; workspace_id: string | null }
 

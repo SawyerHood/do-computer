@@ -1,4 +1,4 @@
-import { type ChatSummary, chatRuns, chatUses, sentFiles, spanOf } from "@durable-computer/protocol"
+import { type ChatSummary, chatRuns, chatUses, sentFiles, spanOf } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useMemo, useState } from "react"

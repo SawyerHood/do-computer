@@ -1,4 +1,4 @@
-import type { LibraryFile, SiteSummary } from "@durable-computer/protocol"
+import type { LibraryFile, SiteSummary } from "@do-computer/protocol"
 import { DotsThreeIcon, GlobeIcon, LinkSimpleIcon } from "@phosphor-icons/react"
 import { useAgentsById } from "@/components/computer-requests"
 import { Button } from "@/components/ui/button"

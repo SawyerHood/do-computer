@@ -1,4 +1,4 @@
-import { type ChatState, DEFAULT_THINKING, type SubagentStatus } from "@durable-computer/protocol"
+import { type ChatState, DEFAULT_THINKING, type SubagentStatus } from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

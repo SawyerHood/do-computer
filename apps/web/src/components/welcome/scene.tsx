@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError } from "@do-computer/client"
 import {
   type AgentSummary,
   AVATAR_COLORS,
@@ -6,7 +6,7 @@ import {
   avatarLook,
   avatarSvg,
   type Dood,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   CheckCircleIcon,
   DiceFiveIcon,

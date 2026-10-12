@@ -1,11 +1,11 @@
-import { readCaller } from "@durable-computer/agent"
+import { readCaller } from "@do-computer/agent"
 import {
   isPersonalWorkspace,
   type Presence,
   type PresenceEvent,
   type PresenceUpdate,
-} from "@durable-computer/protocol"
-import type { Actor, ActorHost } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { Actor, ActorHost } from "@do-computer/runtime"
 
 type Row = {
   socket: string

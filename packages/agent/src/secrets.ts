@@ -5,8 +5,8 @@ import {
   SECRET_NAME,
   type SecretField,
   type SecretRequest,
-} from "@durable-computer/protocol"
-import { SandboxEnv } from "@durable-computer/sandbox"
+} from "@do-computer/protocol"
+import { SandboxEnv } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

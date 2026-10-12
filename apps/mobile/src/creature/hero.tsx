@@ -1,4 +1,4 @@
-import { hasEverything } from "@durable-computer/protocol"
+import { hasEverything } from "@do-computer/protocol"
 import { useFocusEffect, useRouter } from "expo-router"
 import { type ReactNode, useCallback, useState } from "react"
 import { View } from "react-native"

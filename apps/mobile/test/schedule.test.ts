@@ -1,4 +1,4 @@
-import type { ScheduleSummary } from "@durable-computer/protocol"
+import type { ScheduleSummary } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { inWords, statusOf, tally } from "../src/settings/schedule.ts"
 

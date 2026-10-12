@@ -3,7 +3,7 @@ import {
   type ModelOption,
   type ModelProvider,
   personalWorkspaceId,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useId, useMemo, useRef, useState } from "react"

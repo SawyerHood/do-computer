@@ -1,4 +1,4 @@
-import { NEW_CREATURE, WEAR_ITEMS } from "@durable-computer/protocol"
+import { NEW_CREATURE, WEAR_ITEMS } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { boxProgress, foundLine } from "../src/creature/words"
 

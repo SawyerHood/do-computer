@@ -4,8 +4,8 @@ import {
   type AgentComputer,
   type ComputerAnswer,
   computerActorName,
-} from "@durable-computer/agent"
-import { linkStatus } from "@durable-computer/computers"
+} from "@do-computer/agent"
+import { linkStatus } from "@do-computer/computers"
 import {
   type AddComputerRequest,
   type ComputerRequest,
@@ -13,7 +13,7 @@ import {
   type ConfirmPairingRequest,
   PAIRED_COMPUTER,
   personalWorkspaceId,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { fail, json } from "./agents.ts"
 import { getAuth, type SessionUser } from "./auth.ts"
 import { reinstallCommand } from "./daemon-reinstall.ts"

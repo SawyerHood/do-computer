@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import type { AppDatabase } from "@durable-computer/runtime"
+import type { AppDatabase } from "@do-computer/runtime"
 import type { SessionUser } from "./auth.ts"
 import { sendEmail } from "./email.ts"
 import { readMeta } from "./schema.ts"

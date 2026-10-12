@@ -1,4 +1,4 @@
-import type { UserSettings } from "@durable-computer/protocol"
+import type { UserSettings } from "@do-computer/protocol"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Loads } from "@/components/loads"
 import { FormPlaceholder } from "@/components/placeholders"

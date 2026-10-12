@@ -1,4 +1,4 @@
-import { type ApprovalsState, chatMood, type ChatState } from "@durable-computer/protocol"
+import { type ApprovalsState, chatMood, type ChatState } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
 import { feedMascot, type Mood } from "@/ui/avatar"

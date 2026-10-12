@@ -4,7 +4,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
   WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { View } from "react-native"

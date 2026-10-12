@@ -1,4 +1,4 @@
-import type { Gift, Orb } from "@durable-computer/mascot"
+import type { Gift, Orb } from "@do-computer/mascot"
 import {
   type AgentSummary,
   avatarLook,
@@ -8,7 +8,7 @@ import {
   WEAR_ITEMS,
   type WearItem,
   wearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useEffect, useImperativeHandle, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"

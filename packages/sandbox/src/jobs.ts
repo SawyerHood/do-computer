@@ -1,4 +1,4 @@
-import { JOB_LOG_CAP_BYTES } from "@durable-computer/protocol"
+import { JOB_LOG_CAP_BYTES } from "@do-computer/protocol"
 import type { ExecOptions, ExecOutcome } from "./index.ts"
 import { quote } from "./shell-fs.ts"
 

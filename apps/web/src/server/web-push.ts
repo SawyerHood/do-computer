@@ -1,4 +1,4 @@
-import type { AppDatabase } from "@durable-computer/runtime"
+import type { AppDatabase } from "@do-computer/runtime"
 import { readMeta } from "./schema.ts"
 
 /**
@@ -221,7 +221,7 @@ export function vapidSubject(baseUrl: string | undefined): string {
   } catch {
     // No address is set.
   }
-  return "mailto:notifications@durable-computer.invalid"
+  return "mailto:notifications@do-computer.invalid"
 }
 
 /** What a browser sent as its subscription, if it is one. */

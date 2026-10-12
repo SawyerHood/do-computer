@@ -1,8 +1,8 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { personalWorkspaceId } from "@durable-computer/protocol"
-import { openNodeAppDatabase } from "@durable-computer/runtime/node"
+import { personalWorkspaceId } from "@do-computer/protocol"
+import { openNodeAppDatabase } from "@do-computer/runtime/node"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { readConfig } from "./platform.ts"
 import { migrateAppDatabase } from "./schema.ts"
@@ -62,7 +62,7 @@ const { addableKinds, addMachineFor, removeMachineFor } = await import("./comput
 const { createAgentBeside, MAX_AGENTS_PER_WORKSPACE } = await import("./agents.ts")
 const { computerDirectory } = await import("./computer-directory.ts")
 type Row = import("./computer-access.ts").ComputerRow
-type Db = import("@durable-computer/runtime").AppDatabase
+type Db = import("@do-computer/runtime").AppDatabase
 
 const db = () => world.db as Db
 const WORKSPACE = personalWorkspaceId("sawyer")

@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError } from "@do-computer/client"
 import { useQueryClient } from "@tanstack/react-query"
 import { Image } from "expo-image"
 import { type Href, useLocalSearchParams, useRouter } from "expo-router"

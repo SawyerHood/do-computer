@@ -124,7 +124,7 @@ if [ -f "$DAEMON" ]; then
   for _ in $(seq 1 30); do kill -0 $DAEMON_PID 2>/dev/null || break; sleep 0.3; done
   if kill -0 $DAEMON_PID 2>/dev/null; then echo "FAIL removed computer's daemon is still running"; exit 1; else echo "ok   removing the computer stopped its daemon"; fi
 else
-  echo "skip paired computer checks: build the daemon with pnpm --filter @durable-computer/daemon build"
+  echo "skip paired computer checks: build the daemon with pnpm --filter @do-computer/daemon build"
 fi
 # History: what was said can be found, and a chat's past can be read back.
 check "search finds what was said" "$(get "/api/agents/$AGENT/search?q=smoke%20test%20ping" | field "['hits'][0]['chatId']")" "$CHAT"

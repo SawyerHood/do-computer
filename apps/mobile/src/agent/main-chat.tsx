@@ -1,4 +1,4 @@
-import type { ChatState, ChatSummary } from "@durable-computer/protocol"
+import type { ChatState, ChatSummary } from "@do-computer/protocol"
 import type { ReactNode } from "react"
 import { ActivityIndicator } from "react-native"
 import { mainChatOf } from "@/chat/chats"

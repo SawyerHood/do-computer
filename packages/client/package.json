@@ -1,5 +1,5 @@
 {
-  "name": "@durable-computer/client",
+  "name": "@do-computer/client",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@durable-computer/protocol": "workspace:*"
+    "@do-computer/protocol": "workspace:*"
   },
   "devDependencies": {
     "@typescript/native": "catalog:",
