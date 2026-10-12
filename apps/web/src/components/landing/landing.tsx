@@ -916,8 +916,8 @@ function Hats() {
         <div>
           <h3>Also, Doods wear hats</h3>
           <p>
-            Work with yours and it earns treats. Enough treats and a box turns up, with one of 200
-            things to wear inside.
+            Twice a day a box turns up beside yours, with one of 200 things to wear inside. Treats
+            it gets whenever you like.
           </p>
           <div className="lp-cta">
             <button

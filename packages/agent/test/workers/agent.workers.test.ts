@@ -354,7 +354,7 @@ describe("an agent followed over a socket, in a Durable Object", () => {
 
       // Left alone, with nothing to do and its socket open, the object is unloaded. A stream
       // in the socket's place would have kept it in memory for as long as it was open.
-      // What follows an answer, such as its creature's treat, is told first.
+      // What follows an answer is told first.
       await new Promise((resolve) => setTimeout(resolve, 1_000))
       const before = heard.length
       const stood = digest(held(chat.id))

@@ -4,17 +4,16 @@ import { join } from "node:path"
 import {
   type AgentEvent,
   type AgentSummary,
-  type ChatState,
+  BOX_EVERY_MS,
   type CreatureState,
   readSse,
-  TREAT_EVERY_MS,
   TREATS_PER_BOX,
   WEAR_ITEMS,
   wearItem,
 } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { fauxAssistantMessage, fauxProvider, fauxText } from "@earendil-works/pi-ai/providers/faux"
+import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 
@@ -81,54 +80,17 @@ async function call<T>(world: World, path: string, method = "GET", payload?: unk
   return result
 }
 
-async function until<T>(read: () => Promise<T>, good: (value: T) => boolean): Promise<T> {
-  const deadline = Date.now() + 10_000
-  for (;;) {
-    const value = await read()
-    if (good(value)) return value
-    if (Date.now() > deadline) throw new Error(`Still ${JSON.stringify(value)} after 10 s`)
-    await new Promise((resolve) => setTimeout(resolve, 20))
-  }
-}
-
 const creature = (world: World) => call<CreatureState>(world, "/creature")
-
-/** Ask the agent something in a chat of its: question `turn`, which it has an answer ready for. */
-async function ask(world: World, chatId: string, turn: number): Promise<void> {
-  world.faux.setResponses([fauxAssistantMessage([fauxText(`Answer ${turn}.`)])])
-  await call(world, `/chats/${chatId}/messages`, "POST", {
-    requestId: `question-${turn}`,
-    text: `Question ${turn}`,
-  })
-}
-
-/**
- * An agent with one chat, and its creature once it has been answered in it `answers` times, an
- * hour apart: it has earned a treat for each.
- */
-async function answered(world: World, answers: number): Promise<CreatureState> {
-  await call(world, "/init", "POST", { ownerId: "user-1" })
-  const { id } = await call<{ id: string }>(world, "/chats", "POST", {})
-  for (let turn = 1; turn <= answers; turn++) {
-    if (turn > 1) world.ahead += TREAT_EVERY_MS
-    await ask(world, id, turn)
-    await until(
-      () => creature(world),
-      (state) => state.treats === turn,
-    )
-  }
-  return creature(world)
-}
 
 describe("an agent's creature", () => {
   it("starts with nothing but a box waiting, and has nothing on", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
     expect(await creature(world)).toEqual({
-      treats: 0,
       fed: 0,
       joy: 0,
       boxes: 1,
+      nextBoxAt: expect.any(Number),
       owned: [],
       outfit: {},
     })
@@ -136,61 +98,50 @@ describe("an agent's creature", () => {
     expect(agent.outfit).toEqual({})
   })
 
-  it("earns a treat when the agent answers someone, and another an hour later", async () => {
-    const world = open()
-    expect((await answered(world, 2)).treats).toBe(2)
-    expect(world.reports).toEqual([])
-  })
-
-  it("earns one treat an hour at most, however often the agent answers", async () => {
+  it("has a box turn up every twelve hours, which wait for as long as they are left", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    const { id } = await call<{ id: string }>(world, "/chats", "POST", {})
-    const answer = async (turn: number) => {
-      await ask(world, id, turn)
-      await until(
-        () => call<ChatState>(world, `/chats/${id}`),
-        (chat) => !chat.busy && JSON.stringify(chat.messages).includes(`Answer ${turn}.`),
-      )
-    }
-    await answer(1)
-    await until(
-      () => creature(world),
-      (state) => state.treats === 1,
-    )
-    // Answered twice more within the hour, and it has the one treat still.
-    world.ahead += TREAT_EVERY_MS - 60_000
-    await answer(2)
-    await answer(3)
-    expect((await creature(world)).treats).toBe(1)
-    // The hour is up: the next answer earns one.
+    const first = await creature(world)
+    // A minute short of twelve hours, there is only the one it started with.
+    world.ahead += BOX_EVERY_MS - 60_000
+    expect((await creature(world)).boxes).toBe(1)
     world.ahead += 60_000
-    await answer(4)
-    await until(
-      () => creature(world),
-      (state) => state.treats === 2,
-    )
+    expect(await creature(world)).toEqual({
+      ...first,
+      boxes: 2,
+      nextBoxAt: first.nextBoxAt! + BOX_EVERY_MS,
+    })
+    // Left alone for two days, it has one for each twelve hours of them.
+    world.ahead += 4 * BOX_EVERY_MS
+    expect((await creature(world)).boxes).toBe(6)
+    // One that came due since it was last looked at is there to be opened.
+    world.ahead += BOX_EVERY_MS
+    const opened = await call<{ creature: CreatureState }>(world, "/creature/open", "POST")
+    expect(opened.creature).toMatchObject({
+      boxes: 6,
+      nextBoxAt: first.nextBoxAt! + 6 * BOX_EVERY_MS,
+    })
     expect(world.reports).toEqual([])
   })
 
-  it("is given its treats one at a time, and finds a box when it has had enough", async () => {
+  it("has no more boxes turn up once it has everything", async () => {
     const world = open()
-    await answered(world, TREATS_PER_BOX)
-    for (let given = 1; given < TREATS_PER_BOX; given++) {
-      const state = await call<CreatureState>(world, "/creature/feed", "POST")
-      expect(state).toMatchObject({ treats: TREATS_PER_BOX - given, fed: given, joy: given })
-      expect(state.boxes).toBe(1)
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    for (const item of WEAR_ITEMS) await call(world, "/gifts", "POST", { item: item.id })
+    world.ahead += 3 * BOX_EVERY_MS
+    expect((await creature(world)).boxes).toBe(1)
+  })
+
+  it("is given a treat as often as anyone likes, and none of them is a box", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    for (let given = 1; given <= TREATS_PER_BOX + 1; given++) {
+      expect(await call<CreatureState>(world, "/creature/feed", "POST")).toMatchObject({
+        fed: given,
+        joy: 0,
+        boxes: 1,
+      })
     }
-    expect(await call<CreatureState>(world, "/creature/feed", "POST")).toMatchObject({
-      treats: 0,
-      fed: TREATS_PER_BOX,
-      joy: 0,
-      boxes: 2,
-    })
-    // There is nothing left to give it.
-    const refused = await send(world, "/creature/feed", "POST")
-    expect(refused.status).toBe(409)
-    expect(await refused.json()).toMatchObject({ code: "no_treats" })
   })
 
   it("finds in a box something it does not have, of the rarity chance decided", async () => {
@@ -213,9 +164,9 @@ describe("an agent's creature", () => {
   it("eats what it is given on its own page, and wears what it came with", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    // Treats from outside the app are eaten there and then: none is left on its pile.
+    // Treats from other people, on its own page, are a box for it every few.
     const fed = await call<CreatureState>(world, "/gifts", "POST", { treats: 5 })
-    expect(fed).toMatchObject({ treats: 0, fed: 5, joy: 1, boxes: 2 })
+    expect(fed).toMatchObject({ fed: 5, joy: 1, boxes: 2 })
     // What it kept out of its first present is its own, and on.
     const dressed = await call<CreatureState>(world, "/gifts", "POST", { item: "tophat" })
     expect(dressed).toMatchObject({ owned: ["tophat"], outfit: { hat: "tophat" }, fed: 5 })

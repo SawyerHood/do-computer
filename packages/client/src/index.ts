@@ -754,9 +754,9 @@ export function createClient(options: ClientOptions) {
           post<{ ok: true }>(`${base}/approvals/${requestId}`, { decision }),
         /** What the agent has spent on models so far. */
         usage: () => request<AgentUsage>(`${base}/usage`),
-        /** What its creature has been given and has on: its treats, its boxes and its things. */
+        /** What its creature has been given and has on: its boxes, when the next is due, and its things. */
         creature: () => request<CreatureState>(`${base}/creature`),
-        /** Give its creature one of its treats. */
+        /** Give its creature a treat. There is always one to give. */
         feedCreature: () => post<CreatureState>(`${base}/creature/feed`),
         /** Open one of its creature's boxes. Answers with the id of what was inside. */
         openBox: () => post<{ item: string; creature: CreatureState }>(`${base}/creature/open`),

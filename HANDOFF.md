@@ -703,22 +703,33 @@ Since then, newest last:
     `packages/protocol/src/wardrobe.ts`, `prototypes/gamification`). The owner asked for a
     little gamification of the creature, chose from two rounds of a mock-up, and asked for it to
     be built. None of it changes what an agent can do.
-    - **The loop.** The creature earns a treat when its agent answers someone in a chat or in
-      Slack, and when a scheduled run reports, one an hour at most (`TREAT_EVERY_MS`; the owner
-      found that a treat for every answer came "waaaaay too quickly", 2026-10-12). The hour is
-      counted from the last treat it earned (`earnedAt` in `CreatureDoc`), so a box takes four
-      hours of use at the least. The browser tests set `DC_TREAT_EVERY_MS` to 0 to earn several
-      in a row; nothing else should. A treat is given by carrying it onto the
-      creature or pressing the pile; it opens its mouth, eats it in three bites and is pleased.
-      A treat that is carried is followed from the window and not from the pile: a treat earned
-      meanwhile makes the pile anew, and a pile that held the pointer never heard it let go, so
-      the treat hung there and no other could be given until the page was loaded again.
-      Four treats fill a box (`TREATS_PER_BOX`). A box holds one thing to wear that the creature
+    - **The loop.** A box turns up beside the creature every twelve hours (`BOX_EVERY_MS`),
+      whatever the agent did or did not do meanwhile, and waits there with any others until it
+      is opened: there is no limit to how many wait. Nothing wakes for one. `CreatureDoc` keeps
+      when the next is due (`nextBoxAt`), and those that have come due are counted when the
+      creature is next looked at (`#boxesDue` in `packages/agent/src/actor.ts`); the page asks
+      again when the time comes, so a box turns up while it is open. The first look only sets
+      the time, so an agent from before this was not handed a box for every twelve hours it had
+      lived. Once everything is found no more turn up. Treats are for nothing but the pleasure
+      of it: there is always one to give, by carrying it onto the creature or pressing, and it
+      opens its mouth, eats it in three bites and is pleased. All that is kept is how many it
+      has had (`fed`), which decides the kind of the next. A treat that is carried is followed
+      from the window and not from the button it was taken from.
+      It was first built otherwise: a treat earned with every answer, four treats to a box. The
+      owner found that "waaaaay too quickly" (2026-10-12) and asked first for one treat an hour
+      at most, then, before that was merged, for this: "you actually only get a new present
+      every 12 hours ... they just show up there ... and you can have multiple ... The feeding
+      is just a cute interaction ... maybe you have infinite snacks". What was left as it was,
+      without their saying so: the treats other people give a claimed Dood on its own page
+      still make a box for its owner every four (`TREATS_PER_BOX`, `joy`; item 55), since they
+      had asked for that by name. The browser tests set `DC_BOX_EVERY_MS` to a few seconds to
+      see a box turn up; nothing else should set it.
+      A box holds one thing to wear that the creature
       does not have yet: the rarity is drawn first (60, 25, 10, 4 and 1 in a hundred, among the
       rarities that still have something to find), then a thing of it. Every creature starts
       with one box waiting, as a welcome, including the agents from before this.
     - **Where it is kept.** In the agent's own store, as `CreatureDoc` (`packages/agent/src/docs.ts`):
-      treats, how far the next box is filled, boxes waiting, what it has, what it has on. The
+      treats it has had, when the next box is due, boxes waiting, what it has, what it has on. The
       routes are `/creature`, `/creature/feed`, `/creature/open` and `/creature/outfit` on the
       actor, reached through the usual proxy, so anyone who can use the agent can do all four.
       What a box holds is decided there and not in the browser. The agent's summary carries
@@ -2613,8 +2624,8 @@ tiers; a hundred things in all, not a hundred of each kind; little room taken, s
 mainly like a productivity app", with no bond level and the treats beside the creature; a page of
 its own for looking after it on a phone; hats that do not sit inside heads, whatever the seed;
 and the box opened with "a really juicy three.js opening animation like the hatching". Chosen for
-them and not confirmed: four treats to a box, the odds, that a box
-never repeats a thing, that every creature starts with a box, that ears flop or lie flat under a
+them and not confirmed: the odds, that a box
+never repeats a thing, that boxes wait without limit, that every creature starts with a box, that ears flop or lie flat under a
 hat, and that a team shares one creature with one outfit.
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of

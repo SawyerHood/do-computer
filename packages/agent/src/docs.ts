@@ -85,7 +85,7 @@ export const IdentityDoc = defineDoc<IdentityState>({
 })
 
 /**
- * What the agent's creature has been given and has on: its treats, its boxes, and the things to
+ * What the agent's creature has been given and has on: its boxes, when the next is due, and the things to
  * wear that came out of them. Apart from who the agent is, since none of it is the agent's to
  * know or to change.
  */

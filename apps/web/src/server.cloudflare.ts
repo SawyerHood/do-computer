@@ -73,7 +73,7 @@ export const AgentObject = createDurableActorClass<Env>({
       judge: models.judge,
       review: models.review,
       allowPrivateHosts: config.allowPrivateHosts,
-      treatEveryMs: config.treatEveryMs,
+      boxEveryMs: config.boxEveryMs,
       // Nothing is kept in memory for a chat that has gone quiet: what keeps it is a timer,
       // and a pending timer keeps the whole object from being put away.
       contextRetentionMs: 0,

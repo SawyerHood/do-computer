@@ -1,11 +1,7 @@
-import {
-  type CreatureState,
-  hasEverything,
-  type Outfit,
-  TREATS_PER_BOX,
-} from "@durable-computer/protocol"
+import { BOX_EVERY_MS, type CreatureState, type Outfit } from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { atom } from "jotai"
+import { useEffect } from "react"
 import { client } from "./client.ts"
 import { agentKey, agentsKey, creatureKey, creatureQuery } from "./collections.ts"
 import { queryClient } from "./query.ts"
@@ -18,9 +14,42 @@ import { queryClient } from "./query.ts"
 export const creatureWardrobeAtom = atom(false)
 export const creatureBoxAtom = atom(false)
 
-/** What an agent's creature has been given and has on. Undefined until it has been heard from. */
+/** How long after a box was due it is asked for, and how soon again where this clock is ahead of the server's. */
+const DUE_GRACE_MS = 500
+const DUE_AGAIN_MS = 60_000
+
+/**
+ * What an agent's creature has been given and has on. Undefined until it has been heard from.
+ * It is asked for again when its next box is due, so that the box turns up while the page is open.
+ */
 export function useCreature(agentId: string, enabled = true): CreatureState | undefined {
-  return useQuery({ ...creatureQuery(agentId), enabled }).data
+  const { data, dataUpdatedAt } = useQuery({ ...creatureQuery(agentId), enabled })
+  const due = data?.nextBoxAt
+  useEffect(() => {
+    if (due === undefined) return
+    const wait = due - Date.now()
+    const timer = setTimeout(
+      () => void queryClient.invalidateQueries({ queryKey: creatureKey(agentId) }),
+      wait > 0 ? wait + DUE_GRACE_MS : DUE_AGAIN_MS,
+    )
+    return () => clearTimeout(timer)
+    // Armed again by each answer, the same one included: the server may not have got there yet.
+  }, [agentId, due, dataUpdatedAt])
+  return data
+}
+
+/** How far along its next box is, from 0 to 1, and about how long is left, in words. */
+export function boxProgress(state: Pick<CreatureState, "nextBoxAt">, now = Date.now()) {
+  const left = Math.max(0, (state.nextBoxAt ?? now + BOX_EVERY_MS) - now)
+  const hours = Math.round(left / 3_600_000)
+  const minutes = Math.max(1, Math.round(left / 60_000))
+  return {
+    part: Math.min(1, Math.max(0, 1 - left / BOX_EVERY_MS)),
+    left:
+      minutes < 60
+        ? `${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+        : `${hours} ${hours === 1 ? "hour" : "hours"}`,
+  }
 }
 
 const set = (agentId: string, change: (state: CreatureState) => CreatureState) =>
@@ -31,27 +60,16 @@ const refetch = (agentId: string) =>
   void queryClient.invalidateQueries({ queryKey: creatureKey(agentId) })
 
 /**
- * Give the creature one of its treats. What that comes to is shown at once and asked for after:
- * the treat is already on its way to its mouth.
+ * Give the creature a treat. There is always one to give, and all it comes to is the count of
+ * them, which is shown at once and asked for after: the treat is already on its way to its mouth.
  */
 export async function feedCreature(agentId: string): Promise<void> {
-  set(agentId, (state) => {
-    if (state.treats <= 0) return state
-    const joy = state.joy + 1
-    const box = !hasEverything(state.owned) && joy >= TREATS_PER_BOX
-    return {
-      ...state,
-      treats: state.treats - 1,
-      fed: state.fed + 1,
-      joy: box ? 0 : hasEverything(state.owned) ? state.joy : joy,
-      boxes: state.boxes + (box ? 1 : 0),
-    }
-  })
+  set(agentId, (state) => ({ ...state, fed: state.fed + 1 }))
   try {
     const state = await client.agent(agentId).feedCreature()
     queryClient.setQueryData(creatureKey(agentId), state)
   } catch {
-    // Someone else gave it the last one, or it could not be reached: what is true is asked for.
+    // It could not be reached: what is true is asked for.
     refetch(agentId)
   }
 }

@@ -1,15 +1,15 @@
 import {
   type AgentSummary,
   type CreatureState,
+  hasEverything,
   topTreat,
   type TreatKind,
-  TREATS_PER_BOX,
 } from "@durable-computer/protocol"
 import { useSetAtom } from "jotai"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { PetHeart } from "@/components/agent-avatar"
-import { creatureBoxAtom, feedCreature, useCreature } from "@/lib/creature"
+import { boxProgress, creatureBoxAtom, feedCreature, useCreature } from "@/lib/creature"
 import { biteMascot, cheerMascot, offerMascot, prefersCalm } from "@/lib/mascot"
 import type { Heart } from "@/lib/use-petting"
 import { cn } from "@/lib/utils"
@@ -27,9 +27,10 @@ type Held = { kind: TreatKind; x: number; y: number; eating: boolean; bites: num
 type Crumb = { id: number; x: number; y: number; dx: number; dy: number; color: string }
 
 /**
- * Giving the creature a treat: carried from its pile to its mouth with the pointer, or sent there
- * by pressing the pile. It opens its mouth as the treat comes near, eats it in a few bites, and
- * is pleased. `box` is the element the creature is drawn in, which is how its mouth is found.
+ * Giving the creature a treat: carried to its mouth with the pointer, or sent there by pressing
+ * where the treats are. There is always another. It opens its mouth as the treat comes near, eats
+ * it in a few bites, and is pleased. `box` is the element the creature is drawn in, which is how
+ * its mouth is found.
  */
 function useTreats(
   agentId: string,
@@ -113,7 +114,6 @@ function useTreats(
 
   const busy = held !== null
   const carrying = held !== null && !held.eating
-  const none = creature === undefined || creature.treats <= 0
   /** What the pointer does with the treat it picked up. */
   const hand = {
     move: (event: PointerEvent) => {
@@ -145,9 +145,9 @@ function useTreats(
   }
   const heard = useRef(hand)
   heard.current = hand
-  // The treat is followed from the window, and not from the pile it was taken from. A treat
-  // earned while one is carried makes the pile anew, and the pointer's capture goes with the old
-  // one: the pile then never heard the treat let go, and it hung where it was for good.
+  // The treat is followed from the window, and not from the button it was taken from: a button
+  // that is made anew while a treat is carried takes the pointer's capture with it, and the treat
+  // then hangs where it was let go.
   useEffect(() => {
     if (!carrying) return
     const own = (event: PointerEvent) => event.pointerId === carry.current.pointer
@@ -170,7 +170,7 @@ function useTreats(
 
   const handlers = {
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
-      if (busy || none || creature === undefined || event.button !== 0) return
+      if (busy || creature === undefined || event.button !== 0) return
       event.preventDefault()
       event.currentTarget.setPointerCapture(event.pointerId)
       carry.current = {
@@ -185,7 +185,7 @@ function useTreats(
     },
     // The pointer's own press is handled above; this is the keyboard's.
     onClick: (event: React.MouseEvent<HTMLElement>) => {
-      if (event.detail !== 0 || busy || none || creature === undefined) return
+      if (event.detail !== 0 || busy || creature === undefined) return
       const rect = event.currentTarget.getBoundingClientRect()
       eat(topTreat(agentId, creature), {
         x: rect.left + rect.width / 2,
@@ -207,9 +207,10 @@ function useTreats(
 }
 
 /**
- * The creature with what it is looked after with: its treats at one corner and its next box at
- * the other. The treats are given by carrying one onto it or by pressing them; the box fills as
- * it is given treats, and once full is pressed to open. Wraps the creature's own drawing.
+ * The creature with what it is looked after with: treats at one corner and its next box at the
+ * other. A treat is given by carrying it onto the creature or by pressing, as often as anyone
+ * likes; the box fills with the hours, and once it has turned up is pressed to open. Wraps the
+ * creature's own drawing.
  */
 export function CreatureCare({
   agent,
@@ -226,9 +227,12 @@ export function CreatureCare({
   const treats = useTreats(agent.id, creature, box)
   const openBox = useSetAtom(creatureBoxAtom)
   const name = agent.name ?? "it"
-  const count = creature?.treats ?? 0
   const boxes = creature?.boxes ?? 0
-  const left = TREATS_PER_BOX - (creature?.joy ?? 0)
+  const next = boxProgress(creature ?? {})
+  const coming =
+    creature !== undefined && hasEverything(creature.owned)
+      ? `${name} has found everything there is`
+      : `${name}'s next box turns up in about ${next.left}`
   const { held } = treats
   return (
     <span ref={box} className={cn("relative inline-block", className)}>
@@ -237,49 +241,31 @@ export function CreatureCare({
         <>
           <button
             type="button"
-            aria-label={
-              count === 0
-                ? `${name} has no treats`
-                : `Give ${name} a treat: ${count} ${count === 1 ? "treat" : "treats"}`
-            }
-            aria-disabled={count === 0}
+            aria-label={`Give ${name} a treat`}
             // It eats one treat at a time: the next waits until this one is gone.
             aria-busy={held !== null}
-            title={
-              count === 0
-                ? `No treats. ${name} earns one when it answers, one an hour at most.`
-                : "Carry a treat onto it, or press"
-            }
-            // A new pile when another treat lands on it, so that it is seen to land.
-            key={creature.fed + count}
-            className={cn(
-              "creature-pile absolute -bottom-2 -left-10 grid size-11 touch-none place-items-center rounded-xl outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/40",
-              count === 0 ? "cursor-default" : "cursor-grab hover:bg-accent active:cursor-grabbing",
-            )}
+            title="Carry a treat onto it, or press"
+            className="creature-pile absolute -bottom-2 -left-10 grid size-11 cursor-grab touch-none place-items-center rounded-xl outline-none select-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 active:cursor-grabbing"
             {...treats.handlers}
           >
-            <Pixels
-              art={topTreat(agent.id, creature)}
-              className={cn("w-7.5", count === 0 && "opacity-25 grayscale")}
-            />
-            {count === 0 ? null : (
-              <span className="absolute top-0 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-foreground px-1 text-[0.625rem] leading-none font-bold text-background">
-                {count}
-              </span>
-            )}
+            <Pixels art={topTreat(agent.id, creature)} className="w-7.5" />
           </button>
           <button
             type="button"
             aria-label={
-              boxes > 0
-                ? `Open ${name}'s box`
-                : `${left} more ${left === 1 ? "treat" : "treats"} until ${name}'s next box`
+              boxes > 1
+                ? `Open one of ${name}'s ${boxes} boxes`
+                : boxes === 1
+                  ? `Open ${name}'s box`
+                  : coming
             }
             aria-disabled={boxes === 0}
             title={
-              boxes > 0
-                ? `${name} found a box. Press to open it.`
-                : `${left} more ${left === 1 ? "treat" : "treats"} until ${name}'s next box`
+              boxes > 1
+                ? `${boxes} boxes are waiting for ${name}. Press to open one.`
+                : boxes === 1
+                  ? `${name} found a box. Press to open it.`
+                  : coming
             }
             onClick={() => (boxes > 0 ? openBox(true) : undefined)}
             className={cn(
@@ -289,12 +275,10 @@ export function CreatureCare({
           >
             <span className="relative block w-8.5">
               <Pixels art="box" className="w-full opacity-30 grayscale" />
-              {/* The same picture in its colors, as much of it from the bottom as it has been filled. */}
+              {/* The same picture in its colors, as much of it from the bottom as the wait is over. */}
               <span
                 className="creature-fill absolute inset-x-0 bottom-0 overflow-hidden"
-                style={{
-                  height: `${boxes > 0 ? 100 : (100 * (creature.joy ?? 0)) / TREATS_PER_BOX}%`,
-                }}
+                style={{ height: `${boxes > 0 ? 100 : 100 * next.part}%` }}
               >
                 <Pixels art="box" className="absolute bottom-0 left-0 w-full" />
               </span>
