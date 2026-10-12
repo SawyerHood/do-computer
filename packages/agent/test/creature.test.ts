@@ -90,7 +90,7 @@ describe("an agent's creature", () => {
       fed: 0,
       joy: 0,
       boxes: 1,
-      nextBoxAt: expect.any(Number),
+      shared: 0,
       owned: [],
       outfit: {},
     })
@@ -98,38 +98,67 @@ describe("an agent's creature", () => {
     expect(agent.outfit).toEqual({})
   })
 
-  it("has a box turn up every twelve hours, which wait for as long as they are left", async () => {
+  it("has one box of its own waiting at most, and the next twelve hours after that is opened", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    const first = await creature(world)
-    // A minute short of twelve hours, there is only the one it started with.
+    const open1 = () => call<{ creature: CreatureState }>(world, "/creature/open", "POST")
+    // Left alone for days with its first box, it still has the one, and no other on the way.
+    world.ahead += 6 * BOX_EVERY_MS
+    const left = await creature(world)
+    expect(left).toMatchObject({ boxes: 1, shared: 0 })
+    expect(left.nextBoxAt).toBeUndefined()
+
+    // Opened, the next is twelve hours from then, however long the box had waited.
+    const opened = (await open1()).creature
+    const now = Date.now() + world.ahead
+    expect(opened.boxes).toBe(0)
+    expect(opened.nextBoxAt).toBeGreaterThan(now + BOX_EVERY_MS - 30_000)
+    expect(opened.nextBoxAt).toBeLessThanOrEqual(now + BOX_EVERY_MS)
     world.ahead += BOX_EVERY_MS - 60_000
-    expect((await creature(world)).boxes).toBe(1)
+    expect(await creature(world)).toEqual(opened)
     world.ahead += 60_000
-    expect(await creature(world)).toEqual({
-      ...first,
-      boxes: 2,
-      nextBoxAt: first.nextBoxAt! + BOX_EVERY_MS,
-    })
-    // Left alone for two days, it has one for each twelve hours of them.
-    world.ahead += 4 * BOX_EVERY_MS
-    expect((await creature(world)).boxes).toBe(6)
-    // One that came due since it was last looked at is there to be opened.
+    const arrived = await creature(world)
+    expect(arrived.boxes).toBe(1)
+    expect(arrived.nextBoxAt).toBeUndefined()
+
+    // No second one comes while that one waits. One that came due is there to be opened unseen.
+    world.ahead += 6 * BOX_EVERY_MS
+    expect((await creature(world)).boxes).toBe(1)
+    await open1()
     world.ahead += BOX_EVERY_MS
-    const opened = await call<{ creature: CreatureState }>(world, "/creature/open", "POST")
-    expect(opened.creature).toMatchObject({
-      boxes: 6,
-      nextBoxAt: first.nextBoxAt! + 6 * BOX_EVERY_MS,
-    })
+    expect((await open1()).creature).toMatchObject({ boxes: 0, owned: { length: 3 } })
     expect(world.reports).toEqual([])
+  })
+
+  it("keeps the boxes other people's treats made besides its own", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    const open1 = () => call<{ creature: CreatureState }>(world, "/creature/open", "POST")
+    // Three boxes from the treats it was given on its own page, with the one it started with.
+    expect(
+      await call<CreatureState>(world, "/gifts", "POST", { treats: 3 * TREATS_PER_BOX }),
+    ).toMatchObject({ boxes: 4, shared: 3 })
+    // Its own is opened first, and the next of its own comes in its time though those wait.
+    const opened = (await open1()).creature
+    expect(opened).toMatchObject({ boxes: 3, shared: 3, nextBoxAt: expect.any(Number) })
+    world.ahead += BOX_EVERY_MS
+    expect(await creature(world)).toMatchObject({ boxes: 4, shared: 3 })
+    world.ahead += 3 * BOX_EVERY_MS
+    expect(await creature(world)).toMatchObject({ boxes: 4, shared: 3 })
+    // With its own opened again, the rest are the ones it was given, and no wait starts over them.
+    const again = (await open1()).creature
+    expect(again).toMatchObject({ boxes: 3, shared: 3 })
+    const given = (await open1()).creature
+    expect(given).toMatchObject({ boxes: 2, shared: 2, nextBoxAt: again.nextBoxAt })
   })
 
   it("has no more boxes turn up once it has everything", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
+    await call(world, "/creature/open", "POST")
     for (const item of WEAR_ITEMS) await call(world, "/gifts", "POST", { item: item.id })
     world.ahead += 3 * BOX_EVERY_MS
-    expect((await creature(world)).boxes).toBe(1)
+    expect((await creature(world)).boxes).toBe(0)
   })
 
   it("is given a treat as often as anyone likes, and none of them is a box", async () => {
@@ -166,7 +195,7 @@ describe("an agent's creature", () => {
     await call(world, "/init", "POST", { ownerId: "user-1" })
     // Treats from other people, on its own page, are a box for it every few.
     const fed = await call<CreatureState>(world, "/gifts", "POST", { treats: 5 })
-    expect(fed).toMatchObject({ fed: 5, joy: 1, boxes: 2 })
+    expect(fed).toMatchObject({ fed: 5, joy: 1, boxes: 2, shared: 1 })
     // What it kept out of its first present is its own, and on.
     const dressed = await call<CreatureState>(world, "/gifts", "POST", { item: "tophat" })
     expect(dressed).toMatchObject({ owned: ["tophat"], outfit: { hat: "tophat" }, fed: 5 })

@@ -21,6 +21,7 @@ const DUE_AGAIN_MS = 60_000
 /**
  * What an agent's creature has been given and has on. Undefined until it has been heard from.
  * It is asked for again when its next box is due, so that the box turns up while the page is open.
+ * While a box of its own waits there is no next one, and nothing to ask for.
  */
 export function useCreature(agentId: string, enabled = true): CreatureState | undefined {
   const { data, dataUpdatedAt } = useQuery({ ...creatureQuery(agentId), enabled })

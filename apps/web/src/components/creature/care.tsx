@@ -209,8 +209,8 @@ function useTreats(
 /**
  * The creature with what it is looked after with: treats at one corner and its next box at the
  * other. A treat is given by carrying it onto the creature or by pressing, as often as anyone
- * likes; the box fills with the hours, and once it has turned up is pressed to open. Wraps the
- * creature's own drawing.
+ * likes; the box fills with the hours since the last was opened, and once it has turned up is
+ * pressed to open. Wraps the creature's own drawing.
  */
 export function CreatureCare({
   agent,

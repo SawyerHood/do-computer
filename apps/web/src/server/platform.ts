@@ -76,7 +76,7 @@ export type Config = {
   readonly slackApiUrl: string | undefined
   /** Where the Apps connector is. Only a test's stand-in is anywhere but at Composio. */
   readonly appsUrl: string | undefined
-  /** How long it is from one box turning up beside a creature to the next. Only a test has it anything but twelve hours. */
+  /** How long after a creature's box is opened the next one turns up. Only a test has it anything but twelve hours. */
   readonly boxEveryMs: number | undefined
   /** For sending invitations by email, through Resend. Without both, invitations are links only. */
   readonly email: {

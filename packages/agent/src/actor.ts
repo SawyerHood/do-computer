@@ -181,7 +181,7 @@ export type AgentActorOptions = {
   readonly onReport?: (error: unknown) => void
   /** Chance, as numbers from 0 up to 1: what decides the thing in a box. `Math.random` if left out. */
   readonly random?: () => number
-  /** How long it is from one box turning up beside its creature to the next. Twelve hours if left out. */
+  /** How long after its creature's box is opened the next one turns up. Twelve hours if left out. */
   readonly boxEveryMs?: number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
@@ -2033,41 +2033,44 @@ export class AgentActor implements Actor {
 
   /** What its creature has been given and has on. One from before there was any of it has a box waiting. */
   async #creature(harness: Harness): Promise<CreatureState> {
-    await this.#boxesDue(harness)
+    await this.#boxDue(harness)
     const creature = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
+    const shared = Math.min(creature.shared ?? 0, creature.boxes)
     // Named one by one: what is kept may hold more, from when its treats were earned and counted.
     return {
       fed: creature.fed,
       joy: creature.joy,
       boxes: creature.boxes,
-      ...(creature.nextBoxAt === undefined ? {} : { nextBoxAt: creature.nextBoxAt }),
+      shared,
+      // While a box of its own waits there is no next one to wait for.
+      ...(creature.boxes > shared || creature.nextBoxAt === undefined
+        ? {}
+        : { nextBoxAt: creature.nextBoxAt }),
       owned: [...creature.owned],
       outfit: { ...creature.outfit },
     }
   }
 
   /**
-   * A box turns up beside its creature every twelve hours, whatever the agent was or was not
-   * doing, and waits there with any others. Nothing wakes for one: those that have come due are
-   * counted when it is next looked at. The first look only sets when the next is due, so that
-   * one from before this is not handed a box for every twelve hours it has lived.
+   * A box turns up beside its creature twelve hours after its last was opened, whatever the
+   * agent was or was not doing, and it has one of its own waiting at most: the wait for the next
+   * starts when that one is opened. The boxes other people's treats made are besides. Nothing
+   * wakes for a box: one that has come due is counted when the creature is next looked at. One
+   * from before this with no box has its wait start at the first look.
    */
-  async #boxesDue(harness: Harness): Promise<void> {
+  async #boxDue(harness: Harness): Promise<void> {
     const now = this.#host.now()
     const every = Math.max(1, this.#options.boxEveryMs ?? BOX_EVERY_MS)
-    const due = (await harness.snapshot(CreatureDoc, context))?.nextBoxAt
-    if (due !== undefined && now < due) return
+    const waits = (creature: CreatureState) =>
+      // Once everything is found there is nothing for another box to hold.
+      creature.boxes > (creature.shared ?? 0) || hasEverything(creature.owned)
+    const kept = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
+    if (waits(kept) || (kept.nextBoxAt !== undefined && now < kept.nextBoxAt)) return
     await harness.commit(async (tx) => {
       const creature = await tx.doc(CreatureDoc)
-      if (creature.nextBoxAt === undefined) {
-        creature.nextBoxAt = now + every
-        return
-      }
-      if (now < creature.nextBoxAt) return
-      const arrived = Math.floor((now - creature.nextBoxAt) / every) + 1
-      creature.nextBoxAt += arrived * every
-      // Once everything is found there is nothing for another box to hold.
-      if (!hasEverything(creature.owned)) creature.boxes += arrived
+      if (waits(creature)) return
+      if (creature.nextBoxAt === undefined) creature.nextBoxAt = now + every
+      else if (now >= creature.nextBoxAt) creature.boxes++
     }, context)
   }
 
@@ -2096,6 +2099,7 @@ export class AgentActor implements Actor {
         if (!hasEverything(creature.owned) && ++creature.joy >= TREATS_PER_BOX) {
           creature.joy = 0
           creature.boxes++
+          creature.shared = (creature.shared ?? 0) + 1
         }
       }
       if (item !== undefined) {
@@ -2106,9 +2110,14 @@ export class AgentActor implements Actor {
     return json(await this.#creature(harness))
   }
 
-  /** Open one of its boxes: something to wear that it does not have yet, picked by chance. */
+  /**
+   * Open one of its boxes: something to wear that it does not have yet, picked by chance. Its own
+   * box is opened before any that other people's treats made, and the wait for its next starts then.
+   */
   async #openBox(harness: Harness): Promise<Response> {
-    await this.#boxesDue(harness)
+    await this.#boxDue(harness)
+    const now = this.#host.now()
+    const every = Math.max(1, this.#options.boxEveryMs ?? BOX_EVERY_MS)
     // Drawn before the transaction, which may be run more than once and must come out the same.
     const random = this.#options.random ?? Math.random
     const dealt = [random(), random()]
@@ -2119,9 +2128,13 @@ export class AgentActor implements Actor {
       const item = rollItem(creature.owned, () => dealt[at++ % dealt.length]!)
       if (item === undefined) {
         creature.boxes = 0
+        creature.shared = 0
         return undefined
       }
+      const shared = Math.min(creature.shared ?? 0, creature.boxes)
       creature.boxes--
+      if (creature.boxes < shared) creature.shared = creature.boxes
+      else if (creature.boxes === shared) creature.nextBoxAt = now + every
       creature.owned.push(item.id)
       return item.id
     }, context)

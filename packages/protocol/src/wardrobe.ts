@@ -1,8 +1,8 @@
 /**
- * What an agent's creature can be given and can wear. A box turns up beside it every twelve
- * hours, and holds one thing to wear that it does not have yet. It can be given a treat whenever
- * anyone likes, which it enjoys and which comes to nothing more. None of it changes what the
- * agent can do: it is there to be enjoyed.
+ * What an agent's creature can be given and can wear. A box turns up beside it twelve hours
+ * after its last was opened, one waiting at most, and holds one thing to wear that it does not
+ * have yet. It can be given a treat whenever anyone likes, which it enjoys and which comes to
+ * nothing more. None of it changes what the agent can do: it is there to be enjoyed.
  */
 
 /** Where on the creature a thing is worn. It wears one thing in each place at most. */
@@ -242,12 +242,13 @@ export const rarityOf = (id: RarityId) => RARITIES.find((rarity) => rarity.id ==
 /** What a creature has on: the id of a thing for each place it wears one. */
 export type Outfit = Partial<Record<WearSlot, string>>
 
-/** How long it is from one box turning up beside a creature to the next. */
+/** How long after a creature's box is opened the next one turns up. */
 export const BOX_EVERY_MS = 12 * 60 * 60 * 1000
 
 /**
- * How many treats from other people, on the page a creature has to itself, fill a box for it.
- * The treats its own people give it in the app fill nothing.
+ * How many treats from other people, on the page a creature has to itself, fill a box for it:
+ * those boxes are besides the one of its own. The treats its own people give it in the app fill
+ * nothing.
  */
 export const TREATS_PER_BOX = 4
 
@@ -260,9 +261,14 @@ export type CreatureState = {
   fed: number
   /** Treats other people gave it on its own page since the last box they filled, out of `TREATS_PER_BOX`. */
   joy: number
-  /** Boxes that have turned up and not been opened. They wait for as long as they are left. */
+  /**
+   * Boxes waiting to be opened: one of its own at most, and with it any that other people's
+   * treats made. They wait for as long as they are left.
+   */
   boxes: number
-  /** When its next box turns up. Left out until it has first been looked at. */
+  /** How many of those other people's treats made. */
+  shared: number
+  /** When its next box turns up. Left out while one of its own waits: the wait starts when that is opened. */
   nextBoxAt?: number
   /** The ids of the things it has, in the order it found them. */
   owned: string[]
@@ -274,6 +280,7 @@ export const NEW_CREATURE: CreatureState = {
   fed: 0,
   joy: 0,
   boxes: 1,
+  shared: 0,
   owned: [],
   outfit: {},
 }

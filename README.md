@@ -54,8 +54,8 @@ One codebase runs on plain Node and on Cloudflare Workers. Models are called thr
 - **Ask first.** Each thing an agent can do is set to Allow, Ask first or Never.
 - **Think with the model you choose.** Any OpenRouter model that can call tools, or a
   subscription or key of your own.
-- **Be a creature.** Every agent hatches from an egg and looks like no other. Twice a day a
-  box turns up beside it, with something to wear inside.
+- **Be a creature.** Every agent hatches from an egg and looks like no other. Twelve hours
+  after its box is opened another turns up, with something to wear inside.
 
 [What an agent can do](docs/reference/agents.md) has the long version.
 

@@ -703,27 +703,32 @@ Since then, newest last:
     `packages/protocol/src/wardrobe.ts`, `prototypes/gamification`). The owner asked for a
     little gamification of the creature, chose from two rounds of a mock-up, and asked for it to
     be built. None of it changes what an agent can do.
-    - **The loop.** A box turns up beside the creature every twelve hours (`BOX_EVERY_MS`),
-      whatever the agent did or did not do meanwhile, and waits there with any others until it
-      is opened: there is no limit to how many wait. Nothing wakes for one. `CreatureDoc` keeps
-      when the next is due (`nextBoxAt`), and those that have come due are counted when the
-      creature is next looked at (`#boxesDue` in `packages/agent/src/actor.ts`); the page asks
-      again when the time comes, so a box turns up while it is open. The first look only sets
-      the time, so an agent from before this was not handed a box for every twelve hours it had
-      lived. Once everything is found no more turn up. Treats are for nothing but the pleasure
-      of it: there is always one to give, by carrying it onto the creature or pressing, and it
-      opens its mouth, eats it in three bites and is pleased. All that is kept is how many it
-      has had (`fed`), which decides the kind of the next. A treat that is carried is followed
-      from the window and not from the button it was taken from.
+    - **The loop.** A box turns up beside the creature twelve hours after its last one was
+      opened (`BOX_EVERY_MS`), whatever the agent did or did not do meanwhile. It has one box of
+      its own waiting at most: nothing more turns up while that waits, and the wait for the next
+      starts when it is opened (`nextBoxAt` in `CreatureDoc`, set by `#openBox` in
+      `packages/agent/src/actor.ts`). Nothing wakes for a box. One that has come due is counted
+      when the creature is next looked at (`#boxDue`), and the page asks again when the time
+      comes, so a box turns up while it is open. Once everything is found no more turn up. The
+      boxes that other people's treats make for a claimed Dood (every four, `TREATS_PER_BOX`,
+      `joy`; item 55) are besides that one and wait together however many there are: `shared`
+      counts them, the creature's own box is opened before them, and opening one of them starts
+      no wait. An agent from before this keeps the boxes it had, as its own: its next turns up
+      twelve hours after the last of them is opened, or after the first look where it had none.
+      Treats are for nothing but the pleasure of it: there is always one to give, by carrying
+      it onto the creature or pressing, and it opens its mouth, eats it in three bites and is
+      pleased. All that is kept is how many it has had (`fed`), which decides the kind of the
+      next. A treat that is carried is followed from the window and not from the button it was
+      taken from.
       It was first built otherwise: a treat earned with every answer, four treats to a box. The
       owner found that "waaaaay too quickly" (2026-10-12) and asked first for one treat an hour
-      at most, then, before that was merged, for this: "you actually only get a new present
-      every 12 hours ... they just show up there ... and you can have multiple ... The feeding
-      is just a cute interaction ... maybe you have infinite snacks". What was left as it was,
-      without their saying so: the treats other people give a claimed Dood on its own page
-      still make a box for its owner every four (`TREATS_PER_BOX`, `joy`; item 55), since they
-      had asked for that by name. The browser tests set `DC_BOX_EVERY_MS` to a few seconds to
-      see a box turn up; nothing else should set it.
+      at most, then, before that was merged, for "a new present every 12 hours ... they just
+      show up there ... and you can have multiple ... The feeding is just a cute interaction
+      ... maybe you have infinite snacks", and then "You can have max 1 present waiting at a
+      time ... unless they are from sharing your dude, but otherwise max one". Chosen for them:
+      that the twelve hours run from the opening of the last box and not from its turning up,
+      so that two are never opened within the same twelve hours. The browser tests set
+      `DC_BOX_EVERY_MS` to a few seconds to see a box turn up; nothing else should set it.
       A box holds one thing to wear that the creature
       does not have yet: the rarity is drawn first (60, 25, 10, 4 and 1 in a hundred, among the
       rarities that still have something to find), then a thing of it. Every creature starts
@@ -2706,7 +2711,7 @@ mainly like a productivity app", with no bond level and the treats beside the cr
 its own for looking after it on a phone; hats that do not sit inside heads, whatever the seed;
 and the box opened with "a really juicy three.js opening animation like the hatching". Chosen for
 them and not confirmed: the odds, that a box
-never repeats a thing, that boxes wait without limit, that every creature starts with a box, that ears flop or lie flat under a
+never repeats a thing, that the next box is twelve hours from the opening of the last, that every creature starts with a box, that ears flop or lie flat under a
 hat, and that a team shares one creature with one outfit.
 
 Cost: they found Claude Haiku too expensive for the summaries a small model used to write of
