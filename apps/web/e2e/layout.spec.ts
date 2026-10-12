@@ -259,11 +259,11 @@ test("the layout works at phone width", async ({ page }) => {
   await signIn(page)
   await composer(page).fill("What can you do?")
   await composer(page).press("Enter")
-  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   await newChat(page)
   await composer(page).fill("Something aside")
   await composer(page).press("Enter")
-  await expect(page.getByText("You said: Something aside")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await page.setViewportSize({ width: 400, height: 800 })
   await page.reload()
   // The strip is one row, with no tabs in it: the agent's pages are in the menu on its name.
@@ -279,7 +279,7 @@ test("the layout works at phone width", async ({ page }) => {
   // And the row starts with the way back to the chat, where the way to the agents was.
   await expect(page.getByRole("button", { name: "Agents", exact: true })).toHaveCount(0)
   await page.getByRole("button", { name: "Back to the chat" }).click()
-  await expect(page.getByText("You said: Something aside")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await expect(name).not.toContainText("·")
   await expect(page.getByRole("button", { name: "Back to the chat" })).toHaveCount(0)
   // The menu leads back as well.
@@ -288,7 +288,7 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible()
   await name.click()
   await page.getByRole("menuitem", { name: "Chat" }).click()
-  await expect(page.getByText("You said: Something aside")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   // The sidebar is a sheet from the side. Measured once it has finished sliding in.
   await page.getByRole("button", { name: "Agents", exact: true }).click()
   await expect(async () => {
@@ -301,16 +301,16 @@ test("the layout works at phone width", async ({ page }) => {
     .getByRole("link", { name: /Juniper/ })
     .click()
   await expect(page.getByRole("dialog")).toHaveCount(0)
-  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   // The strip says whose chat this is, so nothing is over the transcript saying it again.
   await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(0)
   // With no room for two chats, a side chat takes the place of the main one, and leads back.
   await sideChats(page).click()
   await page.getByRole("menuitem", { name: /^Something aside/ }).click()
-  await expect(page.getByText("You said: Something aside")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
   await page.getByRole("link", { name: "Main chat", exact: true }).click()
-  await expect(page.getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   // Nothing is wider than the screen.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

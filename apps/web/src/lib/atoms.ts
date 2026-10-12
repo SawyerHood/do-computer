@@ -74,6 +74,41 @@ export const sidebarOpenAtom = atom(kept(SIDEBAR_OPEN_KEY, false))
  */
 export const agentPanelOpenAtom = atom(kept(AGENT_PANEL_OPEN_KEY, true))
 
+const FOLDED_WORKSPACES_KEY = "dc-folded-workspaces"
+
+function keptIds(key: string): readonly string[] {
+  if (typeof window === "undefined") return []
+  try {
+    const found: unknown = JSON.parse(localStorage.getItem(key) ?? "[]")
+    return Array.isArray(found) ? found.filter((id) => typeof id === "string") : []
+  } catch {
+    // Storage can be unavailable, or hold something else; then none are folded.
+    return []
+  }
+}
+
+const foldedWorkspaces = atom(keptIds(FOLDED_WORKSPACES_KEY))
+
+/**
+ * The workspaces whose agents are folded away in the sidebar, by id. Writing one folds it, or
+ * opens it if it was folded; they stay as they were left.
+ */
+export const foldedWorkspacesAtom = atom(
+  (get) => get(foldedWorkspaces),
+  (get, set, workspaceId: string) => {
+    const folded = get(foldedWorkspaces)
+    const next = folded.includes(workspaceId)
+      ? folded.filter((id) => id !== workspaceId)
+      : [...folded, workspaceId]
+    set(foldedWorkspaces, next)
+    try {
+      localStorage.setItem(FOLDED_WORKSPACES_KEY, JSON.stringify(next))
+    } catch {
+      // The choice then lasts for this page only.
+    }
+  },
+)
+
 /**
  * The place in the sidebar where the library puts its list of files while the Library tab is
  * showing, in place of the agents. Null when the sidebar is not on screen.

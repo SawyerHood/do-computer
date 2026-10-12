@@ -149,6 +149,11 @@ export function chatsCollection(agentId: string): ChatsCollection {
 /** Refetch what an agent event says changed. */
 export function refreshAgent(agentId: string, what: string): void {
   if (what === "identity") void queryClient.invalidateQueries({ queryKey: agentsKey })
+  // Whether the agent is waiting on someone, or at work, is part of its state, which its row
+  // in the sidebar says: an answer given, and a command that ended, each change one of them.
+  if (what === "approvals" || what === "secrets" || what === "jobs") {
+    void queryClient.invalidateQueries({ queryKey: agentKey(agentId), exact: true })
+  }
   if (what === "schedules") {
     void queryClient.invalidateQueries({ queryKey: schedulesKey(agentId) })
     return

@@ -1,23 +1,20 @@
-import type { InvitationPreview, WorkspaceSummary } from "@durable-computer/protocol"
-import { CaretUpDownIcon, CheckIcon, GearIcon, PlusIcon } from "@phosphor-icons/react"
+import type { WorkspaceSummary } from "@durable-computer/protocol"
+import { DotsThreeIcon, GearIcon, PlusIcon, UserPlusIcon } from "@phosphor-icons/react"
 import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
-import { FaceStack, PersonFace, WorkspaceTile } from "@/components/people"
+import { PersonFace, WorkspaceTile } from "@/components/people"
+import { InviteDialog } from "@/components/team/invite"
 import { NewTeamDialog } from "@/components/team/new-team"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { client } from "@/lib/client"
-import { agentsCollection } from "@/lib/collections"
 import { useSettings } from "@/lib/settings"
-import { useHere, usePeople, useWorkspaces, whoIs } from "@/lib/workspaces"
+import { useWorkspaces } from "@/lib/workspaces"
 
 type Me = { id: string; name: string; image?: string | null }
 
@@ -42,126 +39,92 @@ export function WorkspaceMark({
   )
 }
 
-function TeamRow({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
-  const here = useHere(workspace.id)
-  const people = usePeople(workspace)
-  const others = whoIs(here, (place) => place.userId !== me.id).flatMap(
-    (id) => people.get(id) ?? [],
-  )
-  return (
-    <span className="flex items-center gap-1.5 text-xs text-muted-foreground [--face-ring:var(--popover)]">
-      {workspace.members.length} {workspace.members.length === 1 ? "person" : "people"}
-      {others.length > 0 ? (
-        <>
-          <span aria-hidden>·</span>
-          <FaceStack people={others} className="size-4" />
-          here now
-        </>
-      ) : null}
-    </span>
-  )
-}
-
 /**
- * The way between workspaces, at the top of the sidebar: the user's own, their teams, the
- * invitations waiting for them, starting a new team, and the settings of the one that is open.
+ * What a workspace has besides its agents, from the heading over them in the sidebar: its
+ * settings, and for a team, asking people in.
  */
-export function WorkspaceMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
-  const navigate = useNavigate()
+export function WorkspaceMenu({
+  workspace,
+  onNavigate,
+}: {
+  workspace: WorkspaceSummary
+  onNavigate?: (() => void) | undefined
+}) {
   const { open: openSettings } = useSettings()
-  const state = useWorkspaces()
-  const [creating, setCreating] = useState(false)
-
-  /** A team opens on its home. One's own workspace opens on its first agent, made if need be. */
-  const open = async (target: WorkspaceSummary) => {
-    if (target.kind === "team") {
-      await navigate({ to: "/w/$workspaceId", params: { workspaceId: target.id } })
-      return
-    }
-    const agents = await client.listAgents()
-    const agent =
-      agents.find((candidate) => candidate.workspaceId === target.id) ??
-      (await client.createAgent(target.id))
-    await agentsCollection.utils.refetch()
-    await navigate({ to: "/a/$agentId", params: { agentId: agent.id } })
-  }
-  const view = (invitation: InvitationPreview) =>
-    navigate({ to: "/invite/$token", params: { token: invitation.id } })
-
+  const [inviting, setInviting] = useState(false)
+  const invites = workspace.kind === "team" && workspace.role !== "member"
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label={`Workspace: ${workspace.name}. Switch workspace`}
-          title="Switch workspace"
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl py-1.5 pr-2 pl-1.5 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
+          aria-label={`${workspace.name}: workspace menu`}
+          title="Workspace menu"
+          render={<Button variant="ghost" size="icon-xs" className="text-muted-foreground" />}
         >
-          <WorkspaceMark workspace={workspace} me={me} className="size-7" />
-          <span className="min-w-0 truncate text-sm font-semibold">{workspace.name}</span>
-          <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-          {(state?.invitations.length ?? 0) > 0 ? (
-            <Badge
-              aria-label={`${state!.invitations.length} invitations`}
-              className="h-4 min-w-4 rounded-full px-1 text-[0.625rem] font-bold"
-            >
-              {state!.invitations.length}
-            </Badge>
-          ) : null}
+          <DotsThreeIcon weight="bold" className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="start" className="w-76">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-            {(state?.workspaces ?? [workspace]).map((entry) => (
-              <DropdownMenuItem key={entry.id} onClick={() => void open(entry)}>
-                <WorkspaceMark workspace={entry} me={me} className="size-8" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{entry.name}</span>
-                  {entry.kind === "personal" ? (
-                    <span className="block text-xs text-muted-foreground">Only you</span>
-                  ) : (
-                    <TeamRow workspace={entry} me={me} />
-                  )}
-                </span>
-                {entry.id === workspace.id ? <CheckIcon className="size-4" /> : null}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-          {(state?.invitations.length ?? 0) > 0 ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Invitations</DropdownMenuLabel>
-                {state!.invitations.map((invitation) => (
-                  <DropdownMenuItem key={invitation.id} onClick={() => void view(invitation)}>
-                    <WorkspaceTile workspace={invitation.workspace} className="size-8" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{invitation.workspace.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        from {invitation.invitedBy.name}
-                      </span>
-                    </span>
-                    <Badge>View</Badge>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuGroup>
-            </>
-          ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setCreating(true)}>
-            <PlusIcon /> New team
-          </DropdownMenuItem>
+        <DropdownMenuContent side="bottom" align="end" className="w-52">
           <DropdownMenuItem
-            onClick={() => openSettings({ at: "workspace", workspaceId: workspace.id })}
+            onClick={() => {
+              onNavigate?.()
+              openSettings({ at: "workspace", workspaceId: workspace.id })
+            }}
           >
-            <GearIcon />
-            <span className="flex-1">Workspace settings</span>
-            <span className="max-w-24 truncate text-xs text-muted-foreground">
-              {workspace.name}
-            </span>
+            <GearIcon /> Workspace settings
           </DropdownMenuItem>
+          {invites ? (
+            <DropdownMenuItem onClick={() => setInviting(true)}>
+              <UserPlusIcon /> Invite people
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      <NewTeamDialog userId={me.id} open={creating} onOpenChange={setCreating} />
+      {invites ? (
+        <InviteDialog workspace={workspace} open={inviting} onOpenChange={setInviting} />
+      ) : null}
     </>
+  )
+}
+
+/**
+ * The workspaces that are not the user's yet, at the foot of the sidebar's list: the
+ * invitations waiting for them, and starting a team.
+ */
+export function MoreWorkspaces({
+  me,
+  onNavigate,
+}: {
+  me: Me
+  onNavigate?: (() => void) | undefined
+}) {
+  const navigate = useNavigate()
+  const state = useWorkspaces()
+  const [creating, setCreating] = useState(false)
+  const row =
+    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[0.8125rem] text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+  return (
+    <div className="mt-3 flex shrink-0 flex-col gap-0.5 border-t pt-2">
+      {(state?.invitations ?? []).map((invitation) => (
+        <button
+          key={invitation.id}
+          type="button"
+          title={`From ${invitation.invitedBy.name}`}
+          onClick={() => {
+            onNavigate?.()
+            void navigate({ to: "/invite/$token", params: { token: invitation.id } })
+          }}
+          className={row}
+        >
+          <WorkspaceTile workspace={invitation.workspace} className="size-4" />
+          <span className="min-w-0 flex-1 truncate">{invitation.workspace.name} invited you</span>
+          <Badge>View</Badge>
+        </button>
+      ))}
+      <button type="button" onClick={() => setCreating(true)} className={row}>
+        <PlusIcon aria-hidden className="size-4 shrink-0" />
+        New team
+      </button>
+      <NewTeamDialog userId={me.id} open={creating} onOpenChange={setCreating} />
+    </div>
   )
 }

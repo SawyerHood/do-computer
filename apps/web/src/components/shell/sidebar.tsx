@@ -13,10 +13,9 @@ import { useSetAtom } from "jotai"
 import { useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { useComputerRequests } from "@/components/computer-requests"
-import { FaceStack, names, PersonFace } from "@/components/people"
+import { PersonFace } from "@/components/people"
 import { InviteDialog } from "@/components/team/invite"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,9 +28,7 @@ import { authClient } from "@/lib/auth-client"
 import { forgetNotifications } from "@/lib/notifications"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
-import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 import { AgentList } from "./agent-list.tsx"
-import { WorkspaceMenu } from "./workspace-menu.tsx"
 
 type Me = { id: string; name: string; email: string; image?: string | null }
 
@@ -117,9 +114,10 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
 }
 
 /**
- * The one column of navigation: the workspace at its top, then its agents, and the user's own
- * menu at its foot. While the Library tab is showing, the list in the middle is
- * that agent's files, which the library page puts there; everything around it stays.
+ * The one column of navigation: the user's agents, under their workspaces where they have more
+ * than their own, and the user's own menu at its foot. While the Library tab is showing, the
+ * list in the middle is that agent's files, which the library page puts there; everything
+ * around it stays.
  */
 export function Sidebar({
   workspace,
@@ -146,45 +144,20 @@ export function Sidebar({
   onCollapse?: () => void
   className?: string
 }) {
-  const { open: openSettings } = useSettings()
   const setSlot = useSetAtom(sidebarSlotAtom)
-  const here = useHere(workspace.id)
-  const people = usePeople(workspace)
-  const others = whoIs(here, (place) => place.userId !== me.id).flatMap(
-    (id) => people.get(id) ?? [],
-  )
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)}>
-      <div className="flex items-center gap-0.5 px-2 pt-2.5 pb-1 [--face-ring:var(--frame)]">
-        {settled ? (
-          <WorkspaceMenu workspace={workspace} me={me} />
-        ) : (
-          <div className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pr-2 pl-1.5">
-            <Skeleton className="size-7 shrink-0 rounded-full" />
-            <Skeleton className="h-3 w-20 rounded-full" />
-          </div>
-        )}
-        {others.length > 0 ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`${others.length} here now: ${names(others)}`}
-            title={`Here now: ${names(others)}`}
-            onClick={() =>
-              openSettings({ at: "workspace", workspaceId: workspace.id, section: "people" })
-            }
-            className="px-1.5"
-          >
-            <FaceStack people={others} className="size-[1.125rem]" />
-          </Button>
-        ) : null}
+      {/* Flush with the list under it: its ends are where the chosen agent's row has its own. */}
+      <div className="flex items-center gap-2 px-2 pt-2.5 pb-0.5">
+        <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">Do Computer</span>
         {onCollapse === undefined ? null : (
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label="Hide the sidebar"
             title="Hide the sidebar"
-            className="shrink-0 text-muted-foreground"
+            className="-mr-1.5 shrink-0 text-muted-foreground"
             onClick={onCollapse}
           >
             <SidebarSimpleIcon />
@@ -210,7 +183,7 @@ export function Sidebar({
             workspace={workspace}
             pending={!settled}
             activeAgentId={agentId}
-            meId={me.id}
+            me={me}
             onNavigate={onNavigate}
           />
         )}

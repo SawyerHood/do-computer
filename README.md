@@ -348,7 +348,8 @@ the same OpenRouter key (`DC_TRANSCRIPTION_MODEL`, default `openai/whisper-large
 ## Teams
 
 Everyone has a personal workspace, which only they can see. A team is a workspace several people
-share: start one from the workspace menu at the top of the sidebar.
+share: start one with New team, at the foot of the sidebar's list of agents. Once you are in one,
+the sidebar lists every workspace's agents under its name.
 
 - **Inviting.** Ask people by email address or GitHub username. Each gets a link that works once,
   for seven days. An email address is written to where the deployment can send mail; otherwise

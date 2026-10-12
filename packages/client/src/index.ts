@@ -640,6 +640,8 @@ export function createClient(options: ClientOptions) {
       return {
         state: () => request<AgentState>(base),
         update: (change: AgentPatch) => patch<AgentState>(base, change),
+        /** Say that the user is looking at the agent now, which is what its unread dot goes by. */
+        seen: () => request<{ seenAt: number }>(`${base}/seen`, { method: "PUT" }),
         /** Start a side chat: a conversation of its own, beside the main one. */
         createChat: (input: CreateChatRequest = {}) => post<ChatSummary>(`${base}/chats`, input),
         /** The agent's main chat, which it is given if it has none yet. */

@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
+  AgentSummary,
   ApprovalsState,
   ChatState,
   ChatSummary,
@@ -266,6 +267,12 @@ describe("sub-agents", () => {
     )
     // With no title given, it is called by how its task begins.
     expect(sub).toMatchObject({ title: "Shortlist hotels near Alfama.", status: "working" })
+    // The agent has answered, and is at work for as long as its sub-agent is.
+    const { agent } = await until(
+      () => call<{ agent: AgentSummary }>(world, "/"),
+      (state) => state.agent.latest?.kind === "reply",
+    )
+    expect(agent).toMatchObject({ working: true, latest: { text: "Started." } })
     await expect(send(world, sub!.id, "hello")).rejects.toThrow("409")
     await expect(call(world, `/chats/${sub!.id}/reset`, "POST")).rejects.toThrow("409")
 
@@ -350,6 +357,14 @@ describe("sub-agents", () => {
     expect(pending).toMatchObject([
       { chatId: waiting!.id, chatKind: "subagent", chatTitle: "Note" },
     ])
+    // The agent is asking and no longer at work. What it asked is its line, in no chat that a
+    // person writes in.
+    const { agent } = await until(
+      () => call<{ agent: AgentSummary }>(world, "/"),
+      (state) => state.agent.asking === true && !state.agent.working,
+    )
+    expect(agent.latest).toMatchObject({ kind: "asked" })
+    expect(agent.latest).not.toHaveProperty("chatId")
 
     await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "once" })
     const reported = await until(

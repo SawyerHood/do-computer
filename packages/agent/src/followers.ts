@@ -26,7 +26,10 @@ type ChatWatch = Awaited<ReturnType<Conversation["watch"]>>
 
 export type FollowersOptions = {
   readonly host: ActorHost
-  /** The documents everyone following the agent is told of, and what each goes by. */
+  /**
+   * The documents everyone following the agent is told of, and what each goes by. Several can
+   * go by one name: where they stand is then said of them together.
+   */
   readonly docs: readonly (readonly [Told, Doc])[]
   /** The chat with this id, or undefined where there is none to follow. */
   readonly chat: (harness: Harness, chatId: string) => Promise<Conversation | undefined>
@@ -45,6 +48,10 @@ function followed(socket: ActorSocket): string[] | undefined {
   }
 }
 
+/** Where the documents that go by one name stand. One alone stands as it always did. */
+const standing = (values: (Readonly<JsonObject> | null)[]) =>
+  digest(values.length === 1 ? values[0] : values)
+
 /**
  * Everyone following the agent over a socket: told when one of its documents changes, and sent
  * every change to the chats they follow.
@@ -61,7 +68,10 @@ function followed(socket: ActorSocket): string[] | undefined {
 export class Followers {
   readonly #options: FollowersOptions
   #harness: Harness | undefined
-  readonly #docs = new Map<Told, { watch: DocumentWatch<JsonObject>; at: string }>()
+  readonly #docs = new Map<
+    Told,
+    { watches: DocumentWatch<JsonObject>[]; values: (Readonly<JsonObject> | null)[]; at: string }
+  >()
   readonly #chats = new Map<string, { watch: ChatWatch; state: ChatState }>()
   /** One thing at a time: following and letting go wait on watches being made. */
   #line: Promise<void> = Promise.resolve()
@@ -96,14 +106,19 @@ export class Followers {
   }
 
   async #watchDocs(harness: Harness): Promise<DocDigests> {
+    const watched = new Set(this.#docs.keys())
     for (const [what, doc] of this.#options.docs) {
-      if (this.#docs.has(what)) continue
+      if (watched.has(what)) continue
       const watch = await harness.watchDoc(doc, this.#options.context)
       if (watch === undefined) continue
-      const entry = { watch, at: digest(watch.value) }
+      const entry = this.#docs.get(what) ?? { watches: [], values: [], at: "" }
       this.#docs.set(what, entry)
+      const index = entry.watches.push(watch) - 1
+      entry.values[index] = watch.value
+      entry.at = standing(entry.values)
       watch.start(async (value) => {
-        entry.at = digest(value)
+        entry.values[index] = value
+        entry.at = standing(entry.values)
         const frame = JSON.stringify({
           type: "agent",
           event: { type: "changed", what },
@@ -164,7 +179,7 @@ export class Followers {
       void entry.watch.stop()
     }
     if (sockets.length > 0) return
-    for (const entry of this.#docs.values()) void entry.watch.stop()
+    for (const entry of this.#docs.values()) for (const watch of entry.watches) void watch.stop()
     this.#docs.clear()
   }
 
@@ -252,7 +267,7 @@ export class Followers {
     this.#harness = undefined
     for (const entry of this.#chats.values()) void entry.watch.stop()
     this.#chats.clear()
-    for (const entry of this.#docs.values()) void entry.watch.stop()
+    for (const entry of this.#docs.values()) for (const watch of entry.watches) void watch.stop()
     this.#docs.clear()
   }
 }

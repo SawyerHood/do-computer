@@ -278,9 +278,10 @@ Since then, newest last:
       in memory. The same socket tells open tabs when the team changes. It is reached at
       `/api/presence/<team>`, which the server entries route before the framework, as they do
       for daemons; the gateway checks the session, the membership and the page's origin.
-    - **The web app** has one sidebar and no rail. The workspace menu is at its top; under it
-      are the workspace's agents (item 18 says what choosing one does); at its foot is the
-      user's own menu, which leads to the workspace's settings. A team
+    - **The web app** has one sidebar and no rail. It lists the user's agents, under their
+      workspaces' names where they are in a team (item 61, which replaced the workspace menu
+      this was built with; item 18 says what choosing an agent does); at its foot is the
+      user's own menu. A team
       has no page of its own: `/w/<id>` goes to its first agent, and stops only where there is
       none yet. Its people are a section of the workspace's settings. The invitation page
       (`/invite/<token>`) can be read before signing in.
@@ -2485,6 +2486,81 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not done:** nothing retakes the pictures by itself; the first paragraph of Connectors
       still says an agent uses connectors "without asking first", which is not so for Apps.
 
+61. **The sidebar lists every workspace, and a row says the latest from its agent**
+    (2026-10-12; `apps/web/src/components/shell/agent-list.tsx`, `workspace-menu.tsx`,
+    `lib/latest.ts`, `packages/agent/src/actor.ts`, `apps/web/src/server/agent-seen.ts`). The
+    owner sent a picture of another app's list of agents (headings that fold, and under each
+    its agents, every row with the agent's latest line, a time and a dot) and asked for a
+    mock-up "where we keep the workspaces in the sidebar separated". Of the mock-up they asked
+    whether "the selection state should be flush with the workspace header", were shown it
+    both ways, and said: "can you build this also don't show any sections unless you have a
+    workspace". The mock-ups were pages shown in the thread and are not in `prototypes/`.
+    - **The list.** Someone in a team has every workspace of theirs in the sidebar at once,
+      their own first, each under its mark and name. The name folds its agents away, which is
+      kept in the browser; folded, the heading shows a few of the creatures and a dot if one
+      of them has something new or is waiting. Someone in no team has their agents under
+      "Agents" and no workspace's name, as before. A heading has no padding of its own, so its
+      two ends are where the chosen row's are, and so are the ends of the row at the top,
+      which is now the app's name and the button that hides the sidebar.
+    - **A row** is the creature, the name with a time beside it, and under it the latest thing
+      said to the agent or by it, on one line: "You: …" or a teammate's first name for what a
+      person wrote, the agent's answer as it is, a scheduled task's title before what it came
+      to, "From Scout: …" for another agent's message, and what it is asking for when it has
+      stopped to ask. The creature has a spinner on it while the agent is at work and a "?"
+      while it waits for someone. A row with something its reader has not seen has a bold
+      name, a dot and its time in the accent color. Agents are in the order they were last
+      heard from, and one that never was counts from when it was made.
+    - **Where the latest line comes from.** An agent keeps it in a document of its own
+      (`LatestDoc`), written when a person writes to it, when a run ends with an answer in a
+      chat of theirs, when a scheduled run reports, when another agent writes to it, when it
+      answers in Slack and when it asks for an OK or for something to be typed in. It is in
+      the agent's summary (`latest`, with `working` and `asking`), which the list of agents
+      already asked every agent for, so the list costs no more requests than it did. No
+      transcript is read for it. An agent from before this has none until something is next
+      said. What it asked for stays its line until someone answers, and is not replaced by
+      the sentence that ends the same turn. `working` is a run going or waiting its turn, or
+      a sub-agent still to report; a command left running in the background is not. `asking`
+      is a request for an OK, or for something to be typed in, that nobody has answered.
+    - **What is new to whom** is the gateway's: `dc_agent_seen` holds, for each person apart,
+      when they last looked at an agent (`PUT /api/agents/<id>/seen`, by the server's clock),
+      and the list carries it as `seenAt`. The page says so when an agent is opened and again
+      whenever something comes from it while the page is the one being looked at. What a
+      person wrote themselves is not new to them. An agent they have never opened since this
+      was kept is not marked at all: there is nothing to measure against.
+    - **How a row stays fresh.** The open agent's row follows that agent's own state, which
+      its event stream keeps current: the latest line is told of with its chats (a name on
+      the socket can now stand for more than one document, `followers.ts`), the end of a spell
+      of work is told of too, and the page asks for the state again when an OK is answered or
+      a command ends. Nothing tells a page about the other agents, so the
+      list is asked for again every 30 seconds while the page is being looked at, every 5
+      while an agent in it is at work, and once on coming back to the tab. A row of an agent
+      that is not open can therefore be up to half a minute behind.
+    - **What moved.** There is no workspace menu: nothing is switched between. A heading has
+      the workspace's own menu (its settings, and inviting people to a team) and a + that
+      makes an agent in that workspace. New team and the invitations waiting for the user are
+      at the foot of the list. The panel that said who is where in a team is gone: the people
+      in the team now are faces on its heading (which opens People), and whoever is with an
+      agent is a face on its row. That is still known only for the team on screen.
+    - **Mine, not the owner's.** They were asked about the order and did not answer before
+      saying to build it; latest-first is what the mock-up showed. Also mine: New team at the
+      foot of the list where the mock-up had it, the times (now, 9:20 AM, Yesterday, Fri,
+      Oct 2), the two intervals, that an agent never looked at is not marked, and that a
+      row's menu comes out over its time under a pointer and is not there at all on a touch
+      screen, where the agent's strip has the same pages.
+    - **Checked:** `e2e/sidebar.spec.ts` (the latest line, the mark and what takes it away,
+      the two marks on the creature, the headings and folding), `e2e/teams.spec.ts` (faces on
+      the heading and the row), `src/lib/latest.test.ts`, `src/server/agent-seen.test.ts` and
+      the agent's own tests. A row repeats the start of what was just said a moment after it
+      is said, so in the browser tests `page.getByText` leaves the rows' lines out (the `page`
+      fixture in `e2e/fixtures.ts`, by the `data-latest` on a row's line): a test about a row
+      asks the row. A page a test opens for itself is not covered by that. Looked at with
+      pretend agents
+      in three workspaces on the built Node server: light and dark, folded, under the pointer,
+      the menu, and at a phone's width. **Not seen:** a real model's answers in the rows,
+      Slack and another agent's message in a row by eye, a team with other people in it by
+      eye (the tests cover it), Safari, a real phone, the desktop app, and Workers. The native
+      app in `apps/mobile` is as it was.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -2583,9 +2659,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   on screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
   it does on the built server and on Workers. Invitation email has never been sent for real.
 
-- **Main and side chats:** an agent's row in the sidebar says nothing of what the agent last
-  said or whether it is working, which the mock-up's rows did: the list of agents comes from the
-  gateway, which does not know, and asking every agent would wake each one. A side chat cannot
+- **Main and side chats:** a side chat cannot
   be renamed or brought back from the app once archived (the API can do both). Someone typing
   in a side chat that is beside the main chat is not shown as typing, and is counted as being
   in the main chat. The mobile app still lists every chat alike.

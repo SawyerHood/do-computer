@@ -22,7 +22,8 @@ import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
 import { cn } from "@/lib/utils"
 import { useSwipe } from "@/lib/use-swipe"
-import { usePresence, useWorkspaces } from "@/lib/workspaces"
+import { useMarkSeen } from "@/lib/latest"
+import { useListedAgent, usePresence, useWorkspaces } from "@/lib/workspaces"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
 import { ResizeHandle } from "./resize-handle.tsx"
 import { Sidebar } from "./sidebar.tsx"
@@ -95,8 +96,8 @@ function useCurrentWorkspace(
 }
 
 /**
- * The frame around everything behind sign-in. One sidebar holds the workspace and its agents;
- * choosing one opens its main chat. An agent's own pages are tabs in a strip above them, and
+ * The frame around everything behind sign-in. One sidebar holds the user's agents; choosing
+ * one opens its main chat. An agent's own pages are tabs in a strip above them, and
  * the settings are a window over whichever page is showing. Changing tab changes what is under
  * the strip and nothing else.
  */
@@ -121,6 +122,13 @@ export function AppShell({
     agentId: agentId ?? null,
     chatId: chatId ?? null,
   })
+  // The agent on screen is being looked at. When that was last said is in the list of agents.
+  const listed = useListedAgent(agentId)
+  useMarkSeen(
+    agentId,
+    Math.max(agent?.latest?.at ?? 0, listed?.latest?.at ?? 0) || undefined,
+    listed?.seenAt,
+  )
 
   const [sidebarOpen, toggleSidebar] = useRemembered(sidebarOpenAtom, SIDEBAR_OPEN_KEY)
   const sidebarWidth = useAtomValue(sidebarColumn.width)

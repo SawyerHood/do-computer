@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, closeSettings, openOwnSettings, signIn } from "./helpers.ts"
+import { asOwner, closeSettings, openOwnSettings, signIn, workspaceMenu } from "./helpers.ts"
 
 asOwner()
 
@@ -48,7 +48,7 @@ test("the ways in from the rest of the app go straight inside", async ({ page })
   await closeSettings(page)
 
   // The workspace's menu leads to that workspace.
-  await page.getByRole("button", { name: /Switch workspace$/ }).click()
+  await workspaceMenu(page).click()
   await page.getByRole("menuitem", { name: /Workspace settings/ }).click()
   await expect(dialog.getByRole("button", { name: "Back to workspaces" })).toBeVisible()
   await expect(dialog.getByRole("heading", { name: "Computers", exact: true })).toBeVisible()
