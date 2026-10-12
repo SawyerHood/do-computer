@@ -299,12 +299,15 @@ export function ChatView({
   const welcoming = live.loaded && state.messages.length === 0 && !state.busy
   // The stream was turned away, which it will be again: there is no such chat to show.
   const refused = live.status === "closed" && !live.loaded
-  // Sub-agents are over the chat only while one of them is at work. Once they have all ended
-  // they are in the transcript, where each was started and where each reported back.
-  const atWork = subagents.filter((entry) => isAtWork(entry.status)).length
+  // A sub-agent is shown over the chat and in the panel only while it is at work. Once it has
+  // ended it is in the transcript, where it was started and where it reported back.
+  const atWork = useMemo(() => subagents.filter((entry) => isAtWork(entry.status)), [subagents])
   // What the header above the chat has to say on a narrow screen, where the strip names the agent.
   const floats =
-    sub !== undefined || thread?.peer !== undefined || live.status === "reconnecting" || atWork > 0
+    sub !== undefined ||
+    thread?.peer !== undefined ||
+    live.status === "reconnecting" ||
+    atWork.length > 0
   const identity = (
     <>
       <AgentFace agent={agent} className="size-11" still={welcoming} />
@@ -451,7 +454,7 @@ export function ChatView({
                   </Button>
                 ) : null}
                 {/* Without the panel, this is the way to the chat's sub-agents while they work. */}
-                {atWork === 0 ? null : (
+                {atWork.length === 0 ? null : (
                   <Popover>
                     <PopoverTrigger
                       render={
@@ -462,14 +465,13 @@ export function ChatView({
                         />
                       }
                     >
-                      {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
-                      {` · ${atWork} at work`}
+                      {atWork.length} {atWork.length === 1 ? "sub-agent" : "sub-agents"} at work
                     </PopoverTrigger>
                     <PopoverContent
                       sideOffset={12}
                       className="max-h-80 max-w-[90vw] gap-0 overflow-y-auto p-1.5"
                     >
-                      <SubagentRows agentId={agent.id} subagents={subagents} />
+                      <SubagentRows agentId={agent.id} subagents={atWork} />
                     </PopoverContent>
                   </Popover>
                 )}
@@ -648,7 +650,7 @@ export function ChatView({
               ? undefined
               : { chatId, title: sub.title, status: sub.status, parentTitle: parent?.title }
           }
-          subagents={subagents}
+          subagents={atWork}
           running={running}
           threads={threads}
           slack={slackThreads}
