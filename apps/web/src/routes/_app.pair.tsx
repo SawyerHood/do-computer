@@ -12,6 +12,7 @@ import { agentsKey, computersKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 import { useWorkspaces } from "@/lib/workspaces"
+import { settingsAddress } from "@/lib/settings"
 
 export const Route = createFileRoute("/_app/pair")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -84,7 +85,7 @@ function PairPage() {
               <Link
                 to="/a/$agentId"
                 params={{ agentId: first }}
-                search={{ workspace: "computers" }}
+                search={{ settings: settingsAddress({ at: "workspace", section: "computers" }) }}
                 className="text-sm underline underline-offset-3"
               >
                 See your computers

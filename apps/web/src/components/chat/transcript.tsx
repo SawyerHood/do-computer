@@ -110,7 +110,7 @@ function ReplyError({
   onRetry?: (() => void) | undefined
 }) {
   const view = describeChatError(error)
-  const { openAgent, openWorkspace } = useSettings()
+  const { open: openSettings } = useSettings()
   const [open, setOpen] = useState(false)
   const hint = [failures > 1 ? `Tried ${failures} times.` : undefined, view.hint]
     .filter((text) => text !== undefined)
@@ -128,10 +128,18 @@ function ReplyError({
               {/* The two ways out of a sign-in that is gone, each a click away. */}
               {view.kind === "signIn" ? (
                 <>
-                  <Button variant="outline" size="xs" onClick={() => openWorkspace("models")}>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => openSettings({ at: "workspace", section: "models" })}
+                  >
                     Sign in again
                   </Button>
-                  <Button variant="outline" size="xs" onClick={() => openAgent("model")}>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => openSettings({ at: "agent", section: "model" })}
+                  >
                     Pick another model
                   </Button>
                 </>

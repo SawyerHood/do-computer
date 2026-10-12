@@ -55,19 +55,44 @@ export async function signIn(page: Page) {
 export const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 
 /**
- * Open a section of the agent's settings. They are a window over whichever of its pages is
- * showing, opened from the end of the strip above them.
+ * Open a section of the open agent's settings, from the end of the strip above its pages. They
+ * are one part of the settings window, which is over whichever page is showing. Slack is set
+ * up from the agent's connectors.
  */
 export async function openSettings(page: Page, section: string) {
   const dialog = page.getByRole("dialog")
+  // Settings that are open somewhere else, at their top or on a workspace, are shut first.
+  if (
+    (await dialog.count()) > 0 &&
+    (await dialog.getByRole("button", { name: "Back to agents" }).count()) === 0
+  ) {
+    await closeSettings(page)
+  }
   if ((await dialog.count()) === 0) await page.getByRole("button", { name: /'s settings$/ }).click()
-  await dialog.getByRole("button", { name: section, exact: true }).click()
+  await dialog
+    .getByRole("button", { name: section === "Slack" ? "Connectors" : section, exact: true })
+    .click()
+  if (section === "Slack")
+    await dialog.getByRole("button", { name: /^(Set up|Manage) Slack$/ }).click()
 }
 
-/** Open a section of the workspace's settings, from the menu on the user's name. */
+/** Open a section of the open workspace's settings, from the workspace's menu. */
 export async function openWorkspaceSettings(page: Page, section: string) {
-  await page.getByRole("button", { name: /settings and signing out$/ }).click()
+  if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
+  await page.getByRole("button", { name: /Switch workspace$/ }).click()
   await page.getByRole("menuitem", { name: /Workspace settings/ }).click()
+  await page.getByRole("dialog").getByRole("button", { name: section, exact: true }).click()
+}
+
+/**
+ * Open one of the settings that are the user's own, or the deployment's, from the menu on the
+ * user's name: General, Notifications, Agents, Workspaces, and for those who look after the
+ * deployment its Models and Waiting list.
+ */
+export async function openOwnSettings(page: Page, section: string) {
+  if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
+  await page.getByRole("button", { name: /settings and signing out$/ }).click()
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click()
   await page.getByRole("dialog").getByRole("button", { name: section, exact: true }).click()
 }
 

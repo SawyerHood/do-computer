@@ -408,7 +408,7 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
         <p className="text-sm text-muted-foreground">Only an admin of the team can move it.</p>
       ) : elsewhere.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Start a team from the workspace menu, at the top of the rail, to have somewhere to move
+          Start a team from the workspace menu, at the top of the sidebar, to have somewhere to move
           it.
         </p>
       ) : (
@@ -464,7 +464,8 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
  * this only lists them: adding one, and saying which agents may use it, is done for the workspace.
  */
 function Computers({ agentId }: { agentId: string }) {
-  const { openWorkspace } = useSettings()
+  const { open } = useSettings()
+  const workspace = useWorkspaceOfAgent(agentId)
   const { data: computers } = useQuery({
     queryKey: computersKey,
     queryFn: () => client.listComputers(),
@@ -516,18 +517,24 @@ function Computers({ agentId }: { agentId: string }) {
         <Button
           variant="link"
           className="h-auto p-0 align-baseline text-foreground underline"
-          onClick={() => openWorkspace("computers")}
+          onClick={() =>
+            open({
+              at: "workspace",
+              ...(workspace === undefined ? {} : { workspaceId: workspace.id }),
+              section: "computers",
+            })
+          }
         >
           Computers
         </Button>{" "}
-        in the workspace settings.
+        in the workspace's settings.
       </p>
     </Section>
   )
 }
 
 /** The parts of an agent's settings that are kept on the agent itself. */
-export type ProfileSection = "identity" | "memory" | "model" | "usage" | "manage"
+export type ProfileSection = "profile" | "memory" | "model" | "usage"
 
 /**
  * What an agent is like, a section at a time. The sections that are typed into share one form,
@@ -541,6 +548,7 @@ export function ProfileSettings({
   /** The section to show. With none, the form is kept but nothing of it is shown. */
   section: ProfileSection | undefined
 }) {
+  const { open } = useSettings()
   const workspace = useWorkspaceOfAgent(agentId)
   const { data: state } = useQuery<AgentState>({
     queryKey: agentKey(agentId),
@@ -597,14 +605,14 @@ export function ProfileSettings({
     })
   }
 
-  const typed = section === "identity" || section === "memory" || section === "model"
+  const typed = section === "profile" || section === "memory" || section === "model"
   const name = state.agent.name ?? "this agent"
   return (
     <form hidden={section === undefined} className="flex flex-col gap-6" onSubmit={submit}>
-      <div hidden={section !== "identity"} className="flex flex-col gap-6">
+      <div hidden={section !== "profile"} className="flex flex-col gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Identity</h2>
-          <p className="text-sm text-muted-foreground">{`Who ${name} is: how it looks and how it talks.`}</p>
+          <h2 className="text-lg font-semibold tracking-tight">Profile</h2>
+          <p className="text-sm text-muted-foreground">{`Who ${name} is: how it looks, how it talks, and which workspace it is in.`}</p>
         </div>
         <div className="flex items-center gap-5">
           <AgentAvatar
@@ -692,6 +700,29 @@ export function ProfileSettings({
           />
         </Section>
 
+        <Workspace agentId={agentId} name={state.agent.name ?? "This agent"} />
+        {/* A team's agent is everyone's, so deleting it is for the people who run the team. */}
+        {workspace?.role === "member" ? null : (
+          <DeleteAgent agentId={agentId} name={state.agent.name} />
+        )}
+      </div>
+      <div hidden={section !== "memory"} className="flex flex-col gap-6">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Memory</h2>
+          <p className="text-sm text-muted-foreground">{`What ${name} has learned and keeps between chats, and what it has been told about who it works for.`}</p>
+        </div>
+        <Section
+          title="Memory"
+          hint="The agent's own long-term notes, also read in every conversation."
+        >
+          <Counted
+            id="memory"
+            rows={8}
+            value={form.memory}
+            limit={state.limits.memory}
+            onChange={(value) => set("memory", value)}
+          />
+        </Section>
         <Section
           title={state.team ? "About the team" : "About you"}
           hint={
@@ -709,32 +740,14 @@ export function ProfileSettings({
           />
         </Section>
       </div>
-      <div hidden={section !== "memory"} className="flex flex-col gap-6">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Memory</h2>
-          <p className="text-sm text-muted-foreground">{`What ${name} has learned and keeps between chats.`}</p>
-        </div>
-        <Section
-          title="Memory"
-          hint="The agent's own long-term notes, also read in every conversation."
-        >
-          <Counted
-            id="memory"
-            rows={8}
-            value={form.memory}
-            limit={state.limits.memory}
-            onChange={(value) => set("memory", value)}
-          />
-        </Section>
-      </div>
       <div hidden={section !== "model"} className="flex flex-col gap-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">Model and computer</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Model and computers</h2>
           <p className="text-sm text-muted-foreground">{`What ${name} thinks with, the computers it can work on, and what it does with a message that arrives while it is busy.`}</p>
         </div>
         <Section
           title="Model"
-          hint="Which model this agent thinks with. Applies from its next reply. New agents start on your default, which is under Settings."
+          hint="Which model this agent thinks with. Applies from its next reply."
         >
           <ModelPicker
             label="Model"
@@ -750,21 +763,28 @@ export function ProfileSettings({
               onChange={(thinking) => set("thinking", thinking)}
             />
           ) : null}
+          {workspace === undefined ? null : (
+            <p className="text-sm text-muted-foreground">
+              The models to choose from are those {workspace.name} is signed in to, under{" "}
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0 align-baseline text-foreground underline"
+                onClick={() =>
+                  open({ at: "workspace", workspaceId: workspace.id, section: "models" })
+                }
+              >
+                Models
+              </Button>{" "}
+              in the workspace's settings.
+            </p>
+          )}
         </Section>
 
         <Computers agentId={agentId} />
         <WhenBusy agentId={agentId} state={state} />
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}
-      {section === "manage" ? (
-        <>
-          <Workspace agentId={agentId} name={state.agent.name ?? "This agent"} />
-          {/* A team's agent is everyone's, so deleting it is for the people who run the team. */}
-          {workspace?.role === "member" ? null : (
-            <DeleteAgent agentId={agentId} name={state.agent.name} />
-          )}
-        </>
-      ) : null}
       {typed || dirty ? (
         <div className="sticky bottom-0 flex items-center justify-end gap-3">
           {save.isError ? (

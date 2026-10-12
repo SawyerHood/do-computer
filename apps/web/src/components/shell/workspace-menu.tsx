@@ -1,9 +1,5 @@
-import {
-  type InvitationPreview,
-  isPersonalWorkspace,
-  type WorkspaceSummary,
-} from "@durable-computer/protocol"
-import { CaretUpDownIcon, CheckIcon, PlusIcon, UsersIcon } from "@phosphor-icons/react"
+import type { InvitationPreview, WorkspaceSummary } from "@durable-computer/protocol"
+import { CaretUpDownIcon, CheckIcon, GearIcon, PlusIcon } from "@phosphor-icons/react"
 import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 import { FaceStack, PersonFace, WorkspaceTile } from "@/components/people"
@@ -68,11 +64,11 @@ function TeamRow({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
 
 /**
  * The way between workspaces, at the top of the sidebar: the user's own, their teams, the
- * invitations waiting for them, and starting a new team.
+ * invitations waiting for them, starting a new team, and the settings of the one that is open.
  */
 export function WorkspaceMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
   const navigate = useNavigate()
-  const { openWorkspace } = useSettings()
+  const { open: openSettings } = useSettings()
   const state = useWorkspaces()
   const [creating, setCreating] = useState(false)
 
@@ -154,11 +150,15 @@ export function WorkspaceMenu({ workspace, me }: { workspace: WorkspaceSummary; 
           <DropdownMenuItem onClick={() => setCreating(true)}>
             <PlusIcon /> New team
           </DropdownMenuItem>
-          {isPersonalWorkspace(workspace.id) ? null : (
-            <DropdownMenuItem onClick={() => openWorkspace("team")}>
-              <UsersIcon /> People in {workspace.name}
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem
+            onClick={() => openSettings({ at: "workspace", workspaceId: workspace.id })}
+          >
+            <GearIcon />
+            <span className="flex-1">Workspace settings</span>
+            <span className="max-w-24 truncate text-xs text-muted-foreground">
+              {workspace.name}
+            </span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <NewTeamDialog userId={me.id} open={creating} onOpenChange={setCreating} />

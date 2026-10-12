@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
+import { settingsAddress } from "@/lib/settings"
 
 /** This page is now a section of the agent's settings, which open over the chat. */
 export const Route = createFileRoute("/_app/a/$agentId/permissions")({
@@ -6,7 +7,10 @@ export const Route = createFileRoute("/_app/a/$agentId/permissions")({
     throw redirect({
       to: "/a/$agentId",
       params,
-      search: { ...search, settings: "permissions" },
+      search: {
+        ...search,
+        settings: settingsAddress({ at: "agent", agentId: params.agentId, section: "permissions" }),
+      },
       replace: true,
     })
   },

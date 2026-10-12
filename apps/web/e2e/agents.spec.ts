@@ -12,12 +12,14 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
   const icon = page.locator('link[rel="icon"]')
   await expect(icon).toHaveAttribute("href", /^data:image\//)
   const before = await icon.getAttribute("href")
-  await openSettings(page, "Identity")
+  await openSettings(page, "Profile")
   await page.getByLabel("Name").fill("Juniper")
   await page.getByLabel("Tagline").fill("Calm and curious")
   // Its color is a choice; what it looks like is a roll of the dice.
   await page.getByRole("button", { name: "Tide" }).click()
   await page.getByRole("button", { name: "Roll a new look" }).click()
+  // What it is told about who it works for is kept with what it remembers, in the same form.
+  await openSettings(page, "Memory")
   await page.locator("#user").fill("Prefers short answers")
   await page.getByRole("button", { name: "Save changes" }).click()
   await expect(page.getByText("Saved", { exact: true })).toBeVisible()
@@ -29,7 +31,7 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
 
   await page.reload()
-  await openSettings(page, "Identity")
+  await openSettings(page, "Profile")
   await expect(page.getByLabel("Name")).toHaveValue("Juniper")
   await expect(page.locator("#user")).toHaveValue("Prefers short answers")
   await expect(page.getByRole("button", { name: "Tide" })).toHaveAttribute("aria-pressed", "true")
@@ -167,7 +169,7 @@ test("a second agent can be made, and deleted without touching the first", async
   const second = page.url().match(/\/a\/([^/]+)/)![1]!
   await expect(page.getByText("It has no name yet")).toBeVisible()
 
-  await openSettings(page, "Move or delete")
+  await openSettings(page, "Profile")
   await page.getByRole("button", { name: "Delete agent…" }).click()
   const confirm = page.getByRole("button", { name: "Delete for good" })
   await expect(confirm).toBeDisabled()

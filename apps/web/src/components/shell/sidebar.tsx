@@ -1,19 +1,16 @@
 import type { AgentSummary, WorkspaceSummary } from "@durable-computer/protocol"
 import {
-  BellIcon,
   CaretLeftIcon,
   CaretUpDownIcon,
   DesktopIcon,
   GearIcon,
-  MoonIcon,
   SidebarSimpleIcon,
   SignOutIcon,
-  SunIcon,
   UserPlusIcon,
 } from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { useSetAtom } from "jotai"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { useComputerRequests } from "@/components/computer-requests"
 import { FaceStack, names, PersonFace } from "@/components/people"
@@ -31,7 +28,6 @@ import { sidebarSlotAtom } from "@/lib/atoms"
 import { authClient } from "@/lib/auth-client"
 import { forgetNotifications } from "@/lib/notifications"
 import { useSettings } from "@/lib/settings"
-import { currentTheme, setTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 import { AgentList } from "./agent-list.tsx"
@@ -40,15 +36,12 @@ import { WorkspaceMenu } from "./workspace-menu.tsx"
 type Me = { id: string; name: string; email: string; image?: string | null }
 
 /**
- * The user's own menu, at the foot of the sidebar: the way into the workspace's settings and to
- * notifications, the theme, and signing out.
+ * The user's own menu, at the foot of the sidebar: the way into the settings, asking people in
+ * to a team, and signing out.
  */
 function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
-  const { openWorkspace } = useSettings()
+  const { open: openSettings } = useSettings()
   const [inviting, setInviting] = useState(false)
-  const [theme, setCurrent] = useState<"light" | "dark">("dark")
-  useEffect(() => setCurrent(currentTheme()), [])
-  const next = theme === "dark" ? "light" : "dark"
   const team = workspace.kind === "team"
   const person = { id: me.id, name: me.name, image: me.image ?? null }
   // Agents asking for a computer of theirs, in whichever workspace: answered under Computers.
@@ -88,7 +81,11 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
           </div>
           <DropdownMenuSeparator />
           {asking > 0 ? (
-            <DropdownMenuItem onClick={() => openWorkspace("computers")}>
+            <DropdownMenuItem
+              onClick={() =>
+                openSettings({ at: "workspace", workspaceId: workspace.id, section: "computers" })
+              }
+            >
               <DesktopIcon />
               <span className="flex-1">
                 {asking === 1
@@ -98,32 +95,14 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
               <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onClick={() => openWorkspace(team ? "team" : "computers")}>
-            <GearIcon />
-            <span className="flex-1">Workspace settings</span>
-            <span className="max-w-24 truncate text-xs text-muted-foreground">
-              {workspace.name}
-            </span>
+          <DropdownMenuItem onClick={() => openSettings({ at: "top" })}>
+            <GearIcon /> Settings
           </DropdownMenuItem>
           {team && workspace.role !== "member" ? (
             <DropdownMenuItem onClick={() => setInviting(true)}>
               <UserPlusIcon /> Invite people
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onClick={() => openWorkspace("notifications")}>
-            <BellIcon /> Notifications
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            // The menu stays open, so the change is seen from where it was asked for.
-            closeOnClick={false}
-            onClick={() => {
-              setTheme(next)
-              setCurrent(next)
-            }}
-          >
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-            {theme === "dark" ? "Light theme" : "Dark theme"}
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => void signOut()}>
             <SignOutIcon /> Sign out
@@ -167,7 +146,7 @@ export function Sidebar({
   onCollapse?: () => void
   className?: string
 }) {
-  const { openWorkspace } = useSettings()
+  const { open: openSettings } = useSettings()
   const setSlot = useSetAtom(sidebarSlotAtom)
   const here = useHere(workspace.id)
   const people = usePeople(workspace)
@@ -191,7 +170,9 @@ export function Sidebar({
             size="sm"
             aria-label={`${others.length} here now: ${names(others)}`}
             title={`Here now: ${names(others)}`}
-            onClick={() => openWorkspace("team")}
+            onClick={() =>
+              openSettings({ at: "workspace", workspaceId: workspace.id, section: "people" })
+            }
             className="px-1.5"
           >
             <FaceStack people={others} className="size-[1.125rem]" />

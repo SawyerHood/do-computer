@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { client } from "@/lib/client"
 import { agentKey, agentsCollection } from "@/lib/collections"
-import { useSettings } from "@/lib/settings"
+import { settingsAddress, useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 
@@ -101,7 +101,7 @@ function WhoIsWhere({
   meId: string
   onNavigate?: (() => void) | undefined
 }) {
-  const { openWorkspace } = useSettings()
+  const { open: openSettings } = useSettings()
   // One line a person: the place they are writing in, else the first that names a chat.
   const others = whoIs(here, (place) => place.userId !== meId).map((userId) => {
     const places = here.filter((place) => place.userId === userId)
@@ -117,7 +117,7 @@ function WhoIsWhere({
         type="button"
         onClick={() => {
           onNavigate?.()
-          openWorkspace("team")
+          openSettings({ at: "workspace", workspaceId: workspace.id, section: "people" })
         }}
         className="flex w-full items-baseline justify-between rounded-md px-1 pb-1.5 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
       >
@@ -334,7 +334,7 @@ function AgentMenu({
             void navigate({
               to: "/a/$agentId",
               params: { agentId: agent.id },
-              search: { settings: "identity" },
+              search: { settings: settingsAddress({ at: "agent", agentId: agent.id }) },
             })
           }}
         >

@@ -188,7 +188,7 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   await expect(sawyer.getByText(/No agent can use it yet/)).toBeVisible()
 
   // She did not pair it, but it is her team's: she sees it, and connects the team's agent.
-  await her.getByRole("button", { name: /settings and signing out$/ }).click()
+  await her.getByRole("button", { name: /Switch workspace$/ }).click()
   await her.getByRole("menuitem", { name: /Workspace settings/ }).click()
   await her.getByRole("dialog").getByRole("button", { name: "Computers", exact: true }).click()
   const mini = her.getByRole("listitem").filter({ hasText: "team-mini" })

@@ -65,8 +65,10 @@ async function subscribesTo(page: Page, browser: FakeBrowser, endpoint: string) 
 
 const openNotifications = async (page: Page) => {
   await page.getByRole("button", { name: /settings and signing out$/ }).click()
-  await page.getByRole("menuitem", { name: "Notifications" }).click()
-  return page.getByRole("dialog")
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click()
+  const dialog = page.getByRole("dialog")
+  await dialog.getByRole("button", { name: "Notifications", exact: true }).click()
+  return dialog
 }
 
 test("the app can be put on a phone's home screen", async ({ page, request }) => {

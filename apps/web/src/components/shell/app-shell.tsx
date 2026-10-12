@@ -9,8 +9,7 @@ import { useLocation, useParams, useRouteContext } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { type PrimitiveAtom, useAtom, useAtomValue } from "jotai"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
-import { AgentSettings } from "@/components/settings/agent-settings"
-import { WorkspaceSettings } from "@/components/settings/workspace-settings"
+import { Settings } from "@/components/settings/settings"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import {
@@ -97,8 +96,8 @@ function useCurrentWorkspace(
 
 /**
  * The frame around everything behind sign-in. One sidebar holds the workspace and its agents;
- * choosing one opens its main chat. An agent's own pages are tabs in a strip above them, and its settings and the
- * workspace's are windows over whichever page is showing. Changing tab changes what is under
+ * choosing one opens its main chat. An agent's own pages are tabs in a strip above them, and
+ * the settings are a window over whichever page is showing. Changing tab changes what is under
  * the strip and nothing else.
  */
 export function AppShell({
@@ -226,8 +225,7 @@ export function AppShell({
         </SheetContent>
       </Sheet>
 
-      {agent === undefined ? null : <AgentSettings agent={agent} />}
-      <WorkspaceSettings
+      <Settings
         workspace={workspace}
         me={me.user}
         admin={me.admin === true}

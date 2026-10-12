@@ -1,6 +1,6 @@
-import type { ConnectorResult, ConnectorSummary } from "@durable-computer/protocol"
-import { CaretRightIcon, TrashIcon } from "@phosphor-icons/react"
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
+import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@durable-computer/protocol"
+import { CaretRightIcon, SlackLogoIcon, TrashIcon } from "@phosphor-icons/react"
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch"
 import { Loads } from "@/components/loads"
 import { CardsPlaceholder } from "@/components/placeholders"
 import { client } from "@/lib/client"
-import { connectorsKey } from "@/lib/collections"
+import { connectorsKey, slackKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
 
@@ -295,13 +295,17 @@ function AddForm({ agentId }: { agentId: string }) {
 
 /** Services the agent can use through MCP: each one's tools become tools of the agent. */
 export function ConnectorsSettings({
-  agentId,
+  agent,
   search,
+  onSlack,
 }: {
-  agentId: string
+  agent: AgentSummary
   /** What the address says after coming back from a service: which was connected, or why not. */
   search: ConnectorsSearch
+  /** Opens the agent's place in Slack, which is set up on a page of its own. */
+  onSlack: () => void
 }) {
+  const agentId = agent.id
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -322,8 +326,54 @@ export function ConnectorsSettings({
           connected={search.connector_error ? undefined : search.connected}
         />
       </Loads>
+      <SlackOffer agent={agent} onOpen={onSlack} />
       <AddForm agentId={agentId} />
     </div>
+  )
+}
+
+/**
+ * The agent in Slack, among the services it is connected to: whether it is there, and the way to
+ * the page that puts it there. It is a bot of the agent's own and not an MCP server, so it is
+ * set up apart from the connectors above it.
+ */
+function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void }) {
+  const { data: state } = useQuery({
+    queryKey: slackKey(agent.id),
+    queryFn: () => client.agent(agent.id).slack(),
+  })
+  const name = agent.name ?? "your agent"
+  const app = state?.app ?? null
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2 className="flex items-center gap-2">
+            <SlackLogoIcon className="size-4.5" /> Slack
+          </h2>
+        </CardTitle>
+        <CardDescription>
+          {app === null
+            ? `Put ${name} in Slack as a bot of its own. Mention it in a channel or message it, and it answers there.`
+            : `${name} is in ${app.team} as @${app.bot}.`}
+        </CardDescription>
+        {app === null ? null : (
+          <CardAction>
+            <Badge className={STATUS.connected.tone}>In Slack</Badge>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardFooter>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label={app === null ? "Set up Slack" : "Manage Slack"}
+          onClick={onOpen}
+        >
+          {app === null ? "Set up" : "Manage"}
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }
 

@@ -338,7 +338,7 @@ test("under a finger every field is written in at a size a phone does not zoom i
   expect((await composer(phone).boundingBox())!.height).toBeLessThanOrEqual(42)
 
   // The fields of the agent's settings, which are smaller than the message box with a mouse.
-  await openSettings(phone, "Identity")
+  await openSettings(phone, "Profile")
   await expect(phone.getByRole("dialog").getByLabel("Name")).toBeVisible()
   expect(await smallest(phone)).toBe(16)
   await closeSettings(phone)

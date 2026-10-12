@@ -5,6 +5,7 @@ import {
   asOwner,
   composer,
   newChat,
+  openOwnSettings,
   openSettings,
   openWorkspaceSettings,
   signIn,
@@ -72,7 +73,7 @@ test.describe("connectors", () => {
     // The service's own page, in the same tab.
     await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
     await page.getByRole("link", { name: "Deny" }).click()
-    await expect(page).toHaveURL(/settings=connectors/)
+    await expect(page).toHaveURL(/settings=agent\.[^.&]+\.connectors/)
     await expect(page.getByRole("alert")).toContainText("You said no.")
     const card = page.getByRole("listitem").filter({ hasText: "Calendar" })
     await expect(card.getByText("Needs sign-in")).toBeVisible()
@@ -188,7 +189,7 @@ test.describe("choosing a model", () => {
   test("an agent's model is picked from a list that narrows as you type", async ({ page }) => {
     await stubModels(page)
     await signIn(page)
-    await openSettings(page, "Model and computer")
+    await openSettings(page, "Model and computers")
     const picker = page.getByRole("combobox", { name: "Model" })
     await expect(picker).toHaveValue("Echo (no model key configured)")
 
@@ -242,7 +243,7 @@ test.describe("choosing a model", () => {
 
   test("how hard an agent thinks is chosen under its model", async ({ page }) => {
     await signIn(page)
-    await openSettings(page, "Model and computer")
+    await openSettings(page, "Model and computers")
     const thinking = page.getByRole("group", { name: "Thinking" })
     // The echo model does not reason, so there is nothing to choose.
     await expect(thinking).toContainText("does not think")
@@ -283,7 +284,7 @@ test.describe("choosing a model", () => {
   test("the default for new agents is set once, under Settings", async ({ page }) => {
     await stubModels(page)
     await signIn(page)
-    await openWorkspaceSettings(page, "New agents")
+    await openOwnSettings(page, "General")
     await expect(page.getByRole("heading", { name: "Default model" })).toBeVisible()
     const picker = page.getByRole("combobox", { name: "Default model" })
     await expect(picker).toHaveValue("Echo (no model key configured)")

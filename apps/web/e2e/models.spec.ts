@@ -3,6 +3,7 @@ import {
   asOwner,
   closeSettings,
   composer,
+  openOwnSettings,
   openSettings,
   openWorkspaceSettings,
   signIn,
@@ -104,7 +105,7 @@ test.describe("signing in to model providers", () => {
 
     // The agent's picker has them, under where they come from.
     await closeSettings(page)
-    await openSettings(page, "Model and computer")
+    await openSettings(page, "Model and computers")
     const picker = page.getByRole("combobox", { name: "Model" })
     await picker.click()
     await picker.fill("haiku 5.5")
@@ -148,7 +149,7 @@ test.describe("signing in to model providers", () => {
 test.describe("the server's own models", () => {
   test("someone who looks after the server signs it in, for every workspace", async ({ page }) => {
     await signIn(page)
-    await openWorkspaceSettings(page, "Server models")
+    await openOwnSettings(page, "Models")
     await expect(page.getByText("A built-in echo model")).toBeVisible()
     await page.getByRole("button", { name: "Use a key for OpenAI", exact: true }).click()
     const window = page.getByRole("dialog", { name: "OpenAI API key" })
@@ -161,14 +162,14 @@ test.describe("the server's own models", () => {
     await expect(page.getByText(/models? through OpenAI, offered to everyone/)).toBeVisible()
 
     // A workspace has them without signing in to anything, as the deployment's own.
-    await page.getByRole("button", { name: "Models", exact: true }).click()
+    await openWorkspaceSettings(page, "Models")
     await expect(page.getByText(/through OpenAI, paid for by this deployment/)).toBeVisible()
     const own = page.getByRole("region", { name: "Model providers" })
     await expect(own.getByRole("listitem").filter({ hasText: /^OOpenAI(?! Codex)/ })).toContainText(
       "Already here. Sign in to use your own account.",
     )
     await closeSettings(page)
-    await openSettings(page, "Model and computer")
+    await openSettings(page, "Model and computers")
     const picker = page.getByRole("combobox", { name: "Model" })
     await picker.click()
     await picker.fill("gpt-6 luna")

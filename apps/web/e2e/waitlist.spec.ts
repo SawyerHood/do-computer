@@ -1,7 +1,7 @@
 import type { MadeDood } from "@durable-computer/protocol"
 import type { BrowserContext } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { card, inOrder, introduce, openWorkspaceSettings, owner, signUp } from "./helpers.ts"
+import { card, inOrder, introduce, openOwnSettings, owner, signUp } from "./helpers.ts"
 
 inOrder()
 
@@ -20,7 +20,7 @@ test("the first account is its owner's, and uses the app", async ({ page }) => {
   await signUp(page)
   await expect(page).toHaveURL(/\/a\/[^/]+\/c\/\d+/)
   // Nobody is waiting yet, and they are who is told.
-  await openWorkspaceSettings(page, "Waiting list")
+  await openOwnSettings(page, "Waiting list")
   await expect(page.getByText("Nobody is waiting.")).toBeVisible()
 })
 
@@ -104,7 +104,7 @@ test("whoever looks after the deployment lets someone in, and their Dood is thei
 }) => {
   await page.request.post("/api/auth/sign-in/email", { data: owner })
   await page.goto("/")
-  await openWorkspaceSettings(page, "Waiting list")
+  await openOwnSettings(page, "Waiting list")
   const list = page.getByRole("dialog")
   await expect(list.getByText("3 people are waiting.")).toBeVisible()
   const row = list.getByRole("listitem").filter({ hasText: "tomas@example.com" })

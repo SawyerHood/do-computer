@@ -698,6 +698,16 @@ export function ComputersSettings({
   const agents = useAgentsById()
   // As often as the list under it, which is looked at for the same reason.
   const requests = useComputerRequests(5_000).filter((request) => request.canAnswer)
+  // A workspace's settings list what is its own, and what an agent of its works on: a computer
+  // of someone's own that one of its agents was given is here too.
+  const listed =
+    workspaceId === undefined
+      ? computers
+      : computers?.filter(
+          (computer) =>
+            computer.workspaceId === workspaceId ||
+            computer.agentIds.some((id) => agents.get(id)?.workspaceId === workspaceId),
+        )
   const install = `curl -fsSL ${location.origin}/install.sh | sh`
 
   return (
@@ -723,11 +733,11 @@ export function ComputersSettings({
         </ul>
       ) : null}
 
-      {computers === undefined ? (
+      {listed === undefined ? (
         <CardsPlaceholder />
-      ) : computers.length > 0 ? (
+      ) : listed.length > 0 ? (
         <ul className="flex flex-col gap-3">
-          {computers.map((computer) => (
+          {listed.map((computer) => (
             <ComputerCard
               key={computer.id}
               computer={computer}

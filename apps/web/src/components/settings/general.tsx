@@ -2,13 +2,15 @@ import type { UserSettings } from "@durable-computer/protocol"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Loads } from "@/components/loads"
 import { FormPlaceholder } from "@/components/placeholders"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ComputerPicker } from "@/components/computer-picker"
 import { ModelPicker } from "@/components/model-picker"
 import { Button } from "@/components/ui/button"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import { computerKindsKey, modelsKey, settingsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
+import { chosenTheme, setTheme, type ThemeChoice } from "@/lib/theme"
 
 function DefaultModel({ settings }: { settings: UserSettings }) {
   const { data: models } = useQuery({
@@ -28,8 +30,8 @@ function DefaultModel({ settings }: { settings: UserSettings }) {
           Default model
         </h2>
         <p className="text-sm text-muted-foreground">
-          The model a new agent starts on. Agents you already have keep theirs; change one on its
-          own page.
+          The model a new agent of yours starts on. Agents you already have keep theirs; change one
+          in its own settings.
         </p>
       </div>
       {models === undefined ? null : (
@@ -121,16 +123,61 @@ function DefaultComputer({ settings }: { settings: UserSettings }) {
   )
 }
 
-/** Settings for the account, as opposed to for the agent on screen. */
-export function DefaultsSettings() {
+const THEMES: readonly { id: ThemeChoice; label: string }[] = [
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+  { id: "system", label: "System" },
+]
+
+/** Light or dark, or whichever the device is set to. Kept by this browser, not by the account. */
+function Theme() {
+  // What this browser has kept is only known once the page is in it.
+  const [chosen, setChosen] = useState<ThemeChoice>()
+  useEffect(() => setChosen(chosenTheme()), [])
+  return (
+    <section aria-labelledby="theme" className="flex flex-col gap-3 border-t pt-6">
+      <div>
+        <h2 id="theme" className="text-sm font-medium">
+          Theme
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          How Do Computer looks in this browser. System follows what the device is set to.
+        </p>
+      </div>
+      <ToggleGroup
+        aria-label="Theme"
+        variant="outline"
+        value={chosen === undefined ? [] : [chosen]}
+        // Pressing the one that is chosen leaves it chosen: there is always a theme.
+        onValueChange={([next]) => {
+          const theme = THEMES.find((entry) => entry.id === next)
+          if (theme === undefined) return
+          setTheme(theme.id)
+          setChosen(theme.id)
+        }}
+      >
+        {THEMES.map((theme) => (
+          <ToggleGroupItem key={theme.id} value={theme.id} className="px-3.5">
+            {theme.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </section>
+  )
+}
+
+/** What is the user's own, whichever workspace or agent is on screen. */
+export function GeneralSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Settings</h2>
+        <h2 className="text-lg font-semibold tracking-tight">General</h2>
         <p className="text-sm text-muted-foreground">
-          For your account. What one agent is like is set on that agent, under Identity and memory.
+          Yours, whichever workspace you are in. What one agent is like is set on that agent, and
+          what a workspace has is set on the workspace.
         </p>
       </div>
+      <Theme />
       <Loads fallback={<FormPlaceholder fields={2} />}>
         <Defaults />
       </Loads>
