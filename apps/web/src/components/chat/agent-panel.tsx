@@ -31,7 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { agentPanelColumn } from "@/lib/columns"
-import { creatureWindowAtom } from "@/lib/creature"
+import { creatureWardrobeAtom } from "@/lib/creature"
 import { formatBytes, isViewable } from "@/lib/library"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
 import { cn } from "@/lib/utils"
@@ -251,7 +251,7 @@ export function AgentPanel({
     mascotMoodAtom(subagent === undefined ? agent.id : subagentSeed(agent.id, subagent.chatId)),
   )
   const width = useAtomValue(agentPanelColumn.width)
-  const openCreature = useSetAtom(creatureWindowAtom)
+  const openWardrobe = useSetAtom(creatureWardrobeAtom)
   // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
@@ -300,7 +300,7 @@ export function AgentPanel({
               size="icon-sm"
               aria-label={`${name}'s wardrobe`}
               title="Wardrobe"
-              onClick={() => openCreature("wardrobe")}
+              onClick={() => openWardrobe(true)}
               className="-mr-8 size-7 text-muted-foreground/70"
             >
               <TShirtIcon />

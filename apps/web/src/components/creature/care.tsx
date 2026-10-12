@@ -9,7 +9,7 @@ import { useSetAtom } from "jotai"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { PetHeart } from "@/components/agent-avatar"
-import { creatureWindowAtom, feedCreature, useCreature } from "@/lib/creature"
+import { creatureBoxAtom, feedCreature, useCreature } from "@/lib/creature"
 import { biteMascot, cheerMascot, offerMascot, prefersCalm } from "@/lib/mascot"
 import type { Heart } from "@/lib/use-petting"
 import { cn } from "@/lib/utils"
@@ -224,7 +224,7 @@ export function CreatureCare({
   const creature = useCreature(agent.id, agent.hatched)
   const box = useRef<HTMLSpanElement>(null)
   const treats = useTreats(agent.id, creature, box)
-  const setWindow = useSetAtom(creatureWindowAtom)
+  const openBox = useSetAtom(creatureBoxAtom)
   const name = agent.name ?? "it"
   const count = creature?.treats ?? 0
   const boxes = creature?.boxes ?? 0
@@ -281,7 +281,7 @@ export function CreatureCare({
                 ? `${name} found a box. Press to open it.`
                 : `${left} more ${left === 1 ? "treat" : "treats"} until ${name}'s next box`
             }
-            onClick={() => (boxes > 0 ? setWindow("box") : undefined)}
+            onClick={() => (boxes > 0 ? openBox(true) : undefined)}
             className={cn(
               "absolute -right-10 -bottom-2 grid size-11 place-items-center rounded-xl outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/40",
               boxes > 0 ? "creature-box-ready hover:bg-accent" : "cursor-default",

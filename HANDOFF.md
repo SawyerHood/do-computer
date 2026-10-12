@@ -755,8 +755,10 @@ Since then, newest last:
       pages is now a button of its own that opens the wardrobe, with a dot when a box is
       waiting; its name beside it is still the way to another agent. On a narrow screen, where
       there is no panel, the wardrobe window fills the screen and has the creature, its treats
-      and its box at its top, so that is where it is looked after. A thing not found yet is a
-      question mark in the color of its rarity.
+      and its box at its top, so that is where it is looked after. A box opened there opens
+      over the wardrobe, which is still open once the box is done with (it used to take the
+      wardrobe's place, and closing it left the chat). A thing not found yet is a question mark
+      in the color of its rarity.
     - **In the Expo app** the creature wears what it has on, and that is all: there are no
       treats, no box and no wardrobe there yet.
     - **Checked:** the rules and the catalog (`packages/protocol/test/wardrobe.test.ts`); the
