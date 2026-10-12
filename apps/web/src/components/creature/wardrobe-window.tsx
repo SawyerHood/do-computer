@@ -11,7 +11,7 @@ import {
 } from "@durable-computer/protocol"
 import { LockIcon, XIcon } from "@phosphor-icons/react"
 import { useAtomValue } from "jotai"
-import { useMemo, useRef, useState } from "react"
+import { type ReactNode, useMemo, useRef, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { wear } from "@/lib/creature"
@@ -103,10 +103,13 @@ export function WardrobeWindow({
   agent,
   creature,
   onClose,
+  children,
 }: {
   agent: AgentSummary
   creature: CreatureState
   onClose: () => void
+  /** A window opened from this one, which is over it until it is closed. */
+  children?: ReactNode
 }) {
   const [slot, setSlot] = useState<WearSlot>("hat")
   const title = useRef<HTMLHeadingElement>(null)
@@ -255,6 +258,7 @@ export function WardrobeWindow({
             ))}
           </ul>
         </div>
+        {children}
       </DialogContent>
     </Dialog>
   )

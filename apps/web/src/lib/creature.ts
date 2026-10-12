@@ -11,10 +11,12 @@ import { agentKey, agentsKey, creatureKey, creatureQuery } from "./collections.t
 import { queryClient } from "./query.ts"
 
 /**
- * Which of the creature's windows is open over the agent's pages: its wardrobe, or a box of its
- * being opened. Not in the address, as the settings are: neither is somewhere to come back to.
+ * The creature's windows over the agent's pages: its wardrobe, and a box of its being opened,
+ * which opens over the wardrobe when that is where it was pressed. Not in the address, as the
+ * settings are: neither is somewhere to come back to.
  */
-export const creatureWindowAtom = atom<"wardrobe" | "box" | null>(null)
+export const creatureWardrobeAtom = atom(false)
+export const creatureBoxAtom = atom(false)
 
 /** What an agent's creature has been given and has on. Undefined until it has been heard from. */
 export function useCreature(agentId: string, enabled = true): CreatureState | undefined {

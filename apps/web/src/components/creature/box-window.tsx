@@ -163,7 +163,11 @@ export function BoxWindow({
 
   return (
     <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent className="flex flex-col items-center gap-0 overflow-hidden text-center sm:max-w-md">
+      <DialogContent
+        // Opened from the wardrobe it is over the wardrobe, which is dimmed behind it as a page is.
+        overlay={{ forceRender: true }}
+        className="flex flex-col items-center gap-0 overflow-hidden text-center sm:max-w-md"
+      >
         {/* The stage is drawn a little past its box, as the creature is, so room is left under it. */}
         <div className="relative mt-2 mb-8 size-64 max-w-full">
           {stage === "burst" || stage === "shown" ? (

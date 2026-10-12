@@ -25,7 +25,7 @@ import {
 import { agentPanelOpenAtom } from "@/lib/atoms"
 import { Skeleton } from "@/components/ui/skeleton"
 import { agentQuery, agentsCollection } from "@/lib/collections"
-import { creatureWindowAtom, useCreature } from "@/lib/creature"
+import { creatureWardrobeAtom, useCreature } from "@/lib/creature"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
@@ -55,7 +55,7 @@ function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: W
     [workspace.id],
   )
   const name = agent.name ?? "New agent"
-  const openCreature = useSetAtom(creatureWindowAtom)
+  const openWardrobe = useSetAtom(creatureWardrobeAtom)
   const creature = useCreature(agent.id, agent.hatched)
   const waiting = (creature?.boxes ?? 0) > 0
   return (
@@ -66,7 +66,7 @@ function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: W
           type="button"
           aria-label={waiting ? `${name}'s wardrobe: a box is waiting` : `${name}'s wardrobe`}
           title={waiting ? `${name} found a box` : `${name}'s wardrobe`}
-          onClick={() => openCreature("wardrobe")}
+          onClick={() => openWardrobe(true)}
           className="relative shrink-0 rounded-xl p-1 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
         >
           <AgentFace agent={agent} className="size-7" still />
