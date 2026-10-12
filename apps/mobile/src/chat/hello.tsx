@@ -76,12 +76,25 @@ function useHatch(agent: AgentSummary) {
   return { phase, hatched, skip }
 }
 
-/** What a new agent offers to start with, in its first hello. */
-const STARTERS = ["Show me what you can do", "Help me plan my week", "Research something for me"]
-const STARTERS_HERE = [
-  "Show me what you can do",
-  "Tidy up my Downloads folder",
-  "Look at a project with me",
+/**
+ * What a new agent offers to start with, in its first hello: things that show what it can do.
+ * These are the web app's own (apps/web/src/lib/starters.ts) for an agent that was given no
+ * computer in the first run, which is every agent met on a phone. `say` is what is said to the
+ * agent for whoever pressed it, in full, as if they had typed it.
+ */
+const STARTERS = [
+  {
+    label: "Make me a little game",
+    say: "Make me a little game with you in it that I can play right here in the chat.",
+  },
+  {
+    label: "Research three things at once",
+    say: "Pick three things worth knowing about today and research them all at once with sub-agents. Tell me what they find.",
+  },
+  {
+    label: "Check in with me every morning",
+    say: "Check in with me every morning at 9 with something worth knowing.",
+  },
 ]
 
 /**
@@ -115,7 +128,6 @@ export function Hello({
       onHatched={hatch.hatched}
     />
   )
-  const given = met?.computer
   // Out of its egg it can be patted, as everywhere it is drawn large.
   const petting = usePetting(agent.id)
   return (
@@ -144,29 +156,21 @@ export function Hello({
       </Text>
       <Text tone="ink2" style={{ textAlign: "center" }}>
         {met !== undefined
-          ? `${
-              given === undefined
-                ? "Good to finally see you."
-                : given === null
-                  ? "I am not on your computer yet. When you want me to work there, switch it on under This Computer in the tray."
-                  : given.readOnly
-                    ? `I can read files on ${given.name} now, and nothing more.`
-                    : `I can work on ${given.name} now: run commands, read and change files, and use a browser.`
-            } What should we do first?`
+          ? "What should we do first?"
           : agent.name
             ? (agent.tagline ?? "What would you like to do?")
             : "Your agent is brand new. It has no name yet. Start talking and work out together who it is."}
       </Text>
       {met === undefined ? null : (
         <View style={{ alignItems: "center", gap: 8, marginTop: 12 }}>
-          {(given ? STARTERS_HERE : STARTERS).map((text) => (
+          {STARTERS.map((starter) => (
             <Button
-              key={text}
-              title={text}
+              key={starter.label}
+              title={starter.label}
               kind="line"
               size="medium"
               color={accent.ink}
-              onPress={() => onSay(text)}
+              onPress={() => onSay(starter.say)}
             />
           ))}
         </View>

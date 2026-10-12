@@ -10,6 +10,11 @@ import { Button, Field, haptic, Section, Text } from "@/ui"
 export type FrontDoor = {
   google: boolean
   github: boolean
+  /**
+   * Whether an email and a password are a way in. Where they are not, a provider is. A
+   * deployment from before there was a choice does not say, and takes them.
+   */
+  password?: boolean
   /** `waitlist`: anyone may make an account, and waits to be let in to the app itself. */
   signup: "open" | "invite" | "waitlist"
   /** Whether the deployment shows a landing page to someone who is not signed in. */
@@ -139,6 +144,8 @@ export function AccountForm({
 }) {
   const theme = useTheme()
   const { data: methods } = useFrontDoor(server)
+  // A deployment can leave signing in to GitHub or Google, and take no passwords at all.
+  const passwords = methods?.password !== false
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -232,66 +239,72 @@ export function AccountForm({
               onPress={() => void social("google")}
             />
           ) : null}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 6 }}>
-            <View
-              style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: theme.ink3 }}
-            />
-            <Text variant="footnote" tone="ink2">
-              or
-            </Text>
-            <View
-              style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: theme.ink3 }}
-            />
-          </View>
+          {passwords ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 6 }}>
+              <View
+                style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: theme.ink3 }}
+              />
+              <Text variant="footnote" tone="ink2">
+                or
+              </Text>
+              <View
+                style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: theme.ink3 }}
+              />
+            </View>
+          ) : null}
         </View>
       ) : null}
-      <Section>
-        {signingUp ? (
+      {passwords ? (
+        <Section>
+          {signingUp ? (
+            <Field
+              label={words.name}
+              value={name}
+              onChangeText={setName}
+              textContentType="name"
+              autoComplete="name"
+              returnKeyType="next"
+            />
+          ) : null}
           <Field
-            label={words.name}
-            value={name}
-            onChangeText={setName}
-            textContentType="name"
-            autoComplete="name"
+            label="Email"
+            placeholder="you@example.com"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
             returnKeyType="next"
           />
-        ) : null}
-        <Field
-          label="Email"
-          placeholder="you@example.com"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          autoComplete="email"
-          returnKeyType="next"
-        />
-        <Field
-          label="Password"
-          placeholder={signingUp ? "At least 8 characters" : "Required"}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          textContentType={signingUp ? "newPassword" : "password"}
-          autoComplete={signingUp ? "new-password" : "current-password"}
-          returnKeyType="go"
-          onSubmitEditing={() => void submit()}
-        />
-      </Section>
+          <Field
+            label="Password"
+            placeholder={signingUp ? "At least 8 characters" : "Required"}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            textContentType={signingUp ? "newPassword" : "password"}
+            autoComplete={signingUp ? "new-password" : "current-password"}
+            returnKeyType="go"
+            onSubmitEditing={() => void submit()}
+          />
+        </Section>
+      ) : null}
       <View style={{ paddingHorizontal: 16, gap: 12 }}>
         {error === undefined ? null : (
           <Text variant="subhead" tone="red" accessibilityRole="alert">
             {error}
           </Text>
         )}
-        <Button
-          title={signingUp ? words.signUp : words.signIn}
-          onPress={() => void submit()}
-          busy={busy === "form"}
-          disabled={busy !== undefined && busy !== "form"}
-        />
+        {passwords ? (
+          <Button
+            title={signingUp ? words.signUp : words.signIn}
+            onPress={() => void submit()}
+            busy={busy === "form"}
+            disabled={busy !== undefined && busy !== "form"}
+          />
+        ) : null}
       </View>
     </View>
   )
