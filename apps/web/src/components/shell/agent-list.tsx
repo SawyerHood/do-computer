@@ -68,6 +68,15 @@ function useNow(): number {
 }
 
 /**
+ * Words that are level with the mark or the buttons beside them. A line of text is as tall as
+ * its font says, and a font says so differently from one system to the next, so words centred
+ * as a line sit a pixel high on one and not on another. Trimmed to the height of a capital,
+ * what is centred is the letters themselves. The room above and below is so that what reaches
+ * past a capital, such as the tail of a "g", is not cut off where the words are cut short.
+ */
+export const LEVEL = "py-1 [text-box:trim-both_cap_alphabetic]"
+
+/**
  * The list in the sidebar: agents, and nothing under them. Choosing one is talking to it: it
  * opens the agent's main chat. Its side chats are reached from its strip. Each row says what
  * its agent last said or was told, and when. Someone who is in a team has every workspace of
@@ -202,14 +211,16 @@ function Section({
             className="flex min-w-0 items-center gap-1.5 rounded-md py-1 pr-1 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <WorkspaceMark workspace={workspace} me={me} className="size-4" />
-            <span className="truncate">{workspace.name}</span>
+            <span className={cn("truncate", LEVEL)}>{workspace.name}</span>
             <CaretDownIcon
               aria-hidden
               className={cn("size-3 shrink-0 transition-transform", folded && "-rotate-90")}
             />
           </button>
         ) : (
-          <h2 className="truncate text-[0.8125rem] font-medium text-muted-foreground">Agents</h2>
+          <h2 className={cn("truncate text-[0.8125rem] font-medium text-muted-foreground", LEVEL)}>
+            Agents
+          </h2>
         )}
         <span className="min-w-1 flex-1" />
         {folded ? (

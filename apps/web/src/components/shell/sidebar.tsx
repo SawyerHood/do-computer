@@ -28,7 +28,7 @@ import { authClient } from "@/lib/auth-client"
 import { forgetNotifications } from "@/lib/notifications"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
-import { AgentList } from "./agent-list.tsx"
+import { AgentList, LEVEL } from "./agent-list.tsx"
 
 type Me = { id: string; name: string; email: string; image?: string | null }
 
@@ -150,7 +150,9 @@ export function Sidebar({
       {/* Flush with the list under it: its ends are where the chosen agent's row has its own. */}
       <div className="flex items-center gap-2 px-2 pt-2.5 pb-0.5">
         <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">Do Computer</span>
+        <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold", LEVEL)}>
+          Do Computer
+        </span>
         {onCollapse === undefined ? null : (
           <Button
             variant="ghost"

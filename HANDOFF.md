@@ -2524,6 +2524,15 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       row's are, and so are the ends of the row at the top, which is now the app's name and
       the button that hides the sidebar. A row is as it was: the creature, the name and the
       agent's tagline, in the order the agents were made.
+    - **A heading's name is level with its mark by its letters, not by its line.** The owner
+      sent a picture in which the name sat a pixel and a half above the middle of the mark.
+      It did not here: a line of text is as tall as its font says, and that is read
+      differently from one system to the next. So the name, "Agents" and the app's name at
+      the top are trimmed to the height of a capital (`text-box`, the `LEVEL` class in
+      `agent-list.tsx`), and what is centred is the letters. A browser without `text-box`
+      (Firefox, at the time) lays them out as before. Checked here by giving the name a font
+      whose line is laid out higher, which moved it 1.25px without the trim and not at all
+      with it; not seen on the owner's machine.
     - **What moved.** There is no workspace menu: nothing is switched between. A heading has
       the workspace's own menu (its settings, and inviting people to a team) and a + that
       makes an agent in that workspace. New team and the invitations waiting for the user are
