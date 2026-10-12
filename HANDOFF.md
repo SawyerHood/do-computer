@@ -2816,6 +2816,23 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       does. **Not checked:** a build in Expo's cloud, which needs the owner's Apple sign-in,
       and so a notification arriving on a phone, or a tap on one opening its chat.
 
+68. **First things found on a real phone: dictation, and the list's columns** (2026-10-12;
+    `apps/mobile/src/lib/device-fetch.ts`, `apps/mobile/app/(app)/index.tsx`). The first build
+    installed on the owner's iPhone.
+    - **Dictation said `Audio of type "null" cannot be transcribed.`** Expo's fetch, which the
+      app uses on a device because it can stream a reply, sends a blob under the blob's own
+      type and drops the Content-Type the request names. A file read from the phone's disk is
+      a blob with no type. `keepingType` wraps that fetch and hands over the blob's bytes, so
+      the named type stands. The same path carries a picked attachment and a file put in the
+      library, which would have arrived with no type too.
+    - **The agents list had three left edges:** a workspace's name, an agent's name and
+      "New team" each started somewhere else. A workspace's arrow and tile now take the
+      creatures' column, and all three names start at one place (`EDGE`, `FACE`, `GAP`). The
+      arrow at the end of a row is centred on the time beside it.
+    - **Checked:** a test of `keepingType`, the app's other tests, and the browser tests; the
+      list looked at in the browser build with a team. **Not checked:** either of them on the
+      phone, which needs the next build.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

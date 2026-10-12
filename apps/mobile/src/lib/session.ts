@@ -5,6 +5,7 @@ import { fetch as expoFetch } from "expo/fetch"
 import * as SecureStore from "expo-secure-store"
 import { atom, getDefaultStore } from "jotai"
 import { AppState, Platform } from "react-native"
+import { keepingType } from "./device-fetch.ts"
 import { storage } from "./storage.ts"
 
 const SERVER_KEY = "dc.server"
@@ -119,7 +120,7 @@ export function sessionFor(server: string): Session {
   const client = createClient({
     baseUrl: server,
     // The platform fetch on a device cannot stream a response body; Expo's can.
-    fetch: native ? (expoFetch as unknown as typeof fetch) : undefined,
+    fetch: native ? keepingType(expoFetch as unknown as typeof fetch) : undefined,
     credentials: native ? "omit" : "include",
     headers: async (): Promise<Record<string, string>> => {
       const cookie = await readCookie(auth)

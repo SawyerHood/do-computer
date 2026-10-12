@@ -249,7 +249,11 @@ export default function Agents() {
                 <Text
                   variant="subhead"
                   tone="ink2"
-                  style={{ paddingHorizontal: 20, paddingVertical: 10 }}
+                  style={{
+                    paddingLeft: EDGE + FACE + GAP,
+                    paddingRight: EDGE,
+                    paddingVertical: 10,
+                  }}
                 >
                   {workspace.kind === "team"
                     ? "This team has no agents yet."
@@ -292,13 +296,18 @@ export default function Agents() {
             </Pressable>
           ))}
           {empty ? null : (
-            <Button
-              kind="plain"
-              title="New team"
-              icon="people"
+            <Pressable
+              accessibilityRole="button"
               onPress={() => router.push("/new-team")}
-              style={{ alignSelf: "flex-start" }}
-            />
+              style={({ pressed }) => [styles.newTeam, { opacity: pressed ? 0.5 : 1 }]}
+            >
+              <View style={{ width: FACE, alignItems: "center" }}>
+                <Icon name="people" size={22} color={theme.tint} weight="medium" />
+              </View>
+              <Text tone="tint" weight="600">
+                New team
+              </Text>
+            </Pressable>
           )}
         </View>
       ) : null}
@@ -337,12 +346,15 @@ function WorkspaceHeader({
         accessibilityLabel={name}
         accessibilityState={{ expanded: !shut }}
         onPress={onToggle}
-        style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}
+        style={{ flexDirection: "row", alignItems: "center", gap: GAP, flex: 1, minWidth: 0 }}
       >
-        <View style={{ transform: [{ rotate: shut ? "-90deg" : "0deg" }] }}>
-          <Icon name="chevronDown" size={13} color={theme.ink2} weight="bold" />
+        {/* The arrow and the tile take the creatures' column, so the name starts where theirs do. */}
+        <View style={styles.lead}>
+          <View style={{ transform: [{ rotate: shut ? "-90deg" : "0deg" }] }}>
+            <Icon name="chevronDown" size={13} color={theme.ink2} weight="bold" />
+          </View>
+          <Tile name={name} color={team ? workspace.color : theme.tint} size={24} />
         </View>
-        <Tile name={name} color={team ? workspace.color : theme.tint} size={22} />
         <Text variant="title3" weight="700" numberOfLines={1} style={{ flexShrink: 1 }}>
           {name}
         </Text>
@@ -452,12 +464,12 @@ function AgentRow({
       style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.fill } : null]}
     >
       {unread ? <View style={[styles.unread, { backgroundColor: theme.tint }]} /> : null}
-      <View style={{ width: 52, height: 52 }}>
+      <View style={{ width: FACE, height: FACE }}>
         <Avatar
           avatar={agent.avatar}
           seed={agent.id}
           outfit={agent.outfit}
-          size={52}
+          size={FACE}
           hatched={agent.hatched}
           mood={mood}
         />
@@ -492,10 +504,13 @@ function AgentRow({
             {name}
           </Text>
           {together.length > 0 ? <Faces people={together} size={18} ring={theme.page} /> : null}
-          <Text variant="subhead" tone="ink2">
-            {at}
-          </Text>
-          <Icon name="chevronRight" size={12} color={theme.ink3} weight="bold" />
+          {/* The arrow is centred on the time, which sits on the name's baseline. */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text variant="subhead" tone="ink2">
+              {at}
+            </Text>
+            <Icon name="chevronRight" size={12} color={theme.ink3} weight="bold" />
+          </View>
         </View>
         <View style={{ flexDirection: "row", gap: 6, minHeight: 40 }}>
           {latest?.kind === "scheduled" ? (
@@ -559,22 +574,43 @@ function AgentRow({
   )
 }
 
+/**
+ * The list's columns: the page's margin, a creature, and then the words. A workspace's name, an
+ * agent's and "New team" all start at the same place, and what is on the right ends at one.
+ */
+const EDGE = 16
+const FACE = 52
+const GAP = 12
+
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    paddingLeft: 16,
-    paddingRight: 18,
+    paddingHorizontal: EDGE,
     paddingTop: 20,
     paddingBottom: 6,
   },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 14 },
+  lead: {
+    width: FACE,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  newTeam: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GAP,
+    minHeight: 44,
+    alignSelf: "flex-start",
+    paddingRight: EDGE,
+  },
+  row: { flexDirection: "row", alignItems: "center", gap: GAP, paddingLeft: EDGE },
   words: {
     flex: 1,
     minWidth: 0,
     paddingVertical: 9,
-    paddingRight: 16,
+    paddingRight: EDGE,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   unread: {
