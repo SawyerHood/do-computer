@@ -1,5 +1,10 @@
 import { readCaller } from "@durable-computer/agent"
-import type { Presence, PresenceEvent, PresenceUpdate } from "@durable-computer/protocol"
+import {
+  isPersonalWorkspace,
+  type Presence,
+  type PresenceEvent,
+  type PresenceUpdate,
+} from "@durable-computer/protocol"
 import type { Actor, ActorHost } from "@durable-computer/runtime"
 
 type Row = {
@@ -138,3 +143,37 @@ export function createPresenceActor(host: ActorHost): Actor {
     },
   }
 }
+
+/**
+ * A person's own feed: what the agents they can use are up to, as it happens. One actor per
+ * person. Each of their open tabs holds a WebSocket here, and whatever the gateway tells the
+ * actor goes to all of them as it came. It keeps nothing: what is said while no tab is connected
+ * is said to nobody, and a tab asks for the list of agents each time it connects. The actor
+ * trusts its gateway, which has checked that the caller is the person whose feed this is.
+ */
+export function createFeedActor(host: ActorHost): Actor {
+  return {
+    async fetch(request) {
+      const { pathname } = new URL(request.url)
+      if (request.method === "POST" && pathname === "/tell") {
+        const frame = await request.text()
+        for (const socket of host.sockets()) socket.send(frame)
+        return Response.json({ ok: true })
+      }
+      return Response.json({ error: "Not found" }, { status: 404 })
+    },
+
+    async alarm() {},
+
+    socketOpen(socket, request) {
+      if (readCaller(request) === undefined) socket.close(4401, "Sign in first")
+    },
+  }
+}
+
+/**
+ * The actor at a presence address. A team's says who is where. A personal workspace has nobody
+ * to be present for, so its address is its owner's feed.
+ */
+export const createLiveActor = (host: ActorHost): Actor =>
+  isPersonalWorkspace(host.name) ? createFeedActor(host) : createPresenceActor(host)

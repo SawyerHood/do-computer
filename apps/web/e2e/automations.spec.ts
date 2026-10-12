@@ -27,7 +27,9 @@ test("a scheduled task runs on its own and reports back to the chat it was asked
   // Nothing else is sent: the report arrives by itself, live.
   await expect(page.getByText("Scheduled: Magic words")).toBeVisible({ timeout: 15_000 })
   await expect(
-    page.getByText(/You said: \[You are running the scheduled task "Magic words"/),
+    page
+      .getByRole("main")
+      .getByText(/You said: \[You are running the scheduled task "Magic words"/),
   ).toBeVisible()
 
   await tab(page, "Automations").click()
@@ -117,7 +119,7 @@ test("opening the agent lands on its main chat, whatever was used last", async (
   await newChat(page)
   await composer(page).fill("Chat to put away")
   await page.keyboard.press("Enter")
-  await expect(page.getByText("You said: Chat to put away")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Chat to put away")).toBeVisible()
   await composer(page).fill(
     '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Look around","title":"Night watch"}',
   )
@@ -273,7 +275,7 @@ test("the agent saves a skill, and it can be read, switched off and deleted", as
     '/tool skill {"action":"create","name":"morning-brief","description":"Put together the morning brief.","content":"1. Check the calendar"}',
   )
   await page.keyboard.press("Enter")
-  await expect(page.getByText('Saved skill "morning-brief".')).toBeVisible()
+  await expect(page.getByRole("main").getByText('Saved skill "morning-brief".')).toBeVisible()
 
   await openSettings(page, "Skills")
   const card = page.getByRole("listitem").filter({ hasText: "morning-brief" })

@@ -81,6 +81,8 @@ export type SecretsOptions = {
   readonly addConnector?: (input: AddConnectorRequest, context: Context) => Promise<ConnectorResult>
   /** Called when the agent has asked, to tell the person wherever they are. */
   readonly onRequest?: (request: SecretRequest) => void
+  /** Called when something it asked for waits on nobody any more: given, or declined. */
+  readonly onSettled?: () => void
 }
 
 const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
@@ -152,6 +154,12 @@ export class Secrets {
     return this.#harness
   }
 
+  /** Whether anything it asked for is still waiting to be typed in. */
+  async asking(context: Context): Promise<boolean> {
+    const state = await this.#require().snapshot(SecretsDoc, context)
+    return Object.values(state?.requests ?? {}).some((request) => request.status === "pending")
+  }
+
   async pending(context: Context): Promise<SecretRequest[]> {
     const state = await this.#require().snapshot(SecretsDoc, context)
     return Object.entries(state?.requests ?? {})
@@ -217,7 +225,7 @@ export class Secrets {
     context: Context,
   ): Promise<Stored | undefined> {
     const now = this.#options.now()
-    return this.#require().commit(async (tx) => {
+    const request = await this.#require().commit(async (tx) => {
       const doc = await tx.doc(SecretsDoc)
       const found = own(doc.requests, id)
       if (found === undefined || found.status !== "pending") return undefined
@@ -230,6 +238,8 @@ export class Secrets {
       for (const [old] of answered.slice(MAX_ANSWERED)) delete doc.requests[old]
       return settled
     }, context)
+    if (request !== undefined) this.#options.onSettled?.()
+    return request
   }
 
   async #find(id: string, context: Context): Promise<Stored> {

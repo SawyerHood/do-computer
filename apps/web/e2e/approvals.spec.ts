@@ -73,6 +73,6 @@ test("a reply that fails is said plainly, with the provider's answer behind Deta
 
   // Trying again asks again, and the echo model answers this time.
   await failure.getByRole("button", { name: "Try again" }).click()
-  await expect(page.getByText("You said: Try again")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Try again")).toBeVisible()
   await expect(failure.getByRole("button", { name: "Try again" })).toHaveCount(0)
 })

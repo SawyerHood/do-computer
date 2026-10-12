@@ -263,6 +263,17 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       admitted_by TEXT
     )`,
   ],
+  [
+    // When each person last looked at an agent, which is what says whether it has something new
+    // for them. Each person has their own, so one looking does not count for the rest of a team.
+    // No row is someone who has not looked since this was kept.
+    `CREATE TABLE dc_agent_seen (
+      user_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      seen_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, agent_id)
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

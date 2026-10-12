@@ -2,7 +2,9 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
+  AgentActivity,
   AgentEvent,
+  AgentSummary,
   ApprovalsState,
   ChatState,
   ChatSummary,
@@ -30,8 +32,11 @@ type World = {
   namespace: NodeActorNamespace
   faux: ReturnType<typeof fauxProvider>
   notifications: AgentNotification[]
+  /** Everything `onActivity` was told, in the order it was told. */
+  activity: Told[]
   mcp: ReturnType<typeof fakeMcp>
 }
+type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 afterEach(async () => {
   for (const world of worlds.splice(0)) await world.namespace.close().catch(() => {})
@@ -47,6 +52,7 @@ function open(): World {
   const models = createModels()
   models.setProvider(faux.provider)
   const notifications: AgentNotification[] = []
+  const activity: Told[] = []
   const mcp = fakeMcp()
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
@@ -62,10 +68,11 @@ function open(): World {
         sandbox: () => createLocalProcessSandbox(),
         connectorFetch: mcp.fetch,
         onNotify: (notification) => notifications.push(notification),
+        onActivity: (change) => activity.push(change),
       }),
   })
   namespace.start()
-  const world = { namespace, faux, notifications, mcp }
+  const world = { namespace, faux, notifications, activity, mcp }
   worlds.push(world)
   return world
 }
@@ -100,6 +107,15 @@ async function settled(world: World, chatId: string): Promise<ChatState> {
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
   throw new Error("The chat did not settle")
+}
+
+async function until<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const value = await read()
+    if (done(value)) return value
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`Timed out; last value: ${JSON.stringify(await read())}`)
 }
 
 async function say(world: World, chatId: string, text: string): Promise<ChatState> {
@@ -378,6 +394,77 @@ describe("approval rules", () => {
       (await call<ApprovalsState>(world, "/approvals/rules", "PATCH", { "tool:bash": "allow" }))
         .rules,
     ).toEqual(ASKS)
+  })
+
+  it("show on the agent that it is asking, with what it asked, until it is answered", async () => {
+    const world = open()
+    const chat = await setup(world)
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
+    const agent = async () => (await call<{ agent: AgentSummary }>(world, "/")).agent
+    expect(await agent()).toMatchObject({ working: false, asking: false })
+
+    world.faux.setResponses(useTool("bash", { command: "echo held" }, "May I run a command?"))
+    await say(world, chat.id, "run it")
+    // What it asked stays its latest line: the reply that ended its turn does not take its place.
+    const asking = await until(agent, (found) => found.asking === true && !found.working)
+    expect(asking.latest).toMatchObject({
+      kind: "asked",
+      text: "Run commands: echo held",
+      chatId: chat.id,
+    })
+
+    const { pending } = await call<ApprovalsState>(world, "/approvals")
+    world.faux.setResponses(useTool("bash", { command: "echo held" }, "It printed held."))
+    await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "once" })
+    expect((await agent()).asking).toBe(false)
+    // What it says once it has its answer is its latest line then.
+    const after = await until(agent, (found) => found.latest?.kind === "reply" && !found.working)
+    expect(after.latest).toMatchObject({ text: "It printed held.", chatId: chat.id })
+  })
+
+  it("tell the hook that the agent is asking, with what it asked, and when it no longer is", async () => {
+    const world = open()
+    const chat = await setup(world)
+    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
+    const last = async () => world.activity.at(-1)
+
+    world.faux.setResponses(useTool("bash", { command: "echo held" }, "May I run a command?"))
+    await call(world, `/chats/${chat.id}/messages`, "POST", { text: "run it", requestId: "r1" })
+    // Nobody reads the agent meanwhile: it says so itself, and that its turn is over.
+    expect(await until(last, (told) => told?.asking === true && !told.working)).toEqual({
+      agentId: "agent-1",
+      latest: {
+        kind: "asked",
+        at: expect.any(Number),
+        text: "Run commands: echo held",
+        chatId: chat.id,
+      },
+      working: false,
+      asking: true,
+    })
+
+    // Refused, it is asking for nothing, and what it says then is its line.
+    const { pending } = await call<ApprovalsState>(world, "/approvals")
+    world.faux.setResponses([fauxAssistantMessage("Then I will not.")])
+    const answered = world.activity.length
+    await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "deny" })
+    expect(
+      await until(last, (told) => told?.latest?.kind === "reply" && !told.working),
+    ).toMatchObject({ asking: false, latest: { text: "Then I will not." } })
+    const since = world.activity.slice(answered)
+    expect(since[0]).toMatchObject({ asking: false, latest: { kind: "asked" } })
+    expect(since.every((told) => !told.asking)).toBe(true)
+
+    // Asked again and given its OK, the same.
+    world.faux.setResponses(useTool("bash", { command: "echo held" }, "May I run a command?"))
+    await call(world, `/chats/${chat.id}/messages`, "POST", { text: "do run it", requestId: "r2" })
+    await until(last, (told) => told?.asking === true && !told.working)
+    const again = await call<ApprovalsState>(world, "/approvals")
+    world.faux.setResponses(useTool("bash", { command: "echo held" }, "It printed held."))
+    await call(world, `/approvals/${again.pending[0]!.id}`, "POST", { decision: "once" })
+    expect(
+      await until(last, (told) => told?.latest?.kind === "reply" && !told.working),
+    ).toMatchObject({ asking: false, latest: { text: "It printed held." } })
   })
 
   it("tell open clients when a request appears", async () => {

@@ -1,7 +1,13 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ChatState, ChatSummary, ScheduleSummary } from "@durable-computer/protocol"
+import type {
+  AgentActivity,
+  AgentSummary,
+  ChatState,
+  ChatSummary,
+  ScheduleSummary,
+} from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
 import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -18,7 +24,10 @@ type World = {
   faux: ReturnType<typeof fauxProvider>
   reports: AgentNotification[]
   errors: unknown[]
+  /** Everything `onActivity` was told, in the order it was told. */
+  activity: Told[]
 }
+type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
 function open(directory: string, now?: () => number): World {
@@ -27,6 +36,7 @@ function open(directory: string, now?: () => number): World {
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
   const errors: unknown[] = []
+  const activity: Told[] = []
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -42,11 +52,12 @@ function open(directory: string, now?: () => number): World {
         sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
         onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
+        onActivity: (change) => activity.push(change),
       }),
     onError: (error) => errors.push(error),
   })
   namespace.start()
-  const world = { namespace, faux, reports, errors }
+  const world = { namespace, faux, reports, errors, activity }
   worlds.push(world)
   return world
 }
@@ -140,6 +151,12 @@ describe("schedules", () => {
       },
     ])
     const asked = await say(world, chat.id, "check the weather shortly")
+    // The turn that made the schedule is over, as the hook was told.
+    await until(
+      async () => world.activity.at(-1),
+      (told) => told?.working === false,
+    )
+    const rested = world.activity.length
     expect(
       asked.messages.flatMap((m) => m.parts).find((part) => part.type === "tool"),
     ).toMatchObject({
@@ -185,6 +202,25 @@ describe("schedules", () => {
         chatId: chat.id,
       },
     ])
+    // What the run came to is the agent's latest line, under the task's title.
+    const { agent } = await until(
+      () => call<{ agent: AgentSummary }>(world, "/"),
+      (state) => state.agent.latest?.kind === "scheduled",
+    )
+    expect(agent.latest).toMatchObject({
+      from: "Weather check",
+      text: "Sunny, 21°C.",
+      chatId: chat.id,
+    })
+    // Nobody wrote to the agent to set the run going. The hook was told that it was at work
+    // all the same, and then that it was not, with what the run came to.
+    expect(
+      await until(
+        async () => world.activity.at(-1),
+        (told) => told?.latest?.kind === "scheduled" && !told.working,
+      ),
+    ).toMatchObject({ latest: { from: "Weather check", text: "Sunny, 21°C." } })
+    expect(world.activity.slice(rested).some((told) => told.working)).toBe(true)
     expect(world.errors).toEqual([])
   })
 
