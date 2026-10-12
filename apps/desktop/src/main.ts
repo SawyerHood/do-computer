@@ -17,6 +17,7 @@ import { pathToFileURL } from "node:url"
 import {
   app,
   BrowserWindow,
+  dialog,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
   ipcMain,
@@ -47,6 +48,8 @@ import {
   mayUseBridge,
   type PageInfo,
   provider,
+  type ScreenAnswer,
+  screenRefusal,
   type ShareAnswer,
   shareAnswer,
   sharingNow,
@@ -56,7 +59,7 @@ import { ScreenService } from "./screen.ts"
 import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
 import { isWebAddress, onServer, serverAddress } from "./server.ts"
 import { DEFAULTS, loadSettings, type Settings, saveSettings } from "./settings.ts"
-import { headline } from "./status.ts"
+import { headline, type Sharing } from "./status.ts"
 import {
   afterUpdate,
   mayRestart,
@@ -171,17 +174,22 @@ const abilities = () => ({
   browser: settings.browser && !settings.readOnly,
 })
 
+/** What macOS has still to allow before the screen can be used here, by the names it gives them. */
+function unpermitted(): string[] {
+  if (!MAC || FAKE_SCREEN) return []
+  const allowed = permissions()
+  return [
+    ...(allowed.accessibility ? [] : ["Accessibility"]),
+    ...(allowed.screenRecording ? [] : ["Screen Recording"]),
+  ]
+}
+
 /** Why an agent may not use the screen just now, in words it can pass on to its owner. */
 function screenForbidden(): string | undefined {
   if (!abilities().screen) {
     return "This computer does not let agents use its screen. Its owner can switch that on in the Do Computer app on that computer, under This Computer."
   }
-  if (!MAC || FAKE_SCREEN) return undefined
-  const allowed = permissions()
-  const missing = [
-    ...(allowed.accessibility ? [] : ["Accessibility"]),
-    ...(allowed.screenRecording ? [] : ["Screen Recording"]),
-  ]
+  const missing = unpermitted()
   if (missing.length === 0) return undefined
   return `macOS has not let Do Computer use this Mac's screen yet. Ask its owner to allow Do Computer under ${missing.join(" and ")} in System Settings, Privacy & Security (the Do Computer app on that Mac has a button for each, under This Computer), then try again.`
 }
@@ -677,25 +685,76 @@ async function signIn(asked: unknown): Promise<SignInAnswer> {
   return answer
 }
 
-/** What the daemon makes of being started, once it has got far enough to say. */
-function paired(): Promise<ShareAnswer> {
+/** What the daemon comes to, once it has got far enough for `read` to say, or `late` if it does not. */
+function daemonComesTo<Answer>(
+  read: (sharing: Sharing) => Answer | undefined,
+  late: Answer,
+): Promise<Answer> {
   return new Promise((resolve) => {
-    const settle = (answer: ShareAnswer) => {
+    const settle = (answer: Answer) => {
       clearTimeout(timer)
       waiting.delete(look)
       resolve(answer)
     }
     const look = () => {
-      const answer = shareAnswer(runner?.sharing ?? { state: "off" })
+      const answer = read(runner?.sharing ?? { state: "off" })
       if (answer !== undefined) settle(answer)
     }
-    const timer = setTimeout(
-      () => settle({ error: "This computer took too long to connect. Try again." }),
-      SHARE_TIMEOUT_MS,
-    )
+    const timer = setTimeout(() => settle(late), SHARE_TIMEOUT_MS)
     waiting.add(look)
     look()
   })
+}
+
+/** What the daemon makes of being started, once it has got far enough to say. */
+const paired = (): Promise<ShareAnswer> =>
+  daemonComesTo(shareAnswer, { error: "This computer took too long to connect. Try again." })
+
+/** The question about the screen that is before its owner now, if one is. */
+let askingForScreen: Promise<ScreenAnswer> | undefined
+
+/**
+ * A page asked for agents to be let use the screen. Whether they may is its owner's to say, so
+ * the app asks them, in a question that the page neither draws nor can answer.
+ */
+async function askForScreen(): Promise<ScreenAnswer> {
+  const refusal = screenRefusal({
+    unavailable: screenUnavailable(),
+    sharing: sharingNow(runner?.sharing ?? { state: "off" }),
+    readOnly: settings.readOnly,
+  })
+  if (refusal !== undefined) return { allowed: false, why: refusal }
+  if (!settings.screen) {
+    const question = {
+      type: "question" as const,
+      message: "Let agents use this computer’s screen?",
+      detail:
+        "They would see the screen and use the mouse and keyboard, as you. You can watch them, pause them and stop them, and switch this off again under This Computer.",
+      buttons: ["Allow", "Not Now"],
+      defaultId: 0,
+      cancelId: 1,
+    }
+    const { response } = alive(mainWindow)
+      ? await dialog.showMessageBox(mainWindow, question)
+      : await dialog.showMessageBox(question)
+    if (response !== 0) return { allowed: false }
+    remember({ screen: true })
+    changed()
+    // The daemon says what it can do as it connects, so it connects again to say otherwise.
+    await runner?.restart()
+    const connected = await daemonComesTo(
+      (sharing) => (sharing.state === "connected" ? true : undefined),
+      false,
+    )
+    if (!connected) {
+      return { allowed: false, why: "This computer took too long to connect. Try again." }
+    }
+  }
+  const missing = unpermitted()
+  if (missing.length === 0) return { allowed: true }
+  // The window about this computer says what macOS must allow, with a button for each.
+  showComputer()
+  return { allowed: true, missing }
 }
 
 /**
@@ -736,6 +795,14 @@ function listenToServer(): void {
       remember({ welcomed: true })
       if (typeof options?.openAtLogin === "boolean") setOpenAtLogin(options.openAtLogin)
       changed()
+    }),
+  )
+  ipcMain.handle(
+    CHANNELS.screen,
+    served(() => {
+      // One question at a time, however often a page asks.
+      askingForScreen ??= askForScreen().finally(() => (askingForScreen = undefined))
+      return askingForScreen
     }),
   )
   ipcMain.handle(CHANNELS.icon, served(showIcon))

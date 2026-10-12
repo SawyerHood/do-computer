@@ -4,64 +4,30 @@ import {
   type ModelProvider,
   personalWorkspaceId,
 } from "@durable-computer/protocol"
-import { CaretDownIcon, CaretRightIcon, CheckIcon } from "@phosphor-icons/react"
+import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { Loads } from "@/components/loads"
 import { CardsPlaceholder } from "@/components/placeholders"
-import { ModelProviderList, ModelSignIn, type Scope } from "@/components/settings/models"
+import { ModelProviderList, ModelSignIn, type Scope, short } from "@/components/settings/models"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { client } from "@/lib/client"
 import { modelProvidersKey, workspaceModelsKey } from "@/lib/collections"
 import { cn } from "@/lib/utils"
-
-/** As many models of one place as the card lists. The rest are in the agent's settings. */
-const SHOWN = 6
-/** As many of a provider's models as are listed where it suggests none itself. */
-const UNSUGGESTED = 4
-
-/** Models that come from one place, under what that place is called to the person. */
-type Source = { key: string; label: string; tag: string; models: ModelOption[] }
-
-/** The few of a place's models that are worth a line each: the suggested ones, where it has any. */
-function few(models: readonly ModelOption[], keep: string): ModelOption[] {
-  if (models.length <= SHOWN) return [...models]
-  const suggested = models.filter((model) => model.recommended === true)
-  const shown = (suggested.length === 0 ? models.slice(0, UNSUGGESTED) : suggested).slice(0, SHOWN)
-  // The one it is set to is never left out of what it can be set to.
-  const kept = models.find((model) => model.id === keep)
-  return kept === undefined || shown.includes(kept) ? shown : [kept, ...shown.slice(0, SHOWN - 1)]
-}
-
-/**
- * What there is to choose from, by where it comes from: what the deployment offers everyone,
- * then each provider the person has signed in to.
- */
-function sources(models: readonly ModelOption[], current: string): Source[] {
-  const own = models.filter((model) => model.signIn === undefined)
-  const found = new Map<string, Source>()
-  for (const model of models) {
-    if (model.signIn === undefined) continue
-    const kind = model.signIn.subscription ? "subscription" : "key"
-    const key = `${model.provider ?? ""}/${kind}`
-    const source = found.get(key) ?? {
-      key,
-      label: `Your ${model.provider ?? "own"} ${kind}`,
-      tag: model.signIn.subscription ? "On your subscription" : "On your key",
-      models: [],
-    }
-    source.models.push(model)
-    found.set(key, source)
-  }
-  return [
-    ...(own.length === 0 ? [] : [{ key: "own", label: "Built in", tag: "Built in", models: own }]),
-    ...found.values(),
-  ].map((source) => ({ ...source, models: few(source.models, current) }))
-}
+import { type Source, sources } from "@/lib/welcome-models"
 
 /** What a model is called, without the maker's name that a catalog of many makers puts first. */
 const called = (model: ModelOption) => model.name.replace(/^[^:]{1,24}:\s+/, "")
+
+type Account = { provider: ModelProvider; method: ModelLoginMethod }
 
 /** A provider's sign-in with an account, by what the account is called. */
 const account = (providers: readonly ModelProvider[] | undefined, called: RegExp, id?: string) => {
@@ -73,10 +39,88 @@ const account = (providers: readonly ModelProvider[] | undefined, called: RegExp
   return undefined
 }
 
+/** A line of the card: somewhere to think from that can be chosen, or one to sign in to first. */
+type Choice =
+  { source: Source; title: string } | { says: string; found: Account; source?: undefined }
+
+const ROW = "flex w-full items-center gap-3 px-3 py-2.5 text-left not-last:border-b"
+
 /**
- * What the agent thinks with, asked while it is still in its egg: one of the models the
- * deployment offers, or one of the person's own, which they can sign in to from here. ChatGPT
- * and Claude are a press away, and every other provider and key is behind one more.
+ * Somewhere the agent can think from, as one of the card's choices: what it is called, the
+ * model of its that would be used small under it, and a way to another of its models.
+ */
+function From({
+  title,
+  source,
+  model,
+  first,
+  onModel,
+}: {
+  title: string
+  source: Source
+  /** The one of its models that choosing it would use. */
+  model: ModelOption
+  /** Whether it is what the card opens on. */
+  first: boolean
+  onModel: (id: string) => void
+}) {
+  const id = useId()
+  return (
+    <label className={cn(ROW, "cursor-pointer hover:bg-accent/60 has-data-checked:bg-accent/60")}>
+      <RadioGroupItem
+        value={source.key}
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-model`}
+        {...(first ? { "data-first": true } : {})}
+      />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span id={`${id}-title`} className="truncate text-sm font-medium">
+          {title}
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <span id={`${id}-model`} className="truncate">
+            {called(model)}
+          </span>
+          {source.models.length < 2 ? null : (
+            <>
+              <span aria-hidden>·</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label={`Change the model of ${title}`}
+                  className="shrink-0 cursor-pointer rounded-sm underline decoration-muted-foreground/40 underline-offset-2 outline-none hover:text-foreground hover:decoration-current focus-visible:ring-3 focus-visible:ring-ring/30"
+                >
+                  Change
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" className="w-auto min-w-56">
+                  <DropdownMenuRadioGroup
+                    aria-label={`The model of ${title}`}
+                    value={model.id}
+                    onValueChange={(next) => onModel(String(next))}
+                  >
+                    {source.models.map((one) => (
+                      <DropdownMenuRadioItem key={one.id} value={one.id}>
+                        {called(one)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+        </span>
+      </span>
+      {source.tag === undefined ? null : (
+        <span className="shrink-0 text-xs text-muted-foreground">{source.tag}</span>
+      )}
+    </label>
+  )
+}
+
+/**
+ * What the agent thinks with, asked while it is still in its egg, as a few choices: what the
+ * deployment includes, a ChatGPT or a Claude account of the person's own, which they sign in
+ * to from here, and every other provider and key behind one more press. Each says small which
+ * of its models would be used, with a way to another.
  */
 export function Thinking({
   meId,
@@ -112,15 +156,15 @@ export function Thinking({
     queryKey: modelProvidersKey(workspace.id),
     queryFn: () => client.workspace(workspace.id).modelProviders(),
   })
-  const [chosen, setChosen] = useState(current)
+  /** Where it thinks from, once that was chosen or signed in to. */
+  const [from, setFrom] = useState<string>()
+  /** The model of each place that was changed from the one it starts on. */
+  const [changed, setChanged] = useState<Record<string, string>>({})
   const [more, setMore] = useState(false)
-  const [signingIn, setSigningIn] = useState<{
-    provider: ModelProvider
-    method: ModelLoginMethod
-  }>()
+  const [signingIn, setSigningIn] = useState<Account>()
 
   const offered = useMemo(() => sources(models ?? [], current), [models, current])
-  // Signing in to something is saying what to think with: the first of its models is chosen.
+  // Signing in to something is saying what to think with: it is chosen, on its first model.
   const known = useRef<Set<string> | undefined>(undefined)
   useEffect(() => {
     if (models === undefined) return
@@ -129,35 +173,57 @@ export function Thinking({
       (source) => known.current !== undefined && !known.current.has(source.key),
     )
     known.current = keys
-    if (fresh?.models[0] === undefined) return
-    setChosen(fresh.models[0].id)
+    if (fresh === undefined) return
+    setFrom(fresh.key)
     // What was opened to sign in has done what it was opened for.
     setMore(false)
   }, [models, offered])
 
-  const listed = offered.flatMap((source) => source.models)
-  const picked = listed.find((model) => model.id === chosen)
-  // What it was set to is gone, as when a sign-in was undone: back to what is still there.
-  useEffect(() => {
-    if (models !== undefined && picked === undefined && listed[0] !== undefined) {
-      setChosen(listed[0].id)
-    }
-  }, [models, picked, listed])
+  // What was chosen may be gone, as when a sign-in was undone: then it is where the agent's
+  // own model comes from, or the first there is.
+  const chosen =
+    offered.find((source) => source.key === from) ??
+    offered.find((source) => source.models.some((model) => model.id === current)) ??
+    offered[0]
+  const modelOf = (source: Source) =>
+    source.models.find((model) => model.id === changed[source.key]) ??
+    source.models.find((model) => model.id === source.first)!
+  const picked = chosen === undefined ? undefined : modelOf(chosen)
 
   // The one chosen is in sight, in a list that is longer than it shows.
   const list = useRef<HTMLFormElement>(null)
   // biome-ignore lint/correctness/useExhaustiveDependencies: each time another is chosen
   useEffect(() => {
     list.current?.querySelector('[aria-checked="true"]')?.scrollIntoView({ block: "nearest" })
-  }, [picked?.id])
+  }, [chosen?.key])
 
-  const quick = [
+  // What is included first, then the two accounts most people have, each in one place whether
+  // or not it is signed in to yet, then whatever else was signed in to.
+  const choices: Choice[] = []
+  const included = offered.find((source) => source.key === "own")
+  if (included !== undefined) choices.push({ source: included, title: included.label })
+  for (const { says, found } of [
     { says: "ChatGPT", found: account(providers, /chatgpt/i) },
     { says: "Claude", found: account(providers, /claude/i, "anthropic") },
-  ]
+  ]) {
+    if (found === undefined) continue
+    const { signedIn } = found.provider
+    const source = offered.find((one) => one.provider === found.provider.name)
+    if (source !== undefined) {
+      // Signed in to with a key, it is the provider that is, not the subscription.
+      choices.push({ source, title: signedIn?.type === "oauth" ? says : source.label })
+    } else if (signedIn === null) {
+      choices.push({ says, found })
+    }
+  }
+  for (const source of offered) {
+    if (!choices.some((choice) => choice.source === source)) {
+      choices.push({ source, title: source.label })
+    }
+  }
 
   return (
-    <div className="mt-3 flex flex-col gap-3">
+    <div className="mt-3 flex flex-col gap-2.5">
       {models === undefined ? (
         <CardsPlaceholder cards={1} />
       ) : (
@@ -177,86 +243,67 @@ export function Thinking({
             />
           }
           aria-label="What it thinks with"
-          value={picked?.id ?? ""}
-          onValueChange={(id) => setChosen(String(id))}
+          value={chosen?.key ?? ""}
+          onValueChange={(key) => setFrom(String(key))}
           className="max-h-[min(15rem,30vh)] gap-0 overflow-y-auto overscroll-contain rounded-xl border"
         >
-          {offered.map((source, place) => (
-            <div key={source.key} role="group" aria-label={source.label} className="contents">
-              {offered.length > 1 ? (
-                <p
-                  className={cn(
-                    "sticky top-0 z-10 border-b bg-secondary px-3 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase",
-                    place > 0 && "border-t",
-                  )}
-                >
-                  {source.label}
-                </p>
-              ) : null}
-              {source.models.map((model, index) => (
-                <label
-                  key={model.id}
-                  className="flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm not-last:border-b has-data-checked:bg-accent/60 hover:bg-accent/60"
-                >
-                  <RadioGroupItem
-                    value={model.id}
-                    {...(model.id === picked?.id || (picked === undefined && index === 0)
-                      ? { "data-first": true }
-                      : {})}
-                  />
-                  <span className="min-w-0 flex-1 truncate font-medium">{called(model)}</span>
-                  {/* Said once above them, where there is more than one place they come from. */}
-                  {offered.length > 1 ? null : (
-                    <span className="shrink-0 text-xs text-muted-foreground">{source.tag}</span>
-                  )}
-                </label>
-              ))}
-            </div>
-          ))}
+          {choices.map((choice) =>
+            choice.source !== undefined ? (
+              <From
+                key={choice.source.key}
+                title={choice.title}
+                source={choice.source}
+                model={modelOf(choice.source)}
+                first={choice.source === chosen}
+                onModel={(id) => {
+                  setChanged((before) => ({ ...before, [choice.source.key]: id }))
+                  setFrom(choice.source.key)
+                }}
+              />
+            ) : (
+              // Not one of the choices until it is signed in to, which choosing it starts.
+              <button
+                key={choice.says}
+                type="button"
+                aria-label={`Sign in with ${choice.says}`}
+                className={cn(
+                  ROW,
+                  "group cursor-pointer outline-none hover:bg-accent/60 focus-visible:bg-accent/60",
+                )}
+                onClick={() => setSigningIn(choice.found)}
+              >
+                <span aria-hidden className="size-4 shrink-0 rounded-full bg-input/90" />
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium">{choice.says}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    Your {short(choice.found.method)} subscription
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground group-hover:text-foreground">
+                  Sign in
+                  <CaretRightIcon />
+                </span>
+              </button>
+            ),
+          )}
         </RadioGroup>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Or one of your own:</span>
-        {quick.map(({ says, found }) =>
-          found?.provider.signedIn ? (
-            <span
-              key={says}
-              className="flex items-center gap-1 px-1.5 text-sm text-muted-foreground"
-            >
-              <CheckIcon className="text-primary" />
-              {/* Signed in to with a key, it is the provider that is, not the subscription. */}
-              {found.provider.signedIn.type === "oauth" ? says : `${found.provider.name} key`}
-            </span>
-          ) : (
-            <Button
-              key={says}
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={found === undefined}
-              onClick={() => found !== undefined && setSigningIn(found)}
-            >
-              Sign in with {says}
-            </Button>
-          ),
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="-my-1 self-start text-muted-foreground"
+        aria-expanded={more}
+        onClick={() => setMore(!more)}
+      >
+        {more ? (
+          <CaretDownIcon data-icon="inline-start" />
+        ) : (
+          <CaretRightIcon data-icon="inline-start" />
         )}
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="text-muted-foreground"
-          aria-expanded={more}
-          onClick={() => setMore(!more)}
-        >
-          {more ? (
-            <CaretDownIcon data-icon="inline-start" />
-          ) : (
-            <CaretRightIcon data-icon="inline-start" />
-          )}
-          More
-        </Button>
-      </div>
+        Other providers
+      </Button>
       {more ? (
         // A list of its own to scroll, so that the card stays under the egg and not over it.
         <section

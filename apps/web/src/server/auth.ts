@@ -35,7 +35,9 @@ function authOptions(platform: Platform) {
     secret: config.authSecret,
     // A D1 binding on Cloudflare, a node:sqlite database on Node; both are SQLite dialects.
     database: platform.authDatabase as never,
-    emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    // Turned off, Better Auth refuses both making an account with a password and signing in to
+    // one that has it.
+    emailAndPassword: { enabled: config.passwordSignIn, minPasswordLength: 8 },
     // Who is signed in is kept in a signed cookie for this long, and a request that brings it
     // is answered from it. Without it every request reads the session and its user from the
     // database, which was most of what the database was read for by people. The price is that
@@ -198,6 +200,7 @@ export function authMethods() {
   return {
     google: Boolean(config.googleClientId && config.googleClientSecret),
     github: Boolean(config.githubClientId && config.githubClientSecret),
+    password: config.passwordSignIn,
     signup: config.signup,
   }
 }

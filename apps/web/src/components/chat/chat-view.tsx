@@ -18,6 +18,8 @@ import { agentKey, agentQuery, agentsKey, workspaceModelsKey } from "@/lib/colle
 import { mascotMoodAtom } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { useSettings } from "@/lib/settings"
+import { desktop } from "@/lib/desktop"
+import { screenHolds, type Starter, startersFor } from "@/lib/starters"
 import { cn } from "@/lib/utils"
 import { startsMidway, useChat } from "@/lib/use-chat"
 import { meetingWith } from "@/lib/welcome"
@@ -126,14 +128,6 @@ function Hatchling({
   )
 }
 
-/** What a new agent offers to start with, in its first hello. */
-const STARTERS = ["Show me what you can do", "Help me plan my week", "Research something for me"]
-const STARTERS_HERE = [
-  "Show me what you can do",
-  "Tidy up my Downloads folder",
-  "Look at a project with me",
-]
-
 function Welcome({
   agent,
   face,
@@ -144,39 +138,53 @@ function Welcome({
   /** Say this to it, as if it had been typed. */
   onSay: (text: string) => void
 }) {
-  // Fresh from the first run, it says hello first: to whom, and with what it was given there.
+  /** Whether this computer's owner is being asked for its screen, and why a starter is held. */
+  const [asking, setAsking] = useState(false)
+  const [held, setHeld] = useState("")
+  // Fresh from the first run, it says hello first, and offers what it was given there lets it do.
   const met = agent.name === null ? undefined : meetingWith(agent.id)
   if (met !== undefined) {
     const given = met.computer
+    const start = async (starter: Starter) => {
+      setHeld("")
+      const app = starter.screen ? desktop() : undefined
+      if (app?.askForScreen !== undefined) {
+        // The screen is its owner's to give, so the app asks them before the agent is sent for it.
+        // An app that cannot be asked leaves it to the agent, which is told whose it is to give.
+        setAsking(true)
+        const answer = await app.askForScreen().catch(() => undefined)
+        setAsking(false)
+        const holds = answer === undefined ? undefined : screenHolds(answer)
+        if (holds !== undefined) return setHeld(holds)
+      }
+      onSay(starter.say)
+    }
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center [@media(max-height:600px)]:py-6">
         {face}
         <h1 className="text-xl font-medium">
           Hi {met.first}, I’m {agent.name}.
         </h1>
-        <p className="max-w-md text-sm text-muted-foreground">
-          {given === undefined
-            ? "Good to finally see you."
-            : given === null
-              ? "I am not on this computer yet. When you want me to work here, switch it on under This Computer in the tray."
-              : given.readOnly
-                ? "I can read files on this computer now, and nothing more. I can reach it while Do Computer is running, so I have left it in your tray."
-                : "I can work on this computer now: run commands, read and change files, and use a browser. I can reach it while Do Computer is running, so I have left it in your tray."}{" "}
-          What should we do first?
-        </p>
+        <p className="text-sm text-muted-foreground">What should we do first?</p>
         <div className="mt-2 flex flex-wrap justify-center gap-2">
-          {(given ? STARTERS_HERE : STARTERS).map((text) => (
+          {startersFor(given).map((starter) => (
             <Button
-              key={text}
+              key={starter.label}
               variant="outline"
               size="sm"
               className="rounded-full"
-              onClick={() => onSay(text)}
+              disabled={asking}
+              onClick={() => void start(starter)}
             >
-              {text}
+              {starter.label}
             </Button>
           ))}
         </div>
+        {held === "" ? null : (
+          <p role="status" className="max-w-md text-sm text-muted-foreground">
+            {held}
+          </p>
+        )}
       </div>
     )
   }

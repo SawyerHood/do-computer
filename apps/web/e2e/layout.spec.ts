@@ -207,7 +207,15 @@ test("the message box has its buttons under what is written, and grows where roo
   await box.fill("Hello there")
   await box.press("Enter")
   await expect(said).toBeVisible()
-  const place = async (locator: typeof box) => (await locator.boundingBox())!
+  // The answer is drawn anew as it ends, and the button to send is back once it has: measured
+  // before that, what was found of the answer a moment ago may be gone.
+  await expect(page.getByRole("button", { name: "Send" })).toBeVisible()
+  const place = async (locator: typeof box) => {
+    for (;;) {
+      const found = await locator.boundingBox()
+      if (found !== null) return found
+    }
+  }
   const settled = async (height: number) =>
     expect.poll(async () => (await place(around)).height).toBe(height)
 
