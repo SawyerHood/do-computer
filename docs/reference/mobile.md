@@ -27,3 +27,22 @@ cd apps/mobile
 npx expo prebuild -p ios           # writes ios/, which is not kept in the repository
 npx expo run:ios                   # builds, installs and starts it with the dev server
 ```
+
+To build it for a phone, with notifications, through Expo's build service (EAS):
+
+```sh
+cd apps/mobile
+npx eas-cli@latest login
+npx eas-cli@latest build --profile preview --platform ios
+```
+
+The build signs in to your Apple developer account, registers the phone, and makes the key
+Apple delivers notifications with. Say yes to each. `eas.json` has the profiles: `preview`
+installs on registered phones from a link, `production` is for TestFlight and the App Store.
+
+A notification reaches a phone through the Expo project its build belongs to, named in
+`app.config.ts`. That one is ours. For a build of your own, `eas init` makes a project and
+prints its id; give it as `EAS_PROJECT_ID`, and change the bundle id, which Apple gives to one
+team only. A server needs nothing set to notify a phone: it hands the message to Expo's push
+service, which takes it without a key as long as the project's "enhanced security for push
+notifications" is off.
