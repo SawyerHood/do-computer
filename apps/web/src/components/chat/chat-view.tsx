@@ -299,12 +299,12 @@ export function ChatView({
   const welcoming = live.loaded && state.messages.length === 0 && !state.busy
   // The stream was turned away, which it will be again: there is no such chat to show.
   const refused = live.status === "closed" && !live.loaded
+  // Sub-agents are over the chat only while one of them is at work. Once they have all ended
+  // they are in the transcript, where each was started and where each reported back.
+  const atWork = subagents.filter((entry) => isAtWork(entry.status)).length
   // What the header above the chat has to say on a narrow screen, where the strip names the agent.
   const floats =
-    sub !== undefined ||
-    thread?.peer !== undefined ||
-    live.status === "reconnecting" ||
-    subagents.length > 0
+    sub !== undefined || thread?.peer !== undefined || live.status === "reconnecting" || atWork > 0
   const identity = (
     <>
       <AgentFace agent={agent} className="size-11" still={welcoming} />
@@ -450,8 +450,8 @@ export function ChatView({
                     <ArrowsClockwiseIcon className="size-4" />
                   </Button>
                 ) : null}
-                {/* Without the panel, this is the way to the chat's sub-agents. */}
-                {subagents.length === 0 ? null : (
+                {/* Without the panel, this is the way to the chat's sub-agents while they work. */}
+                {atWork === 0 ? null : (
                   <Popover>
                     <PopoverTrigger
                       render={
@@ -463,9 +463,7 @@ export function ChatView({
                       }
                     >
                       {subagents.length} {subagents.length === 1 ? "sub-agent" : "sub-agents"}
-                      {subagents.some((entry) => isAtWork(entry.status))
-                        ? ` · ${subagents.filter((entry) => isAtWork(entry.status)).length} at work`
-                        : ""}
+                      {` · ${atWork} at work`}
                     </PopoverTrigger>
                     <PopoverContent
                       sideOffset={12}
