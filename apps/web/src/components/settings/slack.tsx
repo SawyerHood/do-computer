@@ -1,5 +1,10 @@
 import type { AgentSummary, SlackApp, SlackState } from "@durable-computer/protocol"
-import { ArrowSquareOutIcon, DownloadSimpleIcon, SlackLogoIcon } from "@phosphor-icons/react"
+import {
+  ArrowSquareOutIcon,
+  CaretLeftIcon,
+  DownloadSimpleIcon,
+  SlackLogoIcon,
+} from "@phosphor-icons/react"
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
@@ -283,11 +288,27 @@ function Section({ agent, name }: { agent: AgentSummary; name: string }) {
  * The agent in Slack, as a bot under its own name: the steps that put it there, and once it is
  * there, what it is called, who it works for, and the connector that lets it act as a person.
  */
-export function SlackSettings({ agent }: { agent: AgentSummary }) {
+export function SlackSettings({
+  agent,
+  onBack,
+}: {
+  agent: AgentSummary
+  /** Back to the connectors, which this page is reached from. */
+  onBack: () => void
+}) {
   const name = agent.name ?? "your agent"
   return (
     <div className="flex flex-col gap-6">
       <div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="mb-2 -ml-2 h-7 gap-1 px-2 font-normal text-muted-foreground"
+        >
+          <CaretLeftIcon className="size-3.5" />
+          Connectors
+        </Button>
         <h2 className="text-lg font-semibold tracking-tight">Slack</h2>
         <p className="text-sm text-muted-foreground">
           Put {name} in Slack as a bot. Mention it in a channel or message it, and it answers there.

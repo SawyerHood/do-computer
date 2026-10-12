@@ -271,7 +271,7 @@ export function ChatView({
     staleTime: Number.POSITIVE_INFINITY,
   })
   const hatch = useHatch(agent)
-  const { openWorkspace } = useSettings()
+  const { open: openSettings } = useSettings()
   const [panel, setPanel] = useAtom(agentPanelOpenAtom)
   const wide = useWide()
   // A file from the library that is open beside this chat, by its id. It takes the panel's place.
@@ -664,7 +664,7 @@ export function ChatView({
                     <Button
                       variant="link"
                       size="xs"
-                      onClick={() => openWorkspace("team")}
+                      onClick={() => openSettings({ at: "workspace", section: "people" })}
                       className="h-auto px-0 tracking-normal normal-case dark:text-[oklch(0.78_0.09_195)]"
                     >
                       Invite

@@ -10,6 +10,7 @@ import {
   closeSettings,
   composer,
   newChat,
+  openOwnSettings,
   openSettings,
   openWorkspaceSettings,
   signIn,
@@ -277,7 +278,7 @@ test.describe("the machines of a workspace", () => {
     await closeSettings(page)
 
     // The agent's own page says what it can work on, and leads back here to change that.
-    await openSettings(page, "Model and computer")
+    await openSettings(page, "Model and computers")
     const section = page.getByRole("region", { name: "Computers" })
     const usable = section.getByRole("list", { name: "Computers this agent can use" })
     await expect(usable.getByRole("listitem")).toHaveCount(1)
@@ -291,7 +292,7 @@ test.describe("the machines of a workspace", () => {
     await closeSettings(page)
 
     // Deleting the agent takes the machine only it can use with it, unless that is unticked.
-    await openSettings(page, "Move or delete")
+    await openSettings(page, "Profile")
     await page.getByRole("button", { name: "Delete agent…" }).click()
     await expect(page.getByRole("checkbox", { name: `Also delete ${machine.name}` })).toBeChecked()
     await page.getByLabel(/to confirm/).fill("Wren")
@@ -306,7 +307,7 @@ test.describe("the machines of a workspace", () => {
     page,
   }) => {
     await signIn(page)
-    await openWorkspaceSettings(page, "New agents")
+    await openOwnSettings(page, "General")
     const section = page.getByRole("region", { name: "Default computer" })
     await expect(section.getByRole("radio", { name: "Built-in shell" })).toBeChecked()
     await expect(section.getByText("this server’s default")).toBeVisible()

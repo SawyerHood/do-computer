@@ -145,7 +145,7 @@ export function AgentStrip({
   const { chatId } = useParams({ strict: false })
   const { side } = useSearch({ strict: false })
   const navigate = useNavigate()
-  const { openAgent } = useSettings()
+  const { open: openSettings } = useSettings()
   const [wanted, setPanel] = useAtom(agentPanelOpenAtom)
   // A side chat beside the main chat is where the panel would be.
   const panel = wanted && side === undefined
@@ -262,7 +262,7 @@ export function AgentStrip({
               aria-label={`${name}'s settings`}
               title={`${name}'s settings`}
               className="text-muted-foreground"
-              onClick={() => openAgent("identity")}
+              onClick={() => openSettings({ at: "agent", agentId })}
             >
               <SlidersHorizontalIcon />
             </Button>

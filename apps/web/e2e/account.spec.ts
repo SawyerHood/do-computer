@@ -123,7 +123,7 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
 
 test("memory over its limit cannot be saved", async ({ page }) => {
   await signIn(page)
-  await openSettings(page, "Identity")
+  await openSettings(page, "Memory")
   await page.locator("#user").fill("x".repeat(4100))
   await expect(page.getByText("4100 / 4000")).toBeVisible()
   await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled()

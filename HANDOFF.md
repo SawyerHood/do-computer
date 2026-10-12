@@ -289,9 +289,9 @@ Since then, newest last:
       the other agents and its recent chats, the way into its settings, and the switch for its
       panel. The panel is beside every tab, and on the Library tab the sidebar's list is the
       library's files, put there through a portal (`sidebarSlotAtom`), so changing tab moves
-      nothing. Settings are windows over the page, opened by the address: `?settings=<section>`
-      for the agent (`components/settings/agent-settings.tsx`) and `?workspace=<section>` for
-      the workspace. The old page addresses (`/a/<id>/skills` and the like) redirect to them.
+      nothing. Settings are a window over the page, opened by the address (item 58, which
+      replaced the two windows this was built with). The old page addresses (`/a/<id>/skills`
+      and the like) redirect to it.
       The mock-up this was built from is in `prototypes/agent-pages`.
 
 16. **Computers that belong to someone, connected to many agents** (2026-10-07;
@@ -2387,6 +2387,50 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       for, an agent using a screen, sub-agent chips, Slack threads and a team with other people
       in it, which the echo model does not produce, and Safari. Three measurements in
       `e2e/layout.spec.ts` changed with the look.
+
+58. **One settings window** (2026-10-12; `apps/web/src/lib/settings.ts`,
+    `components/settings/settings.tsx`, `settings-dialog.tsx`, `lists.tsx`). The owner found
+    "the IA between all of the settings, workspace / user / agent" confusing. There were two
+    windows for four owners: the agent's, and the workspace's, which also held what is the
+    user's own (the defaults for new agents, notifications) and the deployment's (server models,
+    the waiting list), and opened from the menu on the user's name. They were shown one window
+    grouped by owner, asked instead for "an Agents tab that lists the agents and you can click
+    on them", the same for workspaces, with the agent's settings icon "just a short cut there",
+    saw that mocked up, and said to build it.
+    - **The top of it** is what is the user's own (General: the theme, and the model and
+      computer a new agent starts with; Notifications), two lists (Agents, by workspace, each
+      saying its model and computers; Workspaces, with invitations and New team), and for
+      whoever looks after the deployment, Server (Models, Waiting list).
+    - **Inside an agent or a workspace** the list of sections becomes its own, under a way back
+      to the list it was chosen from. An agent has Profile, Memory, Model and computers,
+      Skills, Connectors, Permissions and Usage; a workspace has People (a team only),
+      Computers and Models. The sliders icon on an agent's strip, and Settings in the menu of
+      its row, go straight inside that agent; Workspace settings, now in the workspace's menu
+      at the top of the sidebar, goes straight inside that workspace; Settings in the menu on
+      the user's name opens the top.
+    - **The address** is one parameter: `?settings=general`, `?settings=agent.<id>.memory`,
+      `?settings=workspace.<id>.computers`, and with no section (`agent.<id>`, or `all` for the
+      top) the list itself. A wide screen shows the first section beside the list; a narrow one
+      shows the list alone and then the section chosen from it, with a bar at its top that
+      leads back. Addresses from before (`?settings=identity`, `?workspace=team`) still open
+      where they led, on the agent or workspace on screen.
+    - **What moved, which is mine and was in the mock-ups:** Identity is Profile, with moving
+      and deleting the agent at its foot where they were a section of their own; "About you"
+      (or "About the team") is under Memory; Slack is a card among the Connectors that opens
+      its own page; the theme is a choice of three under General (System is new: it forgets
+      what was kept and follows the device) where it was a row of the user's menu, which is now
+      Settings, Invite people and Sign out.
+    - **Also mine:** a workspace's Computers list only what is that workspace's or what one of
+      its agents works on, where every workspace used to list every computer the user could
+      see. A link from one level to another (an agent's model to its workspace's Models) goes
+      inside that workspace, and the way back from there leads to Workspaces and not to the
+      agent.
+    - **Checked:** `e2e/settings.spec.ts` (the lists, the ways in, old addresses, the theme, a
+      phone) and `src/lib/settings.test.ts`; every other browser test opens settings through
+      the helpers in `e2e/helpers.ts`, which follow the new ways in. Looked at on a wide screen
+      and at a phone's width, in the light theme. **Not seen:** a team with several people and
+      agents in the lists, an invitation in the Workspaces list, the Server group as an admin
+      by eye (its tests pass), and Safari. The native app in `apps/mobile` is as it was.
 
 ## 6. What the owner has said they want
 
