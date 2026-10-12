@@ -2,8 +2,8 @@
 
 Written 2026-10-06 for whoever picks this project up next. It covers what exists, how it is run
 and shipped, what the owner has asked for and decided, what is unfinished, and what has and has
-not been checked. `README.md` describes the product for someone hosting it; `PLAN.md` is the
-original plan with a status section. Where they disagree with this file, this file is newer.
+not been checked. `README.md` introduces the product and `docs/reference` describes it for
+someone hosting it; `PLAN.md` is the original plan with a status section. Where they disagree with this file, this file is newer.
 
 **This file is in a public repository, and everyone can read it.** Keep out of it, and out of
 every other tracked file: credentials, and where they are kept; the identifiers of accounts and
@@ -94,7 +94,7 @@ asks for it with `test.use({ creature: true })`: a browser with no graphics card
 software, which kept a whole core busy. CI deals the files out over several machines, two to a
 machine, so a new file needs nothing but to be there.
 
-Layout, briefly (`README.md` has the full table):
+Layout, briefly (`README.md` has it too):
 
 | Path                 | What                                                                                 |
 | -------------------- | ------------------------------------------------------------------------------------ |
@@ -279,7 +279,7 @@ Since then, newest last:
       `/api/presence/<team>`, which the server entries route before the framework, as they do
       for daemons; the gateway checks the session, the membership and the page's origin.
     - **The web app** has one sidebar and no rail. It lists the user's agents, under their
-      workspaces' names where they are in a team (item 61, which replaced the workspace menu
+      workspaces' names where they are in a team (item 62, which replaced the workspace menu
       this was built with; item 18 says what choosing an agent does); at its foot is the
       user's own menu. A team
       has no page of its own: `/w/<id>` goes to its first agent, and stops only where there is
@@ -2486,7 +2486,28 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not done:** nothing retakes the pictures by itself; the first paragraph of Connectors
       still says an agent uses connectors "without asking first", which is not so for Apps.
 
-61. **The sidebar lists every workspace's agents** (2026-10-12;
+61. **A README for a public repository** (2026-10-12; `README.md`, `docs/reference`,
+    `docs/screenshots`). The owner said the README was sloppy, that the project is called Do
+    Computer and should be called that everywhere, and asked for pictures of the app and for
+    it to be tidied into what a public repository shows. The rest is mine.
+    - **The README** is now short: the name and icon, a picture of a chat (the dark one for
+      whoever reads GitHub in the dark), what an agent can do in a line each, four more
+      pictures, a quick start, where it can be hosted, where it is used, links to the guides
+      and the reference, and development.
+    - **Nothing was thrown away.** What the README said at length is in `docs/reference`, a
+      file to a subject, in the words it had: configuration, computers, models, security and
+      trust, what an agent can do, teams, Slack, Apps, Doods and the waiting list,
+      notifications, the desktop app and the mobile app. They are not guides: only a file
+      directly in `docs/` is served under `/docs`. The self-hosting guide's link to the full
+      list of settings goes there now.
+    - **The pictures** are in `docs/screenshots`, not `docs/images`, since every picture in
+      `docs/images` is built into the web app. They are six of `prototypes/polish/tour.mjs`'s,
+      made 1600 wide (its README says how).
+    - **The name.** `PLAN.md`'s title and the old mock-ups that said "durable computer" say Do
+      Computer. Still named durable-computer, and not changed: the `@durable-computer/*`
+      packages, the Worker, database and bucket, and `~/.durable-computer` on a paired
+      computer. Renaming those changes running deployments and paired machines.
+62. **The sidebar lists every workspace's agents** (2026-10-12;
     `apps/web/src/components/shell/agent-list.tsx`, `workspace-menu.tsx`, `sidebar.tsx`,
     `lib/atoms.ts`). The owner sent a picture of another app's list of agents (headings that
     fold, and under each its agents, every row with the agent's latest line, a time and a dot)
@@ -2633,7 +2654,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 
 - **Main and side chats:** an agent's row in the sidebar says nothing of what the agent last
   said or whether it is working, which the mock-up's rows did. It was built once and taken out
-  (item 61): the rows of agents that are not open were kept fresh by polling, which asks every
+  (item 62): the rows of agents that are not open were kept fresh by polling, which asks every
   agent. What it wants is a socket for each person that agents' changes are sent down. A side
   chat cannot
   be renamed or brought back from the app once archived (the API can do both). Someone typing

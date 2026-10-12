@@ -1,6 +1,6 @@
 // Serves the Node build: static client assets, then the app's fetch handler, plus the WebSocket
 // that paired computers' daemons connect on. Build first with `pnpm build:node`. Configuration
-// comes from the environment; see README.md.
+// comes from the environment; see docs/reference/configuration.md.
 import { fileURLToPath } from "node:url"
 import { serve } from "srvx"
 import { staticMiddleware } from "srvx/static"

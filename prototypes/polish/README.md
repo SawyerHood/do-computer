@@ -23,6 +23,10 @@ directory and run `node tour.mjs today`. A third word takes only the pictures wh
 with it (`node tour.mjs proposed library`). Set `PLAYWRIGHT_CHROMIUM_PATH` to use a Chromium that
 is already installed. The pictures are not kept in the repository.
 
+The pictures in the repository's `README.md` are six of these (`chat`, `chat-dark`, `chat-doc`,
+`automations`, `agent-permissions` and `welcome`), made 1600 pixels wide and kept in
+`docs/screenshots`. Take them again when the app's look has changed.
+
 The server answers with its echo model, so `tour.mjs` puts a conversation of its own in the
 place of what was said, the same one in both sets.
 

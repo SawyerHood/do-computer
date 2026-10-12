@@ -918,7 +918,7 @@ function go(view, quick) {
     else { placeLive(); if (Live.orb && view === 'agent') Live.orb.setState('idle'); }
     paintSkies(); refreshNames(); paintNow(); tickLcds();
     if (view === 'hatch') enterHatch();
-    document.title = (view === 'chat' ? S.chats[S.activeChat] : view === 'agent' ? 'Identity and memory' : view === 'hatch' ? 'New agent' : D.pages[view].title) + ' · durable computer';
+    document.title = (view === 'chat' ? S.chats[S.activeChat] : view === 'agent' ? 'Identity and memory' : view === 'hatch' ? 'New agent' : D.pages[view].title) + ' · Do Computer';
     if (!quick && from !== view) {
       var h = view === 'chat' ? (mqPhone.matches ? null : draft) : node.querySelector('h1');
       if (h) { if (h !== draft) h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }

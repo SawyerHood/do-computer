@@ -1,5 +1,5 @@
 /* ==========================================================================
-   durable computer — "console mascot" prototype
+   Do Computer — "console mascot" prototype
    One direction with a day face (pale system menu) and a night face (deep-blue
    lobby). Pixels only where a 1-bit LCD or the creature itself would have them;
    everything else is smooth: gradients, bevels, capsules, italic condensed type.

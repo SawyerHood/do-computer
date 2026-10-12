@@ -1,6 +1,6 @@
 # How the app is packed for each system. The Mac's is signed with the certificate it is given
 # (CSC_LINK) and checked by Apple; with none it is packed from electron-builder.unsigned.yml,
-# as `pnpm package` does. Nobody signs the Windows one. See README.md for what that means for
+# as `pnpm package` does. Nobody signs the Windows one. See docs/reference/desktop.md for what that means for
 # whoever opens it.
 appId: computer.do.desktop
 productName: Do Computer
