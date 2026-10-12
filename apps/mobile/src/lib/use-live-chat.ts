@@ -1,10 +1,10 @@
-import type { StreamStatus } from "@durable-computer/client"
+import type { StreamStatus } from "@do-computer/client"
 import {
   type ChatMessage,
   type ChatState,
   continuesMain,
   EMPTY_CHAT,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useCallback, useEffect, useState } from "react"
 import { useSession } from "./use-session.ts"
 

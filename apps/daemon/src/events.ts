@@ -37,7 +37,7 @@ export function parseEvent(line: string): DaemonEvent | undefined {
  * input: an `AppAnswer`.
  */
 export type AppCall = { id: string } & Omit<
-  import("@durable-computer/protocol").ScreenFrame,
+  import("@do-computer/protocol").ScreenFrame,
   "t" | "id"
 >
 

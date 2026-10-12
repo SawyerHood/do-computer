@@ -1,11 +1,11 @@
-import type { AgentComputer } from "@durable-computer/agent"
+import type { AgentComputer } from "@do-computer/agent"
 import {
   isPersonalWorkspace,
   PAIRED_COMPUTER,
   type Person,
   personalWorkspaceId,
-} from "@durable-computer/protocol"
-import type { AppDatabase } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { AppDatabase } from "@do-computer/runtime"
 import { roleIn, workspaceIdsOf } from "./teams.ts"
 
 /**

@@ -1,5 +1,5 @@
-import { personalWorkspaceId } from "@durable-computer/protocol"
-import type { ActorNamespace, ActorStub, AppDatabase } from "@durable-computer/runtime"
+import { personalWorkspaceId } from "@do-computer/protocol"
+import type { ActorNamespace, ActorStub, AppDatabase } from "@do-computer/runtime"
 
 /**
  * Where an agent's workspace keeps its sign-ins to model providers. It runs where the agent

@@ -1,5 +1,5 @@
-import { AgentOrbCore, AgentOrbWardrobe, type Orb } from "@durable-computer/mascot"
-import { RARITIES, WEAR_ITEMS } from "@durable-computer/protocol"
+import { AgentOrbCore, AgentOrbWardrobe, type Orb } from "@do-computer/mascot"
+import { RARITIES, WEAR_ITEMS } from "@do-computer/protocol"
 import * as THREE from "three"
 import { describe, expect, it } from "vitest"
 

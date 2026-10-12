@@ -5,7 +5,7 @@ import {
   continuesMain,
   type Presence,
   type SubagentStatus,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 // What the conversation screen says of an agent's chats. These are the web app's own rules and
 // words (apps/web/src/lib/chats.ts, chat/subagents.tsx, chat/agent-threads.tsx,

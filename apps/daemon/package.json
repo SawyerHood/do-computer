@@ -1,5 +1,5 @@
 {
-  "name": "@durable-computer/daemon",
+  "name": "@do-computer/daemon",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -16,8 +16,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@durable-computer/computers": "workspace:*",
-    "@durable-computer/protocol": "workspace:*",
+    "@do-computer/computers": "workspace:*",
+    "@do-computer/protocol": "workspace:*",
     "ws": "^8"
   },
   "devDependencies": {

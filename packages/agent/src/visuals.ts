@@ -6,7 +6,7 @@ import {
   VISUAL_TOOL,
   VISUALS_FOLDER,
   visualFileName,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
 import { type LibraryBackend, LibraryError } from "./library-store.ts"

@@ -20,16 +20,16 @@ import {
 } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { nodeBrowserIO } from "@durable-computer/computers/browser"
-import { DaemonCore } from "@durable-computer/computers/daemon"
-import { fakeScreen } from "@durable-computer/computers/fake-screen"
-import { nodeDaemonIO, shownPath } from "@durable-computer/computers/node"
+import { nodeBrowserIO } from "@do-computer/computers/browser"
+import { DaemonCore } from "@do-computer/computers/daemon"
+import { fakeScreen } from "@do-computer/computers/fake-screen"
+import { nodeDaemonIO, shownPath } from "@do-computer/computers/node"
 import {
   PING_FRAME,
   PONG_FRAME,
   REVOKED_CLOSE_CODE,
   SUPERSEDED_CLOSE_CODE,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import WebSocket from "ws"
 import { parseArguments } from "./args.ts"
 import { BROWSER_ENV, type DaemonEvent, formatEvent, SCREEN_ENV } from "./events.ts"

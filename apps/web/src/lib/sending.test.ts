@@ -1,4 +1,4 @@
-import { type ChatMessage, type ChatState, EMPTY_CHAT } from "@durable-computer/protocol"
+import { type ChatMessage, type ChatState, EMPTY_CHAT } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import { GIVE_UP_MS, type Sending, settleSends } from "./sending.ts"
 

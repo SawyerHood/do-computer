@@ -1,4 +1,4 @@
-import type { AgentSummary, SlackApp, SlackState } from "@durable-computer/protocol"
+import type { AgentSummary, SlackApp, SlackState } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams } from "expo-router"
 import { useState } from "react"

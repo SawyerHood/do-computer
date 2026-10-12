@@ -1,4 +1,4 @@
-import type { InviteResult } from "@durable-computer/protocol"
+import type { InviteResult } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"

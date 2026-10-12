@@ -27,7 +27,7 @@
   first meet it. Its shape and face are grown from a roll of the dice, so no two agents look
   alike, and it acts out what the agent is doing: listening while you type, thinking, working
   at a command or a file or a search, speaking as its answer arrives, and dozing when nothing
-  has happened for a while. `pnpm --filter @durable-computer/mascot demo` builds a page for
+  has happened for a while. `pnpm --filter @do-computer/mascot demo` builds a page for
   trying every state and look.
 - **Be looked after, a little.** A box turns up beside the creature and waits until it is
   opened; the next turns up twelve hours after that, so there is one waiting at most. Inside is

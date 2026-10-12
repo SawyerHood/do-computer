@@ -1,4 +1,4 @@
-import { type Client, createClient, type SocketConstructor } from "@durable-computer/client"
+import { type Client, createClient, type SocketConstructor } from "@do-computer/client"
 import { expoClient } from "@better-auth/expo/client"
 import { createAuthClient } from "better-auth/react"
 import { fetch as expoFetch } from "expo/fetch"
@@ -9,7 +9,7 @@ import { storage } from "./storage.ts"
 
 const SERVER_KEY = "dc.server"
 const AGENT_KEY = "dc.agent"
-const SCHEME = "durablecomputer"
+const SCHEME = "docomputer"
 
 /** Where the app is hosted for everyone. Someone who hosts their own names it when signing in. */
 export const DEFAULT_SERVER = "https://do.computer"

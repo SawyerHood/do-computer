@@ -6,18 +6,18 @@ import {
   createComputerLinkActor,
   DaemonCore,
   type ScreenIO,
-} from "@durable-computer/computers"
-import { fakeScreen } from "@durable-computer/computers/fake-screen"
-import { nodeDaemonIO } from "@durable-computer/computers/node"
+} from "@do-computer/computers"
+import { fakeScreen } from "@do-computer/computers/fake-screen"
+import { nodeDaemonIO } from "@do-computer/computers/node"
 import type {
   ChatState,
   ChatSummary,
   LiveView,
   ToolPart,
   UseDetails,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace, type SocketLike } from "@durable-computer/runtime/node"
-import { justBashSandbox } from "@durable-computer/sandbox"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
+import { justBashSandbox } from "@do-computer/sandbox"
 import type { Message } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {

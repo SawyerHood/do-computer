@@ -1,4 +1,4 @@
-import type { NoticePart, ToolPart } from "@durable-computer/protocol"
+import type { NoticePart, ToolPart } from "@do-computer/protocol"
 import { useRouter } from "expo-router"
 import { memo } from "react"
 import { Pressable, View } from "react-native"

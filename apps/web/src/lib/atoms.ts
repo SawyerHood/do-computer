@@ -1,5 +1,5 @@
-import type { StreamStatus } from "@durable-computer/client"
-import { type ChatMessage, type ChatState, EMPTY_CHAT } from "@durable-computer/protocol"
+import type { StreamStatus } from "@do-computer/client"
+import { type ChatMessage, type ChatState, EMPTY_CHAT } from "@do-computer/protocol"
 import { atom } from "jotai"
 import type { Sending } from "./sending.ts"
 

@@ -1,4 +1,4 @@
-import { USE_HELD_WAIT_MS, USE_LINGER_MS, type UsingAgent } from "@durable-computer/protocol"
+import { USE_HELD_WAIT_MS, USE_LINGER_MS, type UsingAgent } from "@do-computer/protocol"
 
 /**
  * Thrown by a screen or a browser that will not do what was asked: its owner has it switched

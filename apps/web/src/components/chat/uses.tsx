@@ -7,7 +7,7 @@ import {
   type Use,
   type UseStep,
   useWords,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   ArrowsOutSimpleIcon,
   CaretRightIcon,

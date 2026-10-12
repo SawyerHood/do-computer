@@ -9,7 +9,7 @@ import {
   parseCall,
   parseEvent,
   SCREEN_ENV,
-} from "@durable-computer/daemon/events"
+} from "@do-computer/daemon/events"
 import { after, type Sharing } from "./status.ts"
 
 /** How many lines of what the daemon said are kept to show. */

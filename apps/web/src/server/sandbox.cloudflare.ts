@@ -1,11 +1,11 @@
-import { guardedFetch } from "@durable-computer/runtime"
-import { containerSandbox } from "@durable-computer/sandbox/cloudflare"
-import { createContainerSandboxClass } from "@durable-computer/sandbox/cloudflare/object"
-import { movedFromDatabase, workerShellSandbox } from "@durable-computer/sandbox/worker-shell"
+import { guardedFetch } from "@do-computer/runtime"
+import { containerSandbox } from "@do-computer/sandbox/cloudflare"
+import { createContainerSandboxClass } from "@do-computer/sandbox/cloudflare/object"
+import { movedFromDatabase, workerShellSandbox } from "@do-computer/sandbox/worker-shell"
 import {
   createShellGatewayClass,
   createWorkerShellClass,
-} from "@durable-computer/sandbox/worker-shell/object"
+} from "@do-computer/sandbox/worker-shell/object"
 import type { Env } from "./platform.cloudflare.ts"
 import { readConfig } from "./platform.ts"
 import type { RuntimeProviders } from "./sandbox.ts"

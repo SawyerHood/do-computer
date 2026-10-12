@@ -1,4 +1,4 @@
-import type { LibraryFile, LibraryListing, SiteSummary } from "@durable-computer/protocol"
+import type { LibraryFile, LibraryListing, SiteSummary } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { useMemo, useState } from "react"

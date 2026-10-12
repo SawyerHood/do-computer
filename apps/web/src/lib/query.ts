@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError } from "@do-computer/client"
 import { QueryClient } from "@tanstack/react-query"
 
 /** One client for the browser session; collections and queries share its cache. */

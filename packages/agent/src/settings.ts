@@ -4,7 +4,7 @@ import {
   type ModelOption,
   THINKING_LEVELS,
   type ThinkingLevel,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable"

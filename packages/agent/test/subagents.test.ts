@@ -9,8 +9,8 @@ import type {
   ChatSummary,
   NoticePart,
   ToolPart,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {

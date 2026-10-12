@@ -1,4 +1,4 @@
-import { isPersonalWorkspace } from "@durable-computer/protocol"
+import { isPersonalWorkspace } from "@do-computer/protocol"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"

@@ -1,5 +1,5 @@
-import { personalWorkspaceId } from "@durable-computer/protocol"
-import type { AppDatabase } from "@durable-computer/runtime"
+import { personalWorkspaceId } from "@do-computer/protocol"
+import type { AppDatabase } from "@do-computer/runtime"
 import { showsBrowser } from "./teams.ts"
 
 /**

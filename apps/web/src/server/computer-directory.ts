@@ -2,10 +2,10 @@ import {
   type AddableKind,
   computerActorName,
   type ComputerDirectory,
-} from "@durable-computer/agent"
-import { linkStatus } from "@durable-computer/computers"
-import { isPersonalWorkspace } from "@durable-computer/protocol"
-import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
+} from "@do-computer/agent"
+import { linkStatus } from "@do-computer/computers"
+import { isPersonalWorkspace } from "@do-computer/protocol"
+import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 import { adoptMachines } from "./computer-adoption.ts"
 import {
   answerersOf,

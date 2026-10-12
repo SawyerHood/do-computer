@@ -2,8 +2,8 @@ import {
   createDurableActorClass,
   durableObjectNamespace,
   r2Blobs,
-} from "@durable-computer/runtime/cloudflare"
-import { justBashSandbox } from "@durable-computer/sandbox"
+} from "@do-computer/runtime/cloudflare"
+import { justBashSandbox } from "@do-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import {

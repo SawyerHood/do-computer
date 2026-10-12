@@ -1,4 +1,4 @@
-import type { ChatHistoryPage, HistoryHit } from "@durable-computer/protocol"
+import type { ChatHistoryPage, HistoryHit } from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

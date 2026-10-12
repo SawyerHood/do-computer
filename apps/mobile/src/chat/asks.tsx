@@ -7,7 +7,7 @@ import {
   isPersonalWorkspace,
   MAX_SECRET_CHARS,
   type SecretRequest,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { type ReactNode, useState } from "react"

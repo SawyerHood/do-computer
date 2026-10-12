@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@durable-computer/protocol"
+import type { LibraryFile } from "@do-computer/protocol"
 import { Link } from "@tanstack/react-router"
 import { memo } from "react"
 import ReactMarkdown from "react-markdown"

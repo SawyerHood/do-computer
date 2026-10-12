@@ -14,7 +14,7 @@ import {
   type MessagePart,
   type NoticePart,
   type Person,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   type ComponentType,
   memo,

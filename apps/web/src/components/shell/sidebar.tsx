@@ -1,4 +1,4 @@
-import type { AgentSummary, WorkspaceSummary } from "@durable-computer/protocol"
+import type { AgentSummary, WorkspaceSummary } from "@do-computer/protocol"
 import {
   CaretLeftIcon,
   CaretUpDownIcon,

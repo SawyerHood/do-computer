@@ -12,10 +12,10 @@ import {
   readSse,
   reduceChat,
   type ToolPart,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import type { Sandbox } from "@durable-computer/sandbox"
-import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import type { Sandbox } from "@do-computer/sandbox"
+import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

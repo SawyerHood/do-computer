@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import type { SocketLike } from "@durable-computer/runtime/node"
+import type { SocketLike } from "@do-computer/runtime/node"
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry"
 import { admitToAgent, agentSocket } from "./server/agent-socket.ts"
 import { authenticateDaemon, computerActorName, CONNECT_PATH } from "./server/computers.ts"

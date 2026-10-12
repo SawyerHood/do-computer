@@ -1,4 +1,4 @@
-import type { SkillSummary } from "@durable-computer/protocol"
+import type { SkillSummary } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"

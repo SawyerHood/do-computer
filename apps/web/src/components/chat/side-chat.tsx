@@ -1,4 +1,4 @@
-import { type AgentSummary, type ChatSummary, continuesMain } from "@durable-computer/protocol"
+import { type AgentSummary, type ChatSummary, continuesMain } from "@do-computer/protocol"
 import {
   ArchiveIcon,
   ArrowsOutSimpleIcon,

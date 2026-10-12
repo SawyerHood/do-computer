@@ -7,7 +7,7 @@ import type {
   MessagePart,
   QueuedInput,
   ToolPart,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type {
   AssistantMessage,
   ImageContent,

@@ -1,4 +1,4 @@
-import type { SqliteDatabase } from "@durable-computer/runtime"
+import type { SqliteDatabase } from "@do-computer/runtime"
 import type { ShellAnswer, WorkerShellRpc } from "./index.ts"
 
 type Row = {

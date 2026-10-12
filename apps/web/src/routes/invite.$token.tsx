@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError } from "@do-computer/client"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useEffect, useState } from "react"

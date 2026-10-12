@@ -8,7 +8,7 @@ import {
   WEAR_SLOTS,
   type WearItem,
   type WearSlot,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { useCallback, useMemo, useState } from "react"
 import { ActivityIndicator, FlatList, Pressable, useWindowDimensions, View } from "react-native"

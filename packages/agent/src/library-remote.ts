@@ -1,5 +1,5 @@
-import type { LibraryFile } from "@durable-computer/protocol"
-import type { ActorStub } from "@durable-computer/runtime"
+import type { LibraryFile } from "@do-computer/protocol"
+import type { ActorStub } from "@do-computer/runtime"
 import { LIBRARY_FILE_HEADER } from "./library-actor.ts"
 import {
   type Deleted,

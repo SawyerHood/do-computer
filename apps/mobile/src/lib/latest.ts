@@ -1,4 +1,4 @@
-import type { AgentLatest, AgentSummary, Person } from "@durable-computer/protocol"
+import type { AgentLatest, AgentSummary, Person } from "@do-computer/protocol"
 
 // The words of a row in the list of agents. These are the web app's own rules
 // (apps/web/src/lib/latest.ts), kept the same so that both say the same of an agent.

@@ -11,7 +11,7 @@ import {
   type MessagePart,
   sharedSite,
   type SiteSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 // What a transcript works out before it draws anything. Kept apart from the drawing so that it
 // can be tested without a device.

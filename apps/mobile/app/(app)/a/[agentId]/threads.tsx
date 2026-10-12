@@ -1,4 +1,4 @@
-import type { ChatSummary } from "@durable-computer/protocol"
+import type { ChatSummary } from "@do-computer/protocol"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { type ReactNode, useState } from "react"
 import { ActivityIndicator } from "react-native"

@@ -10,8 +10,8 @@ import {
   TREATS_PER_BOX,
   WEAR_ITEMS,
   wearItem,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"

@@ -1,4 +1,4 @@
-import type { LibraryFile, SiteSummary, ToolPart } from "@durable-computer/protocol"
+import type { LibraryFile, SiteSummary, ToolPart } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"

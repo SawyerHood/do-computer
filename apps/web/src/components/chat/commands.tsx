@@ -4,7 +4,7 @@ import {
   type NoticePart,
   spanOf,
   type ToolPart,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   CaretDownIcon,
   CaretRightIcon,

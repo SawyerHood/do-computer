@@ -9,15 +9,15 @@ import {
   createModelAccessActor,
   workspaceCredentials,
   workspaceModelOptions,
-} from "@durable-computer/agent"
-import { createComputerLinkActor } from "@durable-computer/computers"
-import { PING_FRAME, PONG_FRAME } from "@durable-computer/protocol"
+} from "@do-computer/agent"
+import { createComputerLinkActor } from "@do-computer/computers"
+import { PING_FRAME, PONG_FRAME } from "@do-computer/protocol"
 import {
   fileBlobs,
   NodeActorNamespace,
   openNodeAppDatabase,
   type SocketLike,
-} from "@durable-computer/runtime/node"
+} from "@do-computer/runtime/node"
 import { agentDirectory } from "./agent-directory.ts"
 import { createAgentBeside } from "./agents.ts"
 import { addableKinds, addMachineFor, removeMachineFor } from "./computers.ts"
@@ -35,7 +35,7 @@ import { createLiveActor } from "./presence-actor.ts"
 import { nodeProviders } from "./sandbox.node.ts"
 import { computerChoices, unsharedKinds } from "./sandbox.ts"
 
-const KEY = Symbol.for("durable-computer.platform")
+const KEY = Symbol.for("do-computer.platform")
 
 /** The Node platform also accepts sockets, which only a long-lived process can hold. */
 export type NodePlatform = Platform & {

@@ -4,7 +4,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
   WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { EnvelopeSimpleIcon, GithubLogoIcon, PlusIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate, useRouteContext } from "@tanstack/react-router"

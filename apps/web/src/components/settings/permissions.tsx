@@ -1,4 +1,4 @@
-import type { ApprovalRule, ApprovalsState, ApprovalSubject } from "@durable-computer/protocol"
+import type { ApprovalRule, ApprovalsState, ApprovalSubject } from "@do-computer/protocol"
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query"
 import { Loads } from "@/components/loads"
 import { RowsPlaceholder } from "@/components/placeholders"

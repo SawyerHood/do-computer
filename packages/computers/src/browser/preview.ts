@@ -1,4 +1,4 @@
-import { SHOT_EDGE, type Shot, type ShotPoint } from "@durable-computer/protocol"
+import { SHOT_EDGE, type Shot, type ShotPoint } from "@do-computer/protocol"
 
 /**
  * What a browser looks like now, for someone watching: a second DevTools socket of its own,

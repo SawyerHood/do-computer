@@ -8,7 +8,7 @@ import {
   type SlackPlace,
   type SlackProblem,
   type SlackSender,
-} from "@durable-computer/agent"
+} from "@do-computer/agent"
 import {
   BodyTooLarge,
   type ConnectSlackRequest,
@@ -16,8 +16,8 @@ import {
   readLimited,
   type SlackApp,
   type SlackState,
-} from "@durable-computer/protocol"
-import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 import { peopleOfAgent } from "./teams.ts"
 
 /**

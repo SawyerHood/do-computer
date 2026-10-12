@@ -1,5 +1,5 @@
-import { UseState } from "@durable-computer/computers/use"
-import { USE_LINGER_MS } from "@durable-computer/protocol"
+import { UseState } from "@do-computer/computers/use"
+import { USE_LINGER_MS } from "@do-computer/protocol"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createOverlay, type Overlay, viewOf } from "../src/overlay.ts"
 import { barOf, colorOf, type OverlayView, tagOf } from "../src/pages/overlay.ts"

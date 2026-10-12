@@ -1,4 +1,4 @@
-import { type LibraryFile, VISUALS_FOLDER, visualThemeFragment } from "@durable-computer/protocol"
+import { type LibraryFile, VISUALS_FOLDER, visualThemeFragment } from "@do-computer/protocol"
 import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,

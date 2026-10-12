@@ -1,4 +1,4 @@
-import { type MessageImage, type QueuedInput, randomId } from "@durable-computer/protocol"
+import { type MessageImage, type QueuedInput, randomId } from "@do-computer/protocol"
 import { useRouter } from "expo-router"
 import { atom, useAtom } from "jotai"
 import { useCallback, useMemo, useState } from "react"

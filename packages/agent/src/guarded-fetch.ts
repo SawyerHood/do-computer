@@ -4,4 +4,4 @@ export {
   checkAddress,
   guardedFetch,
   isPrivateHost,
-} from "@durable-computer/runtime"
+} from "@do-computer/runtime"

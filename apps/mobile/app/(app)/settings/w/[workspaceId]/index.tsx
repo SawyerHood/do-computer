@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from "@durable-computer/protocol"
+import type { WorkspaceSummary } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useEffect, useState } from "react"

@@ -21,8 +21,8 @@ import {
   type ScreenFrame,
   type UsingAgent,
   VIEW_WAIT_MS,
-} from "@durable-computer/protocol"
-import type { SandboxJobs } from "@durable-computer/sandbox"
+} from "@do-computer/protocol"
+import type { SandboxJobs } from "@do-computer/sandbox"
 import { UseRefused } from "./use.ts"
 
 export { UseRefused } from "./use.ts"

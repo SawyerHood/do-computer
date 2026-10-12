@@ -111,7 +111,7 @@ export function daytonaSandbox(options: DaytonaSandboxOptions): Sandbox {
           autoStopInterval: AUTO_STOP_MINUTES,
           // Never deleted for being unused; archived instead, which a start brings back.
           autoDeleteInterval: -1,
-          labels: { "durable-computer": options.id },
+          labels: { "do-computer": options.id },
           ...(options.network === false ? { networkBlockAll: true } : {}),
           ...(options.snapshot !== undefined
             ? { snapshot: options.snapshot }

@@ -1,4 +1,4 @@
-import { daytonaSandbox } from "@durable-computer/sandbox/daytona"
+import { daytonaSandbox } from "@do-computer/sandbox/daytona"
 import { afterAll, describe, expect, it } from "vitest"
 import { listFolder } from "../src/library-sync.ts"
 

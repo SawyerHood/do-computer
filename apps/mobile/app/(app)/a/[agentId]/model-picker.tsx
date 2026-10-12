@@ -1,4 +1,4 @@
-import { filterModels, type ModelOption, nearestThinking } from "@durable-computer/protocol"
+import { filterModels, type ModelOption, nearestThinking } from "@do-computer/protocol"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useMemo, useState } from "react"
 import { ActivityIndicator, Platform } from "react-native"

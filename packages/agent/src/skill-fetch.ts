@@ -1,4 +1,4 @@
-import { BodyTooLarge, declaredTooLarge, readLimited } from "@durable-computer/protocol"
+import { BodyTooLarge, declaredTooLarge, readLimited } from "@do-computer/protocol"
 import { BlockedAddressError } from "./guarded-fetch.ts"
 import {
   MAX_SKILL_FILES,
@@ -49,7 +49,7 @@ async function limited(response: Response, url: string, limit: number): Promise<
 }
 
 async function text(fetcher: Fetch, url: string): Promise<string> {
-  const response = await fetcher(url, { headers: { "user-agent": "durable-computer" } })
+  const response = await fetcher(url, { headers: { "user-agent": "do-computer" } })
   if (!response.ok) throw new SkillError(`Could not fetch ${url} (HTTP ${response.status}).`)
   return new TextDecoder().decode(await limited(response, url, TEXT_LIMIT))
 }
@@ -90,7 +90,7 @@ async function fetchGithub(
     const query = target.ref ? `?ref=${encodeURIComponent(target.ref)}` : ""
     const api = `https://api.github.com/repos/${target.owner}/${target.repo}/contents/${path}${query}`
     const response = await fetcher(api, {
-      headers: { accept: "application/vnd.github+json", "user-agent": "durable-computer" },
+      headers: { accept: "application/vnd.github+json", "user-agent": "do-computer" },
     })
     if (response.status === 403 || response.status === 429) {
       throw new SkillError("GitHub is rate-limiting requests from this server. Try again later.")

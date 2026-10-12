@@ -1,4 +1,4 @@
-import { ApiError, type Me } from "@durable-computer/client"
+import { ApiError, type Me } from "@do-computer/client"
 import { createFileRoute, Outlet, redirect, useRouter } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppSkeleton } from "@/components/shell/app-skeleton"

@@ -7,9 +7,9 @@ import type {
   ChatState,
   ChatSummary,
   ScheduleSummary,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import { justBashSandbox } from "@durable-computer/sandbox"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import { justBashSandbox } from "@do-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

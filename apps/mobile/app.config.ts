@@ -2,9 +2,9 @@ import type { ExpoConfig } from "expo/config"
 
 const config: ExpoConfig = {
   name: "Do Computer",
-  slug: "durable-computer",
+  slug: "do-computer",
   // Must match MOBILE_SCHEME in apps/web/src/server/auth.ts, which trusts sign-ins from it.
-  scheme: "durablecomputer",
+  scheme: "docomputer",
   version: "0.1.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
@@ -12,14 +12,14 @@ const config: ExpoConfig = {
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.durablecomputer.app",
+    bundleIdentifier: "computer.do.app",
     infoPlist: {
       NSMicrophoneUsageDescription: "Used to dictate messages to your agent.",
       ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
-    package: "com.durablecomputer.app",
+    package: "com.docomputer.app",
     permissions: ["android.permission.RECORD_AUDIO"],
   },
   web: { bundler: "metro", output: "single" },

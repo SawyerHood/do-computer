@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import type { AgentSummary } from "@durable-computer/protocol"
+import type { AgentSummary } from "@do-computer/protocol"
 import {
   agentFor,
   callAgent,

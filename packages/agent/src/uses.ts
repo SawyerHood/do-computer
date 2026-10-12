@@ -16,8 +16,8 @@ import {
   type UseWhat,
   type UsingAgent,
   VIEW_WAIT_MS,
-} from "@durable-computer/protocol"
-import type { BlobStore } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { BlobStore } from "@do-computer/runtime"
 import type { Context } from "@earendil-works/chord"
 import { type Message, StringEnum, Type } from "@earendil-works/pi-ai"
 import {

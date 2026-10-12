@@ -9,9 +9,9 @@ import type {
   ConnectorResult,
   LibraryListing,
   ToolPart,
-} from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
+} from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {

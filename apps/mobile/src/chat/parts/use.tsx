@@ -8,7 +8,7 @@ import {
   type UseWhat,
   // Not a hook, whatever its name says: the words for a use in a sentence.
   useWords as wordsOf,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { Image } from "expo-image"
 import { atom, useAtomValue, useSetAtom } from "jotai"
 import {

@@ -1,4 +1,4 @@
-import type { AgentSummary } from "@durable-computer/protocol"
+import type { AgentSummary } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { useCallback, useEffect, useRef, useState } from "react"

@@ -1,4 +1,4 @@
-import type { AppDatabase } from "@durable-computer/runtime"
+import type { AppDatabase } from "@do-computer/runtime"
 import { readMeta, writeMeta } from "./schema.ts"
 import { peopleOfAgent } from "./teams.ts"
 import {

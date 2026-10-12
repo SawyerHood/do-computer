@@ -72,7 +72,7 @@ import {
   type WorkspaceRole,
   type WorkspacesState,
   type WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 export class ApiError extends Error {
   constructor(

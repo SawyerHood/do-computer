@@ -2,7 +2,7 @@ import {
   type AgentSummary,
   type ComputerRequest,
   isPersonalWorkspace,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { DesktopIcon } from "@phosphor-icons/react"
 import { useLiveQuery } from "@tanstack/react-db"
 import { useMutation, useQuery } from "@tanstack/react-query"

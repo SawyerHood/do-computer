@@ -62,12 +62,12 @@ jobs:
       # Linux run in the main workflow; these are the ones that hold on every system.
       - name: Test the daemon and the app's own code
         run: |
-          pnpm --filter @durable-computer/computers exec vitest run test/windows.test.ts
-          pnpm --filter @durable-computer/daemon --filter @durable-computer/desktop run test
+          pnpm --filter @do-computer/computers exec vitest run test/windows.test.ts
+          pnpm --filter @do-computer/daemon --filter @do-computer/desktop run test
       - name: Build the server and the app
         run: |
-          pnpm --filter @durable-computer/web build:node
-          pnpm --filter @durable-computer/desktop build
+          pnpm --filter @do-computer/web build:node
+          pnpm --filter @do-computer/desktop build
         env:
           # The deployment the app opens without asking, where the repository has one.
           DC_DESKTOP_SERVER: ${{ vars.DC_BASE_URL }}

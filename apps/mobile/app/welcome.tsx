@@ -1,5 +1,5 @@
-import { ApiError } from "@durable-computer/client"
-import type { Orb } from "@durable-computer/mascot"
+import { ApiError } from "@do-computer/client"
+import type { Orb } from "@do-computer/mascot"
 import {
   type AgentSummary,
   AVATAR_COLORS,
@@ -7,7 +7,7 @@ import {
   type Dood,
   type ModelOption,
   personalWorkspaceId,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { type Href, useLocalSearchParams, useRouter } from "expo-router"
 import { useAtomValue, useStore } from "jotai"

@@ -4,7 +4,7 @@ import type {
   ApprovalRule,
   ApprovalsState,
   ApprovalSubject,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import type { ToolCall } from "@earendil-works/pi-ai"
 import {

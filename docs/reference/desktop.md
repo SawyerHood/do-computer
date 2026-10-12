@@ -18,8 +18,8 @@ Computers, as with any other.
 
 ```sh
 pnpm desktop                                        # build it and run it from source
-pnpm --filter @durable-computer/desktop package     # pack it for this system, into apps/desktop/release
-DC_DESKTOP_SERVER=https://agents.example.com pnpm --filter @durable-computer/desktop package
+pnpm --filter @do-computer/desktop package     # pack it for this system, into apps/desktop/release
+DC_DESKTOP_SERVER=https://agents.example.com pnpm --filter @do-computer/desktop package
                                                     # the same, opening that deployment without asking
 ```
 

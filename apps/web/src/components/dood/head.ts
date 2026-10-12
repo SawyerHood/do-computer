@@ -1,5 +1,5 @@
-import { ApiError } from "@durable-computer/client"
-import type { Dood } from "@durable-computer/protocol"
+import { ApiError } from "@do-computer/client"
+import type { Dood } from "@do-computer/protocol"
 import { createIsomorphicFn } from "@tanstack/react-start"
 import { client } from "@/lib/client"
 

@@ -1,4 +1,4 @@
-import type { MascotCore, Orb, Sky, SkyCore } from "@durable-computer/mascot"
+import type { MascotCore, Orb, Sky, SkyCore } from "@do-computer/mascot"
 
 /** The side of the creature's picture is kept between these, whatever the window. */
 const MIN_SIDE = 60

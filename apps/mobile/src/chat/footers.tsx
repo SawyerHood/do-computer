@@ -1,4 +1,4 @@
-import type { Person } from "@durable-computer/protocol"
+import type { Person } from "@do-computer/protocol"
 import { type ReactNode, useState } from "react"
 import { TextInput, View } from "react-native"
 import { radius, useTheme } from "@/lib/theme"

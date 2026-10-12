@@ -1,5 +1,5 @@
-import { BodyTooLarge, readLimited } from "@durable-computer/protocol"
-import { BlockedAddressError, type Fetch, type SqliteDatabase } from "@durable-computer/runtime"
+import { BodyTooLarge, readLimited } from "@do-computer/protocol"
+import { BlockedAddressError, type Fetch, type SqliteDatabase } from "@do-computer/runtime"
 import {
   Bash,
   type BashOptions,

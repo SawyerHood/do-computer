@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@durable-computer/protocol"
+import type { LibraryFile } from "@do-computer/protocol"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { ActivityIndicator } from "react-native"

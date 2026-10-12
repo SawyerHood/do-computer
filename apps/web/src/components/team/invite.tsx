@@ -1,4 +1,4 @@
-import type { InviteResult, WorkspaceSummary } from "@durable-computer/protocol"
+import type { InviteResult, WorkspaceSummary } from "@do-computer/protocol"
 import {
   CheckIcon,
   CopyIcon,

@@ -1,4 +1,4 @@
-import type { Gift, Orb } from "@durable-computer/mascot"
+import type { Gift, Orb } from "@do-computer/mascot"
 import {
   type Outfit,
   RARITIES,
@@ -6,7 +6,7 @@ import {
   WEAR_ITEMS,
   type WearItem,
   wearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { LinearGradient } from "expo-linear-gradient"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { StatusBar } from "expo-status-bar"

@@ -1,4 +1,4 @@
-import type { DeletedLibraryFile, LibraryFile } from "@durable-computer/protocol"
+import type { DeletedLibraryFile, LibraryFile } from "@do-computer/protocol"
 import {
   ArrowCounterClockwiseIcon,
   CaretDownIcon,

@@ -1,5 +1,5 @@
-import { ApiError } from "@durable-computer/client"
-import type { Gift } from "@durable-computer/mascot"
+import { ApiError } from "@do-computer/client"
+import type { Gift } from "@do-computer/mascot"
 import {
   AVATAR_COLORS,
   type AvatarColorId,
@@ -12,7 +12,7 @@ import {
   rarityOf,
   TREATS_PER_BOX,
   type WearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   type ComponentProps,
   type FormEvent,

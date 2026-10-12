@@ -1,5 +1,5 @@
 {
-  "name": "@durable-computer/sandbox",
+  "name": "@do-computer/sandbox",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -21,8 +21,8 @@
   "dependencies": {
     "@cloudflare/computer": "0.5.0",
     "@daytona/sdk": "^0.218.0",
-    "@durable-computer/protocol": "workspace:*",
-    "@durable-computer/runtime": "workspace:*",
+    "@do-computer/protocol": "workspace:*",
+    "@do-computer/runtime": "workspace:*",
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
     "just-bash": "^3.6.0",

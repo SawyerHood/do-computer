@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises"
-import { modalSandbox } from "@durable-computer/sandbox/modal"
+import { modalSandbox } from "@do-computer/sandbox/modal"
 import { ConfigError } from "./platform.ts"
 import type { RuntimeProviders } from "./sandbox.ts"
 

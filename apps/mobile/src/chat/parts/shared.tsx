@@ -1,4 +1,4 @@
-import type { Use } from "@durable-computer/protocol"
+import type { Use } from "@do-computer/protocol"
 import { createContext, type ReactNode, useContext, useState } from "react"
 import {
   Pressable,

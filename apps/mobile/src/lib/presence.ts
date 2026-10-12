@@ -1,5 +1,5 @@
-import type { PresenceLink } from "@durable-computer/client"
-import type { Presence, PresenceUpdate } from "@durable-computer/protocol"
+import type { PresenceLink } from "@do-computer/client"
+import type { Presence, PresenceUpdate } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { useEffect } from "react"

@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { AppAnswer, AppCall } from "@durable-computer/daemon/events"
+import type { AppAnswer, AppCall } from "@do-computer/daemon/events"
 import { afterEach, describe, expect, it } from "vitest"
 import { DaemonRunner } from "../src/daemon.ts"
 

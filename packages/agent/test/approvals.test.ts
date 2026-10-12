@@ -10,10 +10,10 @@ import type {
   ChatSummary,
   ConnectorResult,
   ToolPart,
-} from "@durable-computer/protocol"
-import { readSse } from "@durable-computer/protocol"
-import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
-import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
+} from "@do-computer/protocol"
+import { readSse } from "@do-computer/protocol"
+import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,

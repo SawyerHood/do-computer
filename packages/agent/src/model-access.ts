@@ -6,8 +6,8 @@ import type {
   ModelProvider,
   ModelProvidersState,
   StartModelLoginRequest,
-} from "@durable-computer/protocol"
-import type { Actor, ActorHost, ActorStub } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { Actor, ActorHost, ActorStub } from "@do-computer/runtime"
 import type {
   AuthEvent,
   AuthInteraction,

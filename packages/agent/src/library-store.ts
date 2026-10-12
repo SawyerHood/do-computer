@@ -7,8 +7,8 @@ import {
   SITE_LISTING_HEADER,
   type SiteEntry,
   type SiteListing,
-} from "@durable-computer/protocol"
-import type { BlobStore } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { BlobStore } from "@do-computer/runtime"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { defineDoc, type Harness } from "@earendil-works/pi-durable"
 import type { Base } from "./library-sync.ts"

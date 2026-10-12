@@ -3,7 +3,7 @@ import {
   MAX_MESSAGE_IMAGES,
   MESSAGE_IMAGE_TYPES,
   type MessageImage,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { Image } from "expo-image"
 import { ActivityIndicator, Platform, Pressable, ScrollView, View } from "react-native"
 import { radius, useTheme } from "@/lib/theme"

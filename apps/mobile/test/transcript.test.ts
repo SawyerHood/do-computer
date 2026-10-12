@@ -1,4 +1,4 @@
-import type { ChatMessage, MessagePart } from "@durable-computer/protocol"
+import type { ChatMessage, MessagePart } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import {
   fileIcon,

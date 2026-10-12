@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@durable-computer/protocol"
+import type { LibraryFile } from "@do-computer/protocol"
 import * as DocumentPicker from "expo-document-picker"
 import * as ImagePicker from "expo-image-picker"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"

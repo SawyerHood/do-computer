@@ -37,7 +37,7 @@ type Issue = { message: string }
 const tokenBody = {
   "~standard": {
     version: 1 as const,
-    vendor: "durable-computer",
+    vendor: "do-computer",
     validate: (value: unknown): { value: { token: string } } | { issues: Issue[] } => {
       const token = (value as { token?: unknown } | null)?.token
       if (typeof token !== "string" || token === "" || token.length > 256) {

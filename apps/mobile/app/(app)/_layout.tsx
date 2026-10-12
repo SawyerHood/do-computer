@@ -1,4 +1,4 @@
-import { ApiError } from "@durable-computer/client"
+import { ApiError } from "@do-computer/client"
 import * as Notifications from "expo-notifications"
 import { Redirect, Stack, useRouter } from "expo-router"
 import { useEffect } from "react"

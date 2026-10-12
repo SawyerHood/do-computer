@@ -4,7 +4,7 @@ import {
   defaultAvatar,
   PAIRED_COMPUTER,
   randomId,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useEffect, useState } from "react"

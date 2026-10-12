@@ -8,7 +8,7 @@ import file from "@cloudflare/computer/shell/file"
 import htmlToMarkdown from "@cloudflare/computer/shell/html-to-markdown"
 import jq from "@cloudflare/computer/shell/jq"
 import xan from "@cloudflare/computer/shell/xan"
-import { BlockedAddressError, type Fetch } from "@durable-computer/runtime"
+import { BlockedAddressError, type Fetch } from "@do-computer/runtime"
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers"
 import type { DirectoryEntry, ExecOutcome, FileStat, SandboxErrorCode } from "../index.ts"
 import {

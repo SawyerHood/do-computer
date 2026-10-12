@@ -1,4 +1,4 @@
-import type { ModelLoginMethod, ModelProvider } from "@durable-computer/protocol"
+import type { ModelLoginMethod, ModelProvider } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
 import {
   asked,

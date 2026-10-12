@@ -1,4 +1,4 @@
-import { ApiError, type Me } from "@durable-computer/client"
+import { ApiError, type Me } from "@do-computer/client"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { createIsomorphicFn } from "@tanstack/react-start"
 import { getRequestHeader } from "@tanstack/react-start/server"

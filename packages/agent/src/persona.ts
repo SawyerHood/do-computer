@@ -1,4 +1,4 @@
-import { AVATAR_COLORS, parseAvatar } from "@durable-computer/protocol"
+import { AVATAR_COLORS, parseAvatar } from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

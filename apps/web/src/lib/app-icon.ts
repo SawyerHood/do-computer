@@ -1,5 +1,5 @@
-import type { Island, Portrait } from "@durable-computer/mascot"
-import { type AgentSummary, avatarLook } from "@durable-computer/protocol"
+import type { Island, Portrait } from "@do-computer/mascot"
+import { type AgentSummary, avatarLook } from "@do-computer/protocol"
 import { useEffect } from "react"
 import { desktop } from "@/lib/desktop"
 import { dressMascot, loadMascot, loadSky } from "@/lib/mascot"
@@ -40,7 +40,7 @@ function islandFor(grid: number) {
     const [core, sky, { AgentOrbPortrait }] = await Promise.all([
       loadMascot(),
       loadSky(),
-      import("@durable-computer/mascot"),
+      import("@do-computer/mascot"),
     ])
     if (core === null || sky === null) return null
     await idle()

@@ -2,8 +2,8 @@ import type {
   AddConnectorRequest,
   ConnectorResult,
   ConnectorSummary,
-} from "@durable-computer/protocol"
-import type { SqliteDatabase } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { SqliteDatabase } from "@do-computer/runtime"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import { BlockedAddressError, checkAddress, guardedFetch } from "./guarded-fetch.ts"
@@ -90,7 +90,7 @@ const NUDGE =
   '<meta kind="connector">Word about a connector you asked for is above. Carry on with what you wanted it for, or tell the user where things stand.</meta>'
 
 type Turn = Awaited<ReturnType<Conversation["submit"]>>
-const CLIENT = { name: "durable-computer", version: "0.1.0" }
+const CLIENT = { name: "do-computer", version: "0.1.0" }
 
 type ConnectorRecord = Omit<ConnectorSummary, "id">
 type ConnectorsState = { connectors: Record<string, ConnectorRecord> }

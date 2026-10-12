@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from "@durable-computer/protocol"
+import type { WorkspaceSummary } from "@do-computer/protocol"
 import { DotsThreeIcon, GearIcon, PlusIcon, UserPlusIcon } from "@phosphor-icons/react"
 import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"

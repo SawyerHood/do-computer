@@ -1,4 +1,4 @@
-import type { AgentLatest, AgentSummary, FeedEvent, Person } from "@durable-computer/protocol"
+import type { AgentLatest, AgentSummary, FeedEvent, Person } from "@do-computer/protocol"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { useEffect, useState } from "react"
 import { client } from "./client.ts"

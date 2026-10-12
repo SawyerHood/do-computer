@@ -12,7 +12,7 @@ import {
   useOf,
   type ToolPart,
   toolSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,

@@ -1,4 +1,4 @@
-import type { AgentSummary, Person, WorkspaceSummary } from "@durable-computer/protocol"
+import type { AgentSummary, Person, WorkspaceSummary } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useRouter } from "expo-router"
 import { useEffect, useMemo, useState } from "react"

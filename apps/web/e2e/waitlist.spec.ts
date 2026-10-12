@@ -1,4 +1,4 @@
-import type { MadeDood } from "@durable-computer/protocol"
+import type { MadeDood } from "@do-computer/protocol"
 import type { BrowserContext } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 import { card, inOrder, introduce, openOwnSettings, owner, signUp } from "./helpers.ts"

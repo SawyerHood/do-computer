@@ -127,7 +127,7 @@ for (const target of targets) {
 
 const daemon = "../daemon/dist/daemon.cjs"
 if (!existsSync(daemon)) {
-  throw new Error("Build the daemon first: pnpm --filter @durable-computer/daemon build")
+  throw new Error("Build the daemon first: pnpm --filter @do-computer/daemon build")
 }
 cpSync(daemon, "dist/daemon.cjs")
 console.log(`desktop: built${server === "" ? "" : ` for ${server}`}`)

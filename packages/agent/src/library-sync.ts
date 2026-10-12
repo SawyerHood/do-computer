@@ -1,4 +1,4 @@
-import { type Sandbox, SandboxError } from "@durable-computer/sandbox"
+import { type Sandbox, SandboxError } from "@do-computer/sandbox"
 import {
   isLibraryPath,
   type LibraryBackend,

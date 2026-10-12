@@ -1,4 +1,4 @@
-import type { SiteSummary } from "@durable-computer/protocol"
+import type { SiteSummary } from "@do-computer/protocol"
 import { CheckIcon, CopyIcon, GlobeIcon, LinkSimpleIcon, LockIcon } from "@phosphor-icons/react"
 import { type ReactElement, useState } from "react"
 import { Button } from "@/components/ui/button"

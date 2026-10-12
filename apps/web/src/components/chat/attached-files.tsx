@@ -1,4 +1,4 @@
-import type { MessageImage } from "@durable-computer/protocol"
+import type { MessageImage } from "@do-computer/protocol"
 import { CaretLeftIcon, CaretRightIcon, XIcon } from "@phosphor-icons/react"
 import { useMemo, useState } from "react"
 import {

@@ -17,7 +17,7 @@ import {
   continuesMain,
   isVisibleMessage,
   type MessagePart,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   ArrowClockwiseIcon,
   ArrowsClockwiseIcon,

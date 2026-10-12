@@ -1,6 +1,6 @@
 // What the library's screens work out from the list of files: which folder holds what, how a
 // file is shown, what is shared, and the small edits the format buttons make. Nothing here draws.
-import { type LibraryFile, resolveLink, type SiteSummary } from "@durable-computer/protocol"
+import { type LibraryFile, resolveLink, type SiteSummary } from "@do-computer/protocol"
 
 /** How a file is shown: each kind has a viewer of its own, and `other` only a download. */
 export type FileKind = "markdown" | "page" | "image" | "text" | "csv" | "pdf" | "other"

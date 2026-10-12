@@ -1,4 +1,4 @@
-import { nearestThinking, type ThinkingLevel } from "@durable-computer/protocol"
+import { nearestThinking, type ThinkingLevel } from "@do-computer/protocol"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const LABELS: Record<ThinkingLevel, string> = {

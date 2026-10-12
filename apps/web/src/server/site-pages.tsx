@@ -4,7 +4,7 @@ import {
   SITE_LISTING_HEADER,
   type SiteListing,
   themedPage,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { renderToStaticMarkup } from "react-dom/server"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"

@@ -1,4 +1,4 @@
-import { sentFiles } from "@durable-computer/protocol"
+import { sentFiles } from "@do-computer/protocol"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useAgentPage } from "@/agent/agent"
 import { MainChatLive } from "@/agent/main-chat"

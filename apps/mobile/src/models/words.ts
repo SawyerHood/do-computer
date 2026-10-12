@@ -4,7 +4,7 @@ import type {
   ModelProvider,
   WorkspaceRole,
   WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 
 /**
  * What a way of signing in is called on a button. pi names them for a list in a terminal,

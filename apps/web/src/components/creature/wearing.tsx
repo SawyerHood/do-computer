@@ -1,4 +1,4 @@
-import type { AgentSummary, WearItem, WearSlot } from "@durable-computer/protocol"
+import type { AgentSummary, WearItem, WearSlot } from "@do-computer/protocol"
 import { AgentAvatar } from "@/components/agent-avatar"
 
 /** What each place is called: over a list of the things worn there, and for one of them. */

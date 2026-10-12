@@ -1,4 +1,4 @@
-import type { SkillSummary } from "@durable-computer/protocol"
+import type { SkillSummary } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { keys } from "@/lib/queries"
 import { useSession } from "@/lib/use-session"

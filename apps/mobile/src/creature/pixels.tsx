@@ -1,4 +1,4 @@
-import type { TreatKind } from "@durable-computer/protocol"
+import type { TreatKind } from "@do-computer/protocol"
 import { useMemo } from "react"
 import Svg, { Path } from "react-native-svg"
 

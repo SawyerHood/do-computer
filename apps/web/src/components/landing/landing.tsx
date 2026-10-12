@@ -1,11 +1,11 @@
-import type { MascotState, MascotVariant } from "@durable-computer/mascot"
+import type { MascotState, MascotVariant } from "@do-computer/mascot"
 import {
   AVATAR_COLORS,
   type Outfit,
   rarityOf,
   type WearItem,
   wearItem,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   ArrowUpRightIcon,
   BrowserIcon,

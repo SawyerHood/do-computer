@@ -1,4 +1,4 @@
-import { AVATAR_COLORS, type Person, workspaceColor } from "@durable-computer/protocol"
+import { AVATAR_COLORS, type Person, workspaceColor } from "@do-computer/protocol"
 import {
   Avatar,
   AvatarBadge,

@@ -1,6 +1,6 @@
-import { computerSandbox } from "@durable-computer/computers"
-import type { ActorNamespace } from "@durable-computer/runtime"
-import { type Sandbox, SandboxEnv } from "@durable-computer/sandbox"
+import { computerSandbox } from "@do-computer/computers"
+import type { ActorNamespace } from "@do-computer/runtime"
+import { type Sandbox, SandboxEnv } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

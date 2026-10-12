@@ -1,4 +1,4 @@
-import type { Client } from "@durable-computer/client"
+import type { Client } from "@do-computer/client"
 import Constants from "expo-constants"
 import * as Device from "expo-device"
 import * as Notifications from "expo-notifications"

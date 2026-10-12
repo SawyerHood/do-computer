@@ -1,11 +1,11 @@
-import { type SiteDirectory, SiteError } from "@durable-computer/agent"
+import { type SiteDirectory, SiteError } from "@do-computer/agent"
 import {
   MAX_SITE_TITLE,
   MAX_SITES_PER_WORKSPACE,
   personalWorkspaceId,
   type SiteSummary,
-} from "@durable-computer/protocol"
-import type { AppDatabase } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { AppDatabase } from "@do-computer/runtime"
 
 /**
  * A site as it is kept: a page or a folder of a workspace's library, given an address. `secret`

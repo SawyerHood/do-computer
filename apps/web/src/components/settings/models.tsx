@@ -5,7 +5,7 @@ import type {
   ModelProvider,
   WorkspaceRole,
   WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   ArrowSquareOutIcon,
   CaretDownIcon,

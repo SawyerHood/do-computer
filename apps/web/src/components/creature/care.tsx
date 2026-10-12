@@ -4,7 +4,7 @@ import {
   hasEverything,
   topTreat,
   type TreatKind,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useSetAtom } from "jotai"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"

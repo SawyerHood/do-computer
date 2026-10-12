@@ -3,8 +3,8 @@ import {
   parseFrame,
   REVOKED_CLOSE_CODE,
   SUPERSEDED_CLOSE_CODE,
-} from "@durable-computer/protocol"
-import type { Actor, ActorHost } from "@durable-computer/runtime"
+} from "@do-computer/protocol"
+import type { Actor, ActorHost } from "@do-computer/runtime"
 import { LinkCore, type LinkCoreOptions, RemoteError, type RemoteErrorCode } from "./link-core.ts"
 
 /** What the link knows about its computer between requests. */

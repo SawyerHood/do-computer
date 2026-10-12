@@ -1,4 +1,4 @@
-import { type JobStatus, type JobSummary, spanOf } from "@durable-computer/protocol"
+import { type JobStatus, type JobSummary, spanOf } from "@do-computer/protocol"
 import {
   JOB_LOG_CAP_BYTES,
   type JobFollowed,
@@ -6,7 +6,7 @@ import {
   JobsUnsupported,
   type SandboxJobs,
   shellJobs,
-} from "@durable-computer/sandbox"
+} from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {

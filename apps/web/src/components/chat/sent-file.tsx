@@ -1,4 +1,4 @@
-import type { LibraryFile, ToolPart } from "@durable-computer/protocol"
+import type { LibraryFile, ToolPart } from "@do-computer/protocol"
 import { createContext, useContext } from "react"
 import { FileCard } from "@/components/file-card"
 

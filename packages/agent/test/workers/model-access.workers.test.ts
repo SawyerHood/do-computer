@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test"
-import type { ModelLogin, ModelProvidersState } from "@durable-computer/protocol"
-import { durableObjectNamespace } from "@durable-computer/runtime/cloudflare"
+import type { ModelLogin, ModelProvidersState } from "@do-computer/protocol"
+import { durableObjectNamespace } from "@do-computer/runtime/cloudflare"
 import { describe, expect, it } from "vitest"
 import { CALLER_HEADER, encodeCaller } from "../../src/index.ts"
 import type { Env } from "./worker.ts"

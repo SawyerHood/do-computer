@@ -5,14 +5,14 @@ import {
   BodyTooLarge,
   declaredTooLarge,
   readLimited,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import {
   APP_ORIGIN_HEADER,
   CALLER_HEADER,
   encodeCaller,
   LIBRARY_AGENT_HEADER,
-} from "@durable-computer/agent"
-import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/protocol"
+} from "@do-computer/agent"
+import { isPersonalWorkspace, personalWorkspaceId } from "@do-computer/protocol"
 import { getAuth, getSignedIn, getUser, type SessionUser } from "./auth.ts"
 import { provideFor } from "./computers.ts"
 import { announce } from "./presence.ts"

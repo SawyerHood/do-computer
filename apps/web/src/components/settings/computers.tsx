@@ -5,7 +5,7 @@ import {
   isPersonalWorkspace,
   PAIRED_COMPUTER,
   type WorkspaceSummary,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { ArrowsClockwiseIcon, CopyIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useRef, useState } from "react"

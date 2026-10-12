@@ -1,6 +1,6 @@
 import { getPlatform } from "#platform"
-import { CALLER_HEADER, DEPLOYMENT_MODEL_ACCESS, encodeCaller } from "@durable-computer/agent"
-import type { ModelOption, ModelProvidersState } from "@durable-computer/protocol"
+import { CALLER_HEADER, DEPLOYMENT_MODEL_ACCESS, encodeCaller } from "@do-computer/agent"
+import type { ModelOption, ModelProvidersState } from "@do-computer/protocol"
 import { fail } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
 import { roleIn } from "./teams.ts"

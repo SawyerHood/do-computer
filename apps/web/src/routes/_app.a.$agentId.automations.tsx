@@ -1,4 +1,4 @@
-import type { ScheduleSummary } from "@durable-computer/protocol"
+import type { ScheduleSummary } from "@do-computer/protocol"
 import { ClockIcon, PauseIcon, PlayIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"

@@ -1,5 +1,5 @@
-import type { AgentState } from "@durable-computer/client"
-import type { AgentSummary, ChatSummary } from "@durable-computer/protocol"
+import type { AgentState } from "@do-computer/client"
+import type { AgentSummary, ChatSummary } from "@do-computer/protocol"
 import { ArrowSquareOutIcon, CaretLeftIcon, SlackLogoIcon, StopIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"

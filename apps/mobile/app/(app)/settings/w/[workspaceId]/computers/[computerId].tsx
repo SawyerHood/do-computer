@@ -1,5 +1,5 @@
-import type { AgentSummary } from "@durable-computer/protocol"
-import { isPersonalWorkspace } from "@durable-computer/protocol"
+import type { AgentSummary } from "@do-computer/protocol"
+import { isPersonalWorkspace } from "@do-computer/protocol"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams } from "expo-router"
 import { ActivityIndicator, View } from "react-native"

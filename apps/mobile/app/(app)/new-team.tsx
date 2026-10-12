@@ -1,4 +1,4 @@
-import { type InviteResult, personalWorkspaceId, WORKSPACE_COLORS } from "@durable-computer/protocol"
+import { type InviteResult, personalWorkspaceId, WORKSPACE_COLORS } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { Stack, useRouter } from "expo-router"
 import { useState } from "react"

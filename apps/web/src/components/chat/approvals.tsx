@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ApprovalRequest, ApprovalsState } from "@durable-computer/protocol"
+import type { ApprovalDecision, ApprovalRequest, ApprovalsState } from "@do-computer/protocol"
 import { ShieldCheckIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"

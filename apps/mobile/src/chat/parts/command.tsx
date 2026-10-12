@@ -4,7 +4,7 @@ import {
   type NoticePart,
   spanOf,
   type ToolPart,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { atom, useAtomValue, useSetAtom } from "jotai"
 import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react"

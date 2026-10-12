@@ -1,5 +1,5 @@
-import type { ComputerChoices } from "@durable-computer/agent"
-import type { ActorNamespace, AppDatabase } from "@durable-computer/runtime"
+import type { ComputerChoices } from "@do-computer/agent"
+import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 
 /** Deployment settings, read from the environment of whichever runtime hosts the app. */
 export type Config = {

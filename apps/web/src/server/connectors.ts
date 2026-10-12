@@ -4,8 +4,8 @@ import {
   CONNECTOR_CALLBACK_PATH,
   CONNECTOR_REDIRECT_HEADER,
   encodeCaller,
-} from "@durable-computer/agent"
-import type { AddConnectorRequest, ConnectorResult } from "@durable-computer/protocol"
+} from "@do-computer/agent"
+import type { AddConnectorRequest, ConnectorResult } from "@do-computer/protocol"
 import { agentFor, fail, json } from "./agents.ts"
 import { getUser, type SessionUser } from "./auth.ts"
 

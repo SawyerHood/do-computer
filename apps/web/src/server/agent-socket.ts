@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import { CALLER_HEADER, encodeCaller } from "@durable-computer/agent"
+import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
 import { agentFor } from "./agents.ts"
 import { getUser } from "./auth.ts"
 

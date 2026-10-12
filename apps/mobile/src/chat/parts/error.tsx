@@ -1,4 +1,4 @@
-import { describeChatError } from "@durable-computer/protocol"
+import { describeChatError } from "@do-computer/protocol"
 import { useRouter } from "expo-router"
 import { memo, useState } from "react"
 import { Pressable, View } from "react-native"

@@ -1,5 +1,5 @@
-import { ApiError } from "@durable-computer/client"
-import type { LibraryFile } from "@durable-computer/protocol"
+import { ApiError } from "@do-computer/client"
+import type { LibraryFile } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { client } from "@/lib/client"

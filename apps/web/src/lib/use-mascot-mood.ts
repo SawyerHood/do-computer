@@ -3,7 +3,7 @@ import {
   chatMood,
   type ChatState,
   type Mood,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { useAtomValue, useSetAtom } from "jotai"
 import { useEffect, useRef, useState } from "react"

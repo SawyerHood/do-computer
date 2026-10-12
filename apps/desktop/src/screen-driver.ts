@@ -6,7 +6,7 @@ import { appendFileSync, existsSync } from "node:fs"
 import * as path from "node:path"
 import { pathToFileURL } from "node:url"
 import { crc32, deflateSync } from "node:zlib"
-import type { DesktopAction, ScreenWindow, WindowAct } from "@durable-computer/protocol"
+import type { DesktopAction, ScreenWindow, WindowAct } from "@do-computer/protocol"
 
 export type Picture = { png: Buffer; width: number; height: number }
 

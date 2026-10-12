@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatState, MessageImage, QueuedInput } from "@durable-computer/protocol"
+import type { ChatMessage, ChatState, MessageImage, QueuedInput } from "@do-computer/protocol"
 
 /**
  * A message the user has sent that the chat does not have yet. It is shown from the moment it

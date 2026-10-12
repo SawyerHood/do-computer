@@ -1,4 +1,4 @@
-import type { SiteSummary } from "@durable-computer/protocol"
+import type { SiteSummary } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import * as Clipboard from "expo-clipboard"
 import { Stack, useLocalSearchParams } from "expo-router"

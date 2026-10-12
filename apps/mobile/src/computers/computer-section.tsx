@@ -4,8 +4,8 @@ import type {
   ComputerRequest,
   ComputerSummary,
   WorkspaceSummary,
-} from "@durable-computer/protocol"
-import { isPersonalWorkspace } from "@durable-computer/protocol"
+} from "@do-computer/protocol"
+import { isPersonalWorkspace } from "@do-computer/protocol"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { View } from "react-native"

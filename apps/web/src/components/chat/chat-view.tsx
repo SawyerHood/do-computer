@@ -1,4 +1,4 @@
-import { type AgentSummary, continuesMain } from "@durable-computer/protocol"
+import { type AgentSummary, continuesMain } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router"
 import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"

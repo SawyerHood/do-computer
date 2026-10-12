@@ -5,7 +5,7 @@ import {
   type ToolPart,
   toolSummary,
   useOf,
-} from "@durable-computer/protocol"
+} from "@do-computer/protocol"
 import { Stack, useLocalSearchParams } from "expo-router"
 import { useState } from "react"
 import { ActivityIndicator, Pressable, View } from "react-native"

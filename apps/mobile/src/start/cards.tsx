@@ -1,4 +1,4 @@
-import { AVATAR_COLORS, type AvatarColorId, type ModelOption } from "@durable-computer/protocol"
+import { AVATAR_COLORS, type AvatarColorId, type ModelOption } from "@do-computer/protocol"
 import { useState } from "react"
 import {
   Pressable,

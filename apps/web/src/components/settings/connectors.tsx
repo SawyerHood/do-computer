@@ -1,4 +1,4 @@
-import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@durable-computer/protocol"
+import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@do-computer/protocol"
 import { CaretRightIcon, SlackLogoIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"

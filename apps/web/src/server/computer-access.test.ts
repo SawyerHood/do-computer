@@ -1,9 +1,9 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { personalWorkspaceId } from "@durable-computer/protocol"
-import type { AppDatabase } from "@durable-computer/runtime"
-import { openNodeAppDatabase } from "@durable-computer/runtime/node"
+import { personalWorkspaceId } from "@do-computer/protocol"
+import type { AppDatabase } from "@do-computer/runtime"
+import { openNodeAppDatabase } from "@do-computer/runtime/node"
 import { describe, expect, it } from "vitest"
 import { adoptMachines } from "./computer-adoption.ts"
 import {
