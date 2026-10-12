@@ -35,21 +35,24 @@ test("someone new meets their first agent: it is named as it hatches, and says h
   await naming.getByRole("radio", { name: "Rose" }).click()
   await naming.getByRole("button", { name: "That’s your name" }).click()
 
-  // What it thinks with is the deployment's own to begin with, which here is only an echo.
+  // What it thinks with is what the deployment includes to begin with, which here is only an
+  // echo: with one model there, there is nothing to change it to.
   const thinking = await card(page, "Pip. I like that. What should I think with?")
   const choices = thinking.getByRole("radiogroup", { name: "What it thinks with" })
   await expect(choices.getByRole("radio")).toHaveCount(1)
-  await expect(choices.getByRole("radio", { name: /^Echo/ })).toBeChecked()
-  await expect(choices).toContainText("Built in")
+  const included = choices.getByRole("radio", { name: "Included" })
+  await expect(included).toBeChecked()
+  await expect(included).toHaveAccessibleDescription(/^Echo/)
+  await expect(choices.getByRole("button", { name: /^Change the model/ })).toHaveCount(0)
   // An account of their own is a press away for the two most have, and the rest are behind one more.
-  await thinking.getByRole("button", { name: "Sign in with Claude", exact: true }).click()
+  await choices.getByRole("button", { name: "Sign in with Claude", exact: true }).click()
   const claude = page.getByRole("dialog", { name: "Sign in with Claude Pro or Max" })
   await expect(claude.getByRole("link", { name: "Open the sign-in page" })).toBeVisible()
   await claude.getByRole("button", { name: "Cancel" }).click()
   await expect(
-    thinking.getByRole("button", { name: "Sign in with ChatGPT", exact: true }),
+    choices.getByRole("button", { name: "Sign in with ChatGPT", exact: true }),
   ).toBeVisible()
-  await thinking.getByRole("button", { name: "More" }).click()
+  await thinking.getByRole("button", { name: "Other providers" }).click()
   const providers = thinking.getByRole("region", { name: "Model providers" })
   await providers.getByRole("button", { name: "Use a key for Anthropic" }).click()
   const key = page.getByRole("dialog", { name: "Anthropic API key" })
@@ -58,13 +61,25 @@ test("someone new meets their first agent: it is named as it hatches, and says h
   await expect(key).toHaveCount(0)
   // Saving a key there is not this card being answered: the egg is still asking.
   await expect(thinking.getByRole("status")).toHaveText(/What should I think with\?/)
-  // What they signed in to is listed under its own name, and its first model is chosen.
+  // What they signed in to is a choice where Claude was, under its own name, and is the one
+  // chosen, on its first model.
   await expect(providers).toHaveCount(0)
-  const theirs = choices.getByRole("group", { name: "Your Anthropic key" })
-  await expect(theirs.getByRole("radio", { name: "Claude Sonnet 5.5" })).toBeChecked()
+  await expect(choices.getByRole("radio")).toHaveCount(2)
+  await expect(
+    choices.getByRole("button", { name: "Sign in with Claude", exact: true }),
+  ).toHaveCount(0)
+  const theirs = choices.getByRole("radio", { name: "Your Anthropic key" })
+  await expect(theirs).toBeChecked()
+  await expect(theirs).toHaveAccessibleDescription("Claude Sonnet 5.5")
   await expect(thinking.getByRole("button", { name: "Use Claude Sonnet 5.5" })).toBeVisible()
-  await expect(thinking.getByText("Anthropic key", { exact: true })).toBeVisible()
-  await theirs.getByRole("radio", { name: "Claude Haiku 5.5" }).click()
+  // Another of its models is behind the small "Change" beside the one it is on.
+  await choices.getByRole("button", { name: "Change the model of Your Anthropic key" }).click()
+  await page.getByRole("menuitemradio", { name: "Claude Haiku 5.5" }).click()
+  await expect(theirs).toHaveAccessibleDescription("Claude Haiku 5.5")
+  // Choosing what is included again, and then theirs, keeps the model theirs was changed to.
+  await included.click()
+  await expect(thinking.getByRole("button", { name: /^Use Echo/ })).toBeVisible()
+  await theirs.click()
   await thinking.getByRole("button", { name: "Use Claude Haiku 5.5" }).click()
 
   // In a browser there is no computer to ask about: it hatches, and its chat is next.
