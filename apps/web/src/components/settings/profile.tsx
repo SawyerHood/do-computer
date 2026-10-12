@@ -408,8 +408,7 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
         <p className="text-sm text-muted-foreground">Only an admin of the team can move it.</p>
       ) : elsewhere.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Start a team from the workspace menu, at the top of the sidebar, to have somewhere to move
-          it.
+          Start a team with New team, at the foot of the sidebar, to have somewhere to move it.
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">

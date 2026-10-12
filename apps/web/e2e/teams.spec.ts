@@ -1,6 +1,6 @@
 import type { Browser, Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { card, composer, introduce, owner, signUp } from "./helpers.ts"
+import { card, composer, introduce, owner, signUp, workspaceMenu } from "./helpers.ts"
 
 // The first account on the server is the owner's. Sign-up there is by invitation, so the second
 // person here can only get in by being asked to a team.
@@ -33,9 +33,10 @@ test.afterAll(async () => {
   await her.context().close()
 })
 
-test("a team is started from the workspace menu, with someone asked to join", async () => {
-  await sawyer.getByRole("button", { name: /Switch workspace/ }).click()
-  await sawyer.getByRole("menuitem", { name: "New team" }).click()
+test("a team is started from the foot of the sidebar, with someone asked to join", async () => {
+  // With only his own agents there is nothing to tell apart: they are under no workspace's name.
+  await expect(sawyer.getByRole("heading", { name: "Agents" })).toBeVisible()
+  await sawyer.getByRole("button", { name: "New team" }).click()
   await sawyer.getByLabel("Team name").fill("Tidewater")
   await sawyer.getByLabel("Who to invite").fill(maya.email)
   const made = sawyer.waitForResponse(
@@ -99,8 +100,13 @@ test("an agent made in the team is everyone's, and an agent of one's own is not"
   await sawyer.waitForURL((url) => /\/a\/[^/]+\/c\/\d+$/.test(url.pathname) && url.href !== mine)
   chatPath = new URL(sawyer.url()).pathname
   agentId = chatPath.split("/")[2]!
-  // The sidebar says which workspace the agent is in.
-  await expect(sawyer.getByRole("button", { name: /^Workspace: Tidewater/ })).toBeVisible()
+  // The sidebar has it under its team, and his own agent under his own workspace.
+  const sections = sawyer.getByRole("navigation", { name: "Agents" }).getByRole("region")
+  await expect(sections).toHaveCount(2)
+  await expect(
+    sawyer.getByRole("region", { name: "Tidewater" }).locator('a[aria-current="page"]'),
+  ).toBeVisible()
+  await expect(sawyer.getByRole("heading", { name: "Agents" })).toHaveCount(0)
 
   expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(200)
   const { agents } = (await (await sawyer.request.get("/api/agents")).json()) as {
@@ -151,7 +157,9 @@ test("each sees the other in the chat, and when they are writing", async () => {
   await expect(here.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
   // In the list of agents, her face is on the agent she is with.
   const agents = sawyer.getByRole("navigation", { name: "Agents" })
-  await expect(agents.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
+  await expect(agents.getByRole("link").getByRole("img", { name: "Maya Okafor" })).toBeVisible()
+  // And on the team, which says how many are in it right now.
+  await expect(agents.getByRole("button", { name: /^1 here now: Maya/ })).toBeVisible()
 
   await composer(her).pressSequentially("I am writing")
   await expect(sawyer.getByRole("status").filter({ hasText: "Maya is typing" })).toBeVisible()
@@ -161,9 +169,12 @@ test("each sees the other in the chat, and when they are writing", async () => {
   // When she goes elsewhere she is no longer in the chat.
   await her.goto(`/a/${agentId}/automations`)
   await expect(here.getByRole("img", { name: "Maya Okafor" })).toHaveCount(0)
-  // From there the sidebar says where he is, and leads to it.
+  // From there the sidebar says where he is: his face is on the agent's row, which leads to it.
   await expect(
-    her.getByRole("region", { name: "Who is in Tidewater" }).getByRole("link", { name: /Sawyer/ }),
+    her
+      .getByRole("navigation", { name: "Agents" })
+      .getByRole("link")
+      .getByRole("img", { name: "Sawyer" }),
   ).toBeVisible()
 })
 
@@ -188,7 +199,7 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   await expect(sawyer.getByText(/No agent can use it yet/)).toBeVisible()
 
   // She did not pair it, but it is her team's: she sees it, and connects the team's agent.
-  await her.getByRole("button", { name: /Switch workspace$/ }).click()
+  await workspaceMenu(her).click()
   await her.getByRole("menuitem", { name: /Workspace settings/ }).click()
   await her.getByRole("dialog").getByRole("button", { name: "Computers", exact: true }).click()
   const mini = her.getByRole("listitem").filter({ hasText: "team-mini" })

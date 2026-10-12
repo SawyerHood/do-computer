@@ -95,8 +95,8 @@ function useCurrentWorkspace(
 }
 
 /**
- * The frame around everything behind sign-in. One sidebar holds the workspace and its agents;
- * choosing one opens its main chat. An agent's own pages are tabs in a strip above them, and
+ * The frame around everything behind sign-in. One sidebar holds the user's agents; choosing
+ * one opens its main chat. An agent's own pages are tabs in a strip above them, and
  * the settings are a window over whichever page is showing. Changing tab changes what is under
  * the strip and nothing else.
  */

@@ -278,9 +278,10 @@ Since then, newest last:
       in memory. The same socket tells open tabs when the team changes. It is reached at
       `/api/presence/<team>`, which the server entries route before the framework, as they do
       for daemons; the gateway checks the session, the membership and the page's origin.
-    - **The web app** has one sidebar and no rail. The workspace menu is at its top; under it
-      are the workspace's agents (item 18 says what choosing one does); at its foot is the
-      user's own menu, which leads to the workspace's settings. A team
+    - **The web app** has one sidebar and no rail. It lists the user's agents, under their
+      workspaces' names where they are in a team (item 62, which replaced the workspace menu
+      this was built with; item 18 says what choosing an agent does); at its foot is the
+      user's own menu. A team
       has no page of its own: `/w/<id>` goes to its first agent, and stops only where there is
       none yet. Its people are a section of the workspace's settings. The invitation page
       (`/invite/<token>`) can be read before signing in.
@@ -2506,6 +2507,52 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       Computer. Still named durable-computer, and not changed: the `@durable-computer/*`
       packages, the Worker, database and bucket, and `~/.durable-computer` on a paired
       computer. Renaming those changes running deployments and paired machines.
+62. **The sidebar lists every workspace's agents** (2026-10-12;
+    `apps/web/src/components/shell/agent-list.tsx`, `workspace-menu.tsx`, `sidebar.tsx`,
+    `lib/atoms.ts`). The owner sent a picture of another app's list of agents (headings that
+    fold, and under each its agents, every row with the agent's latest line, a time and a dot)
+    and asked for a mock-up "where we keep the workspaces in the sidebar separated". Of the
+    mock-up they asked whether "the selection state should be flush with the workspace
+    header", were shown it both ways, and said: "can you build this also don't show any
+    sections unless you have a workspace". The mock-ups were pages shown in the thread and are
+    not in `prototypes/`.
+    - **The list.** Someone in a team has every workspace of theirs in the sidebar at once,
+      their own first, each under its mark and name. The name folds its agents away, which is
+      kept in the browser (`dc-folded-workspaces`); folded, the heading shows a few of the
+      creatures. Someone in no team has their agents under "Agents" and no workspace's name,
+      as before. A heading has no padding of its own, so its two ends are where the chosen
+      row's are, and so are the ends of the row at the top, which is now the app's name and
+      the button that hides the sidebar. A row is as it was: the creature, the name and the
+      agent's tagline, in the order the agents were made.
+    - **What moved.** There is no workspace menu: nothing is switched between. A heading has
+      the workspace's own menu (its settings, and inviting people to a team) and a + that
+      makes an agent in that workspace. New team and the invitations waiting for the user are
+      at the foot of the list. The panel that said who is where in a team is gone: the people
+      in the team now are faces on its heading (which opens People), and whoever is with an
+      agent is a face on its row, as before. That is known only for the team on screen, so a
+      row with nobody at it has the agent's tagline, where a team's rows used to say "Quiet":
+      of another team's agents that would not be known to be so.
+    - **What was built and taken out again: the latest line.** The first version of this had
+      what the mock-up's rows had: the latest thing said to an agent or by it with a time, a
+      spinner on the creature while it worked and a "?" while it waited on someone, and a dot
+      for what its reader had not seen. The agent kept its latest line in a document of its
+      own and reported it with `working` and `asking`; the gateway kept when each person last
+      looked at an agent. Rows of agents that were not open were kept fresh by asking for the
+      list again every 30 seconds, which asks every agent, and the owner asked "is there a
+      way to do that in a more efficient way than polling". There is (the agent tells the
+      gateway when its row changes, and one hibernating socket for each person carries that
+      to their open tabs), and it is not built. They then said: "what if we build this without
+      the latest line? just the new sections". That first version is the first commit of the
+      pull request this was merged from, with its tests, for whoever builds the socket.
+    - **Mine, not the owner's:** New team and invitations at the foot of the list, where the
+      mock-up had them; the menu and the + on each heading; that the who-is-where panel went.
+    - **Checked:** `e2e/sidebar.spec.ts` (no headings without a team, the headings, a new
+      agent from a heading, folding, the heading's menu) and `e2e/teams.spec.ts` (faces on the
+      heading and the row); the other browser tests reach a workspace's settings through
+      `workspaceMenu` in `e2e/helpers.ts`. Looked at with pretend agents in three workspaces
+      on the built Node server: light and dark, folded, and at a phone's width. **Not seen:**
+      a team with other people in it by eye (the tests cover it), Safari, a real phone, the
+      desktop app, and Workers. The native app in `apps/mobile` is as it was.
 
 ## 6. What the owner has said they want
 
@@ -2606,8 +2653,10 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   it does on the built server and on Workers. Invitation email has never been sent for real.
 
 - **Main and side chats:** an agent's row in the sidebar says nothing of what the agent last
-  said or whether it is working, which the mock-up's rows did: the list of agents comes from the
-  gateway, which does not know, and asking every agent would wake each one. A side chat cannot
+  said or whether it is working, which the mock-up's rows did. It was built once and taken out
+  (item 62): the rows of agents that are not open were kept fresh by polling, which asks every
+  agent. What it wants is a socket for each person that agents' changes are sent down. A side
+  chat cannot
   be renamed or brought back from the app once archived (the API can do both). Someone typing
   in a side chat that is beside the main chat is not shown as typing, and is counted as being
   in the main chat. The mobile app still lists every chat alike.

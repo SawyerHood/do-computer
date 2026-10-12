@@ -69,13 +69,11 @@ export function AppSkeleton() {
         className="hidden shrink-0 flex-col md:[[data-sidebar=open]_&]:flex"
         style={{ width: "var(--kept-sidebar, 288px)" }}
       >
-        <div className="flex items-center gap-2.5 px-3.5 pt-2.5 pb-1">
-          <div className="flex h-10 items-center gap-2.5">
-            <Skeleton className="size-7 rounded-full" />
-            <Skeleton className="h-3 w-20 rounded-full" />
-          </div>
+        <div className="flex h-8 items-center gap-2 px-2 pt-2.5 pb-0.5 box-content">
+          <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
+          <span className="text-sm font-semibold">Do Computer</span>
         </div>
-        <div className="flex h-11 items-center pl-4">
+        <div className="flex h-9 items-center px-2">
           <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Agents</h2>
         </div>
         <div className="flex-1 px-2">

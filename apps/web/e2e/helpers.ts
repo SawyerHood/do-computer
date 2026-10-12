@@ -76,10 +76,14 @@ export async function openSettings(page: Page, section: string) {
     await dialog.getByRole("button", { name: /^(Set up|Manage) Slack$/ }).click()
 }
 
+/** The menu of the workspace the open page is in, on the heading over its agents in the sidebar. */
+export const workspaceMenu = (page: Page) =>
+  page.locator("section[data-current]").getByRole("button", { name: /workspace menu$/ })
+
 /** Open a section of the open workspace's settings, from the workspace's menu. */
 export async function openWorkspaceSettings(page: Page, section: string) {
   if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
-  await page.getByRole("button", { name: /Switch workspace$/ }).click()
+  await workspaceMenu(page).click()
   await page.getByRole("menuitem", { name: /Workspace settings/ }).click()
   await page.getByRole("dialog").getByRole("button", { name: section, exact: true }).click()
 }
