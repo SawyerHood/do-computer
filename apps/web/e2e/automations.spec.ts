@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 import {
   asOwner,
@@ -11,6 +12,8 @@ import {
 } from "./helpers.ts"
 
 asOwner()
+
+const panel = (page: Page) => page.getByRole("complementary", { name: "About Juniper" })
 
 test("a scheduled task runs on its own and reports back to the chat it was asked in", async ({
   page,
@@ -168,6 +171,11 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   await expect(transcript.getByText(/You said: \[Your sub-agent "Flights"/)).toBeVisible()
   await transcript.getByText("What it reported").click()
   await expect(transcript.getByText("You said: Find flights to Lisbon").first()).toBeVisible()
+  // It has ended, so it is in the transcript only: not beside the creature, not in a list.
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await expect(panel(page)).toBeVisible()
+  await expect(panel(page).getByRole("link", { name: /Flights/ })).toHaveCount(0)
+  await expect(panel(page).getByText("Sub-agents at work")).toHaveCount(0)
   const mine = page.url()
 
   // Where it was started leads to its own chat, which says whose it is.
@@ -206,6 +214,10 @@ test("a sub-agent at work can be stopped from its chat, and the agent is told", 
   const transcript = page.getByRole("log")
   const chip = transcript.getByRole("link", { name: /Slow job working/ })
   await expect(chip).toBeVisible()
+  // While it is at work it stands beside the agent's creature and is listed under it.
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await expect(panel(page).getByText("Sub-agents at work")).toBeVisible()
+  await expect(panel(page).getByRole("link", { name: "Open Slow job" })).toBeVisible()
   const mine = page.url()
   await chip.click()
   await page.waitForURL((url) => url.href !== mine)
@@ -217,6 +229,9 @@ test("a sub-agent at work can be stopped from its chat, and the agent is told", 
   await page.waitForURL(mine)
   await expect(page.getByRole("log").getByText("You stopped")).toBeVisible()
   await expect(page.getByRole("log").getByRole("link", { name: /Slow job stopped/ })).toBeVisible()
+  await expect(panel(page)).toBeVisible()
+  await expect(panel(page).getByRole("link", { name: /Slow job/ })).toHaveCount(0)
+  await expect(panel(page).getByText("Sub-agents at work")).toHaveCount(0)
 })
 
 test("an agent writes to another agent of the workspace, whose answer comes back", async ({

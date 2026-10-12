@@ -250,9 +250,10 @@ Since then, newest last:
       answered. The tests keep the wake-up interval long so that this path is the one tested.
     - **The web app** shows a chip where one was started, a marker with the report folded
       inside where one reported, and small creatures beside the agent's and a list in its
-      panel. They are not listed in the side column, which says only how many of a chat's are
-      at work: the owner found a third level there too much nesting. A sub-agent's creature
-      grows from its chat's id. `prototypes/subagents` is the mock-up it was built from.
+      panel for those at work: one that has ended is in the transcript only. They are not
+      listed in the side column, which says only how many of a chat's are at work: the owner
+      found a third level there too much nesting. A sub-agent's creature grows from its chat's
+      id. `prototypes/subagents` is the mock-up it was built from.
 
 15. **Teams** (2026-10-07; `apps/web/src/server/teams.ts`, `prototypes/teams`). Everyone has a
     personal workspace, and a team is a workspace several people share.

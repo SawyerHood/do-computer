@@ -228,7 +228,7 @@ export function AgentPanel({
     status: ChatSummary["status"]
     parentTitle: string | undefined
   }
-  /** The sub-agents started in this chat. */
+  /** The sub-agents of this chat that are at work. */
   subagents: ChatSummary[]
   /** The commands this chat left running in the background. */
   running?: JobSummary[]
@@ -343,7 +343,7 @@ export function AgentPanel({
       {subagent !== undefined || subagents.length === 0 ? null : (
         <div className="flex max-h-[40%] shrink-0 flex-col border-t">
           <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            Sub-agents in this chat
+            Sub-agents at work
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
             <SubagentRows agentId={agent.id} subagents={subagents} />
