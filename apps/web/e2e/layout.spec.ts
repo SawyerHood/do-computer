@@ -266,13 +266,29 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(page.getByText("You said: Something aside")).toBeVisible()
   await page.setViewportSize({ width: 400, height: 800 })
   await page.reload()
-  // The agent's pages are tabs across the top, and fit the screen.
-  const pages = page.getByRole("navigation", { name: "Juniper's pages" })
-  await expect(pages.getByRole("link")).toHaveCount(3)
-  for (const link of await pages.getByRole("link").all()) {
-    const box = (await link.boundingBox())!
-    expect(box.x + box.width).toBeLessThanOrEqual(400)
-  }
+  // The strip is one row, with no tabs in it: the agent's pages are in the menu on its name.
+  await expect(page.getByRole("navigation", { name: "Juniper's pages" })).toBeHidden()
+  const name = page.getByRole("button", { name: "Juniper: pages and other agents" })
+  expect((await page.locator("header").filter({ has: name }).boundingBox())!.height).toBe(48)
+  await name.click()
+  await expect(page.getByRole("menuitem", { name: "Chat" })).toHaveAttribute("aria-current", "page")
+  await page.getByRole("menuitem", { name: "Library" }).click()
+  await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
+  // Off the chat, the name says which page this is.
+  await expect(name).toContainText("Juniper · Library")
+  // And the row starts with the way back to the chat, where the way to the agents was.
+  await expect(page.getByRole("button", { name: "Agents", exact: true })).toHaveCount(0)
+  await page.getByRole("button", { name: "Back to the chat" }).click()
+  await expect(page.getByText("You said: Something aside")).toBeVisible()
+  await expect(name).not.toContainText("·")
+  await expect(page.getByRole("button", { name: "Back to the chat" })).toHaveCount(0)
+  // The menu leads back as well.
+  await name.click()
+  await page.getByRole("menuitem", { name: "Automations" }).click()
+  await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible()
+  await name.click()
+  await page.getByRole("menuitem", { name: "Chat" }).click()
+  await expect(page.getByText("You said: Something aside")).toBeVisible()
   // The sidebar is a sheet from the side. Measured once it has finished sliding in.
   await page.getByRole("button", { name: "Agents", exact: true }).click()
   await expect(async () => {
