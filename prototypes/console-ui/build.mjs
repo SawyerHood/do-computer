@@ -15,7 +15,7 @@ const page = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>durable computer · console mascot prototype</title>
+<title>Do Computer · console mascot prototype</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23dbe9ff'/%3E%3Cpath d='M16 6c6 0 10 5 10 11s-4 9-10 9-10-3-10-9S10 6 16 6z' fill='%235f8a4e'/%3E%3Cellipse cx='12.500' cy='16' rx='2.200' ry='3' fill='%23fff'/%3E%3Cellipse cx='19.500' cy='16' rx='2.200' ry='3' fill='%23fff'/%3E%3Ccircle cx='13' cy='16.500' r='1.200' fill='%23111'/%3E%3Ccircle cx='20' cy='16.500' r='1.200' fill='%23111'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
