@@ -39,7 +39,12 @@ import { Thinking } from "./thinking.tsx"
 type Step = "hello" | "you" | "name" | "model" | "computer" | "out" | "wait"
 /** What was said to "may I work on this computer?". */
 type Share = "yes" | "read" | "no"
-type Methods = { google: boolean; github: boolean; signup: "open" | "invite" | "waitlist" }
+type Methods = {
+  google: boolean
+  github: boolean
+  password: boolean
+  signup: "open" | "invite" | "waitlist"
+}
 
 type View = {
   step: Step
@@ -286,6 +291,8 @@ export default function WelcomeScene() {
     queryKey: ["auth-methods"],
     queryFn: async (): Promise<Methods> => (await fetch("/api/auth-methods")).json(),
   })
+  // Where the deployment takes no passwords, a provider says who someone is, new or not.
+  const typing = methods?.password !== false
   /** Whether this computer is one to ask about: in the app, on its first run, and not shared yet. */
   const here = bridge !== undefined && !bridge.welcomed && bridge.sharing === "off"
 
@@ -945,6 +952,7 @@ export default function WelcomeScene() {
                             variant="outline"
                             className="flex-1"
                             onClick={() => social("github")}
+                            {...(typing ? {} : { "data-first": true })}
                           >
                             <GithubLogoIcon weight="bold" /> Continue with GitHub
                           </Button>
@@ -955,55 +963,61 @@ export default function WelcomeScene() {
                             variant="outline"
                             className="flex-1"
                             onClick={() => social("google")}
+                            {...(typing || methods.github ? {} : { "data-first": true })}
                           >
                             <GoogleLogoIcon weight="bold" /> Continue with Google
                           </Button>
                         ) : null}
                       </div>
                     ) : null}
-                    {methods?.github || methods?.google ? (
+                    {typing && (methods?.github || methods?.google) ? (
                       <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
                         or
                       </div>
                     ) : null}
-                    <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
-                      {view.signingIn ? null : (
+                    {typing ? (
+                      <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                        {view.signingIn ? null : (
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="welcome-name">Your name</Label>
+                            <Input
+                              id="welcome-name"
+                              name="name"
+                              autoComplete="name"
+                              required
+                              data-first
+                            />
+                          </div>
+                        )}
                         <div className="flex flex-col gap-1.5">
-                          <Label htmlFor="welcome-name">Your name</Label>
+                          <Label htmlFor="welcome-email">Email</Label>
                           <Input
-                            id="welcome-name"
-                            name="name"
-                            autoComplete="name"
+                            id="welcome-email"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
                             required
-                            data-first
+                            {...(view.signingIn ? { "data-first": true } : {})}
                           />
                         </div>
-                      )}
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="welcome-email">Email</Label>
-                        <Input
-                          id="welcome-email"
-                          name="email"
-                          type="email"
-                          autoComplete="email"
-                          required
-                          {...(view.signingIn ? { "data-first": true } : {})}
-                        />
+                        <div
+                          className={cn(
+                            "flex flex-col gap-1.5",
+                            !view.signingIn && "sm:col-span-2",
+                          )}
+                        >
+                          <Label htmlFor="welcome-password">Password</Label>
+                          <Input
+                            id="welcome-password"
+                            name="password"
+                            type="password"
+                            required
+                            minLength={8}
+                            autoComplete={view.signingIn ? "current-password" : "new-password"}
+                          />
+                        </div>
                       </div>
-                      <div
-                        className={cn("flex flex-col gap-1.5", !view.signingIn && "sm:col-span-2")}
-                      >
-                        <Label htmlFor="welcome-password">Password</Label>
-                        <Input
-                          id="welcome-password"
-                          name="password"
-                          type="password"
-                          required
-                          minLength={8}
-                          autoComplete={view.signingIn ? "current-password" : "new-password"}
-                        />
-                      </div>
-                    </div>
+                    ) : null}
                     <Problem said={view.error} />
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
@@ -1015,17 +1029,21 @@ export default function WelcomeScene() {
                           ? `${bridge === undefined ? "" : " · "}New accounts join a waiting list.`
                           : null}
                       </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => patch({ signingIn: !view.signingIn, error: undefined })}
-                      >
-                        {view.signingIn ? "I’m new here" : "I already have an account"}
-                      </Button>
-                      <Button type="submit" disabled={view.busy}>
-                        {view.busy ? "One moment…" : view.signingIn ? "Sign in" : "That’s me"}
-                      </Button>
+                      {typing ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-muted-foreground"
+                            onClick={() => patch({ signingIn: !view.signingIn, error: undefined })}
+                          >
+                            {view.signingIn ? "I’m new here" : "I already have an account"}
+                          </Button>
+                          <Button type="submit" disabled={view.busy}>
+                            {view.busy ? "One moment…" : view.signingIn ? "Sign in" : "That’s me"}
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                   </form>
                 )
