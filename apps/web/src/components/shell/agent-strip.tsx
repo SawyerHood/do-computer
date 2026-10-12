@@ -1,5 +1,6 @@
 import type { AgentSummary, WorkspaceSummary } from "@durable-computer/protocol"
 import {
+  ArrowLeftIcon,
   CaretDownIcon,
   CheckIcon,
   ListIcon,
@@ -20,6 +21,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { agentPanelOpenAtom } from "@/lib/atoms"
@@ -27,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { agentQuery, agentsCollection } from "@/lib/collections"
 import { creatureWardrobeAtom, useCreature } from "@/lib/creature"
 import { useSettings } from "@/lib/settings"
+import { useMedia } from "@/lib/use-wide"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 import { SideChats } from "./side-chats.tsx"
@@ -43,9 +46,53 @@ const lastChat = new Map<string, string>()
 const tab =
   "flex h-7 shrink-0 items-center rounded-[0.4375rem] px-3 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-raised dark:aria-[current=page]:bg-foreground/14"
 
-/** The agent's name, which is also the way to another agent without opening the sidebar. */
-function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: WorkspaceSummary }) {
+/** The width from which the tabs are in the strip. It is the `md` the strip's classes speak of. */
+const TABS_IN_STRIP = "(min-width: 48rem)"
+
+/** What each tab is called, in the strip and in the name's menu. */
+const tabs: [AgentTab, string][] = [
+  ["chat", "Chat"],
+  ["library", "Library"],
+  ["automations", "Automations"],
+]
+
+/** The way to one of an agent's tabs from something that is not a link: a menu's row, a button. */
+function useOpenTab(agentId: string, back: string | undefined) {
   const navigate = useNavigate()
+  return (to: AgentTab) => {
+    if (to === "library") {
+      return navigate({ to: "/a/$agentId/library", params: { agentId }, search: {} })
+    }
+    if (to === "automations") {
+      return navigate({ to: "/a/$agentId/automations", params: { agentId } })
+    }
+    return back === undefined
+      ? navigate({ to: "/a/$agentId", params: { agentId } })
+      : navigate({ to: "/a/$agentId/c/$chatId", params: { agentId, chatId: back } })
+  }
+}
+
+/**
+ * The agent's name, which is also the way to another agent without opening the sidebar. On a
+ * narrow screen, where there is one row and no room in it for tabs, it is the way to the agent's
+ * pages too, and says which of them is open when it is not the chat.
+ */
+function AgentSwitcher({
+  agent,
+  workspace,
+  page,
+  back,
+}: {
+  agent: AgentSummary
+  workspace: WorkspaceSummary
+  page: AgentTab
+  /** The chat the Chat tab goes back to, as in the strip. */
+  back: string | undefined
+}) {
+  const navigate = useNavigate()
+  // Whether the strip has the tabs in it, which says what this menu is for.
+  const tabbed = useMedia(TABS_IN_STRIP)
+  const open = useOpenTab(agent.id, back)
   const { data: agents } = useLiveQuery(
     (q) =>
       q
@@ -83,14 +130,40 @@ function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: W
         </span>
       )}
       <DropdownMenuTrigger
-        aria-label={`${name}: another agent`}
-        title="Another agent"
+        aria-label={tabbed ? `${name}: another agent` : `${name}: pages and other agents`}
+        title={tabbed ? "Another agent" : undefined}
         className="flex min-w-0 items-center gap-2 rounded-xl py-1 pr-2 pl-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
       >
-        <span className="min-w-0 truncate text-[0.9375rem] font-semibold">{name}</span>
+        <span className="flex min-w-0 text-[0.9375rem]">
+          <span className="truncate font-semibold">{name}</span>
+          {/* A long name gives way to the page, which is said nowhere else in the strip. */}
+          {page === "chat" ? null : (
+            <span className="shrink-0 whitespace-pre text-muted-foreground md:hidden">
+              {" · "}
+              {tabs.find(([id]) => id === page)?.[1]}
+            </span>
+          )}
+        </span>
         <CaretDownIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="start" className="w-76">
+        {tabbed ? null : (
+          <>
+            <DropdownMenuGroup aria-label={`${name}'s pages`}>
+              {tabs.map(([id, label]) => (
+                <DropdownMenuItem
+                  key={id}
+                  aria-current={id === page ? "page" : undefined}
+                  onClick={() => open(id)}
+                >
+                  <span className="flex-1">{label}</span>
+                  {id === page ? <CheckIcon className="size-4" /> : null}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuGroup>
           <DropdownMenuLabel>Agents in {workspace.name}</DropdownMenuLabel>
           {(agents ?? [agent]).map((entry) => (
@@ -119,7 +192,9 @@ function AgentSwitcher({ agent, workspace }: { agent: AgentSummary; workspace: W
 /**
  * The strip across the top of an agent's pages: which agent this is, its tabs, and at its end
  * who is here, its side chats, the way into its settings, and the switch for its panel. It is the same on every
- * tab, so that changing tab changes only what is under it.
+ * tab, so that changing tab changes only what is under it. On a narrow screen it is one row, and
+ * the tabs are in the menu on the agent's name. There the chat is where the agent's other pages
+ * are gone to from, so on those the row starts with the way back to it.
  */
 export function AgentStrip({
   agentId,
@@ -155,6 +230,7 @@ export function AgentStrip({
     if (chatId !== undefined) lastChat.set(agentId, chatId)
   }, [agentId, chatId])
   const back = lastChat.get(agentId)
+  const open = useOpenTab(agentId, back)
 
   const team = workspace.kind === "team"
   const here = useHere(team ? workspace.id : undefined)
@@ -168,17 +244,30 @@ export function AgentStrip({
   const name = agent?.name ?? "New agent"
 
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-x-1.5 px-2.5 md:h-13 md:flex-nowrap md:px-3">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Agents"
-        title="Agents"
-        className="text-muted-foreground md:hidden"
-        onClick={onOpenSheet}
-      >
-        <ListIcon />
-      </Button>
+    <header className="flex h-12 shrink-0 items-center gap-x-1.5 px-2.5 md:h-13 md:px-3">
+      {page === "chat" ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Agents"
+          title="Agents"
+          className="text-muted-foreground md:hidden"
+          onClick={onOpenSheet}
+        >
+          <ListIcon />
+        </Button>
+      ) : (
+        // The agents are still a swipe from the left away, and in the menu on the name.
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Back to the chat"
+          className="text-muted-foreground md:hidden"
+          onClick={() => open("chat")}
+        >
+          <ArrowLeftIcon />
+        </Button>
+      )}
       {sidebarOpen ? null : (
         <Button
           variant="ghost"
@@ -191,19 +280,19 @@ export function AgentStrip({
           <SidebarSimpleIcon />
         </Button>
       )}
-      <div className="flex h-12 min-w-0 items-center md:h-full">
+      <div className="flex h-full min-w-0 items-center">
         {agent === undefined ? (
           <div data-loading aria-busy="true" className="flex items-center gap-2 py-1 pr-2 pl-1">
             <Skeleton className="size-7 rounded-full" />
             <Skeleton className="h-3 w-20 rounded-full" />
           </div>
         ) : (
-          <AgentSwitcher agent={agent} workspace={workspace} />
+          <AgentSwitcher agent={agent} workspace={workspace} page={page} back={back} />
         )}
       </div>
       <nav
         aria-label={agent === undefined ? "Pages" : `${name}'s pages`}
-        className="order-last flex w-full pb-2 md:order-none md:ml-1.5 md:w-auto md:pb-0"
+        className="hidden md:ml-1.5 md:flex"
       >
         {/* One control with the open page raised in it, as there is no rule for a line to sit on. */}
         <div className="flex items-center gap-0.5 rounded-[0.625rem] bg-muted p-[3px]">
@@ -247,7 +336,7 @@ export function AgentStrip({
           </Link>
         </div>
       </nav>
-      <div className="ml-auto flex items-center gap-0.5">
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
         {page === "chat" && present.length > 0 ? (
           <span className="pr-1.5">
             <FaceStack people={present} className="size-6.5" max={4} />

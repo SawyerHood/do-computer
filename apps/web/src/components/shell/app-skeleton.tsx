@@ -87,16 +87,16 @@ export function AppSkeleton() {
         </div>
       </aside>
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 flex-wrap items-center gap-x-1.5 border-b px-2.5 md:h-13 md:flex-nowrap md:px-3">
+        <header className="flex h-12 shrink-0 items-center gap-x-1.5 border-b px-2.5 md:h-13 md:px-3">
           {/* Where the button that shows the sidebar is, while the sidebar is hidden. */}
           <span className="size-8 md:[[data-sidebar=open]_&]:hidden" />
-          <div className="flex h-12 items-center gap-2 py-1 pr-2 pl-1 md:h-full">
+          <div className="flex h-full items-center gap-2 py-1 pr-2 pl-1">
             <Skeleton className="size-7 rounded-full" />
             <Skeleton className="h-3 w-20 rounded-full" />
           </div>
           <nav
             aria-hidden
-            className="order-last -mx-1 flex h-10 w-full items-stretch border-t text-sm font-medium text-muted-foreground/60 md:order-none md:mx-0 md:ml-1.5 md:h-full md:w-auto md:border-t-0"
+            className="hidden h-full items-stretch text-sm font-medium text-muted-foreground/60 md:ml-1.5 md:flex"
           >
             <span className="flex items-center px-2.5">Chat</span>
             <span className="flex items-center px-2.5">Library</span>
