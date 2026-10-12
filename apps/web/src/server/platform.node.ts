@@ -30,7 +30,8 @@ import { siteDirectory } from "./site-directory.ts"
 import { modelAccessDirectory } from "./model-access-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
-import { createPresenceActor } from "./presence-actor.ts"
+import { tellPeopleOfAgent } from "./feed.ts"
+import { createLiveActor } from "./presence-actor.ts"
 import { nodeProviders } from "./sandbox.node.ts"
 import { computerChoices, unsharedKinds } from "./sandbox.ts"
 
@@ -129,6 +130,7 @@ function create(): NodePlatform {
         appsUrl: config.appsUrl,
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
+        onActivity: (change) => void tellPeopleOfAgent(app, presence, change),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       })
     },
@@ -138,7 +140,7 @@ function create(): NodePlatform {
   const presence = new NodeActorNamespace({
     directory: join(directory, "presence"),
     blobs: () => fileBlobs(join(directory, "blobs", "presence")),
-    factory: (host) => createPresenceActor(host),
+    factory: (host) => createLiveActor(host),
     socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
     onError: (error, name) => console.error(`[presence ${name}]`, error),
   })

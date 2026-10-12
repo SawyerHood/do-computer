@@ -32,6 +32,7 @@ import {
   type CreateWorkspaceRequest,
   type CreatureState,
   EMPTY_CHAT,
+  type FeedEvent,
   type Invitation,
   type InvitationPreview,
   type InviteRequest,
@@ -45,6 +46,7 @@ import {
   type ModelProvidersState,
   type StartModelLoginRequest,
   type Outfit,
+  personalWorkspaceId,
   PING_FRAME,
   type PresenceEvent,
   type PresenceUpdate,
@@ -559,6 +561,63 @@ export function createClient(options: ClientOptions) {
       }
     },
     /**
+     * Hear what the user's agents are up to as it happens: the latest from each, whether it is
+     * at work or waiting on someone, and that the user looked at one from somewhere else.
+     * `connected` is called each time the socket is up, with `again` after a break: what was
+     * said while it was down was said to nobody, so that is when to ask for the list of agents
+     * again. Reconnects with backoff. Needs a platform with WebSockets that carry the session,
+     * which is a browser.
+     */
+    feed(
+      userId: string,
+      on: { event: (event: FeedEvent) => void; connected: (again: boolean) => void },
+    ): { close(): void } {
+      let socket: WebSocket | undefined
+      let closed = false
+      let attempt = 0
+      let again = false
+      let ping: ReturnType<typeof setInterval> | undefined
+      let retry: ReturnType<typeof setTimeout> | undefined
+      const origin = options.baseUrl === "" ? globalThis.location.origin : options.baseUrl
+      // A person's feed is at the presence address of their own workspace.
+      const url = `${origin.replace(/^http/, "ws")}/api/presence/${encodeURIComponent(personalWorkspaceId(userId))}`
+      const connect = () => {
+        if (closed) return
+        const current = new WebSocket(url)
+        socket = current
+        current.onopen = () => {
+          attempt = 0
+          ping = setInterval(() => current.send(PING_FRAME), PRESENCE_PING_MS)
+          on.connected(again)
+          again = true
+        }
+        current.onmessage = (message) => {
+          try {
+            const event = JSON.parse(String(message.data)) as FeedEvent
+            if (event.type === "agent" || event.type === "seen") on.event(event)
+          } catch {
+            // Not for us.
+          }
+        }
+        current.onclose = (event) => {
+          clearInterval(ping)
+          if (socket === current) socket = undefined
+          // Turned away for good: signed out.
+          if (closed || event.code === 4401) return
+          retry = setTimeout(connect, reconnectDelay(attempt++))
+        }
+      }
+      connect()
+      return {
+        close() {
+          closed = true
+          clearTimeout(retry)
+          clearInterval(ping)
+          socket?.close()
+        },
+      }
+    },
+    /**
      * Delete an agent for good, with its memory, chats, schedules and skills. The machines of
      * its workspace that only it can use are deleted with it unless `keepComputers` is set.
      */
@@ -640,6 +699,8 @@ export function createClient(options: ClientOptions) {
       return {
         state: () => request<AgentState>(base),
         update: (change: AgentPatch) => patch<AgentState>(base, change),
+        /** Say that the user is looking at the agent now, which is what its unread dot goes by. */
+        seen: () => request<{ seenAt: number }>(`${base}/seen`, { method: "PUT" }),
         /** Start a side chat: a conversation of its own, beside the main one. */
         createChat: (input: CreateChatRequest = {}) => post<ChatSummary>(`${base}/chats`, input),
         /** The agent's main chat, which it is given if it has none yet. */

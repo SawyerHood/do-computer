@@ -67,7 +67,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   await signIn(page)
   await composer(page).fill("Said to Juniper")
   await page.keyboard.press("Enter")
-  await expect(page.getByText("You said: Said to Juniper")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()
   const juniper = page.url()
   await page.getByRole("button", { name: "New agent", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== juniper)
@@ -89,7 +89,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   // Who is signed in was asked when the page loaded, and is not asked again.
   expect(server.asked).not.toContain("/api/me")
   server.release()
-  await expect(page.getByText("You said: Said to Juniper")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()
   await expect(page.locator("main [data-loading]")).toHaveCount(0)
 
   // Going back to an agent that was open: what it last showed is there without asking.
@@ -97,7 +97,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   await agentRow(page, /New agent/).click()
   await expect(composer(page)).toHaveAttribute("placeholder", "Say hello")
   await agentRow(page, /Juniper/).click()
-  await expect(page.getByText("You said: Said to Juniper")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()
   again.release()
 })
 
@@ -148,7 +148,9 @@ test("a message is in the chat the moment it is sent", async ({ page }) => {
   await expect(composer(page)).toHaveValue("")
   expect(server.asked.some((path) => path.endsWith("/messages"))).toBe(true)
   server.release()
-  await expect(page.getByText("You said: Shown as soon as it is sent")).toBeVisible()
+  await expect(
+    page.getByRole("main").getByText("You said: Shown as soon as it is sent"),
+  ).toBeVisible()
   // Once: the chat's own copy has taken the place of the one shown ahead of it.
   await expect(mine).toHaveCount(1)
 

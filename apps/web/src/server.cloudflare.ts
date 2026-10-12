@@ -36,7 +36,8 @@ import {
 } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
-import { createPresenceActor } from "./server/presence-actor.ts"
+import { tellPeopleOfAgent } from "./server/feed.ts"
+import { createLiveActor } from "./server/presence-actor.ts"
 import { readConfig } from "./server/platform.ts"
 import { notifyPeople } from "./server/push.ts"
 import { overLimit } from "./server/rate-limit.ts"
@@ -103,6 +104,8 @@ export const AgentObject = createDurableActorClass<Env>({
           notification.agentName,
           notification,
         ),
+      onActivity: (change) =>
+        void tellPeopleOfAgent(d1Database(env.DB), durableObjectNamespace(env.PRESENCE), change),
       onReport: (error) => console.error(`[agent ${host.name}]`, error),
     })
   },
@@ -133,9 +136,12 @@ export const ModelAccessObject = createDurableActorClass<Env>({
   blobs: (env, name) => r2Blobs(env.BLOBS, `model-access/${encodeURIComponent(name)}/`),
 })
 
-/** One Durable Object per team. Its members' sockets hibernate with it. */
+/**
+ * One Durable Object per team, and one per person for their own feed. The sockets of whoever is
+ * connected hibernate with it.
+ */
 export const PresenceObject = createDurableActorClass<Env>({
-  create: (host) => createPresenceActor(host),
+  create: (host) => createLiveActor(host),
   blobs: (env, name) => r2Blobs(env.BLOBS, `presence/${encodeURIComponent(name)}/`),
   socketAutoResponse: { request: PING_FRAME, response: PONG_FRAME },
 })

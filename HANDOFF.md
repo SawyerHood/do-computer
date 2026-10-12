@@ -2539,6 +2539,15 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       row's are, and so are the ends of the row at the top, which is now the app's name and
       the button that hides the sidebar. A row is as it was: the creature, the name and the
       agent's tagline, in the order the agents were made.
+    - **A heading's name is level with its mark by its letters, not by its line.** The owner
+      sent a picture in which the name sat a pixel and a half above the middle of the mark.
+      It did not here: a line of text is as tall as its font says, and that is read
+      differently from one system to the next. So the name, "Agents" and the app's name at
+      the top are trimmed to the height of a capital (`text-box`, the `LEVEL` class in
+      `agent-list.tsx`), and what is centred is the letters. A browser without `text-box`
+      (Firefox, at the time) lays them out as before. Checked here by giving the name a font
+      whose line is laid out higher, which moved it 1.25px without the trim and not at all
+      with it; not seen on the owner's machine.
     - **What moved.** There is no workspace menu: nothing is switched between. A heading has
       the workspace's own menu (its settings, and inviting people to a team) and a + that
       makes an agent in that workspace. New team and the invitations waiting for the user are
@@ -2558,7 +2567,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       gateway when its row changes, and one hibernating socket for each person carries that
       to their open tabs), and it is not built. They then said: "what if we build this without
       the latest line? just the new sections". That first version is the first commit of the
-      pull request this was merged from, with its tests, for whoever builds the socket.
+      pull request this was merged from. Item 63 is that socket.
     - **Mine, not the owner's:** New team and invitations at the foot of the list, where the
       mock-up had them; the menu and the + on each heading; that the who-is-where panel went.
     - **Checked:** `e2e/sidebar.spec.ts` (no headings without a team, the headings, a new
@@ -2568,6 +2577,78 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       on the built Node server: light and dark, folded, and at a phone's width. **Not seen:**
       a team with other people in it by eye (the tests cover it), Safari, a real phone, the
       desktop app, and Workers. The native app in `apps/mobile` is as it was.
+
+63. **A row in the sidebar says the latest from its agent, pushed and not polled**
+    (2026-10-12; `packages/agent/src/actor.ts`, `apps/web/src/server/feed.ts`,
+    `presence-actor.ts`, `agent-seen.ts`, `apps/web/src/lib/latest.ts`,
+    `components/shell/agent-list.tsx`). This is what item 62 took out, put back the way the
+    owner asked for when it went: "do a follow up change to show the last response / if the
+    agent is working efficiently like we talked about".
+    - **A row** is the creature, the name with a time beside it, and under it the latest thing
+      said to the agent or by it, on one line: "You: …" or a teammate's first name for what a
+      person wrote, the agent's answer as it is, a scheduled task's title before what it came
+      to, "From Scout: …" for another agent's message, and what it is asking for when it has
+      stopped to ask. The creature has a spinner on it while the agent is at work and a "?"
+      while it waits for someone. A row with something its reader has not seen has a bold
+      name, a dot and its time in the accent color. Agents are in the order they were last
+      heard from, and one that never was counts from when it was made. A folded workspace's
+      heading has a dot when one of its agents has something new or is waiting.
+    - **The agent keeps its latest line** in a document of its own (`LatestDoc`), written when
+      a person writes to it, when a run ends with an answer in a chat of theirs, when a
+      scheduled run reports, when another agent writes to it, when it answers in Slack and
+      when it asks for an OK or for something to be typed in. No transcript is read for it.
+      What it asked for stays its line until someone answers. Its summary has `latest`,
+      `working` (a run going or waiting its turn, or a sub-agent still to report; a command
+      left running in the background is not) and `asking` (a request nobody has answered).
+      An agent from before this has no line until something is next said.
+    - **How a row stays current.** Each time one of the three changes, the agent says so
+      (`onActivity`), once for each change. The server looks up who the agent works for, its
+      owner or everyone in its team, and tells each of them on a feed of their own
+      (`feed.ts`), which their open tabs hold one WebSocket to. The page puts what it is told
+      into the list of agents, which every row is drawn from. Nothing is asked for on a
+      timer: the list is asked for when the page loads and each time the socket comes back
+      up, since what is said while it is down is said to nobody.
+    - **A person's feed is the presence actor of their personal workspace.** A team's presence
+      actor says who is where; a personal workspace has nobody to be present for, so its
+      address (`/api/presence/personal:<user>`) is its owner's feed, and only they are let
+      in. It is the same Durable Object class and the same namespace, chosen by the actor's
+      name (`createLiveActor`), so nothing was added to the Worker's bindings or migrations.
+      The actor keeps nothing and its sockets hibernate. Telling someone with no tab open
+      costs one request to an actor that has nobody to pass it to.
+    - **What is new to whom** is the gateway's: `dc_agent_seen` holds, for each person apart,
+      when they last looked at an agent (`PUT /api/agents/<id>/seen`, by the server's clock),
+      and the list carries it as `seenAt`. The page says so when an agent is opened and
+      whenever something comes from it while the page is the one being looked at, and the
+      person's other tabs and devices are told on the same feed. What a person wrote
+      themselves is not new to them. An agent they have never opened since this was kept is
+      not marked at all: there is nothing to measure against.
+    - **Mine, not the owner's.** The order (latest first; they were asked and did not say),
+      the times (now, 9:20 AM, Yesterday, Fri, Oct 2), that an agent never looked at is not
+      marked, that a row's menu comes out over its time under a pointer and is not there on
+      a touch screen, where the agent's strip has the same pages, and that the feed shares
+      the presence actor's class.
+    - **Where a row can be behind.** If new work arrives in the moment an agent is found to
+      have come to rest, that it stopped is said at its next request or wake-up, up to twenty
+      seconds on. An answer that finishes after the agent's process was restarted is not kept
+      as its line: the row says it is no longer working and keeps what was said to it. When a
+      request is answered or withdrawn and nothing more is said, the "?" goes and the line
+      still has what was asked. An update that arrives while the list itself is being fetched
+      can be overwritten by the fetch, until the next update.
+    - **In the browser tests** `page.getByText` leaves the rows' lines out (the `page` fixture
+      in `e2e/fixtures.ts`, by the `data-latest` on a row's line): a row repeats the start of
+      what was just said a moment after it is said, so the same words would be one thing or
+      two by how fast the row caught up. A test about a row asks the row. A page a test opens
+      for itself is not covered by that.
+    - **Checked:** `e2e/sidebar.spec.ts` (a row of an agent that is not open changes with no
+      request for the list; the marks; unread and what takes it away, on a second tab too;
+      nobody else's feed can be joined), `src/server/feed.test.ts`, `agent-seen.test.ts`,
+      `src/lib/latest.test.ts` and the agent's own tests. Looked at with pretend agents on the
+      built Node server. **Not seen:** a real model's answers in the rows, Slack and another
+      agent's message in a row by eye, a team with other people in it by eye, Safari, a real
+      phone, the desktop app, and Workers, where the feed's sockets have only run in the
+      tests' local runtime if at all. Under `pnpm dev` on Node there is no WebSocket server,
+      so rows there change only when the list is next asked for. The native app in
+      `apps/mobile` is as it was.
 
 ## 6. What the owner has said they want
 
@@ -2667,11 +2748,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
   on screen. Who is where does not work under `pnpm dev` on Node, which has no WebSocket server;
   it does on the built server and on Workers. Invitation email has never been sent for real.
 
-- **Main and side chats:** an agent's row in the sidebar says nothing of what the agent last
-  said or whether it is working, which the mock-up's rows did. It was built once and taken out
-  (item 62): the rows of agents that are not open were kept fresh by polling, which asks every
-  agent. What it wants is a socket for each person that agents' changes are sent down. A side
-  chat cannot
+- **Main and side chats:** a side chat cannot
   be renamed or brought back from the app once archived (the API can do both). Someone typing
   in a side chat that is beside the main chat is not shown as typing, and is counted as being
   in the main chat. The mobile app still lists every chat alike.

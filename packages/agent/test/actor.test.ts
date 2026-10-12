@@ -2,7 +2,9 @@ import { existsSync, mkdtempSync, readdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
+  type AgentActivity,
   type AgentEvent,
+  type AgentSummary,
   type AgentUsage,
   type ChatEvent,
   type ChatState,
@@ -22,13 +24,22 @@ import {
 import { afterEach, describe, expect, it } from "vitest"
 import { createLocalProcessSandbox } from "@durable-computer/sandbox/testing"
 import type { Sandbox } from "@durable-computer/sandbox"
-import { type AgentNotification, createAgentActor } from "../src/index.ts"
+import {
+  type AgentNotification,
+  CALLER_HEADER,
+  createAgentActor,
+  encodeCaller,
+} from "../src/index.ts"
+import { preview } from "../src/preview.ts"
 
 type World = {
   namespace: NodeActorNamespace
   faux: ReturnType<typeof fauxProvider>
   reports: unknown[]
+  /** Everything `onActivity` was told, in the order it was told. */
+  activity: Told[]
 }
+type Told = { agentId: string } & AgentActivity
 
 const worlds: World[] = []
 
@@ -37,6 +48,7 @@ function open(directory: string, tokensPerSecond = 2_000, sandbox?: () => Sandbo
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
+  const activity: Told[] = []
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -50,11 +62,12 @@ function open(directory: string, tokensPerSecond = 2_000, sandbox?: () => Sandbo
         keepAliveMs: 100,
         sandbox,
         onReport: (error) => reports.push(error),
+        onActivity: (change) => activity.push(change),
       }),
     onError: (error) => reports.push(error),
   })
   namespace.start()
-  const world = { namespace, faux, reports }
+  const world = { namespace, faux, reports, activity }
   worlds.push(world)
   return world
 }
@@ -478,6 +491,186 @@ describe("agent actor", () => {
   })
 })
 
+describe("the agent's latest line", () => {
+  const agent = async (world: World) => (await call<{ agent: AgentSummary }>(world, "/")).agent
+  const activityOf = ({ agentId: _, ...activity }: Told): AgentActivity => activity
+  /** Wait until the hook was last told something `done` holds of, once it was told `from` things. */
+  async function told(world: World, done: (change: Told) => boolean, from = 0) {
+    const deadline = Date.now() + 5_000
+    for (;;) {
+      const last = world.activity.at(-1)
+      if (world.activity.length > from && last !== undefined && done(last)) return last
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out; it was told: ${JSON.stringify(world.activity)}`)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  }
+  async function until(world: World, done: (agent: AgentSummary) => boolean) {
+    const deadline = Date.now() + 5_000
+    for (;;) {
+      const found = await agent(world)
+      if (done(found)) return found
+      if (Date.now() > deadline) throw new Error(`Timed out; it was: ${JSON.stringify(found)}`)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  }
+
+  it("is what a person wrote while it works, and then what it answered", async () => {
+    const world = open(temporary(), 150)
+    const chat = await setup(world)
+    // Nothing has been said yet, and it is neither at work nor asking for anything.
+    const idle = await agent(world)
+    expect(idle).toMatchObject({ working: false, asking: false })
+    expect(idle).not.toHaveProperty("latest")
+
+    world.faux.setResponses([
+      fauxAssistantMessage("Here is **the plan**:\n\n```sh\nmake all\n```\n\nThen we ship."),
+    ])
+    const before = Date.now()
+    await world.namespace.get("agent-1").fetch(
+      new Request(`http://actor/chats/${chat.id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ text: "## Plan\n\nwhat is  the `plan`?", requestId: "r1" }),
+        headers: {
+          "content-type": "application/json",
+          [CALLER_HEADER]: encodeCaller({ id: "user-1", name: "Jon" }),
+        },
+      }),
+    )
+    const during = await agent(world)
+    expect(during.working).toBe(true)
+    expect(during.latest).toEqual({
+      kind: "said",
+      at: expect.any(Number),
+      text: "Plan what is the plan?",
+      by: "user-1",
+      chatId: chat.id,
+    })
+    expect(during.latest!.at).toBeGreaterThanOrEqual(before)
+
+    const after = await until(world, (found) => found.latest?.kind === "reply" && !found.working)
+    expect(after.latest).toEqual({
+      kind: "reply",
+      at: expect.any(Number),
+      text: "Here is the plan: Then we ship.",
+      chatId: chat.id,
+    })
+    expect(after.latest!.at).toBeGreaterThanOrEqual(during.latest!.at)
+    expect(world.reports).toEqual([])
+  })
+
+  it("tells the hook what a person wrote as it sets to work, then its answer, then that it rests", async () => {
+    const world = open(temporary(), 150)
+    const chat = await setup(world)
+    // Nothing has happened that the hook would be told of.
+    expect(world.activity).toEqual([])
+
+    world.faux.setResponses([fauxAssistantMessage("Here is the plan.")])
+    await send(world, chat.id, "what is the plan?")
+    await told(world, (change) => change.latest?.kind === "reply" && !change.working)
+    expect(world.activity[0]).toEqual({
+      agentId: "agent-1",
+      latest: { kind: "said", at: expect.any(Number), text: "what is the plan?", chatId: chat.id },
+      working: true,
+      asking: false,
+    })
+    expect(world.activity.at(-1)).toEqual({
+      agentId: "agent-1",
+      latest: { kind: "reply", at: expect.any(Number), text: "Here is the plan.", chatId: chat.id },
+      working: false,
+      asking: false,
+    })
+    // In the order it happened: nothing of what was written is told once the answer has been.
+    const kinds = world.activity.map((change) => change.latest?.kind)
+    expect(kinds.lastIndexOf("said")).toBeLessThan(kinds.indexOf("reply"))
+    // What the hook was told last is what the agent says of itself.
+    expect(await agent(world)).toMatchObject(activityOf(world.activity.at(-1)!))
+    expect(world.reports).toEqual([])
+  })
+
+  it("tells the hook that work is over when a run is stopped, or ends with no answer", async () => {
+    const world = open(temporary(), 50)
+    const chat = await setup(world)
+    world.faux.setResponses([fauxAssistantMessage("word ".repeat(400))])
+    await send(world, chat.id, "write a lot")
+    await follow(world, chat.id, (state) => state.messages.some((m) => m.status === "streaming"))
+    expect(world.activity.at(-1)).toMatchObject({ working: true, latest: { kind: "said" } })
+
+    // A run that is stopped has no answer to tell of. Its end is told of all the same.
+    await call(world, `/chats/${chat.id}/abort`, "POST")
+    await told(world, (change) => !change.working)
+    expect(world.activity.at(-1)).toMatchObject({
+      working: false,
+      latest: { kind: "said", text: "write a lot" },
+    })
+
+    // One that ends with nothing said leaves the line as it was, and its end is told of too.
+    world.faux.setResponses([fauxAssistantMessage("")])
+    const before = world.activity.length
+    await send(world, chat.id, "say nothing")
+    await told(world, (change) => !change.working, before + 1)
+    expect(world.activity.slice(before).map((change) => change.working)).toEqual([true, false])
+    expect(world.activity.at(-1)).toMatchObject({ latest: { kind: "said", text: "say nothing" } })
+    expect(world.reports).toEqual([])
+  })
+
+  it("tells the hook how it stands when its alarm wakes it after a restart", async () => {
+    const directory = temporary()
+    const before = open(directory, 60)
+    const chat = await setup(before)
+    before.faux.setResponses([fauxAssistantMessage("word ".repeat(200))])
+    await send(before, chat.id, "keep going")
+    await follow(before, chat.id, (state) => state.messages.some((m) => m.status === "streaming"))
+    await before.namespace.close()
+
+    // A new process, which has told nobody anything. Nothing addresses the agent: its alarm
+    // wakes it, and it says that it is at work, and then that it is not.
+    const after = open(directory, 60)
+    after.faux.setResponses([fauxAssistantMessage("Finished after the restart.")])
+    await told(after, (change) => !change.working)
+    expect(after.activity.map((change) => change.working)).toEqual([true, false])
+    // An answer that is finished after a restart is not kept as its line.
+    expect(after.activity.at(-1)).toMatchObject({ latest: { kind: "said", text: "keep going" } })
+    expect(after.reports).toEqual([])
+  })
+
+  it("tells the hook nothing twice in a row", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    world.faux.setResponses([fauxAssistantMessage("Done.")])
+    await send(world, chat.id, "do it")
+    await told(world, (change) => change.latest?.kind === "reply" && !change.working)
+    const settled = world.activity.length
+
+    // Reading the agent, and changing what the hook is not told of, tells it nothing.
+    await agent(world)
+    await call(world, "/", "PATCH", { name: "Ada" })
+    await call<ChatSummary>(world, "/chats", "POST", {})
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(world.activity).toHaveLength(settled)
+    for (const [index, change] of world.activity.entries()) {
+      if (index > 0) expect(change).not.toEqual(world.activity[index - 1])
+    }
+    expect(world.reports).toEqual([])
+  })
+
+  it("is one line of plain text, cut short", () => {
+    expect(
+      preview("# Done\n\n- **Two** files, _both_ in `src/`\n- see [the notes](https://x.test)"),
+    ).toBe("Done Two files, both in src/ see the notes")
+    expect(preview("Before\n```ts\nconst a = 1\n```\nafter, in my_file.ts")).toBe(
+      "Before after, in my_file.ts",
+    )
+    // Something that is nothing but code is shown as the code.
+    expect(preview("```sh\nmake all\n```")).toBe("make all")
+    const long = preview("word ".repeat(100))
+    expect(long).toHaveLength(140)
+    expect(long.endsWith("word…")).toBe(true)
+    expect(preview("  \n ")).toBe("")
+  })
+})
+
 describe("deleting an agent", () => {
   it("removes its computer and everything it stored, leaving the name empty", async () => {
     const directory = temporary()
@@ -595,7 +788,7 @@ describe("unseen replies", () => {
           onNotify: (notification) => unseen.push(notification),
         }),
     })
-    const world: World = { namespace, faux, reports: [] }
+    const world: World = { namespace, faux, reports: [], activity: [] }
     worlds.push(world)
     const chat = await setup(world)
 

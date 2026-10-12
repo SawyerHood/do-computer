@@ -142,7 +142,7 @@ test("someone new meets their first agent: it is named as it hatches, and says h
 
   // What it offers to start with is said for them.
   await page.getByRole("button", { name: "Show me what you can do" }).click()
-  await expect(page.getByText("You said: Show me what you can do")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Show me what you can do")).toBeVisible()
   await expect(composer(page)).toBeVisible()
 })
 

@@ -8,6 +8,7 @@ import type {
 import type { Context } from "@earendil-works/chord"
 import type { ToolCall } from "@earendil-works/pi-ai"
 import {
+  type Conversation,
   type ConversationId,
   defineDoc,
   defineExtension,
@@ -372,6 +373,8 @@ export type ApprovalsOptions = {
   ) => Promise<{ id: string; name: string } | undefined>
   /** Called when the agent has asked for something, to tell the user wherever they are. */
   readonly onRequest?: (request: ApprovalRequest) => void
+  /** Called when something it asked for waits on nobody any more: answered, or taken back. */
+  readonly onSettled?: () => void
 }
 
 /** What a sub-agent, a scheduled run or a conversation between agents is called, for the agent. */
@@ -553,6 +556,12 @@ export class Approvals {
     return ruleOf(state?.rules ?? {}, subject)
   }
 
+  /** Whether anything it asked for is still waiting on someone's answer. */
+  async asking(context: Context): Promise<boolean> {
+    const state = await this.#require().snapshot(ApprovalsDoc, context)
+    return Object.values(state?.requests ?? {}).some((request) => request.status === "pending")
+  }
+
   async pending(context: Context): Promise<ApprovalRequest[]> {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
@@ -575,14 +584,18 @@ export class Approvals {
   /** Take back what a chat asked for and was not answered, when its work has been stopped. */
   async withdraw(chatId: string, context: Context): Promise<void> {
     const now = this.#options.now()
-    await this.#require().commit(async (tx) => {
+    const withdrawn = await this.#require().commit(async (tx) => {
       const doc = await tx.doc(ApprovalsDoc)
+      let any = false
       for (const request of Object.values(doc.requests)) {
         if (request.chatId !== chatId || request.status !== "pending") continue
         request.status = "denied"
         request.resolvedAt = now
+        any = true
       }
+      return any
     }, context)
+    if (withdrawn) this.#options.onSettled?.()
   }
 
   /** Everything a rule can be set for right now, with the rules that are set. */
@@ -647,14 +660,15 @@ export class Approvals {
    * Record the user's answer and tell the agent, in the chat it asked from. An approval lets its
    * next attempt at the same kind of thing through; "always" also lifts the rules that asked.
    * Where a team shares the agent, `by` is whoever answered: anyone in the team may, and the
-   * agent and the others are told who did.
+   * agent and the others are told who did. Resolves with that chat and the turn the agent was
+   * given there, or with undefined where the chat is gone.
    */
   async resolve(
     id: string,
     decision: ApprovalDecision,
     context: Context,
     by?: Caller,
-  ): Promise<void> {
+  ): Promise<{ chatId: string; turn: Awaited<ReturnType<Conversation["submit"]>> } | undefined> {
     if (decision !== "once" && decision !== "always" && decision !== "deny") {
       throw new ApprovalError("The answer is one of: once, always, deny.")
     }
@@ -693,12 +707,13 @@ export class Approvals {
       }
     }, context)
     if (request === undefined) throw new ApprovalError("That request has already been answered.")
+    this.#options.onSettled?.()
 
     const conversation = await harness.conversation(
       Number(request.chatId) as ConversationId,
       context,
     )
-    if (conversation === undefined) return
+    if (conversation === undefined) return undefined
     const what = request.detail === "" ? request.title : `${request.title}: ${request.detail}`
     // Their name is in the note that follows, where it cannot be taken for part of this one.
     const who = by === undefined ? "The user" : "The person named below"
@@ -710,7 +725,7 @@ export class Approvals {
               ? ", and you no longer need to ask for it"
               : ""
           }. Do it now, exactly as you asked, and carry on with what you were doing.</meta>`
-    await conversation.submit(
+    const turn = await conversation.submit(
       {
         type: "input",
         requestId: `approval:${id}`,
@@ -725,5 +740,6 @@ export class Approvals {
       },
       context,
     )
+    return { chatId: request.chatId, turn }
   }
 }

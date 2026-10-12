@@ -2,6 +2,8 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
+  AgentActivity,
+  AgentSummary,
   ApprovalsState,
   ChatState,
   ChatSummary,
@@ -24,7 +26,10 @@ type World = {
   faux: ReturnType<typeof fauxProvider>
   reports: AgentNotification[]
   errors: unknown[]
+  /** Everything `onActivity` was told, in the order it was told. */
+  activity: Told[]
 }
+type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
 function open(directory: string): World {
@@ -33,6 +38,7 @@ function open(directory: string): World {
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
   const errors: unknown[] = []
+  const activity: Told[] = []
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -47,11 +53,12 @@ function open(directory: string): World {
         keepAliveMs: 60_000,
         onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
+        onActivity: (change) => activity.push(change),
       }),
     onError: (error) => errors.push(error),
   })
   namespace.start()
-  const world = { namespace, faux, reports, errors }
+  const world = { namespace, faux, reports, errors, activity }
   worlds.push(world)
   return world
 }
@@ -266,6 +273,12 @@ describe("sub-agents", () => {
     )
     // With no title given, it is called by how its task begins.
     expect(sub).toMatchObject({ title: "Shortlist hotels near Alfama.", status: "working" })
+    // The agent has answered, and is at work for as long as its sub-agent is.
+    const { agent } = await until(
+      () => call<{ agent: AgentSummary }>(world, "/"),
+      (state) => state.agent.latest?.kind === "reply",
+    )
+    expect(agent).toMatchObject({ working: true, latest: { text: "Started." } })
     await expect(send(world, sub!.id, "hello")).rejects.toThrow("409")
     await expect(call(world, `/chats/${sub!.id}/reset`, "POST")).rejects.toThrow("409")
 
@@ -340,6 +353,20 @@ describe("sub-agents", () => {
       return use("subagent", { action: "start", title: "Note", task: "Save a note." })
     })
     await send(world, chat.id, "remember this")
+    // With nobody reading the agent, the hook is told that it stopped to ask: its sub-agent
+    // has no report to come until someone answers, so it is not at work.
+    const stopped = await until(
+      async () => world.activity.at(-1),
+      (told) => told?.asking === true && !told.working,
+    )
+    expect(stopped!.latest).toMatchObject({ kind: "asked" })
+    // Before that it was at work, its own answer given, for as long as its sub-agent was.
+    expect(world.activity).toContainEqual(
+      expect.objectContaining({
+        working: true,
+        latest: expect.objectContaining({ kind: "reply" }),
+      }),
+    )
     const [waiting] = await until(
       () => subagents(world),
       (all) => all[0]?.status === "waiting",
@@ -350,6 +377,14 @@ describe("sub-agents", () => {
     expect(pending).toMatchObject([
       { chatId: waiting!.id, chatKind: "subagent", chatTitle: "Note" },
     ])
+    // The agent is asking and no longer at work. What it asked is its line, in no chat that a
+    // person writes in.
+    const { agent } = await until(
+      () => call<{ agent: AgentSummary }>(world, "/"),
+      (state) => state.agent.asking === true && !state.agent.working,
+    )
+    expect(agent.latest).toMatchObject({ kind: "asked" })
+    expect(agent.latest).not.toHaveProperty("chatId")
 
     await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "once" })
     const reported = await until(
@@ -359,6 +394,39 @@ describe("sub-agents", () => {
     expect(notices(reported).map((notice) => notice.detail)).toEqual(["Saved the note."])
     expect((await subagents(world))[0]).toMatchObject({ status: "done" })
     expect((await call<{ memory: string }>(world, "/")).memory).toBe("likes Lisbon")
+    // Answered, it was at work again, and then at rest with what it said of the report.
+    expect(
+      await until(
+        async () => world.activity.at(-1),
+        (told) => told?.latest?.kind === "reply" && !told.working,
+      ),
+    ).toMatchObject({ asking: false, latest: { text: "It is saved." } })
+    const answered = world.activity.findLastIndex((told) => told.asking)
+    expect(world.activity.slice(answered + 1).some((told) => told.working)).toBe(true)
+    expect(world.errors).toEqual([])
+  })
+
+  it("tells the hook that the agent asks for nothing once a sub-agent that was waiting is stopped", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    await call(world, "/approvals/rules", "PATCH", { "tool:memory": "ask" })
+    script(world, (turn) => {
+      if (turn.sub) {
+        if (turn.seen.includes("approval first")) return fauxAssistantMessage("May I save a note?")
+        return use("memory", { action: "add", target: "memory", content: "likes Lisbon" })
+      }
+      if (turn.seen.includes("Started sub-agent")) return fauxAssistantMessage("Started.")
+      return use("subagent", { action: "start", title: "Note", task: "Save a note." })
+    })
+    await send(world, chat.id, "remember this")
+    const last = async () => world.activity.at(-1)
+    await until(last, (told) => told?.asking === true && !told.working)
+
+    // What it asked for is taken back with the sub-agent, and nobody is left to answer.
+    const [waiting] = await subagents(world)
+    await call(world, `/chats/${waiting!.id}/abort`, "POST")
+    expect(await until(last, (told) => told?.asking === false)).toMatchObject({ working: false })
+    expect((await call<ApprovalsState>(world, "/approvals")).pending).toEqual([])
     expect(world.errors).toEqual([])
   })
 

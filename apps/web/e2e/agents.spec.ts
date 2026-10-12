@@ -263,7 +263,7 @@ test("going from one agent to another draws their creatures with the context tha
   if (!(await agents.isVisible())) {
     await page.getByRole("button", { name: "Show the sidebar" }).click()
   }
-  await agents.getByRole("link").last().click()
+  await agents.locator(`a[href="/a/${second}"]`).click()
   await expect(page).toHaveURL(new RegExp(`/a/${second}/c/\\d+`))
   // With the sidebar shut, no creature stays on the page from one agent to the next.
   await page.getByRole("button", { name: "Hide the sidebar" }).click()

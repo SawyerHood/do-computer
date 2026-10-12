@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
+  AgentActivity,
   ApprovalsState,
   ChatState,
   ChatSummary,
@@ -51,6 +52,8 @@ type World = {
   host: Host
   /** The machine behind a kind and key, as a provider would have it. */
   machine: (kind: string, key: string) => Sandbox
+  /** Everything `onActivity` was told, in the order it was told. */
+  activity: ({ agentId: string } & AgentActivity)[]
 }
 const worlds: World[] = []
 afterEach(async () => {
@@ -152,11 +155,13 @@ function open(setup: Setup = {}): World {
       return { id: `new-${host.created.length}`, name: input.name }
     },
   }
+  const activity: World["activity"] = []
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
     factory: (actorHost) =>
       createAgentActor(actorHost, {
+        onActivity: (change) => activity.push(change),
         models,
         defaultModel: "test/model",
         modelOptions: [
@@ -181,7 +186,7 @@ function open(setup: Setup = {}): World {
       }),
   })
   namespace.start()
-  const world = { namespace, faux, mcp, host, machine }
+  const world = { namespace, faux, mcp, host, machine, activity }
   worlds.push(world)
   return world
 }
@@ -653,11 +658,19 @@ describe("the request_secret tool", () => {
     world.faux.setResponses(useTool("request_secret", ask))
     await say(world, chat.id, "set up")
     const { requests } = await call<{ requests: SecretRequest[] }>(world, "/secrets")
+    // The agent said that it is waiting on someone, with what it asked for.
+    const asking = world.activity.findLast((told) => told.asking)
+    expect(asking).toMatchObject({ latest: { kind: "asked", chatId: chat.id } })
     world.faux.setResponses([fauxAssistantMessage("Then I will leave the email for now.")])
+    const declined = world.activity.length
     await call(world, `/secrets/${requests[0]!.id}/decline`, "POST")
     const after = await settled(world, chat.id)
     expect(notices(after).at(-1)).toMatchObject({ kind: "secret", approved: false })
     expect((await call<{ requests: SecretRequest[] }>(world, "/secrets")).requests).toEqual([])
+    // And that it no longer is, from the moment the person said no.
+    const since = world.activity.slice(declined)
+    expect(since.length).toBeGreaterThan(0)
+    expect(since.every((told) => !told.asking)).toBe(true)
   })
 
   it("refuses names that are not variables, and a file in the library", async () => {
