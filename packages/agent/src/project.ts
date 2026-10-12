@@ -590,11 +590,12 @@ export function projectChat(view: ConversationView): ChatState {
   const queued: QueuedInput[] = []
   for (const item of inbox?.items ?? []) {
     if (item.mode === "write") continue
-    queued.push({
-      id: String(item.id),
-      mode: item.mode,
-      text: contentText(item.content as UserContent),
-    })
+    const content = item.content as UserContent
+    // What the server tells the agent to set it going again, when a command ends or a
+    // sub-agent reports, was written by nobody: it waits its turn without being shown.
+    if (typeof content !== "string" && content.every((b) => b.type === "text" && isMeta(b.text)))
+      continue
+    queued.push({ id: String(item.id), mode: item.mode, text: contentText(content) })
   }
 
   const usage: ChatUsage = { inputTokens: 0, outputTokens: 0, cost: 0 }
