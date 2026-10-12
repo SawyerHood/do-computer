@@ -2,7 +2,6 @@ import {
   avatarLook,
   type AddConnectorRequest,
   type AgentEvent,
-  type AgentLatest,
   type AgentSummary,
   type AgentUsage,
   type ApprovalDecision,
@@ -71,7 +70,6 @@ import {
   CreatureDoc,
   IdentityDoc,
   type IdentityState,
-  LatestDoc,
   SchedulesDoc,
 } from "./docs.ts"
 import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
@@ -115,7 +113,6 @@ import { type SettingsChange, SettingsError, settingsExtension } from "./setting
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
-import { preview } from "./preview.ts"
 import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { UseError, Uses } from "./uses.ts"
@@ -338,16 +335,13 @@ type Doc = SessionDocToken<JsonObject>
  * The documents of an agent that its pages are drawn from, and what each goes by on the agent's
  * event stream. Everyone following the agent is told when one of these changes, and a client
  * that has no name for what changed asks for all of it again: a new document has only to be
- * added here. Two can go by one name, where a client reads them together: the agent's latest
- * line is read with its chats. One marked "here" is made when the agent is opened, since a
- * document that is not there yet cannot be watched. The others are there by the time anyone is
- * following: the agent does not exist without its identity and its chats, and its skills come
- * with its owner.
+ * added here. One marked "here" is made when the agent is opened, since a document that is not
+ * there yet cannot be watched. The others are there by the time anyone is following: the agent
+ * does not exist without its identity and its chats, and its skills come with its owner.
  */
 const TOLD: readonly (readonly [Told, Doc, "here" | "before"])[] = [
   ["identity", IdentityDoc as unknown as Doc, "before"],
   ["chats", ChatsDoc as unknown as Doc, "before"],
-  ["chats", LatestDoc as unknown as Doc, "here"],
   ["skills", SkillsDoc as unknown as Doc, "before"],
   ["schedules", SchedulesDoc as unknown as Doc, "here"],
   ["computers", ComputersDoc as unknown as Doc, "here"],
@@ -464,10 +458,6 @@ export class AgentActor implements Actor {
   #connectors: Connectors | undefined
   /** How many clients are following each chat right now, over an event stream. */
   readonly #watchers = new Map<string, number>()
-  /** Whether it was last found at work, with the end of that work still to be told. */
-  #atWork = false
-  /** The watch for the end of the work in hand, while there is one. */
-  #resting: Promise<void> | undefined
   /** Those following over a socket, which does not keep the agent in memory. */
   readonly #followers: Followers
   readonly #scheduler: Scheduler
@@ -613,11 +603,13 @@ export class AgentActor implements Actor {
         return this.#connectors.add(input, this.#connectorRedirect() ?? "", c)
       },
       onRequest: (request) =>
-        this.#asked(
-          "Needs something from you",
-          request.purpose ?? `Asks for ${request.fields.map((field) => field.name).join(", ")}`,
-          request.chatId,
-        ),
+        void this.#notify({
+          kind: "approval",
+          heading: "Needs something from you",
+          text:
+            request.purpose ?? `Asks for ${request.fields.map((field) => field.name).join(", ")}`,
+          chatId: request.chatId,
+        }),
     })
     this.#approvals = new Approvals({
       now: () => host.now(),
@@ -625,12 +617,14 @@ export class AgentActor implements Actor {
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
       onRequest: (request) =>
-        this.#asked(
-          "Needs your OK",
-          request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
+        void this.#notify({
+          kind: "approval",
+          heading: "Needs your OK",
+          text: request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
           // A thread in Slack is answered for in the app, on the thread's own page.
-          request.chatKind === "chat" || request.chatKind === "slack" ? request.chatId : null,
-        ),
+          chatId:
+            request.chatKind === "chat" || request.chatKind === "slack" ? request.chatId : null,
+        }),
     })
     this.#journal = new Journal({
       review: options.review,
@@ -668,12 +662,6 @@ export class AgentActor implements Actor {
           heading: report.title,
           text: report.text,
           chatId: report.chatId,
-        })
-        void this.#record({
-          kind: "scheduled",
-          from: report.title,
-          text: report.text,
-          ...(report.chatId === null ? {} : { chatId: report.chatId }),
         })
       },
       onError: (error) => options.onReport?.(error),
@@ -732,13 +720,6 @@ export class AgentActor implements Actor {
             contents: (file) => this.#library.contents(file),
             libraryFile: (name) => this.#library.named(name),
             sees: (model) => this.#sees(model),
-            onAnswered: (answer) =>
-              void this.#record({
-                kind: "slack",
-                text: answer.text,
-                chatId: answer.chatId,
-                ...(answer.channelName === null ? {} : { from: answer.channelName }),
-              }),
             onError: (error) => options.onReport?.(error),
           })
   }
@@ -1117,13 +1098,6 @@ export class AgentActor implements Actor {
     if (this.#harness === undefined) return
     const harness = await this.#harness
     const inspection = await harness.inspect(context)
-    if (inspection.tasks.length > 0 || inspection.submissions.length > 0) {
-      this.#atWork = true
-      this.#tellWhenRested(harness)
-    } else {
-      // Where the watch gave up before the work was over, its end is found here.
-      await this.#rested(harness)
-    }
     // A sub-agent that has finished and not yet reported has nothing live, and still needs a
     // look. So does a conversation with another agent whose answer is still to be handed back,
     // and a thread in Slack whose answer is still to be posted.
@@ -1154,42 +1128,6 @@ export class AgentActor implements Actor {
           : Math.min(keepAlive, scheduled)
     if (wake !== null) await this.#host.setAlarm(wake)
     else if ((await this.#host.getAlarm()) !== null) await this.#host.setAlarm(null)
-  }
-
-  /**
-   * Whoever follows the agent is told when the work it has in hand is over. Nothing else says so
-   * of a run that ended without an answer, or of one that no request was waiting on. One watch
-   * at a time: work that begins before this one is over is the same spell of work.
-   */
-  #tellWhenRested(harness: Harness): void {
-    if (this.#resting !== undefined) return
-    this.#resting = (async () => {
-      try {
-        await harness.waitForIdle(context)
-        // Told only where nothing is left: work that is still to start, or that began meanwhile,
-        // is found by the request or the wake-up that comes next.
-        const { tasks, submissions } = await harness.inspect(context)
-        if (tasks.length === 0 && submissions.length === 0) await this.#rested(harness)
-      } catch (error) {
-        // An agent that was closed meanwhile has nobody following it to tell.
-        if (this.#opened === harness) this.#options.onReport?.(error)
-      } finally {
-        this.#resting = undefined
-      }
-    })()
-  }
-
-  /** The work that was in hand is over: written down once, which tells whoever follows. */
-  async #rested(harness: Harness): Promise<void> {
-    if (!this.#atWork) return
-    this.#atWork = false
-    try {
-      await harness.commit(async (tx) => {
-        ;(await tx.doc(LatestDoc)).restedAt = this.#host.now()
-      }, context)
-    } catch (error) {
-      if (this.#opened === harness) this.#options.onReport?.(error)
-    }
   }
 
   async alarm(): Promise<void> {
@@ -1404,16 +1342,7 @@ export class AgentActor implements Actor {
     if (segments[0] === "peers" && this.#peers !== undefined && method === "POST") {
       const from = segments[1]
       if (from !== undefined && segments[2] === "message" && segments[3] === undefined) {
-        const message = await body<PeerMessage>(request)
-        const received = await this.#peers.receive(from, message, context)
-        // What another agent wrote to it is its latest line, as what a person wrote would be.
-        const name = typeof message.from === "string" ? message.from.trim() : ""
-        await this.#record({
-          kind: "agent",
-          text: message.text,
-          ...(name === "" ? {} : { from: name }),
-        })
-        return json(received)
+        return json(await this.#peers.receive(from, await body<PeerMessage>(request), context))
       }
       if (from !== undefined && segments[2] === "reply" && segments[3] === undefined) {
         const delivered = await this.#peers.replied(from, await body<PeerReply>(request), context)
@@ -1541,17 +1470,12 @@ export class AgentActor implements Actor {
       }
       if (requestId !== undefined && segments[2] === undefined && method === "POST") {
         const { decision } = await body<{ decision: ApprovalDecision }>(request)
-        const told = await this.#approvals.resolve(
+        await this.#approvals.resolve(
           requestId,
           decision,
           context,
           identity.team ? caller : undefined,
         )
-        // What the agent says once it has its answer is its latest line, and nothing more
-        // follows from it.
-        if (told !== undefined) {
-          void this.#notifyWhenUnseen(harness, told.chatId, told.turn, undefined, true)
-        }
         // The answer sets a sub-agent that was waiting for it going again, and a conversation
         // with another agent or a thread in Slack likewise.
         await this.#subagents.tick()
@@ -1942,8 +1866,6 @@ export class AgentActor implements Actor {
   async #state(harness: Harness, identity: Readonly<IdentityState>) {
     const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
     const creature = await this.#creature(harness)
-    // An agent from before its latest line was kept has none until something is next said.
-    const latest = (await harness.snapshot(LatestDoc, context))?.latest ?? undefined
     const agent: AgentSummary = {
       id: this.#host.name,
       name: identity.name,
@@ -1955,9 +1877,6 @@ export class AgentActor implements Actor {
       // An agent from before there were eggs has a name, and is not sent back into one.
       hatched: identity.hatchedAt !== undefined || identity.name !== null,
       outfit: creature.outfit,
-      ...(latest === undefined ? {} : { latest }),
-      working: await this.#working(harness),
-      asking: await this.#asking(),
     }
     return {
       agent,
@@ -1974,21 +1893,6 @@ export class AgentActor implements Actor {
         .map(([id, record]) => summarize(id, record, main))
         .sort((a, b) => b.updatedAt - a.updatedAt),
     }
-  }
-
-  /**
-   * Whether the agent is at work: a run is going or waiting its turn in one of its chats, or a
-   * sub-agent of its has a report still to come. A command left running in the background is
-   * not the agent at work: its turn is over, and it is given another when the command ends.
-   */
-  async #working(harness: Harness): Promise<boolean> {
-    const { tasks, submissions } = await harness.inspect(context)
-    return tasks.length > 0 || submissions.length > 0 || (await this.#subagents.working(context))
-  }
-
-  /** Whether it has asked a person for their OK, or for something to be typed in, and not been answered. */
-  async #asking(): Promise<boolean> {
-    return (await this.#approvals.asking(context)) || (await this.#secrets.asking(context))
   }
 
   /** What its creature has been given and has on. One from before there was any of it has a box waiting. */
@@ -2392,13 +2296,6 @@ export class AgentActor implements Actor {
       context,
     )
     const chatId = String(conversation.id)
-    // Kept before the run is waited on, so that the agent's answer cannot come before it.
-    await this.#record({
-      kind: "said",
-      text: input.text,
-      chatId,
-      ...(caller === undefined ? {} : { by: caller.id }),
-    })
     void this.#notifyWhenUnseen(harness, chatId, submission, caller)
     await harness.commit(async (tx) => {
       const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
@@ -2447,17 +2344,13 @@ export class AgentActor implements Actor {
 
   /**
    * What follows a run that ends with an answer: the creature earns a treat where the answer was
-   * to a person, the answer becomes the agent's latest line where it was given in a chat of
-   * theirs, and the host is told where no client is following the chat. `quiet` is for a run
-   * that was followed by neither treat nor word to the host before the latest line was kept:
-   * its answer is kept, and that is all.
+   * to a person, and the host is told where no client is following the chat.
    */
   async #notifyWhenUnseen(
     harness: Harness,
     chatId: string,
     submission: Awaited<ReturnType<Conversation["submit"]>>,
     caller: Caller | undefined,
-    quiet = false,
   ): Promise<void> {
     try {
       const settled = await submission.wait(context)
@@ -2466,20 +2359,15 @@ export class AgentActor implements Actor {
       const seen = (this.#watchers.get(chatId) ?? 0) > 0 || this.#followers.following(chatId)
       // What it says to another agent, or as a sub-agent of itself, is not an answer to anyone.
       const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
-      if (!quiet && (kind === "chat" || kind === "slack")) await this.#earnTreat()
-      // An answer in Slack is kept when it is posted there, and one to another agent is not to
-      // a person at all.
-      const kept = kind === "chat"
-      const told = !quiet && !seen && this.#options.onNotify !== undefined
-      if (!kept && !told) return
+      if (kind === "chat" || kind === "slack") await this.#earnTreat()
+      if (seen || this.#options.onNotify === undefined) return
       const answer = await harness.commit((tx) => tx.entry(AssistantEntry, settled.answer), context)
       const message = answer?.model?.[0]
       const text =
         message?.role === "assistant"
           ? message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("")
           : ""
-      if (kept) await this.#record({ kind: "reply", text, chatId })
-      if (told && text.trim() !== "") {
+      if (text.trim() !== "") {
         await this.#notify({
           kind: "reply",
           text: text.trim(),
@@ -2487,35 +2375,6 @@ export class AgentActor implements Actor {
           ...(caller === undefined ? {} : { userId: caller.id }),
         })
       }
-    } catch (error) {
-      this.#options.onReport?.(error)
-    }
-  }
-
-  /** The agent stopped to ask a person for something: they are told, and its latest line says so. */
-  #asked(heading: string, text: string, chatId: string | null): void {
-    void this.#notify({ kind: "approval", heading, text, chatId })
-    void this.#record({ kind: "asked", text, ...(chatId === null ? {} : { chatId }) })
-  }
-
-  /**
-   * Keep the latest thing said to the agent or by it, as one line. A courtesy, as a notification
-   * is: failing to keep it must never fail the work it tells of.
-   */
-  async #record(said: Omit<AgentLatest, "at">): Promise<void> {
-    if (this.#harness === undefined) return
-    try {
-      const text = preview(said.text)
-      if (text === "") return
-      const latest = { ...said, text, at: this.#host.now() }
-      const harness = await this.#harness
-      // The answer that ends the turn it asked in does not take the line from what it asked:
-      // until someone answers, that is what there is to know of it.
-      const held = said.kind === "reply" && (await this.#asking())
-      await harness.commit(async (tx) => {
-        const doc = await tx.doc(LatestDoc)
-        if (!held || doc.latest?.kind !== "asked") doc.latest = latest
-      }, context)
     } catch (error) {
       this.#options.onReport?.(error)
     }

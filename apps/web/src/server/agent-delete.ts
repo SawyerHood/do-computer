@@ -32,7 +32,6 @@ export async function deleteAgent(
   await db.batch([
     { sql: "DELETE FROM dc_oauth_states WHERE agent_id = ?", params: [agentId] },
     { sql: "DELETE FROM dc_slack_apps WHERE agent_id = ?", params: [agentId] },
-    { sql: "DELETE FROM dc_agent_seen WHERE agent_id = ?", params: [agentId] },
     { sql: "DELETE FROM dc_agents WHERE id = ?", params: [agentId] },
   ])
   await announce(access.workspaceId)

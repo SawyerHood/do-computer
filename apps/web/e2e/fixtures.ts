@@ -105,16 +105,6 @@ type WorkerFixtures = {
 }
 
 export const test = base.extend<object, WorkerFixtures>({
-  // A row in the sidebar repeats the start of what its agent last said or was told, a moment
-  // after it is said. A test that asks the page for some words means where they were said, so
-  // the rows' own lines are left out of `page.getByText`: otherwise the same words are one
-  // thing or two, by how fast the row caught up. A test about a row asks the row for its words.
-  page: async ({ page }, use) => {
-    const byText = page.getByText.bind(page)
-    page.getByText = (text, options) =>
-      byText(text, options).and(page.locator(":not([data-latest])"))
-    await use(page)
-  },
   creature: [false, { option: true, scope: "worker" }],
   settings: [{}, { option: true, scope: "worker" }],
   // The creature is drawn with WebGL, which a browser with no graphics card does in software: a

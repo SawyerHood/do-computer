@@ -86,7 +86,7 @@ test.describe("pairing a computer", () => {
       '/tool bash {"command":"cat hello.txt && echo agent was here > from-agent.txt","computer":"test-laptop"}',
     )
     await page.keyboard.press("Enter")
-    await expect(page.getByRole("main").getByText("a file on the user's laptop")).toBeVisible()
+    await expect(page.getByText("a file on the user's laptop")).toBeVisible()
     // The command really ran on that machine, and the machine has a record of it.
     expect(readFileSync(join(home, "from-agent.txt"), "utf8")).toBe("agent was here\n")
     expect(readFileSync(join(home, ".dc/audit.log"), "utf8")).toContain("cat hello.txt")
@@ -107,9 +107,7 @@ test.describe("pairing a computer", () => {
     await expect(chip).toContainText("test-laptop · in the background")
     await expect(page.getByRole("button", { name: "1 running" })).toBeVisible()
     // The agent is waiting on it, and says so in the sidebar.
-    await expect(page.getByRole("navigation", { name: "Agents" })).toContainText(
-      "Waiting on echo serving",
-    )
+    await expect(page.getByText("Waiting on echo serving")).toBeVisible()
 
     // The list leads to the command in the chat, opened on the end of what it has printed.
     await page.getByRole("button", { name: "1 running" }).click()
@@ -183,9 +181,7 @@ test.describe("pairing a computer", () => {
 
     // The agent is told in the chat it asked from, and the computer is its to use.
     await expect(page.getByRole("log").getByText("Sawyer said yes to using")).toBeVisible()
-    await expect(
-      page.getByRole("main").getByText(/You said: \[Sawyer said yes: you can now use/),
-    ).toBeVisible()
+    await expect(page.getByText(/You said: \[Sawyer said yes: you can now use/)).toBeVisible()
     await tool(
       page,
       "bash",
@@ -209,9 +205,7 @@ test.describe("pairing a computer", () => {
     await newChat(page)
     await composer(page).fill('/tool bash {"command":"ls","computer":"test-laptop"}')
     await page.keyboard.press("Enter")
-    await expect(
-      page.getByRole("main").getByText(/There is no computer named "test-laptop"/),
-    ).toBeVisible()
+    await expect(page.getByText(/There is no computer named "test-laptop"/)).toBeVisible()
   })
 
   test("an expired or mistyped code is explained", async ({ page }) => {

@@ -8,7 +8,6 @@ import type {
 import type { Context } from "@earendil-works/chord"
 import type { ToolCall } from "@earendil-works/pi-ai"
 import {
-  type Conversation,
   type ConversationId,
   defineDoc,
   defineExtension,
@@ -554,12 +553,6 @@ export class Approvals {
     return ruleOf(state?.rules ?? {}, subject)
   }
 
-  /** Whether anything it asked for is still waiting on someone's answer. */
-  async asking(context: Context): Promise<boolean> {
-    const state = await this.#require().snapshot(ApprovalsDoc, context)
-    return Object.values(state?.requests ?? {}).some((request) => request.status === "pending")
-  }
-
   async pending(context: Context): Promise<ApprovalRequest[]> {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
@@ -656,16 +649,12 @@ export class Approvals {
    * Where a team shares the agent, `by` is whoever answered: anyone in the team may, and the
    * agent and the others are told who did.
    */
-  /**
-   * Answer a request, and tell the chat that asked. Resolves with that chat and the turn the
-   * agent was given there, or with undefined where the chat is gone.
-   */
   async resolve(
     id: string,
     decision: ApprovalDecision,
     context: Context,
     by?: Caller,
-  ): Promise<{ chatId: string; turn: Awaited<ReturnType<Conversation["submit"]>> } | undefined> {
+  ): Promise<void> {
     if (decision !== "once" && decision !== "always" && decision !== "deny") {
       throw new ApprovalError("The answer is one of: once, always, deny.")
     }
@@ -709,7 +698,7 @@ export class Approvals {
       Number(request.chatId) as ConversationId,
       context,
     )
-    if (conversation === undefined) return undefined
+    if (conversation === undefined) return
     const what = request.detail === "" ? request.title : `${request.title}: ${request.detail}`
     // Their name is in the note that follows, where it cannot be taken for part of this one.
     const who = by === undefined ? "The user" : "The person named below"
@@ -721,7 +710,7 @@ export class Approvals {
               ? ", and you no longer need to ask for it"
               : ""
           }. Do it now, exactly as you asked, and carry on with what you were doing.</meta>`
-    const turn = await conversation.submit(
+    await conversation.submit(
       {
         type: "input",
         requestId: `approval:${id}`,
@@ -736,6 +725,5 @@ export class Approvals {
       },
       context,
     )
-    return { chatId: request.chatId, turn }
   }
 }

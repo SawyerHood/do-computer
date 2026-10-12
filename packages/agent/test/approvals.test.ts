@@ -3,7 +3,6 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
   AgentEvent,
-  AgentSummary,
   ApprovalsState,
   ChatState,
   ChatSummary,
@@ -101,15 +100,6 @@ async function settled(world: World, chatId: string): Promise<ChatState> {
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
   throw new Error("The chat did not settle")
-}
-
-async function until<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
-  for (let attempt = 0; attempt < 500; attempt++) {
-    const value = await read()
-    if (done(value)) return value
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  throw new Error(`Timed out; last value: ${JSON.stringify(await read())}`)
 }
 
 async function say(world: World, chatId: string, text: string): Promise<ChatState> {
@@ -388,32 +378,6 @@ describe("approval rules", () => {
       (await call<ApprovalsState>(world, "/approvals/rules", "PATCH", { "tool:bash": "allow" }))
         .rules,
     ).toEqual(ASKS)
-  })
-
-  it("show on the agent that it is asking, with what it asked, until it is answered", async () => {
-    const world = open()
-    const chat = await setup(world)
-    await call(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
-    const agent = async () => (await call<{ agent: AgentSummary }>(world, "/")).agent
-    expect(await agent()).toMatchObject({ working: false, asking: false })
-
-    world.faux.setResponses(useTool("bash", { command: "echo held" }, "May I run a command?"))
-    await say(world, chat.id, "run it")
-    // What it asked stays its latest line: the reply that ended its turn does not take its place.
-    const asking = await until(agent, (found) => found.asking === true && !found.working)
-    expect(asking.latest).toMatchObject({
-      kind: "asked",
-      text: "Run commands: echo held",
-      chatId: chat.id,
-    })
-
-    const { pending } = await call<ApprovalsState>(world, "/approvals")
-    world.faux.setResponses(useTool("bash", { command: "echo held" }, "It printed held."))
-    await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "once" })
-    expect((await agent()).asking).toBe(false)
-    // What it says once it has its answer is its latest line then.
-    const after = await until(agent, (found) => found.latest?.kind === "reply" && !found.working)
-    expect(after.latest).toMatchObject({ text: "It printed held.", chatId: chat.id })
   })
 
   it("tell open clients when a request appears", async () => {

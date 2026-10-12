@@ -2,7 +2,6 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
-  AgentSummary,
   ChatState,
   ChatSummary,
   JobSummary,
@@ -237,12 +236,6 @@ describe("background commands", () => {
     )
     expect(tools(started)[0]!.output).toContain("Started in the background as b1")
     expect((await jobs(world))[0]).toMatchObject({ id: "b1", status: "running" })
-    // Its turn is over: a command it left running is not the agent at work.
-    const { agent } = await until(
-      () => call<{ agent: AgentSummary }>(world, "/"),
-      (state) => state.agent.working === false && state.agent.latest?.kind === "reply",
-    )
-    expect(agent.latest).toMatchObject({ text: "Started." })
 
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     await send(world, chat.id, "look at it")

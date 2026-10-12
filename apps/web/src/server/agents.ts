@@ -113,26 +113,12 @@ export async function listAgents(user: SessionUser): Promise<Response> {
       WHERE workspace_id IN (${workspaceIds.map(() => "?").join(", ")}) ORDER BY created_at`,
     ...workspaceIds,
   )
-  // When this person last looked at each. Another member of a team has their own.
-  const seen = new Map(
-    (
-      await db.all<{ agent_id: string; seen_at: number }>(
-        "SELECT agent_id, seen_at FROM dc_agent_seen WHERE user_id = ?",
-        user.id,
-      )
-    ).map((row) => [row.agent_id, row.seen_at]),
-  )
   const agents = await Promise.all(
     rows.map(async (row): Promise<AgentSummary | undefined> => {
       const response = await callAgent(row.id, "/")
       if (!response.ok) return undefined
       const { agent } = (await response.json()) as { agent: AgentSummary }
-      const seenAt = seen.get(row.id)
-      return {
-        ...agent,
-        workspaceId: row.workspace_id ?? personalWorkspaceId(row.owner_id),
-        ...(seenAt === undefined ? {} : { seenAt }),
-      }
+      return { ...agent, workspaceId: row.workspace_id ?? personalWorkspaceId(row.owner_id) }
     }),
   )
   return json({ agents: agents.filter((agent) => agent !== undefined) })

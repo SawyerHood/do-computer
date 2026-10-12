@@ -152,12 +152,6 @@ export class Secrets {
     return this.#harness
   }
 
-  /** Whether anything it asked for is still waiting to be typed in. */
-  async asking(context: Context): Promise<boolean> {
-    const state = await this.#require().snapshot(SecretsDoc, context)
-    return Object.values(state?.requests ?? {}).some((request) => request.status === "pending")
-  }
-
   async pending(context: Context): Promise<SecretRequest[]> {
     const state = await this.#require().snapshot(SecretsDoc, context)
     return Object.entries(state?.requests ?? {})

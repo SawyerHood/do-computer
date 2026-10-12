@@ -2,7 +2,6 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
-  AgentSummary,
   ApprovalsState,
   ChatState,
   ChatSummary,
@@ -362,14 +361,6 @@ describe("an agent in Slack", () => {
     expect(shown).toContain("help Jon Reyes as you would in any other conversation")
     // The answer went to Slack, so nobody is notified of it in the app.
     expect(world.reports).toEqual([])
-    // It is the agent's latest line all the same, with the channel it was said in.
-    const { agent } = await call<{ agent: AgentSummary }>(world, "/")
-    expect(agent.latest).toMatchObject({
-      kind: "slack",
-      from: "launch",
-      text: "Three things are still open.",
-      chatId,
-    })
     expect(world.errors).toEqual([])
   })
 

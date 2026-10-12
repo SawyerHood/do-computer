@@ -257,13 +257,6 @@ export type SlackChatsOptions = {
   readonly sees?: (model: string) => boolean
   /** A file of the library by its path or name, for sending along with something said. */
   readonly libraryFile?: (name: string) => Promise<{ name: string; bytes: Uint8Array } | undefined>
-  /** Called when the agent's answer was posted to a thread. Not for word that it had none. */
-  readonly onAnswered?: (answer: {
-    chatId: string
-    text: string
-    /** The channel's name without the `#`. Null for a direct message, or where it is not known. */
-    channelName: string | null
-  }) => void
   readonly onError?: (error: unknown) => void
 }
 
@@ -765,10 +758,6 @@ export class SlackChats {
       if (sent === "later") return
       // Words nobody could be given are not an answer that was given.
       if (sent === "gone") status = "failed"
-      // Every other status came with word that it had no answer.
-      else if (status === "done" || status === "waiting") {
-        this.#options.onAnswered?.({ chatId: id, text: said, channelName: slack.channelName })
-      }
     }
     await this.#change(id, context, (stored) => {
       if (stored.woken === slack.woken) delete stored.stopping

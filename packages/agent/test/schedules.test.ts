@@ -1,12 +1,7 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type {
-  AgentSummary,
-  ChatState,
-  ChatSummary,
-  ScheduleSummary,
-} from "@durable-computer/protocol"
+import type { ChatState, ChatSummary, ScheduleSummary } from "@durable-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@durable-computer/runtime/node"
 import { justBashSandbox } from "@durable-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -190,16 +185,6 @@ describe("schedules", () => {
         chatId: chat.id,
       },
     ])
-    // What the run came to is the agent's latest line, under the task's title.
-    const { agent } = await until(
-      () => call<{ agent: AgentSummary }>(world, "/"),
-      (state) => state.agent.latest?.kind === "scheduled",
-    )
-    expect(agent.latest).toMatchObject({
-      from: "Weather check",
-      text: "Sunny, 21°C.",
-      chatId: chat.id,
-    })
     expect(world.errors).toEqual([])
   })
 

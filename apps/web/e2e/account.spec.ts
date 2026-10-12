@@ -49,7 +49,7 @@ test("a message is answered and streamed into the transcript", async ({ page }) 
   await composer(page).fill("What can you do?")
   await page.keyboard.press("Enter")
   await expect(composer(page)).toHaveValue("")
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
   // The agent's row in the sidebar is the way to this chat: it has no chats listed under it.
   const agents = page.getByRole("navigation", { name: "Agents" })
   await expect(agents.getByRole("link")).toHaveCount(1)
@@ -57,7 +57,7 @@ test("a message is answered and streamed into the transcript", async ({ page }) 
 
   // The transcript is the agent's, not the tab's: it is still there after a reload.
   await page.reload()
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
 })
 
 test("assistant text is rendered as Markdown", async ({ page }) => {
@@ -82,7 +82,7 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
   await expect(beside.getByText(/picks up from the main chat, which stays as it was/)).toBeVisible()
   await expect(beside.getByText("Continues from the main chat")).toHaveCount(0)
   await expect(page).toHaveURL(new RegExp(`${new URL(main).pathname}\\?side=\\d+$`))
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
   await beside.getByRole("textbox", { name: "Message" }).fill("second chat here")
   await page.keyboard.press("Enter")
   await expect(beside.getByText("You said: second chat here")).toBeVisible()
@@ -103,12 +103,12 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
   // Given the whole chat, a line under the strip says what it is and leads back.
   await beside.getByRole("link", { name: "Give it the whole chat" }).click()
   await expect(beside).toHaveCount(0)
-  await expect(page.getByRole("main").getByText("You said: second chat here")).toBeVisible()
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(page.getByText("You said: second chat here")).toBeVisible()
+  await expect(page.getByText("You said: What can you do?")).toHaveCount(0)
   await expect(composer(page)).toHaveAttribute("placeholder", /in this side chat$/)
   await page.getByRole("link", { name: "Main chat", exact: true }).click()
   await expect(page).toHaveURL(main)
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
 
   // From the menu it opens beside the main chat again, and is put away from there.
   await sideChats(page).click()
@@ -118,7 +118,7 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
   await expect(page).toHaveURL(main)
   await sideChats(page).click()
   await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toHaveCount(0)
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByText("You said: What can you do?")).toBeVisible()
 })
 
 test("memory over its limit cannot be saved", async ({ page }) => {

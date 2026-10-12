@@ -287,18 +287,6 @@ describe("messages between agents", () => {
       async () => world.reports,
       (reports) => reports.some((report) => report.text === "Bo says March 3."),
     )
-    // The receiver's latest line is what it was sent, and by whom: its answer was to no person.
-    // The sender's is what it told its person in the end.
-    const latest = async (agentId: string) =>
-      (await call<{ agent: AgentSummary }>(world, agentId, "/")).agent.latest
-    const received = await latest(BO)
-    expect(received).toMatchObject({ kind: "agent", from: "Ada", text: "When is the launch?" })
-    expect(received).not.toHaveProperty("chatId")
-    expect(await latest(ADA)).toMatchObject({
-      kind: "reply",
-      text: "Bo says March 3.",
-      chatId: chat.id,
-    })
 
     // More from the same chat carries on the same conversation.
     await send(world, ADA, chat.id, "ask where")

@@ -22,8 +22,7 @@ import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
 import { cn } from "@/lib/utils"
 import { useSwipe } from "@/lib/use-swipe"
-import { useMarkSeen } from "@/lib/latest"
-import { useListedAgent, usePresence, useWorkspaces } from "@/lib/workspaces"
+import { usePresence, useWorkspaces } from "@/lib/workspaces"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
 import { ResizeHandle } from "./resize-handle.tsx"
 import { Sidebar } from "./sidebar.tsx"
@@ -122,13 +121,6 @@ export function AppShell({
     agentId: agentId ?? null,
     chatId: chatId ?? null,
   })
-  // The agent on screen is being looked at. When that was last said is in the list of agents.
-  const listed = useListedAgent(agentId)
-  useMarkSeen(
-    agentId,
-    Math.max(agent?.latest?.at ?? 0, listed?.latest?.at ?? 0) || undefined,
-    listed?.seenAt,
-  )
 
   const [sidebarOpen, toggleSidebar] = useRemembered(sidebarOpenAtom, SIDEBAR_OPEN_KEY)
   const sidebarWidth = useAtomValue(sidebarColumn.width)
