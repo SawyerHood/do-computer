@@ -33,6 +33,13 @@ export type DesktopBridge = {
   /** The first run is over. With `openAtLogin`, whether the app opens at sign-in from now on. */
   finish(options: { openAtLogin?: boolean }): Promise<void>
   /**
+   * Ask this computer's owner to let agents use its screen. Where they do not yet, the app
+   * asks them itself, in a window of its own, and switches it on only if they say so there.
+   * Resolves once agents can be told of it, or with why not: `missing` is what macOS has still
+   * to allow. An app older than this has no such thing to ask.
+   */
+  askForScreen?(): Promise<{ allowed: true; missing?: string[] } | { allowed: false; why?: string }>
+  /**
    * The picture the app is shown by while it runs: in the Dock on a Mac, on its window and
    * the taskbar elsewhere. A PNG's address, in the shape this computer's desktop wants, or
    * null for the app's usual picture. An app older than this has no such thing to ask.

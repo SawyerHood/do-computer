@@ -140,9 +140,15 @@ test("someone new meets their first agent: it is named as it hatches, and says h
   const back = await page.request.patch(`/api/agents/${id}`, { data: { model: "echo/echo-1" } })
   expect(back.ok()).toBe(true)
 
-  // What it offers to start with is said for them.
-  await page.getByRole("button", { name: "Show me what you can do" }).click()
-  await expect(page.getByRole("main").getByText("You said: Show me what you can do")).toBeVisible()
+  // What it offers to start with shows what it can do with no computer, and is said for them.
+  for (const offered of ["Research three things at once", "Check in with me every morning"]) {
+    await expect(page.getByRole("button", { name: offered })).toBeVisible()
+  }
+  await expect(page.getByRole("button", { name: "Draw me a picture" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Make me a little game" }).click()
+  await expect(
+    page.getByRole("main").getByText("You said: Make me a little game with you in it"),
+  ).toBeVisible()
   await expect(composer(page)).toBeVisible()
 })
 

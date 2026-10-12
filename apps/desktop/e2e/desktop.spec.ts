@@ -202,6 +202,56 @@ test("the first run asks who its owner is, a name for the agent, and for this co
   )
 })
 
+test("its first hello offers to draw, and the app asks its owner for the screen first", async () => {
+  const main = await windowAt(url)
+  const computer = await windowAt("computer.html")
+  const computers = () =>
+    main.evaluate(async () => JSON.stringify(await (await fetch("/api/computers")).json()))
+  /** Answer the app's own question, which no page can, as its owner would: with this button. */
+  const answer = (button: number) =>
+    app.evaluate(({ dialog }, response) => {
+      const asked = ((globalThis as { asked?: string[] }).asked ??= [])
+      dialog.showMessageBox = (async (...args: unknown[]) => {
+        asked.push((args.at(-1) as { message: string }).message)
+        return { response, checkboxChecked: false }
+      }) as typeof dialog.showMessageBox
+    }, button)
+  const asked = () => app.evaluate(() => (globalThis as { asked?: string[] }).asked ?? [])
+
+  for (const offered of [
+    "Make me a little game",
+    "What’s filling up this computer?",
+    "Check in with me every morning",
+  ]) {
+    await expect(main.getByRole("button", { name: offered })).toBeVisible()
+  }
+  const draw = main.getByRole("button", { name: "Draw me a picture" })
+
+  // An owner who says no is left where they were: nothing is said for them or switched on.
+  await answer(1)
+  await draw.click()
+  await expect.poll(asked).toEqual(["Let agents use this computer’s screen?"])
+  await expect(draw).toBeEnabled()
+  await expect(main.getByRole("heading", { name: "Hi Sawyer, I’m Pip." })).toBeVisible()
+  await expect(computer.getByRole("switch", { name: /The screen/ })).not.toBeChecked()
+  expect(await computers()).not.toContain('"screen":true')
+
+  // One who says yes has it switched on, and the agent is asked once it can use it.
+  await answer(0)
+  await draw.click()
+  await expect(main.getByText("You said: Open a painting app on this computer")).toBeVisible({
+    timeout: 30_000,
+  })
+  expect(await asked()).toHaveLength(2)
+  expect(await computers()).toContain('"screen":true')
+  await expect(computer.getByRole("switch", { name: /The screen/ })).toBeChecked()
+
+  // It is theirs to switch off again, where it is always kept.
+  await computer.getByRole("switch", { name: /The screen/ }).uncheck()
+  await expect.poll(computers, { timeout: 30_000 }).not.toContain('"screen":true')
+  await expect(computer.getByRole("status")).toContainText("Connected as", { timeout: 20_000 })
+})
+
 test("an agent works on this computer, and still can with the window closed", async () => {
   const main = await windowAt(url)
   // Closing the window leaves the app, and the daemon in it, running.

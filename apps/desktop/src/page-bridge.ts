@@ -5,13 +5,19 @@
  *
  * The app answers only the top page of its main window, and only while that page is on the
  * deployment it is set to. Whatever is its owner's to decide later (which agents get this
- * computer, the screen, a browser) stays with the app's own pages.
+ * computer, the screen, a browser) stays with the app: its own pages, and for the screen a
+ * question the app puts itself when a page asks for it, which no page draws or can answer.
  */
 import { onServer } from "./server.ts"
 import type { Sharing } from "./status.ts"
 
 export type SignInAnswer = { token: string } | { error: string }
 export type ShareAnswer = { code: string } | { connected: true } | { error: string }
+export type ScreenAnswer =
+  /** Agents may use the screen. On a Mac, `missing` is what macOS has still to allow first. */
+  | { allowed: true; missing?: string[] }
+  /** They may not: its owner said no, or, with `why`, it is not something to ask for here. */
+  | { allowed: false; why?: string }
 
 /** What a page is told as it loads. */
 export type PageInfo = {
@@ -45,6 +51,12 @@ export type DesktopBridge = PageInfo & {
   /** The first run is over. With `openAtLogin`, whether the app opens at sign-in from now on. */
   finish(options: { openAtLogin?: boolean }): Promise<void>
   /**
+   * Ask this computer's owner to let agents use its screen. Where they do not yet, the app
+   * asks them itself, in a window of its own, and switches it on only if they say so there.
+   * Resolves once agents can be told of it, or with why not.
+   */
+  askForScreen(): Promise<ScreenAnswer>
+  /**
    * The picture the app is shown by while it runs: in the Dock on a Mac, on its window and
    * the taskbar elsewhere. The page draws its owner's own agent, as a PNG's address, in the
    * shape this computer's desktop wants. Null is the app's usual picture again. Once the app
@@ -60,6 +72,7 @@ export const CHANNELS = {
   cancelSignIn: "page-cancel-sign-in",
   share: "page-share",
   finish: "page-finish",
+  screen: "page-screen",
   icon: "page-icon",
 } as const
 
@@ -114,6 +127,26 @@ export function shareAnswer(sharing: Sharing): ShareAnswer | undefined {
     default:
       return undefined
   }
+}
+
+/**
+ * Why a page that asked for the screen is told no without its owner being asked, if it is:
+ * the question is only worth putting where saying yes would let an agent use it.
+ */
+export function screenRefusal(now: {
+  /** Why the screen cannot be used on this computer at all, if it cannot. */
+  unavailable: string | undefined
+  sharing: "off" | "on"
+  readOnly: boolean
+}): string | undefined {
+  if (now.unavailable !== undefined) return now.unavailable
+  if (now.sharing === "off") {
+    return "Agents cannot use this computer yet. Let them in the Do Computer app, under This Computer."
+  }
+  if (now.readOnly) {
+    return "Agents may only read files on this computer. That is changed in the Do Computer app, under This Computer."
+  }
+  return undefined
 }
 
 /** The provider a page asked to sign in with, if it is one there is. */
