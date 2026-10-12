@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { AuthForm } from "@/components/auth-form"
+import { frontDoor } from "@/lib/front-door"
 import { forDesktopApp, sentFrom } from "@/lib/welcome"
 
 /**
@@ -13,5 +14,10 @@ export const Route = createFileRoute("/signup")({
     if (forDesktopApp(next)) return
     throw redirect({ to: "/welcome", search: next === undefined ? {} : { next }, replace: true })
   },
-  component: () => <AuthForm mode="sign-up" />,
+  loader: () => frontDoor(),
+  component: SignupPage,
 })
+
+function SignupPage() {
+  return <AuthForm mode="sign-up" door={Route.useLoaderData()} />
+}

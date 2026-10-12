@@ -19,8 +19,11 @@ type Provider = "google" | "github"
 /** Where to go once signed in: the page that sent the visitor here, when it named itself. */
 const destination = () => sentFrom() ?? "/"
 
-/** Sign in or create an account, with email and password or a configured provider. */
-export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
+/**
+ * Sign in or create an account, with email and password or a configured provider. `door` is
+ * what the page was sent with, so that it is drawn at once with the ways in there are.
+ */
+export function AuthForm({ mode, door }: { mode: "sign-in" | "sign-up"; door?: FrontDoor }) {
   const navigate = useNavigate()
   const [error, setError] = useState<string>()
   const [pending, setPending] = useState(false)
@@ -32,7 +35,10 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const { data: methods } = useQuery({
     queryKey: ["auth-methods"],
     queryFn: async (): Promise<FrontDoor> => (await fetch("/api/auth-methods")).json(),
+    initialData: door,
   })
+  // Where the deployment takes no passwords, a provider is the only way in.
+  const typing = methods?.password !== false
   const signingUp = mode === "sign-up"
   // In the desktop app: the provider whose sign-in is going on in the owner's browser.
   const [waiting, setWaiting] = useState<Provider>()
@@ -117,6 +123,11 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       : new URLSearchParams(carried).has("next")
         ? `/signup${carried}`
         : "/welcome"
+  const alert = error ? (
+    <p role="alert" className="text-sm text-destructive">
+      {error}
+    </p>
+  ) : null
 
   return (
     <main className="flex h-dvh items-center justify-center overflow-y-auto bg-frame p-4 sm:p-6">
@@ -160,43 +171,45 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
                 Cancel
               </Button>
             ) : null}
-            <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
-              or
-            </div>
+            {typing ? (
+              <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+                or
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
-          {signingUp ? (
+        {typing ? (
+          <form className="flex flex-col gap-4" method="post" onSubmit={submit}>
+            {signingUp ? (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" name="name" autoComplete="name" />
+              </div>
+            ) : null}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" autoComplete="name" />
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" name="email" type="email" required autoComplete="email" />
             </div>
-          ) : null}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required autoComplete="email" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              name="password"
-              autoComplete={signingUp ? "new-password" : "current-password"}
-            />
-          </div>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-          <Button type="submit" disabled={!ready || pending || waiting !== undefined}>
-            {pending ? "One moment…" : signingUp ? "Create account" : "Sign in"}
-          </Button>
-        </form>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                minLength={8}
+                name="password"
+                autoComplete={signingUp ? "new-password" : "current-password"}
+              />
+            </div>
+            {alert}
+            <Button type="submit" disabled={!ready || pending || waiting !== undefined}>
+              {pending ? "One moment…" : signingUp ? "Create account" : "Sign in"}
+            </Button>
+          </form>
+        ) : (
+          alert
+        )}
 
         <p className={cn("text-sm text-muted-foreground", shut && "hidden")}>
           {signingUp ? "Already have an account? " : "New here? "}

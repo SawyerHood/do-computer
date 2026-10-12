@@ -31,6 +31,12 @@ export type Config = {
   readonly githubClientId: string | undefined
   readonly githubClientSecret: string | undefined
   /**
+   * Whether an account can be made, and signed in to, with an email and a password. On unless
+   * `DC_PASSWORD_SIGNIN=off` where Google or GitHub sign-in is set up: a deployment with no
+   * other way in keeps this one.
+   */
+  readonly passwordSignIn: boolean
+  /**
    * Who may use the app. `open`: anyone. `invite` (the default): the first account, those
    * `allowedEmails` names and people invited to a team. `waitlist`: anyone may make an account,
    * and those `invite` would let in use the app while everyone else waits to be.
@@ -141,6 +147,9 @@ export function readConfig(env: Record<string, string | undefined>): Config {
   /** A length of time in milliseconds. Anything that is not a whole number from 0 up is as if unset. */
   const wholeNumber = (value: string | undefined) =>
     value !== undefined && /^\d+$/.test(value) ? Number(value) : undefined
+  /** Whether a setting that is on by default was turned off. */
+  const off = (name: string) =>
+    ["off", "0", "false", "none"].includes((optional(name) ?? "on").toLowerCase())
   const listed = (name: string) =>
     (env[name] ?? "")
       .split(",")
@@ -160,15 +169,20 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     googleClientSecret: optional("GOOGLE_CLIENT_SECRET"),
     githubClientId: optional("GITHUB_CLIENT_ID"),
     githubClientSecret: optional("GITHUB_CLIENT_SECRET"),
+    // Turned off with nobody else to vouch for a person, nobody could sign in at all.
+    passwordSignIn:
+      !off("DC_PASSWORD_SIGNIN") ||
+      !(
+        (optional("GOOGLE_CLIENT_ID") && optional("GOOGLE_CLIENT_SECRET")) ||
+        (optional("GITHUB_CLIENT_ID") && optional("GITHUB_CLIENT_SECRET"))
+      ),
     signup:
       env.DC_SIGNUP === "open" ? "open" : env.DC_SIGNUP === "waitlist" ? "waitlist" : "invite",
     landing: env.DC_LANDING === "1",
     allowedEmails: listed("DC_ALLOWED_EMAILS").map((email) => email.toLowerCase()),
     sandbox: sandboxKind(optional("DC_SANDBOX")),
     sandboxKinds: sandboxKinds(optional("DC_SANDBOX_KINDS")),
-    sandboxNetwork: !["off", "0", "false", "none"].includes(
-      (optional("DC_SANDBOX_NETWORK") ?? "on").toLowerCase(),
-    ),
+    sandboxNetwork: !off("DC_SANDBOX_NETWORK"),
     daytona: {
       apiKey: optional("DAYTONA_API_KEY"),
       apiUrl: optional("DAYTONA_API_URL"),
