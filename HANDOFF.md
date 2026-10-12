@@ -2389,29 +2389,6 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       for, an agent using a screen, sub-agent chips, Slack threads and a team with other people
       in it, which the echo model does not produce, and Safari. Three measurements in
       `e2e/layout.spec.ts` changed with the look.
-58. **One row at the top of an agent's pages on a phone** (2026-10-12;
-    `components/shell/agent-strip.tsx`, `app-skeleton.tsx`, `lib/use-wide.ts`). The owner sent
-    a picture of their phone and said "this two tier tabs and header is a bit strange on
-    mobile". They were shown three drawings (the pages in the name's menu; the tabs in the row
-    in place of the name; two rows made to look like one header) and chose the first.
-    - Under `md` the strip is one 48px row and has no tabs in it. The menu on the agent's name
-      starts with Chat, Library and Automations, with the open one ticked, and the other
-      agents are under them as before. Off the chat the name is followed by the page
-      ("Juniper · Library"); a long name is cut short before the page is.
-    - Seeing that, the owner said "i don't like that we are now missing the back button" and
-      "it looks hard to go back to main chat". So on Library and Automations the row starts
-      with an arrow back to the chat, where the button for the agents is on the chat. The
-      agents are still reached there by a swipe from the left and from the name's menu. That
-      the arrow takes the place of that button, and is not beside it, is mine.
-    - From `md` up nothing changed: the tabs are in the strip and the menu lists agents only.
-      The pages are left out of the menu there by `useMedia`, not hidden with a class, so the
-      arrow keys cannot land on one that is not shown.
-    - The name's button is called "…: pages and other agents" on a narrow screen and
-      "…: another agent" on a wide one.
-    - **What was looked at:** the chat, the open menu, the library and automations at 393 and
-      320 pixels wide and the menu at 1280, in Chromium, light theme. **Not seen:** a real
-      phone, Safari, a team's chat with other people's faces in the row.
-
 58. **One settings window** (2026-10-12; `apps/web/src/lib/settings.ts`,
     `components/settings/settings.tsx`, `settings-dialog.tsx`, `lists.tsx`). The owner found
     "the IA between all of the settings, workspace / user / agent" confusing. There were two
@@ -2455,6 +2432,28 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       and at a phone's width, in the light theme. **Not seen:** a team with several people and
       agents in the lists, an invitation in the Workspaces list, the Server group as an admin
       by eye (its tests pass), and Safari. The native app in `apps/mobile` is as it was.
+59. **One row at the top of an agent's pages on a phone** (2026-10-12;
+    `components/shell/agent-strip.tsx`, `app-skeleton.tsx`, `lib/use-wide.ts`). The owner sent
+    a picture of their phone and said "this two tier tabs and header is a bit strange on
+    mobile". They were shown three drawings (the pages in the name's menu; the tabs in the row
+    in place of the name; two rows made to look like one header) and chose the first.
+    - Under `md` the strip is one 48px row and has no tabs in it. The menu on the agent's name
+      starts with Chat, Library and Automations, with the open one ticked, and the other
+      agents are under them as before. Off the chat the name is followed by the page
+      ("Juniper · Library"); a long name is cut short before the page is.
+    - Seeing that, the owner said "i don't like that we are now missing the back button" and
+      "it looks hard to go back to main chat". So on Library and Automations the row starts
+      with an arrow back to the chat, where the button for the agents is on the chat. The
+      agents are still reached there by a swipe from the left and from the name's menu. That
+      the arrow takes the place of that button, and is not beside it, is mine.
+    - From `md` up nothing changed: the tabs are in the strip and the menu lists agents only.
+      The pages are left out of the menu there by `useMedia`, not hidden with a class, so the
+      arrow keys cannot land on one that is not shown.
+    - The name's button is called "…: pages and other agents" on a narrow screen and
+      "…: another agent" on a wide one.
+    - **What was looked at:** the chat, the open menu, the library and automations at 393 and
+      320 pixels wide and the menu at 1280, in Chromium, light theme. **Not seen:** a real
+      phone, Safari, a team's chat with other people's faces in the row.
 
 ## 6. What the owner has said they want
 
