@@ -1,7 +1,8 @@
 /**
- * What an agent's creature can be given and can wear. It earns treats by answering; treats fill a
- * box; a box holds one thing to wear that it does not have yet. None of it changes what the agent
- * can do: it is there to be enjoyed.
+ * What an agent's creature can be given and can wear. A box turns up beside it twelve hours
+ * after its last was opened, one waiting at most, and holds one thing to wear that it does not
+ * have yet. It can be given a treat whenever anyone likes, which it enjoys and which comes to
+ * nothing more. None of it changes what the agent can do: it is there to be enjoyed.
  */
 
 /** Where on the creature a thing is worn. It wears one thing in each place at most. */
@@ -241,7 +242,14 @@ export const rarityOf = (id: RarityId) => RARITIES.find((rarity) => rarity.id ==
 /** What a creature has on: the id of a thing for each place it wears one. */
 export type Outfit = Partial<Record<WearSlot, string>>
 
-/** How many treats fill a box. */
+/** How long after a creature's box is opened the next one turns up. */
+export const BOX_EVERY_MS = 12 * 60 * 60 * 1000
+
+/**
+ * How many treats from other people, on the page a creature has to itself, fill a box for it:
+ * those boxes are besides the one of its own. The treats its own people give it in the app fill
+ * nothing.
+ */
 export const TREATS_PER_BOX = 4
 
 /** The treats there are. Which one a creature is handed next is only for show. */
@@ -249,14 +257,19 @@ export const TREAT_KINDS = ["cookie", "onigiri", "apple", "donut"] as const
 export type TreatKind = (typeof TREAT_KINDS)[number]
 
 export type CreatureState = {
-  /** Treats it has earned and not been given yet. */
-  treats: number
-  /** Treats it has been given, ever. */
+  /** Treats it has been given, ever. There is always another to give it. */
   fed: number
-  /** Treats given since its last box, out of `TREATS_PER_BOX`. */
+  /** Treats other people gave it on its own page since the last box they filled, out of `TREATS_PER_BOX`. */
   joy: number
-  /** Boxes it has found and not opened. */
+  /**
+   * Boxes waiting to be opened: one of its own at most, and with it any that other people's
+   * treats made. They wait for as long as they are left.
+   */
   boxes: number
+  /** How many of those other people's treats made. */
+  shared: number
+  /** When its next box turns up. Left out while one of its own waits: the wait starts when that is opened. */
+  nextBoxAt?: number
   /** The ids of the things it has, in the order it found them. */
   owned: string[]
   outfit: Outfit
@@ -264,20 +277,20 @@ export type CreatureState = {
 
 /** A creature that has been given nothing yet. Its first box is waiting: a welcome. */
 export const NEW_CREATURE: CreatureState = {
-  treats: 0,
   fed: 0,
   joy: 0,
   boxes: 1,
+  shared: 0,
   owned: [],
   outfit: {},
 }
 
 /**
- * The treat on top of its pile. Each treat a creature ever earns has a number, and its kind
- * follows from that number and the creature, so that the pile looks the same wherever it is shown.
+ * The treat it is handed next. Each treat a creature is ever given has a number, and its kind
+ * follows from that number and the creature, so that the next one is the same wherever it is shown.
  */
-export function topTreat(agentId: string, state: Pick<CreatureState, "treats" | "fed">): TreatKind {
-  let hash = state.fed + state.treats
+export function topTreat(agentId: string, state: Pick<CreatureState, "fed">): TreatKind {
+  let hash = state.fed
   for (let index = 0; index < agentId.length; index++) {
     hash = (hash * 31 + agentId.charCodeAt(index)) >>> 0
   }

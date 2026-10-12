@@ -1,5 +1,6 @@
 import {
   avatarLook,
+  BOX_EVERY_MS,
   type AddConnectorRequest,
   type AgentEvent,
   type AgentActivity,
@@ -180,6 +181,8 @@ export type AgentActorOptions = {
   readonly onReport?: (error: unknown) => void
   /** Chance, as numbers from 0 up to 1: what decides the thing in a box. `Math.random` if left out. */
   readonly random?: () => number
+  /** How long after its creature's box is opened the next one turns up. Twelve hours if left out. */
+  readonly boxEveryMs?: number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
   /** How long a command is waited for before it is left to run in the background. */
@@ -671,8 +674,6 @@ export class AgentActor implements Actor {
         run: (check, c) => this.#runCheck(check, c),
       },
       onReport: (report) => {
-        // A scheduled run that came to something is work done for someone, as an answer is.
-        void this.#earnTreat()
         // Its other chats are told what the latest run of each schedule came to.
         void this.#journal
           .record({ chatId: report.runChatId, title: report.title, outcome: report.text })
@@ -2032,45 +2033,58 @@ export class AgentActor implements Actor {
 
   /** What its creature has been given and has on. One from before there was any of it has a box waiting. */
   async #creature(harness: Harness): Promise<CreatureState> {
+    await this.#boxDue(harness)
     const creature = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
-    return { ...creature, owned: [...creature.owned], outfit: { ...creature.outfit } }
-  }
-
-  /** The agent answered someone, or a scheduled run of its came to something: a treat for its creature. */
-  async #earnTreat(): Promise<void> {
-    if (this.#harness === undefined) return
-    try {
-      await (
-        await this.#harness
-      ).commit(async (tx) => {
-        ;(await tx.doc(CreatureDoc)).treats++
-      }, context)
-    } catch (error) {
-      this.#options.onReport?.(error)
+    const shared = Math.min(creature.shared ?? 0, creature.boxes)
+    // Named one by one: what is kept may hold more, from when its treats were earned and counted.
+    return {
+      fed: creature.fed,
+      joy: creature.joy,
+      boxes: creature.boxes,
+      shared,
+      // While a box of its own waits there is no next one to wait for.
+      ...(creature.boxes > shared || creature.nextBoxAt === undefined
+        ? {}
+        : { nextBoxAt: creature.nextBoxAt }),
+      owned: [...creature.owned],
+      outfit: { ...creature.outfit },
     }
   }
 
-  /** Give its creature one of its treats. Enough of them and it finds a box. */
-  async #feed(harness: Harness): Promise<Response> {
-    const fed = await harness.commit(async (tx) => {
-      const creature = await tx.doc(CreatureDoc)
-      if (creature.treats <= 0) return false
-      creature.treats--
-      creature.fed++
+  /**
+   * A box turns up beside its creature twelve hours after its last was opened, whatever the
+   * agent was or was not doing, and it has one of its own waiting at most: the wait for the next
+   * starts when that one is opened. The boxes other people's treats made are besides. Nothing
+   * wakes for a box: one that has come due is counted when the creature is next looked at. One
+   * from before this with no box has its wait start at the first look.
+   */
+  async #boxDue(harness: Harness): Promise<void> {
+    const now = this.#host.now()
+    const every = Math.max(1, this.#options.boxEveryMs ?? BOX_EVERY_MS)
+    const waits = (creature: CreatureState) =>
       // Once everything is found there is nothing for another box to hold.
-      if (!hasEverything(creature.owned) && ++creature.joy >= TREATS_PER_BOX) {
-        creature.joy = 0
-        creature.boxes++
-      }
-      return true
+      creature.boxes > (creature.shared ?? 0) || hasEverything(creature.owned)
+    const kept = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
+    if (waits(kept) || (kept.nextBoxAt !== undefined && now < kept.nextBoxAt)) return
+    await harness.commit(async (tx) => {
+      const creature = await tx.doc(CreatureDoc)
+      if (waits(creature)) return
+      if (creature.nextBoxAt === undefined) creature.nextBoxAt = now + every
+      else if (now >= creature.nextBoxAt) creature.boxes++
     }, context)
-    if (!fed) throw new HttpError(409, "It has no treats to be given", "no_treats")
+  }
+
+  /** Give its creature a treat. There is always one to give, and it comes to nothing but the count. */
+  async #feed(harness: Harness): Promise<Response> {
+    await harness.commit(async (tx) => {
+      ;(await tx.doc(CreatureDoc)).fed++
+    }, context)
     return json(await this.#creature(harness))
   }
 
   /**
    * Its creature is given something by someone who is not its owner, on its own page: treats it
-   * eats there and then, which fill boxes as its own do, and a thing to wear, which it puts on.
+   * eats there and then, every few of which are a box for it, and a thing to wear, which it puts on.
    */
   async #gifted(harness: Harness, input: { treats?: unknown; item?: unknown }): Promise<Response> {
     const treats =
@@ -2085,6 +2099,7 @@ export class AgentActor implements Actor {
         if (!hasEverything(creature.owned) && ++creature.joy >= TREATS_PER_BOX) {
           creature.joy = 0
           creature.boxes++
+          creature.shared = (creature.shared ?? 0) + 1
         }
       }
       if (item !== undefined) {
@@ -2095,8 +2110,14 @@ export class AgentActor implements Actor {
     return json(await this.#creature(harness))
   }
 
-  /** Open one of its boxes: something to wear that it does not have yet, picked by chance. */
+  /**
+   * Open one of its boxes: something to wear that it does not have yet, picked by chance. Its own
+   * box is opened before any that other people's treats made, and the wait for its next starts then.
+   */
   async #openBox(harness: Harness): Promise<Response> {
+    await this.#boxDue(harness)
+    const now = this.#host.now()
+    const every = Math.max(1, this.#options.boxEveryMs ?? BOX_EVERY_MS)
     // Drawn before the transaction, which may be run more than once and must come out the same.
     const random = this.#options.random ?? Math.random
     const dealt = [random(), random()]
@@ -2107,9 +2128,13 @@ export class AgentActor implements Actor {
       const item = rollItem(creature.owned, () => dealt[at++ % dealt.length]!)
       if (item === undefined) {
         creature.boxes = 0
+        creature.shared = 0
         return undefined
       }
+      const shared = Math.min(creature.shared ?? 0, creature.boxes)
       creature.boxes--
+      if (creature.boxes < shared) creature.shared = creature.boxes
+      else if (creature.boxes === shared) creature.nextBoxAt = now + every
       creature.owned.push(item.id)
       return item.id
     }, context)
@@ -2485,11 +2510,10 @@ export class AgentActor implements Actor {
   }
 
   /**
-   * What follows a run that ends with an answer: the creature earns a treat where the answer was
-   * to a person, the answer becomes the agent's latest line where it was given in a chat of
-   * theirs, and the host is told where no client is following the chat. `quiet` is for a run
-   * that was followed by neither treat nor word to the host before the latest line was kept:
-   * its answer is kept, and that is all.
+   * What follows a run that ends with an answer: the answer becomes the agent's latest line where
+   * it was given in a chat of theirs, and the host is told where no client is following the chat.
+   * `quiet` is for a run that was followed by no word to the host before the latest line was
+   * kept: its answer is kept, and that is all.
    */
   async #notifyWhenUnseen(
     harness: Harness,
@@ -2503,9 +2527,7 @@ export class AgentActor implements Actor {
       if (settled.status !== "done" || settled.type !== "input") return
       // Whether anyone saw it is asked now, at the moment it ended, and not after what follows.
       const seen = (this.#watchers.get(chatId) ?? 0) > 0 || this.#followers.following(chatId)
-      // What it says to another agent, or as a sub-agent of itself, is not an answer to anyone.
       const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
-      if (!quiet && (kind === "chat" || kind === "slack")) await this.#earnTreat()
       // An answer in Slack is kept when it is posted there, and one to another agent is not to
       // a person at all.
       const kept = kind === "chat"

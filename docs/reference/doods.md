@@ -11,8 +11,9 @@ Dood of each color, since a Dood's own look cannot be drawn by the server.
 
 Whoever hatched one can **claim** it by signing in, from the browser they hatched it in. It
 becomes their first agent, named and looking as it did and wearing what it kept. From then on
-the treats people give it on its page are eaten by the agent's creature, and fill presents as
-its own treats do.
+the treats people give it on its page are eaten by the agent's creature, and every four of
+them are a present for it. Those wait together, however many there are, besides the one
+present of its own that an agent has waiting at most.
 
 With `DC_SIGNUP=waitlist` anyone can make an account, in the first run or by claiming a Dood,
 and has their Dood and nothing else: every other call answers 403 until they are let in. The
