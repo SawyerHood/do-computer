@@ -1,8 +1,8 @@
 import { type ApprovalsState, chatMood, type ChatState } from "@durable-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
-import { feedMascot, type Mood } from "@/components/avatar"
-import { keys } from "./use-agent.ts"
+import { feedMascot, type Mood } from "@/ui/avatar"
+import { keys } from "./queries.ts"
 import { useSession } from "./use-session.ts"
 
 /** How long it keeps listening after the last key, and looks troubled after a failure. */

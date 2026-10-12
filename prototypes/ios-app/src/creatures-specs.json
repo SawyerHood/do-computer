@@ -1,0 +1,131 @@
+[
+ {
+  "key": "juniper",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200,
+  "wear": {
+   "hat": "wizard",
+   "glasses": "round"
+  }
+ },
+ {
+  "key": "juniperHero",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 320,
+  "wear": {
+   "hat": "wizard",
+   "glasses": "round"
+  }
+ },
+ {
+  "key": "juniperBare",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200
+ },
+ {
+  "key": "moss",
+  "seed": "Moss",
+  "color": "#5f8a4e",
+  "size": 200,
+  "wear": {
+   "neck": "scarf"
+  }
+ },
+ {
+  "key": "mossWork",
+  "seed": "Moss",
+  "color": "#5f8a4e",
+  "size": 200,
+  "wear": {
+   "neck": "scarf"
+  },
+  "state": "working",
+  "variant": "command"
+ },
+ {
+  "key": "otto",
+  "seed": "Otto",
+  "color": "#3f8fc9",
+  "size": 200
+ },
+ {
+  "key": "pip",
+  "seed": "Pilar",
+  "color": "#c0607a",
+  "size": 200,
+  "wear": {
+   "hat": "party"
+  }
+ },
+ {
+  "key": "ledger",
+  "seed": "Wren",
+  "color": "#7d5a9a",
+  "size": 200,
+  "wear": {
+   "glasses": "monocle",
+   "hat": "tophat"
+  }
+ },
+ {
+  "key": "scout",
+  "seed": "Tarn",
+  "color": "#2f8f8a",
+  "size": 200
+ },
+ {
+  "key": "scoutSleep",
+  "seed": "Tarn",
+  "color": "#2f8f8a",
+  "size": 200,
+  "state": "asleep"
+ },
+ {
+  "key": "w_party",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200,
+  "wear": {
+   "hat": "party"
+  }
+ },
+ {
+  "key": "w_tophat",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200,
+  "wear": {
+   "hat": "tophat"
+  }
+ },
+ {
+  "key": "w_crown",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200,
+  "wear": {
+   "hat": "crown"
+  }
+ },
+ {
+  "key": "w_wizard",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200,
+  "wear": {
+   "hat": "wizard"
+  }
+ },
+ {
+  "key": "w_frog",
+  "seed": "Juniper",
+  "color": "#d9962b",
+  "size": 200,
+  "wear": {
+   "hat": "frog"
+  }
+ }
+]
