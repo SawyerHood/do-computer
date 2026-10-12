@@ -2797,6 +2797,21 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Nothing changed on the server.** It already sent to Expo's push service
       (`server/push.ts`) and needs no key for it, as long as the project's "enhanced security"
       is left off.
+    - **The first build in Expo's cloud failed, and why:** `babel.config.js` names
+      `babel-preset-expo`, which the app did not depend on. Run through pnpm (`pnpm mobile`,
+      `expo export`) it is found anyway, because pnpm's wrapper for a command adds its hidden
+      folder of every package to `NODE_PATH`. Xcode's release build runs the bundler with
+      `node` and no wrapper, and the preset was not found
+      (`Cannot read properties of undefined (reading 'transformFile')` is what is left of that
+      by the end of the log). It is a dependency of `apps/mobile` now. To run that step as
+      Xcode does, without a Mac, from `apps/mobile`:
+
+      ```sh
+      env -u NODE_PATH node <@expo/cli>/build/bin/cli export:embed --platform ios --dev false \
+        --entry-file node_modules/expo-router/entry.js \
+        --bundle-output <file> --assets-dest <folder>
+      ```
+
     - **Checked:** the Expo tools read the id, and the app bundles for iOS as a release build
       does. **Not checked:** a build in Expo's cloud, which needs the owner's Apple sign-in,
       and so a notification arriving on a phone, or a tap on one opening its chat.
