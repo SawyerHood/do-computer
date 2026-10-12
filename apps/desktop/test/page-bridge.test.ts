@@ -5,6 +5,7 @@ import {
   iconPicture,
   mayUseBridge,
   provider,
+  screenRefusal,
   shareAnswer,
   sharingNow,
 } from "../src/page-bridge.ts"
@@ -126,5 +127,21 @@ describe("the picture a page asks the app to be shown by", () => {
     expect(iconFits({ width: 1024, height: 512 })).toBe(false)
     expect(iconFits({ width: 16, height: 16 })).toBe(false)
     expect(iconFits({ width: 4096, height: 4096 })).toBe(false)
+  })
+})
+
+describe("a page that asks for the screen", () => {
+  const now = { unavailable: undefined, sharing: "on", readOnly: false } as const
+
+  it("has its owner asked where saying yes would let an agent use it", () => {
+    expect(screenRefusal(now)).toBeUndefined()
+  })
+
+  it("is told why not, and nobody is asked, where it would not", () => {
+    expect(screenRefusal({ ...now, unavailable: "No driver for this system." })).toBe(
+      "No driver for this system.",
+    )
+    expect(screenRefusal({ ...now, sharing: "off" })).toMatch(/cannot use this computer yet/)
+    expect(screenRefusal({ ...now, readOnly: true })).toMatch(/only read files/)
   })
 })

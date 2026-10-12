@@ -1531,8 +1531,8 @@ Since then, newest last:
       Not chosen by the owner: that someone invited meets an agent of their own before they
       join, and that the scene then ends at the invitation.
     - **In its chat it says hello first**: the empty chat of an agent just met says who it is
-      and what it was given, with three things to start with (`meetingWith`, kept for the
-      window's life). These are the app's words, not a model's, and are gone once the chat has
+      and offers a few things to start with, by what it was given (`meetingWith`, kept for
+      the window's life; item 64). These are the app's words, not a model's, and are gone once the chat has
       a message. An agent named by its owner, and with no personality yet, is still told that
       this is its first conversation (`bootstrapNamed` in `persona.ts`, `namedByOwner`).
     - **The desktop app** opens `/welcome` until the first run is over (`welcomed` in its
@@ -2663,6 +2663,44 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       tests' local runtime if at all. Under `pnpm dev` on Node there is no WebSocket server,
       so rows there change only when the list is next asked for. The native app in
       `apps/mobile` is as it was.
+
+64. **What a new agent offers to do first shows what it can do** (2026-10-12;
+    `apps/web/src/lib/starters.ts`, `components/chat/chat-view.tsx`,
+    `apps/desktop/src/page-bridge.ts`, `main.ts`). The owner asked for "a few different pills
+    of things you can have it do" at the end of the first run, to "show off the power of do
+    computer", and named one: "draw a picture with a painting app on my computer", so that
+    "it can pop it up and you can watch it like doodle on it". They chose from a list.
+    - **The buttons** under the agent's hello, by what it was given in the first run. On a
+      computer it may work on: Draw me a picture, Make me a little game, What's filling up
+      this computer?, Check in with me every morning. With no computer, or one it may only
+      read: Make me a little game, Research three things at once, Check in with me every
+      morning. A button says a whole sentence for whoever pressed it, which the chat shows as
+      theirs (`say` in `starters.ts`): the game is asked for in the chat itself, the disk as a
+      chart, the research with sub-agents, the check-in for nine each morning.
+    - **Drawing takes the screen, which is off until its owner says otherwise** (item 31). So
+      the button asks the desktop app first (`askForScreen` on the page's bridge), and the app
+      asks its owner itself, in a message box of its own: "Let agents use this computer's
+      screen?". A page cannot draw that question or answer it. Allow switches the screen on,
+      starts the daemon again and waits for it to be connected, and only then is the agent
+      asked. Not Now leaves everything as it was and nothing is said. With the screen on
+      already, nobody is asked. On a Mac that has still to allow Accessibility or Screen
+      Recording, the app opens its window about this computer, which has a button for each,
+      and the page says to allow them and ask again. Where the screen cannot be asked for
+      (no driver, not shared, read-only) the page says why. An app from before this has
+      nothing to ask: the sentence is sent and the agent says whose it is to switch on.
+    - **Mine, not the owner's.** The wording of each sentence, that the agent draws itself,
+      nine in the morning, which three are offered with no computer, that a read-only
+      computer gets those three, and that a page of the deployment may now make the app put
+      the screen question at any time, not only in a first run. No stroke was added to the
+      screen tool: a drag is still one straight line a call, and the owner said drawing
+      "works ok" as it is.
+    - **Checked:** `apps/desktop/e2e/desktop.spec.ts` (Not Now, then Allow, with the message
+      box answered from the test; the daemon says it has the screen before the agent is
+      asked), `apps/web/e2e/welcome.spec.ts`, `src/lib/starters.test.ts`,
+      `apps/desktop/test/page-bridge.test.ts`; the buttons looked at on the built Node server
+      at window and phone width. **Not seen:** any of the five done by a real model, the
+      message box by eye, anything on macOS or Windows, and the two macOS permissions being
+      asked for from here. The desktop half reaches people in the next desktop release.
 
 ## 6. What the owner has said they want
 

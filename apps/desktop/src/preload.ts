@@ -34,6 +34,7 @@ if (location.protocol === "file:") {
       cancelSignIn: () => ipcRenderer.invoke(CHANNELS.cancelSignIn),
       share: (options) => ipcRenderer.invoke(CHANNELS.share, options),
       finish: (options) => ipcRenderer.invoke(CHANNELS.finish, options),
+      askForScreen: () => ipcRenderer.invoke(CHANNELS.screen),
       setIcon: (picture) => ipcRenderer.invoke(CHANNELS.icon, picture),
     }
     contextBridge.exposeInMainWorld("doComputer", bridge)
