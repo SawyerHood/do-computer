@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { ActivityIndicator, Platform, Pressable, View } from "react-native"
 import { type Accent, useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
-import { haptic, Icon, Text } from "@/ui"
+import { haptic, Icon } from "@/ui"
 
 export type DictationState = "idle" | "recording" | "transcribing"
 /** What becomes of what was said: put in the box to be read over, or sent as it is. */
@@ -97,15 +97,18 @@ type Recorder = ReturnType<typeof useAudioRecorder>
 /**
  * What the microphone hears, as bars moving across where the words would be. The recorder is
  * asked how loud it is only here, while the bars are on screen, and not by the whole message box.
+ * `saying` is what it is doing, for someone who cannot see the bars.
  */
 function Waveform({
   recorder,
   active,
   color,
+  saying,
 }: {
   recorder: Recorder
   active: boolean
   color: string
+  saying: string
 }) {
   const [bars, setBars] = useState<number[]>(() => new Array<number>(BARS).fill(0))
   const heard = useAudioRecorderState(recorder, 80)
@@ -124,8 +127,10 @@ function Waveform({
   }, [active])
   return (
     <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={saying}
+      accessibilityLiveRegion="polite"
       style={{
         flex: 1,
         height: 28,
@@ -152,9 +157,10 @@ function Waveform({
 }
 
 /**
- * The message box while it is listening: the waveform, what it is doing, and its buttons.
- * Stopping puts what was said in the box to be read over; sending sends it as it is; the cross
- * throws it away.
+ * The message box while it is listening: the waveform and its buttons, on one line as tall as
+ * the box is when empty. Stopping puts what was said in the box to be read over; sending sends
+ * it as it is; the cross throws it away. While the words are being made, the bars fade and the
+ * button that was pressed turns.
  */
 export function Dictating({
   state,
@@ -178,9 +184,14 @@ export function Dictating({
     onStop(chosen)
   }
   return (
-    <View style={{ flex: 1, paddingLeft: 14, paddingRight: 5, paddingVertical: 5, gap: 4 }}>
+    <View style={{ flex: 1, paddingLeft: 14, paddingRight: 5, paddingVertical: 5 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Waveform recorder={recorder} active={!transcribing} color={accent.a} />
+        <Waveform
+          recorder={recorder}
+          active={!transcribing}
+          color={accent.a}
+          saying={transcribing ? "Turning what you said into text" : "Listening"}
+        />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Cancel dictating"
@@ -239,9 +250,6 @@ export function Dictating({
           )}
         </Pressable>
       </View>
-      <Text variant="caption" tone="ink2" accessibilityRole="text" accessibilityLiveRegion="polite">
-        {transcribing ? "Turning what you said into text" : "Listening"}
-      </Text>
     </View>
   )
 }

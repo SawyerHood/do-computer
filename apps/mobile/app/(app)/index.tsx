@@ -234,6 +234,7 @@ export default function Agents() {
             <View key={workspace.id}>
               <WorkspaceHeader
                 workspace={workspace}
+                me={me.data?.user}
                 shut={shut}
                 onToggle={() => {
                   haptic.tap()
@@ -249,11 +250,7 @@ export default function Agents() {
                 <Text
                   variant="subhead"
                   tone="ink2"
-                  style={{
-                    paddingLeft: EDGE + FACE + GAP,
-                    paddingRight: EDGE,
-                    paddingVertical: 10,
-                  }}
+                  style={{ paddingHorizontal: EDGE, paddingVertical: 6 }}
                 >
                   {workspace.kind === "team"
                     ? "This team has no agents yet."
@@ -299,12 +296,13 @@ export default function Agents() {
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push("/new-team")}
-              style={({ pressed }) => [styles.newTeam, { opacity: pressed ? 0.5 : 1 }]}
+              style={({ pressed }) => [
+                styles.newTeam,
+                { borderTopColor: theme.sep, opacity: pressed ? 0.5 : 1 },
+              ]}
             >
-              <View style={{ width: FACE, alignItems: "center" }}>
-                <Icon name="people" size={22} color={theme.tint} weight="medium" />
-              </View>
-              <Text tone="tint" weight="600">
+              <Icon name="plus" size={18} color={theme.ink2} weight="medium" />
+              <Text variant="callout" tone="ink2">
                 New team
               </Text>
             </Pressable>
@@ -317,6 +315,7 @@ export default function Agents() {
 
 function WorkspaceHeader({
   workspace,
+  me,
   shut,
   onToggle,
   present,
@@ -326,6 +325,8 @@ function WorkspaceHeader({
   making,
 }: {
   workspace: WorkspaceSummary
+  /** Whose the personal workspace is: it is marked with their face. */
+  me: { id: string; name: string; image?: string | null } | undefined
   shut: boolean
   onToggle: () => void
   present: Person[]
@@ -346,18 +347,27 @@ function WorkspaceHeader({
         accessibilityLabel={name}
         accessibilityState={{ expanded: !shut }}
         onPress={onToggle}
-        style={{ flexDirection: "row", alignItems: "center", gap: GAP, flex: 1, minWidth: 0 }}
+        hitSlop={6}
+        style={{ flexDirection: "row", alignItems: "center", gap: 7, flex: 1, minWidth: 0 }}
       >
-        {/* The arrow and the tile take the creatures' column, so the name starts where theirs do. */}
-        <View style={styles.lead}>
-          <View style={{ transform: [{ rotate: shut ? "-90deg" : "0deg" }] }}>
-            <Icon name="chevronDown" size={13} color={theme.ink2} weight="bold" />
-          </View>
-          <Tile name={name} color={team ? workspace.color : theme.tint} size={24} />
-        </View>
-        <Text variant="title3" weight="700" numberOfLines={1} style={{ flexShrink: 1 }}>
+        {/* As in the web app's list: whose it is, its name, and the arrow that folds it. */}
+        {team || me === undefined ? (
+          <Tile name={name} color={team ? workspace.color : theme.tint} size={MARK} />
+        ) : (
+          <Face person={me} size={MARK} />
+        )}
+        <Text
+          variant="subhead"
+          weight="500"
+          tone="ink2"
+          numberOfLines={1}
+          style={{ flexShrink: 1 }}
+        >
           {name}
         </Text>
+        <View style={{ transform: [{ rotate: shut ? "-90deg" : "0deg" }] }}>
+          <Icon name="chevronDown" size={11} color={theme.ink2} weight="semibold" />
+        </View>
         {news ? (
           <View
             accessibilityLabel="Something new"
@@ -394,7 +404,7 @@ function WorkspaceHeader({
           canInvite ? () => router.push(`/w/${encodeURIComponent(workspace.id)}/invite`) : undefined
         }
       >
-        <Icon name="more" size={20} color={theme.tint} weight="semibold" />
+        <Icon name="more" size={20} color={theme.ink2} weight="medium" />
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -406,7 +416,7 @@ function WorkspaceHeader({
         {making ? (
           <ActivityIndicator />
         ) : (
-          <Icon name="plus" size={20} color={theme.tint} weight="semibold" />
+          <Icon name="plus" size={20} color={theme.ink2} weight="medium" />
         )}
       </Pressable>
     </View>
@@ -463,7 +473,6 @@ function AgentRow({
       onPress={() => router.push(base)}
       style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.fill } : null]}
     >
-      {unread ? <View style={[styles.unread, { backgroundColor: theme.tint }]} /> : null}
       <View style={{ width: FACE, height: FACE }}>
         <Avatar
           avatar={agent.avatar}
@@ -480,7 +489,7 @@ function AgentRow({
           >
             <Text
               allowFontScaling={false}
-              style={{ fontSize: 12, lineHeight: 16, fontWeight: "700", color: "#fff" }}
+              style={{ fontSize: 11, lineHeight: 14, fontWeight: "700", color: "#fff" }}
             >
               ?
             </Text>
@@ -493,41 +502,43 @@ function AgentRow({
             <ActivityIndicator
               size="small"
               color={theme.tint}
-              style={{ transform: [{ scale: 0.7 }] }}
+              style={{ transform: [{ scale: 0.6 }] }}
             />
           </View>
         ) : null}
       </View>
-      <View style={[styles.words, { borderBottomColor: theme.sep }]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
-          <Text variant="headline" numberOfLines={1} style={{ flex: 1 }}>
+          <Text weight={unread ? "600" : "500"} numberOfLines={1} style={{ flex: 1 }}>
             {name}
           </Text>
-          {together.length > 0 ? <Faces people={together} size={18} ring={theme.page} /> : null}
-          {/* The arrow is centred on the time, which sits on the name's baseline. */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text variant="subhead" tone="ink2">
-              {at}
-            </Text>
-            <Icon name="chevronRight" size={12} color={theme.ink3} weight="bold" />
-          </View>
-        </View>
-        <View style={{ flexDirection: "row", gap: 6, minHeight: 40 }}>
-          {latest?.kind === "scheduled" ? (
-            <View style={{ paddingTop: 3 }}>
-              <Icon name="clock" size={14} color={theme.ink2} weight="medium" />
-            </View>
-          ) : null}
-          <Text
-            variant="subhead"
-            tone={unread ? "ink" : "ink2"}
-            numberOfLines={2}
-            style={{ flex: 1 }}
-            data-latest
-          >
-            {line}
+          <Text variant="footnote" tone={unread ? "tint" : "ink2"} weight={unread ? "500" : "400"}>
+            {at}
           </Text>
         </View>
+        {line !== "" || together.length > 0 || unread ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 1 }}>
+            {latest?.kind === "scheduled" ? (
+              <Icon name="clock" size={13} color={theme.ink2} weight="medium" />
+            ) : null}
+            <Text
+              variant="subhead"
+              tone={unread ? "ink" : "ink2"}
+              numberOfLines={1}
+              style={{ flex: 1 }}
+              data-latest
+            >
+              {line}
+            </Text>
+            {together.length > 0 ? <Faces people={together} size={18} ring={theme.page} /> : null}
+            {unread ? (
+              <View
+                accessibilityLabel="Something new"
+                style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.tint }}
+              />
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </Pressable>
   )
@@ -575,60 +586,50 @@ function AgentRow({
 }
 
 /**
- * The list's columns: the page's margin, a creature, and then the words. A workspace's name, an
- * agent's and "New team" all start at the same place, and what is on the right ends at one.
+ * The list is laid out as the web app's is: a workspace's line starts at the page's margin, and
+ * its agents are rows under it whose creatures start at that margin too, each in a rounded
+ * shape that shows when it is pressed.
  */
 const EDGE = 16
-const FACE = 52
-const GAP = 12
+/** A row's own padding, inside its rounded shape. */
+const INSET = 8
+const FACE = 44
+/** The face or tile that says whose a workspace is. */
+const MARK = 18
 
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 16,
+    minHeight: 36,
     paddingHorizontal: EDGE,
-    paddingTop: 20,
-    paddingBottom: 6,
-  },
-  lead: {
-    width: FACE,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    marginTop: 10,
   },
   newTeam: {
     flexDirection: "row",
     alignItems: "center",
-    gap: GAP,
+    gap: 10,
     minHeight: 44,
-    alignSelf: "flex-start",
-    paddingRight: EDGE,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  row: { flexDirection: "row", alignItems: "center", gap: GAP, paddingLeft: EDGE },
-  words: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 9,
-    paddingRight: EDGE,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  unread: {
-    position: "absolute",
-    left: 4,
-    top: "50%",
-    marginTop: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: EDGE - INSET,
+    padding: INSET,
+    borderRadius: 14,
+    borderCurve: "continuous",
   },
   mark: {
     position: "absolute",
     right: -4,
     bottom: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
