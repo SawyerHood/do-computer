@@ -43,8 +43,10 @@ provider's own page, which ends with a code to paste back or asks for a short co
 app; nothing is installed and no address has to be registered with the provider. An agent's
 model picker then lists those models under where they come from.
 
-Someone new is asked in the first run what their agent should think with: one of the
-deployment's models, or one of their own, which they can sign in to there and then.
+Someone new is asked in the first run what their agent should think with: what the
+deployment includes, which is the model it starts agents on unless they change it there, or a
+ChatGPT or Claude subscription or any other provider of their own, which they can sign in to
+there and then.
 
 An agent set to a model the deployment has since stopped offering goes on with the model new
 agents start on. One whose workspace signed out of its model's provider says so in the chat

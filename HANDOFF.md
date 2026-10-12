@@ -1888,10 +1888,18 @@ Since then, newest last:
       workspace signed out of a provider nobody else has still says so in the chat, with the
       ways back, as before.
     - **The first run** has one more card, after the name: "What should I think with?". It
-      lists the deployment's models (the suggested few where there are hundreds), has "Sign
-      in with ChatGPT" and "Sign in with Claude" beside them and "More" for every provider and
-      key (the settings' own list and sign-in window), lists what was signed in to under its
-      own heading with its first model chosen, and sets the agent to what is chosen. Someone
+      is a few choices and not a list of models (since 2026-10-12, when the owner asked for
+      "Included" with its model "under it small with the ability to change it as like a muted
+      link", then ChatGPT, Claude, and "other providers at the bottom"): **Included**, with
+      the model the deployment starts agents on small under it and "Change", a menu of the
+      deployment's models (the suggested few where there are hundreds); **ChatGPT** and
+      **Claude**, each a row that opens its sign-in; and "Other providers" under them for
+      every provider and key (the settings' own list and sign-in window). What was signed in
+      to becomes a choice in that provider's row, or a row of its own after them, under its
+      own name, with its first model chosen and its own "Change", and the card sets the agent
+      to what is chosen. The choices are `sources` in `apps/web/src/lib/welcome-models.ts`,
+      with its test beside it. The titles, the lines under ChatGPT and Claude, and the menu
+      were the builder's, not the owner's. Someone
       who already has an agent is not asked.
     - **The small models the server uses itself** (search, notes, judging, dictation) are
       still OpenRouter's on `OPENROUTER_API_KEY`, are not narrowed by `DC_MODELS`, and are
