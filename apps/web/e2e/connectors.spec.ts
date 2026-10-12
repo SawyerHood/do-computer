@@ -115,6 +115,10 @@ test.describe("connectors", () => {
     const apps = await startFakeMcp(Number(new URL(await servers.appsFor(testInfo.file)).port))
     try {
       await openConnectors(page)
+      // What it is, and how to set it up, is a guide: it opens beside the app.
+      const guide = page.getByRole("link", { name: "What you get and how to set it up" })
+      await expect(guide).toHaveAttribute("href", "/docs/apps")
+      await expect(guide).toHaveAttribute("target", "_blank")
       await page.getByRole("button", { name: "Connect apps" }).click()
       // Nothing to type: the service's own page, in the same tab, and back.
       await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
@@ -122,6 +126,10 @@ test.describe("connectors", () => {
       await expect(page.getByRole("status")).toContainText("Apps is connected.")
       const card = page.getByRole("listitem").filter({ hasText: "through Composio" })
       await expect(card.getByText("Connected", { exact: true })).toBeVisible()
+      await expect(card.getByRole("link", { name: "How Apps works" })).toHaveAttribute(
+        "href",
+        "/docs/apps",
+      )
       // There is one of it: with it added, it is no longer offered.
       await expect(page.getByRole("button", { name: "Connect apps" })).toHaveCount(0)
 

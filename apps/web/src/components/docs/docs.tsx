@@ -11,7 +11,7 @@ import {
 } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { agentPrompt, GUIDES, type Guide, headingId } from "@/lib/docs"
+import { agentPrompt, GUIDES, type Guide, headingId, pictureOf } from "@/lib/docs"
 import type { FrontDoor } from "@/lib/front-door"
 import { DOWNLOADS, REPOSITORY } from "@/lib/project"
 
@@ -94,6 +94,17 @@ const components: Components = {
       </p>
     )
   },
+  // A picture is named by its place beside the guide, and shown from where the app keeps it.
+  // It is smaller here than it was taken, so pressing it opens it whole.
+  img: ({ src, alt = "" }) => {
+    const named = typeof src === "string" ? src : ""
+    const at = pictureOf(named) ?? named
+    return (
+      <a className="dx-picture" href={at} target="_blank" rel="noreferrer">
+        <img src={at} alt={alt} />
+      </a>
+    )
+  },
   a: ({ href = "", children }) => {
     // Another guide, written the way it is linked on GitHub: by its file.
     const guide = /^(?:\.\/)?([a-z0-9-]+)\.md(#.*)?$/.exec(href)
@@ -140,29 +151,52 @@ function Guides({ guide, at }: { guide: Guide; at: string | undefined }) {
   )
 }
 
-/** The way to hand a guide to an agent: a prompt with its address in it, and the file itself. */
+/** What the card beside a guide says: whose agent the words are for, and what it then does. */
+function handOffOf(guide: Guide): { title: string; lead: string } {
+  if (guide.slug === "self-hosting") {
+    return {
+      title: "Have an agent set it up",
+      lead: "Paste this into Claude Code, Codex or any agent with a terminal. It asks you for the few things only you can give.",
+    }
+  }
+  if (guide.slug === "apps") {
+    return {
+      title: "Or ask your agent",
+      lead: "Say this to your agent in Do Computer. It asks to add Apps, and a Sign in button appears beside the chat.",
+    }
+  }
+  return {
+    title: "Have an agent follow it",
+    lead: "Paste this into Claude Code, Codex or any agent with a terminal. It asks you for the few things only you can give.",
+  }
+}
+
+/** The way to hand a guide to an agent: the words to give it, and the file itself. */
 function HandOff({ guide, origin }: { guide: Guide; origin: string }) {
   const [promptCopied, copyPrompt] = useCopy()
   const [pageCopied, copyPage] = useCopy()
+  const { title, lead } = handOffOf(guide)
   const prompt = agentPrompt(origin, guide)
   const file = `${guide.slug}.md`
   // The address is kept in two pieces that each stay whole, so that it breaks before the file.
-  const [before, after = ""] = prompt.split(`${origin}/docs/${file}`)
+  const address = `${origin}/docs/${file}`
+  const [before, after] = prompt.split(address)
   return (
     <div className="dx-card">
-      <h2>
-        {guide.slug === "self-hosting" ? "Have an agent set it up" : "Have an agent follow it"}
-      </h2>
-      <p>
-        Paste this into Claude Code, Codex or any agent with a terminal. It asks you for the few
-        things only you can give.
-      </p>
+      <h2>{title}</h2>
+      <p>{lead}</p>
       <pre data-prompt>
-        {before}
-        {origin}/docs/
-        <wbr />
-        <span>{file}</span>
-        {after}
+        {after === undefined ? (
+          prompt
+        ) : (
+          <>
+            {before}
+            {origin}/docs/
+            <wbr />
+            <span>{file}</span>
+            {after}
+          </>
+        )}
       </pre>
       <button type="button" className="dx-button dx-dark" onClick={() => copyPrompt(prompt)}>
         {promptCopied ? <CheckIcon weight="bold" /> : <CopyIcon />}

@@ -69,6 +69,35 @@ test("the same guide is given to an agent as the file it is written in", async (
   expect((await request.get("/docs/no-such-guide")).status()).toBe(404)
 })
 
+test("a guide shows its pictures, and its file says where they are", async ({ page, request }) => {
+  await page.goto("/docs/apps")
+  await expect(page.getByRole("heading", { level: 1, name: "Connect your apps" })).toBeVisible()
+  // Every picture has arrived, and says in words what it shows.
+  const pictures = page.locator(".dx-doc img")
+  await expect(pictures).toHaveCount(5)
+  for (const picture of await pictures.all()) {
+    await picture.scrollIntoViewIfNeeded()
+    await expect(picture).toHaveJSProperty("complete", true)
+    expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+    expect(((await picture.getAttribute("alt")) ?? "").length).toBeGreaterThan(20)
+  }
+  // Each is smaller on the page than it was taken, and opens whole when pressed.
+  const first = page.locator(".dx-doc a.dx-picture").first()
+  expect(await first.getAttribute("href")).toBe(await first.locator("img").getAttribute("src"))
+
+  // This guide is not for an agent with a terminal: its card has the words for their own agent.
+  await expect(page.locator("pre[data-prompt]")).toHaveText("Connect my apps.")
+  await expect(page.locator(".dx-side").getByRole("link", { name: "Self-hosting" })).toBeVisible()
+
+  // The file names a picture by its place beside it, and that address leads to the picture.
+  const text = await (await request.get("/docs/apps.md")).text()
+  expect(text).toContain("](images/apps-connect.png)")
+  const picture = await request.get("/docs/images/apps-connect.png")
+  expect(picture.status()).toBe(200)
+  expect(picture.headers()["content-type"]).toBe("image/png")
+  expect((await request.get("/docs/images/nothing.png")).status()).toBe(404)
+})
+
 test("on a phone the guides fold into a line, and nothing is wider than the screen", async ({
   page,
 }) => {

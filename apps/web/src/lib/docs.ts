@@ -9,8 +9,15 @@ const FILES = import.meta.glob<string>("../../../../docs/*.md", {
   eager: true,
 })
 
+/** The pictures the guides show, which are beside them in `docs/images`. */
+const PICTURES = import.meta.glob<string>("../../../../docs/images/*.png", {
+  query: "?url",
+  import: "default",
+  eager: true,
+})
+
 /** The guides that come first, in this order. Any other follows, by name. */
-const ORDER = ["self-hosting"]
+const ORDER = ["self-hosting", "apps"]
 
 export type GuideSection = { id: string; title: string }
 
@@ -77,9 +84,22 @@ export function guideOf(slug: string): Guide | undefined {
   return GUIDES.find((guide) => guide.slug === slug)
 }
 
-/** What someone pastes to an agent of theirs to have it follow a guide. */
+/**
+ * Where a picture is served from. A guide names it as it is on GitHub, by its place beside the
+ * guide: `images/<name>.png`.
+ */
+export function pictureOf(src: string): string | undefined {
+  const name = /^(?:\.\/)?images\/([a-z0-9-]+\.png)$/.exec(src)?.[1]
+  if (name === undefined) return undefined
+  return Object.entries(PICTURES).find(([path]) => path.endsWith(`/${name}`))?.[1]
+}
+
+/** What someone gives an agent to have it do what a guide says. */
 export function agentPrompt(origin: string, guide: Guide): string {
-  return guide.slug === "self-hosting"
-    ? `Follow ${origin}/docs/${guide.slug}.md and set up Do Computer for me.`
-    : `Follow ${origin}/docs/${guide.slug}.md for me.`
+  if (guide.slug === "self-hosting") {
+    return `Follow ${origin}/docs/${guide.slug}.md and set up Do Computer for me.`
+  }
+  // Their own agent in Do Computer adds Apps when asked to, and has no page to read first.
+  if (guide.slug === "apps") return "Connect my apps."
+  return `Follow ${origin}/docs/${guide.slug}.md for me.`
 }
