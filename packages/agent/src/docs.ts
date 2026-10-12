@@ -1,4 +1,5 @@
 import {
+  type AgentLatest,
   type Avatar,
   type ChatKind,
   type CreatureState,
@@ -213,6 +214,23 @@ export const ChatsDoc = defineDoc<ChatsState>({
 })
 
 export const DEFAULT_CHAT_TITLE = "New chat"
+
+/**
+ * The latest thing said to the agent or by it, for the line beside its name in a list of
+ * agents. Written when each thing happens, so that the list is drawn without reading a chat.
+ * Apart from its chats, which are a larger document and are not rewritten for it.
+ */
+export type LatestState = {
+  /** Null until something has been said. */
+  latest: AgentLatest | null
+}
+
+export const LatestDoc = defineDoc<LatestState>({
+  kind: "dc.latest",
+  version: 1,
+  scope: "session",
+  initial: () => ({ latest: null }),
+})
 
 export type ScheduleRecord = {
   title: string

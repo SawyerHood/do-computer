@@ -2,6 +2,8 @@ import {
   avatarLook,
   type AddConnectorRequest,
   type AgentEvent,
+  type AgentActivity,
+  type AgentLatest,
   type AgentSummary,
   type AgentUsage,
   type ApprovalDecision,
@@ -70,6 +72,7 @@ import {
   CreatureDoc,
   IdentityDoc,
   type IdentityState,
+  LatestDoc,
   SchedulesDoc,
 } from "./docs.ts"
 import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
@@ -113,6 +116,7 @@ import { type SettingsChange, SettingsError, settingsExtension } from "./setting
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
+import { preview } from "./preview.ts"
 import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { UseError, Uses } from "./uses.ts"
@@ -257,6 +261,12 @@ export type AgentActorOptions = {
    * notification. Best effort: a reply that finishes after a restart is not announced.
    */
   readonly onNotify?: (notification: AgentNotification) => void
+  /**
+   * Called each time what a list of agents says of this one changes: its latest line, whether
+   * it is at work, whether it is waiting on someone. For telling whoever has such a list open.
+   * Best effort, as a notification is.
+   */
+  readonly onActivity?: (change: { agentId: string } & AgentActivity) => void
   /**
    * The address people reach the app at, such as `https://example.com`. With it the agent can
    * hand a person a link to a screen, and can add a connector that has people sign in. Where it
@@ -458,6 +468,16 @@ export class AgentActor implements Actor {
   #connectors: Connectors | undefined
   /** How many clients are following each chat right now, over an event stream. */
   readonly #watchers = new Map<string, number>()
+  /** Whether a run of its was found going, with the end of that work still to be told. */
+  #atWork = false
+  /** The watch for the end of the work in hand, while there is one. */
+  #resting: Promise<void> | undefined
+  /** What `onActivity` was last told. Undefined until it has been told since the agent loaded. */
+  #told: string | undefined
+  /** Whether anything may have changed since what `onActivity` is told was last read. */
+  #untold = false
+  /** Whether what `onActivity` is told is being read right now. */
+  #telling = false
   /** Those following over a socket, which does not keep the agent in memory. */
   readonly #followers: Followers
   readonly #scheduler: Scheduler
@@ -551,6 +571,8 @@ export class AgentActor implements Actor {
       // was there for.
       onReport: (report) => {
         if (report.turn === undefined || this.#harness === undefined) return
+        // The turn it was given began with no request, so nothing else says it is at work.
+        this.#tell()
         void this.#harness.then((harness) =>
           this.#notifyWhenUnseen(harness, report.chatId, report.turn!, undefined),
         )
@@ -603,13 +625,12 @@ export class AgentActor implements Actor {
         return this.#connectors.add(input, this.#connectorRedirect() ?? "", c)
       },
       onRequest: (request) =>
-        void this.#notify({
-          kind: "approval",
-          heading: "Needs something from you",
-          text:
-            request.purpose ?? `Asks for ${request.fields.map((field) => field.name).join(", ")}`,
-          chatId: request.chatId,
-        }),
+        this.#asked(
+          "Needs something from you",
+          request.purpose ?? `Asks for ${request.fields.map((field) => field.name).join(", ")}`,
+          request.chatId,
+        ),
+      onSettled: () => this.#tell(),
     })
     this.#approvals = new Approvals({
       now: () => host.now(),
@@ -617,14 +638,13 @@ export class AgentActor implements Actor {
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
       onRequest: (request) =>
-        void this.#notify({
-          kind: "approval",
-          heading: "Needs your OK",
-          text: request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
+        this.#asked(
+          "Needs your OK",
+          request.detail === "" ? request.title : `${request.title}: ${request.detail}`,
           // A thread in Slack is answered for in the app, on the thread's own page.
-          chatId:
-            request.chatKind === "chat" || request.chatKind === "slack" ? request.chatId : null,
-        }),
+          request.chatKind === "chat" || request.chatKind === "slack" ? request.chatId : null,
+        ),
+      onSettled: () => this.#tell(),
     })
     this.#journal = new Journal({
       review: options.review,
@@ -663,6 +683,12 @@ export class AgentActor implements Actor {
           text: report.text,
           chatId: report.chatId,
         })
+        void this.#record({
+          kind: "scheduled",
+          from: report.title,
+          text: report.text,
+          ...(report.chatId === null ? {} : { chatId: report.chatId }),
+        })
       },
       onError: (error) => options.onReport?.(error),
     })
@@ -678,6 +704,8 @@ export class AgentActor implements Actor {
         // What a stopped sub-agent left running would only set it going again.
         await this.#jobs.stopFor(chatId, c)
       },
+      // The agent is at work for as long as a sub-agent of its is.
+      onChanged: () => this.#tell(),
       // What the agent says about a report is told like any other answer nobody was there for.
       onReport: (report) => {
         if (report.turn === undefined || this.#harness === undefined) return
@@ -720,6 +748,13 @@ export class AgentActor implements Actor {
             contents: (file) => this.#library.contents(file),
             libraryFile: (name) => this.#library.named(name),
             sees: (model) => this.#sees(model),
+            onAnswered: (answer) =>
+              void this.#record({
+                kind: "slack",
+                text: answer.text,
+                chatId: answer.chatId,
+                ...(answer.channelName === null ? {} : { from: answer.channelName }),
+              }),
             onError: (error) => options.onReport?.(error),
           })
   }
@@ -1098,6 +1133,12 @@ export class AgentActor implements Actor {
     if (this.#harness === undefined) return
     const harness = await this.#harness
     const inspection = await harness.inspect(context)
+    if (inspection.tasks.length > 0 || inspection.submissions.length > 0) {
+      this.#found(harness)
+    } else {
+      // Where the watch gave up before the work was over, its end is found here.
+      this.#rested()
+    }
     // A sub-agent that has finished and not yet reported has nothing live, and still needs a
     // look. So does a conversation with another agent whose answer is still to be handed back,
     // and a thread in Slack whose answer is still to be posted.
@@ -1130,6 +1171,50 @@ export class AgentActor implements Actor {
     else if ((await this.#host.getAlarm()) !== null) await this.#host.setAlarm(null)
   }
 
+  /**
+   * A run of the agent's was found going or waiting its turn. `onActivity` is told where that
+   * is news, whatever set the run going: a person, a schedule, a wake-up, a sub-agent, or a
+   * command that ended. Its end is watched for from here, so that it is told of too.
+   */
+  #found(harness: Harness): void {
+    if (this.#options.onActivity === undefined) return
+    if (!this.#atWork) {
+      this.#atWork = true
+      this.#tell()
+    }
+    this.#tellWhenRested(harness)
+  }
+
+  /**
+   * `onActivity` is told when the work in hand is over. Nothing else says so of a run that ended
+   * without an answer, or of one that no request was waiting on. One watch at a time: work that
+   * begins before this one is over is the same spell of work.
+   */
+  #tellWhenRested(harness: Harness): void {
+    if (this.#resting !== undefined) return
+    this.#resting = (async () => {
+      try {
+        await harness.waitForIdle(context)
+        // Told only where nothing is left: work that is still to start, or that began meanwhile,
+        // is found by the request or the wake-up that comes next.
+        const { tasks, submissions } = await harness.inspect(context)
+        if (tasks.length === 0 && submissions.length === 0) this.#rested()
+      } catch (error) {
+        // An agent that was closed meanwhile is found at work, or at rest, when it next opens.
+        if (this.#opened === harness) this.#options.onReport?.(error)
+      } finally {
+        this.#resting = undefined
+      }
+    })()
+  }
+
+  /** The work that was in hand is over, which is told once. */
+  #rested(): void {
+    if (!this.#atWork) return
+    this.#atWork = false
+    this.#tell()
+  }
+
   async alarm(): Promise<void> {
     await this.#keepRunnable(await this.#open())
     await this.#scheduler.tick(context)
@@ -1138,6 +1223,9 @@ export class AgentActor implements Actor {
     await this.#peers?.tick()
     await this.#slack?.tick()
     await this.#rearm()
+    // One woken after its process was lost has told nobody how it stands, and what it said
+    // before may not be so any more: work it had in hand can have ended with nobody told.
+    this.#tell()
   }
 
   /**
@@ -1342,7 +1430,16 @@ export class AgentActor implements Actor {
     if (segments[0] === "peers" && this.#peers !== undefined && method === "POST") {
       const from = segments[1]
       if (from !== undefined && segments[2] === "message" && segments[3] === undefined) {
-        return json(await this.#peers.receive(from, await body<PeerMessage>(request), context))
+        const message = await body<PeerMessage>(request)
+        const received = await this.#peers.receive(from, message, context)
+        // What another agent wrote to it is its latest line, as what a person wrote would be.
+        const name = typeof message.from === "string" ? message.from.trim() : ""
+        await this.#record({
+          kind: "agent",
+          text: message.text,
+          ...(name === "" ? {} : { from: name }),
+        })
+        return json(received)
       }
       if (from !== undefined && segments[2] === "reply" && segments[3] === undefined) {
         const delivered = await this.#peers.replied(from, await body<PeerReply>(request), context)
@@ -1470,12 +1567,17 @@ export class AgentActor implements Actor {
       }
       if (requestId !== undefined && segments[2] === undefined && method === "POST") {
         const { decision } = await body<{ decision: ApprovalDecision }>(request)
-        await this.#approvals.resolve(
+        const told = await this.#approvals.resolve(
           requestId,
           decision,
           context,
           identity.team ? caller : undefined,
         )
+        // What the agent says once it has its answer is its latest line, and nothing more
+        // follows from it.
+        if (told !== undefined) {
+          void this.#notifyWhenUnseen(harness, told.chatId, told.turn, undefined, true)
+        }
         // The answer sets a sub-agent that was waiting for it going again, and a conversation
         // with another agent or a thread in Slack likewise.
         await this.#subagents.tick()
@@ -1877,6 +1979,7 @@ export class AgentActor implements Actor {
       // An agent from before there were eggs has a name, and is not sent back into one.
       hatched: identity.hatchedAt !== undefined || identity.name !== null,
       outfit: creature.outfit,
+      ...(await this.#activity(harness)),
     }
     return {
       agent,
@@ -1893,6 +1996,38 @@ export class AgentActor implements Actor {
         .map(([id, record]) => summarize(id, record, main))
         .sort((a, b) => b.updatedAt - a.updatedAt),
     }
+  }
+
+  /** What a list of agents says of this one besides who it is, as it stands right now. */
+  async #activity(harness: Harness): Promise<AgentActivity> {
+    // The document is made when a line is first kept: an agent from before there was one, or
+    // that nothing has been said to yet, has neither.
+    const latest = (await harness.snapshot(LatestDoc, context))?.latest ?? undefined
+    return {
+      ...(latest === undefined ? {} : { latest }),
+      working: await this.#working(harness),
+      asking: await this.#asking(),
+    }
+  }
+
+  /**
+   * Whether the agent is at work: a run is going or waiting its turn in one of its chats, or a
+   * sub-agent of its has a report still to come. A command left running in the background is
+   * not the agent at work: its turn is over, and it is given another when the command ends.
+   */
+  async #working(harness: Harness): Promise<boolean> {
+    const { tasks, submissions } = await harness.inspect(context)
+    if (tasks.length > 0 || submissions.length > 0) {
+      // Whoever reads that it is at work may be the first to find it so.
+      this.#found(harness)
+      return true
+    }
+    return this.#subagents.working(context)
+  }
+
+  /** Whether it has asked a person for their OK, or for something to be typed in, and not been answered. */
+  async #asking(): Promise<boolean> {
+    return (await this.#approvals.asking(context)) || (await this.#secrets.asking(context))
   }
 
   /** What its creature has been given and has on. One from before there was any of it has a box waiting. */
@@ -2296,6 +2431,13 @@ export class AgentActor implements Actor {
       context,
     )
     const chatId = String(conversation.id)
+    // Kept before the run is waited on, so that the agent's answer cannot come before it.
+    await this.#record({
+      kind: "said",
+      text: input.text,
+      chatId,
+      ...(caller === undefined ? {} : { by: caller.id }),
+    })
     void this.#notifyWhenUnseen(harness, chatId, submission, caller)
     await harness.commit(async (tx) => {
       const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
@@ -2344,13 +2486,17 @@ export class AgentActor implements Actor {
 
   /**
    * What follows a run that ends with an answer: the creature earns a treat where the answer was
-   * to a person, and the host is told where no client is following the chat.
+   * to a person, the answer becomes the agent's latest line where it was given in a chat of
+   * theirs, and the host is told where no client is following the chat. `quiet` is for a run
+   * that was followed by neither treat nor word to the host before the latest line was kept:
+   * its answer is kept, and that is all.
    */
   async #notifyWhenUnseen(
     harness: Harness,
     chatId: string,
     submission: Awaited<ReturnType<Conversation["submit"]>>,
     caller: Caller | undefined,
+    quiet = false,
   ): Promise<void> {
     try {
       const settled = await submission.wait(context)
@@ -2359,15 +2505,20 @@ export class AgentActor implements Actor {
       const seen = (this.#watchers.get(chatId) ?? 0) > 0 || this.#followers.following(chatId)
       // What it says to another agent, or as a sub-agent of itself, is not an answer to anyone.
       const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
-      if (kind === "chat" || kind === "slack") await this.#earnTreat()
-      if (seen || this.#options.onNotify === undefined) return
+      if (!quiet && (kind === "chat" || kind === "slack")) await this.#earnTreat()
+      // An answer in Slack is kept when it is posted there, and one to another agent is not to
+      // a person at all.
+      const kept = kind === "chat"
+      const told = !quiet && !seen && this.#options.onNotify !== undefined
+      if (!kept && !told) return
       const answer = await harness.commit((tx) => tx.entry(AssistantEntry, settled.answer), context)
       const message = answer?.model?.[0]
       const text =
         message?.role === "assistant"
           ? message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("")
           : ""
-      if (text.trim() !== "") {
+      if (kept) await this.#record({ kind: "reply", text, chatId })
+      if (told && text.trim() !== "") {
         await this.#notify({
           kind: "reply",
           text: text.trim(),
@@ -2378,6 +2529,78 @@ export class AgentActor implements Actor {
     } catch (error) {
       this.#options.onReport?.(error)
     }
+  }
+
+  /** The agent stopped to ask a person for something: they are told, and its latest line says so. */
+  #asked(heading: string, text: string, chatId: string | null): void {
+    void this.#notify({ kind: "approval", heading, text, chatId })
+    void this.#record({ kind: "asked", text, ...(chatId === null ? {} : { chatId }) })
+  }
+
+  /**
+   * Keep the latest thing said to the agent or by it, as one line. A courtesy, as a notification
+   * is: failing to keep it must never fail the work it tells of.
+   */
+  async #record(said: Omit<AgentLatest, "at">): Promise<void> {
+    if (this.#harness === undefined) return
+    try {
+      const text = preview(said.text)
+      if (text === "") return
+      const latest = { ...said, text, at: this.#host.now() }
+      const harness = await this.#harness
+      // The answer that ends the turn it asked in does not take the line from what it asked:
+      // until someone answers, that is what there is to know of it.
+      const held = said.kind === "reply" && (await this.#asking())
+      await harness.commit(async (tx) => {
+        const doc = await tx.doc(LatestDoc)
+        if (!held || doc.latest?.kind !== "asked") doc.latest = latest
+      }, context)
+    } catch (error) {
+      this.#options.onReport?.(error)
+    } finally {
+      // Told even where the line was held or there were no words to keep: what was said may
+      // have set it to work, or been it asking for something.
+      this.#tell()
+    }
+  }
+
+  /**
+   * Tell `onActivity` how the agent stands, where that is not what it was last told. Called at
+   * each moment its latest line, its being at work or its asking can change. It is read once the
+   * change is made, by one reader at a time, and a call that comes while it is being read has it
+   * read again: so what is told last is how the agent stood after the latest change, and nothing
+   * older is told after something newer. A courtesy, as a notification is: nothing waits on it,
+   * and failing to tell must never fail the work it tells of.
+   */
+  #tell(): void {
+    const tell = this.#options.onActivity
+    if (tell === undefined || this.#harness === undefined) return
+    this.#untold = true
+    if (this.#telling) return
+    this.#telling = true
+    void (async () => {
+      try {
+        while (this.#untold && this.#harness !== undefined) {
+          this.#untold = false
+          let harness: Harness | undefined
+          try {
+            harness = await this.#harness
+            const change = { agentId: this.#host.name, ...(await this.#activity(harness)) }
+            const told = JSON.stringify(change)
+            if (told === this.#told) continue
+            tell(change)
+            this.#told = told
+          } catch (error) {
+            // An agent that was closed meanwhile says how it stands when it is next opened.
+            if (harness !== undefined && this.#opened === harness) {
+              this.#options.onReport?.(error)
+            }
+          }
+        }
+      } finally {
+        this.#telling = false
+      }
+    })()
   }
 
   async #notify(notification: Omit<AgentNotification, "agentId" | "agentName">): Promise<void> {

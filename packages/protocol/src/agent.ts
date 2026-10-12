@@ -55,6 +55,49 @@ export type AgentSummary = AgentIdentity & {
   outfit?: Outfit
   /** The workspace it lives in. Filled in by the gateway, which is what knows. */
   workspaceId?: string
+  /** The latest thing said to it or by it, for a line beside its name. Absent: nothing yet. */
+  latest?: AgentLatest
+  /** Whether it is at work right now, in any of its chats. */
+  working?: boolean
+  /** Whether it has stopped to wait for someone's OK, or for something only they can give. */
+  asking?: boolean
+  /**
+   * When whoever is asking last looked at it. Filled in by the gateway, for each person apart.
+   * Absent: they have not looked since this was first kept.
+   */
+  seenAt?: number
+}
+
+/**
+ * The part of an agent's summary that changes as it works: what a list of agents says of it
+ * besides who it is. An agent says so each time it changes, for whoever has such a list open.
+ */
+export type AgentActivity = {
+  latest?: AgentLatest
+  working: boolean
+  asking: boolean
+}
+
+/**
+ * The latest thing said to an agent or by it, as one line for a list of agents. `said` is a
+ * person writing to it. `reply` is its answer to a person. `scheduled` is what a scheduled run
+ * came to. `asked` is it asking for someone's OK, or for something only they can give. `agent`
+ * is another agent writing to it. `slack` is its answer in a thread in Slack.
+ */
+export type AgentLatest = {
+  kind: "said" | "reply" | "scheduled" | "asked" | "agent" | "slack"
+  at: number
+  /** One line of plain text, cut short. */
+  text: string
+  /** For `said`: the id of the user who wrote it, where that is known. */
+  by?: string
+  /**
+   * For `scheduled`: the task's title. For `agent`: the other agent's name. For `slack`: the
+   * channel's name without its `#`, where there is one.
+   */
+  from?: string
+  /** The chat it is in, where that is one a person can open. */
+  chatId?: string
 }
 
 /**

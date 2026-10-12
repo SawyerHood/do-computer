@@ -2,6 +2,8 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type {
+  AgentActivity,
+  AgentSummary,
   ChatState,
   ChatSummary,
   JobSummary,
@@ -26,8 +28,11 @@ type World = {
   faux: ReturnType<typeof fauxProvider>
   reports: AgentNotification[]
   errors: unknown[]
+  /** Everything `onActivity` was told, in the order it was told. */
+  activity: Told[]
   machine: Sandbox
 }
+type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
 function open(directory: string, options: { shell?: "light"; foregroundMs?: number } = {}): World {
@@ -36,6 +41,7 @@ function open(directory: string, options: { shell?: "light"; foregroundMs?: numb
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
   const errors: unknown[] = []
+  const activity: Told[] = []
   const machine = createLocalProcessSandbox()
   const namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
@@ -56,11 +62,12 @@ function open(directory: string, options: { shell?: "light"; foregroundMs?: numb
         foregroundMs: options.foregroundMs ?? 400,
         onNotify: (notification) => reports.push(notification),
         onReport: (error) => errors.push(error),
+        onActivity: (change) => activity.push(change),
       }),
     onError: (error) => errors.push(error),
   })
   namespace.start()
-  const world = { namespace, faux, reports, errors, machine }
+  const world = { namespace, faux, reports, errors, activity, machine }
   worlds.push(world)
   return world
 }
@@ -177,6 +184,17 @@ describe("background commands", () => {
         status: "running",
       },
     ])
+    // Its turn is over while the command runs on, as the hook was told. The turn it is given
+    // when the command ends is set going by no request, and the hook is told of that too.
+    await until(
+      async () => world.activity.at(-1),
+      (told) => told?.latest?.kind === "reply" && !told.working,
+    )
+    const rested = world.activity.length
+    await until(
+      async () => world.activity.slice(rested),
+      (since) => since.some((told) => told.working),
+    )
 
     const ended = await until(
       () => chatState(world, chat.id),
@@ -197,6 +215,12 @@ describe("background commands", () => {
     expect(await jobs(world)).toMatchObject([{ id: "b1", status: "done", exitCode: 0 }])
     // What it said about the command is announced like any answer nobody was there to read.
     expect(world.reports.map((notification) => notification.text)).toContain("The build is done.")
+    expect(
+      await until(
+        async () => world.activity.at(-1),
+        (told) => told?.latest?.text === "The build is done.",
+      ),
+    ).toMatchObject({ working: false, asking: false })
     expect(world.errors).toEqual([])
   })
 
@@ -236,6 +260,12 @@ describe("background commands", () => {
     )
     expect(tools(started)[0]!.output).toContain("Started in the background as b1")
     expect((await jobs(world))[0]).toMatchObject({ id: "b1", status: "running" })
+    // Its turn is over: a command it left running is not the agent at work.
+    const { agent } = await until(
+      () => call<{ agent: AgentSummary }>(world, "/"),
+      (state) => state.agent.working === false && state.agent.latest?.kind === "reply",
+    )
+    expect(agent.latest).toMatchObject({ text: "Started." })
 
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     await send(world, chat.id, "look at it")

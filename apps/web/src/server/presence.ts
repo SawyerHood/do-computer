@@ -1,6 +1,6 @@
 import { getPlatform } from "#platform"
 import { CALLER_HEADER, encodeCaller } from "@durable-computer/agent"
-import { isPersonalWorkspace } from "@durable-computer/protocol"
+import { isPersonalWorkspace, personalWorkspaceId } from "@durable-computer/protocol"
 import { getUser } from "./auth.ts"
 import { roleIn } from "./teams.ts"
 
@@ -19,8 +19,9 @@ export function presenceWorkspace(pathname: string): string | undefined {
 }
 
 /**
- * Check a request to join a team's presence, and resolve with the request to hand its actor: the
- * same one, saying who is asking. Undefined when it is not a member's, or not from the app itself.
+ * Check a request to join a team's presence, or a person's own feed, and resolve with the
+ * request to hand its actor: the same one, saying who is asking. Undefined when it is not a
+ * member's, not the person's own, or not from the app itself.
  */
 export async function admitToPresence(
   request: Request,
@@ -34,10 +35,13 @@ export async function admitToPresence(
   if (origin !== null && origin !== allowed && origin !== new URL(request.url).origin) {
     return undefined
   }
-  if (isPersonalWorkspace(workspaceId)) return undefined
   const user = await getUser(request)
   if (user === undefined) return undefined
-  if ((await roleIn(db, user.id, workspaceId)) === undefined) return undefined
+  // A personal workspace has nobody to be present for: its address is its owner's own feed,
+  // where they hear what their agents are up to, and nobody else's to join.
+  if (isPersonalWorkspace(workspaceId)) {
+    if (workspaceId !== personalWorkspaceId(user.id)) return undefined
+  } else if ((await roleIn(db, user.id, workspaceId)) === undefined) return undefined
   const headers = new Headers(request.headers)
   headers.set(CALLER_HEADER, encodeCaller({ id: user.id, name: user.name }))
   return new Request(request, { headers })

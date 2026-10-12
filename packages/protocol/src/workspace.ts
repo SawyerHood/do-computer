@@ -1,4 +1,4 @@
-import type { Avatar } from "./agent.ts"
+import type { AgentActivity, Avatar } from "./agent.ts"
 
 /**
  * Where agents live. Everyone has a `personal` workspace, which only they can see. A `team` is
@@ -143,6 +143,15 @@ export type Presence = {
 
 /** What a client tells the team about itself. Sent whenever it changes. */
 export type PresenceUpdate = { agentId: string | null; chatId: string | null; typing?: boolean }
+
+/**
+ * What a person's open tabs are told about the agents they can use, as it happens, over a socket
+ * of the person's own. `agent` is what one of them is up to now. `seen` is that the person
+ * looked at one, here or on another device.
+ */
+export type FeedEvent =
+  | ({ type: "agent"; agentId: string } & AgentActivity)
+  | { type: "seen"; agentId: string; seenAt: number }
 
 export type PresenceEvent =
   /** Everyone who is here, one entry for each place a person has open. */

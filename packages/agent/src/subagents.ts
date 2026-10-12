@@ -87,6 +87,8 @@ export type SubagentsOptions = {
   readonly onStopped?: (chatId: string, context: Context) => Promise<void>
   /** Called when word of a sub-agent has been sent to its parent chat. */
   readonly onReport?: (report: SubagentReport) => void
+  /** Called when what is kept of a sub-agent has changed, such as whether it is at work. */
+  readonly onChanged?: () => void
   readonly onError?: (error: unknown) => void
 }
 
@@ -290,6 +292,7 @@ export class Subagents {
       change(chat.subagent)
       chat.updatedAt = now
     }, context)
+    this.#options.onChanged?.()
   }
 
   async #settle(context: Context): Promise<void> {
