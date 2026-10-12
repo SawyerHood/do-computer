@@ -2785,6 +2785,22 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       browser tests. **Not seen:** a deploy from the renamed tree, and a phone app built
       under the new ids, which nobody had installed under the old ones.
 
+67. **The phone app has an Expo project, so a build of it can be notified** (2026-10-12;
+    `apps/mobile/app.config.ts`, `apps/mobile/eas.json`, `docs/reference/mobile.md`). The owner
+    asked whether ordinary notifications worked on the phone. They did not: the app asks Expo
+    for the token the server sends to, and Expo gives one only to a build that belongs to a
+    project.
+    - **What there is now:** the project's id in `app.config.ts`, which `EAS_PROJECT_ID`
+      replaces for somebody else's build, and `eas.json` with three profiles (`development`,
+      `preview` for registered phones, `production` for TestFlight and the store), which pin
+      the Node and pnpm the workspace uses.
+    - **Nothing changed on the server.** It already sent to Expo's push service
+      (`server/push.ts`) and needs no key for it, as long as the project's "enhanced security"
+      is left off.
+    - **Checked:** the Expo tools read the id, and the app bundles for iOS as a release build
+      does. **Not checked:** a build in Expo's cloud, which needs the owner's Apple sign-in,
+      and so a notification arriving on a phone, or a tap on one opening its chat.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
