@@ -2455,6 +2455,36 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       320 pixels wide and the menu at 1280, in Chromium, light theme. **Not seen:** a real
       phone, Safari, a team's chat with other people's faces in the row.
 
+60. **A guide to Apps, with pictures, linked from the app** (2026-10-12; `docs/apps.md`,
+    `docs/images`, `apps/web/src/lib/docs.ts`, `components/settings/connectors.tsx`,
+    `prototypes/guide-pictures`). The owner asked to "add to the docs about composio and tell
+    them what they get and how to set it up with screen shots and why they would and then link
+    it from the app". The rest is mine.
+    - **The guide** is for whoever uses Apps, not whoever runs the deployment: what they get,
+      why, the steps, asking the agent instead, what is asked first, what Composio holds, a
+      team, disconnecting. It is the second guide (`ORDER`).
+    - **A guide can show pictures.** They are PNG files in `docs/images`, named in the guide
+      as `images/<name>.png`, which is also what shows them on GitHub. The page shows each from
+      the app's own files (`pictureOf`), and `/docs/images/<name>` sends whoever follows the
+      file's own address on to it. A test fails a picture that is missing or has no words.
+    - **The card beside this guide** has no address in it. It says "Connect my apps.", for the
+      person's own agent, which adds Apps when asked (`agentPrompt`, `handOffOf`).
+    - **In the app,** the Your apps card and the Apps connector's card each link to the guide,
+      which opens beside the app and leaves the settings open.
+    - **How the pictures were made.** `prototypes/guide-pictures/shoot.mjs` takes all five, and
+      is what to run when the app's look has changed. It starts the built Node server with a
+      real model, twice: once as
+      it is, for the Connect apps card, the agent adding Apps when asked, and Composio's own
+      sign-in page; once with `DC_APPS_URL` at a stand-in that offers Composio's tool names
+      (from Composio's reference) and canned answers, for the Connected card and the agent
+      asking before it sends an email. The window was 1280 by 860 at twice the size. Nobody
+      has signed in to Composio through Apps yet (item 53), so what follows its sign-in page
+      is written from how the connector is built, not from having seen it.
+      Each run makes new agents, whose creatures are drawn at random, and the agent's words
+      are its own: the pictures kept are from a run where the two looked alike.
+    - **Not done:** nothing retakes the pictures by itself; the first paragraph of Connectors
+      still says an agent uses connectors "without asking first", which is not so for Apps.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

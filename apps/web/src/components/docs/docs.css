@@ -372,6 +372,20 @@
       }
     }
 
+    /* A picture of the app: what a step looks like. Pressing it opens it at its full size. */
+    .dx-picture {
+      display: block;
+      cursor: zoom-in;
+    }
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 0 0 1px var(--line);
+    }
+
     /* A note set apart: the word to agents at the top. */
     blockquote {
       padding: 16px 20px;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { agentPrompt, GUIDES, guideOf, headingId, readGuide } from "./docs"
+import { agentPrompt, GUIDES, guideOf, headingId, pictureOf, readGuide } from "./docs"
 
 describe("a guide read from its file", () => {
   const text = [
@@ -65,6 +65,27 @@ describe("the guides of the repository", () => {
     expect(agentPrompt("https://agent.example.com", guide)).toBe(
       "Follow https://agent.example.com/docs/self-hosting.md and set up Do Computer for me.",
     )
+  })
+
+  it("ask a person's own agent for Apps in a few words, with no page to read", () => {
+    const guide = guideOf("apps")
+    if (guide === undefined) throw new Error("no guide")
+    expect(GUIDES[1]?.slug).toBe("apps")
+    expect(agentPrompt("https://agent.example.com", guide)).toBe("Connect my apps.")
+  })
+
+  it("have every picture they show, each said in words for whoever cannot see it", () => {
+    let shown = 0
+    for (const guide of GUIDES) {
+      for (const [, alt = "", src = ""] of guide.text.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)) {
+        expect(pictureOf(src), `${guide.slug}: ${src}`).toBeTypeOf("string")
+        expect(alt.length, `${guide.slug}: ${src}`).toBeGreaterThan(20)
+        shown++
+      }
+    }
+    expect(shown).toBeGreaterThan(0)
+    expect(pictureOf("images/nothing.png")).toBeUndefined()
+    expect(pictureOf("https://example.com/images/apps-ask.png")).toBeUndefined()
   })
 
   it("address a heading by its words", () => {

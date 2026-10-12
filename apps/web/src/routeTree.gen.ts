@@ -48,6 +48,7 @@ import { Route as ApiWaitlistIndexRouteImport } from './routes/api/waitlist/inde
 import { Route as ApiWaitlistUserIdRouteImport } from './routes/api/waitlist/$userId'
 import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
 import { Route as DAgentIdSplatRouteImport } from './routes/d.$agentId.$'
+import { Route as DocsImagesNameRouteImport } from './routes/docs.images.$name'
 import { Route as SSiteIdSplatRouteImport } from './routes/s.$siteId.$'
 import { Route as AppAAgentIdIndexRouteImport } from './routes/_app.a.$agentId.index'
 import { Route as AppAAgentIdAutomationsRouteImport } from './routes/_app.a.$agentId.automations'
@@ -287,6 +288,11 @@ const ApiWorkspacesIndexRoute = ApiWorkspacesIndexRouteImport.update({
 const DAgentIdSplatRoute = DAgentIdSplatRouteImport.update({
   id: '/d/$agentId/$',
   path: '/d/$agentId/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsImagesNameRoute = DocsImagesNameRouteImport.update({
+  id: '/docs/images/$name',
+  path: '/docs/images/$name',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SSiteIdSplatRoute = SSiteIdSplatRouteImport.update({
@@ -572,6 +578,7 @@ export interface FileRoutesByFullPath {
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/api/waitlist/$userId': typeof ApiWaitlistUserIdRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/docs/images/$name': typeof DocsImagesNameRoute
   '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
@@ -656,6 +663,7 @@ export interface FileRoutesByTo {
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/api/waitlist/$userId': typeof ApiWaitlistUserIdRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/docs/images/$name': typeof DocsImagesNameRoute
   '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents': typeof ApiAgentsIndexRoute
   '/api/computers': typeof ApiComputersIndexRoute
@@ -744,6 +752,7 @@ export interface FileRoutesById {
   '/api/push/unregister': typeof ApiPushUnregisterRoute
   '/api/waitlist/$userId': typeof ApiWaitlistUserIdRoute
   '/d/$agentId/$': typeof DAgentIdSplatRoute
+  '/docs/images/$name': typeof DocsImagesNameRoute
   '/s/$siteId/$': typeof SSiteIdSplatRoute
   '/api/agents/': typeof ApiAgentsIndexRoute
   '/api/computers/': typeof ApiComputersIndexRoute
@@ -832,6 +841,7 @@ export interface FileRouteTypes {
     | '/api/push/unregister'
     | '/api/waitlist/$userId'
     | '/d/$agentId/$'
+    | '/docs/images/$name'
     | '/s/$siteId/$'
     | '/api/agents/'
     | '/api/computers/'
@@ -916,6 +926,7 @@ export interface FileRouteTypes {
     | '/api/push/unregister'
     | '/api/waitlist/$userId'
     | '/d/$agentId/$'
+    | '/docs/images/$name'
     | '/s/$siteId/$'
     | '/api/agents'
     | '/api/computers'
@@ -1003,6 +1014,7 @@ export interface FileRouteTypes {
     | '/api/push/unregister'
     | '/api/waitlist/$userId'
     | '/d/$agentId/$'
+    | '/docs/images/$name'
     | '/s/$siteId/$'
     | '/api/agents/'
     | '/api/computers/'
@@ -1088,6 +1100,7 @@ export interface RootRouteChildren {
   ApiPushUnregisterRoute: typeof ApiPushUnregisterRoute
   ApiWaitlistUserIdRoute: typeof ApiWaitlistUserIdRoute
   DAgentIdSplatRoute: typeof DAgentIdSplatRoute
+  DocsImagesNameRoute: typeof DocsImagesNameRoute
   SSiteIdSplatRoute: typeof SSiteIdSplatRoute
   ApiAgentsIndexRoute: typeof ApiAgentsIndexRoute
   ApiComputersIndexRoute: typeof ApiComputersIndexRoute
@@ -1398,6 +1411,13 @@ declare module '@tanstack/react-router' {
       path: '/d/$agentId/$'
       fullPath: '/d/$agentId/$'
       preLoaderRoute: typeof DAgentIdSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/images/$name': {
+      id: '/docs/images/$name'
+      path: '/docs/images/$name'
+      fullPath: '/docs/images/$name'
+      preLoaderRoute: typeof DocsImagesNameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/s/$siteId/$': {
@@ -1860,6 +1880,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPushUnregisterRoute: ApiPushUnregisterRoute,
   ApiWaitlistUserIdRoute: ApiWaitlistUserIdRoute,
   DAgentIdSplatRoute: DAgentIdSplatRoute,
+  DocsImagesNameRoute: DocsImagesNameRoute,
   SSiteIdSplatRoute: SSiteIdSplatRoute,
   ApiAgentsIndexRoute: ApiAgentsIndexRoute,
   ApiComputersIndexRoute: ApiComputersIndexRoute,

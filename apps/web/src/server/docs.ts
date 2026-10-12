@@ -1,5 +1,5 @@
 import { getPlatform } from "#platform"
-import { GUIDES, guideOf } from "@/lib/docs"
+import { GUIDES, guideOf, pictureOf } from "@/lib/docs"
 
 /** The address this deployment is opened at, which its guides give as their own. */
 export function docsOrigin(request: Request): string {
@@ -18,6 +18,16 @@ export function guideFile(name: string): Response {
   return new Response(guide.text, {
     headers: { ...PLAIN, "content-type": "text/markdown; charset=utf-8" },
   })
+}
+
+/**
+ * `GET /docs/images/<name>`: a guide's picture, at the address the guide's file gives for it.
+ * The picture itself is one of the app's own files, so this sends whoever asks on to it.
+ */
+export function guidePicture(name: string): Response {
+  const location = pictureOf(`images/${name}`)
+  if (location === undefined) return new Response("There is no such picture.\n", { status: 404 })
+  return new Response(null, { status: 302, headers: { ...PLAIN, location } })
 }
 
 /** `GET /llms.txt`: the guides, and where each is as Markdown. */

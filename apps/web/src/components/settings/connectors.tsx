@@ -1,6 +1,7 @@
 import type { AgentSummary, ConnectorResult, ConnectorSummary } from "@durable-computer/protocol"
 import { CaretRightIcon, SlackLogoIcon, TrashIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +40,20 @@ const STATUS = {
   },
   error: { label: "Not connected", tone: "bg-destructive/15 text-destructive" },
 } as const
+
+/** The way to the guide about Apps, which opens beside the app and leaves these settings open. */
+function AppsGuide({ children }: { children: string }) {
+  return (
+    <Link
+      to="/docs/$slug"
+      params={{ slug: "apps" }}
+      target="_blank"
+      className="underline underline-offset-4"
+    >
+      {children}
+    </Link>
+  )
+}
 
 /** A service that wants the user to sign in is reached by leaving this page for it. */
 const follow = (result: ConnectorResult) => {
@@ -100,12 +115,12 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
               >
                 Composio
               </a>
-              , where you can disconnect one.
+              , where you can disconnect one. <AppsGuide>How Apps works</AppsGuide>
             </p>
           ) : apps && connector.status === "needs_auth" ? (
             <p className="text-muted-foreground">
               Sign in with a Composio account, which is free to make. Your agent then reaches the
-              services you connect there.
+              services you connect there. <AppsGuide>How Apps works</AppsGuide>
             </p>
           ) : connector.status === "connected" ? (
             <p className="text-muted-foreground">
@@ -427,7 +442,8 @@ function AppsOffer({ agentId }: { agentId: string }) {
       <CardContent>
         <p className="text-muted-foreground">
           You sign in with a Composio account, which is free to make, and then to each service the
-          first time it is needed. Your agent asks before it does anything in an account of yours.
+          first time it is needed. Your agent asks before it does anything in an account of yours.{" "}
+          <AppsGuide>What you get and how to set it up</AppsGuide>
         </p>
       </CardContent>
       <CardFooter className="flex-wrap gap-2">

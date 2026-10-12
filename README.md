@@ -39,7 +39,8 @@ have it do the setting up. From this repository that is:
 Follow https://raw.githubusercontent.com/SawyerHood/do-computer/main/docs/self-hosting.md and set up Do Computer for me.
 ```
 
-A guide is a file in [`docs/`](./docs): adding one there adds it to the site.
+A guide is a file in [`docs/`](./docs): adding one there adds it to the site. Its pictures go in
+`docs/images`.
 
 ## Configuration
 
@@ -409,6 +410,9 @@ service can still be given a client ID and secret, for a service whose sign-in l
 register itself.
 
 ## Apps
+
+[The guide to Apps](./docs/apps.md) is for whoever uses it: what they get, and how to connect,
+with pictures. It is linked from the app, beside the button. What follows is how it works.
 
 An agent's Connectors offer **Connect apps**. One click adds a connector called Apps, which is
 [Composio](https://composio.dev)'s MCP server, and sends you to Composio to sign in with an
