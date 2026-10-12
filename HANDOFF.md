@@ -1531,8 +1531,8 @@ Since then, newest last:
       Not chosen by the owner: that someone invited meets an agent of their own before they
       join, and that the scene then ends at the invitation.
     - **In its chat it says hello first**: the empty chat of an agent just met says who it is
-      and what it was given, with three things to start with (`meetingWith`, kept for the
-      window's life). These are the app's words, not a model's, and are gone once the chat has
+      and offers a few things to start with, by what it was given (`meetingWith`, kept for
+      the window's life; item 64). These are the app's words, not a model's, and are gone once the chat has
       a message. An agent named by its owner, and with no personality yet, is still told that
       this is its first conversation (`bootstrapNamed` in `persona.ts`, `namedByOwner`).
     - **The desktop app** opens `/welcome` until the first run is over (`welcomed` in its

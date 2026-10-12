@@ -141,7 +141,7 @@ function Welcome({
   /** Whether this computer's owner is being asked for its screen, and why a starter is held. */
   const [asking, setAsking] = useState(false)
   const [held, setHeld] = useState("")
-  // Fresh from the first run, it says hello first: to whom, and with what it was given there.
+  // Fresh from the first run, it says hello first, and offers what it was given there lets it do.
   const met = agent.name === null ? undefined : meetingWith(agent.id)
   if (met !== undefined) {
     const given = met.computer
@@ -165,16 +165,7 @@ function Welcome({
         <h1 className="text-xl font-medium">
           Hi {met.first}, I’m {agent.name}.
         </h1>
-        <p className="max-w-md text-sm text-muted-foreground">
-          {given === undefined
-            ? "Good to finally see you."
-            : given === null
-              ? "I am not on this computer yet. When you want me to work here, switch it on under This Computer in the tray."
-              : given.readOnly
-                ? "I can read files on this computer now, and nothing more. I can reach it while Do Computer is running, so I have left it in your tray."
-                : "I can work on this computer now: run commands, read and change files, and use a browser. I can reach it while Do Computer is running, so I have left it in your tray."}{" "}
-          What should we do first?
-        </p>
+        <p className="text-sm text-muted-foreground">What should we do first?</p>
         <div className="mt-2 flex flex-wrap justify-center gap-2">
           {startersFor(given).map((starter) => (
             <Button
