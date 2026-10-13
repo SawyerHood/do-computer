@@ -111,6 +111,10 @@ test("the app opens on the agent that was open last", async ({ page }) => {
   await page.getByRole("button", { name: "New Dood", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== first)
   const second = page.url()
+  const id = second.match(/\/a\/([^/]+)/)![1]!
+  // A new agent's page opens before the agent has answered, and it is kept as the one to come
+  // back to once it has.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dc-last-agent"))).toBe(id)
 
   // Coming to the app by its own address, as starting it does, and not by an agent's.
   await page.goto("/")
@@ -125,7 +129,6 @@ test("the app opens on the agent that was open last", async ({ page }) => {
   // An agent that is gone is not come back to: the app opens on the first one there is.
   await page.goto(second)
   await expect(composer(page)).toBeVisible()
-  const id = second.match(/\/a\/([^/]+)/)![1]!
   expect((await page.request.delete(`/api/agents/${id}`)).ok()).toBe(true)
   await page.goto("/")
   await page.waitForURL(first)
