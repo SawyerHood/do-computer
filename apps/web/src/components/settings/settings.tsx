@@ -56,7 +56,7 @@ const OWN: readonly SettingsSection<TopSection>[] = [
 ]
 
 const SERVER: readonly SettingsSection<TopSection>[] = [
-  { id: "server", label: "Models", icon: <HardDrivesIcon /> },
+  { id: "server", label: "Global models", icon: <HardDrivesIcon /> },
   { id: "waitlist", label: "Waiting list", icon: <HourglassIcon /> },
 ]
 

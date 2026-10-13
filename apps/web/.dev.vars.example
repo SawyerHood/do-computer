@@ -4,5 +4,5 @@ DC_BASE_URL=http://localhost:3000
 # OPENROUTER_API_KEY=
 # The only models the deployment offers on its own account. Default: all it can run.
 # DC_MODELS=meta/muse-spark-1.3-contributor,anthropic/claude-haiku-5.5,openai/gpt-6-luna
-# Who may sign the server itself in to model providers, under Server models in settings.
+# Who may sign the server itself in to model providers, under Global models in settings.
 # DC_ADMIN_EMAILS=you@example.com
