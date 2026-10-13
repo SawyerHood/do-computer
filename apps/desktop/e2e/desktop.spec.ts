@@ -1,5 +1,6 @@
 import { type ChildProcess, execFileSync, spawn } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createServer as createService } from "node:http"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -463,4 +464,51 @@ test("an app that knows its deployment opens on the first run, and signs in thro
   // asks about this computer, which is not theirs to use yet.
   await main.reload()
   await card(main, /Sawyer, it’s you! I haven’t worked on this computer before\. May I\?/)
+})
+
+test("a sign-in somewhere else is shown in a small window, and the app's own never leaves", async () => {
+  const main = await windowAt(/\/welcome$/)
+  // A service a connector signs in to: its page sends whoever agrees back to the deployment.
+  const service = createService((_request, response) => {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+    response.end(
+      `<title>Sign in to the service</title><a href="${url}/api/connectors/callback?state=none">Allow</a>`,
+    )
+  })
+  await new Promise<void>((resolve) => service.listen(0, "127.0.0.1", resolve))
+  const { port } = service.address() as { port: number }
+  const there = `http://127.0.0.1:${port}/authorize`
+  try {
+    await app.evaluate(({ BrowserWindow }) => {
+      const went: string[] = []
+      ;(globalThis as { went?: string[] }).went = went
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.on("did-navigate", (_event, address) => went.push(address))
+      }
+    })
+    // The page sends its owner there, as it does when a connector wants a sign-in.
+    await main.evaluate((there) => window.location.assign(there), there)
+    const small = await windowAt("/authorize")
+    await expect(small.getByRole("link", { name: "Allow" })).toBeVisible()
+    expect(main.url()).toBe(`${url}/welcome`)
+    // The small window is named by where it is, whatever the page calls itself.
+    const titles = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().map((window) => window.getTitle()),
+    )
+    expect(titles).toContain(`127.0.0.1:${port}`)
+    // It is no page of the deployment, and is given nothing of the app's.
+    expect(await small.evaluate(() => "doComputer" in window || "desktop" in window)).toBe(false)
+
+    // Sent back, the small window is gone and the app's own shows where the service led.
+    await small.getByRole("link", { name: "Allow" }).click()
+    await expect
+      .poll(() => app.evaluate(() => (globalThis as { went?: string[] }).went ?? []))
+      .toContainEqual(expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/\?connector_error=/))
+    await expect
+      .poll(() => app.windows().filter((page) => page.url().includes("/authorize")))
+      .toEqual([])
+    expect(new URL(main.url()).origin).toBe(url)
+  } finally {
+    service.close()
+  }
 })

@@ -57,7 +57,7 @@ import {
 } from "./page-bridge.ts"
 import { ScreenService } from "./screen.ts"
 import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
-import { isWebAddress, onServer, serverAddress } from "./server.ts"
+import { cameBack, isWebAddress, onServer, serverAddress } from "./server.ts"
 import { DEFAULTS, loadSettings, type Settings, saveSettings } from "./settings.ts"
 import { headline, type Sharing } from "./status.ts"
 import {
@@ -306,7 +306,16 @@ function showIcon(asked: unknown): void {
   else if (alive(mainWindow)) mainWindow.setIcon(ownIcon ?? icon()!)
 }
 
-/** Links that lead away from the deployment open in the browser, where its owner is at home. */
+/** Whether an address is somewhere on the web other than the deployment. */
+const elsewhere = (address: string) =>
+  isWebAddress(address) && !(settings.server !== undefined && onServer(address, settings.server))
+
+/**
+ * A window of the app shows the deployment and nowhere else: it has no address to read and no
+ * way back. Links that lead away open in the browser, where its owner is at home. A page that
+ * sends its owner away to sign in somewhere, to a connector's service say, has that shown in
+ * a small window over it instead.
+ */
 function keepToServer(window: BrowserWindow): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (settings.server !== undefined && onServer(url, settings.server)) {
@@ -315,6 +324,100 @@ function keepToServer(window: BrowserWindow): void {
     if (isWebAddress(url)) void shell.openExternal(url)
     return { action: "deny" }
   })
+  // A window the deployment opened beside this one is kept to it as well.
+  window.webContents.on("did-create-window", keepToServer)
+  const leaving = (event: Electron.Event, address: string) => {
+    if (!elsewhere(address)) return
+    event.preventDefault()
+    // The app's own pages sign nobody in.
+    if (window.webContents.getURL().startsWith("file:")) void shell.openExternal(address)
+    else signInElsewhere(window, address)
+  }
+  window.webContents.on("will-navigate", (event) => leaving(event, event.url))
+  window.webContents.on("will-redirect", (event) => {
+    if (event.isMainFrame) leaving(event, event.url)
+  })
+}
+
+/** The small window each window's sign-in elsewhere is shown in, while there is one. */
+const signIns = new Map<BrowserWindow, BrowserWindow>()
+
+/** A place for a window of this size over another, kept on the screen that one is on. */
+function over(window: BrowserWindow, width: number, height: number) {
+  const bounds = window.getBounds()
+  const area = screen.getDisplayMatching(bounds).workArea
+  const size = { width: Math.min(width, area.width), height: Math.min(height, area.height) }
+  const within = (at: number, length: number, from: number, room: number) =>
+    Math.round(Math.min(Math.max(at, from), from + room - length))
+  return {
+    ...size,
+    x: within(bounds.x + (bounds.width - size.width) / 2, size.width, area.x, area.width),
+    y: within(bounds.y + (bounds.height - size.height) / 2, size.height, area.y, area.height),
+  }
+}
+
+/** A window that shows somewhere else is named by where: all there is to say whose page it is. */
+function nameByAddress(window: BrowserWindow): void {
+  window.webContents.on("page-title-updated", (event) => {
+    event.preventDefault()
+    const address = window.webContents.getURL()
+    if (isWebAddress(address)) window.setTitle(new URL(address).host)
+  })
+}
+
+/**
+ * Show somewhere else on the web in a small window over the one that was sent there, with the
+ * same cookies. When the service sends its visitor back to a page of the deployment, the small
+ * window closes and the one that asked shows that page, as it would have had it gone itself.
+ */
+function signInElsewhere(asked: BrowserWindow, address: string): void {
+  const server = settings.server
+  if (server === undefined) return
+  const open = signIns.get(asked)
+  if (alive(open)) {
+    void open.loadURL(address)
+    return open.focus()
+  }
+  const window = new BrowserWindow({
+    ...over(asked, 520, 720),
+    parent: asked,
+    title: new URL(address).host,
+    minimizable: false,
+    fullscreenable: false,
+    backgroundColor: canvas(),
+    autoHideMenuBar: true,
+    ...(MAC ? {} : { icon: icon()! }),
+    // Nothing of the app's is given to a page that is not the deployment's.
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
+  })
+  window.setMenuBarVisibility(false)
+  signIns.set(asked, window)
+  window.on("closed", () => {
+    if (signIns.get(asked) === window) signIns.delete(asked)
+  })
+  nameByAddress(window)
+  // A service may show part of its sign-in in a window of its own, which answers this one.
+  window.webContents.setWindowOpenHandler(({ url }) =>
+    isWebAddress(url)
+      ? { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true } }
+      : { action: "deny" },
+  )
+  window.webContents.on("did-create-window", nameByAddress)
+  const back = (event: Electron.Event, to: string) => {
+    if (!cameBack(to, server)) return
+    event.preventDefault()
+    // Not while it is still telling of where it was going.
+    setImmediate(() => window.destroy())
+    if (!alive(asked)) return
+    void asked.loadURL(to)
+    asked.show()
+    asked.focus()
+  }
+  window.webContents.on("will-navigate", (event) => back(event, event.url))
+  window.webContents.on("will-redirect", (event) => {
+    if (event.isMainFrame) back(event, event.url)
+  })
+  void window.loadURL(address)
 }
 
 /** Show the deployment's window, making it if need be, on a page of the deployment if given. */
