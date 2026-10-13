@@ -22,6 +22,7 @@ import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { SharePopover } from "@/components/sites/share"
 import { type Folder, formatBytes, formatWhen, kindOf, treeOf } from "@/lib/library"
 import { siteOfFile, siteOfFolder, useSites } from "@/lib/sites"
@@ -202,6 +203,8 @@ export function LibraryTree({
   onUpload,
   onRestore,
   busy,
+  doing,
+  restoring,
 }: {
   agentId: string
   files: readonly LibraryFile[]
@@ -215,6 +218,10 @@ export function LibraryTree({
   onUpload: (file: File) => void
   onRestore: (fileId: string) => void
   busy: boolean
+  /** Which of the two is on its way, so that its button says so. */
+  doing?: "new" | "upload" | undefined
+  /** The deleted file that is being put back, by id. */
+  restoring?: string | undefined
 }) {
   const input = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
@@ -252,9 +259,10 @@ export function LibraryTree({
           aria-label="New document"
           title={dir === "" ? "New document" : `New document in ${dir}`}
           disabled={busy}
+          aria-busy={doing === "new"}
           onClick={onNew}
         >
-          <NotePencilIcon />
+          {doing === "new" ? <Spinner /> : <NotePencilIcon />}
         </Button>
         <input
           ref={input}
@@ -273,9 +281,10 @@ export function LibraryTree({
           aria-label="Upload"
           title={dir === "" ? "Upload" : `Upload into ${dir}`}
           disabled={busy}
+          aria-busy={doing === "upload"}
           onClick={() => input.current?.click()}
         >
-          <UploadSimpleIcon />
+          {doing === "upload" ? <Spinner /> : <UploadSimpleIcon />}
         </Button>
       </div>
       <div className="px-3 pb-2">
@@ -356,9 +365,11 @@ export function LibraryTree({
                     size="icon-xs"
                     aria-label={`Restore ${file.name}`}
                     title="Restore"
+                    disabled={restoring !== undefined}
+                    aria-busy={restoring === file.id}
                     onClick={() => onRestore(file.id)}
                   >
-                    <ArrowCounterClockwiseIcon />
+                    {restoring === file.id ? <Spinner /> : <ArrowCounterClockwiseIcon />}
                   </Button>
                 </li>
               ))}

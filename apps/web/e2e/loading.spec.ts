@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, signIn, tab } from "./helpers.ts"
+import { asOwner, composer, sideChats, signIn, tab } from "./helpers.ts"
 
 asOwner()
 
@@ -244,4 +244,83 @@ test("a server that never answers is said not to have, where the frame would sta
   held = false
   await page.getByRole("button", { name: "Try again" }).click()
   await expect(composer(page)).toBeVisible()
+})
+
+test("a new agent has its row while it is made, and opens at its chat without the list", async ({
+  page,
+}) => {
+  await holdableSockets(page)
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  const before = page.url()
+  const agents = page.getByRole("navigation", { name: "Agents" })
+  const had = await agents.getByRole("link").count()
+  const server = await holdRequests(page)
+  // The list of agents is as slow as its slowest agent. From here it never comes.
+  await page.route("**/api/agents", (route) =>
+    route.request().method() === "GET" ? undefined : route.fallback(),
+  )
+  const add = page.getByRole("button", { name: "New agent", exact: true })
+  await add.click()
+  // Nothing has come back. The button is at work, and the agent's row is where it will be.
+  await expect(add).toBeDisabled()
+  await expect(add).toHaveAttribute("aria-busy", "true")
+  await expect(agents.getByLabel("Making a new agent")).toBeVisible()
+  expect(page.url()).toBe(before)
+
+  server.release()
+  // Made, it is open at its chat, and in the list, though the list was never sent again.
+  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
+  await expect(composer(page)).toHaveAttribute("placeholder", "Say hello")
+  await expect(agents.getByLabel("Making a new agent")).toHaveCount(0)
+  await expect(agents.getByRole("link")).toHaveCount(had + 1)
+  await expect(agents.locator("a[aria-current=page]")).toContainText("New agent")
+  await expect(add).toBeEnabled()
+})
+
+test("an agent that could not be made says why, where it was asked for", async ({ page }) => {
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  const before = page.url()
+  await page.route("**/api/agents", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ status: 409, json: { error: "An account can have at most 20 agents" } })
+      : route.fallback(),
+  )
+  const agents = page.getByRole("navigation", { name: "Agents" })
+  const add = page.getByRole("button", { name: "New agent", exact: true })
+  await add.click()
+  await expect(agents.getByRole("alert")).toHaveText("An account can have at most 20 agents")
+  await expect(agents.getByLabel("Making a new agent")).toHaveCount(0)
+  await expect(add).toBeEnabled()
+  expect(page.url()).toBe(before)
+})
+
+test("a side chat says it is being started, and opens without asking the agent again", async ({
+  page,
+}) => {
+  await holdableSockets(page)
+  await signIn(page)
+  await expect(composer(page)).toBeVisible()
+  const main = page.url()
+  await expect(page.locator("main [data-loading]")).toHaveCount(0)
+  const server = await holdRequests(page)
+  // What the agent is, its chats among it, is as slow as the agent. From here it never comes.
+  await page.route("**/api/agents/*", (route) =>
+    route.request().method() === "GET" ? undefined : route.fallback(),
+  )
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: "New side chat" }).click()
+  // Nothing has come back. The menu stays, and says what is going on.
+  const starting = page.getByRole("menuitem", { name: "Starting a side chat…" })
+  await expect(starting).toBeVisible()
+  await expect(starting).toHaveAttribute("aria-busy", "true")
+  expect(page.url()).toBe(main)
+
+  server.release()
+  // Made, it is open beside the main chat under its own name, and the menu is gone.
+  await page.waitForURL((url) => url.searchParams.has("side"))
+  await expect(page.getByRole("complementary", { name: "Side chat: New chat" })).toBeVisible()
+  await expect(page.getByRole("menu")).toHaveCount(0)
+  await expect(sideChats(page)).toContainText("1")
 })

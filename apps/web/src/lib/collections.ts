@@ -110,6 +110,27 @@ export const agentsCollection = createCollection(
   }),
 )
 
+/**
+ * Put an agent in the list of agents as it is kept here, in place of what was kept of it. The
+ * server has just said what it is, and asking for the list again waits for every agent there is.
+ */
+export function listAgent(agent: AgentSummary): void {
+  queryClient.setQueryData<AgentSummary[]>(agentsKey, (listed) =>
+    listed === undefined ? listed : [...listed.filter((entry) => entry.id !== agent.id), agent],
+  )
+}
+
+/**
+ * Take agents out of the list of agents as it is kept here: ones that were deleted, or are in a
+ * team that was left. The list is then good to choose another agent from at once. Whoever calls
+ * this asks for the list again once the page has moved on.
+ */
+export function unlistAgents(gone: (agent: AgentSummary) => boolean): void {
+  queryClient.setQueryData<AgentSummary[]>(agentsKey, (listed) =>
+    listed?.filter((agent) => !gone(agent)),
+  )
+}
+
 function createChatsCollection(agentId: string) {
   const api = client.agent(agentId)
   return createCollection(

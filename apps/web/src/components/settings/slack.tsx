@@ -233,7 +233,7 @@ function InSlack({ agent, name, app }: { agent: AgentSummary; name: string; app:
             disabled={remove.isPending}
             onClick={() => remove.mutate()}
           >
-            Remove from Slack
+            {remove.isPending ? "Removing…" : "Remove from Slack"}
           </Button>
         </div>
         <p className="pt-2 text-xs text-muted-foreground">

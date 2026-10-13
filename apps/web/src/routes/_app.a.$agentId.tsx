@@ -6,7 +6,7 @@ import { useEffect } from "react"
 import { CreatureWindows } from "@/components/creature/windows"
 import { AppShell } from "@/components/shell/app-shell"
 import { useAppIcon } from "@/lib/app-icon"
-import { mainChatOf, rememberMainChat } from "@/lib/chats"
+import { keepChat, mainChatOf, rememberMainChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentQuery, catchUpAgent, refreshAgent } from "@/lib/collections"
 import { useAgentFavicon } from "@/lib/favicon"
@@ -53,7 +53,12 @@ function AgentLayout() {
     void client
       .agent(agentId)
       .mainChat()
-      .then(() => refreshAgent(agentId, "chats"))
+      // What came back is the chat, so it is among the agent's chats at once, and opened. The
+      // agent is asked again as well, and nothing waits for that.
+      .then((chat) => {
+        keepChat(agentId, chat)
+        refreshAgent(agentId, "chats")
+      })
       // It is asked for again the next time the agent is opened.
       .catch(() => {})
   }, [agentId, mainless])

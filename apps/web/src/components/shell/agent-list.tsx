@@ -23,11 +23,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { foldedWorkspacesAtom } from "@/lib/atoms"
-import { client } from "@/lib/client"
 import { agentsCollection } from "@/lib/collections"
 import { isUnread, latestFirst, latestWords, useSeenHere, useVisible, when } from "@/lib/latest"
+import { useNewAgent } from "@/lib/new-agent"
 import { settingsAddress, useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useHere, usePeople, useWorkspaces, whoIs } from "@/lib/workspaces"
@@ -44,17 +45,6 @@ export function ago(at: number, now: number): string {
   if (minutes < 24 * 60) return `${Math.floor(minutes / 60)}h`
   if (minutes < 7 * 24 * 60) return weekday.format(at)
   return day.format(at)
-}
-
-/** Makes an agent in a workspace and opens it. */
-export function useNewAgent(workspaceId: string, onNavigate?: () => void) {
-  const navigate = useNavigate()
-  return async () => {
-    const created = await client.createAgent(workspaceId)
-    await agentsCollection.utils.refetch()
-    onNavigate?.()
-    await navigate({ to: "/a/$agentId", params: { agentId: created.id } })
-  }
 }
 
 /** The time, for words that say how long ago something was. Looked at again twice a minute. */
@@ -187,6 +177,8 @@ function Section({
     (id) => people.get(id) ?? [],
   )
   const newAgent = useNewAgent(workspace.id, onNavigate)
+  // Folded away, there is nowhere to show one that is on its way.
+  const making = newAgent.making && !folded
   const seenHere = useSeenHere()
   const visible = useVisible()
   const list = latestFirst(agents)
@@ -260,16 +252,25 @@ function Section({
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={newAgent}
+              disabled={newAgent.making}
+              aria-busy={newAgent.making}
+              onClick={() => void newAgent.create()}
               aria-label={named ? `New agent in ${workspace.name}` : "New agent"}
               title={named ? `New agent in ${workspace.name}` : "New agent"}
               className="-mr-1 text-muted-foreground [&_svg]:size-4"
             >
-              <PlusIcon />
+              {newAgent.making ? <Spinner /> : <PlusIcon />}
             </Button>
           </>
         )}
       </div>
+      {newAgent.error === undefined || folded ? null : (
+        <p role="alert" className="px-2.5 py-1 text-xs text-destructive">
+          {newAgent.error}
+        </p>
+      )}
+      {/* First, which is where it will be: the one last heard from, and it was only just made. */}
+      {making ? <MakingAgentRow /> : null}
       {folded
         ? null
         : list.map((agent) => (
@@ -289,12 +290,33 @@ function Section({
               onNavigate={onNavigate}
             />
           ))}
-      {!folded && list.length === 0 ? (
+      {!folded && !making && list.length === 0 ? (
         <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
           {team ? "This team has no agents yet." : "You have no agents yet."}
         </p>
       ) : null}
     </section>
+  )
+}
+
+/**
+ * An agent that is being made, in the list from the moment it is asked for: the row it will have,
+ * with its creature and what it says still to come.
+ */
+function MakingAgentRow() {
+  return (
+    <div
+      data-loading
+      aria-busy="true"
+      aria-label="Making a new agent"
+      className="flex shrink-0 items-center gap-3 rounded-xl px-2.5 py-2"
+    >
+      <Skeleton className="size-10 shrink-0 rounded-full" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[0.90625rem] font-medium">New agent</span>
+        <span className="mt-px block truncate text-xs text-muted-foreground">On its way…</span>
+      </span>
+    </div>
   )
 }
 

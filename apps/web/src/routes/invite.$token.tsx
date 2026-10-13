@@ -42,6 +42,8 @@ function InvitationPage() {
     if (fresh) void navigate({ to: "/welcome", search: { next: here }, replace: true })
   }, [fresh, here, navigate])
   const [joining, setJoining] = useState(false)
+  // From the press until the app's own page takes this one's place.
+  const [declining, setDeclining] = useState(false)
   const [failure, setFailure] = useState<string>()
 
   if (error) {
@@ -79,6 +81,7 @@ function InvitationPage() {
     }
   }
   const decline = async () => {
+    setDeclining(true)
     // Only an invitation addressed to this account can be turned down. A link is just left alone.
     await client.declineInvitation(invitation.id).catch(() => {})
     refreshWorkspaces()
@@ -125,11 +128,16 @@ function InvitationPage() {
         ) : null}
         {me ? (
           <>
-            <Button className="mt-6 h-11 w-full" disabled={joining} onClick={join}>
+            <Button className="mt-6 h-11 w-full" disabled={joining || declining} onClick={join}>
               {joining ? "Joining…" : `Join ${team}`}
             </Button>
-            <Button variant="ghost" className="mt-1 w-full text-muted-foreground" onClick={decline}>
-              Not now
+            <Button
+              variant="ghost"
+              className="mt-1 w-full text-muted-foreground"
+              disabled={joining || declining}
+              onClick={decline}
+            >
+              {declining ? "One moment…" : "Not now"}
             </Button>
             <p className="mt-3 text-xs text-muted-foreground">Signed in as {me.user.email}.</p>
           </>

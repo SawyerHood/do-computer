@@ -1,8 +1,4 @@
-import {
-  type InviteResult,
-  personalWorkspaceId,
-  WORKSPACE_COLORS,
-} from "@do-computer/protocol"
+import { type InviteResult, personalWorkspaceId, WORKSPACE_COLORS } from "@do-computer/protocol"
 import { CheckIcon } from "@phosphor-icons/react"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { useNavigate } from "@tanstack/react-router"
@@ -53,14 +49,24 @@ export function NewTeamDialog({
       .where(({ agent }) => eq(agent.workspaceId, personalWorkspaceId(userId))),
   )
 
+  // The window stays, saying so, until the team's page is open under it: that page waits for
+  // the list of agents, and the page from before would otherwise sit there as if nothing had
+  // been pressed.
+  const [going, setGoing] = useState(false)
   const go = async (workspaceId: string) => {
+    if (going) return
+    setGoing(true)
+    try {
+      await navigate({ to: "/w/$workspaceId", params: { workspaceId } })
+    } finally {
+      setGoing(false)
+    }
     onOpenChange(false)
     setName("")
     setMoving([])
     setWho([])
     setTyped("")
     setMade(undefined)
-    await navigate({ to: "/w/$workspaceId", params: { workspaceId } })
   }
   const create = async () => {
     setCreating(true)
@@ -101,7 +107,9 @@ export function NewTeamDialog({
           <>
             <InviteOutcome result={made.invited} />
             <DialogFooter>
-              <Button onClick={() => void go(made.id)}>Go to {name}</Button>
+              <Button disabled={going} onClick={() => void go(made.id)}>
+                {going ? `Opening ${name}…` : `Go to ${name}`}
+              </Button>
             </DialogFooter>
           </>
         ) : (
@@ -194,7 +202,7 @@ export function NewTeamDialog({
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" disabled={creating} onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button disabled={name.trim() === "" || creating} onClick={create}>

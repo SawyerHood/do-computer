@@ -1,8 +1,10 @@
+import type { AgentState } from "@do-computer/client"
 import type { ChatSummary } from "@do-computer/protocol"
 import { useNavigate, useParams } from "@tanstack/react-router"
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import { client } from "./client.ts"
-import { chatsCollection } from "./collections.ts"
+import { agentKey, chatsCollection } from "./collections.ts"
+import { queryClient } from "./query.ts"
 import { useWide } from "./use-wide.ts"
 
 /** The agent's main chat: the one that opens when the agent is chosen. */
@@ -79,14 +81,45 @@ export function useOpenSideChat(agentId: string, mainId: string | undefined) {
   )
 }
 
-/** Starts a side chat with the agent and opens it. */
+/**
+ * Put a chat among an agent's chats as they are kept here, in place of what was kept of it. A
+ * chat the server has just made or settled on is then on screen without asking the agent for
+ * all of its state again.
+ */
+export function keepChat(agentId: string, chat: ChatSummary): void {
+  queryClient.setQueryData<AgentState>(agentKey(agentId), (state) =>
+    state === undefined
+      ? state
+      : { ...state, chats: [...state.chats.filter((entry) => entry.id !== chat.id), chat] },
+  )
+}
+
+/**
+ * Starts a side chat with the agent and opens it. `creating` is true from the press until the
+ * chat is made, and `error` says why there is none where it could not be.
+ */
 export function useNewSideChat(agentId: string, mainId: string | undefined) {
   const open = useOpenSideChat(agentId, mainId)
-  return useCallback(async () => {
-    const chat = await client.agent(agentId).createChat()
-    await chatsCollection(agentId).utils.refetch()
-    await open(chat.id)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string>()
+  const create = useCallback(async (): Promise<boolean> => {
+    setCreating(true)
+    setError(undefined)
+    try {
+      const chat = await client.agent(agentId).createChat()
+      keepChat(agentId, chat)
+      // The agent says its chats changed, which asks for them again. Nothing waits for that,
+      // nor for the chat's page, which says for itself what it waits on.
+      void open(chat.id)
+      return true
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "The chat could not be started.")
+      return false
+    } finally {
+      setCreating(false)
+    }
   }, [agentId, open])
+  return { create, creating, error }
 }
 
 /** Puts a side chat away, and goes back to the main chat. */

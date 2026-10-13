@@ -49,6 +49,7 @@ import {
   agentsKey,
   computerKindsKey,
   computersKey,
+  unlistAgents,
   workspaceModelsKey,
   usageKey,
 } from "@/lib/collections"
@@ -259,9 +260,12 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: agentKey(agentId) })
       void queryClient.invalidateQueries({ queryKey: computersKey })
-      await agentsCollection.utils.refetch()
-      // The index route picks another agent, or makes a new one if this was the last.
+      // Out of the list at once, and not by asking for the list again, which waits for every
+      // agent there is. The index route picks another agent from it, or makes a new one if
+      // this was the last.
+      unlistAgents((agent) => agent.id === agentId)
       await navigate({ to: "/" })
+      void queryClient.invalidateQueries({ queryKey: agentsKey, exact: true })
     },
   })
   return (
