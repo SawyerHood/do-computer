@@ -6222,7 +6222,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       person attaches is still only named in their message, since a message carries its
       attachments as names in its text.
 
-77. **A page in a chat has the app's controls, and can speak to the chat** (2026-10-13;
+78. **A page in a chat has the app's controls, and can speak to the chat** (2026-10-13;
     `packages/protocol/src/theme.ts` and `visual.ts`, `packages/agent/src/visuals.ts`,
     `apps/web/src/components/chat/visual.tsx`, `lib/visual-heights.ts`; phase 3 of
     `PLAN-rich-embeds.md`). The owner asked for "interactive HTML widgets that are styled
