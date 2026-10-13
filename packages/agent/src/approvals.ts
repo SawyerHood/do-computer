@@ -114,6 +114,12 @@ const ABILITIES: readonly Ability[] = [
     ask: true,
   },
   {
+    id: "tool:pin",
+    label: "Pin things beside the chat",
+    hint: "Something in the library, kept in view under its face. Anyone can take a pin off again.",
+    tools: ["pin"],
+  },
+  {
     id: "tool:screen",
     label: "Use a computer's screen",
     hint: "The programs on somebody's own computer, worked in their windows or with its mouse and keyboard, where its owner has switched that on.",

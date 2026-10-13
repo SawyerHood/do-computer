@@ -45,6 +45,19 @@ export const isViewable = (file: LibraryFile) => file.path !== undefined && kind
 // Where a path is, and where a link from a document leads, are the server's to know too.
 export { dirOf, resolveLink }
 
+/**
+ * When what a file shows last changed. A page shows what is beside it, so it is as new as the
+ * newest file in its top folder; anything else is as new as itself.
+ */
+export function shownAt(files: readonly LibraryFile[], file: LibraryFile): number {
+  if (kindOf(file) !== "page") return file.updatedAt
+  const top = file.path.includes("/") ? `${file.path.split("/")[0]}/` : ""
+  return Math.max(
+    file.updatedAt,
+    ...files.filter((entry) => entry.path.startsWith(top)).map((entry) => entry.updatedAt),
+  )
+}
+
 export type Folder = {
   name: string
   path: string

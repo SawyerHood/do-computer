@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinned things · mock-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; }
+html { background: var(--background, #14181a); color: var(--foreground, #e8ecee); }
+body {
+  font-family: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; cursor: pointer; }
+ul { list-style: none; padding: 0; }
+.ic { flex: none; display: block; }
+
+/* The mock-up's own bar: scenes and what each shows. Not part of the design. */
+#nav { padding: 2px 0 0; }
+.ngroups { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.ng { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ng > span { font-size: 11.5px; color: var(--muted-foreground, #8b979c); margin-right: 4px; }
+.nb { font-size: 12.5px; padding: 5px 10px; border-radius: 7px; color: var(--foreground, #c9d2d6); background: var(--muted, #1f2528); white-space: nowrap; }
+.nb:hover { filter: brightness(1.12); }
+.nb.on { background: #2f8f8a; color: #fff; }
+.nb.act { background: transparent; box-shadow: inset 0 0 0 1px var(--border, #3a4347); }
+.nb.act:hover { background: var(--muted, #1f2528); }
+#cap { font-size: 13px; line-height: 1.5; color: var(--muted-foreground, #aab5ba); margin-top: 8px; max-width: 1100px; min-height: 39px; }
+#cap b { color: var(--foreground, #e8ecee); font-weight: 600; }
+#wrap { padding: 10px 0 0; }
+#wrap.real { overflow-x: auto; }
+#fit { position: relative; }
+#stage { width: 1200px; height: 770px; box-shadow: 0 0 0 1px var(--border, #2a3033); transform-origin: 0 0; border-radius: 12px; overflow: hidden; position: absolute; top: 0; left: 0; }
+
+/* The app's colors, as in apps/web/src/styles.css. */
+.t {
+  --agent-color: oklch(0.5 0.08 195);
+  --canvas: oklch(0.997 0.001 212);
+  --ink: oklch(0.27 0.008 212);
+  --shade: oklch(0.27 0.02 212);
+  --frame: color-mix(in oklch, var(--ink) 4.5%, var(--canvas));
+  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.07);
+  --elevation-card: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.04), 0 10px 28px -14px oklch(from var(--shade) l c h / 0.12);
+  --elevation-float: 0 0 0 1px var(--hairline), 0 2px 5px oklch(from var(--shade) l c h / 0.05), 0 22px 48px -22px oklch(from var(--shade) l c h / 0.26);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --primary: oklch(from var(--agent-color) 0.5 c h);
+  --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
+  color: var(--foreground);
+  font-size: 14px;
+}
+.dk .t {
+  --canvas: oklch(0.212 0.004 212);
+  --ink: oklch(0.9 0.006 212);
+  --frame: oklch(0.168 0.004 212);
+  --hairline: color-mix(in oklch, var(--ink) 11%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  --elevation-card: 0 0 0 1px var(--hairline);
+  --elevation-float: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.05), 0 22px 48px -22px oklch(0 0 0 / 0.7);
+  --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  --primary: oklch(from var(--agent-color) 0.62 c h);
+  --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
+}
+.muted { color: var(--muted-foreground); }
+
+/* Frame, sidebar and sheet. */
+.app { width: 1200px; height: 770px; display: flex; background: var(--frame); }
+.side { width: 252px; flex: none; display: flex; flex-direction: column; padding: 8px; }
+.shead { display: flex; align-items: center; gap: 10px; padding: 8px 8px 14px; }
+.shead b { font-weight: 600; }
+.shead .ib { margin-left: auto; }
+.av { width: 28px; height: 28px; border-radius: 50%; background: #1d2b3a; color: #fff; font-size: 10.5px; font-weight: 600; display: grid; place-items: center; flex: none; }
+.slbl { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 8px; font-size: 13px; color: var(--muted-foreground); }
+.row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
+.row.sel { background: var(--card); box-shadow: var(--elevation-raised); }
+.row .cr { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.rt { min-width: 0; flex: 1; }
+.nm { display: flex; justify-content: space-between; align-items: baseline; font-weight: 500; font-size: 14.5px; }
+.nm time { font-size: 11.5px; color: var(--muted-foreground); font-weight: 400; }
+.ln { font-size: 12.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.ln.work { color: var(--primary); }
+.sfoot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px; font-weight: 500; }
+.sfoot .ic { margin-left: auto; color: var(--muted-foreground); }
+
+/* B: what a Dood has pinned, under its row. */
+.rowpins { margin: 1px 0 7px 29px; padding-left: 15px; border-left: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 1px; }
+.rp { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 13px; color: color-mix(in oklch, var(--ink) 84%, var(--canvas)); }
+.rp:hover { background: var(--accent); }
+.rp .ic { color: var(--muted-foreground); }
+.rp .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 450; }
+.rp time { font-size: 11.5px; color: var(--muted-foreground); }
+.rp .pop { display: none; color: var(--muted-foreground); }
+.rp:hover .pop { display: block; }
+.rp:hover time { display: none; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex: none; }
+.pulse { animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+.sheet { flex: 1; min-width: 0; margin: 8px 8px 8px 0; background: var(--background); border-radius: 14px; box-shadow: var(--elevation-card); display: flex; flex-direction: column; overflow: hidden; }
+.strip { height: 56px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 12px 0 14px; }
+.who { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15.5px; }
+.who img { width: 30px; height: 30px; }
+.who .ic { color: var(--muted-foreground); }
+.tabs { display: flex; background: var(--muted); border-radius: 9px; padding: 3px; gap: 2px; }
+.tab { padding: 5px 12px; border-radius: 7px; font-size: 13.5px; color: var(--muted-foreground); display: flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
+.tab.on { background: var(--card); box-shadow: var(--elevation-raised); color: var(--foreground); }
+.tab .dot { margin-left: 1px; }
+.tsep { width: 1px; background: var(--border); margin: 6px 4px; }
+.sr { margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--muted-foreground); font-size: 13.5px; }
+.sr .sc { display: flex; align-items: center; gap: 7px; padding: 0 10px; font-weight: 500; }
+.sr .n { font-size: 11.5px; background: var(--muted); border-radius: 99px; padding: 1px 7px; }
+.ib { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted-foreground); flex: none; position: relative; }
+.ib:hover { background: var(--accent); color: var(--foreground); }
+.ib.pressed { background: color-mix(in oklch, var(--primary) 15%, var(--canvas)); color: var(--primary); }
+.ib.hot { box-shadow: 0 0 0 2px var(--primary); color: var(--foreground); }
+.body { flex: 1; min-height: 0; display: flex; }
+
+/* The chat. */
+.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.msgs { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; padding: 12px 28px 20px; width: 100%; max-width: 736px; margin: 0 auto; }
+.me { align-self: flex-end; max-width: 86%; background: color-mix(in oklch, var(--primary) 15%, var(--canvas)); padding: 10px 16px; border-radius: 16px; font-size: 15px; line-height: 1.55; }
+.ai { font-size: 15px; line-height: 1.65; }
+.ai code, .md code { font-family: "Geist Mono", ui-monospace, monospace; font-size: 0.85em; border: 1px solid var(--hairline); background: var(--muted); border-radius: 6px; padding: 1px 5px; }
+.comp { margin: 0 auto 14px; width: calc(100% - 56px); max-width: 680px; flex: none; border-radius: 16px; box-shadow: var(--elevation-float); background: var(--card); padding: 14px 14px 10px; }
+.comp .ph { color: var(--muted-foreground); font-size: 15px; padding: 0 4px 16px; }
+.comp .cb { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); }
+.comp .cb .sp { flex: 1; }
+.send { margin-left: 6px; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 55%, var(--canvas)); color: #fff; display: grid; place-items: center; }
+.chip { align-self: center; display: flex; align-items: center; gap: 10px; padding: 5px 14px 5px 8px; border-radius: 12px; box-shadow: var(--elevation-raised); margin-top: 6px; font-weight: 500; flex: none; color: var(--foreground); }
+.chip img { width: 38px; height: 38px; }
+.chip .ic { color: var(--muted-foreground); }
+.narrow .msgs { padding: 12px 20px 18px; }
+.narrow .comp { width: calc(100% - 36px); }
+.narrow .ai, .narrow .me { font-size: 14.5px; }
+
+/* What the chat shows when something is pinned, and a file's card. */
+.pcard { display: inline-flex; align-items: center; gap: 12px; padding: 8px 8px 8px 12px; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); font-size: 13.5px; align-self: flex-start; }
+.pcard .pi { color: var(--primary); }
+.pcard b { font-weight: 500; }
+.pcard small { display: block; color: var(--muted-foreground); font-size: 12px; margin-top: 1px; }
+.pcard .bs { display: flex; gap: 6px; margin-left: 8px; }
+.btn { font-size: 12.5px; padding: 5px 10px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
+.btn:hover { background: var(--accent); }
+.fcard { display: inline-flex; align-self: flex-start; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); font-size: 13.5px; position: relative; }
+.fcard > div { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+.fcard b { font-weight: 500; display: block; }
+.fcard small { color: var(--muted-foreground); font-size: 12px; }
+.fcard > button { width: 44px; display: grid; place-items: center; border-left: 1px solid var(--hairline); color: var(--muted-foreground); position: relative; }
+.fcard > button:hover { color: var(--foreground); }
+.fcard > button.pressed { color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, var(--canvas)); border-radius: 0 12px 12px 0; }
+.fcard > button.hot::after { content: ""; position: absolute; inset: 5px; border-radius: 8px; box-shadow: 0 0 0 2px var(--primary); }
+.tip { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--canvas); font-size: 12px; font-weight: 500; padding: 5px 9px; border-radius: 7px; white-space: nowrap; z-index: 5; pointer-events: none; }
+.tip.r { left: auto; right: -6px; transform: none; }
+
+/* The Dood's panel, and A: what it has pinned, under its face. */
+.aside { width: 320px; flex: none; margin: 0 10px 10px 0; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); display: flex; flex-direction: column; overflow: hidden; }
+.face { position: relative; padding: 16px 16px 14px; text-align: center; flex: none; }
+.face .ib { position: absolute; top: 10px; right: 10px; }
+.face .big { width: 132px; height: 132px; animation: bob 3.4s ease-in-out infinite; }
+.face.tall .big { width: 190px; height: 190px; margin: 14px 0 6px; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.an { font-size: 18px; font-weight: 500; margin-top: 2px; }
+.as { font-size: 13.5px; color: var(--muted-foreground); margin-top: 2px; height: 20px; display: flex; justify-content: center; align-items: center; gap: 7px; }
+.as.work { color: var(--primary); }
+.pins { padding: 2px 16px 16px; flex: none; }
+.lbl { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted-foreground); font-weight: 500; margin-bottom: 8px; height: 22px; }
+.lbl .ib { width: 22px; height: 22px; border-radius: 6px; }
+.tile { border-radius: 10px; box-shadow: var(--elevation-raised); background: var(--card); overflow: hidden; cursor: pointer; transition: box-shadow 0.2s; }
+.tile:hover { box-shadow: var(--elevation-card); }
+.tile.busy { box-shadow: 0 0 0 1.5px var(--primary), 0 0 0 5px color-mix(in oklch, var(--primary) 18%, transparent); }
+.thumb { height: 160px; overflow: hidden; position: relative; background: var(--background); }
+.thumb::after { content: ""; position: absolute; inset: auto 0 0 0; height: 30px; background: linear-gradient(transparent, var(--card)); }
+.thumb-in { width: 600px; transform: scale(0.48); transform-origin: 0 0; pointer-events: none; }
+.tf { display: flex; align-items: center; gap: 8px; padding: 7px 7px 7px 10px; font-size: 13px; border-top: 1px solid var(--hairline); }
+.tf > .ic { color: var(--muted-foreground); }
+.tt { font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.ta { display: flex; gap: 1px; }
+.ta button { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--muted-foreground); }
+.ta button:hover { background: var(--accent); color: var(--foreground); }
+.prow { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin-top: 7px; border-radius: 9px; box-shadow: var(--elevation-raised); font-size: 13px; cursor: pointer; }
+.prow:hover { background: var(--muted); }
+.prow .ic { color: var(--muted-foreground); }
+.did { border-top: 1px solid var(--hairline); padding: 14px 18px; flex: 1; min-height: 0; overflow: hidden; }
+.did .lbl { margin-bottom: 6px; }
+.did li { display: flex; gap: 9px; align-items: baseline; font-size: 13px; padding: 4px 0; color: color-mix(in oklch, var(--ink) 80%, var(--canvas)); }
+.did li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--input); flex: none; transform: translateY(-2px); }
+.did li time { margin-left: auto; color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
+.did p { font-size: 13px; line-height: 1.55; color: var(--muted-foreground); }
+
+/* The pretend board Juniper keeps: a page in the library, drawn in the app's colors. */
+.board { width: 600px; padding: 20px 22px 22px; background: var(--background); color: var(--foreground); font-size: 13px; }
+.bhead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.bt { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+.bs { font-size: 12.5px; color: var(--muted-foreground); margin-top: 2px; }
+.bs .upd { color: var(--primary); }
+.bday { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--muted); color: var(--muted-foreground); font-weight: 500; white-space: nowrap; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kpi, .bcard { border-radius: 10px; box-shadow: var(--elevation-raised); padding: 12px 14px; }
+.kl { font-size: 12px; color: var(--muted-foreground); }
+.kv { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.kd { font-size: 12px; color: var(--muted-foreground); }
+.kd.up { color: oklch(0.52 0.12 155); }
+.dk .kd.up { color: oklch(0.75 0.14 155); }
+.kbar { height: 4px; border-radius: 9px; background: var(--muted); margin-top: 7px; overflow: hidden; }
+.kbar i { display: block; height: 100%; background: var(--primary); border-radius: 9px; }
+.brow { display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; margin-top: 10px; }
+.bl { font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px; display: flex; justify-content: space-between; }
+.bl b { color: var(--foreground); font-weight: 600; }
+.bcard svg { display: block; width: 100%; height: auto; overflow: visible; }
+.step { display: flex; align-items: center; gap: 8px; padding: 4px 4px; margin: 0 -4px; font-size: 13px; cursor: pointer; border-radius: 6px; }
+.step:hover { background: var(--muted); }
+.cbx { width: 15px; height: 15px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--input); display: grid; place-items: center; flex: none; color: var(--canvas); }
+.cbx .ic { opacity: 0; }
+.step.done .cbx { background: var(--primary); box-shadow: none; }
+.step.done .cbx .ic { opacity: 1; }
+.step.done .st { color: var(--muted-foreground); text-decoration: line-through; }
+.st { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.whoc { margin-left: auto; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--muted); color: var(--muted-foreground); flex: none; }
+.whoc.you { background: color-mix(in oklch, var(--primary) 14%, var(--canvas)); color: var(--primary); }
+.flash { animation: flash 2.6s ease-out; }
+@keyframes flash { 0%, 35% { background: color-mix(in oklch, var(--primary) 22%, var(--canvas)); } 100% { background: transparent; } }
+.board.n { width: 100%; padding: 14px 14px 18px; }
+.board.n .bt { font-size: 18px; }
+.board.n .kpis { gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.board.n .kpi { padding: 9px 10px; }
+.board.n .kv { font-size: 21px; }
+.board.n .kl, .board.n .kd { font-size: 10.5px; line-height: 1.3; }
+.board.n .brow { grid-template-columns: 1fr; }
+.board.n .brow .bcard:first-child { display: none; }
+
+/* A pinned thing open beside the chat: the app's document panel. */
+.doc { flex: none; width: 572px; margin: 0 10px 10px 0; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); display: flex; flex-direction: column; overflow: hidden; }
+.dbar { height: 54px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--hairline); }
+.dn { font-weight: 500; font-size: 14px; white-space: nowrap; }
+.dp { font-size: 12.5px; color: var(--muted-foreground); margin: 0 8px; white-space: nowrap; }
+.seg { display: flex; background: var(--muted); border-radius: 8px; padding: 2px; margin: 0 6px 0 auto; font-size: 13px; }
+.seg span { padding: 4px 10px; border-radius: 6px; color: var(--muted-foreground); display: flex; gap: 6px; align-items: center; font-weight: 500; }
+.seg .on { background: var(--card); box-shadow: var(--elevation-raised); color: var(--foreground); }
+.dbody { flex: 1; min-height: 0; overflow: hidden; background: var(--background); display: flex; justify-content: center; }
+.dbody > .bw { width: 600px; flex: none; transform: scale(0.92); transform-origin: 50% 0; }
+.dfoot { height: 34px; flex: none; border-top: 1px solid var(--hairline); display: flex; align-items: center; gap: 8px; padding: 0 16px; font-size: 12.5px; color: var(--muted-foreground); }
+.dfoot.work { color: var(--primary); }
+.dfoot span:last-child { margin-left: auto; }
+.md { padding: 34px 40px; font-size: 15px; line-height: 1.7; width: 100%; }
+.md h1 { font-size: 28px; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 12px; }
+.md h2 { font-size: 19px; margin: 30px 0 10px; }
+.md ul.b { list-style: disc; padding-left: 22px; }
+.md li { padding: 2px 0; }
+.md .step { cursor: default; font-size: 15px; padding: 3px 4px; }
+
+/* C: a pinned thing as a page of the Dood's own. */
+.page { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.pbar { display: flex; align-items: center; gap: 6px; padding: 4px 16px 10px 20px; font-size: 13px; color: var(--muted-foreground); }
+.pbar .btn { color: var(--foreground); display: flex; align-items: center; gap: 6px; }
+.pbar .sp { flex: 1; }
+.pwrap { flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding-top: 6px; }
+.pwrap > div { width: 600px; transform: scale(1.3); transform-origin: 50% 0; }
+
+/* Popped out to a window of its own, over whatever else is on the screen. */
+.desk { width: 1200px; height: 770px; position: relative; background: linear-gradient(135deg, #7fb8b0, #2f6a80 55%, #283a63); overflow: hidden; }
+.mbar { height: 28px; background: rgba(255, 255, 255, 0.24); display: flex; gap: 18px; align-items: center; padding: 0 16px; font-size: 13px; color: #fff; }
+.mbar b { font-weight: 600; }
+.mbar span:last-child { margin-left: auto; }
+.win { position: absolute; border-radius: 12px; background: var(--background); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 30px 70px -20px rgba(0, 0, 0, 0.55); overflow: hidden; }
+.wbar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--hairline); font-size: 13px; font-weight: 500; }
+.lights { display: flex; gap: 7px; margin-right: 8px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.lights i:nth-child(2) { background: #febc2e; }
+.lights i:nth-child(3) { background: #28c840; }
+.other { left: 50px; top: 60px; width: 860px; height: 640px; }
+.other .tb { height: 38px; border-bottom: 1px solid var(--hairline); display: flex; gap: 14px; align-items: center; padding: 0 14px; color: var(--muted-foreground); font-size: 12.5px; }
+.grid { height: 100%; background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 120px 28px; position: relative; }
+.grid span { position: absolute; height: 28px; line-height: 28px; padding: 0 8px; font-size: 12.5px; white-space: nowrap; }
+.float { right: 40px; bottom: 46px; width: 384px; overflow: visible; }
+.float > div { overflow: hidden; }
+.float .wbar { border-radius: 12px 12px 0 0; padding-left: 66px; height: 44px; gap: 2px; }
+.float .wbar small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted-foreground); }
+.float .wbar > div { flex: 1; line-height: 1.25; }
+.float .perch { position: absolute; left: 4px; top: -30px; width: 64px; height: 64px; animation: bob 3.4s ease-in-out infinite; z-index: 2; }
+.float .fb { height: 264px; border-radius: 0 0 12px 12px; }
+.float .fb > div { width: 600px; transform: scale(0.64); transform-origin: 0 0; }
+.note { position: absolute; right: 40px; top: 74px; width: 222px; color: #fff; font-size: 13.5px; line-height: 1.55; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); opacity: 0.92; }
+
+/* On a phone. */
+.phones { width: 1200px; height: 770px; background: var(--frame); display: flex; justify-content: center; align-items: center; gap: 80px; }
+.phone { width: 320px; height: 670px; border-radius: 46px; background: var(--background); box-shadow: 0 0 0 9px #16191b, 0 0 0 10px #3a3f42, 0 40px 80px -30px rgba(0, 0, 0, 0.4); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+.pst { height: 46px; flex: none; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 30px 6px; font-size: 13.5px; font-weight: 600; }
+.pnav { display: flex; align-items: center; gap: 8px; padding: 6px 12px 8px; font-weight: 600; font-size: 15.5px; flex: none; }
+.pnav img { width: 30px; height: 30px; }
+.pnav .sp { flex: 1; }
+.pchips { display: flex; gap: 6px; padding: 2px 12px 10px; border-bottom: 1px solid var(--hairline); overflow: hidden; flex: none; }
+.pchip { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px; box-shadow: var(--elevation-raised); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.pchip .ic { color: var(--muted-foreground); }
+.pchip time { color: var(--muted-foreground); font-weight: 400; }
+.phone .msgs { padding: 12px 14px 14px; gap: 14px; }
+.phone .ai, .phone .me { font-size: 14.5px; }
+.phone .comp { width: calc(100% - 24px); margin-bottom: 22px; padding: 11px 12px 8px; }
+.phone .comp .ph { padding-bottom: 10px; }
+.phone .pcard { font-size: 13px; }
+.sheetp { position: absolute; inset: 52px 0 0 0; background: var(--background); border-radius: 18px 18px 0 0; box-shadow: var(--elevation-float); display: flex; flex-direction: column; }
+.sheetp .grab { width: 36px; height: 5px; border-radius: 9px; background: var(--input); margin: 7px auto 2px; }
+.sheetp .sh { display: flex; align-items: center; gap: 8px; padding: 6px 14px 10px; border-bottom: 1px solid var(--hairline); }
+.sheetp .sh div { flex: 1; font-weight: 600; font-size: 15px; line-height: 1.25; }
+.sheetp .sh small { display: block; font-weight: 400; font-size: 12px; color: var(--muted-foreground); }
+.sheetp .sh a { color: var(--primary); font-weight: 600; font-size: 15px; }
+.dim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.28); }
+.plabel { text-align: center; font-size: 13px; color: var(--muted-foreground); margin-top: 22px; }
+</style>
+</head>
+<body>
+<div id="nav"><div class="ngroups" id="groups"></div><div id="cap"></div></div>
+<div id="wrap"><div id="fit"><div id="stage"></div></div></div>
+<script>
+window.CREATURES = {"juniper":"data:image/png;base64,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","moss":"data:image/png;base64,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","pixel":"data:image/png;base64,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","otto":"data:image/png;base64,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"}
+</script>
+<script>
+// The pinned things mock-up: every scene is drawn from the little state below, so a change made
+// in one (an update by the Dood, a step ticked, a pin taken off) shows in the others.
+const C = window.CREATURES
+const W = 1200
+const H = 770
+
+const I = {
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  left: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  right: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+  out: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  next: '<path d="m9 18 6-6-6-6"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  updown: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  clip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+  up: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  board: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  pip: '<path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4"/><rect width="10" height="7" x="12" y="13" rx="2"/>',
+  sliders: '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+  chats: '<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/>',
+  eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+}
+const ic = (name, size = 16, cls = "") =>
+  `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${I[name]}</svg>`
+
+const D = {
+  juniper: { name: "Juniper", color: "#2f8f8a", line: "Ticked it off, and the test starts today.", time: "2m" },
+  moss: { name: "Moss", color: "#5f8a4e", line: "Deploy 412 is green.", time: "14m" },
+  pixel: { name: "Pixel", color: "#d9962b", line: "Left three notes on the checkout page.", time: "1h" },
+  otto: { name: "Otto", color: "#3f8fc9", line: "Two things need an answer today.", time: "3h" },
+}
+
+const S = {
+  visits: 18240,
+  rate: 3.4,
+  clicks: 9,
+  signups: [18, 22, 19, 24, 21, 20, 23, 19, 22, 25, 21, 24, 26, 23],
+  steps: [
+    { t: "Pull thirty days of analytics", who: "Juniper", done: true },
+    { t: "Draft the new Team copy", who: "Juniper", done: true },
+    { t: "Build the one-row layout", who: "You", done: true },
+    { t: "Start the two-week test", who: "Juniper", done: false },
+    { t: "Decide on the Team price", who: "You", done: false },
+  ],
+  updated: "2 min ago",
+  short: "2m",
+  working: false,
+  flash: false,
+  unseen: false,
+  pinned: true,
+  planPinned: false,
+  runs: 0,
+}
+
+// The board Juniper keeps. One function draws it wherever it is shown, so the small one under
+// the face is the real page, made smaller.
+function board(narrow) {
+  const f = S.flash ? " flash" : ""
+  const max = Math.max(...S.signups)
+  const min = Math.min(...S.signups) - 4
+  const pts = S.signups.map((v, i) => [(i * 240) / (S.signups.length - 1), 78 - ((v - min) / (max - min)) * 70])
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ")
+  const last = pts[pts.length - 1]
+  const kpi = (label, value, under, part, up) =>
+    `<div class="kpi${f}"><div class="kl">${label}</div><div class="kv">${value}</div>${
+      part == null ? `<div class="kd${up ? " up" : ""}">${under}</div>` : `<div class="kd">${under}</div><div class="kbar"><i style="width:${Math.min(100, part * 100)}%"></i></div>`
+    }</div>`
+  return `<div class="board${narrow ? " n" : ""}">
+    <div class="bhead"><div><div class="bt">Pricing relaunch</div><div class="bs">Kept by Juniper · ${
+      S.working ? '<span class="upd">updating now</span>' : `updated ${S.updated}`
+    }</div></div><div class="bday">Day 12 of 30</div></div>
+    <div class="kpis">
+      ${kpi("Visits this month", S.visits.toLocaleString("en-US"), narrow ? "+22%" : "+22% since the redesign", null, true)}
+      ${kpi("Sign-up rate", S.rate.toFixed(1) + "%", "Goal 4.5%", S.rate / 4.5)}
+      ${kpi("Team plan clicks", S.clicks + "%", "Goal 18%", S.clicks / 18)}
+    </div>
+    <div class="brow">
+      <div class="bcard${f}"><div class="bl"><span>Sign-ups a day</span><b>${S.signups[S.signups.length - 1]}</b></div>
+        <svg viewBox="0 0 240 84"><path d="${line} L240 84 L0 84 Z" fill="var(--primary)" opacity="0.12"/><path d="${line}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="var(--primary)" stroke="var(--background)" stroke-width="2"/></svg>
+      </div>
+      <div class="bcard"><div class="bl"><span>Steps</span><span>${S.steps.filter((s) => s.done).length} of ${S.steps.length}</span></div>
+        ${S.steps
+          .map(
+            (s, i) =>
+              `<div class="step${s.done ? " done" : ""}${S.flash && i === 3 ? " flash" : ""}" data-step="${i}"><span class="cbx">${ic("check", 11)}</span><span class="st">${s.t}</span><span class="whoc${s.who === "You" ? " you" : ""}">${s.who}</span></div>`,
+          )
+          .join("")}
+      </div>
+    </div>
+  </div>`
+}
+
+const pinsOf = (key) =>
+  key === "juniper"
+    ? [
+        ...(S.pinned ? [{ icon: "board", title: "Launch board", time: S.short, live: S.working, unseen: S.unseen, go: "open" }] : []),
+        { icon: "file", title: "plan.md", time: "1d", go: "pin" },
+      ]
+    : key === "moss"
+      ? [{ icon: "board", title: "Deploys", time: "14m", go: "open" }]
+      : []
+
+function side({ open = "juniper", pins = false } = {}) {
+  const rows = Object.entries(D)
+    .map(([key, d]) => {
+      const busy = key === "juniper" && S.working
+      const under = pins && pinsOf(key).length
+        ? `<div class="rowpins">${pinsOf(key)
+            .map(
+              (p) =>
+                `<a class="rp" data-go="${p.go}" title="Open beside the chat">${ic(p.icon, 14)}<span class="tt">${p.title}</span>${
+                  p.live ? '<span class="dot pulse"></span>' : p.unseen ? '<span class="dot"></span>' : ""
+                }<time>${p.live ? "now" : p.time}</time>${ic("pip", 14, "pop")}</a>`,
+            )
+            .join("")}</div>`
+        : ""
+      return `<a class="row${key === open ? " sel" : ""}" data-go="${key === "otto" ? "b" : "a"}"><img class="cr" src="${C[key]}" alt=""><div class="rt"><div class="nm"><span>${d.name}</span><time>${busy ? "now" : d.time}</time></div><div class="ln${busy ? " work" : ""}">${
+        busy ? "Updating Launch board…" : d.line
+      }</div></div></a>${under}`
+    })
+    .join("")
+  return `<div class="side"><div class="shead"><span class="av">SA</span><b>Personal</b>${ic("updown", 14, "muted")}<button class="ib">${ic("left", 17)}</button></div>
+    <div class="slbl"><span>Doods</span>${ic("plus", 17)}</div>${rows}
+    <div class="sfoot"><span class="av">SA</span>Sawyer${ic("updown", 14)}</div></div>`
+}
+
+function strip({ who = "juniper", tab = "chat", pinTabs = false } = {}) {
+  const t = (key, label) => `<a class="tab${tab === key ? " on" : ""}" data-go="${key === "chat" ? (pinTabs ? "c-chat" : "") : ""}">${label}</a>`
+  return `<div class="strip"><div class="who"><img src="${C[who]}" alt="">${D[who].name}${ic("down", 15)}</div>
+    <div class="tabs">${t("chat", "Chat")}${t("library", "Library")}${t("auto", "Automations")}${
+      pinTabs
+        ? `<span class="tsep"></span><a class="tab${tab === "board" ? " on" : ""}" data-go="c">${ic("pin", 13)}Launch board${
+            S.unseen && tab !== "board" ? '<span class="dot"></span>' : S.working ? '<span class="dot pulse"></span>' : ""
+          }</a><a class="tab" data-go="pin">${ic("pin", 13)}plan.md</a>`
+        : ""
+    }</div>
+    <div class="sr"><span class="sc">${ic("chats", 16)}Side chats<span class="n">1</span></span><button class="ib">${ic("sliders", 16)}</button><button class="ib">${ic("right", 17)}</button></div></div>`
+}
+
+const composer = (who, extra = "") =>
+  `<div class="comp"><div class="ph">Message ${D[who].name}${extra}</div><div class="cb">${ic("clip", 18)}<span class="sp"></span>${ic("mic", 18)}<span class="send">${ic("up", 17)}</span></div></div>`
+
+const pinCard = () =>
+  S.pinned
+    ? `<div class="pcard"><span class="pi">${ic("pin", 17)}</span><div><b>Juniper pinned Launch board</b><small>boards/relaunch.html</small></div><div class="bs"><button class="btn" data-go="open">Open</button><button class="btn" data-act="unpin">Unpin</button></div></div>`
+    : `<div class="pcard"><span class="muted">${ic("pin", 17)}</span><div><b class="muted">Launch board is no longer pinned</b><small>boards/relaunch.html</small></div><div class="bs"><button class="btn" data-act="unpin">Pin it again</button></div></div>`
+
+const juniperTalk = (short) => [
+  ...(short
+    ? []
+    : [`<div class="me">Can you keep a board for the pricing relaunch (the numbers, the steps, what's waiting on me) and pin it so I can keep an eye on it?</div>`]),
+  `<div class="ai">Done. The board is a page in the library, <code>boards/relaunch.html</code>. I bring the numbers up to date every morning and tick steps off as they land. You can tick yours on it too.</div>`,
+  pinCard(),
+  `<div class="me">The one-row layout shipped this morning, by the way.</div>`,
+  `<div class="ai">Ticked it off, and the two-week test starts today.</div>`,
+]
+
+function chat({ who = "juniper", msgs, narrow = false, chip = false }) {
+  return `<div class="chat${narrow ? " narrow" : ""}">${
+    chip ? `<div class="chip"><img src="${C[who]}" alt="">${D[who].name}${ic("refresh", 15)}</div>` : ""
+  }<div class="msgs">${msgs.join("")}</div>${composer(who)}</div>`
+}
+
+function aside({ who = "juniper", pins = false } = {}) {
+  const busy = who === "juniper" && S.working
+  const list = pinsOf("juniper")
+  const first = list[0]
+  const tile =
+    first && first.icon === "board"
+      ? `<div class="tile${busy ? " busy" : ""}" data-go="open" title="Open beside the chat"><div class="thumb"><div class="thumb-in">${board()}</div></div>
+        <div class="tf">${ic("board", 15)}<span class="tt">Launch board</span><span class="tm">${
+          busy ? '<span class="dot pulse"></span>Updating' : S.unseen ? `<span class="dot"></span>${S.updated}` : S.updated
+        }</span><span class="ta"><button data-go="open" title="Open beside the chat">${ic("right", 15)}</button><button data-go="window" title="Pop out to a window of its own">${ic("pip", 15)}</button></span></div></div>`
+      : ""
+  const rest = list
+    .filter((p) => p !== first || !tile)
+    .map((p) => `<div class="prow" data-go="${p.go}">${ic(p.icon, 15)}<span class="tt">${p.title}</span><span class="tm">Yesterday</span>${ic("next", 14)}</div>`)
+    .join("")
+  const did =
+    who === "juniper"
+      ? `<ul><li>Made the launch board<time>9:12</time></li><li>Pinned it<time>9:12</time></li><li>Ticked off the one-row layout<time>${S.runs ? "9:41" : "2 min ago"}</time></li>${
+          S.runs ? `<li>Brought the numbers up to date<time>just now</time></li>` : ""
+        }</ul>`
+      : `<p>Nothing yet. When ${D[who].name} gets something substantial done in this chat, it notes it here, with its steps inside.</p>`
+  return `<aside class="aside"><div class="face${pins ? "" : " tall"}"><button class="ib">${ic("refresh", 15)}</button><img class="big" src="${C[who]}" alt=""><div class="an">${D[who].name}</div>
+    <div class="as${busy ? " work" : ""}">${busy ? '<span class="dot pulse"></span>Updating Launch board' : "Ready"}</div></div>
+    ${pins ? `<div class="pins"><div class="lbl"><span>Pinned</span><button class="ib" title="Pin something from the library">${ic("plus", 15)}</button></div>${tile}${rest}</div>` : ""}
+    <div class="did"><div class="lbl">What it did here</div>${did}</div></aside>`
+}
+
+function doc({ title, path, modes, body, pinned, hot, act, foot }) {
+  return `<div class="doc"><div class="dbar"><span class="dn">${title}</span><span class="dp">${path}</span>
+    <div class="seg">${modes.map((m, i) => `<span class="${i ? "" : "on"}">${ic(m[0], 14)}${m[1]}</span>`).join("")}</div>
+    <button class="ib${pinned ? " pressed" : ""}${hot ? " hot" : ""}" data-act="${act}">${ic("pin", 16)}${hot ? `<span class="tip r">${pinned ? "Pinned to Juniper. Press to unpin" : "Pin to Juniper"}</span>` : ""}</button>
+    <button class="ib">${ic("share", 16)}</button>
+    <button class="ib" data-go="window" title="Pop out to a window of its own">${ic("pip", 16)}</button><button class="ib" data-go="a" title="Close">${ic("x", 17)}</button></div>
+    <div class="dbody">${body}</div>${foot ?? ""}</div>`
+}
+
+const app = (who, inside, sidebar) => `<div class="app t" style="--agent-color:${D[who].color}">${sidebar}<div class="sheet">${inside}</div></div>`
+
+const scenes = {
+  a: () =>
+    app(
+      "juniper",
+      `${strip()}<div class="body">${chat({ msgs: juniperTalk() })}${aside({ pins: true })}</div>`,
+      side(),
+    ),
+  b: () =>
+    app(
+      "otto",
+      `${strip({ who: "otto" })}<div class="body">${chat({
+        who: "otto",
+        msgs: [
+          `<div class="me">What needs me today?</div>`,
+          `<div class="ai">Two things. Dana wants an answer on the Thursday offsite by noon, and the invoice from Northwind is due tomorrow. Everything else can wait until Monday.</div>`,
+        ],
+      })}${aside({ who: "otto" })}</div>`,
+      side({ open: "otto", pins: true }),
+    ),
+  c: () =>
+    app(
+      "juniper",
+      `${strip({ tab: "board", pinTabs: true })}<div class="page"><div class="pbar"><span>boards/relaunch.html</span><span class="sp"></span><button class="btn" data-go="open">${ic("chats", 14)}Chat beside it</button><button class="ib">${ic("share", 16)}</button><button class="ib" data-go="window">${ic("pip", 16)}</button><button class="ib">${ic("more", 16)}</button></div><div class="pwrap"><div>${board()}</div></div></div>`,
+      side(),
+    ),
+  "c-chat": () =>
+    app("juniper", `${strip({ pinTabs: true })}<div class="body">${chat({ msgs: juniperTalk() })}${aside()}</div>`, side()),
+  open: () =>
+    app(
+      "juniper",
+      `${strip()}<div class="body">${chat({ msgs: juniperTalk(true), narrow: true, chip: true })}${doc({
+        title: "Launch board",
+        path: "boards/relaunch.html",
+        modes: [
+          ["eye", "Page"],
+          ["code", "Source"],
+        ],
+        pinned: S.pinned,
+        act: "unpin",
+        body: `<div class="bw">${board()}</div>`,
+        foot: S.working
+          ? `<div class="dfoot work"><span class="dot pulse"></span><span>Juniper is updating this page</span><span></span></div>`
+          : `<div class="dfoot">${ic("pin", 13)}<span>${S.pinned ? "Juniper pinned this" : "Not pinned"}</span><span>Follows the file as it changes</span></div>`,
+      })}</div>`,
+      side(),
+    ),
+  pin: () =>
+    app(
+      "juniper",
+      `${strip()}<div class="body">${chat({
+        narrow: true,
+        chip: true,
+        msgs: [
+          `<div class="me">Plan the pricing page relaunch</div>`,
+          `<div class="ai">I wrote the plan down. It has what changes, the numbers to watch and the steps.</div>`,
+          `<div class="fcard"><div>${ic("file", 20, "muted")}<span><b>plan.md</b><small>780 B</small></span></div><button>${ic("download", 16)}</button><button>${ic("share", 16)}</button><button class="${
+            S.planPinned ? "pressed" : "hot"
+          }" data-act="plan">${ic("pin", 16)}</button></div>`,
+        ],
+      })}${doc({
+        title: "plan.md",
+        path: "pricing/plan.md",
+        modes: [
+          ["eye", "Read"],
+          ["pencil", "Edit"],
+        ],
+        pinned: S.planPinned,
+        hot: true,
+        act: "plan",
+        body: `<div class="md"><h1>Pricing page relaunch</h1><p>The redesign lifted visits and hurt sign-ups. This is the plan to get both.</p><h2>What changes</h2><ul class="b"><li>The three plans go back in one row on a laptop.</li><li>The Team card gets its old button, <code>Start free</code>.</li><li>The comparison table moves under the plans.</li></ul><h2>Steps</h2>${[
+          ["Pull thirty days of analytics", 1],
+          ["Draft the new Team copy", 1],
+          ["Build the one-row layout", 1],
+          ["Run it against the old page for two weeks", 0],
+        ]
+          .map(([t, d]) => `<div class="step${d ? " done" : ""}"><span class="cbx">${ic("check", 11)}</span><span class="st">${t}</span></div>`)
+          .join("")}</div>`,
+      })}</div>`,
+      side(),
+    ),
+  window: () => {
+    const cells = [
+      [0, 0, "Channel", 600], [1, 0, "Spend", 600], [2, 0, "Visits", 600], [3, 0, "Sign-ups", 600], [4, 0, "Cost each", 600],
+      [0, 1, "Search"], [1, 1, "$4,200"], [2, 1, "7,410"], [3, 1, "251"], [4, 1, "$16.73"],
+      [0, 2, "Newsletter"], [1, 2, "$900"], [2, 2, "3,022"], [3, 2, "148"], [4, 2, "$6.08"],
+      [0, 3, "Comparison links"], [1, 3, "$0"], [2, 3, "4,960"], [3, 3, "139"], [4, 3, "$0.00"],
+      [0, 4, "Social"], [1, 4, "$1,750"], [2, 4, "2,848"], [3, 4, "74"], [4, 4, "$23.65"],
+      [0, 6, "Total", 600], [1, 6, "$6,850", 600], [2, 6, "18,240", 600], [3, 6, "612", 600],
+    ]
+    return `<div class="desk t" style="--agent-color:${D.juniper.color}"><div class="mbar"><b>Numbers</b><span>File</span><span>Edit</span><span>Insert</span><span>Table</span><span>View</span><span>Tue 9:41</span></div>
+      <div class="win other"><div class="wbar"><span class="lights"><i></i><i></i><i></i></span>Q4 channels.numbers</div><div class="tb"><span>Sheet 1</span><span>Sheet 2</span><span>+</span></div>
+        <div class="grid">${cells.map(([x, y, text, weight]) => `<span style="left:${x * 120}px;top:${y * 28}px;font-weight:${weight ?? 400}">${text}</span>`).join("")}</div></div>
+      <div class="note">Your own work is in front. Juniper's board stays over it, and changes as Juniper changes the file.</div>
+      <div class="win float"><img class="perch" src="${C.juniper}" alt=""><div class="wbar"><div>Launch board<small>${
+        S.working ? "Juniper is updating it" : `Juniper · updated ${S.updated}`
+      }</small></div><button class="ib pressed" title="Stays over other windows">${ic("pin", 15)}</button><button class="ib" data-go="open" title="Back to the app">${ic("out", 15)}</button><button class="ib" data-go="a" title="Close">${ic("x", 16)}</button></div>
+        <div class="fb"><div>${board()}</div></div></div></div>`
+  },
+  phone: () => {
+    const chips = `<div class="pchips"><a class="pchip">${ic("board", 14)}Launch board<time>${S.short}</time></a><a class="pchip">${ic("file", 14)}plan.md</a></div>`
+    const nav = `<div class="pst"><span>9:41</span><span>5G ▮</span></div><div class="pnav">${ic("back", 22)}<img src="${C.juniper}" alt="">Juniper<span class="sp"></span>${ic("more", 20, "muted")}</div>`
+    return `<div class="phones t" style="--agent-color:${D.juniper.color}">
+      <div><div class="phone">${nav}${chips}<div class="msgs">${juniperTalk(true).slice(0, 2).join("")}<div class="me">The one-row layout shipped this morning.</div><div class="ai">Ticked it off, and the two-week test starts today.</div></div>${composer("juniper")}</div><div class="plabel">Pinned things ride under Juniper's name</div></div>
+      <div><div class="phone">${nav}${chips}<div class="dim"></div><div class="sheetp"><div class="grab"></div><div class="sh"><div>Launch board<small>${
+        S.working ? "Juniper is updating it" : `Updated ${S.updated}`
+      }</small></div><a>Done</a></div>${board(true)}</div></div><div class="plabel">A tap opens one over the chat</div></div>
+    </div>`
+  },
+}
+
+const caps = {
+  a: "<b>A · Under his face.</b> Juniper's panel gets a Pinned shelf between the face and “What it did here”. The first pin is the page itself, drawn small and kept current; others are rows. Press the tile to open it beside the chat, or its second button to pop it out to a window. The chat shows the moment Juniper pinned it, with Unpin.",
+  b: "<b>B · Under his row.</b> Pins hang under each Dood's row in the left sidebar, so they are in reach whichever Dood you are talking to (here, Otto). A dot marks one that changed since you looked; it pulses while the Dood is changing it. Press one to open it.",
+  c: "<b>C · A tab of his own.</b> A pinned thing becomes a page of the Dood's, next to Chat, Library and Automations, and gets the whole sheet. “Chat beside it” puts the chat back next to it.",
+  "c-chat": "<b>C · A tab of his own.</b> Back on the chat, the pins wait in the strip; a dot on a tab says it changed.",
+  open: "<b>Popped out beside the chat.</b> The app's document panel, as today, plus a pin button (pressed here) and a button to pop it out to a window. It follows the file: press “Juniper updates the board” above and watch it change. Steps can be ticked right on it.",
+  window: "<b>Popped out to a window of its own.</b> In the desktop app it stays over your other windows, with Juniper perched on it, the way the desktop companion does. In a browser it would be a small window of its own.",
+  pin: "<b>Pinning it yourself.</b> One press on the pin, on a file's card in the chat or on the bar of an open document (the library's own list would have it in each row's menu). It pins to the Dood you are with. A Dood pins with a tool of its own and does not have to ask.",
+  phone: "<b>On a phone,</b> where the panel does not exist, pins are chips under the Dood's name, and one opens as a sheet over the chat.",
+}
+
+const nav = [
+  ["Where pins sit", [["a", "A · Under his face"], ["b", "B · Under his row"], ["c", "C · A tab of his own"]]],
+  ["Popped out", [["open", "Beside the chat"], ["window", "Its own window"]]],
+  ["Also", [["pin", "Pinning it yourself"], ["phone", "Phone"]]],
+]
+
+let cur = "a"
+let real = false
+const stage = document.getElementById("stage")
+const fitBox = document.getElementById("fit")
+
+function fit() {
+  const room = document.getElementById("wrap").clientWidth
+  const k = real ? 1 : Math.min(1, room / W)
+  stage.style.transform = `scale(${k})`
+  fitBox.style.height = `${H * k}px`
+  fitBox.style.width = `${W * k}px`
+}
+
+function render() {
+  stage.innerHTML = scenes[cur]()
+  document.getElementById("groups").innerHTML =
+    nav
+      .map(
+        ([label, items]) =>
+          `<div class="ng"><span>${label}</span>${items.map(([key, text]) => `<button class="nb${cur === key || (key === "c" && cur === "c-chat") ? " on" : ""}" data-go="${key}">${text}</button>`).join("")}</div>`,
+      )
+      .join("") +
+    `<div class="ng"><button class="nb act" data-act="update">▶ Juniper updates the board</button><button class="nb act" data-act="dark">${stage.classList.contains("dk") ? "Light" : "Dark"}</button><button class="nb act" data-act="real">${real ? "Fit to width" : "Full size"}</button></div>`
+  document.getElementById("cap").innerHTML = caps[cur]
+  document.getElementById("wrap").classList.toggle("real", real)
+  fit()
+}
+
+function go(name) {
+  if (!scenes[name]) return
+  cur = name
+  if (name === "open" || name === "window" || name === "c" || name === "a") S.unseen = false
+  S.flash = false
+  history.replaceState(null, "", `#${name}`)
+  render()
+}
+
+function update() {
+  if (S.working) return
+  S.working = true
+  S.flash = false
+  render()
+  setTimeout(() => {
+    S.working = false
+    S.flash = true
+    S.visits += 172 + S.runs * 9
+    S.rate = Math.min(4.5, +(S.rate + 0.2).toFixed(1))
+    S.clicks = Math.min(18, S.clicks + 2)
+    S.signups = S.signups.slice(1).concat(27 + S.runs * 2)
+    S.steps[3].done = true
+    S.updated = "just now"
+    S.short = "now"
+    S.unseen = cur === "b" || cur === "c-chat"
+    S.runs += 1
+    render()
+  }, 1700)
+}
+
+document.addEventListener("click", (event) => {
+  const step = event.target.closest("[data-step]")
+  if (step) {
+    const s = S.steps[+step.dataset.step]
+    s.done = !s.done
+    S.flash = false
+    render()
+    return
+  }
+  const act = event.target.closest("[data-act]")
+  if (act) {
+    const what = act.dataset.act
+    if (what === "update") update()
+    else {
+      if (what === "unpin") S.pinned = !S.pinned
+      if (what === "plan") S.planPinned = !S.planPinned
+      if (what === "dark") stage.classList.toggle("dk")
+      if (what === "real") real = !real
+      S.flash = false
+      render()
+    }
+    return
+  }
+  const to = event.target.closest("[data-go]")
+  if (to && to.dataset.go) go(to.dataset.go)
+})
+window.addEventListener("resize", fit)
+if (scenes[location.hash.slice(1)]) cur = location.hash.slice(1)
+render()
+</script>
+</body>
+</html>

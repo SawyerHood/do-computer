@@ -14,6 +14,7 @@ import {
   GlobeIcon,
   LockIcon,
   PencilSimpleIcon,
+  PushPinIcon,
   ShareNetworkIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
@@ -53,7 +54,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import { libraryKey, libraryVersionsKey } from "@/lib/collections"
-import { formatBytes, formatFull, formatWhen, kindOf } from "@/lib/library"
+import { formatBytes, formatFull, formatWhen, kindOf, shownAt } from "@/lib/library"
+import { usePin } from "@/lib/pins"
 import { queryClient } from "@/lib/query"
 import { siteOfFile, useSites } from "@/lib/sites"
 import { useAppColors } from "@/lib/visual-theme"
@@ -486,12 +488,9 @@ export function Viewer({
   // The site this file is shared as, if it is: alone, or as the front page of its folder.
   const site = siteOfFile(useSites(agentId), file.path)
   // A page shows what is beside it, so it is as new as the newest file in its top folder.
-  const stamp = useMemo(() => {
-    const top = file.path.includes("/") ? `${file.path.split("/")[0]}/` : ""
-    return Math.max(
-      ...files.filter((entry) => entry.path.startsWith(top)).map((entry) => entry.updatedAt),
-    )
-  }, [files, file.path])
+  const stamp = useMemo(() => shownAt(files, file), [files, file])
+  // Pinned to the Dood, it stays beside its chat, under its face.
+  const pin = usePin(agentId, file)
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: libraryKey(agentId) })
   const move = useMutation({
@@ -637,6 +636,22 @@ export function Viewer({
               ]}
             />
           ) : null}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-pressed={pin.pinned}
+            aria-label={pin.pinned ? `Unpin from ${agentName}` : `Pin to ${agentName}`}
+            title={
+              pin.pinned
+                ? `Pinned to ${agentName}. Press to unpin`
+                : `Pin to ${agentName}: it stays beside the chat`
+            }
+            disabled={pin.pending}
+            onClick={pin.toggle}
+            className={cn(pin.pinned && "bg-primary/12 text-primary hover:bg-primary/18")}
+          >
+            <PushPinIcon weight={pin.pinned ? "fill" : "regular"} />
+          </Button>
           {/* Anything can be shared: a page as the page, and the rest as what each is. */}
           <SharePopover agentId={agentId} site={site} path={file.path}>
             <Button
