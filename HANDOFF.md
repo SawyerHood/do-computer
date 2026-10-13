@@ -1156,8 +1156,9 @@ Since then, newest last:
       while it is working there, so the agent arrives with the main chat in front of it. Its
       chat record has `fork: { chatId, at }`. What it carries is not shown as its own: the
       transcript, the earlier pages and the search begin after `at`, at a `dc.branch` entry
-      shown as "Continues from the main chat". Past 60,000 tokens of main chat, estimated, or
-      with nothing answered there yet, a side chat starts empty as it did before.
+      shown as "Continues from the main chat". With nothing answered there yet, a side chat
+      starts empty. It used to start empty past 60,000 tokens of main chat too, which in a main
+      chat in long use was most of the time: item 75 is what it does now.
     - **Searching** reads a table, `dc_history` in the agent's own database, holding the words of
       every message and nothing else. It is filled when a search is made, from where it left
       off in each chat, 10,000 entries at a time, so an agent's whole past is reachable and a
@@ -4079,8 +4080,9 @@ Since then, newest last:
       while it is working there, so the agent arrives with the main chat in front of it. Its
       chat record has `fork: { chatId, at }`. What it carries is not shown as its own: the
       transcript, the earlier pages and the search begin after `at`, at a `dc.branch` entry
-      shown as "Continues from the main chat". Past 60,000 tokens of main chat, estimated, or
-      with nothing answered there yet, a side chat starts empty as it did before.
+      shown as "Continues from the main chat". With nothing answered there yet, a side chat
+      starts empty. It used to start empty past 60,000 tokens of main chat too, which in a main
+      chat in long use was most of the time: item 75 is what it does now.
     - **Searching** reads a table, `dc_history` in the agent's own database, holding the words of
       every message and nothing else. It is filled when a search is made, from where it left
       off in each chat, 10,000 entries at a time, so an agent's whole past is reachable and a
@@ -6042,7 +6044,70 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       with and without Stop, a level and a model chosen and kept, and a recording of the box
       opening and shutting read frame by frame. **Not checked:** a phone, Android, and the
       listening bars in the new box anywhere but the browser build.
-75. **A reply's Markdown is drawn richly: tables, code in its colors, diagrams, notes**
+75. **A side chat always carries the main chat, and the provider's cache is kept for an hour**
+    (2026-10-13; `packages/agent/src/branch.ts`, `#branchChat` in `actor.ts`;
+    `PLAN-forked-chats.md` is the plan, and this is its first step). The owner found a Dood
+    "often is lost" away from its main chat. A side chat was a fork of the main chat only while
+    that was under 60,000 tokens, and empty past it with nothing to say so. Compaction keeps a
+    main chat between about 20,000 tokens and nearly the model's whole window, so on a model
+    with a 200,000-token window that was about three quarters of the time (by those numbers;
+    no real chat was measured).
+    - **How much it carries turns on the provider's cache.** A fork's first request repeats its
+      parent's prompt byte for byte up to the fork point, so a provider that has the main chat
+      cached reads it for a fraction of the price. `isWarm` asks the main chat's latest answers:
+      the last is under an hour old and by the model the side chat will run on, and one of the
+      last three read or wrote the cache. Then the side chat is the whole main chat, at any size
+      (the owner: "warm forks should be whole at any size"). Three answers and not one, because
+      not every provider says when it writes, so the answer that filled a cold cache can show
+      nothing.
+    - **Cold, it is cut down** (`cutDown`), since every carried token is then paid for in full.
+      Up to 60,000 tokens it is still whole. Past that, tool output and pictures older than the
+      last 20,000 tokens become a line each ("105,000 characters of output left behind in the
+      main chat"), and what was said is kept. If that is not enough, the oldest turns are left
+      out up to one of the user's messages, so no tool call is parted from its result; the
+      summary a chat begins with and the entries that hold its prompt stay. No model is called
+      for any of it.
+    - **It is done with edits, in the side chat.** pi-durable lets an entry carry `edits` that
+      omit or replace what earlier entries show the model. They are on the `dc.branch` entry,
+      which also holds `carried` (`whole`, `trimmed`, `recent`) for the marker's wording and the
+      note that tells the Dood what it is missing and where it is. The main chat is not touched.
+    - **A fork keeps its parent's session.** pi-durable gives a fork a new provider session id,
+      and OpenAI and Muse keep their cache by it: with a new one a fork read 0% from cache, with
+      its parent's about 100%. The fork's `init` puts the parent's in (`ProviderDoc`). A chat
+      and its fork under one id, answering in turns and at the same moment, each went on
+      reading the whole of its own prompt from cache on all three models do.computer offers.
+    - **The cache is asked to last** (`settings.stream.cacheRetention: "long"` where the harness
+      is opened). On Claude that is an hour where five minutes is usual: writing costs twice the
+      input price and not 1.25 times, reading the same tenth. The owner chose it: a reply ten
+      minutes after the last then reads the cache, where it paid to write all of it again. It
+      is for every chat, not only forks. On other providers pi-ai asks for 24 hours, and through
+      OpenRouter it sends the cache key only with this setting, which is why Muse hardly cached
+      before it and did after.
+    - **The marker** in the side chat is the server's words now, which the web and phone apps
+      show: "Continues from the main chat", "..., with older tool output left behind", or
+      "Continues from the most recent part of the main chat".
+    - **Mine:** the 60,000 and the 20,000; cutting a cold fork with no model call and not
+      summarizing it; the hour and the three answers; that pictures go with tool output; the
+      wording of the marker, the lines and the note.
+    - **Checked:** unit tests of both functions; four tests through the actor with a scripted
+      model (whole and under the main chat's session while warm; the oldest turn gone two hours
+      on, and the main chat still whole; real `bash` output replaced and every word kept; empty
+      only with nothing answered); the Workers test of a side chat. Against real models through
+      OpenRouter, one run each: `test/branch.live.test.ts`, which runs the actor itself on the
+      three models do.computer offers and has a side chat's first answer cost a tenth of its
+      uncached price or less (11%, 11% and 3%); and with scripts outside the repo, the three
+      models' cache with and without the session id, the hour on Claude (a fork after five and
+      a half idle minutes read 100%, and 0% without the setting), a chat and its fork going on
+      together.
+    - **Not checked:** the app in a browser with a real model, or a deployed Worker; a real
+      provider's answer to a cut-down fork; an entry with thousands of edits; how long the
+      cache lasts on GPT and Muse, and what writing it costs there; whether an hour pays, which
+      turns on how real chats pause.
+    - **Not done, and in the plan:** sub-agents and conversations with another Dood forking
+      (step 2), a side chat's work written back into the main chat (step 3), and a background
+      memory, which the owner put off.
+
+76. **A reply's Markdown is drawn richly: tables, code in its colors, diagrams, notes**
     (2026-10-13; `apps/web/src/components/markdown/`, `components/chat/markdown.tsx`,
     `components/picture-viewer.tsx`, `packages/agent/src/visuals.ts`; the plan is
     `PLAN-rich-embeds.md`, of which this is phase 1). The owner asked for what T3 Code's chat
@@ -6097,7 +6162,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       checked:** Safari, Workers, a real model writing any of it, the phone app (which has
       its own Markdown and none of this), a very long reply while it streams.
 
-76. **A film, a sound, a table and a PDF are shown as what they are** (2026-10-13;
+77. **A film, a sound, a table and a PDF are shown as what they are** (2026-10-13;
     `packages/protocol/src/embed.ts`, `packages/runtime` (`BlobStore.get` with a range),
     `packages/agent/src/library-store.ts`, `apps/web/src/components/embed/`,
     `components/file-card.tsx`, `components/library/viewer.tsx`, `lib/shown-hosts.ts`; phase 2

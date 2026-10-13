@@ -354,7 +354,8 @@ function MessageView({
           {part?.type === "notice" && part.kind === "compaction"
             ? "Earlier messages were summarized"
             : part?.type === "notice" && part.kind === "branch"
-              ? "Continues from the main chat"
+              ? // The server says how much of the main chat it carries.
+                part.text || "Continues from the main chat"
               : "New context"}
         </MarkerContent>
       </Marker>
