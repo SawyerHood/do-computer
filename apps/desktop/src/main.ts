@@ -34,9 +34,14 @@ import {
 } from "electron"
 import { autoUpdater } from "electron-updater"
 import { UseState } from "@do-computer/computers/use"
+import {
+  CONNECTOR_BROWSER_PATH,
+  CONNECTOR_CALLBACK_PATH,
+  CONNECTOR_FROM_APP,
+} from "@do-computer/protocol"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
-import { browserSignIn } from "./browser-sign-in.ts"
+import { browserConnect, browserSignIn } from "./browser-sign-in.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
 import { loginPath } from "./login-path.ts"
 import { createOverlay, type Overlay } from "./overlay.ts"
@@ -57,7 +62,7 @@ import {
 } from "./page-bridge.ts"
 import { ScreenService } from "./screen.ts"
 import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
-import { isWebAddress, onServer, serverAddress } from "./server.ts"
+import { cameBack, isWebAddress, onServer, serverAddress } from "./server.ts"
 import { DEFAULTS, loadSettings, type Settings, saveSettings } from "./settings.ts"
 import { headline, type Sharing } from "./status.ts"
 import {
@@ -122,6 +127,8 @@ let confirmTimer: ReturnType<typeof setInterval> | undefined
 const waiting = new Set<() => void>()
 /** The sign-in that is waiting for the owner's browser, if one is. */
 const browser = browserSignIn()
+/** The connector's sign-in that is waiting for the owner's browser, if one is. */
+const connecting = browserConnect()
 
 const alive = (window: BrowserWindow | undefined): window is BrowserWindow =>
   window !== undefined && !window.isDestroyed()
@@ -306,7 +313,16 @@ function showIcon(asked: unknown): void {
   else if (alive(mainWindow)) mainWindow.setIcon(ownIcon ?? icon()!)
 }
 
-/** Links that lead away from the deployment open in the browser, where its owner is at home. */
+/** Whether an address is somewhere on the web other than the deployment. */
+const elsewhere = (address: string) =>
+  isWebAddress(address) && !(settings.server !== undefined && onServer(address, settings.server))
+
+/**
+ * A window of the app shows the deployment and nowhere else: it has no address to read and no
+ * way back. Links that lead away open in the browser, where its owner is at home. So does a
+ * connector's sign-in, which the browser brings back to the app. Any other page that sends its
+ * owner away to sign in somewhere has that shown in a small window over it instead.
+ */
 function keepToServer(window: BrowserWindow): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (settings.server !== undefined && onServer(url, settings.server)) {
@@ -315,6 +331,144 @@ function keepToServer(window: BrowserWindow): void {
     if (isWebAddress(url)) void shell.openExternal(url)
     return { action: "deny" }
   })
+  // A window the deployment opened beside this one is kept to it as well.
+  window.webContents.on("did-create-window", keepToServer)
+  const leaving = (event: Electron.Event, address: string) => {
+    if (!elsewhere(address)) return
+    event.preventDefault()
+    // The app's own pages sign nobody in.
+    if (window.webContents.getURL().startsWith("file:")) void shell.openExternal(address)
+    else void signInElsewhere(window, address)
+  }
+  window.webContents.on("will-navigate", (event) => leaving(event, event.url))
+  window.webContents.on("will-redirect", (event) => {
+    if (event.isMainFrame) leaving(event, event.url)
+  })
+}
+
+/** The small window each window's sign-in elsewhere is shown in, while there is one. */
+const signIns = new Map<BrowserWindow, BrowserWindow>()
+
+/** A place for a window of this size over another, kept on the screen that one is on. */
+function over(window: BrowserWindow, width: number, height: number) {
+  const bounds = window.getBounds()
+  const area = screen.getDisplayMatching(bounds).workArea
+  const size = { width: Math.min(width, area.width), height: Math.min(height, area.height) }
+  const within = (at: number, length: number, from: number, room: number) =>
+    Math.round(Math.min(Math.max(at, from), from + room - length))
+  return {
+    ...size,
+    x: within(bounds.x + (bounds.width - size.width) / 2, size.width, area.x, area.width),
+    y: within(bounds.y + (bounds.height - size.height) / 2, size.height, area.y, area.height),
+  }
+}
+
+/** A window that shows somewhere else is named by where: all there is to say whose page it is. */
+function nameByAddress(window: BrowserWindow): void {
+  window.webContents.on("page-title-updated", (event) => {
+    event.preventDefault()
+    const address = window.webContents.getURL()
+    if (isWebAddress(address)) window.setTitle(new URL(address).host)
+  })
+}
+
+/**
+ * A window of the deployment was sent somewhere else to sign in. A connector's sign-in is done
+ * in its owner's browser, where they are signed in to the service already; anything else, or
+ * a deployment that knows nothing of this, in a small window of the app.
+ */
+async function signInElsewhere(asked: BrowserWindow, address: string): Promise<void> {
+  if (!(await connectInBrowser(asked, address))) showElsewhere(asked, address)
+}
+
+/**
+ * Send the owner's browser to a connector's service, if that is what this address is. The
+ * deployment knows a sign-in it started by its `state`, and is told the port to pass the
+ * service's answer on to. The app then takes that answer to the deployment itself, in the
+ * window that asked, which is signed in as whoever started it: the browser need not be.
+ * False where the deployment does not know the address as a sign-in of this person's.
+ */
+async function connectInBrowser(asked: BrowserWindow, address: string): Promise<boolean> {
+  const server = settings.server
+  const state = new URL(address).searchParams.get("state")
+  if (server === undefined || state === null || state === "") return false
+  let known = false
+  const answer = await connecting.connect(state, async (port) => {
+    const told = await session.defaultSession.fetch(`${server}${CONNECTOR_BROWSER_PATH}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ state, port }),
+    })
+    if (!told.ok) throw new Error("not a connector's sign-in")
+    known = true
+    await shell.openExternal(address)
+  })
+  if (!known) return false
+  if ("error" in answer || !alive(asked)) return true
+  const back = new URL(CONNECTOR_CALLBACK_PATH, server)
+  back.search = answer.query
+  back.searchParams.set(CONNECTOR_FROM_APP, "1")
+  void asked.loadURL(back.href)
+  // The owner is in their browser. Bring them back to where the answer is.
+  asked.show()
+  asked.focus()
+  if (MAC) app.focus({ steal: true })
+  return true
+}
+
+/**
+ * Show somewhere else on the web in a small window over the one that was sent there, with the
+ * same cookies. When the service sends its visitor back to a page of the deployment, the small
+ * window closes and the one that asked shows that page, as it would have had it gone itself.
+ */
+function showElsewhere(asked: BrowserWindow, address: string): void {
+  const server = settings.server
+  if (server === undefined) return
+  const open = signIns.get(asked)
+  if (alive(open)) {
+    void open.loadURL(address)
+    return open.focus()
+  }
+  const window = new BrowserWindow({
+    ...over(asked, 520, 720),
+    parent: asked,
+    title: new URL(address).host,
+    minimizable: false,
+    fullscreenable: false,
+    backgroundColor: canvas(),
+    autoHideMenuBar: true,
+    ...(MAC ? {} : { icon: icon()! }),
+    // Nothing of the app's is given to a page that is not the deployment's.
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
+  })
+  window.setMenuBarVisibility(false)
+  signIns.set(asked, window)
+  window.on("closed", () => {
+    if (signIns.get(asked) === window) signIns.delete(asked)
+  })
+  nameByAddress(window)
+  // A service may show part of its sign-in in a window of its own, which answers this one.
+  window.webContents.setWindowOpenHandler(({ url }) =>
+    isWebAddress(url)
+      ? { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true } }
+      : { action: "deny" },
+  )
+  window.webContents.on("did-create-window", nameByAddress)
+  const back = (event: Electron.Event, to: string) => {
+    if (!cameBack(to, server)) return
+    event.preventDefault()
+    // Not while it is still telling of where it was going.
+    setImmediate(() => window.destroy())
+    if (!alive(asked)) return
+    void asked.loadURL(to)
+    asked.show()
+    asked.focus()
+  }
+  window.webContents.on("will-navigate", (event) => back(event, event.url))
+  window.webContents.on("will-redirect", (event) => {
+    if (event.isMainFrame) back(event, event.url)
+  })
+  void window.loadURL(address)
 }
 
 /** Show the deployment's window, making it if need be, on a page of the deployment if given. */

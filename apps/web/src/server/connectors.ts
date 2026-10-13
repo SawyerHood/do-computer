@@ -5,7 +5,12 @@ import {
   CONNECTOR_REDIRECT_HEADER,
   encodeCaller,
 } from "@do-computer/agent"
-import type { AddConnectorRequest, ConnectorResult } from "@do-computer/protocol"
+import {
+  type AddConnectorRequest,
+  CONNECTOR_FROM_APP,
+  CONNECTOR_RETURN_PATH,
+  type ConnectorResult,
+} from "@do-computer/protocol"
 import { agentFor, fail, json } from "./agents.ts"
 import { getUser, type SessionUser } from "./auth.ts"
 
@@ -56,12 +61,38 @@ export async function connectConnector(
               VALUES (?, ?, ?, ?, ?)
               ON CONFLICT (state) DO UPDATE SET user_id = excluded.user_id,
                 agent_id = excluded.agent_id, connector_id = excluded.connector_id,
-                created_at = excluded.created_at`,
+                created_at = excluded.created_at, desktop_port = NULL`,
         params: [state, user.id, agentId, result.connector.id, now],
       },
     ])
   }
   return json(result, connectorId === undefined ? 201 : 200)
+}
+
+/**
+ * The desktop app says that a sign-in it started is being done in its owner's browser, and at
+ * which port of that computer it waits for the service's answer. Only whoever started the
+ * sign-in may say so.
+ */
+export async function connectorInBrowser(user: SessionUser, request: Request): Promise<Response> {
+  const { state, port } = (await request.json().catch(() => ({}))) as {
+    state?: unknown
+    port?: unknown
+  }
+  if (typeof state !== "string" || state === "") return fail(400, "state is required")
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1024 || port > 65535) {
+    return fail(400, "port must be a port of this computer")
+  }
+  const { db } = getPlatform()
+  const started = await db.get<{ state: string }>(
+    "SELECT state FROM dc_oauth_states WHERE state = ? AND user_id = ? AND created_at >= ?",
+    state,
+    user.id,
+    Date.now() - STATE_TTL_MS,
+  )
+  if (started === undefined) return fail(404, "No sign-in of yours is waiting under that state")
+  await db.run("UPDATE dc_oauth_states SET desktop_port = ? WHERE state = ?", port, state)
+  return json({ ok: true })
 }
 
 /**
@@ -75,9 +106,6 @@ export async function connectorCallback(request: Request): Promise<Response> {
     for (const [key, value] of Object.entries(outcome)) target.searchParams.set(key, value)
     return Response.redirect(target.toString(), 302)
   }
-  const user = await getUser(request)
-  if (user === undefined) return Response.redirect(`${origin(request)}/login`, 302)
-
   const { db, agents } = getPlatform()
   const state = url.searchParams.get("state") ?? ""
   const row = await db.get<{
@@ -85,11 +113,25 @@ export async function connectorCallback(request: Request): Promise<Response> {
     agent_id: string
     connector_id: string
     created_at: number
+    desktop_port: number | null
   }>(
-    "SELECT user_id, agent_id, connector_id, created_at FROM dc_oauth_states WHERE state = ?",
+    `SELECT user_id, agent_id, connector_id, created_at, desktop_port
+     FROM dc_oauth_states WHERE state = ?`,
     state,
   )
-  if (row === undefined || row.user_id !== user.id || row.created_at < Date.now() - STATE_TTL_MS) {
+  const fresh = row !== undefined && row.created_at >= Date.now() - STATE_TTL_MS
+  // A sign-in the desktop app sent to its owner's browser is the app's to finish, in the
+  // session that started it. The browser only carries the service's answer back to the app,
+  // on the computer it is on itself, and need not be signed in here at all.
+  if (fresh && row.desktop_port !== null && !url.searchParams.has(CONNECTOR_FROM_APP)) {
+    const app = new URL(`http://127.0.0.1:${row.desktop_port}${CONNECTOR_RETURN_PATH}`)
+    app.search = url.search
+    return Response.redirect(app.toString(), 302)
+  }
+  const user = await getUser(request)
+  if (user === undefined) return Response.redirect(`${origin(request)}/login`, 302)
+
+  if (!fresh || row.user_id !== user.id) {
     return back(undefined, {
       connector_error: "That sign-in link has expired. Try connecting again.",
     })

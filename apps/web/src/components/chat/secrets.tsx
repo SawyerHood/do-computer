@@ -249,6 +249,7 @@ function SignInCard({
   const signIn = useMutation({
     mutationFn: () => api.reconnectConnector(connector.id),
     // The service is reached by leaving this page for it, and sends them back to this chat.
+    // The desktop app sends its owner's browser there instead, and stays where it is.
     onSuccess: (result) => {
       if (result.authorizationUrl) window.location.assign(result.authorizationUrl)
     },

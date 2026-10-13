@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isWebAddress, onServer, serverAddress } from "../src/server.ts"
+import { cameBack, isWebAddress, onServer, serverAddress } from "../src/server.ts"
 
 describe("the address of a deployment", () => {
   it("is its origin, whatever page of it was pasted", () => {
@@ -35,5 +35,18 @@ describe("where a link leads", () => {
     expect(isWebAddress("https://github.com/login")).toBe(true)
     expect(isWebAddress("file:///Applications/Calculator.app")).toBe(false)
     expect(isWebAddress("smb://server/share")).toBe(false)
+  })
+
+  it("is back from a sign-in elsewhere only at a page of the deployment", () => {
+    const server = "https://do.example"
+    expect(cameBack("https://do.example/a/7/connectors?connected=linear", server)).toBe(true)
+    expect(cameBack("https://do.example/", server)).toBe(true)
+    // What the service answers at is on the way back, and leads to a page.
+    expect(cameBack("https://do.example/api/connectors/callback?code=1&state=2", server)).toBe(
+      false,
+    )
+    expect(cameBack("https://linear.app/oauth/authorize", server)).toBe(false)
+    expect(cameBack("https://do.example.evil.test/a/7", server)).toBe(false)
+    expect(cameBack("nonsense", server)).toBe(false)
   })
 })
