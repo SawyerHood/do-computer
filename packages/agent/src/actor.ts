@@ -181,7 +181,7 @@ export type AgentActorOptions = {
   readonly onReport?: (error: unknown) => void
   /** Chance, as numbers from 0 up to 1: what decides the thing in a box. `Math.random` if left out. */
   readonly random?: () => number
-  /** How long after its creature's box is opened the next one turns up. Twelve hours if left out. */
+  /** How long after its creature's box is opened the next one turns up. Six hours if left out. */
   readonly boxEveryMs?: number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
@@ -2052,11 +2052,12 @@ export class AgentActor implements Actor {
   }
 
   /**
-   * A box turns up beside its creature twelve hours after its last was opened, whatever the
+   * A box turns up beside its creature six hours after its last was opened, whatever the
    * agent was or was not doing, and it has one of its own waiting at most: the wait for the next
    * starts when that one is opened. The boxes other people's treats made are besides. Nothing
    * wakes for a box: one that has come due is counted when the creature is next looked at. One
-   * from before this with no box has its wait start at the first look.
+   * from before this with no box has its wait start at the first look, and a wait longer than
+   * the whole of one, left from when boxes were further apart, is cut to it.
    */
   async #boxDue(harness: Harness): Promise<void> {
     const now = this.#host.now()
@@ -2065,12 +2066,14 @@ export class AgentActor implements Actor {
       // Once everything is found there is nothing for another box to hold.
       creature.boxes > (creature.shared ?? 0) || hasEverything(creature.owned)
     const kept = (await harness.snapshot(CreatureDoc, context)) ?? NEW_CREATURE
-    if (waits(kept) || (kept.nextBoxAt !== undefined && now < kept.nextBoxAt)) return
+    const long = (creature: CreatureState) =>
+      creature.nextBoxAt === undefined || creature.nextBoxAt > now + every
+    if (waits(kept) || (!long(kept) && now < kept.nextBoxAt!)) return
     await harness.commit(async (tx) => {
       const creature = await tx.doc(CreatureDoc)
       if (waits(creature)) return
-      if (creature.nextBoxAt === undefined) creature.nextBoxAt = now + every
-      else if (now >= creature.nextBoxAt) creature.boxes++
+      if (long(creature)) creature.nextBoxAt = now + every
+      else if (now >= creature.nextBoxAt!) creature.boxes++
     }, context)
   }
 

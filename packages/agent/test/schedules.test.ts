@@ -111,19 +111,23 @@ async function say(world: World, chatId: string, text: string, extra: object = {
   )
 }
 
-/** A model turn that creates a schedule firing `inMs` from now, then a closing turn. */
+/**
+ * A model turn that creates a schedule firing `inMs` from when the model answers, then a closing
+ * turn. Counted from here it could be in the past by the time a slow machine got to the model.
+ */
 const createSchedule = (inMs: number, prompt: string, title?: string) => [
-  fauxAssistantMessage(
-    [
-      fauxToolCall("schedule", {
-        action: "create",
-        schedule: new Date(Date.now() + inMs).toISOString(),
-        prompt,
-        ...(title ? { title } : {}),
-      }),
-    ],
-    { stopReason: "toolUse" },
-  ),
+  () =>
+    fauxAssistantMessage(
+      [
+        fauxToolCall("schedule", {
+          action: "create",
+          schedule: new Date(Date.now() + inMs).toISOString(),
+          prompt,
+          ...(title ? { title } : {}),
+        }),
+      ],
+      { stopReason: "toolUse" },
+    ),
   fauxAssistantMessage("I'll do that."),
 ]
 

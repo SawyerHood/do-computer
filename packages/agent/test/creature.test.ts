@@ -98,7 +98,7 @@ describe("an agent's creature", () => {
     expect(agent.outfit).toEqual({})
   })
 
-  it("has one box of its own waiting at most, and the next twelve hours after that is opened", async () => {
+  it("has one box of its own waiting at most, and the next six hours after that is opened", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
     const open1 = () => call<{ creature: CreatureState }>(world, "/creature/open", "POST")
@@ -108,7 +108,7 @@ describe("an agent's creature", () => {
     expect(left).toMatchObject({ boxes: 1, shared: 0 })
     expect(left.nextBoxAt).toBeUndefined()
 
-    // Opened, the next is twelve hours from then, however long the box had waited.
+    // Opened, the next is six hours from then, however long the box had waited.
     const opened = (await open1()).creature
     const now = Date.now() + world.ahead
     expect(opened.boxes).toBe(0)
@@ -127,6 +127,22 @@ describe("an agent's creature", () => {
     await open1()
     world.ahead += BOX_EVERY_MS
     expect((await open1()).creature).toMatchObject({ boxes: 0, owned: { length: 3 } })
+    expect(world.reports).toEqual([])
+  })
+
+  it("cuts a wait left from when boxes were further apart to the whole of one", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    await call(world, "/creature/open", "POST")
+    // The clock put back stands for a wait that was set when the next box was longer in coming.
+    world.ahead -= BOX_EVERY_MS
+    const now = Date.now() + world.ahead
+    const cut = await creature(world)
+    expect(cut.boxes).toBe(0)
+    expect(cut.nextBoxAt).toBeGreaterThan(now + BOX_EVERY_MS - 30_000)
+    expect(cut.nextBoxAt).toBeLessThanOrEqual(now + BOX_EVERY_MS + 30_000)
+    world.ahead += BOX_EVERY_MS
+    expect((await creature(world)).boxes).toBe(1)
     expect(world.reports).toEqual([])
   })
 

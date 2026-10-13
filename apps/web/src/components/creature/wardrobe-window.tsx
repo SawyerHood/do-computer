@@ -194,7 +194,7 @@ export function WardrobeWindow({
             })}
           </ul>
           <p className="mt-4 hidden text-xs text-muted-foreground sm:block">
-            Twelve hours after {name}'s box is opened another turns up, with something new to wear
+            Six hours after {name}'s box is opened another turns up, with something new to wear
             inside. Treats are only because it likes them.
           </p>
         </div>

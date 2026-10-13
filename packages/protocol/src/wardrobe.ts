@@ -1,5 +1,5 @@
 /**
- * What an agent's creature can be given and can wear. A box turns up beside it twelve hours
+ * What an agent's creature can be given and can wear. A box turns up beside it six hours
  * after its last was opened, one waiting at most, and holds one thing to wear that it does not
  * have yet. It can be given a treat whenever anyone likes, which it enjoys and which comes to
  * nothing more. None of it changes what the agent can do: it is there to be enjoyed.
@@ -243,7 +243,7 @@ export const rarityOf = (id: RarityId) => RARITIES.find((rarity) => rarity.id ==
 export type Outfit = Partial<Record<WearSlot, string>>
 
 /** How long after a creature's box is opened the next one turns up. */
-export const BOX_EVERY_MS = 12 * 60 * 60 * 1000
+export const BOX_EVERY_MS = 6 * 60 * 60 * 1000
 
 /**
  * How many treats from other people, on the page a creature has to itself, fill a box for it:

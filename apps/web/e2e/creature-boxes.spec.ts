@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures.ts"
 import { asOwner, signIn } from "./helpers.ts"
 
-// The next box turns up twelve hours after the last is opened. Here it is a few seconds, to see it.
+// The next box turns up six hours after the last is opened. Here it is a few seconds, to see it.
 test.use({ settings: { DC_BOX_EVERY_MS: "3000" }, viewport: { width: 1440, height: 900 } })
 
 asOwner()

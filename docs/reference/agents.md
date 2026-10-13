@@ -30,7 +30,7 @@
   has happened for a while. `pnpm --filter @do-computer/mascot demo` builds a page for
   trying every state and look.
 - **Be looked after, a little.** A box turns up beside the creature and waits until it is
-  opened; the next turns up twelve hours after that, so there is one waiting at most. Inside is
+  opened; the next turns up six hours after that, so there is one waiting at most. Inside is
   one of two hundred things to wear, from common to legendary, which it then wears wherever it
   is shown. It can be given a treat as often as you like, only because it likes them. None of
   it changes what the agent can do.
