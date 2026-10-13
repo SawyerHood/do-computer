@@ -33,6 +33,24 @@ type Host = {
 }
 
 /**
+ * Whether the reader has just pressed something in the page: the frame has the reader's
+ * attention, and the browser says someone has just acted. The page is drawn by another process,
+ * and word of the press can reach the app a moment after what the page said because of it, so
+ * where it is not yet so it is looked for again for a short while, as the web app does.
+ */
+async function pressedIn(host: Host, frame: Frame, waitMs = 600): Promise<boolean> {
+  const now = () =>
+    host.document.activeElement === frame && host.navigator.userActivation?.isActive !== false
+  if (now()) return true
+  const until = Date.now() + waitMs
+  while (Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    if (now()) return true
+  }
+  return false
+}
+
+/**
  * A visual's page in a browser: a frame kept apart from the app, exactly as the web app shows
  * it. (On a phone it is a web view: see visual-frame.native.tsx.)
  */
@@ -52,23 +70,24 @@ export function VisualPage({ src, title, theme, onHeight, onSay }: VisualPagePro
       if (target === null || event.source !== target.contentWindow) return
       const tall = readVisualHeight(event.data)
       if (tall !== undefined) return heard.current.onHeight(tall)
-      // Only on the reader's own click in the page: a page does neither of these by itself.
-      const pressed =
-        host.document.activeElement === target && host.navigator.userActivation?.isActive !== false
       const said = readVisualSay(event.data)
-      if (said !== undefined) {
-        if (pressed) heard.current.onSay(said.text)
-        return target.contentWindow?.postMessage(
-          pressed
-            ? visualResult(said.id)
-            : visualRefusal(said.id, "Only when the person has just pressed something."),
-          "*",
-        )
-      }
-      const link = readVisualLink(event.data)
-      if (link === undefined) return
-      if (pressed) host.open(link.url, "_blank", "noopener,noreferrer")
-      target.contentWindow?.postMessage(visualResult(link.id), "*")
+      const link = said === undefined ? readVisualLink(event.data) : undefined
+      if (said === undefined && link === undefined) return
+      // Only on the reader's own click in the page: a page does neither of these by itself.
+      void pressedIn(host, target).then((pressed) => {
+        if (said !== undefined) {
+          if (pressed) heard.current.onSay(said.text)
+          return target.contentWindow?.postMessage(
+            pressed
+              ? visualResult(said.id)
+              : visualRefusal(said.id, "Only when the person has just pressed something."),
+            "*",
+          )
+        }
+        if (link === undefined) return
+        if (pressed) host.open(link.url, "_blank", "noopener,noreferrer")
+        target.contentWindow?.postMessage(visualResult(link.id), "*")
+      })
     }
     host.addEventListener("message", onMessage)
     return () => host.removeEventListener("message", onMessage)
