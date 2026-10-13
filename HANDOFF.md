@@ -2816,6 +2816,31 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       does. **Not checked:** a build in Expo's cloud, which needs the owner's Apple sign-in,
       and so a notification arriving on a phone, or a tap on one opening its chat.
 
+68. **First things found on a real phone: dictation, and the agents list** (2026-10-12;
+    `apps/mobile/src/lib/device-fetch.ts`, `apps/mobile/app/(app)/index.tsx`). The first build
+    installed on the owner's iPhone.
+    - **Dictation said `Audio of type "null" cannot be transcribed.`** Expo's fetch, which the
+      app uses on a device because it can stream a reply, sends a blob under the blob's own
+      type and drops the Content-Type the request names. A file read from the phone's disk is
+      a blob with no type. `keepingType` wraps that fetch and hands over the blob's bytes, so
+      the named type stands. The same path carries a picked attachment and a file put in the
+      library, which would have arrived with no type too.
+    - **The agents list looked off beside the web app's.** It had been laid out as a list of
+      its own (large bold workspace names, arrows on the left, two lines under a name, lines
+      between rows) and not after the web app's. It now follows `agent-list.tsx`: a workspace's
+      line is small and grey and starts at the margin with whose it is (the person's face, or
+      the team's tile), then its name and the arrow that folds it; a row is a creature, a name,
+      the time, and one line under it with the unread dot at its end; "New team" is a grey line
+      under a rule. Creatures are 44 points in a row, near the web app's 40.
+    - **The message box while listening is one line.** It said "Listening" under the bars,
+      which the owner did not want; the bars and the buttons say it, and the words are kept
+      for a screen reader.
+    - **Checked:** a test of `keepingType`, the app's other tests, and the browser tests. The
+      list and the one-line box were looked at in an iOS simulator. **Not checked:** dictation
+      in the simulator, which gets no microphone from a Mac reached over SSH, so the listening
+      state was forced for its picture; and the upload fix on a phone since it was written.
+      The owner asked for no more cloud builds for now: they are paid for.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
