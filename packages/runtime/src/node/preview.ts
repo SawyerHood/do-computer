@@ -41,7 +41,8 @@ export function chromePreviewer(executablePath: string): PagePreviewer {
         browser = await puppeteer
           .launch({
             executablePath,
-            headless: true,
+            // A Chrome that is only ever headless is started the way it knows.
+            headless: /headless[-_]shell/i.test(executablePath) ? "shell" : true,
             // A server is often run as root in a container, where Chrome will not start in
             // its own sandbox. The page is kept apart by the frame it is drawn in.
             args: ["--no-sandbox", "--hide-scrollbars", "--disable-gpu", "--no-first-run"],

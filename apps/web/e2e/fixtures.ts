@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process"
-import { mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { createServer } from "node:net"
-import { tmpdir } from "node:os"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { test as base, chromium } from "@playwright/test"
@@ -23,6 +23,29 @@ type Server = {
 }
 
 const entry = fileURLToPath(new URL("../server.node.mjs", import.meta.url))
+
+/**
+ * The browser these tests are run in, for a server to look at a page with: the one named, the
+ * Chromium Playwright has, or where only its headless shell was installed, as on the machines
+ * that run these for every push, that.
+ */
+function testBrowser(): string {
+  if (process.env.PLAYWRIGHT_CHROMIUM_PATH) return process.env.PLAYWRIGHT_CHROMIUM_PATH
+  const whole = chromium.executablePath()
+  if (existsSync(whole)) return whole
+  // Beside it: `chromium-1228/…` and `chromium_headless_shell-1228/…` are kept in one folder.
+  const kept = process.env.PLAYWRIGHT_BROWSERS_PATH || join(homedir(), ".cache", "ms-playwright")
+  for (const folder of existsSync(kept) ? readdirSync(kept).sort().reverse() : []) {
+    if (!folder.startsWith("chromium_headless_shell-")) continue
+    for (const inner of readdirSync(join(kept, folder))) {
+      for (const name of ["chrome-headless-shell", "headless_shell", "chrome-headless-shell.exe"]) {
+        const shell = join(kept, folder, inner, name)
+        if (existsSync(shell)) return shell
+      }
+    }
+  }
+  return whole
+}
 
 /** A port nothing is listening on, found by asking for any and giving it straight back. */
 async function freePort(): Promise<number> {
@@ -60,9 +83,7 @@ async function start(file: string, settings: Record<string, string>): Promise<Se
       // Only the tests of looking at a page before it is shown have a browser to look with:
       // the one these tests are themselves run in. The rest draw without looking, whatever
       // Chrome the machine happens to have.
-      DC_CHROME_PATH: file.endsWith("preview.spec.ts")
-        ? process.env.PLAYWRIGHT_CHROMIUM_PATH || chromium.executablePath()
-        : "none",
+      DC_CHROME_PATH: file.endsWith("preview.spec.ts") ? testBrowser() : "none",
       ...settings,
     },
   })
