@@ -1034,6 +1034,8 @@ const SHAPE = { unknown: 16 / 9, tallest: 0.5, widest: 4 }
 function Picture({ block, ink }: { block: PictureBlock; ink: Ink }) {
   const theme = useTheme()
   const [size, setSize] = useState<{ shape: number; width?: number }>({ shape: SHAPE.unknown })
+  // How much room there is across, which is as wide as a picture is ever drawn.
+  const [room, setRoom] = useState<number>()
   const [failed, setFailed] = useState(false)
   const { href } = block
   if (failed) {
@@ -1041,7 +1043,11 @@ function Picture({ block, ink }: { block: PictureBlock; ink: Ink }) {
     const words = (block.alt || block.src).replace(/[\\[\]`*_~<!]/g, "\\$&")
     return <Line text={`[${words}](<${href ?? block.src}>)`} ink={ink} muted />
   }
-  const picture = (
+  // Its width and height are both said once they are known. Left to work out the height from
+  // the shape, a phone takes the width for all the room there is, and a small picture is then
+  // set in a box far taller than it.
+  const wide = room === undefined ? undefined : Math.min(room, size.width ?? room)
+  const image = (
     <Image
       source={{ uri: block.src }}
       accessible
@@ -1060,9 +1066,17 @@ function Picture({ block, ink }: { block: PictureBlock; ink: Ink }) {
       }}
       style={[
         styles.picture,
-        { aspectRatio: size.shape, maxWidth: size.width, backgroundColor: theme.fill },
+        wide === undefined
+          ? { aspectRatio: size.shape }
+          : { width: wide, height: wide / size.shape },
+        { backgroundColor: theme.fill },
       ]}
     />
+  )
+  const picture = (
+    <View style={styles.pictureRoom} onLayout={(event) => setRoom(event.nativeEvent.layout.width)}>
+      {image}
+    </View>
   )
   if (!href) return picture
   return (
@@ -1349,4 +1363,5 @@ const styles = StyleSheet.create({
   cellText: { ...type.subhead },
   headCell: { ...type.subhead, fontWeight: "600" },
   picture: { width: "100%", borderRadius: radius.sm },
+  pictureRoom: { width: "100%" },
 })
