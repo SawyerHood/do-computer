@@ -18,7 +18,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { CONNECTOR_REDIRECT_HEADER, connectorToolName, createAgentActor } from "../src/index.ts"
-import { fakeMcp, type FakeMcpOptions, GOOD_CODE } from "./fake-mcp.ts"
+import { fakeMcp, type FakeMcpOptions, GOOD_CODE, ISSUER } from "./fake-mcp.ts"
 
 const REDIRECT = "https://app.example/api/connectors/callback"
 
@@ -222,6 +222,45 @@ describe("connectors", () => {
     expect(lastTool(await say(world, chat.id, "who am I there?")).output).toBe(
       "caller with Bearer access-token-1",
     )
+  })
+
+  it("sign in to a service that names itself in what it sends back, and take a code from no other", async () => {
+    const { world, chat } = await setup({ oauth: true, iss: true })
+    const pending = await add(world, { name: "Notes", url: world.mcp.url })
+    expect(pending.connector.status).toBe("needs_auth")
+    const authorize = (answer: { code: string; iss?: string }) =>
+      call<ConnectorResult>(world, `/connectors/${pending.connector.id}/authorize`, "POST", answer)
+
+    // It promised to say who it is, so a code with no name on it, or another's, is not exchanged.
+    await expect(authorize({ code: GOOD_CODE })).rejects.toThrow(
+      '400: The sign-in could not be completed: OAuth issuer mismatch: expected "https://auth.test", received none',
+    )
+    await expect(authorize({ code: GOOD_CODE, iss: "https://elsewhere.test" })).rejects.toThrow(
+      'OAuth issuer mismatch: expected "https://auth.test", received "https://elsewhere.test"',
+    )
+    expect(world.mcp.requests).not.toContain("POST https://auth.test/token")
+
+    const done = await authorize({ code: GOOD_CODE, iss: ISSUER })
+    expect(done.connector).toMatchObject({ status: "connected" })
+    world.faux.setResponses(useTool("notes__whoami", {}))
+    expect(lastTool(await say(world, chat.id, "who am I there?")).output).toBe(
+      "caller with Bearer access-token-1",
+    )
+  })
+
+  it("refuse a service that names itself where it published nothing to check the name against", async () => {
+    const { world } = await setup({ oauth: true, noMetadata: true })
+    const pending = await add(world, { name: "Notes", url: world.mcp.url })
+    expect(pending.connector.status).toBe("needs_auth")
+    const authorize = (answer: { code: string; iss?: string }) =>
+      call<ConnectorResult>(world, `/connectors/${pending.connector.id}/authorize`, "POST", answer)
+
+    await expect(authorize({ code: GOOD_CODE, iss: ISSUER })).rejects.toThrow(
+      'OAuth issuer mismatch: expected none, received "https://auth.test"',
+    )
+    expect(world.mcp.requests).not.toContain("POST https://auth.test/token")
+    // Saying nothing of who it is, it is signed in to as it always was.
+    expect((await authorize({ code: GOOD_CODE })).connector).toMatchObject({ status: "connected" })
   })
 
   it("sign in as an app registered by hand, where the service lets none register itself", async () => {

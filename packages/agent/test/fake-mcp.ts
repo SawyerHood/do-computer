@@ -12,10 +12,17 @@ export type FakeMcpOptions = {
    * does not, and gives a token only to this id and secret.
    */
   client?: { id: string; secret: string }
+  /**
+   * The authorization server says it names itself, as `iss`, in what it sends the user back with
+   * (RFC 9207). A client must then refuse a code that comes back without it.
+   */
+  iss?: boolean
+  /** The authorization server publishes nothing about itself, so a client goes by the usual paths. */
+  noMetadata?: boolean
 }
 
 const MCP_URL = "https://mcp.test/mcp"
-const ISSUER = "https://auth.test"
+export const ISSUER = "https://auth.test"
 const ACCESS_TOKEN = "access-token-1"
 export const GOOD_CODE = "good-code"
 
@@ -56,7 +63,7 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
     if (down) throw new TypeError("fetch failed")
 
     if (url.origin === ISSUER) {
-      if (url.pathname === "/.well-known/oauth-authorization-server") {
+      if (url.pathname === "/.well-known/oauth-authorization-server" && !options.noMetadata) {
         return json({
           issuer: ISSUER,
           authorization_endpoint: `${ISSUER}/authorize`,
@@ -68,6 +75,7 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
           token_endpoint_auth_methods_supported: [
             options.client === undefined ? "none" : "client_secret_post",
           ],
+          ...(options.iss ? { authorization_response_iss_parameter_supported: true } : {}),
         })
       }
       if (url.pathname === "/register" && method === "POST" && options.client === undefined) {

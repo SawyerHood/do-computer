@@ -1534,9 +1534,14 @@ export class AgentActor implements Actor {
         return withState(await connectors.connect(connectorId, redirect(), context))
       }
       if (connectorId !== undefined && action === "authorize" && method === "POST") {
-        const { code } = await body<{ code?: string }>(request)
+        const { code, iss } = await body<{ code?: string; iss?: string }>(request)
         if (typeof code !== "string" || code === "") throw new HttpError(400, "code is required")
-        const { turn, ...result } = await connectors.authorize(connectorId, code, context, caller)
+        const { turn, ...result } = await connectors.authorize(
+          connectorId,
+          { code, ...(typeof iss === "string" && iss !== "" ? { iss } : {}) },
+          context,
+          caller,
+        )
         // What the agent says about it is told like any other answer nobody was there for.
         if (turn !== undefined && result.chatId !== undefined) {
           await this.#touch(harness, result.chatId)
