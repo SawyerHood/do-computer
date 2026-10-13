@@ -311,6 +311,20 @@ export type ConnectSlackRequest = {
 /** The answer to adding or reconnecting a connector: where to send the user if they must sign in. */
 export type ConnectorResult = { connector: ConnectorSummary; authorizationUrl?: string }
 
+/** Where a service sends someone back after they sign in to a connector, under the app's address. */
+export const CONNECTOR_CALLBACK_PATH = "/api/connectors/callback"
+
+/**
+ * A connector's sign-in started in the desktop app is done in its owner's browser, which may
+ * be signed in to the deployment as nobody. The app says so here, with the sign-in's `state`
+ * and the port of that computer it listens at, and the service's answer is passed on to it.
+ */
+export const CONNECTOR_BROWSER_PATH = "/api/connectors/browser"
+/** Where, at that port, the browser is sent with the service's answer. */
+export const CONNECTOR_RETURN_PATH = "/connector"
+/** What the app adds to the service's answer when it brings it to the deployment itself. */
+export const CONNECTOR_FROM_APP = "dc_app"
+
 /** A file in a library: something an agent made for the people it works for, or they gave it. */
 export type LibraryFile = {
   id: string

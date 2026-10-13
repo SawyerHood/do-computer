@@ -274,6 +274,8 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       PRIMARY KEY (user_id, agent_id)
     )`,
   ],
+  // The port a desktop app waits at for a sign-in it sent to its owner's browser, if one does.
+  ["ALTER TABLE dc_oauth_states ADD COLUMN desktop_port INTEGER"],
 ]
 
 const VERSION_KEY = "schema_version"

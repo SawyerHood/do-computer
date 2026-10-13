@@ -34,9 +34,14 @@ import {
 } from "electron"
 import { autoUpdater } from "electron-updater"
 import { UseState } from "@do-computer/computers/use"
+import {
+  CONNECTOR_BROWSER_PATH,
+  CONNECTOR_CALLBACK_PATH,
+  CONNECTOR_FROM_APP,
+} from "@do-computer/protocol"
 import type { AppState } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
-import { browserSignIn } from "./browser-sign-in.ts"
+import { browserConnect, browserSignIn } from "./browser-sign-in.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
 import { loginPath } from "./login-path.ts"
 import { createOverlay, type Overlay } from "./overlay.ts"
@@ -122,6 +127,8 @@ let confirmTimer: ReturnType<typeof setInterval> | undefined
 const waiting = new Set<() => void>()
 /** The sign-in that is waiting for the owner's browser, if one is. */
 const browser = browserSignIn()
+/** The connector's sign-in that is waiting for the owner's browser, if one is. */
+const connecting = browserConnect()
 
 const alive = (window: BrowserWindow | undefined): window is BrowserWindow =>
   window !== undefined && !window.isDestroyed()
@@ -312,9 +319,9 @@ const elsewhere = (address: string) =>
 
 /**
  * A window of the app shows the deployment and nowhere else: it has no address to read and no
- * way back. Links that lead away open in the browser, where its owner is at home. A page that
- * sends its owner away to sign in somewhere, to a connector's service say, has that shown in
- * a small window over it instead.
+ * way back. Links that lead away open in the browser, where its owner is at home. So does a
+ * connector's sign-in, which the browser brings back to the app. Any other page that sends its
+ * owner away to sign in somewhere has that shown in a small window over it instead.
  */
 function keepToServer(window: BrowserWindow): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -331,7 +338,7 @@ function keepToServer(window: BrowserWindow): void {
     event.preventDefault()
     // The app's own pages sign nobody in.
     if (window.webContents.getURL().startsWith("file:")) void shell.openExternal(address)
-    else signInElsewhere(window, address)
+    else void signInElsewhere(window, address)
   }
   window.webContents.on("will-navigate", (event) => leaving(event, event.url))
   window.webContents.on("will-redirect", (event) => {
@@ -366,11 +373,55 @@ function nameByAddress(window: BrowserWindow): void {
 }
 
 /**
+ * A window of the deployment was sent somewhere else to sign in. A connector's sign-in is done
+ * in its owner's browser, where they are signed in to the service already; anything else, or
+ * a deployment that knows nothing of this, in a small window of the app.
+ */
+async function signInElsewhere(asked: BrowserWindow, address: string): Promise<void> {
+  if (!(await connectInBrowser(asked, address))) showElsewhere(asked, address)
+}
+
+/**
+ * Send the owner's browser to a connector's service, if that is what this address is. The
+ * deployment knows a sign-in it started by its `state`, and is told the port to pass the
+ * service's answer on to. The app then takes that answer to the deployment itself, in the
+ * window that asked, which is signed in as whoever started it: the browser need not be.
+ * False where the deployment does not know the address as a sign-in of this person's.
+ */
+async function connectInBrowser(asked: BrowserWindow, address: string): Promise<boolean> {
+  const server = settings.server
+  const state = new URL(address).searchParams.get("state")
+  if (server === undefined || state === null || state === "") return false
+  let known = false
+  const answer = await connecting.connect(state, async (port) => {
+    const told = await session.defaultSession.fetch(`${server}${CONNECTOR_BROWSER_PATH}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ state, port }),
+    })
+    if (!told.ok) throw new Error("not a connector's sign-in")
+    known = true
+    await shell.openExternal(address)
+  })
+  if (!known) return false
+  if ("error" in answer || !alive(asked)) return true
+  const back = new URL(CONNECTOR_CALLBACK_PATH, server)
+  back.search = answer.query
+  back.searchParams.set(CONNECTOR_FROM_APP, "1")
+  void asked.loadURL(back.href)
+  // The owner is in their browser. Bring them back to where the answer is.
+  asked.show()
+  asked.focus()
+  if (MAC) app.focus({ steal: true })
+  return true
+}
+
+/**
  * Show somewhere else on the web in a small window over the one that was sent there, with the
  * same cookies. When the service sends its visitor back to a page of the deployment, the small
  * window closes and the one that asked shows that page, as it would have had it gone itself.
  */
-function signInElsewhere(asked: BrowserWindow, address: string): void {
+function showElsewhere(asked: BrowserWindow, address: string): void {
   const server = settings.server
   if (server === undefined) return
   const open = signIns.get(asked)

@@ -13,6 +13,7 @@ import {
   request as playwrightRequest,
   test,
 } from "@playwright/test"
+import { startFakeMcp } from "../../web/e2e/fake-mcp-server.ts"
 
 const serverEntry = fileURLToPath(new URL("../../web/server.node.mjs", import.meta.url))
 const appEntry = fileURLToPath(new URL("../dist/main.cjs", import.meta.url))
@@ -115,6 +116,8 @@ test.beforeAll(async () => {
       PORT: new URL(url).port,
       DC_BASE_URL: url,
       DC_DATA_DIR: join(scratch, "server"),
+      // The service a connector signs in to is on this machine, in these tests.
+      DC_ALLOW_PRIVATE_HOSTS: "1",
       OPENROUTER_API_KEY: "",
     },
   })
@@ -510,5 +513,96 @@ test("a sign-in somewhere else is shown in a small window, and the app's own nev
     expect(new URL(main.url()).origin).toBe(url)
   } finally {
     service.close()
+  }
+})
+
+test("a connector's sign-in is done in the owner's browser, which brings the answer back to the app", async () => {
+  const main = await windowAt(url)
+  // A service with a sign-in of its own, as a connector's is.
+  const service = await startFakeMcp()
+  try {
+    // The browser is the owner's own. Here the test is the browser: it sees where it was sent.
+    await app.evaluate(({ shell }) => {
+      const opened: string[] = []
+      ;(globalThis as { opened?: string[] }).opened = opened
+      shell.openExternal = async (address: string) => {
+        opened.push(address)
+      }
+    })
+    const opened = () => app.evaluate(() => (globalThis as { opened?: string[] }).opened ?? [])
+    const connector = (agentId: string) =>
+      main.evaluate(async (agentId) => {
+        const { connectors } = (await (
+          await fetch(`/api/agents/${agentId}/connectors`)
+        ).json()) as {
+          connectors: { name: string; status: string }[]
+        }
+        return connectors.find((connector) => connector.name === "Calendar")?.status
+      }, agentId)
+
+    // The page adds the connector, is told where its owner has to sign in, and goes there.
+    const started = await main.evaluate(async (address) => {
+      const { agents } = (await (await fetch("/api/agents")).json()) as { agents: { id: string }[] }
+      const agentId = agents[0]!.id
+      const added = await fetch(`/api/agents/${agentId}/connectors`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "Calendar", url: address }),
+      })
+      const { authorizationUrl } = (await added.json()) as { authorizationUrl: string }
+      return { agentId, to: authorizationUrl, from: location.href }
+    }, `${service.origin}/oauth/mcp`)
+    expect(await connector(started.agentId)).toBe("needs_auth")
+    await main.evaluate((to) => window.location.assign(to), started.to)
+
+    // The app's own window stays, no other is made, and the browser is sent to the service.
+    await expect.poll(opened).toEqual([started.to])
+    expect(main.url()).toBe(started.from)
+    expect(app.windows().filter((page) => page.url().startsWith(service.origin))).toEqual([])
+
+    // In the browser nobody is signed in to the deployment. The owner agrees at the service,
+    // which sends the browser to the deployment, which sends it on to the app on this computer.
+    const asked = await (await fetch(started.to)).text()
+    const allow = /<a href="([^"]+)">Allow<\/a>/.exec(asked)![1]!.replaceAll("&amp;", "&")
+    expect(new URL(allow).origin).toBe(url)
+    const sent = await fetch(allow, { redirect: "manual" })
+    expect(sent.status).toBe(302)
+    const here = new URL(sent.headers.get("location")!)
+    expect(here.hostname).toBe("127.0.0.1")
+    expect(here.origin).not.toBe(url)
+    expect(here.pathname).toBe("/connector")
+    expect(here.searchParams.get("code")).toBe(new URL(allow).searchParams.get("code"))
+    // Nothing is connected by the browser having been there.
+    expect(await connector(started.agentId)).toBe("needs_auth")
+
+    const back = await fetch(here)
+    expect(back.status).toBe(200)
+    expect(await back.text()).toContain("Back to Do Computer.")
+
+    // The app takes the answer to the deployment itself, signed in as whoever asked.
+    await expect.poll(() => connector(started.agentId), { timeout: 20_000 }).toBe("connected")
+    await expect.poll(() => main.url()).toContain(`/a/${started.agentId}`)
+    await expect(
+      main.getByRole("status").filter({ hasText: "Calendar is connected." }),
+    ).toBeVisible()
+
+    // Only whoever started a sign-in may have its answer sent to a computer.
+    const nobody = await fetch(`${url}/api/connectors/browser`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ state: new URL(started.to).searchParams.get("state"), port: 4000 }),
+    })
+    expect(nobody.status).toBe(401)
+    const unknown = await main.evaluate(async () => {
+      const response = await fetch("/api/connectors/browser", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ state: "nobody-started-this", port: 4000 }),
+      })
+      return response.status
+    })
+    expect(unknown).toBe(404)
+  } finally {
+    await service.close()
   }
 })

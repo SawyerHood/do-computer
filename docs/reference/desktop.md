@@ -5,9 +5,9 @@
 - **The app, in a window of its own.** The window shows your deployment the way a browser
   does, so everything the web app can do is there and stays in step with it. On first launch it
   asks for the server's address, unless it was built for one. The window never shows anywhere
-  else: links that lead away open in your browser, and a sign-in to another service, a
-  connector's say, opens in a small window over the app that closes when the service sends you
-  back.
+  else. Links that lead away open in your browser, and so does a connector's sign-in: you agree
+  at the service in the browser you are already signed in to it with, and the app shows the
+  connector connected. The browser need not be signed in to Do Computer for that.
 - **The daemon for the computer it runs on.** While the app runs, the Doods you connected to
   that computer can work on it. Closing the window leaves the app in the tray with the daemon
   going; **Quit** in the tray menu ends both. It can open when you sign in to the computer.
