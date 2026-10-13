@@ -1,6 +1,6 @@
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
-import type { BlobMetadata, BlobObject, BlobStore } from "../index.ts"
+import type { BlobMetadata, BlobObject, BlobRange, BlobStore } from "../index.ts"
 
 const META_SUFFIX = ".meta.json"
 
@@ -57,10 +57,39 @@ export class FileBlobStore implements BlobStore {
     }
   }
 
-  async get(key: string) {
+  async get(key: string, options?: { range?: BlobRange }) {
     const object = await this.head(key)
     if (object === undefined) return undefined
-    return { ...object, bytes: async () => new Uint8Array(await readFile(this.path(key))) }
+    const range = options?.range
+    if (range === undefined) {
+      return { ...object, bytes: async () => new Uint8Array(await readFile(this.path(key))) }
+    }
+    return {
+      ...object,
+      // Only the part asked for is read from the disk, however large the file is.
+      bytes: async () => {
+        const wanted = Math.min(range.length ?? object.size, object.size - range.offset)
+        const part = new Uint8Array(Math.max(0, wanted))
+        const file = await open(this.path(key), "r")
+        try {
+          let filled = 0
+          while (filled < part.length) {
+            const { bytesRead } = await file.read(
+              part,
+              filled,
+              part.length - filled,
+              range.offset + filled,
+            )
+            // The file was replaced by a shorter one since its size was read.
+            if (bytesRead === 0) return part.subarray(0, filled)
+            filled += bytesRead
+          }
+          return part
+        } finally {
+          await file.close()
+        }
+      },
+    }
   }
 
   async delete(key: string): Promise<void> {

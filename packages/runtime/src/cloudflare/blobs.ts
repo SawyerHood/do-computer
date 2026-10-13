@@ -1,4 +1,4 @@
-import type { BlobMetadata, BlobObject, BlobStore } from "../index.ts"
+import type { BlobMetadata, BlobObject, BlobRange, BlobStore } from "../index.ts"
 
 function describe(object: R2Object): BlobObject {
   return {
@@ -22,8 +22,20 @@ export class R2BlobStore implements BlobStore {
     })
   }
 
-  async get(key: string) {
-    const object = await this.bucket.get(this.prefix + key)
+  async get(key: string, options?: { range?: BlobRange }) {
+    const range = options?.range
+    if (range === undefined) return this.read(await this.bucket.get(this.prefix + key))
+    try {
+      return this.read(await this.bucket.get(this.prefix + key, { range }))
+    } catch (error) {
+      // R2 refuses a part that has no byte of the object in it. Here that is an empty part.
+      const whole = await this.bucket.head(this.prefix + key)
+      if (whole === null || (range.offset < whole.size && range.length !== 0)) throw error
+      return { ...this.strip(describe(whole)), bytes: async () => new Uint8Array(0) }
+    }
+  }
+
+  private read(object: R2ObjectBody | null) {
     if (object === null) return undefined
     return {
       ...this.strip(describe(object)),

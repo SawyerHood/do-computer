@@ -235,11 +235,14 @@ export async function serveSite(request: Request, siteId: string): Promise<Respo
     }
     const headers: Record<string, string> = { [LIBRARY_SITE_HEADER]: encodeURIComponent(row.path) }
     // Someone going to a file is shown it, which is made anew each time. A page loading one
-    // is not sent what it already has.
+    // is not sent what it already has, and is sent a part of one when a part is what it asks
+    // for, as a player does of a film.
     const dest = request.headers.get("sec-fetch-dest")
-    const cached = request.headers.get("if-none-match")
-    if (cached !== null && dest !== "document" && dest !== "iframe" && dest !== "frame") {
-      headers["if-none-match"] = cached
+    if (dest !== "document" && dest !== "iframe" && dest !== "frame") {
+      for (const name of ["if-none-match", "range", "if-range"]) {
+        const value = request.headers.get(name)
+        if (value !== null) headers[name] = value
+      }
     }
     const within = rest.slice(slash)
     const response = await libraries.get(row.workspace_id).fetch(
