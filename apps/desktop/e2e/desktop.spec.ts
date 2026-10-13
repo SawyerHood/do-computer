@@ -468,14 +468,30 @@ test("an app that knows its deployment opens on the first run, and signs in thro
   }, token)
   expect(me).toEqual({ exchanged: 200, email: "owner@example.com" })
 
-  // The egg knows them when the first run is opened again: their own agent comes out of it, and
-  // asks about this computer, which is not theirs to use yet.
+  // The egg is for someone new. Opened again by someone who has a Dood, the first run sends
+  // them straight to where they left off, and nothing comes out of an egg for them.
   await main.reload()
-  await card(main, /Sawyer, it’s you! I haven’t worked on this computer before\. May I\?/)
+  await main.waitForURL(/\/a\/[^/]+\/c\/\d+$/)
+  await expect(main.locator("[data-welcome]")).toHaveCount(0)
+  // This computer is not theirs to use yet, and that is asked there, of the workspace's Doods.
+  const asking = main
+    .getByRole("dialog")
+    .filter({ hasText: "Let your Doods work on this computer?" })
+  await asking.getByRole("button", { name: "Yes, work here" }).click()
+  await expect(asking.getByRole("status")).toContainText("is paired", { timeout: 30_000 })
+  await expect(asking).toHaveCount(0)
+  const computer = await openComputer()
+  await expect(computer.getByRole("status")).toContainText("Connected as", { timeout: 20_000 })
+  // Asked once: started again, the app opens on the chat, and the question is not put again.
+  await main.reload()
+  await main.waitForURL(/\/a\/[^/]+\/c\/\d+$/)
+  await expect(main.getByRole("textbox", { name: "Message" })).toBeVisible()
+  await expect(asking).toHaveCount(0)
 })
 
 test("a sign-in somewhere else is shown in a small window, and the app's own never leaves", async () => {
-  const main = await windowAt(/\/welcome$/)
+  const main = await windowAt(url)
+  const was = main.url()
   // A service a connector signs in to: its page sends whoever agrees back to the deployment.
   const service = createService((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
@@ -498,7 +514,7 @@ test("a sign-in somewhere else is shown in a small window, and the app's own nev
     await main.evaluate((there) => window.location.assign(there), there)
     const small = await windowAt("/authorize")
     await expect(small.getByRole("link", { name: "Allow" })).toBeVisible()
-    expect(main.url()).toBe(`${url}/welcome`)
+    expect(main.url()).toBe(was)
     // The small window is named by where it is, whatever the page calls itself.
     const titles = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().map((window) => window.getTitle()),

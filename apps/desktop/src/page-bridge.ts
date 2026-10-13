@@ -1,6 +1,7 @@
 /**
  * What the app gives a page of the deployment that is shown in its window: enough for the
- * first run to be one scene, drawn by the deployment, and no more. The same type is written
+ * first run to be one scene, drawn by the deployment, and no more. Someone who has agents
+ * already is shown no scene: the deployment asks them the one thing left, about this computer. The same type is written
  * down for the pages in `apps/web/src/lib/desktop.ts`; the two are kept alike by hand.
  *
  * The app answers only the top page of its main window, and only while that page is on the

@@ -1531,9 +1531,9 @@ Since then, newest last:
       hatches. The agent is made as it is named, with the seed its egg was drawn from.
     - **Who is sent there:** someone with no agent (`_app.index.tsx` no longer makes one),
       and "Create an account" on the sign-in page.
-      Someone who has an agent is sent on, except in a desktop app that has not been
-      through its first run: there their own agent comes out of the egg and asks about the
-      computer.
+      Someone who has an agent is sent on, in the desktop app too since item 84: before it,
+      in a desktop app that had not been through its first run, their own agent came out of
+      the egg and asked about the computer.
     - **Every account is made there** (2026-10-11; the owner: "anytime you sign up for an
       account you get the welcome setup screen ... instead of the sign up so you get
       onboarded"). `/signup` was still the plain form: whoever opened it made the account
@@ -4455,9 +4455,9 @@ Since then, newest last:
       hatches. The agent is made as it is named, with the seed its egg was drawn from.
     - **Who is sent there:** someone with no agent (`_app.index.tsx` no longer makes one),
       and "Create an account" on the sign-in page.
-      Someone who has an agent is sent on, except in a desktop app that has not been
-      through its first run: there their own agent comes out of the egg and asks about the
-      computer.
+      Someone who has an agent is sent on, in the desktop app too since item 84: before it,
+      in a desktop app that had not been through its first run, their own agent came out of
+      the egg and asked about the computer.
     - **Every account is made there** (2026-10-11; the owner: "anytime you sign up for an
       account you get the welcome setup screen ... instead of the sign up so you get
       onboarded"). `/signup` was still the plain form: whoever opened it made the account
@@ -6531,6 +6531,41 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       phone; Android; a film on the library's screen and a sent film in the simulator (the
       browser build only); an address growing old on a phone; the ringer switch, which a
       simulator has not got; a long film, or one over a slow connection.
+
+84. **Someone who has a Dood signs in to the desktop app and is in the app at once; this
+    computer goes to a workspace** (2026-10-13; `apps/web/src/components/shell/this-computer.tsx`,
+    `scene.tsx`). The owner: "if you are logging into the desktop app again you should be able
+    to skip the cutscene and be dropped right into the app. Also maybe you shouldn't pair your
+    computer with a random agent but you can pick the workspace". Before this, an account
+    with Doods that signed in to an app on its first run had the Dood it last used (or its
+    first) hatch from the egg, ask "may I work on this computer?", and be the only one
+    connected.
+    - **The scene is for someone new.** `arrived` sends whoever has a Dood on to `/`, in the
+      app as in a browser, and nothing hatches. Signed in already, they see no egg on the way
+      (`placed` waits for the answer). A quiet "I already have an account" at the top right,
+      while the egg falls and says hello, puts it down and goes straight to the sign-in card.
+    - **This computer is asked about in the app**, by `ThisComputer`, a dialog over any page
+      behind sign-in while the app says its first run is not over (`welcomed` false) and the
+      scene is not showing. It asks what the card asked: yes, only read files, or not now, and
+      whether to open at sign-in. Any answer ends the first run (`finish`), so it is asked
+      once; quitting the app before answering brings it back. Escape and a click outside do
+      not put it away.
+    - **A workspace is given the computer.** With Doods in more than one workspace it asks
+      which, starting on the one last used. The computer is paired as that workspace's (their
+      own, or the team's) and connected to every Dood in it at that moment, through the
+      `agentIds` the pairing already took: nothing on the server changed. A Dood hatched later
+      is not connected, and asks for it as for any paired computer.
+    - **Mine:** that it is a dialog over the app and not a card or a banner; that it cannot be
+      dismissed; that only workspaces with a Dood are offered; that later Doods are not given
+      it by themselves (a paired computer is still `chosen`, never `open`); the button in the
+      scene and its words; that someone new is still asked by the egg, and paired with the
+      one Dood they have.
+    - **Checked:** `e2e/this-computer.spec.ts` with the app stood in for (team chosen, own
+      workspace read-only, not now, the button in the scene); the desktop tests, where the
+      real app and its daemon pair from the dialog and the question is not put again.
+    - **Not checked:** a Mac or Windows; a real GitHub sign-in through the browser; a
+      deployed Worker. No desktop release holds it: the change is all in the deployment's
+      pages, so an installed app gets it when the deployment does.
 
 ## 6. What the owner has said they want
 

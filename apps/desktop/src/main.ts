@@ -152,7 +152,8 @@ const canOpenAtLogin = () => app.isPackaged || process.env.DC_DESKTOP_AUTOSTART 
 /**
  * The page the window starts on. Until the first run is over that is the deployment's welcome,
  * which asks who its owner is and whether agents may work here, however often the app is quit
- * before it has been answered.
+ * before it has been answered. Someone the deployment knows is sent on from there to their
+ * agents, and asked about this computer in the app.
  */
 const home = () => (settings.welcomed ? settings.server! : `${settings.server}/welcome`)
 
@@ -928,8 +929,9 @@ function listenToServer(): void {
     CHANNELS.share,
     served(async (options: { readOnly?: unknown }): Promise<ShareAnswer> => {
       // A page may ask this once, as part of the first run, where its owner is shown the
-      // question and answers it. From then on the decision to share this computer is made in
-      // the app's own pages, which no deployment can change or press for them.
+      // question and answers it: by the egg, or in the app if they have agents already. From
+      // then on the decision to share this computer is made in the app's own pages, which no
+      // deployment can change or press for them.
       if (settings.welcomed) {
         return {
           error: "Doods are given this computer in the app's own window, under This Computer.",
