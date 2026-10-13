@@ -3,7 +3,6 @@ import {
   type AgentSummary,
   AVATAR_COLORS,
   type AvatarColorId,
-  avatarLook,
   avatarSvg,
   type Dood,
 } from "@do-computer/protocol"
@@ -27,11 +26,17 @@ import { authClient } from "@/lib/auth-client"
 import { client } from "@/lib/client"
 import { agentKey, agentsKey, meKey } from "@/lib/collections"
 import { desktop, signInThroughBrowser } from "@/lib/desktop"
-import { lastAgent, rememberLastAgent } from "@/lib/last-agent"
+import { rememberLastAgent } from "@/lib/last-agent"
 import { loadMascot, loadSky, mascotWardrobe, prefersCalm } from "@/lib/mascot"
 import { queryClient } from "@/lib/query"
 import { cn } from "@/lib/utils"
-import { handingOver, rememberMeeting, sentFrom, welcomeOpenAtom } from "@/lib/welcome"
+import {
+  firstRunOverAtom,
+  handingOver,
+  rememberMeeting,
+  sentFrom,
+  welcomeOpenAtom,
+} from "@/lib/welcome"
 import { Stage } from "./stage.ts"
 import { Thinking } from "./thinking.tsx"
 
@@ -62,8 +67,6 @@ type View = {
   name: string
   color: AvatarColorId
   hatched: boolean
-  /** Someone the deployment knows: an agent of their own was in the egg. */
-  back: boolean
   /** It is a Dood that was hatched in a post, out already, and here to be claimed. */
   fromPost: boolean
   /** They are on the waiting list: what they hatch is theirs, and waits with them. */
@@ -113,17 +116,10 @@ function lineOf(view: View, here: boolean): string {
     case "model":
       return `${name}. I like that. What should I think with?`
     case "computer":
-      return view.back
-        ? `${first}, it’s you! I haven’t worked on this computer before. May I?`
-        : "That will do nicely. One more thing before I come out: may I work on this computer?"
+      return "That will do nicely. One more thing before I come out: may I work on this computer?"
     case "wait":
       return `You’re on the list, ${first}. I’ll be right here, and we’ll get started the moment it’s your turn.`
     case "out":
-      if (view.back) {
-        return view.share === "no"
-          ? "No problem, I’ll stay off this computer. Let’s pick up where we left off."
-          : "All set. Let’s pick up where we left off."
-      }
       if (!here || view.share === undefined) return `There you are, ${first}! Shall we get started?`
       return `There you are, ${first}! ${
         view.share === "yes"
@@ -225,10 +221,14 @@ function unseen(scene: HTMLElement): () => void {
  * whether it may work on this computer. Each answer cracks its shell a little more; then it hatches, and takes its
  * person to its chat. It is shown over the page, by `WelcomeHost`, so that it is still there as
  * the chat comes up under it.
+ *
+ * It is for someone new. Whoever signs in and has a Dood already is sent straight on to where
+ * they left off, with nothing hatched for them and nothing asked.
  */
 export default function WelcomeScene() {
   const navigate = useNavigate()
   const setOpen = useSetAtom(welcomeOpenAtom)
+  const setOver = useSetAtom(firstRunOverAtom)
   const bridge = desktop()
   /**
    * The page that sent them here to come back to it, as an invitation does. They are taken
@@ -255,6 +255,8 @@ export default function WelcomeScene() {
   /** What the egg of a new agent grows from. Its agent is given the same, so it hatches as itself. */
   const seed = useRef(crypto.randomUUID().slice(0, 8))
   const gone = useRef(false)
+  /** They said they have an account before the egg said hello: it is not said after all. */
+  const known = useRef(false)
   /** Whether the scene can be drawn. Undefined until that is known. */
   const [drawn, setDrawn] = useState<boolean>()
   /**
@@ -265,6 +267,8 @@ export default function WelcomeScene() {
   const [placed, setPlaced] = useState(false)
   const [falling, setFalling] = useState(false)
   const [titled, setTitled] = useState(false)
+  /** Nobody is signed in: whoever is here may be someone the deployment knows. */
+  const [stranger, setStranger] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [openAtLogin, setOpenAtLogin] = useState(true)
   const [view, setView] = useState<View>({
@@ -277,7 +281,6 @@ export default function WelcomeScene() {
     name: "",
     color: "tide",
     hatched: false,
-    back: false,
     fromPost: false,
     listed: false,
   })
@@ -341,7 +344,6 @@ export default function WelcomeScene() {
     [patch, later],
   )
 
-  /** Someone is signed in here now. What comes next depends on whether they have an agent. */
   /** A Dood is on the island, out of its egg, as it was when it was last seen. */
   const show = useCallback(
     (dood: Dood) => {
@@ -366,6 +368,7 @@ export default function WelcomeScene() {
     [patch],
   )
 
+  /** Someone is signed in here now. What comes next depends on whether they have an agent. */
   const arrived = useCallback(async () => {
     queryClient.removeQueries({ queryKey: meKey })
     const [me, agents] = await Promise.all([
@@ -422,28 +425,11 @@ export default function WelcomeScene() {
       drawing?.sky.dawn(1)
       return say("name", settled)
     }
-    if (bridge === undefined || bridge.welcomed) {
-      // They have been here before, and there is nothing to ask them: on to where they left
-      // off, or to the page that sent them.
-      await navigate({ href: next ?? "/" })
-      return setOpen(false)
-    }
-    // Their own agent is in the egg, and comes straight out to ask about this computer.
-    const theirs = agents.find((candidate) => candidate.id === lastAgent()) ?? agents[0]!
-    agent.current = theirs
-    const look = avatarLook(theirs.avatar, theirs.id)
-    drawing?.orb.setSeed(look.seed)
-    drawing?.orb.setColor(look.color)
-    drawing?.measure()
-    patch({
-      first,
-      name: theirs.name ?? "Your Dood",
-      back: true,
-      waiting: false,
-      color: (theirs.avatar?.color as AvatarColorId | undefined) ?? seen.current.color,
-    })
-    hatch(() => (here ? say("computer") : say("out")))
-  }, [bridge, here, hatch, navigate, next, patch, say, setOpen, show])
+    // They have been here before, and the scene is not for them: on to where they left off, or
+    // to the page that sent them. In the desktop app that is where this computer is asked about.
+    await navigate({ href: next ?? "/" })
+    setOpen(false)
+  }, [navigate, next, say, setOpen, show])
 
   // The scene is set up once: what can be drawn, who is signed in, and so where it starts.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, as it opens
@@ -484,8 +470,12 @@ export default function WelcomeScene() {
       )
       if (gone.current) return
       if (signedIn) {
-        setPlaced(true)
-        return arrived()
+        // Whoever has a Dood already is sent on, and sees no egg on the way.
+        try {
+          return await arrived()
+        } finally {
+          setPlaced(true)
+        }
       }
       // A sign-in elsewhere that came back with nobody signed in says why in the address.
       const failed = new URLSearchParams(location.search).get("error")
@@ -504,6 +494,8 @@ export default function WelcomeScene() {
         })
       }
       claim.current = undefined
+      // The egg says hello to whoever is here. It may be someone the deployment knows.
+      if (failed === null) setStranger(true)
       if (failed !== null || drawing === null || calm) {
         drawing?.sky.land()
         setPlaced(true)
@@ -523,7 +515,9 @@ export default function WelcomeScene() {
         setFalling(false)
         setTitled(false)
         drawing.orb.cheer()
-        later(() => say("hello"), 1100)
+        later(() => {
+          if (!known.current) say("hello")
+        }, 1100)
       }
       drawing.sky.fall()
       setPlaced(true)
@@ -707,8 +701,10 @@ export default function WelcomeScene() {
   }
 
   const shared = async (share: Share) => {
-    const proceed = () =>
-      seen.current.back ? say("out", { share }) : (patch({ share }), hatch(() => say("out")))
+    const proceed = () => {
+      patch({ share })
+      hatch(() => say("out"))
+    }
     if (share === "no" || bridge === undefined || agent.current === undefined) return proceed()
     patch({ pairing: "pairing", error: undefined })
     try {
@@ -735,29 +731,28 @@ export default function WelcomeScene() {
     if (met === undefined) return
     patch({ busy: true })
     await bridge?.finish(here && bridge.canOpenAtLogin ? { openAtLogin } : {}).catch(() => {})
-    if (!view.back) {
-      // Its owner has watched it hatch: it is never shown as an egg again.
-      void client
-        .agent(met.id)
-        .update({ hatched: true })
-        .then((state) => queryClient.setQueryData(agentKey(met.id), state))
-        .catch(() => {})
-      rememberMeeting({
-        agentId: met.id,
-        first: view.first,
-        ...(view.share === undefined
-          ? {}
-          : {
-              computer:
-                view.share === "no"
-                  ? null
-                  : {
-                      name: view.computer ?? bridge?.computer ?? "",
-                      readOnly: view.share === "read",
-                    },
-            }),
-      })
-    }
+    setOver(true)
+    // Its owner has watched it hatch: it is never shown as an egg again.
+    void client
+      .agent(met.id)
+      .update({ hatched: true })
+      .then((state) => queryClient.setQueryData(agentKey(met.id), state))
+      .catch(() => {})
+    rememberMeeting({
+      agentId: met.id,
+      first: view.first,
+      ...(view.share === undefined
+        ? {}
+        : {
+            computer:
+              view.share === "no"
+                ? null
+                : {
+                    name: view.computer ?? bridge?.computer ?? "",
+                    readOnly: view.share === "read",
+                  },
+          }),
+    })
     rememberLastAgent(met.id)
     await queryClient.invalidateQueries({ queryKey: agentsKey })
     handingOver.begin()
@@ -785,6 +780,13 @@ export default function WelcomeScene() {
     // creature twice and none is without it.
     flushSync(() => setOpen(false))
     show?.()
+  }
+
+  /** They have an account: the egg is down at once, and asks only who they are. */
+  const already = () => {
+    known.current = true
+    stage.current?.sky.land()
+    say("you", { signingIn: true })
   }
 
   /** Someone waiting signs out, and is shown the front door again. */
@@ -863,17 +865,31 @@ export default function WelcomeScene() {
           Do Computer
         </p>
       </div>
-      {falling ? (
-        <button
-          type="button"
-          className="absolute top-[calc(0.875rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-full px-3 py-1 text-xs text-white/55 hover:bg-white/10 hover:text-white"
-          onClick={(event) => {
-            event.stopPropagation()
-            stage.current?.sky.land()
-          }}
-        >
-          Skip
-        </button>
+      {stranger && view.step === "hello" ? (
+        <div className="absolute top-[calc(0.875rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] flex items-center gap-1">
+          <button
+            type="button"
+            className="rounded-full px-3 py-1 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+            onClick={(event) => {
+              event.stopPropagation()
+              already()
+            }}
+          >
+            I already have an account
+          </button>
+          {falling ? (
+            <button
+              type="button"
+              className="rounded-full px-3 py-1 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+              onClick={(event) => {
+                event.stopPropagation()
+                stage.current?.sky.land()
+              }}
+            >
+              Skip
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <div
@@ -1145,9 +1161,7 @@ export default function WelcomeScene() {
                       ? "On to your invitation"
                       : next !== undefined
                         ? "Continue"
-                        : view.back
-                          ? "Back to our chat"
-                          : `Start chatting with ${view.name}`}
+                        : `Start chatting with ${view.name}`}
                   </Button>
                 </div>
               )}

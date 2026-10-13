@@ -8,6 +8,13 @@ import { atom } from "jotai"
 export const welcomeOpenAtom = atom(false)
 
 /**
+ * In the desktop app: whether this window's owner has been asked, since the page loaded, if
+ * their Doods may work on this computer. The app says whether they were asked before that. The
+ * scene asks someone new; someone who has Doods already is asked in the app itself.
+ */
+export const firstRunOverAtom = atom(false)
+
+/**
  * The page that sent the visitor to sign in, or to the first run, to come back to it afterwards,
  * when it named itself, as an invitation does. Only ever a path of this app, never an address
  * someone else could choose.

@@ -2,6 +2,7 @@ import { ApiError, type Me } from "@do-computer/client"
 import { createFileRoute, Outlet, redirect, useRouter } from "@tanstack/react-router"
 import { useEffect } from "react"
 import { AppSkeleton } from "@/components/shell/app-skeleton"
+import { ThisComputer } from "@/components/shell/this-computer"
 import { agentQuery, agentsQuery, meKey, meQuery } from "@/lib/collections"
 import { syncNotifications } from "@/lib/notifications"
 import { queryClient } from "@/lib/query"
@@ -54,9 +55,10 @@ export const Route = createFileRoute("/_app")({
  * The pages behind sign-in. A session that ends while one is open is found out by the next
  * thing asked for, which is refused. The page is then loaded again at the sign-in, so that
  * nothing of the session is left in it. Being signed in is also when the browser is set up to
- * be notified.
+ * be notified, and when the desktop app's owner is asked about the computer it is on.
  */
 function SignedIn() {
+  const { me } = Route.useRouteContext()
   useEffect(() => {
     const refused = (error: unknown) => {
       if (error instanceof ApiError && error.status === 401) window.location.assign("/login")
@@ -86,5 +88,10 @@ function SignedIn() {
     navigator.serviceWorker.addEventListener("message", opened)
     return () => navigator.serviceWorker.removeEventListener("message", opened)
   }, [router])
-  return <Outlet />
+  return (
+    <>
+      <Outlet />
+      <ThisComputer me={me.user} />
+    </>
+  )
 }
