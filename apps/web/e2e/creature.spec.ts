@@ -101,11 +101,11 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   await box.getByRole("button", { name: "Wear it" }).click()
   await expect(box).toHaveCount(0)
 
-  // There was only the one box. The next turns up by itself, half a day on.
+  // There was only the one box. The next turns up by itself, six hours on.
   await expect(picture).toHaveAccessibleName("Juniper's wardrobe")
   await expect(waitingBox(page)).toHaveCount(0)
   await expect(
-    panel(page).getByRole("button", { name: "Juniper's next box turns up in about 12 hours" }),
+    panel(page).getByRole("button", { name: "Juniper's next box turns up in about 6 hours" }),
   ).toBeVisible()
 
   // The wardrobe has it, and says the creature has it on. Everything else is still to find.

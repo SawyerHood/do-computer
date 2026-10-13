@@ -7,23 +7,23 @@ const HOUR = 3_600_000
 
 describe("what is said about a creature's boxes", () => {
   it("says how long is left in hours, and in minutes under an hour", () => {
-    expect(boxProgress({ nextBoxAt: NOW + 7 * HOUR }, NOW).left).toBe("7 hours")
+    expect(boxProgress({ nextBoxAt: NOW + 5 * HOUR }, NOW).left).toBe("5 hours")
     expect(boxProgress({ nextBoxAt: NOW + HOUR }, NOW).left).toBe("1 hour")
     expect(boxProgress({ nextBoxAt: NOW + 40 * 60_000 }, NOW).left).toBe("40 minutes")
     expect(boxProgress({ nextBoxAt: NOW - HOUR }, NOW).left).toBe("1 minute")
   })
 
-  it("fills as the twelve hours pass", () => {
-    expect(boxProgress({ nextBoxAt: NOW + 12 * HOUR }, NOW).part).toBe(0)
-    expect(boxProgress({ nextBoxAt: NOW + 6 * HOUR }, NOW).part).toBe(0.5)
+  it("fills as the six hours pass", () => {
+    expect(boxProgress({ nextBoxAt: NOW + 6 * HOUR }, NOW).part).toBe(0)
+    expect(boxProgress({ nextBoxAt: NOW + 3 * HOUR }, NOW).part).toBe(0.5)
     expect(boxProgress({ nextBoxAt: NOW }, NOW).part).toBe(1)
   })
 
   it("says what was found, and the next box or the ones waiting", () => {
     const some = { ...NEW_CREATURE, owned: ["party", "wizard"] }
     const all = WEAR_ITEMS.length
-    expect(foundLine({ ...some, boxes: 0, nextBoxAt: NOW + 7 * HOUR }, NOW)).toBe(
-      `2 of ${all} found · next box in 7 hours`,
+    expect(foundLine({ ...some, boxes: 0, nextBoxAt: NOW + 5 * HOUR }, NOW)).toBe(
+      `2 of ${all} found · next box in 5 hours`,
     )
     expect(foundLine({ ...some, boxes: 1 }, NOW)).toBe(`2 of ${all} found · a box is waiting`)
     expect(foundLine({ ...some, boxes: 3 }, NOW)).toBe(`2 of ${all} found · 3 boxes waiting`)
