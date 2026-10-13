@@ -142,6 +142,105 @@ export type BrowserRan = {
 }
 
 /**
+ * A saved login as a computer is handed it to sign in with. It is used for the one sign-in and
+ * kept nowhere: only `name` may be written down, said or sent back.
+ */
+export type SignInWith = {
+  name: string
+  username: string
+  password: string
+  /** The sites it is for, as host names. It is typed on these and their subdomains, and nowhere else. */
+  sites: string[]
+}
+
+/** The page in front in a computer's browser, as the browser itself says. */
+export type BrowserFront = {
+  /** Absent where no browser is open for agents, or it has no page. */
+  url?: string
+  title?: string
+  own: boolean
+}
+
+/**
+ * How signing in with a saved login went:
+ *
+ * - `signed_in`: it was typed and sent, and the form is gone.
+ * - `wrong_site`: the page in front is not one the login is for. Nothing was typed.
+ * - `no_form`: no box for a password was found on the page. Nothing of the password was typed.
+ * - `still_asking`: it was typed and sent, and the page still asks: for the same thing, or for
+ *   something more (a code, a puzzle). What was typed was taken out of the page again.
+ * - `failed`: it could not be tried at all.
+ *
+ * Nothing in it is, or is made from, the password.
+ */
+export type BrowserSignedIn = {
+  outcome: "signed_in" | "wrong_site" | "no_form" | "still_asking" | "failed"
+  /** What happened, in a sentence or two, for the agent to be told. */
+  message: string
+  /** The host of the page it was tried on, as the browser gave it. */
+  site?: string
+  /**
+   * Whether the password was typed into the page at all. Where it says it was not, trying gave
+   * nothing away, and whoever said it might be tried need not be asked again to try once more.
+   */
+  typed?: boolean
+  /** The page in front afterwards. */
+  url?: string
+  title?: string
+  own: boolean
+}
+
+/**
+ * Whether a page at `url` is one a login for `sites` may be typed on: https, and the same host
+ * as one of them or a subdomain of it. A page on this computer itself (localhost) may be plain
+ * http, which is how such a thing is tried out.
+ */
+export function signInSite(url: string | undefined, sites: readonly string[]): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url ?? "")
+  } catch {
+    return null
+  }
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "")
+  const local = host === "localhost" || host === "127.0.0.1" || host === "[::1]"
+  if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) return null
+  for (const entry of sites) {
+    const site = siteHost(entry)
+    if (site !== null && (host === site || host.endsWith(`.${site}`))) return host
+  }
+  return null
+}
+
+/**
+ * A site as it is kept with a login: a host name, lower case, with no scheme, port or path.
+ * Null for what is not one. An address is taken for its host, so `https://github.com/login`
+ * is `github.com`.
+ */
+export function siteHost(value: string): string | null {
+  const text = value.trim().toLowerCase()
+  if (text === "" || text.length > 253) return null
+  let host: string
+  try {
+    host = new URL(/^[a-z][a-z0-9+.-]*:\/\//.test(text) ? text : `https://${text}`).hostname
+  } catch {
+    return null
+  }
+  host = host.replace(/\.$/, "")
+  if (host === "localhost" || host === "127.0.0.1") return host
+  // A name with a dot in it, of letters, digits and hyphens: not an address in numbers, and
+  // not a bare top-level name, which would cover every site under it.
+  if (
+    !/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$/.test(
+      host,
+    )
+  ) {
+    return null
+  }
+  return host
+}
+
+/**
  * What someone watching is shown: the screen, or the page in front, as it is now. Each has a
  * number, so that whoever asks can wait for one newer than the last they had.
  *

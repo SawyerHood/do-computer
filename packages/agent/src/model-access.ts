@@ -27,6 +27,7 @@ import {
   modelProviders,
 } from "./model-providers.ts"
 import { isInherited } from "./own.ts"
+import { createVault } from "./vault.ts"
 
 /** How long someone has to finish a sign-in before it is given up. */
 const LOGIN_TTL_MS = 15 * 60_000
@@ -216,6 +217,11 @@ export type ModelAccessOptions = {
   readonly providers?: () => readonly Provider[]
   /** What the app is called, where a provider names the app that is signing in. */
   readonly appName?: string
+  /**
+   * The deployment's secret that the logins a workspace saves for websites are sealed with.
+   * Absent: none can be saved.
+   */
+  readonly vaultKey?: string | undefined
 }
 
 /**
@@ -228,6 +234,9 @@ export type ModelAccessOptions = {
  *
  * It trusts its callers, which are the gateway, after checking that someone is in the
  * workspace, and the workspace's agents. A credential is only ever handed to an agent.
+ *
+ * It also keeps the logins the workspace saves for its agents to sign in to websites with
+ * (`vault.ts`): the same kind of thing, kept in the same place and handed out the same way.
  */
 export function createModelAccessActor(host: ActorHost, options: ModelAccessOptions = {}): Actor {
   const credentials = new StoredCredentials(host)
@@ -238,6 +247,8 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
   })
   for (const provider of (options.providers ?? modelProviders)()) models.setProvider(provider)
   const logins = new Map<string, Running>()
+  // The logins the workspace keeps for its agents to sign in to websites with.
+  const saved = createVault(host, { key: options.vaultKey })
 
   const provider = (id: string): Provider => {
     const found = isInherited(id) ? undefined : models.getProvider(id)
@@ -631,6 +642,8 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
       const known = !isInherited(id) && models.getProvider(id) !== undefined
       return json({ credential: known ? ((await credentialFor(id)) ?? null) : null })
     }
+    const kept = await saved.route(request, segments)
+    if (kept !== undefined) return kept
     if (what === "destroy" && method === "POST") {
       for (const running of logins.values()) end(running, "cancelled")
       logins.clear()

@@ -5,7 +5,11 @@ import {
   type ComputerRequest,
   type ConnectorSummary,
   isPersonalWorkspace,
+  LOGIN_PASSWORD,
+  LOGIN_USERNAME,
+  MAX_PASSWORD_CHARS,
   MAX_SECRET_CHARS,
+  MAX_USERNAME_CHARS,
   type SecretRequest,
 } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -320,6 +324,232 @@ function SignInCard({
   )
 }
 
+/** Where a request came from, for one shown in another chat of the agent than the one it was made in. */
+function AskedElsewhere({
+  agentId,
+  chatId,
+  accent,
+}: {
+  agentId: string
+  chatId: string
+  accent: Accent
+}) {
+  const router = useRouter()
+  return (
+    <>
+      {" "}
+      Asked in{" "}
+      <Text
+        variant="footnote"
+        color={accent.ink}
+        accessibilityRole="link"
+        onPress={() => router.push(`/a/${agentId}/c/${chatId}`)}
+      >
+        another chat
+      </Text>
+      .
+    </>
+  )
+}
+
+/**
+ * One thing to type in a card. A secret is hidden as it goes in, with an eye to look at it
+ * while it is still here.
+ */
+function TypedField({
+  label,
+  name,
+  description = null,
+  secret = false,
+  mono: code = false,
+  value,
+  busy,
+  accent,
+  onChangeText,
+}: {
+  label: string
+  /** What it is called where its eye is named: "Show password". */
+  name: string
+  description?: string | null
+  secret?: boolean
+  /** Whether its label is a name as code has it, such as an environment variable's. */
+  mono?: boolean
+  value: string
+  busy: boolean
+  accent: Accent
+  onChangeText: (text: string) => void
+}) {
+  const theme = useTheme()
+  const [visible, setVisible] = useState(false)
+  return (
+    <View style={{ gap: 3 }}>
+      <Text variant="caption" weight="600" style={code ? { fontFamily: mono } : undefined}>
+        {label}
+      </Text>
+      {description === null ? null : (
+        <Text variant="caption" tone="ink2">
+          {description}
+        </Text>
+      )}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: theme.fill,
+          borderRadius: radius.sm,
+          paddingLeft: 10,
+        }}
+      >
+        <TextInput
+          accessibilityLabel={label}
+          secureTextEntry={secret && !visible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          spellCheck={false}
+          editable={!busy}
+          value={value}
+          onChangeText={onChangeText}
+          selectionColor={accent.a}
+          style={{
+            flex: 1,
+            height: 38,
+            color: theme.ink,
+            fontFamily: mono,
+            fontSize: 14,
+            padding: 0,
+          }}
+        />
+        {secret ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${visible ? "Hide" : "Show"} ${name}`}
+            accessibilityState={{ selected: visible }}
+            onPress={() => setVisible(!visible)}
+            hitSlop={6}
+            style={{
+              width: 38,
+              height: 38,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: visible ? 1 : 0.55,
+            }}
+          >
+            <Icon name="eye" size={17} color={theme.ink2} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  )
+}
+
+/** Why a login cannot be saved, or undefined when it can. */
+function problemWithLogin(username: string, password: string): string | undefined {
+  if (username.trim() === "") return "Type the username or email."
+  if (username.trim().length > MAX_USERNAME_CHARS) return "That username is too long."
+  if (password === "") return "Type the password."
+  if (/[\r\n]/.test(password)) return "A password has to be a single line."
+  if (password.length > MAX_PASSWORD_CHARS) return "That password is too long to save."
+  return undefined
+}
+
+/**
+ * The form for a login an agent asked for, to sign in on a site with. The workspace keeps it
+ * for that site. What is typed is held here only until it is sent, and forgotten when the form
+ * goes.
+ */
+function LoginCard({
+  request,
+  site,
+  agentId,
+  agentName,
+  chatId,
+  accent,
+  team,
+}: Shared & { request: SecretRequest; site: string }) {
+  const { client } = useSession()
+  const queryClient = useQueryClient()
+  const api = client.agent(agentId)
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [problem, setProblem] = useState<string>()
+  const answer = useAnswer(() => queryClient.invalidateQueries({ queryKey: keys.secrets(agentId) }))
+  const save = () => {
+    const wrong = problemWithLogin(username, password)
+    setProblem(wrong)
+    if (wrong === undefined) {
+      void answer.run(
+        () =>
+          api.answerSecretRequest(request.id, {
+            [LOGIN_USERNAME]: username.trim(),
+            [LOGIN_PASSWORD]: password,
+          }),
+        () => setPassword(""),
+      )
+    }
+  }
+  return (
+    <Card
+      icon="key"
+      lead={`${agentName} needs a login for ${site}`}
+      error={problem ?? answer.error}
+      note={team === undefined ? undefined : `Anyone in ${team} can answer`}
+      buttons={
+        <>
+          <Button
+            title="Not now"
+            kind="grey"
+            size="medium"
+            style={{ flex: 1 }}
+            disabled={answer.busy}
+            onPress={() => void answer.run(() => api.declineSecretRequest(request.id))}
+          />
+          <Button
+            title="Save"
+            size="medium"
+            color={accent.a}
+            onColor={accent.onA}
+            style={{ flex: 1 }}
+            busy={answer.busy}
+            onPress={save}
+          />
+        </>
+      }
+    >
+      {request.purpose === null ? null : <Text variant="subhead">“{request.purpose}”</Text>}
+      <Text variant="footnote" tone="ink2">
+        Kept encrypted by Do Computer. {agentName} can sign in with it on {site} and cannot read it.
+        {request.chatId === chatId ? null : (
+          <AskedElsewhere agentId={agentId} chatId={request.chatId} accent={accent} />
+        )}
+      </Text>
+      <TypedField
+        label="Username or email"
+        name="username"
+        value={username}
+        busy={answer.busy}
+        accent={accent}
+        onChangeText={(text) => {
+          setProblem(undefined)
+          setUsername(text)
+        }}
+      />
+      <TypedField
+        label="Password"
+        name="password"
+        secret
+        value={password}
+        busy={answer.busy}
+        accent={accent}
+        onChangeText={(text) => {
+          setProblem(undefined)
+          setPassword(text)
+        }}
+      />
+    </Card>
+  )
+}
+
 /** Why a value cannot be saved, or undefined when it can. */
 function problemWith(name: string, value: string): string | undefined {
   if (value === "") return `Type a value for ${name}.`
@@ -339,17 +569,17 @@ function SecretCard({
   chatId,
   accent,
   team,
-}: Shared & { request: SecretRequest }) {
-  const theme = useTheme()
-  const router = useRouter()
+  destination,
+}: Shared & {
+  request: SecretRequest
+  destination: Exclude<SecretRequest["destination"], { kind: "login" }>
+}) {
   const { client } = useSession()
   const queryClient = useQueryClient()
   const api = client.agent(agentId)
   const [values, setValues] = useState<Record<string, string>>({})
-  const [shown, setShown] = useState<Record<string, boolean>>({})
   const [problem, setProblem] = useState<string>()
   const answer = useAnswer(() => queryClient.invalidateQueries({ queryKey: keys.secrets(agentId) }))
-  const { destination } = request
   const one = request.fields.length === 1
   const save = () => {
     const wrong = request.fields
@@ -404,84 +634,27 @@ function SecretCard({
           : `Saved to ${destination.path} on ${destination.computer}.`}{" "}
         What you type is not put in the chat or shown to {agentName}.
         {request.chatId === chatId ? null : (
-          <>
-            {" "}
-            Asked in{" "}
-            <Text
-              variant="footnote"
-              color={accent.ink}
-              accessibilityRole="link"
-              onPress={() => router.push(`/a/${agentId}/c/${request.chatId}`)}
-            >
-              another chat
-            </Text>
-            .
-          </>
+          <AskedElsewhere agentId={agentId} chatId={request.chatId} accent={accent} />
         )}
       </Text>
       {request.fields.map((field) => {
-        const visible = shown[field.name] === true
         const label = destination.kind === "connector" ? "Access token" : field.name
         return (
-          <View key={field.name} style={{ gap: 3 }}>
-            <Text variant="caption" weight="600" style={{ fontFamily: mono }}>
-              {label}
-            </Text>
-            {field.description === null ? null : (
-              <Text variant="caption" tone="ink2">
-                {field.description}
-              </Text>
-            )}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: theme.fill,
-                borderRadius: radius.sm,
-                paddingLeft: 10,
-              }}
-            >
-              <TextInput
-                accessibilityLabel={label}
-                secureTextEntry={!visible}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="off"
-                spellCheck={false}
-                editable={!answer.busy}
-                value={values[field.name] ?? ""}
-                onChangeText={(text) => {
-                  setProblem(undefined)
-                  setValues((current) => ({ ...current, [field.name]: text }))
-                }}
-                selectionColor={accent.a}
-                style={{
-                  flex: 1,
-                  height: 38,
-                  color: theme.ink,
-                  fontFamily: mono,
-                  fontSize: 14,
-                  padding: 0,
-                }}
-              />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${visible ? "Hide" : "Show"} ${field.name}`}
-                accessibilityState={{ selected: visible }}
-                onPress={() => setShown((current) => ({ ...current, [field.name]: !visible }))}
-                hitSlop={6}
-                style={{
-                  width: 38,
-                  height: 38,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: visible ? 1 : 0.55,
-                }}
-              >
-                <Icon name="eye" size={17} color={theme.ink2} />
-              </Pressable>
-            </View>
-          </View>
+          <TypedField
+            key={field.name}
+            label={label}
+            name={field.name}
+            description={field.description}
+            secret
+            mono
+            value={values[field.name] ?? ""}
+            busy={answer.busy}
+            accent={accent}
+            onChangeText={(text) => {
+              setProblem(undefined)
+              setValues((current) => ({ ...current, [field.name]: text }))
+            }}
+          />
         )
       })}
     </Card>
@@ -535,9 +708,14 @@ export function Asks(
     ...(connectors.data ?? [])
       .filter((connector) => connector.status === "needs_auth" && connector.askedIn !== undefined)
       .map((connector) => <SignInCard key={`s${connector.id}`} {...props} connector={connector} />),
-    ...(secrets.data ?? []).map((request) => (
-      <SecretCard key={`k${request.id}`} {...props} request={request} />
-    )),
+    ...(secrets.data ?? []).map((request) => {
+      const { destination } = request
+      return destination.kind === "login" ? (
+        <LoginCard key={`k${request.id}`} {...props} request={request} site={destination.site} />
+      ) : (
+        <SecretCard key={`k${request.id}`} {...props} request={request} destination={destination} />
+      )
+    }),
   ]
   if (cards.length === 0) return null
   const folded = cards.length > 2 && !all

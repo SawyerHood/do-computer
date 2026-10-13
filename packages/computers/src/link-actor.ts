@@ -91,12 +91,16 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
    * date is told to, and waited for: it is back in about a second unless the agent has it
    * busy. Resolves with why not, where it still cannot.
    */
-  const able = async (ability: "jobs" | "screen" | "browser"): Promise<string | undefined> => {
+  const able = async (
+    ability: "jobs" | "screen" | "browser" | "signIn",
+  ): Promise<string | undefined> => {
     let hello = (await status()).hello
     // A daemon that knows of a thing says whether it may be used, and answers for itself why
     // not. One that says nothing of it is from before there was such a thing.
     const knows = (said: LinkStatus["hello"]) =>
-      ability === "jobs" ? said?.jobs === true : said?.[ability] !== undefined
+      ability === "jobs" || ability === "signIn"
+        ? said?.[ability] === true
+        : said?.[ability] !== undefined
     if (knows(hello)) return undefined
     if (hello?.updates !== true || !tell()) {
       return "The program that connects this computer is too old for that, and does not update itself. Whoever the computer belongs to can run the install command from Computers there again."
@@ -145,9 +149,12 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
             if (host.sockets().length === 0) {
               throw new RemoteError("offline", "The computer is offline.")
             }
-            const lacking = await able(what)
-            if (lacking !== undefined) return json({ error: lacking, code: "unsupported" }, 409)
             const asked = (await request.json()) as Record<string, unknown>
+            // Signing in with a saved login is newer than the browser: one from before it
+            // would not answer, and must never be sent a password it does not know to keep quiet.
+            const signsIn = what === "browser" && (asked.op === "front" || asked.op === "sign_in")
+            const lacking = (await able(what)) ?? (signsIn ? await able("signIn") : undefined)
+            if (lacking !== undefined) return json({ error: lacking, code: "unsupported" }, 409)
             return json({ value: await core.use({ ...asked, t: what } as never) })
           }
           case "/fs":

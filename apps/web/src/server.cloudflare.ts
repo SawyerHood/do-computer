@@ -27,6 +27,7 @@ import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
 import { siteDirectory } from "./server/site-directory.ts"
 import { modelAccessDirectory } from "./server/model-access-directory.ts"
+import { savedLoginsDirectory } from "./server/passwords-directory.ts"
 import {
   addableKinds,
   addMachineFor,
@@ -93,6 +94,11 @@ export const AgentObject = createDurableActorClass<Env>({
       library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
       sites: siteDirectory(d1Database(env.DB)),
       showsBrowser: browserDirectory(d1Database(env.DB)),
+      savedLogins: savedLoginsDirectory(
+        d1Database(env.DB),
+        durableObjectNamespace(env.MODEL_ACCESS),
+        config,
+      ),
       agentDirectory: agentDirectory(
         d1Database(env.DB),
         () => durableObjectNamespace(env.AGENT),
@@ -136,7 +142,7 @@ export const LibraryObject = createDurableActorClass<Env>({
 
 /** One Durable Object per workspace, keeping the model providers it is signed in to. */
 export const ModelAccessObject = createDurableActorClass<Env>({
-  create: (host) => createModelAccessActor(host),
+  create: (host, env) => createModelAccessActor(host, { vaultKey: readConfig(env).secretsKey }),
   blobs: (env, name) => r2Blobs(env.BLOBS, `model-access/${encodeURIComponent(name)}/`),
 })
 

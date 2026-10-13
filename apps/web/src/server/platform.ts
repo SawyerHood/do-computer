@@ -1,4 +1,5 @@
 import type { ComputerChoices } from "@do-computer/agent"
+import type { SecretsMode } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 
 /** Deployment settings, read from the environment of whichever runtime hosts the app. */
@@ -74,6 +75,17 @@ export type Config = {
     readonly image: string | undefined
     readonly instance: string | undefined
   }
+  /**
+   * Who has saved logins, which a Dood signs in to websites with (`DC_SECRETS`). `admins`,
+   * which is what an unset one means: those `adminEmails` names, in a workspace where everyone
+   * is one of them. `on`: everyone. `off`: nobody, and nothing of it is there.
+   */
+  readonly secrets: SecretsMode
+  /**
+   * What saved logins are sealed with before they are kept: `DC_SECRETS_KEY`, or the secret
+   * that signs sessions where there is none. Changing it makes what was saved unreadable.
+   */
+  readonly secretsKey: string | undefined
   /** Connectors and skill installs may reach this machine and private networks. */
   readonly allowPrivateHosts: boolean
   /** OpenRouter speech-to-text model used for dictation. */
@@ -135,6 +147,15 @@ function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): Sandb
     throw new ConfigError(`${saying} "${value}". It must be one of: ${SANDBOX_KINDS.join(", ")}.`)
   }
   return value as SandboxKind
+}
+
+function secretsMode(value: string | undefined): SecretsMode {
+  const said = (value ?? "admins").toLowerCase()
+  if (said === "admins") return "admins"
+  if (["on", "1", "true", "everyone"].includes(said)) return "on"
+  if (["off", "0", "false", "none"].includes(said)) return "off"
+  // A typo here must not quietly open saved passwords to more people than was meant.
+  throw new ConfigError(`DC_SECRETS is "${value}". It must be one of: admins, on, off.`)
 }
 
 function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undefined {
@@ -206,6 +227,8 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       image: optional("DC_CLOUDFLARE_IMAGE"),
       instance: optional("DC_CLOUDFLARE_INSTANCE"),
     },
+    secrets: secretsMode(optional("DC_SECRETS")),
+    secretsKey: optional("DC_SECRETS_KEY") ?? optional("DC_AUTH_SECRET"),
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
     slackApiUrl: optional("DC_SLACK_API_URL"),
