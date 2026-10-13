@@ -171,6 +171,37 @@ test("a chat streams the agent's reply and survives leaving and coming back", as
   await expect(words(page, /You said: hello from the phone/)).toBeVisible()
 })
 
+test("a copied picture is pasted into the message box and goes with the message", async ({
+  page,
+}) => {
+  await openChat(page)
+  await composer(page).fill("Look at this: ")
+  // A screenshot on the clipboard is called image.png every time, so it is named for the moment.
+  await composer(page).evaluate((box) => {
+    const png = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      ),
+      (character) => character.charCodeAt(0),
+    )
+    const data = new DataTransfer()
+    data.items.add(new File([png], "image.png", { type: "image/png" }))
+    box.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+    )
+  })
+  // It is shown as the picture it is, small, above what was typed, which is left as it was.
+  const pasted = /pasted-\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.png/
+  await expect(page.getByLabel("Attached files").getByRole("img", { name: pasted })).toBeVisible()
+  await expect(page.getByRole("button", { name: /^Remove pasted-/ })).toBeVisible()
+  await expect(composer(page)).toHaveValue("Look at this: ")
+
+  await page.getByRole("button", { name: "Send" }).click()
+  await expect(composer(page)).toHaveValue("")
+  // It is in the library by then, and the agent is told its name.
+  await expect(words(page, new RegExp(`^Attached: ${pasted.source}$`)).first()).toBeVisible()
+})
+
 test("the agent's work leaves only its answer, and a sent file can be opened", async ({ page }) => {
   await openChat(page)
   await send(page, '/tool write {"path":"list.md","content":"- eggs\\n- flour\\n"}')
@@ -217,6 +248,28 @@ test("a request for approval can be answered from the phone", async ({ page }) =
   } finally {
     await page.request.patch(rules, { data: { "tool:bash": "allow" } })
   }
+})
+
+test("the agent can be spoken to while it works", async ({ page }) => {
+  await openChat(page)
+  // The browser has a fake microphone, so recording works without hardware or a prompt.
+  await page
+    .context()
+    .grantPermissions(["local-network-access", "microphone"])
+    .catch(() => page.context().grantPermissions(["microphone"]))
+  await send(page, '/tool bash {"command":"sleep 20"}')
+  // Stop is beside the microphone and not in its place.
+  const stop = page.getByRole("button", { name: "Stop", exact: true })
+  await expect(stop).toBeVisible()
+  await page.getByRole("button", { name: "Dictate" }).click()
+  await expect(page.getByRole("button", { name: "Stop dictating" })).toBeVisible()
+  await expect(composer(page)).toBeHidden()
+  await page.getByRole("button", { name: "Cancel dictating" }).click()
+  await expect(composer(page)).toBeVisible()
+
+  await stop.click()
+  await expect(stop).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Dictate" })).toBeVisible()
 })
 
 test("Markdown in a reply is rendered, not shown as markup", async ({ page }) => {

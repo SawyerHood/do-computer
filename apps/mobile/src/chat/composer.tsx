@@ -18,6 +18,7 @@ import {
   pictureFor,
 } from "./attachments"
 import { Dictating, useChatDictation } from "./dictation"
+import { PasteTarget } from "./paste"
 
 /** What is written and not sent yet, by chat, for as long as the app is open. */
 const draftsAtom = atom<Readonly<Record<string, string>>>({})
@@ -42,9 +43,10 @@ const MAX_LINES = 7
 
 /**
  * The message box: a round "+" and a capsule to write in, floating over the foot of the chat.
- * At the capsule's end is the microphone while it is empty, the send button once there is
- * something to send, and Stop while the agent works and nothing is written. What is sent while
- * the agent works steers it or waits, as the agent is set to.
+ * At the capsule's end is the microphone while it is empty, with Stop beside it while the agent
+ * works, and the send button once there is something to send. What is sent while the agent
+ * works steers it or waits, as the agent is set to. A picture that was copied is pasted into
+ * the box as words are, and is attached.
  */
 export function Composer({
   agentId,
@@ -140,7 +142,7 @@ export function Composer({
   })
   const dictating = dictation.state !== "idle"
 
-  const attach = async (choose: () => Promise<Chosen[]>) => {
+  const attach = async (choose: () => Chosen[] | Promise<Chosen[]>) => {
     setAttachError(undefined)
     let files: Chosen[]
     try {
@@ -291,55 +293,59 @@ export function Composer({
             />
           ) : (
             <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-              <TextInput
-                accessibilityLabel="Message"
-                multiline
-                value={draft}
-                placeholder={placeholder}
-                placeholderTextColor={theme.ink3}
-                selectionColor={accent.a}
-                onContentSizeChange={
-                  Platform.OS === "web"
-                    ? (event) => setTall(event.nativeEvent.contentSize.height)
-                    : undefined
-                }
-                // With a keyboard of keys, Enter sends and Shift+Enter adds a line, as on the web.
-                onKeyPress={
-                  Platform.OS === "web"
-                    ? (event) => {
-                        const key = event.nativeEvent as { key: string; shiftKey?: boolean }
-                        if (key.key !== "Enter" || key.shiftKey) return
-                        event.preventDefault()
-                        send()
-                      }
-                    : undefined
-                }
-                onChangeText={(text) => {
-                  setDraft(text)
-                  onKey?.()
-                  onTyping?.(text.trim() !== "")
-                }}
-                style={{
-                  flex: 1,
-                  color: theme.ink,
-                  fontSize: 17,
-                  lineHeight: LINE,
-                  letterSpacing: -0.41,
-                  paddingLeft: 16,
-                  paddingRight: 4,
-                  paddingTop: 11,
-                  paddingBottom: 11,
-                  maxHeight: LINE * MAX_LINES + 22,
-                  ...(Platform.OS === "web"
-                    ? { height: Math.min(Math.max(tall, LINE + 22), LINE * MAX_LINES + 22) }
-                    : // A phone's box grows with what is written in it, and does not always
-                      // shrink again when that is sent: an empty one is told how tall it is.
-                      draft === ""
-                      ? { height: LINE + 22 }
-                      : null),
-                }}
-              />
-              <View style={{ padding: 5 }}>
+              <PasteTarget
+                onPaste={(files) => void attach(() => files)}
+                onRefused={() => setAttachError("What was copied could not be pasted.")}
+              >
+                <TextInput
+                  accessibilityLabel="Message"
+                  multiline
+                  value={draft}
+                  placeholder={placeholder}
+                  placeholderTextColor={theme.ink3}
+                  selectionColor={accent.a}
+                  onContentSizeChange={
+                    Platform.OS === "web"
+                      ? (event) => setTall(event.nativeEvent.contentSize.height)
+                      : undefined
+                  }
+                  // With a keyboard of keys, Enter sends and Shift+Enter adds a line, as on the web.
+                  onKeyPress={
+                    Platform.OS === "web"
+                      ? (event) => {
+                          const key = event.nativeEvent as { key: string; shiftKey?: boolean }
+                          if (key.key !== "Enter" || key.shiftKey) return
+                          event.preventDefault()
+                          send()
+                        }
+                      : undefined
+                  }
+                  onChangeText={(text) => {
+                    setDraft(text)
+                    onKey?.()
+                    onTyping?.(text.trim() !== "")
+                  }}
+                  style={{
+                    color: theme.ink,
+                    fontSize: 17,
+                    lineHeight: LINE,
+                    letterSpacing: -0.41,
+                    paddingLeft: 16,
+                    paddingRight: 4,
+                    paddingTop: 11,
+                    paddingBottom: 11,
+                    maxHeight: LINE * MAX_LINES + 22,
+                    ...(Platform.OS === "web"
+                      ? { height: Math.min(Math.max(tall, LINE + 22), LINE * MAX_LINES + 22) }
+                      : // A phone's box grows with what is written in it, and does not always
+                        // shrink again when that is sent: an empty one is told how tall it is.
+                        draft === ""
+                        ? { height: LINE + 22 }
+                        : null),
+                  }}
+                />
+              </PasteTarget>
+              <View style={{ flexDirection: "row", gap: 2, padding: 5 }}>
                 {ready ? (
                   <Pressable
                     accessibilityRole="button"
@@ -349,28 +355,33 @@ export function Composer({
                   >
                     <Icon name="arrowUp" size={17} color={accent.onA} weight="bold" />
                   </Pressable>
-                ) : busy && uploading === 0 ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Stop"
-                    onPress={() => {
-                      haptic.medium()
-                      onStop()
-                    }}
-                    style={[round, { backgroundColor: theme.ink }]}
-                  >
-                    <Icon name="stop" size={15} color={theme.bg} />
-                  </Pressable>
                 ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Dictate"
-                    disabled={uploading > 0}
-                    onPress={() => void dictation.start()}
-                    style={round}
-                  >
-                    <Icon name="mic" size={20} color={theme.ink2} />
-                  </Pressable>
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Dictate"
+                      disabled={uploading > 0}
+                      onPress={() => void dictation.start()}
+                      style={round}
+                    >
+                      <Icon name="mic" size={20} color={theme.ink2} />
+                    </Pressable>
+                    {/* The agent can be spoken to while it works, so Stop does not take the
+                        microphone's place. */}
+                    {busy && uploading === 0 ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Stop"
+                        onPress={() => {
+                          haptic.medium()
+                          onStop()
+                        }}
+                        style={[round, { backgroundColor: theme.ink }]}
+                      >
+                        <Icon name="stop" size={15} color={theme.bg} />
+                      </Pressable>
+                    ) : null}
+                  </>
                 )}
               </View>
             </View>
