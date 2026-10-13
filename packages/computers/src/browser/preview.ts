@@ -52,6 +52,8 @@ export interface Preview {
   latest(): { shot?: Shot; url?: string; title?: string; pointer?: ShotPoint }
   /** The page in front, asked of the browser afresh: its title is often a moment behind. */
   front(): Promise<{ url: string; title: string } | undefined>
+  /** The page it follows, as the browser names it. Undefined while it follows none. */
+  target(): string | undefined
   /** Something else that is shown has changed. */
   bump(): void
   /** Nobody is using the browser: stop the frames and forget the last one. */
@@ -422,6 +424,7 @@ export function createPreview(connectionUrl: string, options: PreviewOptions): P
       if (result !== undefined && connection === socket) observe(connection, obj(result).targetInfo)
       return page
     },
+    target: () => cast?.targetId,
     bump,
     rest() {
       if (idleTimer) clearTimeout(idleTimer)

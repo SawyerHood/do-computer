@@ -81,7 +81,7 @@ import {
   SchedulesDoc,
 } from "./docs.ts"
 import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
-import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
+import { ApprovalError, Approvals, ApprovalsDoc, SIGN_IN_ABILITY } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
 import { AppNeedsConsent, ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
@@ -118,6 +118,7 @@ import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { type CheckResult, ScheduleError, Scheduler } from "./schedules.ts"
 import { SecretError, Secrets, SecretsDoc } from "./secrets.ts"
+import { bindingOf, SignIns } from "./sign-in.ts"
 import { type SettingsChange, SettingsError, settingsExtension } from "./settings.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
@@ -127,6 +128,7 @@ import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
 import { type Carried, cutDown, isWarm } from "./branch.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { UseError, Uses } from "./uses.ts"
+import { vault } from "./vault.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 import { isInherited, own } from "./own.ts"
@@ -249,6 +251,13 @@ export type AgentActorOptions = {
    * not told and decides for itself.
    */
   readonly showsBrowser?: (agentId: string) => Promise<boolean | undefined>
+  /**
+   * Where the agent's workspace keeps the logins it saved for websites, looked up each time.
+   * Resolves with undefined where the workspace has none to use: the deployment has them
+   * switched off, or keeps them for its admins and this is not a workspace of theirs alone.
+   * Absent: no agent here has any.
+   */
+  readonly savedLogins?: (agentId: string) => Promise<ActorStub | undefined>
   /**
    * Who the other agents of the agent's workspace are, and how a message reaches one. Without
    * it, the agent knows of no other agent.
@@ -528,6 +537,7 @@ export class AgentActor implements Actor {
   readonly #skills: Skills
   readonly #approvals: Approvals
   readonly #secrets: Secrets
+  readonly #signIns: SignIns
   readonly #keepGoing: KeepGoing
   readonly #journal: Journal
   readonly #history: HistoryIndex
@@ -671,19 +681,49 @@ export class AgentActor implements Actor {
         // A token is sent with every request, so nobody signs in and nothing returns anywhere.
         return this.#connectors.add(input, this.#connectorRedirect() ?? "", c)
       },
+      saveLogin: async (input, asked, c) => {
+        const actor = await this.#vault()
+        if (actor === undefined) throw new Error("This workspace does not keep logins.")
+        const login = await vault.save(actor, input, asked.by)
+        // Whoever typed it for this site, here, has said it may be used there this once.
+        await this.#approvals.allowOnce(asked.chatId, bindingOf(login.id, asked.site), c)
+        return login
+      },
       onRequest: (request) =>
         this.#asked(
           "Needs something from you",
-          request.purpose ?? `Asks for ${request.fields.map((field) => field.name).join(", ")}`,
+          request.purpose ??
+            (request.destination.kind === "login"
+              ? `Asks for a login for ${request.destination.site}`
+              : `Asks for ${request.fields.map((field) => field.name).join(", ")}`),
           request.chatId,
         ),
       onSettled: () => this.#tell(),
+    })
+    this.#signIns = new SignIns({
+      agent: async () => {
+        const identity = await this.#identity(await this.#open())
+        return {
+          id: host.name,
+          name: identity.name ?? "Your Dood",
+          color: avatarLook(identity.avatar, host.name).color,
+        }
+      },
+      computer: (name, c) => this.#computers.resolve(name, c),
+      vault: () => this.#vault(),
+      chatKind: async (chatId, c) =>
+        own((await (await this.#open()).snapshot(ChatsDoc, c))?.chats ?? {}, chatId)?.kind,
+      askForLogin: (input, c) => this.#secrets.askForLogin(input, c),
+      returnPass: (chatId, binding, c) => this.#approvals.allowOnce(chatId, binding, c),
     })
     this.#approvals = new Approvals({
       now: () => host.now(),
       computerOf: (name, c) => this.#computers.peek(name, c),
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
+      describe: (call, chatId, c) => this.#signIns.describe(call, chatId, c),
+      // Signing in is something only an agent whose workspace keeps logins can do.
+      has: async (ability) => ability !== SIGN_IN_ABILITY || (await this.#vault()) !== undefined,
       onRequest: (request) =>
         this.#asked(
           "Needs your OK",
@@ -802,6 +842,19 @@ export class AgentActor implements Actor {
               }),
             onError: (error) => options.onReport?.(error),
           })
+  }
+
+  /**
+   * Where the agent's workspace keeps its saved logins, or undefined where it has none to use.
+   * Not knowing is taken as having none.
+   */
+  async #vault(): Promise<ActorStub | undefined> {
+    try {
+      return await this.#options.savedLogins?.(this.#host.name)
+    } catch (error) {
+      this.#options.onReport?.(error)
+      return undefined
+    }
   }
 
   /** Run an automation's check where it says to, as a command of the agent's own. */
@@ -1045,6 +1098,9 @@ export class AgentActor implements Actor {
       if (this.#slack !== undefined) registry.install(this.#slack.extension)
       registry.install(this.#skills.extension)
       registry.install(this.#secrets.extension)
+      // Signing in with a saved login, where the agent's workspace has any to use. It is
+      // looked up as the agent is opened: one that gains or loses them is told the next time.
+      if ((await this.#vault()) !== undefined) registry.install(this.#signIns.extension)
       registry.install(
         settingsExtension({
           models: () => this.#modelOptions(),
@@ -1765,12 +1821,10 @@ export class AgentActor implements Actor {
         // What was typed is read here and handed straight on. It is kept nowhere on the way.
         const told = decline
           ? await this.#secrets.decline(requestId, context, caller)
-          : await this.#secrets.answer(
-              requestId,
-              (await body<{ values?: unknown }>(request)).values,
-              context,
-              caller,
-            )
+          : await (async () => {
+              const { values, sites } = await body<{ values?: unknown; sites?: unknown }>(request)
+              return this.#secrets.answer(requestId, values, context, caller, sites)
+            })()
         // What the agent says about it is told like any other answer nobody was there for.
         if (told !== undefined) {
           await this.#touch(harness, told.chatId)

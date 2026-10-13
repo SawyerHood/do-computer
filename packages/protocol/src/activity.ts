@@ -57,6 +57,8 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return path === undefined ? `Editing a file${on}` : `Editing ${fileName(path)}${on}`
     case "web_search":
       return withDetail("Searching the web", text(args.query))
+    case "sign_in":
+      return withDetail(`Signing in${on}`, text(args.login))
     case "send_file":
       return path === undefined ? "Sending you a file" : `Sending you ${fileName(path)}`
     case "visual":
@@ -177,6 +179,8 @@ const PAST: Record<string, string> = {
   Sharing: "Shared",
   Pinning: "Pinned",
   Unpinning: "Unpinned",
+  // Whether it got in is not something the call's arguments say.
+  Signing: "Asked to sign",
 }
 
 /**

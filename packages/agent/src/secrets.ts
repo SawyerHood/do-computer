@@ -1,7 +1,11 @@
 import {
   type AddConnectorRequest,
   type ConnectorResult,
+  LOGIN_PASSWORD,
+  LOGIN_USERNAME,
   MAX_SECRET_CHARS,
+  type SavedLogin,
+  type SaveLoginRequest,
   SECRET_NAME,
   type SecretField,
   type SecretRequest,
@@ -43,6 +47,7 @@ const NUDGE =
 type Destination =
   | { kind: "dotenv"; computer: string; computerId: string; path: string }
   | { kind: "connector"; name: string; url: string }
+  | { kind: "login"; site: string }
 
 type Stored = {
   chatId: string
@@ -79,6 +84,15 @@ export type SecretsOptions = {
   ) => Promise<ComputerTarget | string>
   /** Add a connector that is reached with a fixed token. Absent: the agent has no connectors. */
   readonly addConnector?: (input: AddConnectorRequest, context: Context) => Promise<ConnectorResult>
+  /**
+   * Keep a login for the agent's workspace, to sign in on websites with. Absent: the workspace
+   * keeps none. Told who typed it, and the chat that asked, once it is kept.
+   */
+  readonly saveLogin?: (
+    input: SaveLoginRequest,
+    asked: { chatId: string; site: string; by: Caller | undefined },
+    context: Context,
+  ) => Promise<SavedLogin>
   /** Called when the agent has asked, to tell the person wherever they are. */
   readonly onRequest?: (request: SecretRequest) => void
   /** Called when something it asked for waits on nobody any more: given, or declined. */
@@ -218,6 +232,25 @@ export class Secrets {
     return { request, fresh: outcome.fresh }
   }
 
+  /** Ask a person to save a login for a site, which the workspace then keeps for signing in there. */
+  askForLogin(
+    input: { chatId: string; purpose: string | null; site: string },
+    context: Context,
+  ): Promise<{ request: SecretRequest; fresh: boolean }> {
+    return this.ask(
+      {
+        chatId: input.chatId,
+        purpose: input.purpose,
+        fields: [
+          { name: LOGIN_USERNAME, description: "The username or email you sign in with" },
+          { name: LOGIN_PASSWORD, description: null },
+        ],
+        destination: { kind: "login", site: input.site },
+      },
+      context,
+    )
+  }
+
   /** Mark a request answered, and resolve with what it asked. Undefined if it was answered already. */
   async #settle(
     id: string,
@@ -265,7 +298,11 @@ export class Secrets {
     const chat = own((await harness.snapshot(ChatsDoc, context))?.chats ?? {}, request.chatId)
     if (chat === undefined || conversation === undefined) return undefined
     const where =
-      request.destination.kind === "dotenv" ? request.destination.path : request.destination.name
+      request.destination.kind === "dotenv"
+        ? request.destination.path
+        : request.destination.kind === "login"
+          ? request.destination.site
+          : request.destination.name
     await conversation.submit(
       {
         type: "write",
@@ -306,6 +343,7 @@ export class Secrets {
     values: unknown,
     context: Context,
     by?: Caller,
+    sites?: unknown,
   ): Promise<Told | undefined> {
     const request = await this.#find(id, context)
     if (typeof values !== "object" || values === null) {
@@ -324,7 +362,29 @@ export class Secrets {
     }
     const who = nameOf(by)
     let text: string
-    if (request.destination.kind === "connector") {
+    if (request.destination.kind === "login") {
+      const { site } = request.destination
+      const save = this.#options.saveLogin
+      if (save === undefined) throw new SecretError("This workspace does not keep logins.")
+      let login: SavedLogin
+      try {
+        login = await save(
+          {
+            // Called after its site until someone gives it a name of their own.
+            name: site,
+            username: given[LOGIN_USERNAME] ?? "",
+            password: given[LOGIN_PASSWORD] ?? "",
+            // The site that asked is always one of them: it is what the login was typed for.
+            sites: [site, ...(Array.isArray(sites) ? sites.filter((entry) => entry !== site) : [])],
+          },
+          { chatId: request.chatId, site, by },
+          context,
+        )
+      } catch (error) {
+        throw new SecretError(error instanceof Error ? error.message : String(error))
+      }
+      text = `${who} saved a login for ${site}: it is called "${login.name}" and signs in as ${login.username}. You were not shown the password and will not be. Call \`sign_in\` again to sign in with it.`
+    } else if (request.destination.kind === "connector") {
       const { name, url } = request.destination
       const add = this.#options.addConnector
       if (add === undefined) throw new SecretError("This Dood cannot have connectors.")
@@ -385,7 +445,9 @@ export class Secrets {
     const what =
       request.destination.kind === "connector"
         ? `the access token for the connector "${request.destination.name}"`
-        : `the secrets you asked for (${request.fields.map((field) => field.name).join(", ")})`
+        : request.destination.kind === "login"
+          ? `a login for ${request.destination.site}`
+          : `the secrets you asked for (${request.fields.map((field) => field.name).join(", ")})`
     return this.#tell(
       id,
       request,

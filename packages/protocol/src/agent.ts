@@ -551,10 +551,14 @@ export type SecretRequest = {
   /** What the secrets are for, in the agent's words. */
   purpose: string | null
   fields: SecretField[]
-  /** Where they are saved: a dotenv file on a computer, or the access token of a connector. */
+  /**
+   * Where they are saved: a dotenv file on a computer, the access token of a connector, or a
+   * login the workspace keeps for signing in on `site`.
+   */
   destination:
     | { kind: "dotenv"; computer: string; path: string }
     | { kind: "connector"; name: string; url: string }
+    | { kind: "login"; site: string }
   createdAt: number
 }
 
@@ -564,8 +568,11 @@ export const MAX_SECRET_CHARS = 16 * 1024
 /** What a secret can be saved under: the name of an environment variable. */
 export const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/
 
-/** The answer to a request for secrets: a value for every field. */
-export type AnswerSecretRequest = { values: Record<string, string> }
+/**
+ * The answer to a request for secrets: a value for every field. For a login, `sites` may name
+ * the sites it is to be typed on, where they are more than the one that asked.
+ */
+export type AnswerSecretRequest = { values: Record<string, string>; sites?: string[] }
 
 /** One kind of computer an agent can work on, as a deployment offers it. */
 export type ComputerKind = {

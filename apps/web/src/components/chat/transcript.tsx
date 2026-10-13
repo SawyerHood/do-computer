@@ -17,7 +17,6 @@ import {
   isShownPart,
   isSubagentStart,
   continuesMain,
-  isVisibleMessage,
   type MessagePart,
 } from "@do-computer/protocol"
 import {
@@ -50,6 +49,7 @@ import {
   useMessageScroller,
 } from "@/components/ui/message-scroller"
 import { chatKey } from "@/lib/atoms"
+import { signInOf } from "@/lib/passwords"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { TeamContext } from "@/lib/workspaces"
@@ -59,6 +59,7 @@ import { McpAppFrame } from "./mcp-app.tsx"
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
 import { AgentIdContext, DraftKeyContext, SentFile } from "./sent-file.tsx"
+import { SignInLine } from "./sign-in.tsx"
 import { PinCard } from "./pin-card.tsx"
 import { SiteCard } from "./site-card.tsx"
 import { VisualFrame } from "./visual.tsx"
@@ -67,7 +68,14 @@ import { CommandChip, CommandWord } from "./commands.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
 import { UsesContext, UseView } from "./uses.tsx"
 
+/**
+ * Whether a part of a message is shown here. A sign-in with a saved login is, as the one tool
+ * call a chat keeps a line of, once it carries where it signed in and as whom.
+ */
+const isShown = (part: MessagePart) => isShownPart(part) || signInOf(part) !== undefined
+
 function AssistantPart({ part, writing }: { part: MessagePart; writing: boolean }) {
+  if (part.type === "tool" && signInOf(part) !== undefined) return <SignInLine part={part} />
   if (isMcpApp(part)) return <McpAppFrame part={part} />
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
@@ -314,12 +322,20 @@ function MessageView({
     }
     if (part?.type === "notice" && part.kind === "secret") {
       // The answer to the agent's asking for secrets: which, and where they went. Never what.
+      // A login is told in words, "a login for github.com", where secrets are told by their names.
+      const login = part.text === "" ? /^(a login for) (\S+)$/.exec(part.detail ?? "") : null
       return (
         <div className="flex items-center gap-2 border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
           <KeyIcon className="size-4 shrink-0" />
           <span className="min-w-0 wrap-anywhere">
             {part.by ?? "Someone"} {part.approved ? "gave" : "chose not to give"}{" "}
-            <span className="font-mono font-medium text-foreground">{part.detail}</span>
+            {login === null ? (
+              <span className="font-mono font-medium text-foreground">{part.detail}</span>
+            ) : (
+              <>
+                {login[1]} <span className="font-medium text-foreground">{login[2]}</span>
+              </>
+            )}
             {part.approved && part.text !== "" ? (
               <>
                 , saved to <span className="font-mono">{part.text}</span>
@@ -442,7 +458,7 @@ function MessageView({
     <Message>
       <MessageContent>
         {message.parts
-          .filter(isShownPart)
+          .filter(isShown)
           // A site shared and then opened up in one answer is one card, which says how it stands.
           .filter(
             (part, index, shown) =>
@@ -519,19 +535,26 @@ export function Transcript({
   }, [state, chatId])
   // A message whose every shown part is a later step of a use shows nothing, and leaves no gap.
   const shows = (message: ChatMessage) =>
-    isVisibleMessage(message) &&
-    (message.role !== "assistant" ||
-      message.status === "error" ||
-      message.status === "aborted" ||
-      message.parts.some(
-        (part) => isShownPart(part) && (!isUse(part) || uses.uses.has(part.toolCallId)),
-      ))
+    message.role !== "assistant" ||
+    message.status === "error" ||
+    message.status === "aborted" ||
+    message.parts.some((part) => isShown(part) && (!isUse(part) || uses.uses.has(part.toolCallId)))
   const shown = foldFailures((untouched ? [] : state.messages).filter(shows), state.busy)
   // While a step is under way, the window of the screen says what it is.
   const stepping = uses.all.some((use) => {
     const status = use.steps.at(-1)?.status
     return status === "pending" || status === "running"
   })
+  // A sign-in under way has its own line, which says more than what the agent is doing would.
+  const signingIn =
+    state.messages
+      .at(-1)
+      ?.parts.some(
+        (part) =>
+          part.type === "tool" &&
+          (part.status === "pending" || part.status === "running") &&
+          signInOf(part) !== undefined,
+      ) === true
   const agentId = useContext(AgentIdContext)
   const draftKey =
     agentId === undefined || chatId === undefined ? undefined : chatKey(agentId, chatId)
@@ -556,7 +579,7 @@ export function Transcript({
                     />
                   </MessageScrollerItem>
                 ))}
-                {activity === null || stepping ? null : (
+                {activity === null || stepping || signingIn ? null : (
                   // The moving shine says it is working; a spinner beside it would say it twice.
                   <Marker role="status" aria-live="polite" className="px-1">
                     <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>

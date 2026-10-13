@@ -99,7 +99,7 @@ export const ScriptedAgentObject = createDurableActorClass<Env>({
 
 /** A workspace's sign-ins to model providers, with the providers pi really has. */
 export const ModelAccessObject = createDurableActorClass<Env>({
-  create: (host) => createModelAccessActor(host),
+  create: (host) => createModelAccessActor(host, { vaultKey: "a key for the tests" }),
   blobs: (env, name) => r2Blobs(env.BLOBS, `models/${encodeURIComponent(name)}/`),
 })
 

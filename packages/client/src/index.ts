@@ -7,6 +7,10 @@ import {
   type ApprovalDecision,
   type ApprovalRule,
   type ApprovalsState,
+  type ChangeLoginRequest,
+  type SavedLogin,
+  type SavedLoginsState,
+  type SaveLoginRequest,
   type ChatHistoryPage,
   type HistoryHit,
   type JobStatus,
@@ -468,6 +472,23 @@ export function createClient(options: ClientOptions) {
           request<{ ok: true }>(`${base}/invitations/${encodeURIComponent(invitationId)}`, {
             method: "DELETE",
           }),
+        /** The logins the workspace keeps for its Doods to sign in to websites with. No passwords. */
+        savedLogins: async () => (await request<SavedLoginsState>(`${base}/passwords`)).logins,
+        /** Save a login. Its password goes to where it is kept, and is never sent back. */
+        saveLogin: async (input: SaveLoginRequest) =>
+          (await post<{ login: SavedLogin }>(`${base}/passwords`, input)).login,
+        /** Change a login's name, username or sites, or give it a new password. */
+        changeSavedLogin: async (loginId: string, input: ChangeLoginRequest) =>
+          (
+            await request<{ login: SavedLogin }>(
+              `${base}/passwords/${encodeURIComponent(loginId)}`,
+              { method: "PATCH", body: JSON.stringify(input) },
+            )
+          ).login,
+        removeSavedLogin: (loginId: string) =>
+          request<{ ok: true }>(`${base}/passwords/${encodeURIComponent(loginId)}`, {
+            method: "DELETE",
+          }),
         /** The model providers there are, and which the workspace is signed in to. */
         modelProviders: async () =>
           (await request<ModelProvidersState>(`${base}/model-providers`)).providers,
@@ -828,8 +849,16 @@ export function createClient(options: ClientOptions) {
          * Give the secrets the agent asked for. They are saved where it asked and are never
          * part of a chat: the agent is told only that they were saved.
          */
-        answerSecretRequest: (requestId: string, values: Record<string, string>) =>
-          post<{ ok: true }>(`${base}/secrets/${encodeURIComponent(requestId)}`, { values }),
+        answerSecretRequest: (
+          requestId: string,
+          values: Record<string, string>,
+          /** For a login: the sites it is to be typed on, where they are more than the one that asked. */
+          sites?: string[],
+        ) =>
+          post<{ ok: true }>(`${base}/secrets/${encodeURIComponent(requestId)}`, {
+            values,
+            ...(sites === undefined ? {} : { sites }),
+          }),
         /** Say no to a request for secrets. The agent is told. */
         declineSecretRequest: (requestId: string) =>
           post<{ ok: true }>(`${base}/secrets/${encodeURIComponent(requestId)}/decline`),
