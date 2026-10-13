@@ -6681,7 +6681,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       macOS, Windows, an owner's own Chrome with its real prompt; the desktop app, which needs
       a release for its daemon to pay; the phone's code box, which was type-checked only.
 
-85. **The sections of a Dood's panel fold, and the panel scrolls as one** (2026-10-13;
+87. **The sections of a Dood's panel fold, and the panel scrolls as one** (2026-10-13;
     `apps/web/src/components/chat/panel-section.tsx`, `agent-panel.tsx`). The owner, of a
     panel with a pin, a thread from another Dood and four from Slack in it: "this panel is a
     little crammed when you have lots of stuff ... i wonder if these sections could be

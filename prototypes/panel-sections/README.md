@@ -6,7 +6,7 @@ section has a share of the height and its own scroll area, and the last ones fal
 It is drawn before any of it was built. It is not part of the app and nothing here is imported by
 it. Everything in it is pretend.
 
-Direction A was built on 2026-10-13 (HANDOFF.md, section 5, item 85). Where the app differs: the
+Direction A was built on 2026-10-13 (HANDOFF.md, section 5, item 87). Where the app differs: the
 caret and the count are the app's own; a folded list of threads says "Answered", "Answering" or
 how many are waiting for an OK, which are the states a thread has; What it did here shows its
 latest five with a "Show more", borrowed from C; the bar scrolls back to the face when pressed;
