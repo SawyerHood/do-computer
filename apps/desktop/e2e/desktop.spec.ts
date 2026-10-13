@@ -518,6 +518,9 @@ test("a sign-in somewhere else is shown in a small window, and the app's own nev
 
 test("a connector's sign-in is done in the owner's browser, which brings the answer back to the app", async () => {
   const main = await windowAt(url)
+  // Where the test before left it is on its way to a chat. Nothing is asked of it until then.
+  await main.waitForURL(/\/a\/[^/]+\/c\/\d+$/)
+  await main.waitForLoadState("load")
   // A service with a sign-in of its own, as a connector's is.
   const service = await startFakeMcp()
   try {
