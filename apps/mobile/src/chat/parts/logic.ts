@@ -57,9 +57,19 @@ export function kindOf(file: Pick<LibraryFile, "name" | "size">): FileKind {
   return kind !== "image" && kind !== "other" && file.size > MAX_TEXT_BYTES ? "other" : kind
 }
 
-/** Whether the library can show a file. One sent before it showed documents has no place on record. */
-export const isViewable = (file: Pick<LibraryFile, "name" | "size"> & { path?: string }) =>
-  file.path !== undefined && kindOf(file) !== "other"
+/**
+ * Whether the library can show a file, a film and a sound among them, which it plays. One sent
+ * before it showed documents has no place on record.
+ */
+export function isViewable(
+  file: Pick<LibraryFile, "name" | "size"> & { path?: string; contentType?: string },
+): boolean {
+  const played = embedKind(file.name, file.contentType)
+  return (
+    file.path !== undefined &&
+    (kindOf(file) !== "other" || played === "video" || played === "audio")
+  )
+}
 
 /** Raster images are previewed in the chat; the server serves only these types in place. */
 const PREVIEWABLE = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
@@ -68,14 +78,15 @@ export const isPreviewable = (file: Pick<LibraryFile, "contentType">) =>
 
 /**
  * How a file is shown in a chat as what it is, where a reply names it or the agent sends it: a
- * picture drawn, a sound played, a table's first rows. Undefined for anything else, a film
- * among them, which is only named: the phone has nothing to play one with.
+ * picture drawn, a film or a sound played, a table's first rows. Undefined for anything else,
+ * which is only named.
  */
 export function shownAs(
   file: Pick<LibraryFile, "name" | "contentType">,
-): "picture" | "sound" | "table" | undefined {
+): "picture" | "film" | "sound" | "table" | undefined {
   const kind = embedKind(file.name, file.contentType)
   if (kind === "image") return "picture"
+  if (kind === "video") return "film"
   if (kind === "audio") return "sound"
   return kind === "table" ? "table" : undefined
 }

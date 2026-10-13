@@ -119,6 +119,13 @@ describe("files and sites", () => {
     expect(kindOf({ name: "archive.zip", size: 10 })).toBe("other")
     expect(isViewable({ name: "a.html", size: 1, path: "a.html" })).toBe(true)
     expect(isViewable({ name: "a.html", size: 1 })).toBe(false)
+    // The library plays a film and a sound, however large, and has nothing for an archive.
+    expect(isViewable({ name: "demo.mp4", size: 20_000_000, path: "demo.mp4" })).toBe(true)
+    expect(isViewable({ name: "memo", size: 1, path: "memo", contentType: "audio/mpeg" })).toBe(
+      true,
+    )
+    expect(isViewable({ name: "demo.mp4", size: 1 })).toBe(false)
+    expect(isViewable({ name: "archive.zip", size: 1, path: "archive.zip" })).toBe(false)
     expect(fileIcon({ name: "a.png", size: 1 })).toBe("photo")
     expect(fileIcon({ name: "a.py", size: 1 })).toBe("code")
     expect(fileIcon({ name: "a.zip", size: 1 })).toBe("doc")
@@ -203,14 +210,18 @@ describe("what a reply names as a picture", () => {
     }
   })
 
-  it("shows a picture, a sound and a table as what they are, and only names the rest", () => {
+  it("shows a picture, a film, a sound and a table as what they are, and only names the rest", () => {
     const file = (name: string, contentType = "application/octet-stream") => ({ name, contentType })
     expect(shownAs(file("q3.PNG"))).toBe("picture")
     expect(shownAs(file("chime.wav"))).toBe("sound")
     expect(shownAs(file("recording", "audio/mpeg; charset=binary"))).toBe("sound")
     expect(shownAs(file("signups.csv"))).toBe("table")
     expect(shownAs(file("signups.tsv"))).toBe("table")
-    expect(shownAs(file("clip.mp4"))).toBeUndefined()
+    expect(shownAs(file("clip.mp4"))).toBe("film")
+    expect(shownAs(file("Demo.MOV"))).toBe("film")
+    expect(shownAs(file("recording", "video/webm"))).toBe("film")
+    // A `.ts` file in a library is source code, whatever else the letters stand for.
+    expect(shownAs(file("index.ts", "video/mp2t"))).toBeUndefined()
     expect(shownAs(file("plan.md"))).toBeUndefined()
     expect(shownAs(file("report.pdf"))).toBeUndefined()
   })
