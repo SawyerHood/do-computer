@@ -21,7 +21,7 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: "computer.do.app",
     infoPlist: {
-      NSMicrophoneUsageDescription: "Used to dictate messages to your agent.",
+      NSMicrophoneUsageDescription: "Used to dictate messages to your Dood.",
       ITSAppUsesNonExemptEncryption: false,
     },
   },
@@ -38,7 +38,7 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     "expo-secure-store",
-    ["expo-audio", { microphonePermission: "Used to dictate messages to your agent." }],
+    ["expo-audio", { microphonePermission: "Used to dictate messages to your Dood." }],
     "expo-notifications",
     "expo-sharing",
     // The scene lifecycle that the iOS 27 SDK asks every app for.
@@ -47,7 +47,7 @@ const config: ExpoConfig = {
       "expo-image-picker",
       {
         photosPermission: "Used to attach pictures to a message or add them to the library.",
-        cameraPermission: "Used to take a picture to send to your agent.",
+        cameraPermission: "Used to take a picture to send to your Dood.",
         microphonePermission: false,
       },
     ],

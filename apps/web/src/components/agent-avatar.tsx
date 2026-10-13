@@ -167,7 +167,7 @@ export function AgentAvatar({
   return (
     <span
       role="img"
-      aria-label="Agent avatar"
+      aria-label="Dood avatar"
       data-mood={!hatched ? "egg" : still ? "idle" : mood.state}
       className={cn(
         "relative inline-block size-8 shrink-0",

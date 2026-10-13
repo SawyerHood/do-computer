@@ -89,7 +89,7 @@ const FROM: Record<ApprovalRequest["chatKind"], string> = {
   chat: "from the chat",
   schedule: "from the scheduled run",
   subagent: "from the sub-agent",
-  agent: "from a conversation with another agent,",
+  agent: "from a conversation with another Dood,",
   slack: "from the Slack thread",
 }
 

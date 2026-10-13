@@ -135,7 +135,7 @@ test("a daemon that asks for the screen has it used, and is given a picture of i
 
 test("what the daemon asks is not among what its owner reads of it", async () => {
   const page = await computer()
-  await expect(page.getByRole("heading", { name: "What agents can use here" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "What Doods can use here" })).toBeVisible()
   await expect(page.locator("#log")).not.toContainText("@dc-call")
 })
 
@@ -146,7 +146,7 @@ test("switching the screen off is remembered, and the daemon starts again withou
   await expect(screen).toBeChecked()
   await expect(browser).toBeChecked()
   await expect(
-    page.getByText("An agent cannot change these. They are kept on this computer."),
+    page.getByText("A Dood cannot change these. They are kept on this computer."),
   ).toBeVisible()
 
   await screen.click()
@@ -158,7 +158,7 @@ test("switching the screen off is remembered, and the daemon starts again withou
       timeout: 20_000,
     })
     .toBe(true)
-  expect(heard()!.answers[0]!.error!.message).toContain("does not let agents use its screen")
+  expect(heard()!.answers[0]!.error!.message).toContain("does not let Doods use its screen")
 })
 
 test("switching the browser off is remembered, and the daemon is told", async () => {

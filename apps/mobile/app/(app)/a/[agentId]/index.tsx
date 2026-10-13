@@ -50,7 +50,7 @@ export default function MainChat() {
         backgroundColor: theme.bg,
       }}
     >
-      <Stack.Screen options={{ title: agent?.name ?? "New agent" }} />
+      <Stack.Screen options={{ title: agent?.name ?? "New Dood" }} />
       {asked.isError ? (
         <Text tone="ink2" accessibilityRole="alert" style={{ textAlign: "center" }}>
           This chat could not be opened. It may have been deleted.

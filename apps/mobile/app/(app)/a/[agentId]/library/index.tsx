@@ -176,7 +176,7 @@ export default function Library() {
     },
   ]
 
-  const sharers = library.sharers.map((agent) => agent.name ?? "An agent")
+  const sharers = library.sharers.map((agent) => agent.name ?? "A Dood")
   const whose =
     sharers.length > 1
       ? `${library.workspaceName} · ${listed(sharers)} share it`
@@ -256,7 +256,7 @@ export default function Library() {
           {here.folders.length + here.files.length === 0 ? (
             <Empty title="Nothing here yet.">
               {top
-                ? "Documents and files made by the agents of this workspace, and ones you have given them."
+                ? "Documents and files made by the Doods of this workspace, and ones you have given them."
                 : undefined}
             </Empty>
           ) : (

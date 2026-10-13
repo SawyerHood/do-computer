@@ -87,7 +87,7 @@ const ABILITIES: readonly Ability[] = [
   {
     id: "tool:bash",
     label: "Run commands",
-    hint: "Also applies to an automation's check, a command that is run each time before the agent is started.",
+    hint: "Also applies to an automation's check, a command that is run each time before the Dood is started.",
     tools: ["bash"],
   },
   {
@@ -158,7 +158,7 @@ const ABILITIES: readonly Ability[] = [
   {
     id: "tool:connectors_change",
     label: "Add and change connectors",
-    hint: "A connector gives the agent the tools of another service.",
+    hint: "A connector gives the Dood the tools of another service.",
     tools: ["connectors"],
     actions: ["add", "add_apps", "reconnect", "enable", "disable", "remove"],
     ask: true,
@@ -172,7 +172,7 @@ const ABILITIES: readonly Ability[] = [
   },
   {
     id: "tool:agents_create",
-    label: "Make new agents",
+    label: "Make new Doods",
     tools: ["agents"],
     actions: ["create"],
     ask: true,
@@ -210,7 +210,7 @@ const TOOL_TITLES: Record<string, string> = {
   connectors: "See its connectors",
   request_secret: "Ask you for a secret",
   settings: "See its settings",
-  agents: "Work with the other agents",
+  agents: "Work with the other Doods",
   slack: "Read Slack",
 }
 
@@ -314,7 +314,7 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
   }
   if (call.name === "agents" && action === "create") {
     return {
-      title: "Make a new agent",
+      title: "Make a new Dood",
       detail: [name, word(args.tagline)].filter(Boolean).join(": "),
     }
   }

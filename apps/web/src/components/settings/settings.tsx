@@ -51,7 +51,7 @@ type Me = { id: string; name: string; image?: string | null }
 const OWN: readonly SettingsSection<TopSection>[] = [
   { id: "general", label: "General", icon: <GearSixIcon /> },
   { id: "notifications", label: "Notifications", icon: <BellIcon /> },
-  { id: "agents", label: "Agents", icon: <SmileyIcon /> },
+  { id: "agents", label: "Doods", icon: <SmileyIcon /> },
   { id: "workspaces", label: "Workspaces", icon: <SquaresFourIcon /> },
 ]
 
@@ -204,10 +204,10 @@ function OfAgent({
   return (
     <SettingsDialog
       onClose={close}
-      back={{ label: "Agents", onClick: () => open({ at: "top", section: "agents" }) }}
+      back={{ label: "Doods", onClick: () => open({ at: "top", section: "agents" }) }}
       mark={<AgentFace agent={agent} className="size-8" still />}
-      name={agent.name ?? "New agent"}
-      kind={workspace?.kind === "team" ? `Agent in ${workspace.name}` : "Your agent"}
+      name={agent.name ?? "New Dood"}
+      kind={workspace?.kind === "team" ? `Dood in ${workspace.name}` : "Your Dood"}
       groups={[{ sections: AGENT }]}
       // Slack is set up from the connectors, and is one of them in the list.
       section={section === "slack" ? "connectors" : section}

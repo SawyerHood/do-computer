@@ -187,7 +187,7 @@ function unpermitted(): string[] {
 /** Why an agent may not use the screen just now, in words it can pass on to its owner. */
 function screenForbidden(): string | undefined {
   if (!abilities().screen) {
-    return "This computer does not let agents use its screen. Its owner can switch that on in the Do Computer app on that computer, under This Computer."
+    return "This computer does not let Doods use its screen. Its owner can switch that on in the Do Computer app on that computer, under This Computer."
   }
   const missing = unpermitted()
   if (missing.length === 0) return undefined
@@ -727,7 +727,7 @@ async function askForScreen(): Promise<ScreenAnswer> {
   if (!settings.screen) {
     const question = {
       type: "question" as const,
-      message: "Let agents use this computer’s screen?",
+      message: "Let Doods use this computer’s screen?",
       detail:
         "They would see the screen and use the mouse and keyboard, as you. You can watch them, pause them and stop them, and switch this off again under This Computer.",
       buttons: ["Allow", "Not Now"],
@@ -778,7 +778,7 @@ function listenToServer(): void {
       // the app's own pages, which no deployment can change or press for them.
       if (settings.welcomed) {
         return {
-          error: "Agents are given this computer in the app's own window, under This Computer.",
+          error: "Doods are given this computer in the app's own window, under This Computer.",
         }
       }
       // The page that asked confirms the pairing itself. The window is not taken from it.
@@ -967,7 +967,7 @@ function drawTray(): void {
       { type: "separator" },
       { label: now.headline, enabled: false },
       {
-        label: "Let agents use this computer",
+        label: "Let Doods use this computer",
         type: "checkbox",
         checked: shared,
         enabled: settings.server !== undefined,

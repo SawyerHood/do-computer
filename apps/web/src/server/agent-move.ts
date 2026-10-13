@@ -45,9 +45,9 @@ export async function moveAgent(
 ): Promise<Response> {
   const { db } = getPlatform()
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   if (typeof workspaceId !== "string") return fail(400, "Say which workspace to move it to.")
-  if (!mayRemoveAgent(access)) return fail(403, "Only an admin can move a team's agent.")
+  if (!mayRemoveAgent(access)) return fail(403, "Only an admin can move a team's Dood.")
   if ((await roleIn(db, user.id, workspaceId)) === undefined) return fail(404, "Team not found")
   if (workspaceId === access.workspaceId) return json({ ok: true })
   const count = await db.get<{ n: number }>(
@@ -55,12 +55,12 @@ export async function moveAgent(
     workspaceId,
   )
   if ((count?.n ?? 0) >= MAX_AGENTS_PER_WORKSPACE) {
-    return fail(409, `It is full there: at most ${MAX_AGENTS_PER_WORKSPACE} agents.`)
+    return fail(409, `It is full there: at most ${MAX_AGENTS_PER_WORKSPACE} Doods.`)
   }
   // Told first: an agent that thinks it is in a team it is not yet in does no harm, and one
   // that is shared without knowing it would talk as if to one person.
   if (!(await tellAgentItsTeam(agentId, await teamName(workspaceId)))) {
-    return fail(502, "The agent could not be told. Try again.")
+    return fail(502, "The Dood could not be told. Try again.")
   }
   await db.run("UPDATE dc_agents SET workspace_id = ? WHERE id = ?", workspaceId, agentId)
   await keepRunnable(agentId, workspaceId)

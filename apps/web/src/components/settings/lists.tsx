@@ -75,11 +75,11 @@ function AgentsOf({
           size="xs"
           disabled={making}
           aria-busy={making}
-          aria-label={`New agent in ${workspace.name}`}
+          aria-label={`New Dood in ${workspace.name}`}
           className="text-muted-foreground"
           onClick={() => void create()}
         >
-          {making ? <Spinner /> : <PlusIcon />} New agent
+          {making ? <Spinner /> : <PlusIcon />} New Dood
         </Button>
       </div>
       {error === undefined ? null : (
@@ -88,16 +88,16 @@ function AgentsOf({
         </p>
       )}
       {agents.length === 0 ? (
-        <p className="px-1.5 text-sm text-muted-foreground">No agents here yet.</p>
+        <p className="px-1.5 text-sm text-muted-foreground">No Doods here yet.</p>
       ) : (
         <ul>
           {agents.map((agent) => (
             <Row
               key={agent.id}
               mark={<AgentFace agent={agent} className="size-8" still />}
-              name={agent.name ?? "New agent"}
+              name={agent.name ?? "New Dood"}
               about={about(agent)}
-              label={`${agent.name ?? "New agent"}'s settings`}
+              label={`${agent.name ?? "New Dood"}'s settings`}
               onClick={() => open({ at: "agent", agentId: agent.id })}
             />
           ))}
@@ -146,10 +146,10 @@ export function AgentsList({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Agents</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Doods</h2>
         <p className="text-sm text-muted-foreground">
-          Every agent you can set up, by the workspace it is in. Choose one to change who it is,
-          what it thinks with and what it may do.
+          Every Dood you can set up, by the workspace it is in. Choose one to change who it is, what
+          it thinks with and what it may do.
         </p>
       </div>
       {inOrder.map((workspace) => (
@@ -187,7 +187,7 @@ export function WorkspacesList({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Workspaces</h2>
         <p className="text-sm text-muted-foreground">
-          Your own, and the teams you are in. A workspace has the computers its agents work on and
+          Your own, and the teams you are in. A workspace has the computers its Doods work on and
           the models they can run on; a team has its people too.
         </p>
       </div>
@@ -195,8 +195,8 @@ export function WorkspacesList({
         {workspaces.map((workspace) => {
           const has = count(
             agents.filter((agent) => agent.workspaceId === workspace.id).length,
-            "agent",
-            "agents",
+            "Dood",
+            "Doods",
           )
           return (
             <Row

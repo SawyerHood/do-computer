@@ -39,7 +39,7 @@ export function after(sharing: Sharing, event: DaemonEvent): Sharing {
 export function headline(sharing: Sharing): string {
   switch (sharing.state) {
     case "off":
-      return "Agents cannot use this computer"
+      return "Doods cannot use this computer"
     case "starting":
       return "Starting…"
     case "pairing":

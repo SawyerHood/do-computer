@@ -244,7 +244,7 @@ export function Wearing({
   return (
     <View
       accessibilityRole="image"
-      accessibilityLabel="Agent avatar"
+      accessibilityLabel="Dood avatar"
       style={{ width: STILL, height: STILL }}
     >
       {uri === undefined ? null : (

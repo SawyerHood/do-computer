@@ -8,7 +8,7 @@ import { keys } from "@/lib/queries"
 import { useSession } from "@/lib/use-session"
 import { Empty, errorText, Pill, Row, Screen, Section, Segmented, Text } from "@/ui"
 
-const MODEL_HINT = "Which model this agent thinks with. Applies from its next reply."
+const MODEL_HINT = "Which model this Dood thinks with. Applies from its next reply."
 
 /**
  * What the agent thinks with, what it does with a message that arrives while it is busy, and
@@ -39,7 +39,7 @@ export default function AgentModel() {
       <Screen>
         <Stack.Screen options={{ title: "Model and computers" }} />
         {query.error ? (
-          <Empty title="This agent could not be loaded">{errorText(query.error)}</Empty>
+          <Empty title="This Dood could not be loaded">{errorText(query.error)}</Empty>
         ) : (
           <ActivityIndicator style={{ marginTop: 80 }} />
         )}
@@ -77,7 +77,7 @@ export default function AgentModel() {
               ? `${MODEL_HINT} This model does not think before it answers.`
               : levels.length === 1
                 ? `${MODEL_HINT} This model always thinks this much.`
-                : "Which model this agent thinks with, and how long it thinks before it answers. More is slower and costs more. Applies from its next reply."
+                : "Which model this Dood thinks with, and how long it thinks before it answers. More is slower and costs more. Applies from its next reply."
         }
       >
         <Row
@@ -128,7 +128,7 @@ export default function AgentModel() {
 
       <Section
         title="Computers it can use"
-        footer="Where this agent can keep files and run commands. Computers belong to the workspace, and an agent has a folder of its own on each machine it has worked on."
+        footer="Where this Dood can keep files and run commands. Computers belong to the workspace, and a Dood has a folder of its own on each machine it has worked on."
       >
         {computers.data === undefined ? (
           <Row title={<ActivityIndicator />} />

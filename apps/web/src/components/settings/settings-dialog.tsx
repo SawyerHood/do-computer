@@ -16,6 +16,9 @@ export type SettingsGroup<Id extends string> = {
   sections: readonly SettingsSection<Id>[]
 }
 
+/** A list's name inside a sentence. "Doods" is a name and keeps its capital. */
+const spoken = (label: string) => (label === "Doods" ? label : label.toLowerCase())
+
 /**
  * The settings window: whose settings are showing, a list of their sections, and the one that is
  * open. The same window shows the top of the settings, one agent's and one workspace's, told
@@ -71,7 +74,7 @@ export function SettingsDialog<Id extends string>({
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`Back to ${back.label.toLowerCase()}`}
+              aria-label={`Back to ${spoken(back.label)}`}
               onClick={back.onClick}
               className="mb-1 h-9 justify-start gap-1 self-start px-2 font-normal text-muted-foreground sm:h-7"
             >

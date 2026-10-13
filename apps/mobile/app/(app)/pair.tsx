@@ -121,10 +121,10 @@ export default function Pair() {
           </Text>
           <Text variant="subhead" tone="ink2" style={{ textAlign: "center" }}>
             {agentIds.length === 0
-              ? "No agent can use it yet: connect one under Computers, or let an agent ask. It is called "
+              ? "No Dood can use it yet: connect one under Computers, or let a Dood ask. It is called "
               : agentIds.length === 1
-                ? "Your agent knows this computer as "
-                : "Your agents know this computer as "}
+                ? "Your Dood knows this computer as "
+                : "Your Doods know this computer as "}
             <Text variant="subhead" style={{ fontFamily: mono, letterSpacing: 0 }}>
               {confirm.data.name}
             </Text>
@@ -211,8 +211,8 @@ export default function Pair() {
           <Icon name="warning" size={20} color={theme.amber} />
           <Text variant="subhead" style={{ flex: 1 }}>
             {pairing.data.readOnly
-              ? "An agent connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
-              : "An agent connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
+              ? "A Dood connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
+              : "A Dood connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
           </Text>
         </View>
         {teams.length === 0 ? null : (
@@ -227,8 +227,8 @@ export default function Pair() {
                   title={workspace.kind === "personal" ? "Mine" : workspace.name}
                   subtitle={
                     workspace.kind === "personal"
-                      ? "Only you decide which agents use it, in any of your workspaces."
-                      : `Anyone in ${workspace.name} can connect its agents to it.`
+                      ? "Only you decide which Doods use it, in any of your workspaces."
+                      : `Anyone in ${workspace.name} can connect its Doods to it.`
                   }
                   checked={teamId === id}
                   disabled={confirm.isPending}
@@ -239,13 +239,13 @@ export default function Pair() {
           </Section>
         )}
         <Section
-          title="Which agents can use it?"
-          footer="You can change this later under Computers, and an agent that is not connected can ask you for it."
+          title="Which Doods can use it?"
+          footer="You can change this later under Computers, and a Dood that is not connected can ask you for it."
         >
           {offered.length === 0 ? (
             <Row
               title={
-                <Text tone="ink2">{agents.data === undefined ? "Loading…" : "No agents here yet"}</Text>
+                <Text tone="ink2">{agents.data === undefined ? "Loading…" : "No Doods here yet"}</Text>
               }
             />
           ) : null}
@@ -262,7 +262,7 @@ export default function Pair() {
                   still
                 />
               }
-              title={agent.name ?? "New agent"}
+              title={agent.name ?? "New Dood"}
               subtitle={
                 teamId === undefined && teams.length > 0
                   ? workspaces.find((workspace) => workspace.id === agent.workspaceId)?.name

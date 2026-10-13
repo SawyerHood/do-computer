@@ -33,7 +33,7 @@ const said = {
 </ul>
 <p>The Team card moved below the fold on a laptop, and its button now says <code>Contact us</code> where it said <code>Start free</code>. I would put the three plans back in one row and give Team its old button. My notes are in <code>library/pricing-notes.md</code>. Shall I draft the new copy for the middle plan?</p>`,
     `<p>Here is a draft for the Team card. It keeps the price where it is and says who the plan is for in the first line.</p>
-<blockquote><p><strong>Team</strong>, for groups of 3 to 20. Everyone shares the same agents, files and computers. $24 a person each month, and the first two weeks are free.</p></blockquote>
+<blockquote><p><strong>Team</strong>, for groups of 3 to 20. Everyone shares the same Doods, files and computers. $24 a person each month, and the first two weeks are free.</p></blockquote>
 <p>The button reads <code>Start free</code>. I left the feature list as it was, since nobody clicks past the third line of it.</p>`,
   ],
 }
@@ -79,6 +79,16 @@ async function swap(page, within, words) {
 }
 
 const settle = (page, ms = 900) => page.waitForTimeout(ms)
+
+/** The line under a name in the sidebar is the echo model's too: it says what the swapped answer begins with. */
+const latest = (page) =>
+  page.evaluate(() => {
+    for (const line of document.querySelectorAll("nav *")) {
+      if (line.children.length === 0 && line.textContent.startsWith("The tool returned:")) {
+        line.textContent = "Here is a draft for the Team card. It keeps the price where it is."
+      }
+    }
+  })
 const chat = `/a/${juniper}/c/${chats.main}`
 
 /** Each picture: where to go and what to do there before it is taken. */
@@ -145,7 +155,7 @@ const pictures = {
   },
   "menu-agents": async (page) => {
     await pictures.chat(page)
-    await page.getByRole("button", { name: /: another agent$/ }).click()
+    await page.getByRole("button", { name: /: another Dood$/ }).click()
   },
   "menu-side-chats": async (page) => {
     await pictures.chat(page)
@@ -196,6 +206,7 @@ for (const round of rounds) {
       await pictures[name](page)
       await page.evaluate(() => document.fonts.ready)
       await settle(page)
+      await latest(page)
       await page.screenshot({ path: `${out}${file}.png` })
       console.log(file)
     } catch (error) {

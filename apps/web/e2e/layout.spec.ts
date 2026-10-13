@@ -21,17 +21,17 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   const context = await browser.newContext({ baseURL, colorScheme: "dark" })
   const page = await context.newPage()
   await signIn(page)
-  await expect(page.getByRole("heading", { name: "Agents" })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
   // The agent has the room instead: its panel is open beside the chat, and stays shut once hidden.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
-  await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  await expect(panel.getByRole("img", { name: "Dood avatar" })).toBeVisible()
   await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
   await page.reload()
   await expect(composer(page)).toBeVisible()
   await expect(panel).toHaveCount(0)
   // Pressing the header above the chat brings it back.
   await page.getByRole("button", { name: "Show Juniper beside the chat" }).click()
-  await expect(panel.getByRole("img", { name: "Agent avatar" })).toBeVisible()
+  await expect(panel.getByRole("img", { name: "Dood avatar" })).toBeVisible()
 
   // The agent's side chats are reached without it.
   await sideChats(page).click()
@@ -40,12 +40,12 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
 
   // Asked for, it is beside the chat, and still there after a reload.
   await page.getByRole("button", { name: "Show the sidebar" }).click()
-  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Show the sidebar" })).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
   await page.getByRole("button", { name: "Hide the sidebar" }).click()
-  await expect(page.getByRole("heading", { name: "Agents" })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
   await context.close()
 })
 
@@ -55,7 +55,7 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await signIn(page)
   const sidebar = page
     .locator("aside")
-    .filter({ has: page.getByRole("heading", { name: "Agents" }) })
+    .filter({ has: page.getByRole("heading", { name: "Doods" }) })
   const edge = page.getByRole("separator", { name: "Resize the sidebar" })
   // Measured in one step, and looked at until it settles: the panel is put up anew when the tab
   // changes, so for a moment the one that is found is on its way out.
@@ -276,7 +276,7 @@ test("the layout works at phone width", async ({ page }) => {
   await page.reload()
   // The strip is one row, with no tabs in it: the agent's pages are in the menu on its name.
   await expect(page.getByRole("navigation", { name: "Juniper's pages" })).toBeHidden()
-  const name = page.getByRole("button", { name: "Juniper: pages and other agents" })
+  const name = page.getByRole("button", { name: "Juniper: pages and other Doods" })
   expect((await page.locator("header").filter({ has: name }).boundingBox())!.height).toBe(48)
   await name.click()
   await expect(page.getByRole("menuitem", { name: "Chat" })).toHaveAttribute("aria-current", "page")
@@ -285,7 +285,7 @@ test("the layout works at phone width", async ({ page }) => {
   // Off the chat, the name says which page this is.
   await expect(name).toContainText("Juniper · Library")
   // And the row starts with the way back to the chat, where the way to the agents was.
-  await expect(page.getByRole("button", { name: "Agents", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Doods", exact: true })).toHaveCount(0)
   await page.getByRole("button", { name: "Back to the chat" }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await expect(name).not.toContainText("·")
@@ -298,7 +298,7 @@ test("the layout works at phone width", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Chat" }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   // The sidebar is a sheet from the side. Measured once it has finished sliding in.
-  await page.getByRole("button", { name: "Agents", exact: true }).click()
+  await page.getByRole("button", { name: "Doods", exact: true }).click()
   await expect(async () => {
     const sheet = (await page.getByRole("dialog").boundingBox())!
     expect(sheet.x).toBe(0)

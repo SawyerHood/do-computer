@@ -196,7 +196,7 @@ function Welcome({
       <p className="max-w-sm text-sm text-muted-foreground">
         {agent.name
           ? (agent.tagline ?? "What would you like to do?")
-          : "Your agent is brand new. It has no name yet. Start talking and work out together who it is."}
+          : "Your Dood is brand new. It has no name yet. Start talking and work out together who it is."}
       </p>
     </div>
   )
@@ -240,7 +240,7 @@ export function ChatView({
   const threads = useThreads(agent.id)
   const agents = useAgentsById()
   const peer = thread?.peer === undefined ? undefined : agents.get(thread.peer.agentId)
-  const peerName = peer?.name ?? thread?.peer?.name ?? "the other agent"
+  const peerName = peer?.name ?? thread?.peer?.name ?? "the other Dood"
   // So is a thread in Slack the agent was spoken to in: it is written in from there.
   const slack = chat?.kind === "slack" ? chat : undefined
   const slackThreads = useSlackThreads(agent.id)
@@ -298,11 +298,11 @@ export function ChatView({
     if (talked && !agent.hatched) void markHatched(agent.id)
   }, [talked, agent.hatched, agent.id])
 
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const canStartFresh =
     own && live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
   const startFreshTitle =
-    "Start fresh: the agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
+    "Start fresh: the Dood stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
   // An empty chat has the creature in its middle, so the one in the header, right above it, holds
   // still.
   const welcoming = live.loaded && state.messages.length === 0 && !state.busy
@@ -546,14 +546,14 @@ export function ChatView({
           </div>
           <PendingApprovals
             agentId={agent.id}
-            agentName={agent.name ?? "Your agent"}
+            agentName={agent.name ?? "Your Dood"}
             chatId={chatId}
           />
-          <PendingComputerRequests agentId={agent.id} agentName={agent.name ?? "Your agent"} />
-          <PendingSignIns agentId={agent.id} agentName={agent.name ?? "Your agent"} />
+          <PendingComputerRequests agentId={agent.id} agentName={agent.name ?? "Your Dood"} />
+          <PendingSignIns agentId={agent.id} agentName={agent.name ?? "Your Dood"} />
           <PendingSecrets
             agentId={agent.id}
-            agentName={agent.name ?? "Your agent"}
+            agentName={agent.name ?? "Your Dood"}
             chatId={chatId}
           />
           {sub !== undefined ? (
@@ -636,7 +636,7 @@ export function ChatView({
       {wide && openDoc !== undefined ? (
         <DocPanel
           agentId={agent.id}
-          agentName={agent.name ?? "Your agent"}
+          agentName={agent.name ?? "Your Dood"}
           fileId={openDoc}
           onOpen={setOpenDoc}
           onClose={() => setOpenDoc(undefined)}

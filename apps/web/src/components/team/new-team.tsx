@@ -99,7 +99,7 @@ export function NewTeamDialog({
           <DialogTitle>{made === undefined ? "New team" : `${name} is ready`}</DialogTitle>
           <DialogDescription>
             {made === undefined
-              ? "A place for agents you share. Your own agents stay yours unless you move them."
+              ? "A place for Doods you share. Your own Doods stay yours unless you move them."
               : "Each link works once, for seven days. It is only shown here, so copy any you need before going on."}
           </DialogDescription>
         </DialogHeader>
@@ -154,7 +154,7 @@ export function NewTeamDialog({
               </div>
               {(mine ?? []).length === 0 ? null : (
                 <div className="flex flex-col gap-2">
-                  <Label>Bring an agent along</Label>
+                  <Label>Bring a Dood along</Label>
                   {(mine ?? []).map((agent) => (
                     <label
                       key={agent.id}
@@ -173,7 +173,7 @@ export function NewTeamDialog({
                       <AgentFace agent={agent} className="size-8" still />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">
-                          {agent.name ?? "New agent"}
+                          {agent.name ?? "New Dood"}
                         </span>
                         <span className="block text-xs text-muted-foreground">
                           Moves with its chats, library and memory. The team will be able to read

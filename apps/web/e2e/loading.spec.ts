@@ -52,7 +52,7 @@ async function holdRequests(page: Page) {
 const frame = (page: Page) => page.locator("[data-loading]:has(> main)").filter({ visible: true })
 
 const agentRow = (page: Page, name: RegExp) =>
-  page.getByRole("navigation", { name: "Agents" }).getByRole("link", { name })
+  page.getByRole("navigation", { name: "Doods" }).getByRole("link", { name })
 
 test("the frame of the app is in the page as it is sent", async ({ page }) => {
   await signIn(page)
@@ -69,7 +69,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   await page.keyboard.press("Enter")
   await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()
   const juniper = page.url()
-  await page.getByRole("button", { name: "New agent", exact: true }).click()
+  await page.getByRole("button", { name: "New Dood", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== juniper)
   await expect(composer(page)).toBeVisible()
 
@@ -81,7 +81,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   // The address, the row, the strip and the message box are Juniper's at once.
   await page.waitForURL(juniper)
   await expect(agentRow(page, /Juniper/)).toHaveAttribute("aria-current", "page")
-  await expect(page.getByRole("button", { name: "Juniper: another agent" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Juniper: another Dood" })).toBeVisible()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
   // What was said is on its way, and its place is held. It is not an empty chat.
   await expect(page.locator("main [data-loading]").first()).toBeVisible()
@@ -94,7 +94,7 @@ test("choosing an agent moves the page before the server has answered", async ({
 
   // Going back to an agent that was open: what it last showed is there without asking.
   const again = await holdRequests(page)
-  await agentRow(page, /New agent/).click()
+  await agentRow(page, /New Dood/).click()
   await expect(composer(page)).toHaveAttribute("placeholder", "Say hello")
   await agentRow(page, /Juniper/).click()
   await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()
@@ -253,28 +253,28 @@ test("a new agent has its row while it is made, and opens at its chat without th
   await signIn(page)
   await expect(composer(page)).toBeVisible()
   const before = page.url()
-  const agents = page.getByRole("navigation", { name: "Agents" })
+  const agents = page.getByRole("navigation", { name: "Doods" })
   const had = await agents.getByRole("link").count()
   const server = await holdRequests(page)
   // The list of agents is as slow as its slowest agent. From here it never comes.
   await page.route("**/api/agents", (route) =>
     route.request().method() === "GET" ? undefined : route.fallback(),
   )
-  const add = page.getByRole("button", { name: "New agent", exact: true })
+  const add = page.getByRole("button", { name: "New Dood", exact: true })
   await add.click()
   // Nothing has come back. The button is at work, and the agent's row is where it will be.
   await expect(add).toBeDisabled()
   await expect(add).toHaveAttribute("aria-busy", "true")
-  await expect(agents.getByLabel("Making a new agent")).toBeVisible()
+  await expect(agents.getByLabel("Making a new Dood")).toBeVisible()
   expect(page.url()).toBe(before)
 
   server.release()
   // Made, it is open at its chat, and in the list, though the list was never sent again.
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
   await expect(composer(page)).toHaveAttribute("placeholder", "Say hello")
-  await expect(agents.getByLabel("Making a new agent")).toHaveCount(0)
+  await expect(agents.getByLabel("Making a new Dood")).toHaveCount(0)
   await expect(agents.getByRole("link")).toHaveCount(had + 1)
-  await expect(agents.locator("a[aria-current=page]")).toContainText("New agent")
+  await expect(agents.locator("a[aria-current=page]")).toContainText("New Dood")
   await expect(add).toBeEnabled()
 })
 
@@ -284,14 +284,14 @@ test("an agent that could not be made says why, where it was asked for", async (
   const before = page.url()
   await page.route("**/api/agents", (route) =>
     route.request().method() === "POST"
-      ? route.fulfill({ status: 409, json: { error: "An account can have at most 20 agents" } })
+      ? route.fulfill({ status: 409, json: { error: "An account can have at most 20 Doods" } })
       : route.fallback(),
   )
-  const agents = page.getByRole("navigation", { name: "Agents" })
-  const add = page.getByRole("button", { name: "New agent", exact: true })
+  const agents = page.getByRole("navigation", { name: "Doods" })
+  const add = page.getByRole("button", { name: "New Dood", exact: true })
   await add.click()
-  await expect(agents.getByRole("alert")).toHaveText("An account can have at most 20 agents")
-  await expect(agents.getByLabel("Making a new agent")).toHaveCount(0)
+  await expect(agents.getByRole("alert")).toHaveText("An account can have at most 20 Doods")
+  await expect(agents.getByLabel("Making a new Dood")).toHaveCount(0)
   await expect(add).toBeEnabled()
   expect(page.url()).toBe(before)
 })

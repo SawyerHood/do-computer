@@ -46,7 +46,7 @@ export type Bar = {
 
 /** What the bar says. */
 export function barOf(view: Pick<OverlayView, "agent" | "say" | "held" | "behind">): Bar {
-  const name = view.agent.name.trim() || "An agent"
+  const name = view.agent.name.trim() || "A Dood"
   if (view.held) {
     return {
       title: `${name} is paused`,
@@ -73,7 +73,7 @@ export function barOf(view: Pick<OverlayView, "agent" | "say" | "held" | "behind
 
 /** What the tag beside the agent's pointer says. */
 export function tagOf(view: Pick<OverlayView, "agent" | "held">): string {
-  const name = view.agent.name.trim() || "Agent"
+  const name = view.agent.name.trim() || "Dood"
   return view.held ? `${name} · waiting` : name
 }
 

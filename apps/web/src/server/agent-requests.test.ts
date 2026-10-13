@@ -129,7 +129,7 @@ describe("an agent adding a machine", () => {
       error: 'There is no kind of machine "just-bash" to add. The kinds are: daytona.',
     })
     expect(await addMachineFor("gone", {})).toEqual({
-      error: "This agent is not in a workspace any more.",
+      error: "This Dood is not in a workspace any more.",
     })
     for (let n = 0; n < 10; n++) expect(await addMachineFor("a1", {})).not.toHaveProperty("error")
     expect(await addMachineFor("a1", {})).toMatchObject({
@@ -198,7 +198,7 @@ describe("an agent making another", () => {
   it("keeps to the number of agents a workspace can have", async () => {
     for (let n = 2; n < MAX_AGENTS_PER_WORKSPACE; n++) await agent(`more-${n}`)
     expect(await createAgentBeside("a1", { name: "Extra" })).toEqual({
-      error: `The workspace already has ${MAX_AGENTS_PER_WORKSPACE} agents, which is the most it can have.`,
+      error: `The workspace already has ${MAX_AGENTS_PER_WORKSPACE} Doods, which is the most it can have.`,
     })
   })
 })

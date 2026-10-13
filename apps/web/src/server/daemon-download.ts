@@ -7,7 +7,7 @@ import { getPlatform } from "#platform"
 export function installScript(request: Request): Response {
   const origin = getPlatform().config.baseUrl ?? new URL(request.url).origin
   const script = `#!/bin/sh
-# Pairs this computer with your agent on ${origin}.
+# Pairs this computer with your Dood on ${origin}.
 set -eu
 command -v node >/dev/null 2>&1 || { echo "Node.js 20 or newer is required: https://nodejs.org" >&2; exit 1; }
 DIR="\${DC_DAEMON_DIR:-$HOME/.durable-computer}"

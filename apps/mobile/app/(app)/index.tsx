@@ -111,7 +111,7 @@ export default function Agents() {
       haptic.done()
       router.push(`/a/${agent.id}`)
     } catch (error) {
-      tell("The agent could not be made", errorText(error))
+      tell("The Dood could not be made", errorText(error))
     } finally {
       setMaking(undefined)
     }
@@ -126,7 +126,7 @@ export default function Agents() {
   const create: MenuItem[] = [
     teams
       ? {
-          title: "New agent in",
+          title: "New Dood in",
           inline: true,
           children: all.map((workspace) => ({
             title: workspace.kind === "team" ? workspace.name : "Personal",
@@ -134,7 +134,7 @@ export default function Agents() {
             onPress: () => void newAgent(workspace),
           })),
         }
-      : { title: "New agent", icon: "plus", onPress: () => void newAgent() },
+      : { title: "New Dood", icon: "plus", onPress: () => void newAgent() },
     {
       title: "More",
       inline: true,
@@ -180,7 +180,7 @@ export default function Agents() {
                 <Face person={me.data.user} size={34} />
                 {(requests.data?.length ?? 0) > 0 ? (
                   <View
-                    accessibilityLabel="An agent asks for a computer"
+                    accessibilityLabel="A Dood asks for a computer"
                     style={[styles.dot, { backgroundColor: theme.amber, borderColor: theme.page }]}
                   />
                 ) : null}
@@ -200,7 +200,7 @@ export default function Agents() {
 
       {agents.data === undefined ? (
         agents.error ? (
-          <Empty title="The agents could not be loaded">
+          <Empty title="The Doods could not be loaded">
             {errorText(agents.error, "Check your connection and pull down to try again.")}
           </Empty>
         ) : (
@@ -208,11 +208,11 @@ export default function Agents() {
         )
       ) : empty ? (
         <View style={{ gap: 4 }}>
-          <Empty title="You have no agents yet">
-            An agent is yours to talk to, with a computer to work on.
+          <Empty title="You have no Doods yet">
+            A Dood is yours to talk to, with a computer to work on.
           </Empty>
           <Button
-            title="New agent"
+            title="New Dood"
             icon="plus"
             onPress={() => void newAgent()}
             busy={making !== undefined}
@@ -253,8 +253,8 @@ export default function Agents() {
                   style={{ paddingHorizontal: EDGE, paddingVertical: 6 }}
                 >
                   {workspace.kind === "team"
-                    ? "This team has no agents yet."
-                    : "You have no agents of your own yet."}
+                    ? "This team has no Doods yet."
+                    : "You have no Doods of your own yet."}
                 </Text>
               ) : (
                 mine.map(row)
@@ -265,7 +265,7 @@ export default function Agents() {
       )}
 
       {wanted !== "" && listed.length === 0 && !empty ? (
-        <Empty title="No agent matches">Nothing by that name, and nothing it last said.</Empty>
+        <Empty title="No Dood matches">Nothing by that name, and nothing it last said.</Empty>
       ) : null}
 
       {wanted === "" && agents.data !== undefined ? (
@@ -408,7 +408,7 @@ function WorkspaceHeader({
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={team ? `New agent in ${name}` : "New agent"}
+        accessibilityLabel={team ? `New Dood in ${name}` : "New Dood"}
         hitSlop={8}
         onPress={onNew}
         disabled={making}
@@ -442,7 +442,7 @@ function AgentRow({
   const theme = useTheme()
   const router = useRouter()
   const { client } = useSession()
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const latest = agent.latest
   const line =
     latest === undefined

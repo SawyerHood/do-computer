@@ -286,8 +286,8 @@ describe("the screen of somebody's own computer", () => {
     ])
     const [screen, browse, vague] = tools(await say(chat.id, "and on the tower?")).slice(-3)
     expect(screen!.status).toBe("error")
-    expect(screen!.output).toMatch(/does not let agents use its screen/)
-    expect(browse!.output).toMatch(/does not let agents use a browser/)
+    expect(screen!.output).toMatch(/does not let Doods use its screen/)
+    expect(browse!.output).toMatch(/does not let Doods use a browser/)
     expect(vague!.output).toMatch(/click needs x and y/)
   })
 

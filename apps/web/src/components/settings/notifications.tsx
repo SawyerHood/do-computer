@@ -22,8 +22,8 @@ export function NotificationsSettings() {
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Notifications</h2>
         <p className="text-sm text-muted-foreground">
-          Hear from an agent when it answers in a chat you do not have open, needs your OK, or
-          reports on something it does on a schedule.
+          Hear from a Dood when it answers in a chat you do not have open, needs your OK, or reports
+          on something it does on a schedule.
         </p>
       </div>
       <section aria-labelledby="this-browser" className="flex flex-col gap-3 border-t pt-6">

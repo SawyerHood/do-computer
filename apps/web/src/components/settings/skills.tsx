@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 
 const SOURCES = {
   bundled: "Built in",
-  agent: "Written by the agent",
+  agent: "Written by the Dood",
   installed: "Installed",
 } as const
 
@@ -145,7 +145,7 @@ function InstallForm({ agentId }: { agentId: string }) {
       </div>
       <p className="text-xs text-muted-foreground">
         A GitHub folder containing a SKILL.md, or a direct link to one. A skill is instructions your
-        agent will follow, so install only from sources you trust.
+        Dood will follow, so install only from sources you trust.
       </p>
       {install.isError ? (
         <p role="alert" className="text-sm text-destructive">
@@ -163,7 +163,7 @@ export function SkillsSettings({ agentId }: { agentId: string }) {
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Skills</h2>
         <p className="text-sm text-muted-foreground">
-          Saved instructions your agent loads when a task calls for them. It writes new ones as it
+          Saved instructions your Dood loads when a task calls for them. It writes new ones as it
           learns; you can also ask it to “save that as a skill”.
         </p>
       </div>

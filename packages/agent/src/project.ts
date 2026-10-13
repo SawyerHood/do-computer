@@ -331,7 +331,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
           {
             type: "notice",
             kind: "agent",
-            text: word?.name ?? "Another agent",
+            text: word?.name ?? "Another Dood",
             ...(word?.agentId === undefined ? {} : { agentId: word.agentId }),
             ...(word?.chatId === undefined ? {} : { chatId: word.chatId }),
             outcome: word?.outcome ?? "reported",
@@ -514,7 +514,7 @@ export function entryText(
       const answer = entry.data as { name?: string; approved?: boolean; by?: string } | undefined
       return {
         role: "assistant",
-        text: `${answer?.by ?? "Someone"} ${answer?.approved === true ? "let the agent use" : "did not let the agent use"} the computer ${answer?.name ?? ""}`.trim(),
+        text: `${answer?.by ?? "Someone"} ${answer?.approved === true ? "let the Dood use" : "did not let the Dood use"} the computer ${answer?.name ?? ""}`.trim(),
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }

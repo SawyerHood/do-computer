@@ -59,7 +59,7 @@ export default function Deleted() {
               <View style={{ backgroundColor: theme.card }}>
                 <Row
                   title={file.path}
-                  subtitle={`${file.deletedBy === "agent" ? "by an agent" : "by you"} · ${formatWhen(file.deletedAt)}`}
+                  subtitle={`${file.deletedBy === "agent" ? "by a Dood" : "by you"} · ${formatWhen(file.deletedAt)}`}
                   tail={
                     <Button
                       kind="plain"

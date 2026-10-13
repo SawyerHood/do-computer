@@ -178,7 +178,7 @@ export class DaemonRunner {
         this.#options.onCall?.(call) ??
         Promise.resolve<AppAnswer>({
           id: call.id,
-          error: { refused: true, message: "This computer does not let agents use its screen." },
+          error: { refused: true, message: "This computer does not let Doods use its screen." },
         })
       void answering
         .catch((error: unknown): AppAnswer => ({

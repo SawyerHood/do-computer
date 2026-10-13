@@ -101,13 +101,13 @@ export function AgentList({
 
   return (
     <nav
-      aria-label="Agents"
+      aria-label="Doods"
       className="flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
     >
       {loading ? (
         <>
           <div className="flex h-9 shrink-0 items-center">
-            <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Agents</h2>
+            <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Doods</h2>
           </div>
           <AgentRowsPlaceholder />
         </>
@@ -189,7 +189,7 @@ function Section({
 
   return (
     <section
-      aria-label={named ? workspace.name : "Agents"}
+      aria-label={named ? workspace.name : "Doods"}
       data-current={current ? "" : undefined}
       className="flex shrink-0 flex-col gap-0.5 not-first:mt-2"
     >
@@ -211,7 +211,7 @@ function Section({
           </button>
         ) : (
           <h2 className={cn("truncate text-[0.8125rem] font-medium text-muted-foreground", LEVEL)}>
-            Agents
+            Doods
           </h2>
         )}
         <span className="min-w-1 flex-1" />
@@ -255,8 +255,8 @@ function Section({
               disabled={newAgent.making}
               aria-busy={newAgent.making}
               onClick={() => void newAgent.create()}
-              aria-label={named ? `New agent in ${workspace.name}` : "New agent"}
-              title={named ? `New agent in ${workspace.name}` : "New agent"}
+              aria-label={named ? `New Dood in ${workspace.name}` : "New Dood"}
+              title={named ? `New Dood in ${workspace.name}` : "New Dood"}
               className="-mr-1 text-muted-foreground [&_svg]:size-4"
             >
               {newAgent.making ? <Spinner /> : <PlusIcon />}
@@ -292,7 +292,7 @@ function Section({
           ))}
       {!folded && !making && list.length === 0 ? (
         <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
-          {team ? "This team has no agents yet." : "You have no agents yet."}
+          {team ? "This team has no Doods yet." : "You have no Doods yet."}
         </p>
       ) : null}
     </section>
@@ -308,12 +308,12 @@ function MakingAgentRow() {
     <div
       data-loading
       aria-busy="true"
-      aria-label="Making a new agent"
+      aria-label="Making a new Dood"
       className="flex shrink-0 items-center gap-3 rounded-xl px-2.5 py-2"
     >
       <Skeleton className="size-10 shrink-0 rounded-full" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.90625rem] font-medium">New agent</span>
+        <span className="block truncate text-[0.90625rem] font-medium">New Dood</span>
         <span className="mt-px block truncate text-xs text-muted-foreground">On its way…</span>
       </span>
     </div>
@@ -348,7 +348,7 @@ function AgentRow({
   now: number
   onNavigate?: (() => void) | undefined
 }) {
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const { latest } = agent
   const working = agent.working === true
   const asking = agent.asking === true
@@ -464,7 +464,7 @@ function AgentMenu({
   onNavigate?: (() => void) | undefined
 }) {
   const navigate = useNavigate()
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const go = (to: "/a/$agentId/library" | "/a/$agentId/automations") => () => {
     onNavigate?.()
     void navigate({ to, params: { agentId: agent.id } })

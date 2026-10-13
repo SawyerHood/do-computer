@@ -5,14 +5,14 @@
 - **The app, in a window of its own.** The window shows your deployment the way a browser
   does, so everything the web app can do is there and stays in step with it. On first launch it
   asks for the server's address, unless it was built for one.
-- **The daemon for the computer it runs on.** While the app runs, the agents you connected to
+- **The daemon for the computer it runs on.** While the app runs, the Doods you connected to
   that computer can work on it. Closing the window leaves the app in the tray with the daemon
   going; **Quit** in the tray menu ends both. It can open when you sign in to the computer.
 
-Pairing happens inside the app. Say that your agents may use the computer, on the first screen
+Pairing happens inside the app. Say that your Doods may use the computer, on the first screen
 or later under **This Computer…** in the tray menu, and once you are signed in the window shows
-the page where you confirm it and choose the agents. Nothing is shared before that. The same
-window shows whether the computer is connected and what agents did on it, and switches sharing
+the page where you confirm it and choose the Doods. Nothing is shared before that. The same
+window shows whether the computer is connected and what Doods did on it, and switches sharing
 off and on again without pairing anew. To take the computer away for good, remove it under
 Computers, as with any other.
 
@@ -75,7 +75,7 @@ Things to know:
   second name. Run one or the other.
 - **On Windows** commands run in the bash that comes with [Git for
   Windows](https://gitforwindows.org) where that is installed, and in PowerShell where it is
-  not. Agents write their commands for bash, so install it. Paths are shown to agents the way
+  not. Doods write their commands for bash, so install it. Paths are shown to Doods the way
   Git Bash writes them: `/c/Users/ada` for `C:\Users\ada`. Under PowerShell, a command left
   running in the background ends when the daemon restarts, as it does to update itself.
 - **On Linux** a desktop without a tray (GNOME without the AppIndicator extension) has no icon

@@ -535,7 +535,7 @@ export function Transcript({
   )
   // A sub-agent's chat is between it and its agent, and says so.
   const chat = useAgentState(agentId).data?.chats.find((entry) => entry.id === chatId)
-  const asker = chat?.kind === "subagent" ? (agent?.name ?? "Your agent") : undefined
+  const asker = chat?.kind === "subagent" ? (agent?.name ?? "Your Dood") : undefined
 
   // Everything on the page: what was loaded from before, then the chat as it is now.
   const all = useMemo(

@@ -144,7 +144,7 @@ export async function notifyPeople(
       db,
       userId,
       {
-        title: agentName ?? "Your agent",
+        title: agentName ?? "Your Dood",
         body: message.heading ? `${message.heading}: ${body}` : body,
         data: { agentId, chatId: message.chatId },
       },

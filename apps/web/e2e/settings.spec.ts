@@ -8,8 +8,8 @@ test("the settings open on what is one's own and on two lists, each gone inside 
 }) => {
   await signIn(page)
   const dialog = page.getByRole("dialog")
-  await openOwnSettings(page, "Agents")
-  await expect(dialog.getByRole("heading", { name: "Agents", exact: true })).toBeVisible()
+  await openOwnSettings(page, "Doods")
+  await expect(dialog.getByRole("heading", { name: "Doods", exact: true })).toBeVisible()
 
   // An agent is chosen from the list, and the window is then its own settings.
   await dialog.getByRole("button", { name: "Juniper's settings" }).click()
@@ -18,8 +18,8 @@ test("the settings open on what is one's own and on two lists, each gone inside 
   await expect(page).toHaveURL(/settings=agent\.[^.&]+$/)
   await dialog.getByRole("button", { name: "Memory", exact: true }).click()
   await expect(page).toHaveURL(/settings=agent\.[^.&]+\.memory$/)
-  await dialog.getByRole("button", { name: "Back to agents" }).click()
-  await expect(dialog.getByRole("heading", { name: "Agents", exact: true })).toBeVisible()
+  await dialog.getByRole("button", { name: "Back to Doods" }).click()
+  await expect(dialog.getByRole("heading", { name: "Doods", exact: true })).toBeVisible()
 
   // So is a workspace. One's own has no people to set, so it opens on its computers.
   await dialog.getByRole("button", { name: "Workspaces", exact: true }).click()
@@ -38,7 +38,7 @@ test("the ways in from the rest of the app go straight inside", async ({ page })
   const dialog = page.getByRole("dialog")
   // The agent's strip leads to that agent.
   await page.getByRole("button", { name: "Juniper's settings" }).click()
-  await expect(dialog.getByRole("button", { name: "Back to agents" })).toBeVisible()
+  await expect(dialog.getByRole("button", { name: "Back to Doods" })).toBeVisible()
   await expect(dialog.getByRole("heading", { name: "Profile", exact: true })).toBeVisible()
   // From what it thinks with to what its workspace is signed in to, in the same window.
   await dialog.getByRole("button", { name: "Model and computers", exact: true }).click()
@@ -114,8 +114,8 @@ test("on a phone the settings show a list, and then what was chosen from it", as
 
   // Back out a step at a time: to its sections, to the list of agents, to the top.
   await dialog.getByRole("button", { name: "Back to Juniper" }).click()
-  await dialog.getByRole("button", { name: "Back to agents" }).click()
-  await expect(dialog.getByRole("heading", { name: "Agents", exact: true })).toBeVisible()
+  await dialog.getByRole("button", { name: "Back to Doods" }).click()
+  await expect(dialog.getByRole("heading", { name: "Doods", exact: true })).toBeVisible()
   await dialog.getByRole("button", { name: "Back to Settings" }).click()
   await expect(dialog.getByRole("button", { name: "General", exact: true })).toBeVisible()
   // The way out is there on a section too, over the bar at its top.

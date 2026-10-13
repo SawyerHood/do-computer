@@ -216,7 +216,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         )
         if (endpoint === null) throw new Error("The browser did not say where it can be reached.")
         log(
-          `browser: started ${chrome} for agents, ${shown ? "in a window" : "without a window"}${sandbox ? "" : " (without its sandbox)"}`,
+          `browser: started ${chrome} for Doods, ${shown ? "in a window" : "without a window"}${sandbox ? "" : " (without its sandbox)"}`,
         )
         return { ...endpoint, own: false, chrome: program, windowed, preview: preview(endpoint.ws) }
       } catch (error) {
@@ -266,8 +266,8 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     if (session?.chrome && session.windowed !== windowed) {
       log(
         windowed
-          ? "browser: starting it again with a window, as the agent's workspace now asks"
-          : "browser: starting it again without a window, as the agent's workspace now asks",
+          ? "browser: starting it again with a window, as the Dood's workspace now asks"
+          : "browser: starting it again without a window, as the Dood's workspace now asks",
       )
       await dropSession()
     }

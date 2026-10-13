@@ -97,7 +97,7 @@ test("someone new meets their first agent: it is named as it hatches, and says h
       if (scene === null) return
       seen.frames++
       const shown = [
-        ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Agent avatar"]'),
+        ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Dood avatar"]'),
       ].some(
         (face) =>
           !scene.contains(face) &&
@@ -127,7 +127,7 @@ test("someone new meets their first agent: it is named as it hatches, and says h
 
   // On a phone the creature is over its hello, small enough that none of it is cut off above.
   await page.setViewportSize({ width: 375, height: 667 })
-  await expect(hello.locator("..").getByRole("img", { name: "Agent avatar" })).toBeInViewport({
+  await expect(hello.locator("..").getByRole("img", { name: "Dood avatar" })).toBeInViewport({
     ratio: 1,
   })
   await page.setViewportSize({ width: 1280, height: 860 })

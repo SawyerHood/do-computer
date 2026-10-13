@@ -129,8 +129,8 @@ export function ModelsPage({ workspaceId }: { workspaceId: string }) {
       <Stack.Screen options={{ title }} />
       <Text variant="footnote" tone="ink2" style={{ marginHorizontal: 32, marginBottom: 18 }}>
         {server
-          ? "What everyone's agents can run on without signing in to anything. Sign the server in with a subscription or a key, and its models are offered to every workspace."
-          : `What ${whose(scope)} agents can run on. Sign in with a subscription or a key, and every agent of the workspace can be set to its models.`}
+          ? "What everyone's Doods can run on without signing in to anything. Sign the server in with a subscription or a key, and its models are offered to every workspace."
+          : `What ${whose(scope)} Doods can run on. Sign in with a subscription or a key, and every Dood of the workspace can be set to its models.`}
       </Text>
       {loaded ? (
         <Section>
@@ -153,11 +153,11 @@ export function ModelsPage({ workspaceId }: { workspaceId: string }) {
         title="Model providers"
         footer={`${
           server
-            ? "A sign-in here is the server's: everyone's agents can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
+            ? "A sign-in here is the server's: everyone's Doods can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
             : scope.kind === "team"
-              ? `A sign-in belongs to the workspace: everyone in ${scope.name} can then set agents to its models, and what the agents use counts against whoever signed in.`
-              : "A sign-in belongs to this workspace: your agents here can then be set to its models."
-        } Nobody is shown a key or a token again, and agents never see one.`}
+              ? `A sign-in belongs to the workspace: everyone in ${scope.name} can then set Doods to its models, and what the Doods use counts against whoever signed in.`
+              : "A sign-in belongs to this workspace: your Doods here can then be set to its models."
+        } Nobody is shown a key or a token again, and Doods never see one.`}
       >
         {first.map(row)}
         {more ? rest.map(row) : null}
@@ -221,8 +221,8 @@ export function ProviderPage({ workspaceId, providerId }: { workspaceId: string;
     const agreed = await confirm({
       title: `Sign out of ${found.name}?`,
       message: server
-        ? "Agents set to one of its models stop answering until they are set to another."
-        : "An agent set to one of its models stops answering until it is set to another.",
+        ? "Doods set to one of its models stop answering until they are set to another."
+        : "A Dood set to one of its models stops answering until it is set to another.",
       action: "Sign out",
     })
     if (agreed) signOut.mutate()

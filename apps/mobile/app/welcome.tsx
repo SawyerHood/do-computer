@@ -522,7 +522,7 @@ export default function Welcome() {
     ) : view.step === "wait" ? (
       <View style={{ paddingHorizontal: 16, gap: 12 }}>
         <Text variant="subhead" tone="ink2">
-          Come back any time. {view.name} waits here, and is your agent from the day you are let in.
+          Come back any time. {view.name} waits here, and is your Dood from the day you are let in.
         </Text>
         {dood === undefined ? null : (
           <Button

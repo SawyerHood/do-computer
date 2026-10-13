@@ -35,7 +35,7 @@ test.afterAll(async () => {
 
 test("a team is started from the foot of the sidebar, with someone asked to join", async () => {
   // With only his own agents there is nothing to tell apart: they are under no workspace's name.
-  await expect(sawyer.getByRole("heading", { name: "Agents" })).toBeVisible()
+  await expect(sawyer.getByRole("heading", { name: "Doods" })).toBeVisible()
   await sawyer.getByRole("button", { name: "New team" }).click()
   await sawyer.getByLabel("Team name").fill("Tidewater")
   await sawyer.getByLabel("Who to invite").fill(maya.email)
@@ -54,7 +54,7 @@ test("a team is started from the foot of the sidebar, with someone asked to join
   await expect(sawyer.getByText("No email was sent from here. Send them the link.")).toBeVisible()
   await sawyer.getByRole("button", { name: "Go to Tidewater" }).click()
   await expect(sawyer.getByRole("heading", { name: "Tidewater", level: 1 })).toBeVisible()
-  await expect(sawyer.getByText("1 person · 0 agents")).toBeVisible()
+  await expect(sawyer.getByText("1 person · 0 Doods")).toBeVisible()
 })
 
 test("the invitation lets them sign up where sign-up is by invitation, and join", async () => {
@@ -87,26 +87,26 @@ test("the invitation lets them sign up where sign-up is by invitation, and join"
   await expect(her.locator("[data-welcome]")).toHaveCount(0)
   await her.getByRole("button", { name: "Join Tidewater" }).click()
   await expect(her.getByRole("heading", { name: "Tidewater", level: 1 })).toBeVisible()
-  await expect(her.getByText("2 people · 0 agents")).toBeVisible()
+  await expect(her.getByText("2 people · 0 Doods")).toBeVisible()
   // The link is spent.
   expect((await her.request.get(`/api/invitations/${link.split("/").at(-1)}`)).status()).toBe(404)
   // And the one who asked sees them arrive without reloading.
-  await expect(sawyer.getByText("2 people · 0 agents")).toBeVisible()
+  await expect(sawyer.getByText("2 people · 0 Doods")).toBeVisible()
 })
 
 test("an agent made in the team is everyone's, and an agent of one's own is not", async () => {
   const mine = sawyer.url()
-  await sawyer.getByRole("button", { name: "New agent for the team" }).click()
+  await sawyer.getByRole("button", { name: "New Dood for the team" }).click()
   await sawyer.waitForURL((url) => /\/a\/[^/]+\/c\/\d+$/.test(url.pathname) && url.href !== mine)
   chatPath = new URL(sawyer.url()).pathname
   agentId = chatPath.split("/")[2]!
   // The sidebar has it under its team, and his own agent under his own workspace.
-  const sections = sawyer.getByRole("navigation", { name: "Agents" }).getByRole("region")
+  const sections = sawyer.getByRole("navigation", { name: "Doods" }).getByRole("region")
   await expect(sections).toHaveCount(2)
   await expect(
     sawyer.getByRole("region", { name: "Tidewater" }).locator('a[aria-current="page"]'),
   ).toBeVisible()
-  await expect(sawyer.getByRole("heading", { name: "Agents" })).toHaveCount(0)
+  await expect(sawyer.getByRole("heading", { name: "Doods" })).toHaveCount(0)
 
   expect((await her.request.get(`/api/agents/${agentId}`)).status()).toBe(200)
   const { agents } = (await (await sawyer.request.get("/api/agents")).json()) as {
@@ -156,7 +156,7 @@ test("each sees the other in the chat, and when they are writing", async () => {
   const here = sawyer.getByRole("region", { name: "Here now" })
   await expect(here.getByRole("img", { name: "Maya Okafor" })).toBeVisible()
   // In the list of agents, her face is on the agent she is with.
-  const agents = sawyer.getByRole("navigation", { name: "Agents" })
+  const agents = sawyer.getByRole("navigation", { name: "Doods" })
   await expect(agents.getByRole("link").getByRole("img", { name: "Maya Okafor" })).toBeVisible()
   // And on the team, which says how many are in it right now.
   await expect(agents.getByRole("button", { name: /^1 here now: Maya/ })).toBeVisible()
@@ -172,7 +172,7 @@ test("each sees the other in the chat, and when they are writing", async () => {
   // From there the sidebar says where he is: his face is on the agent's row, which leads to it.
   await expect(
     her
-      .getByRole("navigation", { name: "Agents" })
+      .getByRole("navigation", { name: "Doods" })
       .getByRole("link")
       .getByRole("img", { name: "Sawyer" }),
   ).toBeVisible()
@@ -196,7 +196,7 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   await sawyer.getByRole("radio", { name: /^Tidewater/ }).check()
   await sawyer.getByRole("button", { name: "Connect this computer" }).click()
   await expect(sawyer.getByRole("heading", { name: "Connected" })).toBeVisible()
-  await expect(sawyer.getByText(/No agent can use it yet/)).toBeVisible()
+  await expect(sawyer.getByText(/No Dood can use it yet/)).toBeVisible()
 
   // She did not pair it, but it is her team's: she sees it, and connects the team's agent.
   await workspaceMenu(her).click()
@@ -206,7 +206,7 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   await expect(mini.getByText("paired by Sawyer")).toBeVisible()
   await expect(mini.getByRole("button", { name: "Remove team-mini" })).toHaveCount(0)
   // The team has the one agent, so it is the one there is to connect.
-  await mini.getByRole("button", { name: "Connect an agent to team-mini" }).click()
+  await mini.getByRole("button", { name: "Connect a Dood to team-mini" }).click()
   await her.getByRole("menuitem").click()
   await expect(mini.getByRole("button", { name: /^Disconnect .* from team-mini$/ })).toBeVisible()
 
@@ -239,7 +239,7 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   await expect(waiting.getByRole("button", { name: "Allow", exact: true })).toHaveCount(0)
 
   // She is asked where her computers are listed, and says yes.
-  const asking = her.getByRole("list", { name: "Agents asking to use a computer" })
+  const asking = her.getByRole("list", { name: "Doods asking to use a computer" })
   await expect(asking.getByText("to check the build")).toBeVisible({ timeout: 15_000 })
   await asking.getByRole("button", { name: "Allow", exact: true }).click()
   await expect(asking).toHaveCount(0)
@@ -281,6 +281,6 @@ test("a member cannot run the team, and loses its agents when removed", async ()
     (await computersOf(sawyer)).find((computer) => computer.name === "team-mini"),
   ).toMatchObject({ workspaceId: team, agentIds: [agentId] })
   // Her page lets go of the team's agent by itself, and leads back to what is hers.
-  await expect(her.getByRole("heading", { name: "This agent could not be loaded" })).toBeVisible()
-  await expect(her.getByRole("link", { name: "Back to your agents" })).toBeVisible()
+  await expect(her.getByRole("heading", { name: "This Dood could not be loaded" })).toBeVisible()
+  await expect(her.getByRole("link", { name: "Back to your Doods" })).toBeVisible()
 })

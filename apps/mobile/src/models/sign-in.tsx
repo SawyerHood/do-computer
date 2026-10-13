@@ -44,7 +44,7 @@ function Note({ children, tone = "ink2" }: { children: ReactNode; tone?: "ink2" 
 function help(prompt: ModelLoginPrompt, providerName: string): string | undefined {
   if (prompt.type !== "manual_code") {
     return prompt.type === "secret"
-      ? "Kept on the server and never shown again. Agents never see it."
+      ? "Kept on the server and never shown again. Doods never see it."
       : undefined
   }
   return endsAtAddress(prompt)

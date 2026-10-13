@@ -60,7 +60,7 @@ export default function DefaultModel() {
         footer={
           chosen === null
             ? "This is the server’s default. Pick another to make it yours."
-            : "The model a new agent of yours starts on. Agents you already have keep theirs; change one in its own settings."
+            : "The model a new Dood of yours starts on. Doods you already have keep theirs; change one in its own settings."
         }
       >
         <Row

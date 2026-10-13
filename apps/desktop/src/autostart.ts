@@ -24,7 +24,7 @@ export function autostartEntry(options: {
     content: `[Desktop Entry]
 Type=Application
 Name=Do Computer
-Comment=Lets your agents work on this computer
+Comment=Lets your Doods work on this computer
 Exec=${quoted(options.exec)} ${HIDDEN_FLAG}
 Terminal=false
 X-GNOME-Autostart-enabled=true

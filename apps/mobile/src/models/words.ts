@@ -117,14 +117,14 @@ export function signInWords(scope: Scope, provider: ModelProvider, method: Model
     description: key
       ? `Paid for by the token, on your account with ${provider.name}.`
       : method.subscription
-        ? `Use a ${way} subscription for ${whose(scope)} agents.`
-        : `Use your own ${provider.name} account for ${whose(scope)} agents.`,
+        ? `Use a ${way} subscription for ${whose(scope)} Doods.`
+        : `Use your own ${provider.name} account for ${whose(scope)} Doods.`,
     shared:
       (scope.kind === "deployment"
-        ? "Everyone on this server can then set agents to these models, and what the agents use counts against your account there."
+        ? "Everyone on this server can then set Doods to these models, and what the Doods use counts against your account there."
         : scope.kind === "team"
-          ? `Everyone in ${scope.name} can then set agents to these models, and what the agents use counts against your account there.`
-          : "Your agents can then be set to these models, and what they use counts against your account there.") +
+          ? `Everyone in ${scope.name} can then set Doods to these models, and what the Doods use counts against your account there.`
+          : "Your Doods can then be set to these models, and what they use counts against your account there.") +
       (provider.id === "anthropic" && !key
         ? " Anthropic decides how use outside its own apps is billed; it may count as extra usage."
         : ""),

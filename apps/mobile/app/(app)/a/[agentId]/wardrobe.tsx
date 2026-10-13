@@ -132,7 +132,7 @@ function Care({
   const accent = useAgentAccent(agent)
   const size = Math.max(120, Math.min(176, window.width - 2 * (EDGE + SIDE + 6)))
   const { stage, kind, busy, give } = useCreatureStage({ agent, creature, size })
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const boxes = creature.boxes
   const coming = hasEverything(creature.owned)
     ? `${name} has found everything there is`
@@ -339,7 +339,7 @@ export default function WardrobePage() {
         {bar}
         <Avatar avatar={agent.avatar} seed={agent.id} size={140} hatched={false} />
         <Text variant="subhead" tone="ink2">
-          {agent.name ?? "New agent"} has not hatched yet.
+          {agent.name ?? "New Dood"} has not hatched yet.
         </Text>
       </View>
     )

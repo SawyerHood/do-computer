@@ -46,7 +46,7 @@ export function useNewAgent(workspaceId: string, onNavigate?: () => void) {
         ? navigate({ to: "/a/$agentId", params: { agentId: agent.id } })
         : navigate({ to: "/a/$agentId/c/$chatId", params: { agentId: agent.id, chatId: chat.id } }))
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "The agent could not be made.")
+      setError(failure instanceof Error ? failure.message : "The Dood could not be made.")
     } finally {
       store.set(makingAtom, (ids) => ids.filter((id) => id !== workspaceId))
     }

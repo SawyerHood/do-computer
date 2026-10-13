@@ -114,7 +114,7 @@ export function WardrobeWindow({
   const [slot, setSlot] = useState<WearSlot>("hat")
   const title = useRef<HTMLHeadingElement>(null)
   const mood = useAtomValue(mascotMoodAtom(agent.id))
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const owned = useMemo(() => new Set(creature.owned), [creature.owned])
   // What it has first, in the order of the catalog; then what it has not, commonest first.
   const items = useMemo(() => {

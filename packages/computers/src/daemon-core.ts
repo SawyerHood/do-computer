@@ -369,7 +369,7 @@ export class DaemonCore {
       return this.#error(
         frame.id,
         "refused",
-        "This computer does not let agents use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer. It cannot be switched on from here.",
+        "This computer does not let Doods use its screen. Whoever it belongs to can switch that on in the Do Computer app there, under This Computer. It cannot be switched on from here.",
       )
     }
     const wait = Math.min(Math.max(0, frame.waitMs ?? 0), VIEW_WAIT_MS)
@@ -395,7 +395,7 @@ export class DaemonCore {
       return this.#error(
         frame.id,
         "refused",
-        "This computer does not let agents use a browser. Whoever it belongs to can switch that on where the computer was connected.",
+        "This computer does not let Doods use a browser. Whoever it belongs to can switch that on where the computer was connected.",
       )
     }
     const wait = Math.min(Math.max(0, frame.waitMs ?? 0), VIEW_WAIT_MS)

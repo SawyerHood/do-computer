@@ -189,7 +189,7 @@ test.describe("the server's own models", () => {
     await expect(page.getByText("A built-in echo model")).toBeVisible()
     await page.getByRole("button", { name: "Use a key for OpenAI", exact: true }).click()
     const window = page.getByRole("dialog", { name: "OpenAI API key" })
-    await expect(window).toContainText("Everyone on this server can then set agents to these")
+    await expect(window).toContainText("Everyone on this server can then set Doods to these")
     await window.getByLabel("Key", { exact: true }).fill("sk-not-a-real-key")
     await window.getByRole("button", { name: "Save" }).click()
     await expect(window).toHaveCount(0)

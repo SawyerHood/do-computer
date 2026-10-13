@@ -389,12 +389,12 @@ function installService(args: string[]): void {
 
 const USAGE = `Usage: durable-computer-daemon <server-url> [options]
 
-  --read-only         Let the agent read files here but not run commands or change anything
-  --name <name>       What the agent should call this computer (default: the hostname)
+  --read-only         Let the Dood read files here but not run commands or change anything
+  --name <name>       What the Dood should call this computer (default: the hostname)
   --install-service   After pairing, keep the daemon running in the background
   --no-auto-update    Do not replace the daemon when the server has a newer one
   --auto-update       Do so again
-  --no-browser        Do not let the agent use a browser here
+  --no-browser        Do not let the Dood use a browser here
   --browser           Let it again
   --unpair            Forget this computer's credentials and exit
   --version
@@ -484,7 +484,7 @@ async function main(): Promise<void> {
   if (asked.browser !== undefined && asked.browser !== (config.browser !== false)) {
     config = { ...config, browser: asked.browser }
     saveConfig(config)
-    log(asked.browser ? "Agents may use a browser here." : "Agents may not use a browser here.")
+    log(asked.browser ? "Doods may use a browser here." : "Doods may not use a browser here.")
   }
   if (asked.installService) return installService([config.server])
   await run(config)

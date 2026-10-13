@@ -46,7 +46,7 @@ function ScheduleRow({ agentId, schedule }: { agentId: string; schedule: Schedul
       icon: "trash",
       color: "red",
       onPress: async () => {
-        if (await confirm({ title: `Delete ${schedule.title}?`, message: "Your agent will stop doing this.", action: "Delete" })) {
+        if (await confirm({ title: `Delete ${schedule.title}?`, message: "Your Dood will stop doing this.", action: "Delete" })) {
           void change(() => api.removeSchedule(schedule.id))
         }
       },
@@ -96,7 +96,7 @@ export default function Automations() {
     <Screen onRefresh={() => void schedules.refetch()} refreshing={schedules.isRefetching}>
       <Stack.Screen options={{ title: "Automations", headerLargeTitle: true }} />
       <Text variant="subhead" tone="ink2" style={{ marginHorizontal: 20, marginBottom: 18 }}>
-        Things your agent does on its own, once or on a schedule. To add one, ask in chat: “Every
+        Things your Dood does on its own, once or on a schedule. To add one, ask in chat: “Every
         weekday at 9, tell me what is on my calendar.”
       </Text>
       {schedules.data === undefined ? (

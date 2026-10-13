@@ -42,7 +42,7 @@ export default function Connectors() {
   const [refreshing, setRefreshing] = useState(false)
 
   const guide = `${server}/docs/apps`
-  const name = agent?.name ?? "your agent"
+  const name = agent?.name ?? "your Dood"
   const app = slack.data?.app ?? null
   const justConnected = failed ? undefined : connectors.data?.find((each) => each.id === connected)
 
@@ -72,8 +72,8 @@ export default function Connectors() {
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <Stack.Screen options={{ title: "Connectors" }} />
       <Text variant="footnote" tone="ink2" style={styles.intro}>
-        Services your agent can use, such as a calendar or a task tracker, connected through MCP.
-        Your agent uses them without asking first, with whatever access you grant.
+        Services your Dood can use, such as a calendar or a task tracker, connected through MCP.
+        Your Dood uses them without asking first, with whatever access you grant.
       </Text>
 
       {failed ? (
@@ -106,7 +106,7 @@ export default function Connectors() {
               footer={
                 <Words>
                   You sign in with a Composio account, which is free to make, and then to each
-                  service the first time it is needed. Your agent asks before it does anything in an
+                  service the first time it is needed. Your Dood asks before it does anything in an
                   account of yours.{" "}
                   <WordsLink url={guide}>What you get and how to set it up</WordsLink>
                 </Words>
@@ -215,7 +215,7 @@ function Connector({
     if (busy !== undefined) return
     const sure = await confirm({
       title: `Remove ${connector.name}?`,
-      message: "Your agent can no longer use it.",
+      message: "Your Dood can no longer use it.",
       action: "Remove",
     })
     if (!sure) return
@@ -234,7 +234,7 @@ function Connector({
   const words =
     apps && connector.status === "connected" ? (
       <Words>
-        Ask your agent for something in Gmail, your calendar, Slack, Notion, GitHub or any other
+        Ask your Dood for something in Gmail, your calendar, Slack, Notion, GitHub or any other
         service. The first time, it gives you a link to sign in to that service. It asks before it
         does anything in an account of yours. Your accounts are kept at{" "}
         <WordsLink url={originOf(connector.url)}>Composio</WordsLink>, where you can disconnect one.{" "}
@@ -242,7 +242,7 @@ function Connector({
       </Words>
     ) : apps && connector.status === "needs_auth" ? (
       <Words>
-        Sign in with a Composio account, which is free to make. Your agent then reaches the services
+        Sign in with a Composio account, which is free to make. Your Dood then reaches the services
         you connect there. <WordsLink url={guide}>How Apps works</WordsLink>
       </Words>
     ) : connector.status === "connected" ? (
@@ -252,7 +252,7 @@ function Connector({
           : `${connector.tools.length} tools: ${connector.tools.map((tool) => tool.name).join(", ")}`}
       </Words>
     ) : connector.status === "needs_auth" ? (
-      <Words>Sign in to the service to let your agent use it.</Words>
+      <Words>Sign in to the service to let your Dood use it.</Words>
     ) : (
       <Words tone="red">{connector.error}</Words>
     )

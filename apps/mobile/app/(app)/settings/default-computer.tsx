@@ -50,7 +50,7 @@ export default function DefaultComputer() {
     : (settings.data.defaultComputer ?? settings.data.deploymentDefaultComputer)
   return (
     <Screen>
-      <Section footer="The kind of computer a workspace is given when you make an agent in one that has none the agent could use. A workspace that already has a computer keeps it, and more are added under Computers.">
+      <Section footer="The kind of computer a workspace is given when you make a Dood in one that has none the Dood could use. A workspace that already has a computer keeps it, and more are added under Computers.">
         {kinds.data.kinds.map((kind) => (
           <Row
             key={kind.id}

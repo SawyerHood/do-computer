@@ -93,7 +93,7 @@ export function SideChats({
   const team = workspace.kind === "team"
   const here = useHere(team ? workspace.id : undefined)
   const people = usePeople(team ? workspace : undefined)
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const now = Date.now()
 
   const subagents = (state?.chats ?? []).filter((chat) => chat.kind === "subagent")

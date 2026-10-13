@@ -327,7 +327,7 @@ export class Secrets {
     if (request.destination.kind === "connector") {
       const { name, url } = request.destination
       const add = this.#options.addConnector
-      if (add === undefined) throw new SecretError("This agent cannot have connectors.")
+      if (add === undefined) throw new SecretError("This Dood cannot have connectors.")
       const token = given[request.fields[0]!.name]!
       let result: ConnectorResult
       try {

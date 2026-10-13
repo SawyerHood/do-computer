@@ -296,7 +296,7 @@ export function SlackSettings({
   /** Back to the connectors, which this page is reached from. */
   onBack: () => void
 }) {
-  const name = agent.name ?? "your agent"
+  const name = agent.name ?? "your Dood"
   return (
     <div className="flex flex-col gap-6">
       <div>

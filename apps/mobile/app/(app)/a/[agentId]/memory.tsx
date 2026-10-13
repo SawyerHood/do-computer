@@ -29,7 +29,7 @@ export default function AgentMemory() {
       <Screen>
         <Stack.Screen options={{ title: "Memory" }} />
         {query.error ? (
-          <Empty title="This agent could not be loaded">{errorText(query.error)}</Empty>
+          <Empty title="This Dood could not be loaded">{errorText(query.error)}</Empty>
         ) : (
           <ActivityIndicator style={{ marginTop: 80 }} />
         )}
@@ -44,7 +44,7 @@ export default function AgentMemory() {
     const next = await save({ memory: shown.memory, user: shown.user })
     if (next !== undefined) setForm(undefined)
   }
-  const name = state.agent.name ?? "this agent"
+  const name = state.agent.name ?? "this Dood"
 
   return (
     <Screen>
@@ -68,7 +68,7 @@ export default function AgentMemory() {
         title="Memory"
         footer={
           <Counted
-            hint="The agent's own long-term notes, also read in every conversation."
+            hint="The Dood's own long-term notes, also read in every conversation."
             length={shown.memory.length}
             limit={state.limits.memory}
           />
@@ -89,8 +89,8 @@ export default function AgentMemory() {
           <Counted
             hint={
               state.team
-                ? `What the agent knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
-                : "What the agent knows about you. It reads this in every conversation, one entry per line."
+                ? `What the Dood knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
+                : "What the Dood knows about you. It reads this in every conversation, one entry per line."
             }
             length={shown.user.length}
             limit={state.limits.user}

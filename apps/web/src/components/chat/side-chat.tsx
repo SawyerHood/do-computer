@@ -37,7 +37,7 @@ const iconLink =
  * for one that continues the main chat: the agent has what was said there in front of it.
  */
 export function SideChatWelcome({ agent, carried }: { agent: AgentSummary; carried: boolean }) {
-  const name = agent.name ?? "Your agent"
+  const name = agent.name ?? "Your Dood"
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
       <ChatsIcon className="size-7 text-muted-foreground" />
@@ -120,7 +120,7 @@ export function SideChat({
   const { live, state, earlier, send, sendError, retry, stop, attach } = useChat(agent.id, chat.id)
   const width = useAtomValue(sideChatColumn.width)
   const archive = useArchiveSideChat(agent.id, mainId)
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
 
   // In a team the transcript says who said what.
   const { me } = useRouteContext({ from: "/_app" })

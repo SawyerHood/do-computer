@@ -132,7 +132,7 @@ describe("when someone last looked at an agent", () => {
     ] as const) {
       const response = await markAgentSeen(user, agentId)
       expect(response.status).toBe(404)
-      expect(await response.json()).toMatchObject({ error: "Agent not found" })
+      expect(await response.json()).toMatchObject({ error: "Dood not found" })
     }
     expect(await rows()).toEqual([])
   })

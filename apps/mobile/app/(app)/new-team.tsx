@@ -89,7 +89,7 @@ export default function NewTeam() {
       <HeaderItems
         items={[{ label: "Create", text: "Create", prominent: true, disabled: !ready, onPress: () => void create() }]}
       />
-      <Section footer="A place for agents you share. Your own agents stay yours unless you move them.">
+      <Section footer="A place for Doods you share. Your own Doods stay yours unless you move them.">
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, minHeight: 56 }}>
           <Tile name={name || "T"} color={hex} size={34} />
           <TextInput
@@ -130,8 +130,8 @@ export default function NewTeam() {
       </Section>
 
       <Section
-        title="Bring an agent along"
-        footer="An agent moves with its chats, library and memory. The team will be able to read them."
+        title="Bring a Dood along"
+        footer="A Dood moves with its chats, library and memory. The team will be able to read them."
       >
         {mine.map((agent) => (
           <Row
@@ -141,8 +141,8 @@ export default function NewTeam() {
                 <Avatar avatar={agent.avatar} seed={agent.id} outfit={agent.outfit} size={34} hatched={agent.hatched} still />
               </View>
             }
-            title={agent.name ?? "New agent"}
-            accessibilityLabel={`Bring ${agent.name ?? "New agent"} along`}
+            title={agent.name ?? "New Dood"}
+            accessibilityLabel={`Bring ${agent.name ?? "New Dood"} along`}
             toggle={{
               value: moving.includes(agent.id),
               onChange: (on) =>

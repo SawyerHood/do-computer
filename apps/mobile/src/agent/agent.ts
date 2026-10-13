@@ -25,7 +25,7 @@ export function useAgentPage(agentId: string) {
   const summary = useAgentSummary(agentId)
   const agent: AgentSummary | undefined = query.data?.agent ?? summary
   const workspace = useWorkspaceOf(agentId, agent)
-  return { state: query.data, query, agent, workspace, name: agent?.name ?? "New agent" }
+  return { state: query.data, query, agent, workspace, name: agent?.name ?? "New Dood" }
 }
 
 /** The workspace an agent lives in, if the list of workspaces has come. */
@@ -84,8 +84,8 @@ export function useMoveAgent(agentId: string, name: string) {
       title: `Move ${name} to ${to.name}?`,
       message:
         to.kind === "team"
-          ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other agents stay behind, and it can work on the ones ${to.name} has open to every agent.`
-          : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other agents stay with the team.`,
+          ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other Doods stay behind, and it can work on the ones ${to.name} has open to every Dood.`
+          : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other Doods stay with the team.`,
       action: "Move",
       destructive: false,
     })

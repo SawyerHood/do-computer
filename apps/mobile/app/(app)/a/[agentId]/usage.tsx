@@ -34,7 +34,7 @@ export default function Usage() {
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <Stack.Screen options={{ title: "Usage" }} />
       <Text variant="footnote" tone="ink2" style={styles.intro}>
-        What this agent's thinking has cost so far, across its chats and scheduled runs.
+        What this Dood's thinking has cost so far, across its chats and scheduled runs.
       </Text>
       {data === undefined ? (
         usage.error ? (

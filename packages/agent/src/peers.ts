@@ -729,7 +729,7 @@ export class Peers {
         }
         return reply(
           `Sent to ${called(peer)}. Its reply will reach you as a message when it is ready, which may take a while: do not wait for it or send this again.`,
-          { agentId: peer.id, name: peer.name ?? "An agent", chatId: sent.threadId },
+          { agentId: peer.id, name: peer.name ?? "A Dood", chatId: sent.threadId },
         )
       },
     })

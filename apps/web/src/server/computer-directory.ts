@@ -136,7 +136,7 @@ export function computerDirectory(
             db,
             userId,
             {
-              title: input.agentName ?? "Your agent",
+              title: input.agentName ?? "Your Dood",
               body: `Asks to use the computer ${row.name}${reason === "" ? "" : `: ${reason}`}`,
               data: { agentId, chatId: input.chatId },
             },

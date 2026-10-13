@@ -97,7 +97,7 @@ export function ChatScreen({
   const agent = useAgentSummary(agentId)
   const { data: agentState } = useAgentState(agentId)
   const accent = useAgentAccent(agent)
-  const name = agent?.name ?? "New agent"
+  const name = agent?.name ?? "New Dood"
 
   const live = useLiveChat(agentId, chatId)
   const earlier = useEarlierMessages(agentId, chatId, live.state)
@@ -111,7 +111,7 @@ export function ChatScreen({
   const sub = chat?.kind === "subagent" ? chat : undefined
   const parent = chats?.find((entry) => entry.id === sub?.parentId)
   const thread = chat?.kind === "agent" && chat.peer !== undefined ? chat : undefined
-  const peerName = thread?.peer?.name ?? "the other agent"
+  const peerName = thread?.peer?.name ?? "the other Dood"
   const slack = chat?.kind === "slack" ? chat : undefined
   // Whether this chat is the reader's to write in.
   const own = sub === undefined && thread === undefined && slack === undefined
@@ -546,7 +546,7 @@ export function ChatScreen({
     // What it holds is on its way. Not the hello of an empty chat.
     <ActivityIndicator color={theme.ink3} />
   ) : !own ? null : aside !== undefined ? (
-    <SideChatHello name={agent?.name ?? "Your agent"} carried={continuesMain(state.messages)} />
+    <SideChatHello name={agent?.name ?? "Your Dood"} carried={continuesMain(state.messages)} />
   ) : agent === undefined ? null : (
     <Hello agent={agent} mood={mood} accent={accent} onSay={(text) => void send(text)} />
   )
@@ -629,7 +629,7 @@ export function ChatScreen({
           {refused ? null : (
             <Asks
               agentId={agentId}
-              agentName={agent?.name ?? "Your agent"}
+              agentName={agent?.name ?? "Your Dood"}
               chatId={chatId}
               accent={accent}
               team={team?.name}

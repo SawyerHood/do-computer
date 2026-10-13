@@ -51,7 +51,7 @@ test("a message is answered and streamed into the transcript", async ({ page }) 
   await expect(composer(page)).toHaveValue("")
   await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   // The agent's row in the sidebar is the way to this chat: it has no chats listed under it.
-  const agents = page.getByRole("navigation", { name: "Agents" })
+  const agents = page.getByRole("navigation", { name: "Doods" })
   await expect(agents.getByRole("link")).toHaveCount(1)
   await expect(agents.getByRole("link")).toHaveAttribute("aria-current", "page")
 

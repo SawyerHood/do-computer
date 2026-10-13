@@ -6,7 +6,7 @@ import { confirm, errorText, haptic, tell } from "@/ui"
 
 const SOURCES = {
   bundled: "Built in",
-  agent: "Written by the agent",
+  agent: "Written by the Dood",
   installed: "Installed",
 } as const
 
@@ -58,7 +58,7 @@ export function useSkillActions(agentId: string) {
   const remove = async (skill: SkillSummary): Promise<boolean> => {
     const sure = await confirm({
       title: `Delete ${skill.name}?`,
-      message: "Your agent loses these instructions. This cannot be undone.",
+      message: "Your Dood loses these instructions. This cannot be undone.",
       action: "Delete",
     })
     if (!sure) return false

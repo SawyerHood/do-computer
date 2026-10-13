@@ -48,7 +48,7 @@ test("identity edits are saved and show up across the app", async ({ page }) => 
 test("a new agent is met as an egg, and hatches once", async ({ page }) => {
   await signIn(page)
   const first = page.url().match(/\/a\/([^/]+)/)![1]!
-  await page.getByRole("button", { name: "New agent", exact: true }).click()
+  await page.getByRole("button", { name: "New Dood", exact: true }).click()
   await expect(page).not.toHaveURL(new RegExp(`/a/${first}`))
   await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
   const agentId = page.url().match(/\/a\/([^/]+)/)![1]!
@@ -61,7 +61,7 @@ test("a new agent is met as an egg, and hatches once", async ({ page }) => {
 
   // It starts in its egg, wherever it is shown, and the wait can be skipped.
   expect(await hatched()).toBe(false)
-  const welcome = page.getByRole("log").getByRole("img", { name: "Agent avatar" })
+  const welcome = page.getByRole("log").getByRole("img", { name: "Dood avatar" })
   await expect(welcome).toHaveAttribute("data-mood", "egg")
   await expect(page.getByRole("button", { name: "Skip the hatching" })).toBeVisible()
 
@@ -84,7 +84,7 @@ test("the creature in the agent's panel can be petted", async ({ page }) => {
   })
   const creature = page
     .getByRole("complementary", { name: /^About/ })
-    .getByRole("img", { name: "Agent avatar" })
+    .getByRole("img", { name: "Dood avatar" })
   const hearts = creature.locator(".pet-heart")
   const box = (await creature.boundingBox())!
   const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
@@ -108,7 +108,7 @@ test("the creature in the agent's panel can be petted", async ({ page }) => {
 test("the app opens on the agent that was open last", async ({ page }) => {
   await signIn(page)
   const first = page.url()
-  await page.getByRole("button", { name: "New agent", exact: true }).click()
+  await page.getByRole("button", { name: "New Dood", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== first)
   const second = page.url()
 
@@ -147,7 +147,7 @@ test("a creature that could not be drawn as the page opened is drawn once it can
     } as typeof real
   })
   await signIn(page)
-  const creature = page.getByRole("img", { name: "Agent avatar" }).first()
+  const creature = page.getByRole("img", { name: "Dood avatar" }).first()
   // A still picture stands in for it.
   await expect(creature.locator("img")).toHaveCount(1)
   await expect(creature.locator("canvas")).toBeHidden()
@@ -164,13 +164,13 @@ test("a creature that could not be drawn as the page opened is drawn once it can
 test("a second agent can be made, and deleted without touching the first", async ({ page }) => {
   await signIn(page)
   const first = page.url().match(/\/a\/([^/]+)/)![1]!
-  await page.getByRole("button", { name: "New agent", exact: true }).click()
+  await page.getByRole("button", { name: "New Dood", exact: true }).click()
   await expect(page).not.toHaveURL(new RegExp(`/a/${first}`))
   const second = page.url().match(/\/a\/([^/]+)/)![1]!
   await expect(page.getByText("It has no name yet")).toBeVisible()
 
   await openSettings(page, "Profile")
-  await page.getByRole("button", { name: "Delete agent…" }).click()
+  await page.getByRole("button", { name: "Delete Dood…" }).click()
   const confirm = page.getByRole("button", { name: "Delete for good" })
   await expect(confirm).toBeDisabled()
   // It has no name yet, so the word to type is "delete".
@@ -189,7 +189,7 @@ test("a second agent can be made, and deleted without touching the first", async
 /** How much of each creature on the page is drawn: the pixels of its picture that are not clear. */
 const drawn = (page: Page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll<HTMLCanvasElement>('[aria-label="Agent avatar"] canvas')].map(
+    [...document.querySelectorAll<HTMLCanvasElement>('[aria-label="Dood avatar"] canvas')].map(
       (canvas) => {
         const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height)
         return pixels.data.filter((value, at) => at % 4 === 3 && value > 0).length
@@ -259,7 +259,7 @@ test("going from one agent to another draws their creatures with the context tha
   const second = ((await created.json()) as { agent: { id: string } }).agent.id
   await page.reload()
   await expect(composer(page)).toBeVisible()
-  const agents = page.getByRole("navigation", { name: "Agents" })
+  const agents = page.getByRole("navigation", { name: "Doods" })
   if (!(await agents.isVisible())) {
     await page.getByRole("button", { name: "Show the sidebar" }).click()
   }

@@ -27,7 +27,7 @@ export async function connectConnector(
   /** The connector to add, where it is not what the request itself asks for. */
   adding?: AddConnectorRequest,
 ): Promise<Response> {
-  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
+  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Dood not found")
   const { db, agents } = getPlatform()
   const path = connectorId === undefined ? "/connectors" : `/connectors/${connectorId}/connect`
   const response = await agents.get(agentId).fetch(

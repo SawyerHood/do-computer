@@ -17,7 +17,7 @@ import { roleIn } from "./teams.ts"
 /** The sites of the workspace an agent is in, for someone who may use the agent. */
 export async function listSites(user: SessionUser, agentId: string): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   return json({ sites: await sitesOf(getPlatform().db, access.workspaceId) })
 }
 
@@ -28,7 +28,7 @@ export async function createSite(
   agentId: string,
 ): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   const input = (await request.json().catch(() => ({}))) as { path?: unknown; title?: unknown }
   if (typeof input.path !== "string") return fail(400, "path is required")
   const { db, libraries } = getPlatform()
@@ -62,7 +62,7 @@ export async function updateSite(
   siteId: string,
 ): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   const input = (await request.json().catch(() => ({}))) as { public?: unknown; title?: unknown }
   const site = await changeSite(getPlatform().db, access.workspaceId, siteId, {
     ...(typeof input.public === "boolean" ? { public: input.public } : {}),
@@ -78,7 +78,7 @@ export async function removeSite(
   siteId: string,
 ): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   return (await stopSite(getPlatform().db, access.workspaceId, siteId))
     ? json({ ok: true })
     : fail(404, "Site not found")

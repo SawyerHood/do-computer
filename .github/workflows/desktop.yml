@@ -207,10 +207,10 @@ jobs:
             warning="Nobody has signed these, so macOS and Windows warn before opening them: on macOS allow the app under System Settings, Privacy & Security; on Windows choose More info, then Run anyway."
           fi
           cat > notes.md <<'NOTES'
-          Do Computer in a window of its own, which is also the daemon that lets your agents work on the computer it runs on.
+          Do Computer in a window of its own, which is also the daemon that lets your Doods work on the computer it runs on.
 
           - **macOS**: the `.dmg`, for Apple's chips and Intel's alike.
-          - **Windows**: the `.exe` installer. Install [Git for Windows](https://gitforwindows.org) too, so that agents' commands run in bash.
+          - **Windows**: the `.exe` installer. Install [Git for Windows](https://gitforwindows.org) too, so that Doods' commands run in bash.
           - **Linux**: the `.AppImage`. Make it executable (`chmod +x`) and run it.
 
           Once installed it keeps itself up to date. The `.zip` and the `.yml` files are what it reads to do so.

@@ -51,8 +51,8 @@ mac:
   # app, which joining the halves takes for a mistake unless it is told to expect it.
   x64ArchFiles: "**/driver/node_modules/**"
   extendInfo:
-    NSMicrophoneUsageDescription: Dictating a message to an agent uses the microphone.
-    NSAppleEventsUsageDescription: A command an agent runs on this Mac asked another app to do something.
+    NSMicrophoneUsageDescription: Dictating a message to a Dood uses the microphone.
+    NSAppleEventsUsageDescription: A command a Dood runs on this Mac asked another app to do something.
 win:
   icon: assets/icon.png
   target: [nsis]

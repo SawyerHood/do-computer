@@ -241,7 +241,7 @@ async function connect(
     await grant(db, row.id, agentId, by)
     if (!(await mayUse(db, agentId, row.id))) {
       await ungrant(db, row.id, agentId)
-      return fail(409, "That agent can no longer be connected to this computer.")
+      return fail(409, "That Dood can no longer be connected to this computer.")
     }
     const told = await tellMachines(agentId)
     return { name: told?.find((machine) => machine.id === row.id)?.name ?? row.name }
@@ -269,14 +269,14 @@ async function connect(
       } satisfies AgentComputer),
     }),
   )
-  if (!registered.ok) return fail(502, "The agent could not be told about the computer.")
+  if (!registered.ok) return fail(502, "The Dood could not be told about the computer.")
   const { name } = (await registered.json()) as AgentComputer
   await grant(db, row.id, agentId, by)
   // Telling the agent took a while. If in the meantime it was moved, the computer changed
   // hands or its owner left, whatever tidied up after that did not see this connection.
   if (!(await mayUse(db, agentId, row.id))) {
     await disconnect(row.id, agentId)
-    return fail(409, "That agent can no longer be connected to this computer.")
+    return fail(409, "That Dood can no longer be connected to this computer.")
   }
   return { name }
 }
@@ -417,7 +417,7 @@ export async function addMachineFor(
 ): Promise<{ id: string; name: string; kind: string } | { error: string }> {
   const { db } = getPlatform()
   const place = await placeOf(agentId)
-  if (place === undefined) return { error: "This agent is not in a workspace any more." }
+  if (place === undefined) return { error: "This Dood is not in a workspace any more." }
   const { workspaceId } = place
   const by =
     input.by !== undefined && (await roleIn(db, input.by, workspaceId)) !== undefined
@@ -561,7 +561,7 @@ async function setAccess(row: ComputerRow, access: unknown, by: string): Promise
   const { db } = getPlatform()
   if (access !== "open" && access !== "chosen") return fail(400, "Say who can use it.")
   if (!shareable(row)) {
-    return fail(409, "Only a machine that agents can share can be opened to a workspace.")
+    return fail(409, "Only a machine that Doods can share can be opened to a workspace.")
   }
   if (access === row.access) return json({ ok: true })
   if (access === "chosen") {
@@ -647,9 +647,9 @@ export async function confirmPairing(user: SessionUser, request: Request): Promi
   // Anyone who can use an agent can give it a computer of theirs, a team's agent included.
   for (const agentId of agentIds) {
     const agent = await agentAccess(db, user.id, agentId)
-    if (agent === undefined) return fail(404, "Agent not found")
+    if (agent === undefined) return fail(404, "Dood not found")
     if (!(await fits(db, computer, agent.workspaceId))) {
-      return fail(409, "A team's computer can only be connected to that team's agents.")
+      return fail(409, "A team's computer can only be connected to that team's Doods.")
     }
   }
   const owned = await db.get<{ n: number }>(
@@ -770,7 +770,7 @@ export async function removeComputer(user: SessionUser, computerId: string): Pro
     return fail(403, "Only whoever added it, or an admin of the team, can remove it.")
   }
   if (isMachine(row) && !shareable(row)) {
-    return fail(409, "This one is part of its agent, and goes when the agent is deleted.")
+    return fail(409, "This one is part of its Dood, and goes when the Dood is deleted.")
   }
   if (isMachine(row)) {
     const problem = await destroyMachine(row)
@@ -879,12 +879,12 @@ export async function connectAgent(
   const row = await computerOf(user, computerId)
   if (row === undefined) return fail(404, "Computer not found")
   const agent = await agentAccess(db, user.id, agentId)
-  if (agent === undefined) return fail(404, "Agent not found")
+  if (agent === undefined) return fail(404, "Dood not found")
   if (!(await fits(db, row, agent.workspaceId))) {
-    return fail(409, "A team's computer can only be connected to that team's agents.")
+    return fail(409, "A team's computer can only be connected to that team's Doods.")
   }
   if (isMachine(row) && !shareable(row) && row.machine_key !== agent.id) {
-    return fail(409, "This one is part of another agent and cannot be shared.")
+    return fail(409, "This one is part of another Dood and cannot be shared.")
   }
   const connected = await connect(row, agent.id, user.id)
   return connected instanceof Response ? connected : json(connected)
@@ -970,7 +970,7 @@ export async function answerComputerRequest(
     ) {
       await db.run("DELETE FROM dc_computer_requests WHERE id = ?", asked.id)
       await tellGone(row.id, asked.agent_id)
-      return fail(409, "That agent can no longer be connected to this computer.")
+      return fail(409, "That Dood can no longer be connected to this computer.")
     }
     const connected = await connect(row, asked.agent_id, user.id)
     if (connected instanceof Response) return connected
@@ -1018,7 +1018,7 @@ export async function deleteMachinesOf(
     if (problem !== undefined) {
       return fail(
         502,
-        `The agent's computer ${row.name} could not be deleted, so nothing was: ${problem}`,
+        `The Dood's computer ${row.name} could not be deleted, so nothing was: ${problem}`,
       )
     }
   }

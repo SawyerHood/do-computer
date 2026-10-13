@@ -74,7 +74,7 @@ export function AppSkeleton() {
           <span className="text-sm font-semibold">Do Computer</span>
         </div>
         <div className="flex h-9 items-center px-2">
-          <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Agents</h2>
+          <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Doods</h2>
         </div>
         <div className="flex-1 px-2">
           <AgentRowsPlaceholder now />

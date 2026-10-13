@@ -80,7 +80,7 @@ async function signIn(page: Page) {
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill(account.password)
   await page.getByRole("button", { name: "Sign in" }).click()
-  await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
 }
 
 /** Signed in, and in the main chat of the agent the first test hatched. */
@@ -363,7 +363,7 @@ test("a second agent hatches and names itself, settings show who and what there 
 }) => {
   await signIn(page)
   await page.getByRole("button", { name: "New", exact: true }).click()
-  await item(page, "New agent").click()
+  await item(page, "New Dood").click()
   // It is met in its own chat as an egg with no name, which hatches there, once.
   await expect(page).toHaveURL(/\/a\/[^/]+$/)
   await expect(page.getByRole("heading", { name: "Say hello" })).toBeVisible()

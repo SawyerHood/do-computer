@@ -159,7 +159,7 @@ export function Hello({
           ? "What should we do first?"
           : agent.name
             ? (agent.tagline ?? "What would you like to do?")
-            : "Your agent is brand new. It has no name yet. Start talking and work out together who it is."}
+            : "Your Dood is brand new. It has no name yet. Start talking and work out together who it is."}
       </Text>
       {met === undefined ? null : (
         <View style={{ alignItems: "center", gap: 8, marginTop: 12 }}>

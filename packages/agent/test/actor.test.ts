@@ -772,7 +772,7 @@ describe("deleting an agent", () => {
     }))
     const chat = await setup(world)
     await expect(call(world, "/destroy", "POST")).rejects.toThrow(
-      /502: The agent's computer could not be deleted, so nothing was: the provider is unreachable/,
+      /502: The Dood's computer could not be deleted, so nothing was: the provider is unreachable/,
     )
     // Still there, and still working.
     world.faux.setResponses([fauxAssistantMessage("still here")])

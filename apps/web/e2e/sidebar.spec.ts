@@ -32,7 +32,7 @@ async function sayElsewhere(page: Page, agentId: string, text: string) {
     .toContain(`You said: ${text}`)
 }
 
-const agents = (page: Page) => page.getByRole("navigation", { name: "Agents" })
+const agents = (page: Page) => page.getByRole("navigation", { name: "Doods" })
 const row = (page: Page, name: string) => agents(page).getByRole("link", { name })
 
 test("an agent's row says the latest from it, and marks what has not been looked at", async ({
@@ -40,7 +40,7 @@ test("an agent's row says the latest from it, and marks what has not been looked
 }) => {
   await signIn(page)
   // With only one's own agents there is nothing to tell apart: they are under no name.
-  await expect(agents(page).getByRole("heading", { name: "Agents" })).toBeVisible()
+  await expect(agents(page).getByRole("heading", { name: "Doods" })).toBeVisible()
   await expect(agents(page).getByRole("region")).toHaveCount(1)
 
   await composer(page).fill("Where is the invoice?")
@@ -139,13 +139,13 @@ test("someone in a team has each workspace's agents under its name, which folds 
 
   const mine = agents(page).getByRole("region", { name: "Personal" })
   const team = agents(page).getByRole("region", { name: "Tidewater" })
-  await expect(agents(page).getByRole("heading", { name: "Agents" })).toHaveCount(0)
+  await expect(agents(page).getByRole("heading", { name: "Doods" })).toHaveCount(0)
   await expect(mine.getByRole("link", { name: "Juniper" })).toBeVisible()
   await expect(team.getByRole("link", { name: "Scout" })).toBeVisible()
   await expect(mine.getByRole("link", { name: "Scout" })).toHaveCount(0)
 
   // An agent is made in the workspace whose heading was used.
-  await team.getByRole("button", { name: "New agent in Tidewater" }).click()
+  await team.getByRole("button", { name: "New Dood in Tidewater" }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && !url.pathname.includes(scout))
   await expect(team.getByRole("link")).toHaveCount(2)
   await row(page, "Juniper").click()

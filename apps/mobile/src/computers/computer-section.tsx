@@ -24,7 +24,7 @@ function standing(
 ): string {
   const machine = isMachine(computer)
   if (machine && !computer.shareable) {
-    return "It keeps its files with its agent, so no other agent can work on it."
+    return "It keeps its files with its Dood, so no other Dood can work on it."
   }
   if (machine && computer.access === "open") {
     return `${everyone} can work on it, each in a folder of its own.`
@@ -41,8 +41,8 @@ function standing(
       : "Its daemon is out of date and does not update itself. Run the install command there again."
   }
   return computer.agentIds.length === 0
-    ? "No agent can work on it until one is connected. An agent can also ask."
-    : "Its agents can work on it now."
+    ? "No Dood can work on it until one is connected. A Dood can also ask."
+    : "Its Doods can work on it now."
 }
 
 /**
@@ -94,7 +94,7 @@ export function ComputerSection({
   const mine = computer.pairedBy.id === meId
   const team = workspaces.find((workspace) => workspace.id === computer.workspaceId)
   const teams = workspaces.filter((workspace) => workspace.kind === "team")
-  const everyone = `Every agent in ${personal ? "your workspace" : (team?.name ?? "the team")}`
+  const everyone = `Every Dood in ${personal ? "your workspace" : (team?.name ?? "the team")}`
   const busy = move.isPending || remove.isPending || share.isPending || update.isPending
   const problem = [remove, move, share, update].find((mutation) => mutation.isError)?.error
   // A daemon from before daemons kept themselves up to date. It can be replaced from here by
@@ -107,9 +107,9 @@ export function ComputerSection({
   }))
   const open = [
     { value: "open", label: everyone },
-    { value: "chosen", label: "Chosen agents" },
+    { value: "chosen", label: "Chosen Doods" },
   ] as const
-  const names = computer.agentIds.map((id) => agents.get(id)?.name ?? "New agent")
+  const names = computer.agentIds.map((id) => agents.get(id)?.name ?? "New Dood")
 
   const give = async (next: string) => {
     const to = workspaces.find((workspace) => workspace.id === next)
@@ -121,7 +121,7 @@ export function ComputerSection({
       losing.length > 0 &&
       !(await confirm({
         title: `Give ${computer.name} to ${to.name}?`,
-        message: `Agents outside ${to.name} will be disconnected from it.`,
+        message: `Doods outside ${to.name} will be disconnected from it.`,
         action: `Give to ${to.name}`,
         destructive: false,
       }))
@@ -143,7 +143,7 @@ export function ComputerSection({
           }
         : {
             title: `Remove ${computer.name}?`,
-            message: "Its agents lose access to it at once. Nothing on the computer is deleted.",
+            message: "Its Doods lose access to it at once. Nothing on the computer is deleted.",
             action: "Remove",
           },
     )
@@ -230,10 +230,10 @@ export function ComputerSection({
         />
       ) : null}
       <Row
-        title="Agents"
+        title="Doods"
         value={names.length === 0 ? "None yet" : names.join(", ")}
         go
-        accessibilityLabel={`Agents of ${computer.name}`}
+        accessibilityLabel={`Doods of ${computer.name}`}
         onPress={() =>
           router.push(
             `/settings/w/${encodeURIComponent(workspaceId)}/computers/${encodeURIComponent(computer.id)}`,
@@ -285,7 +285,7 @@ export function RequestCard({
     // Prefix of the requests too: the list of computers gains an agent when the answer is yes.
     onSettled: () => queryClient.invalidateQueries({ queryKey: keys.computers }),
   })
-  const name = agent?.name ?? "An agent"
+  const name = agent?.name ?? "A Dood"
   return (
     <View
       style={{

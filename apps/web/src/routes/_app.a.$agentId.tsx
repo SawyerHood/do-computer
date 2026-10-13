@@ -90,11 +90,11 @@ function AgentLayout() {
   if (error) {
     return (
       <main className="mx-auto flex max-w-md flex-col gap-3 p-8">
-        <h1 className="text-lg font-medium">This agent could not be loaded</h1>
+        <h1 className="text-lg font-medium">This Dood could not be loaded</h1>
         <p className="text-sm text-muted-foreground">{error.message}</p>
         {/* It may have been deleted, or be in a team the user is no longer in. */}
         <Link to="/" className="text-sm underline underline-offset-3">
-          Back to your agents
+          Back to your Doods
         </Link>
       </main>
     )

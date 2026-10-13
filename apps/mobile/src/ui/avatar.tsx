@@ -372,7 +372,7 @@ export function Avatar({
   return (
     <View
       accessibilityRole="image"
-      accessibilityLabel="Agent avatar"
+      accessibilityLabel="Dood avatar"
       testID={`avatar-${!hatched ? "egg" : still ? "idle" : mood.state}`}
       style={{ width: size, height: size }}
     >

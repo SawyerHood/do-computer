@@ -49,10 +49,10 @@ export default function Threads() {
 
   const fromAgents =
     threads.length === 0 ? null : (
-      <Section key="agents" title="From other agents">
+      <Section key="agents" title="From other Doods">
         {threads.map((thread) => {
           const peer = agents.find((agent) => agent.id === thread.peer?.agentId)
-          const peerName = peer?.name ?? thread.peer?.name ?? "An agent"
+          const peerName = peer?.name ?? thread.peer?.name ?? "A Dood"
           return (
             <Row
               key={thread.id}
@@ -99,16 +99,16 @@ export default function Threads() {
 
   return (
     <Screen onRefresh={refresh} refreshing={refreshing}>
-      <Stack.Screen options={{ title: kind === "slack" ? "From Slack" : "From other agents" }} />
+      <Stack.Screen options={{ title: kind === "slack" ? "From Slack" : "From other Doods" }} />
       {state === undefined ? (
         query.error ? (
-          <Empty title="This agent could not be loaded">{errorText(query.error)}</Empty>
+          <Empty title="This Dood could not be loaded">{errorText(query.error)}</Empty>
         ) : (
           <ActivityIndicator style={{ marginTop: 80 }} />
         )
       ) : threads.length === 0 && slack.length === 0 ? (
         <Empty title="Nothing yet.">
-          {`When another agent writes to ${name}, or someone speaks to it in Slack, the conversation is kept here to be read.`}
+          {`When another Dood writes to ${name}, or someone speaks to it in Slack, the conversation is kept here to be read.`}
         </Empty>
       ) : kind === "slack" ? (
         [fromSlack, fromAgents]

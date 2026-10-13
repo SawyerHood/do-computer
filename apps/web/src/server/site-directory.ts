@@ -182,7 +182,7 @@ export function siteDirectory(db: AppDatabase): SiteDirectory {
       "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
       agentId,
     )
-    if (row === undefined) throw new SiteError("This agent is not in a workspace any more.")
+    if (row === undefined) throw new SiteError("This Dood is not in a workspace any more.")
     return row.workspace_id ?? personalWorkspaceId(row.owner_id)
   }
   return {

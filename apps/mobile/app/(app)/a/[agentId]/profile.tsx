@@ -48,7 +48,7 @@ export default function AgentProfile() {
   const theme = useTheme()
   const { state, query, workspace, name } = useAgentPage(agentId)
   const { save, saving } = useSaveAgent(agentId)
-  const move = useMoveAgent(agentId, state?.agent.name ?? "This agent")
+  const move = useMoveAgent(agentId, state?.agent.name ?? "This Dood")
   const [form, setForm] = useState<Form>()
 
   const saved: Form | undefined =
@@ -72,7 +72,7 @@ export default function AgentProfile() {
       <Screen>
         <Stack.Screen options={{ title: "Profile" }} />
         {query.error ? (
-          <Empty title="This agent could not be loaded">{errorText(query.error)}</Empty>
+          <Empty title="This Dood could not be loaded">{errorText(query.error)}</Empty>
         ) : (
           <ActivityIndicator style={{ marginTop: 80 }} />
         )}
@@ -90,7 +90,7 @@ export default function AgentProfile() {
     })
     if (next !== undefined) setForm(undefined)
   }
-  const agentName = state.agent.name ?? "This agent"
+  const agentName = state.agent.name ?? "This Dood"
 
   return (
     <Screen>
@@ -108,7 +108,7 @@ export default function AgentProfile() {
       />
 
       <Section
-        footer={`Who ${state.agent.name ?? "this agent"} is: how it looks, how it talks, and which workspace it is in.`}
+        footer={`Who ${state.agent.name ?? "this Dood"} is: how it looks, how it talks, and which workspace it is in.`}
       >
         <Field
           label="Name"
@@ -202,7 +202,7 @@ export default function AgentProfile() {
 
       <Section
         title="Personality"
-        footer="How the agent talks and behaves, written to it in the second person."
+        footer="How the Dood talks and behaves, written to it in the second person."
       >
         <Field
           accessibilityLabel="Personality"
@@ -230,7 +230,7 @@ export default function AgentProfile() {
               numberOfLines={3}
               title={
                 <Text tone="ink2">
-                  Start a team with New team, from the list of agents, to have somewhere to move it.
+                  Start a team with New team, from the list of Doods, to have somewhere to move it.
                 </Text>
               }
             />
@@ -325,10 +325,10 @@ function DeleteAgent({
 
   return (
     <Section
-      title="Delete this agent"
+      title="Delete this Dood"
       footer="Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone."
     >
-      {open ? null : <Row title="Delete agent…" tone="red" onPress={() => setOpen(true)} />}
+      {open ? null : <Row title="Delete Dood…" tone="red" onPress={() => setOpen(true)} />}
       {open ? (
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
           <Text variant="subhead" tone="ink2">
@@ -358,8 +358,8 @@ function DeleteAgent({
           numberOfLines={2}
           subtitle={
             alone.length === 1
-              ? "No other agent can use this computer. Deleting it deletes everything on it."
-              : "No other agent can use these computers. Deleting them deletes everything on them."
+              ? "No other Dood can use this computer. Deleting it deletes everything on it."
+              : "No other Dood can use these computers. Deleting them deletes everything on them."
           }
           toggle={{ value: withComputers, onChange: setWithComputers, disabled: removing }}
         />

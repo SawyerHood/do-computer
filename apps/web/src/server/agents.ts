@@ -193,8 +193,8 @@ export async function makeAgent(
     return {
       status: 409,
       error: isPersonalWorkspace(workspaceId)
-        ? `An account can have at most ${MAX_AGENTS_PER_WORKSPACE} agents`
-        : `A team can have at most ${MAX_AGENTS_PER_WORKSPACE} agents`,
+        ? `An account can have at most ${MAX_AGENTS_PER_WORKSPACE} Doods`
+        : `A team can have at most ${MAX_AGENTS_PER_WORKSPACE} Doods`,
     }
   }
   const id = crypto.randomUUID()
@@ -217,7 +217,7 @@ export async function makeAgent(
   })
   if (!response.ok) {
     await db.run("DELETE FROM dc_agents WHERE id = ?", id)
-    return { status: 502, error: "The agent could not be started" }
+    return { status: 502, error: "The Dood could not be started" }
   }
   // It has no computer of its own. It works on its workspace's, which gets one if it has none.
   await provideFor(id, workspaceId, ownerId)
@@ -241,21 +241,21 @@ export async function createAgentBeside(
     "SELECT id, owner_id, workspace_id, created_at FROM dc_agents WHERE id = ?",
     agentId,
   )
-  if (row === undefined) return { error: "This agent is not in a workspace any more." }
+  if (row === undefined) return { error: "This Dood is not in a workspace any more." }
   const workspaceId = row.workspace_id ?? personalWorkspaceId(row.owner_id)
   const ownerId =
     input.by !== undefined && (await roleIn(db, input.by, workspaceId)) !== undefined
       ? input.by
       : row.owner_id
   if ((await roleIn(db, ownerId, workspaceId)) === undefined) {
-    return { error: "Nobody this agent works for is in its workspace any more." }
+    return { error: "Nobody this Dood works for is in its workspace any more." }
   }
   const made = await makeAgent(ownerId, workspaceId)
   if ("error" in made) {
     return {
       error:
         made.status === 409
-          ? `The workspace already has ${MAX_AGENTS_PER_WORKSPACE} agents, which is the most it can have.`
+          ? `The workspace already has ${MAX_AGENTS_PER_WORKSPACE} Doods, which is the most it can have.`
           : made.error,
     }
   }
@@ -271,7 +271,7 @@ export async function createAgentBeside(
   if (!named.ok) {
     const { error } = (await named.json().catch(() => ({}))) as { error?: string }
     return {
-      error: `The agent was made but could not be given its name: ${error ?? "it did not answer"}. The person can name it in the app.`,
+      error: `The Dood was made but could not be given its name: ${error ?? "it did not answer"}. The person can name it in the app.`,
     }
   }
   await announce(workspaceId)
@@ -286,7 +286,7 @@ export async function proxyToAgent(
   path: string,
 ): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   // The route as the actor will read it, which is after the address has been parsed: `..`, an
   // encoded dot, a backslash or a doubled slash each change what comes first, and judging the
   // path as it was sent would let any of them past.

@@ -80,8 +80,8 @@ export default function General() {
       ) : null}
 
       <Section
-        title="New agents start with"
-        footer="Agents you already have keep theirs. Change one in its own settings."
+        title="New Doods start with"
+        footer="Doods you already have keep theirs. Change one in its own settings."
       >
         <Row
           title="Model"
@@ -114,7 +114,7 @@ export default function General() {
             ? "Notifications come to the app on a phone."
             : notifications === "refused"
               ? "This phone was told not to allow notifications from Do Computer. Allow them in Settings, then come back."
-              : "Hear from an agent when it answers in a chat you do not have open, needs your OK, or reports on something it does on a schedule."
+              : "Hear from a Dood when it answers in a chat you do not have open, needs your OK, or reports on something it does on a schedule."
         }
       >
         <Row

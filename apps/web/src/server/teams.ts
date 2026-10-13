@@ -402,7 +402,7 @@ export async function deleteWorkspace(
     workspaceId,
   )
   if ((agents?.n ?? 0) > 0) {
-    throw new Refusal(409, "Move or delete the team's agents first.")
+    throw new Refusal(409, "Move or delete the team's Doods first.")
   }
   await db.batch([
     { sql: "DELETE FROM dc_invitations WHERE workspace_id = ?", params: [workspaceId] },
@@ -543,7 +543,7 @@ function invitationText(
   return {
     subject: `${from} invited you to ${team} on Do Computer`,
     text: [
-      `${from} invited you to join ${team} on Do Computer, where you would share its agents and their chats.`,
+      `${from} invited you to join ${team} on Do Computer, where you would share its Doods and their chats.`,
       ...(note === null ? [] : ["", `"${note}"`]),
       "",
       `Join here: ${link}`,

@@ -94,11 +94,11 @@ export default function Skills() {
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <Stack.Screen options={{ title: "Skills" }} />
       <Text variant="footnote" tone="ink2" style={styles.intro}>
-        Saved instructions your agent loads when a task calls for them. It writes new ones as it
+        Saved instructions your Dood loads when a task calls for them. It writes new ones as it
         learns; you can also ask it to “save that as a skill”.
       </Text>
 
-      <Section footer="A GitHub folder containing a SKILL.md, or a direct link to one. A skill is instructions your agent will follow, so install only from sources you trust.">
+      <Section footer="A GitHub folder containing a SKILL.md, or a direct link to one. A skill is instructions your Dood will follow, so install only from sources you trust.">
         <Field
           accessibilityLabel="Skill URL"
           placeholder="https://github.com/owner/repo/tree/main/skills/name"

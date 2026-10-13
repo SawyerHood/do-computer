@@ -14,11 +14,12 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/chat-dark.png">
-  <img src="docs/screenshots/chat.png" alt="A chat with an agent called Juniper, whose creature sits beside the conversation">
+  <img src="docs/screenshots/chat.png" alt="A chat with a Dood called Juniper, whose creature sits beside the conversation">
 </picture>
 
-Do Computer gives you agents that each have a name, a face, a memory and computers to work on.
-An agent keeps working after you close the tab, runs things on a schedule, learns skills, and
+Do Computer gives you agents, called Doods, that each have a name, a face, a memory and computers
+to work on.
+A Dood keeps working after you close the tab, runs things on a schedule, learns skills, and
 can work on your own machines. It can be yours alone or shared with a team.
 
 One codebase runs on plain Node and on Cloudflare Workers. Models are called through
@@ -28,7 +29,7 @@ One codebase runs on plain Node and on Cloudflare Workers. Models are called thr
 > **Status:** early. The core works on both runtimes and is covered by tests.
 > [PLAN.md](PLAN.md) says what is built and what is not.
 
-## What an agent can do
+## What a Dood can do
 
 - **Keep working.** A reply carries on when you close the tab. Side chats and sub-agents let it
   do several things at once.
@@ -49,20 +50,20 @@ One codebase runs on plain Node and on Cloudflare Workers. Models are called thr
 - **Search the web**, and answer with sources.
 - **Use your browser and screen.** On a computer you paired, it can drive a browser, and work
   in a window behind yours while you carry on.
-- **Work with a team.** Several people share agents, chats, files and computers. An agent can
+- **Work with a team.** Several people share Doods, chats, files and computers. A Dood can
   also be a bot in Slack.
-- **Ask first.** Each thing an agent can do is set to Allow, Ask first or Never.
+- **Ask first.** Each thing a Dood can do is set to Allow, Ask first or Never.
 - **Think with the model you choose.** Any OpenRouter model that can call tools, or a
   subscription or key of your own.
-- **Be a creature.** Every agent hatches from an egg and looks like no other. Six hours
+- **Be a creature.** Every Dood hatches from an egg and looks like no other. Six hours
   after its box is opened another turns up, with something to wear inside.
 
-[What an agent can do](docs/reference/agents.md) has the long version.
+[What a Dood can do](docs/reference/agents.md) has the long version.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/document.png" alt="A document the agent wrote, open beside the chat">
+      <img src="docs/screenshots/document.png" alt="A document the Dood wrote, open beside the chat">
       <p align="center">Documents open beside the chat</p>
     </td>
     <td width="50%">
@@ -72,12 +73,12 @@ One codebase runs on plain Node and on Cloudflare Workers. Models are called thr
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/permissions.png" alt="An agent's permissions, each set to Allow, Ask first or Never">
+      <img src="docs/screenshots/permissions.png" alt="A Dood's permissions, each set to Allow, Ask first or Never">
       <p align="center">You decide what it may do without asking</p>
     </td>
     <td width="50%">
       <img src="docs/screenshots/first-run.png" alt="An egg coming down from the sky">
-      <p align="center">Every agent starts as an egg</p>
+      <p align="center">Every Dood starts as an egg</p>
     </td>
   </tr>
 </table>
@@ -95,11 +96,11 @@ pnpm build
 pnpm start     # http://127.0.0.1:3000
 ```
 
-Open the address, create an account and say hello to your agent. The first account needs no
+Open the address, create an account and say hello to your Dood. The first account needs no
 invitation.
 
 Without a model key the app runs on a built-in echo model, which repeats what you say. Set
-`OPENROUTER_API_KEY` to give your agent a real one.
+`OPENROUTER_API_KEY` to give your Dood a real one.
 
 ## Hosting it
 
@@ -124,7 +125,7 @@ Follow https://raw.githubusercontent.com/SawyerHood/do-computer/main/docs/self-h
 - **The web app.** It works on a phone too, can be added to the home screen, and sends
   notifications. See [Notifications](docs/reference/notifications.md).
 - **The desktop app**, for macOS, Windows and Linux. It shows your deployment in a window of
-  its own and lets your agents work on that computer. Download it from the
+  its own and lets your Doods work on that computer. Download it from the
   [latest release](https://github.com/SawyerHood/do-computer/releases/latest), or see
   [Desktop app](docs/reference/desktop.md).
 - **The mobile app**, an Expo app for iOS and Android that you build from source. See
@@ -140,9 +141,9 @@ Guides, which every deployment also serves under `/docs`:
 Reference, for whoever runs a deployment:
 
 - [Configuration](docs/reference/configuration.md): every environment variable
-- [Computers](docs/reference/computers.md): the kinds of machine an agent can work on
+- [Computers](docs/reference/computers.md): the kinds of machine a Dood can work on
 - [Models](docs/reference/models.md): the deployment's models and a workspace's own
-- [Security and trust](docs/reference/security.md): what an agent can reach, and what limits it
+- [Security and trust](docs/reference/security.md): what a Dood can reach, and what limits it
 - [Teams](docs/reference/teams.md), [Slack](docs/reference/slack.md) and
   [Apps](docs/reference/apps.md)
 - [Doods and the waiting list](docs/reference/doods.md)

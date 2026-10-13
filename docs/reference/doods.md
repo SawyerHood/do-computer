@@ -10,10 +10,10 @@ does that; elsewhere the link shows as a picture that opens the page. The pictur
 Dood of each color, since a Dood's own look cannot be drawn by the server.
 
 Whoever hatched one can **claim** it by signing in, from the browser they hatched it in. It
-becomes their first agent, named and looking as it did and wearing what it kept. From then on
-the treats people give it on its page are eaten by the agent's creature, and every four of
+becomes their first Dood, named and looking as it did and wearing what it kept. From then on
+the treats people give it on its page are eaten by the Dood's creature, and every four of
 them are a present for it. Those wait together, however many there are, besides the one
-present of its own that an agent has waiting at most.
+present of its own that a Dood has waiting at most.
 
 With `DC_SIGNUP=waitlist` anyone can make an account, in the first run or by claiming a Dood,
 and has their Dood and nothing else: every other call answers 403 until they are let in. The
@@ -22,7 +22,7 @@ app is for whoever was there before the list, the first account, the addresses
 or GitHub), and anyone invited to a team. Someone `DC_ADMIN_EMAILS` names lets the rest in one
 at a time under **Settings → Waiting list**; with `RESEND_API_KEY` set they are sent
 an email. `DC_SIGNUP=open` lets everyone in at once. A Dood that waited becomes its owner's
-agent the first time they come back, with the treats it was given meanwhile.
+Dood the first time they come back, with the treats it was given meanwhile.
 
 A name is shown to anyone under the deployment's own address. It is kept to 20 letters,
 digits and a little punctuation, and nothing that reads as a web address; there is no list of

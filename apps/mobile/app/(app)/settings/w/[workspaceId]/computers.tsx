@@ -77,7 +77,7 @@ export default function Computers() {
       <Stack.Screen options={{ title: "Computers" }} />
       <HeaderItems items={[{ icon: "plus", label: "Add or connect a computer", menu: add }]} />
       {requests.length === 0 ? null : (
-        <View accessibilityLabel="Agents asking to use a computer" style={{ marginBottom: 10 }}>
+        <View accessibilityLabel="Doods asking to use a computer" style={{ marginBottom: 10 }}>
           {requests.map((request) => (
             <RequestCard
               key={request.id}
@@ -119,7 +119,7 @@ export default function Computers() {
           footer={
             <View style={{ gap: 4 }}>
               <Text variant="footnote" tone="ink2">
-                On a computer with a screen, the browser an agent uses opens in a window you can
+                On a computer with a screen, the browser a Dood uses opens in a window you can
                 watch. Off, it works out of sight.
               </Text>
               <Problem error={save.error} />
@@ -127,7 +127,7 @@ export default function Computers() {
           }
         >
           <Row
-            title="Show the browser agents use"
+            title="Show the browser Doods use"
             toggle={{
               value: save.isPending ? (save.variables ?? false) : options.data.showBrowser,
               disabled: save.isPending || !options.data.canChange,
@@ -150,8 +150,8 @@ export default function Computers() {
         />
       </Section>
       <Text variant="footnote" tone="ink2" style={{ marginHorizontal: 32, marginBottom: 8 }}>
-        Where agents run commands, and read and write files: machines made here for a workspace,
-        and computers of your own or of a team that you connect. Everything an agent does on a
+        Where Doods run commands, and read and write files: machines made here for a workspace,
+        and computers of your own or of a team that you connect. Everything a Dood does on a
         connected computer is logged on that machine.
       </Text>
     </Screen>

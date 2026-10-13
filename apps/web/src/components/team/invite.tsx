@@ -227,7 +227,7 @@ export function InviteDialog({
           <DialogTitle>Invite people to {workspace.name}</DialogTitle>
           <DialogDescription>
             {result === undefined
-              ? "They will be able to use every agent here and read its chats."
+              ? "They will be able to use every Dood here and read its chats."
               : "Each link works once, for seven days. It is only shown here, so copy any you need before closing."}
           </DialogDescription>
         </DialogHeader>

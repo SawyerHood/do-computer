@@ -327,7 +327,7 @@ describe("a browser on a paired computer", () => {
     ).rejects.toThrow(/read-only/)
     await expect(
       wire(io()).link.use({ t: "browser", op: "run", agent: pip, script: "1" }),
-    ).rejects.toThrow(/does not let agents use a browser/)
+    ).rejects.toThrow(/does not let Doods use a browser/)
   })
 })
 
