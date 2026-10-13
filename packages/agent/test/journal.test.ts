@@ -36,14 +36,17 @@ type World = {
   reviewed: string[]
   /** What it answers. */
   note: string
+  /** How far the actor's clock runs ahead of the real one, in milliseconds. */
+  ahead: number
 }
 const worlds: World[] = []
 
-function open(review = true): World {
+/** `window` is the model's context window, for a chat that is to grow large and not be summarized. */
+function open(review = true, window?: number): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-journal-"))
   const faux = fauxProvider({
     provider: "test",
-    models: [{ id: "model" }],
+    models: [{ id: "model", ...(window === undefined ? {} : { contextWindow: window }) }],
     tokensPerSecond: 50_000,
   })
   const models = createModels()
@@ -54,10 +57,12 @@ function open(review = true): World {
     reports: [],
     reviewed: [],
     note: "{}",
+    ahead: 0,
   }
   world.namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
+    now: () => Date.now() + world.ahead,
     factory: (host) =>
       createAgentActor(host, {
         models,
@@ -155,6 +160,12 @@ const texts = (page: ChatHistoryPage | ChatState) =>
             : `<${part.type}>`,
       )
       .join(""),
+  )
+
+/** What each notice in a chat says. */
+const notices = (state: ChatState) =>
+  state.messages.flatMap((message) =>
+    message.parts.flatMap((part) => (part.type === "notice" ? [part.text] : [])),
   )
 
 async function start(world: World): Promise<ChatSummary> {
@@ -301,20 +312,112 @@ describe("a side chat", () => {
     expect(world.reports).toEqual([])
   })
 
-  it("starts empty when the main chat is too much to carry, or has nothing in it yet", async () => {
+  it("starts empty only when nothing has been answered in the main chat", async () => {
     const world = open(false)
-    const main = await start(world)
+    await start(world)
     const early = await call<ChatSummary>(world, "/chats", "POST", {})
     expect(texts(await call<ChatState>(world, `/chats/${early.id}`))).toEqual([])
+    expect(world.reports).toEqual([])
+  })
 
+  it("carries a main chat of any size while the provider's cache holds it", async () => {
+    const world = open(false, 1_000_000)
+    const main = await start(world)
+    /** The session each request was made under, which is what a provider's cache can go by. */
+    const sessions: (string | undefined)[] = []
+    const seen: string[] = []
+    const noting = (text: string) => (context: unknown, options?: { sessionId?: string }) => {
+      sessions.push(options?.sessionId)
+      seen.push(JSON.stringify(context))
+      return fauxAssistantMessage(text)
+    }
+    world.faux.setResponses([noting("That is a lot of words."), noting("And more.")])
+    await converse(world, main.id, "alpha ".repeat(30_000))
+    await converse(world, main.id, "beta ".repeat(35_000))
+
+    const side = await call<ChatSummary>(world, "/chats", "POST", {})
+    expect(notices(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([
+      "Continues from the main chat",
+    ])
+    world.faux.setResponses([noting("It was.")])
+    await converse(world, side.id, "Was that a lot?")
+    // All of it, far past what a side chat carries when it must be paid for in full.
+    expect(seen[2]).toContain("alpha alpha")
+    expect(seen[2]).toContain("beta beta")
+    expect(seen[2]).not.toContain("left behind")
+    // Under the main chat's own session, where a provider that keeps its cache by session has it.
+    expect(sessions[0]).toBeTypeOf("string")
+    expect(sessions).toEqual([sessions[0], sessions[0], sessions[0]])
+    expect(world.reports).toEqual([])
+  })
+
+  it("leaves the oldest of a large main chat behind once the cache has gone cold", async () => {
+    const world = open(false, 1_000_000)
+    const main = await start(world)
     world.faux.setResponses([
       fauxAssistantMessage("That is a lot of words."),
       fauxAssistantMessage("And more."),
     ])
-    await converse(world, main.id, "word ".repeat(35_000))
-    await converse(world, main.id, "word ".repeat(35_000))
+    await converse(world, main.id, "alpha ".repeat(30_000))
+    await converse(world, main.id, "beta ".repeat(35_000))
+
+    // Two hours on, nothing of the main chat is in a cache, and all of it is too much to pay for.
+    world.ahead = 2 * 60 * 60_000
     const side = await call<ChatSummary>(world, "/chats", "POST", {})
-    expect(texts(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([])
+    expect(notices(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([
+      "Continues from the most recent part of the main chat",
+    ])
+    const seen: string[] = []
+    world.faux.setResponses([answering(seen, "Beta.")])
+    const state = await converse(world, side.id, "What was the last word?")
+    expect(seen[0]).toContain("beta beta")
+    expect(seen[0]).not.toContain("alpha alpha")
+    // It is told what it is missing, and where that is.
+    expect(seen[0]).toContain("only the most recent part of the main chat is above")
+    expect(seen[0]).toContain(`is in chat ${main.id}`)
+    expect(texts(state)).toEqual(["<branch>", "What was the last word?", "Beta."])
+
+    // The main chat has lost nothing by it.
+    world.faux.setResponses([answering(seen, "Alpha.")])
+    await converse(world, main.id, "And the first?")
+    expect(seen[1]).toContain("alpha alpha")
+    expect(seen[1]).toContain("beta beta")
+    expect(world.reports).toEqual([])
+  })
+
+  it("leaves old tool output behind before anything that was said", async () => {
+    const world = open(false, 1_000_000)
+    const main = await start(world)
+    // Eight long listings, and little said. The word in capitals is in the output alone.
+    const row = (turn: number) => `ROW of listing ${turn} `
+    for (let turn = 1; turn <= 8; turn++) {
+      world.faux.setResponses([
+        step("bash", {
+          command: `yes "$(echo row | tr a-z A-Z) of listing ${turn} ${"x".repeat(90)}" | head -n 400`,
+        }),
+        fauxAssistantMessage(`Listing ${turn} is done.`),
+      ])
+      await converse(world, main.id, `Make listing ${turn}, please.`)
+    }
+
+    world.ahead = 2 * 60 * 60_000
+    const side = await call<ChatSummary>(world, "/chats", "POST", {})
+    expect(notices(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([
+      "Continues from the main chat, with older tool output left behind",
+    ])
+    const seen: string[] = []
+    world.faux.setResponses([answering(seen, "Eight.")])
+    await converse(world, side.id, "How many listings were there?")
+    // Every word that was said is there, and so is the latest output. The oldest is a line.
+    for (let turn = 1; turn <= 8; turn++) expect(seen[0]).toContain(`Make listing ${turn}, please.`)
+    expect(seen[0]).toContain(row(8))
+    expect(seen[0]).not.toContain(row(1))
+    expect(seen[0]).toContain("characters of output left behind in the main chat")
+    expect(seen[0]).toContain("the older tool output and pictures above were left behind")
+
+    world.faux.setResponses([answering(seen, "Yes.")])
+    await converse(world, main.id, "Is the first listing still here?")
+    expect(seen[1]).toContain(row(1))
     expect(world.reports).toEqual([])
   })
 })
