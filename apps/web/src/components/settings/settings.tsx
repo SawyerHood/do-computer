@@ -8,6 +8,7 @@ import {
   GearSixIcon,
   HardDrivesIcon,
   HourglassIcon,
+  KeyIcon,
   LightningIcon,
   PlugsIcon,
   ShieldCheckIcon,
@@ -30,6 +31,7 @@ import {
   type TopSection,
   useSettings,
   type WorkspaceSection,
+  workspaceSections,
 } from "@/lib/settings"
 import { useWorkspaces } from "@/lib/workspaces"
 import { ComputersSettings } from "./computers.tsx"
@@ -38,6 +40,7 @@ import { GeneralSettings } from "./general.tsx"
 import { AgentsList, WorkspacesList } from "./lists.tsx"
 import { ModelsSettings, ServerModelsSettings } from "./models.tsx"
 import { NotificationsSettings } from "./notifications.tsx"
+import { PasswordsSettings } from "./passwords.tsx"
 import { PermissionsSettings } from "./permissions.tsx"
 import { type ProfileSection, ProfileSettings } from "./profile.tsx"
 import { SettingsDialog, type SettingsSection } from "./settings-dialog.tsx"
@@ -74,6 +77,7 @@ const WORKSPACE: readonly SettingsSection<WorkspaceSection>[] = [
   { id: "people", label: "People", icon: <UsersIcon /> },
   { id: "computers", label: "Computers", icon: <DesktopIcon /> },
   { id: "models", label: "Models", icon: <CpuIcon /> },
+  { id: "passwords", label: "Passwords", icon: <KeyIcon /> },
 ]
 
 const PROFILE: ReadonlySet<string> = new Set<ProfileSection>([
@@ -233,7 +237,7 @@ function OfAgent({
 
 /**
  * What is set for a workspace and not for one agent: a team's name and people, the computers its
- * agents work on, and the models they can run on.
+ * agents work on, the models they can run on, and the logins they can sign in with.
  */
 function OfWorkspace({
   workspace,
@@ -248,8 +252,10 @@ function OfWorkspace({
 }) {
   const { open, close } = useSettings()
   const team = workspace.kind === "team"
-  // One's own workspace has no people to set, so its settings start at the computers.
-  const sections = WORKSPACE.filter((entry) => team || entry.id !== "people")
+  // One's own workspace has no people to set, so its settings start at the computers. Its
+  // passwords are listed only where it keeps them and this person may see them.
+  const listed = workspaceSections(workspace)
+  const sections = WORKSPACE.filter((entry) => listed.includes(entry.id))
   const section = sections.some((entry) => entry.id === asked) ? asked! : sections[0]!.id
   const at = (next?: WorkspaceSection) =>
     open({
@@ -275,6 +281,7 @@ function OfWorkspace({
         <ComputersSettings agentId={agentId} meId={me.id} workspaceId={workspace.id} />
       ) : null}
       {section === "models" ? <ModelsSettings workspace={workspace} meId={me.id} /> : null}
+      {section === "passwords" ? <PasswordsSettings workspace={workspace} /> : null}
     </SettingsDialog>
   )
 }

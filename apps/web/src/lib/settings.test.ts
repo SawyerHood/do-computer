@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseSettings, settingsAddress, validateAppSearch } from "./settings.ts"
+import { parseSettings, settingsAddress, validateAppSearch, workspaceSections } from "./settings.ts"
 
 describe("a place in the settings, as the address has it", () => {
   it("is read back as it was written", () => {
@@ -40,5 +40,27 @@ describe("a place in the settings, as the address has it", () => {
     expect(was("server")).toEqual({ at: "top", section: "server" })
     expect(validateAppSearch({ workspace: "nowhere" })).toEqual({})
     expect(validateAppSearch({ settings: "nowhere", connected: "c1" })).toEqual({ connected: "c1" })
+  })
+})
+
+describe("the sections of a workspace's settings", () => {
+  it("have no Passwords where the workspace's summary does not say it keeps logins", () => {
+    expect(workspaceSections({ kind: "personal" })).toEqual(["computers", "models"])
+    expect(workspaceSections({ kind: "team" })).toEqual(["people", "computers", "models"])
+  })
+
+  it("end with Passwords where it does", () => {
+    expect(workspaceSections({ kind: "personal", savedLogins: true })).toEqual([
+      "computers",
+      "models",
+      "passwords",
+    ])
+    expect(workspaceSections({ kind: "team", savedLogins: true }).at(-1)).toBe("passwords")
+    // The address of the page is one that can be written and read back.
+    expect(parseSettings("workspace.w1.passwords")).toEqual({
+      at: "workspace",
+      workspaceId: "w1",
+      section: "passwords",
+    })
   })
 })

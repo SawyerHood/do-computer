@@ -1,3 +1,4 @@
+import type { WorkspaceSummary } from "@do-computer/protocol"
 import { useNavigate } from "@tanstack/react-router"
 import { useCallback } from "react"
 
@@ -31,9 +32,23 @@ export const AGENT_SECTIONS = [
 ] as const
 export type AgentSection = (typeof AGENT_SECTIONS)[number]
 
-/** The sections of one workspace's settings. `people` is only there for a team. */
-export const WORKSPACE_SECTIONS = ["people", "computers", "models"] as const
+/**
+ * The sections of one workspace's settings. `people` is only there for a team, and `passwords`
+ * only where the workspace keeps logins and the person may see them.
+ */
+export const WORKSPACE_SECTIONS = ["people", "computers", "models", "passwords"] as const
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]
+
+/** The sections one workspace's settings have, in the order they are listed. */
+export function workspaceSections(
+  workspace: Pick<WorkspaceSummary, "kind" | "savedLogins">,
+): WorkspaceSection[] {
+  return WORKSPACE_SECTIONS.filter(
+    (section) =>
+      (section !== "people" || workspace.kind === "team") &&
+      (section !== "passwords" || workspace.savedLogins === true),
+  )
+}
 
 /**
  * A place in the settings: the top of them, one agent's, or one workspace's. With no section it

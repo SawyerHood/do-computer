@@ -186,11 +186,13 @@ function Notice({ part }: { part: NoticePart | undefined }) {
   }
   if (part?.kind === "secret") {
     // The answer to the agent's asking for secrets: which, and where they went. Never what.
+    // A login is told in words, "a login for github.com", where secrets are told by their names.
+    const login = part.text === "" && /^a login for \S+$/.test(part.detail ?? "")
     return (
       <NoticeLine icon="key">
         <Text variant="subhead" tone="ink2">
           {part.by ?? "Someone"} {part.approved ? "gave" : "chose not to give"}{" "}
-          <Code>{part.detail}</Code>
+          {login ? part.detail : <Code>{part.detail}</Code>}
           {part.text === "" ? null : (
             <>
               {part.approved ? ", saved to " : " for "}

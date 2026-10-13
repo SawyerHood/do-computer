@@ -8,7 +8,7 @@
  * Durable Object WebSocket.
  */
 
-import type { ScreenAction, UsingAgent } from "./screen.ts"
+import type { ScreenAction, SignInWith, UsingAgent } from "./screen.ts"
 import type { Person } from "./workspace.ts"
 
 /** Cap on each of stdout and stderr, so a result always fits in a frame. */
@@ -101,14 +101,21 @@ export type ScreenFrame = {
 /**
  * Something to do with a browser on the computer. `run` runs a script in it for `agent` and
  * answers with what it printed and the pictures it took; `view`, and `hold` are as for the
- * screen; `close` closes the browser kept for agents, and lets go of the owner's own.
+ * screen; `close` closes the browser kept for agents, and lets go of the owner's own. `front`
+ * answers with the page in front, as the browser says; `sign_in` signs in on that page with
+ * `login`, for `agent`, and answers with how it went.
+ *
+ * A `sign_in` frame carries a password. It is the one frame that must never be written to a
+ * log, an audit record or anything else that is kept.
  */
 export type BrowserFrame = {
   t: "browser"
   id: string
-  op: "run" | "view" | "hold" | "close"
+  op: "run" | "view" | "hold" | "close" | "front" | "sign_in"
   agent?: UsingAgent
   script?: string
+  /** With `sign_in`: what to sign in with. */
+  login?: SignInWith
   timeoutMs?: number
   say?: string
   /**
@@ -168,6 +175,11 @@ export type HelloFrame = {
   screen?: boolean
   /** Whether agents may use a browser here. Absent on a daemon from before there was one. */
   browser?: boolean
+  /**
+   * True when the daemon can sign in with a saved login (`front` and `sign_in` of a browser
+   * frame). Absent on one from before it could, which is never sent either.
+   */
+  signIn?: boolean
 }
 export type ExecResultFrame = {
   t: "exec_result"

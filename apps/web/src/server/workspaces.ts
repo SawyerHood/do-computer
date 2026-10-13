@@ -36,6 +36,7 @@ import {
   withdrawInvitation,
   workspaceOptions,
 } from "./teams.ts"
+import { withSavedLogins } from "./passwords-directory.ts"
 
 /** Answer with what `work` resolves to, or with the refusal it threw. */
 async function answer(work: () => Promise<unknown>, status = 200): Promise<Response> {
@@ -78,10 +79,10 @@ async function withAgents(preview: InvitationPreview): Promise<InvitationPreview
 
 export function getWorkspaces(user: SessionUser): Promise<Response> {
   return answer(async (): Promise<WorkspacesState> => {
-    const { db } = getPlatform()
+    const { db, config } = getPlatform()
     const invitations = await invitationsFor(db, user)
     return {
-      workspaces: await listWorkspaces(db, user),
+      workspaces: await withSavedLogins(db, config, await listWorkspaces(db, user)),
       invitations: await Promise.all(invitations.map(withAgents)),
     }
   })

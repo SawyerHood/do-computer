@@ -30,6 +30,7 @@ import { servedDaemon } from "./daemon-version.ts"
 import { libraryDirectory } from "./library-directory.ts"
 import { siteDirectory } from "./site-directory.ts"
 import { modelAccessDirectory } from "./model-access-directory.ts"
+import { savedLoginsDirectory } from "./passwords-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
 import { tellPeopleOfAgent } from "./feed.ts"
@@ -62,7 +63,9 @@ function create(): NodePlatform {
   const directory = resolve(process.env.DC_DATA_DIR ?? ".data")
   mkdirSync(directory, { recursive: true })
   const fromEnv = readConfig(process.env)
-  const config = { ...fromEnv, authSecret: fromEnv.authSecret ?? authSecret(directory) }
+  const minted = fromEnv.authSecret ?? authSecret(directory)
+  // Saved logins are sealed with the secret that signs sessions unless they have a key of their own.
+  const config = { ...fromEnv, authSecret: minted, secretsKey: fromEnv.secretsKey ?? minted }
   const { database, app } = openNodeAppDatabase(join(directory, "app.sqlite"))
   // Checked once, here, so a wrong setting stops the server instead of failing each agent.
   const computers = computerChoices(config, "node", nodeProviders)
@@ -83,7 +86,7 @@ function create(): NodePlatform {
   const modelAccess = new NodeActorNamespace({
     directory: join(directory, "model-access"),
     blobs: () => fileBlobs(join(directory, "blobs", "model-access")),
-    factory: (host) => createModelAccessActor(host),
+    factory: (host) => createModelAccessActor(host, { vaultKey: config.secretsKey }),
     onError: (error, name) => console.error(`[model access ${name}]`, error),
   })
   const signIns = modelAccessDirectory(app, modelAccess)
@@ -130,6 +133,7 @@ function create(): NodePlatform {
         library: libraryDirectory(app, libraries),
         sites: siteDirectory(app),
         showsBrowser: browserDirectory(app),
+        savedLogins: savedLoginsDirectory(app, modelAccess, config),
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
         appUrl: config.baseUrl,
