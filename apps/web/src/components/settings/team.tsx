@@ -15,6 +15,7 @@ import { InviteDialog } from "@/components/team/invite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Select,
   SelectContent,
@@ -24,9 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { client } from "@/lib/client"
-import { agentsCollection } from "@/lib/collections"
+import { agentsKey, unlistAgents } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
-import { invitationsKey, refreshWorkspaces, useHere, whoIs } from "@/lib/workspaces"
+import { invitationsKey, useHere, whoIs, workspacesKey } from "@/lib/workspaces"
 
 const heading = "mt-9 mb-2.5 text-[0.8125rem] font-medium text-muted-foreground"
 const ROLE_WORDS: Record<WorkspaceRole, string> = {
@@ -40,7 +41,10 @@ const ROLES = (["member", "admin", "owner"] as const).map((role) => ({
 }))
 const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
 
-/** Run something that changes the team, and say what went wrong if it did not work. */
+/**
+ * Run something that changes the team, and say what went wrong if it did not work. It is over
+ * once the list of workspaces has what was changed, which is when the page shows it.
+ */
 function useChange(): [string | undefined, (work: () => Promise<unknown>) => Promise<void>] {
   const [error, setError] = useState<string>()
   return [
@@ -49,9 +53,33 @@ function useChange(): [string | undefined, (work: () => Promise<unknown>) => Pro
       setError(undefined)
       try {
         await work()
-        refreshWorkspaces()
+        // Which agents there are may have changed too. That list is slow, and is not waited for.
+        void queryClient.invalidateQueries({ queryKey: agentsKey })
+        await queryClient.invalidateQueries({ queryKey: workspacesKey })
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : "That did not work. Try again.")
+      }
+    },
+  ]
+}
+
+/**
+ * Which of several things a row can do is on its way, so that the button pressed says so and
+ * the others wait for it.
+ */
+function useDoing<What extends string>(): [
+  What | undefined,
+  (what: What, work: () => Promise<unknown>) => Promise<void>,
+] {
+  const [doing, setDoing] = useState<What>()
+  return [
+    doing,
+    async (what, work) => {
+      setDoing(what)
+      try {
+        await work()
+      } finally {
+        setDoing(undefined)
       }
     },
   ]
@@ -60,6 +88,7 @@ function useChange(): [string | undefined, (work: () => Promise<unknown>) => Pro
 function Name({ workspace, editable }: { workspace: WorkspaceSummary; editable: boolean }) {
   const [name, setName] = useState<string>()
   const [error, change] = useChange()
+  const [doing, run] = useDoing<"save">()
   if (name === undefined) {
     return (
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -73,10 +102,12 @@ function Name({ workspace, editable }: { workspace: WorkspaceSummary; editable: 
     )
   }
   const save = () =>
-    change(async () => {
-      await client.workspace(workspace.id).update({ name })
-      setName(undefined)
-    })
+    run("save", () =>
+      change(async () => {
+        await client.workspace(workspace.id).update({ name })
+        setName(undefined)
+      }),
+    )
   return (
     <form
       className="flex min-w-0 flex-1 flex-col gap-1"
@@ -93,10 +124,16 @@ function Name({ workspace, editable }: { workspace: WorkspaceSummary; editable: 
           autoFocus
           onChange={(event) => setName(event.target.value)}
         />
-        <Button type="submit" size="sm" disabled={name.trim() === ""}>
-          Save
+        <Button type="submit" size="sm" disabled={name.trim() === "" || doing !== undefined}>
+          {doing === "save" ? "Saving…" : "Save"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setName(undefined)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={doing !== undefined}
+          onClick={() => setName(undefined)}
+        >
           Cancel
         </Button>
       </div>
@@ -132,6 +169,7 @@ function MemberRow({
     member.role !== "owner" &&
     (workspace.role === "owner" || (workspace.role === "admin" && member.role === "member"))
   const [confirm, confirming] = useConfirm()
+  const [doing, run] = useDoing<"role" | "remove" | "leave">()
   return (
     <li className="flex items-center gap-3 border-t px-3.5 py-2.5 first:border-t-0">
       <PersonFace person={member} here={here} className={here ? "size-8" : "size-8 opacity-70"} />
@@ -146,6 +184,7 @@ function MemberRow({
         <Select
           items={ROLES}
           value={member.role}
+          disabled={doing !== undefined}
           onValueChange={async (role) => {
             if (role === null || role === member.role) return
             if (
@@ -158,10 +197,15 @@ function MemberRow({
             ) {
               return
             }
-            void change(() => api.setRole(member.id, role))
+            void run("role", () => change(() => api.setRole(member.id, role)))
           }}
         >
-          <SelectTrigger size="sm" aria-label={`Role of ${member.name}`}>
+          <SelectTrigger
+            size="sm"
+            aria-label={`Role of ${member.name}`}
+            aria-busy={doing === "role"}
+          >
+            {doing === "role" ? <Spinner className="text-muted-foreground" /> : null}
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -184,6 +228,7 @@ function MemberRow({
           variant="ghost"
           size="sm"
           className="text-destructive"
+          disabled={doing !== undefined}
           onClick={async () => {
             if (
               await confirm({
@@ -192,17 +237,18 @@ function MemberRow({
                 destructive: true,
               })
             ) {
-              void change(() => api.removeMember(member.id))
+              void run("remove", () => change(() => api.removeMember(member.id)))
             }
           }}
         >
-          Remove
+          {doing === "remove" ? "Removing…" : "Remove"}
         </Button>
       ) : mine && member.role !== "owner" ? (
         <Button
           variant="ghost"
           size="sm"
           className="text-destructive"
+          disabled={doing !== undefined}
           onClick={async () => {
             if (
               !(await confirm({
@@ -214,16 +260,19 @@ function MemberRow({
             ) {
               return
             }
-            void change(async () => {
-              await api.removeMember(member.id)
-              // The index route goes to the agent that was last open, which is the team's
-              // until the list says it is gone.
-              await agentsCollection.utils.refetch()
-              await navigate({ to: "/" })
-            })
+            void run("leave", () =>
+              change(async () => {
+                await api.removeMember(member.id)
+                // The index route goes to the agent that was last open, which is the team's
+                // until the list says it is gone. They are taken out of it here: asking for
+                // the list again waits for every agent there is.
+                unlistAgents((agent) => agent.workspaceId === workspace.id)
+                await navigate({ to: "/" })
+              }),
+            )
           }}
         >
-          Leave
+          {doing === "leave" ? "Leaving…" : "Leave"}
         </Button>
       ) : null}
       {confirming}
@@ -246,6 +295,7 @@ function InvitationRow({
   // A link is only known when it is made. Sending again makes a new one, shown here until copied.
   const [renewed, setRenewed] = useState<SentInvitation>()
   const [copied, setCopied] = useState(false)
+  const [doing, run] = useDoing<"renew" | "withdraw">()
   const refresh = () => queryClient.invalidateQueries({ queryKey: invitationsKey(workspace.id) })
   return (
     <li className="flex flex-wrap items-center gap-3 border-t px-3.5 py-2.5 first:border-t-0">
@@ -287,28 +337,40 @@ function InvitationRow({
             <Button
               variant="ghost"
               size="sm"
+              disabled={doing !== undefined}
               onClick={() =>
-                void change(async () => {
-                  setRenewed(await api.renewInvitation(invitation.id))
-                  await refresh()
-                })
+                void run("renew", () =>
+                  change(async () => {
+                    setRenewed(await api.renewInvitation(invitation.id))
+                    await refresh()
+                  }),
+                )
               }
             >
-              {invitation.email === null ? "New link" : "Send again"}
+              {doing === "renew"
+                ? invitation.email === null
+                  ? "Making a link…"
+                  : "Sending…"
+                : invitation.email === null
+                  ? "New link"
+                  : "Send again"}
             </Button>
           )}
           <Button
             variant="ghost"
             size="sm"
             className="text-destructive"
+            disabled={doing !== undefined}
             onClick={() =>
-              void change(async () => {
-                await api.withdrawInvitation(invitation.id)
-                await refresh()
-              })
+              void run("withdraw", () =>
+                change(async () => {
+                  await api.withdrawInvitation(invitation.id)
+                  await refresh()
+                }),
+              )
             }
           >
-            Withdraw
+            {doing === "withdraw" ? "Withdrawing…" : "Withdraw"}
           </Button>
         </>
       ) : null}
@@ -324,6 +386,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
   const admin = workspace.role !== "member"
   const [inviting, setInviting] = useState(false)
   const [error, change] = useChange()
+  const [doing, run] = useDoing<"delete">()
   const [confirm, confirming] = useConfirm()
   const hereIds = whoIs(useHere(workspace.id), () => true)
   const { data: invitations } = useQuery({
@@ -402,6 +465,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
             <Button
               variant="outline"
               className="text-destructive"
+              disabled={doing !== undefined}
               onClick={async () => {
                 if (
                   !(await confirm({
@@ -412,14 +476,15 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
                 ) {
                   return
                 }
-                void change(async () => {
-                  await client.workspace(workspace.id).remove()
-                  await agentsCollection.utils.refetch()
-                  await navigate({ to: "/" })
-                })
+                void run("delete", () =>
+                  change(async () => {
+                    await client.workspace(workspace.id).remove()
+                    await navigate({ to: "/" })
+                  }),
+                )
               }}
             >
-              Delete {workspace.name}
+              {doing === "delete" ? "Deleting…" : `Delete ${workspace.name}`}
             </Button>
           </>
         ) : null}

@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Spinner } from "@/components/ui/spinner"
 import { sidebarSlotAtom } from "@/lib/atoms"
 import { authClient } from "@/lib/auth-client"
 import { forgetNotifications } from "@/lib/notifications"
@@ -44,9 +45,17 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
   // Agents asking for a computer of theirs, in whichever workspace: answered under Computers.
   const asking = useComputerRequests().filter((request) => request.canAnswer).length
 
+  // From the press until the sign-in page takes this one's place.
+  const [leaving, setLeaving] = useState(false)
   const signOut = async () => {
-    await forgetNotifications()
-    await authClient.signOut()
+    setLeaving(true)
+    try {
+      await forgetNotifications()
+      await authClient.signOut()
+    } catch {
+      // It did not go through. They are still signed in, and can ask again.
+      return setLeaving(false)
+    }
     // The page is loaded again, so that nothing of the session is left in it.
     window.location.assign("/login")
   }
@@ -56,17 +65,25 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${me.name}: settings and signing out`}
+          disabled={leaving}
+          aria-busy={leaving}
           className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-foreground/6"
         >
           <PersonFace person={person} title="" className="size-7" />
-          <span className="min-w-0 flex-1 truncate text-sm">{me.name}</span>
-          {asking > 0 ? (
+          <span className="min-w-0 flex-1 truncate text-sm">
+            {leaving ? "Signing out…" : me.name}
+          </span>
+          {leaving ? (
+            <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
+          ) : asking > 0 ? (
             <span
               title="A Dood is asking to use a computer"
               className="size-2 shrink-0 rounded-full bg-primary"
             />
           ) : null}
-          <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          {leaving ? null : (
+            <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start" className="w-68">
           <div className="flex items-center gap-2.5 px-2 py-1.5">

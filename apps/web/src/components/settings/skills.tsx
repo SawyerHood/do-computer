@@ -90,7 +90,7 @@ function SkillCard({ agentId, skill }: { agentId: string; skill: SkillSummary })
               aria-label={`Delete ${skill.name}`}
               onClick={() => remove.mutate()}
             >
-              <TrashIcon /> Delete
+              <TrashIcon /> {remove.isPending ? "Deleting…" : "Delete"}
             </Button>
           </CardFooter>
           <CollapsibleContent>

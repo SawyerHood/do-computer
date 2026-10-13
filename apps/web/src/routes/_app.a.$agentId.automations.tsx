@@ -7,6 +7,7 @@ import { Loads } from "@/components/loads"
 import { CardsPlaceholder } from "@/components/placeholders"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Card,
   CardAction,
@@ -141,9 +142,10 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
               size="sm"
               variant="outline"
               disabled={toggle.isPending}
+              aria-busy={toggle.isPending}
               onClick={() => toggle.mutate()}
             >
-              {schedule.enabled ? <PauseIcon /> : <PlayIcon />}
+              {toggle.isPending ? <Spinner /> : schedule.enabled ? <PauseIcon /> : <PlayIcon />}
               {schedule.enabled ? "Pause" : "Resume"}
             </Button>
           )}
@@ -151,19 +153,23 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
             size="sm"
             variant="outline"
             disabled={schedule.running || run.isPending}
+            aria-busy={schedule.running || run.isPending}
             onClick={() => run.mutate()}
           >
-            <ClockIcon /> Run now
+            {schedule.running || run.isPending ? <Spinner /> : <ClockIcon />}
+            {schedule.running ? "Running…" : "Run now"}
           </Button>
           <Button
             size="sm"
             variant="ghost"
             className="ml-auto text-muted-foreground"
             disabled={remove.isPending}
+            aria-busy={remove.isPending}
             aria-label={`Delete ${schedule.title}`}
             onClick={() => remove.mutate()}
           >
-            <TrashIcon /> Delete
+            {remove.isPending ? <Spinner /> : <TrashIcon />}
+            {remove.isPending ? "Deleting…" : "Delete"}
           </Button>
         </CardFooter>
         {error ? (

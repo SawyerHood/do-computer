@@ -14,6 +14,7 @@ import { type ViewMode, Viewer } from "@/components/library/viewer"
 import { SharedSites } from "@/components/sites/shared-sites"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { sidebarSlotAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentQuery, libraryKey, libraryQuery, libraryTextKey } from "@/lib/collections"
@@ -280,6 +281,8 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
       onUpload={(file) => upload.mutate(file)}
       onRestore={(fileId) => restore.mutate(fileId)}
       busy={upload.isPending || create.isPending}
+      doing={create.isPending ? "new" : upload.isPending ? "upload" : undefined}
+      restoring={restore.isPending ? restore.variables : undefined}
     />
   )
 
@@ -321,8 +324,12 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
             <div className="mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-10 pb-24">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <LibraryHeading />
-                <Button disabled={create.isPending} onClick={() => create.mutate()}>
-                  <NotePencilIcon /> New document
+                <Button
+                  disabled={create.isPending}
+                  aria-busy={create.isPending}
+                  onClick={() => create.mutate()}
+                >
+                  {create.isPending ? <Spinner /> : <NotePencilIcon />} New document
                 </Button>
               </div>
               {failure ? (

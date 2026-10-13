@@ -1,13 +1,9 @@
 import type { AgentState } from "@do-computer/client"
-import type {
-  AgentSummary,
-  ChatSummary,
-  Person,
-  WorkspaceSummary,
-} from "@do-computer/protocol"
+import type { AgentSummary, ChatSummary, Person, WorkspaceSummary } from "@do-computer/protocol"
 import { ChatsIcon, PlusIcon } from "@phosphor-icons/react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
+import { useState } from "react"
 import { isAtWork } from "@/components/chat/subagents"
 import { FaceStack } from "@/components/people"
 import { Badge } from "@/components/ui/badge"
@@ -92,7 +88,8 @@ export function SideChats({
   const main = mainChatOf(state?.chats)
   const chats = sideChatsOf(state?.chats)
   const open = useOpenSideChat(agent.id, main?.id)
-  const create = useNewSideChat(agent.id, main?.id)
+  const starting = useNewSideChat(agent.id, main?.id)
+  const [shown, setShown] = useState(false)
   const team = workspace.kind === "team"
   const here = useHere(team ? workspace.id : undefined)
   const people = usePeople(team ? workspace : undefined)
@@ -109,7 +106,7 @@ export function SideChats({
   const working = chats.some((chat) => atWork(chat) > 0)
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={shown} onOpenChange={setShown}>
       <DropdownMenuTrigger
         aria-label={`${name}'s side chats`}
         title={`${name}'s side chats`}
@@ -142,12 +139,22 @@ export function SideChats({
       >
         <DropdownMenuGroup>
           <DropdownMenuLabel>Side chats with {name}</DropdownMenuLabel>
+          {/* The menu stays while the chat is started, and says so. It goes once the chat is open. */}
           <DropdownMenuItem
-            onClick={() => void create()}
+            closeOnClick={false}
+            disabled={starting.creating}
+            aria-busy={starting.creating}
+            onClick={() => void starting.create().then((made) => made && setShown(false))}
             className="text-primary dark:text-[oklch(0.78_0.09_195)]"
           >
-            <PlusIcon /> New side chat
+            {starting.creating ? <Spinner /> : <PlusIcon />}
+            {starting.creating ? "Starting a side chat…" : "New side chat"}
           </DropdownMenuItem>
+          {starting.error === undefined ? null : (
+            <p role="alert" className="px-3 pb-1.5 text-xs text-destructive">
+              {starting.error}
+            </p>
+          )}
         </DropdownMenuGroup>
         {chats.length === 0 ? (
           <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">

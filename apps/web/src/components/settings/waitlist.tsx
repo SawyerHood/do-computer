@@ -77,7 +77,7 @@ export function WaitlistSettings() {
                   disabled={admit.isPending && admit.variables === person.id}
                   onClick={() => admit.mutate(person.id)}
                 >
-                  Let in
+                  {admit.isPending && admit.variables === person.id ? "Letting in…" : "Let in"}
                 </Button>
               </li>
             ))}

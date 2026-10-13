@@ -3,6 +3,7 @@ import {
   type AgentSummary,
   type ApiError,
   BodyTooLarge,
+  type ChatSummary,
   declaredTooLarge,
   readLimited,
 } from "@do-computer/protocol"
@@ -147,7 +148,32 @@ export async function createAgent(user: SessionUser, request: Request): Promise<
   if ((await roleIn(db, user.id, workspaceId)) === undefined) return fail(404, "Team not found")
   const made = await makeAgent(user.id, workspaceId)
   if ("error" in made) return fail(made.status, made.error)
-  return json({ agent: { ...made.agent, workspaceId } }, 201)
+  // Whoever made it is about to talk to it. It is given its main chat now and that is sent with
+  // it, so that the app opens the chat without first asking the agent which one it is.
+  const chat = await mainChatFor(made.agent.id, user)
+  return json(
+    { agent: { ...made.agent, workspaceId }, ...(chat === undefined ? {} : { chat }) },
+    201,
+  )
+}
+
+/**
+ * An agent's main chat, settled on as `user`. Undefined where it would not say: the app then
+ * asks for it when the agent is opened.
+ */
+async function mainChatFor(agentId: string, user: SessionUser): Promise<ChatSummary | undefined> {
+  try {
+    const response = await callAgent(agentId, "/chats/main", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        [CALLER_HEADER]: encodeCaller({ id: user.id, name: user.name }),
+      },
+    })
+    return response.ok ? ((await response.json()) as ChatSummary) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**

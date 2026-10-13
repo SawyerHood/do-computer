@@ -10,7 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
-import { useContext, useMemo } from "react"
+import { useContext, useMemo, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -134,6 +134,31 @@ export async function stopSubagent(agentId: string, chatId: string): Promise<voi
   }
 }
 
+/** The way to stop a sub-agent that is at work. It turns while the sub-agent is being told. */
+function StopSubagent({ agentId, subagent }: { agentId: string; subagent: ChatSummary }) {
+  const [stopping, setStopping] = useState(false)
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      aria-label={`Stop ${subagent.title}`}
+      title={stopping ? "Stopping…" : "Stop"}
+      disabled={stopping}
+      aria-busy={stopping}
+      onClick={() => {
+        setStopping(true)
+        // Stopped, it is no longer at work and this is gone. Still at work, it can be asked again.
+        void stopSubagent(agentId, subagent.id)
+          .catch(() => {})
+          .finally(() => setStopping(false))
+      }}
+      className="mr-1.5 text-muted-foreground hover:text-destructive"
+    >
+      {stopping ? <Spinner className="size-3.5" /> : <XIcon className="size-3.5" />}
+    </Button>
+  )
+}
+
 /** A chat's sub-agents as a list: each opens its own chat, and one at work can be stopped. */
 export function SubagentRows({
   agentId,
@@ -171,16 +196,7 @@ export function SubagentRows({
             <StatusMark status={subagent.status} />
           </Link>
           {isAtWork(subagent.status) ? (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Stop ${subagent.title}`}
-              title="Stop"
-              onClick={() => void stopSubagent(agentId, subagent.id)}
-              className="mr-1.5 text-muted-foreground hover:text-destructive"
-            >
-              <XIcon className="size-3.5" />
-            </Button>
+            <StopSubagent agentId={agentId} subagent={subagent} />
           ) : null}
         </li>
       ))}

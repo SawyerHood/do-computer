@@ -141,11 +141,13 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
             disabled={reconnect.isPending}
             onClick={() => reconnect.mutate()}
           >
-            {connector.status === "needs_auth"
-              ? "Sign in"
-              : connector.status === "connected"
-                ? "Refresh"
-                : "Try again"}
+            {reconnect.isPending
+              ? "Connecting…"
+              : connector.status === "needs_auth"
+                ? "Sign in"
+                : connector.status === "connected"
+                  ? "Refresh"
+                  : "Try again"}
           </Button>
           <Label className="font-normal text-muted-foreground">
             <Switch
@@ -167,7 +169,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
             aria-label={`Remove ${connector.name}`}
             onClick={() => remove.mutate()}
           >
-            <TrashIcon /> Remove
+            <TrashIcon /> {remove.isPending ? "Removing…" : "Remove"}
           </Button>
         </CardFooter>
         {error ? (
