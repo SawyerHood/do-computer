@@ -6094,6 +6094,56 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       person attaches is still only named in their message, since a message carries its
       attachments as names in its text.
 
+76. **A page in a chat has the app's controls, and can speak to the chat** (2026-10-13;
+    `packages/protocol/src/theme.ts` and `visual.ts`, `packages/agent/src/visuals.ts`,
+    `apps/web/src/components/chat/visual.tsx`, `lib/visual-heights.ts`; phase 3 of
+    `PLAN-rich-embeds.md`). The owner asked for "interactive HTML widgets that are styled
+    correctly". A visual was already a page in the app's colors; what it lacked was the
+    app's controls, any way back to the chat, and anyone noticing when it broke.
+    - **Controls** (`CONTROLS` in `theme.ts`): a page that asked for the app's look has its
+      button, field, select, checkbox, radio, slider, progress bar, `details`, `dialog`,
+      `fieldset` and `kbd` drawn as the app draws its own, written bare. A button is quiet;
+      `data-variant="primary"` is the one main action, `data-variant="ghost"` has no fill,
+      `aria-pressed="true"` is one that is on. All in `:where()`, so a page's own styles
+      win. They are put in when a page is served, so every page already in a library has
+      them: one that left its buttons bare looks different now.
+    - **`window.dc`**, in a page that is in a chat: `dc.say(text)` puts words in the message
+      box for the person to send, `dc.expand()` shows the page large and `dc.expand(false)`
+      puts it back, `dc.save(name, text, type)` hands the person a file. They are MCP Apps
+      requests (`ui/message`, `ui/request-display-mode`, `ui/download-file`), as the height
+      and the link were. The chat does each only when the reader has just pressed something
+      in the page, and refuses otherwise. Out of a chat `dc` is there and does nothing.
+    - **Large** is the same frame over the page, not another copy: what the reader did in
+      it is still done. The page is told, and is laid out as a page by itself while it is.
+    - **A script that fails** is told to the chat (`notifications/message`, three at most):
+      under the page it says "Something in this page did not work", with a button that puts
+      what it said in the message box for the agent.
+    - **Before a page is shown** `visual` reads it (`visualProblems`). One that uses
+      `localStorage`, `sessionStorage`, `indexedDB` or `document.cookie` in a script, or takes
+      its height from the window, is not shown: the agent is told why and draws it again.
+      Colors written out, a background on the body, something loaded from another site and
+      a fixed width are told to the agent with the page shown, for next time.
+    - **Height:** a browser keeps how tall each page was at about each width
+      (`dc-visual-heights`) and gives it that room at once next time. The frame is not
+      loaded until it is scrolled near, and is no longer white for a moment in the dark.
+    - **The owner's:** widgets that look like the app. **Mine:** all of it: which controls
+      and that a button is quiet by default; the three things `dc` does and their names;
+      that `say` fills the box and does not send (the plan asked the owner; not answered);
+      large being the same frame; what stops a page and what is only noted.
+    - **Not built, and why:** a page reading a file of the library beside it. The plan said
+      it already could; it cannot, on purpose (the address a page is viewed at opens the
+      whole library, so the library does not let a page read with it), and the plan is
+      corrected. Nor a box held while the agent is still writing a page.
+    - **Checked:** `theme.test.ts` (the script run against a stand-in page: what `dc` sends,
+      nothing out of a chat, errors three times and no more, large and back; what a client
+      reads of each request; `visualProblems`), and in a browser `e2e/widgets.spec.ts`: each
+      control's colors equal to the app's own, words from a press in the message box and
+      not sent, none from a page that was not pressed, large and back with the page's count
+      kept, a file downloaded under its name, a broken page's notice, a page with storage
+      sent back and one with a color written out shown, the height kept across a reload.
+      **Not checked:** Safari, Workers, the phone app (its web view has no chat to speak
+      to: `dc` does nothing there), a real model writing a widget.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

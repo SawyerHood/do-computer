@@ -9,6 +9,7 @@ import {
   VISUAL_TOOL,
   VISUALS_FOLDER,
   visualFileName,
+  visualProblems,
 } from "@do-computer/protocol"
 import { Type } from "@earendil-works/pi-ai"
 import { defineExtension, defineTool, type Extension, section } from "@earendil-works/pi-durable"
@@ -41,6 +42,16 @@ export function visuals(options: VisualsOptions): Extension {
       const title = args.title.replace(/\s+/g, " ").trim().slice(0, MAX_VISUAL_TITLE)
       if (title === "") return fail("A visual needs a title.")
       if (args.html.trim() === "") return fail("A visual needs a page: `html` was empty.")
+      // What would break the page where it is shown is said before it is shown, so that the
+      // person never sees the broken one.
+      const problems = visualProblems(args.html)
+      if (problems.stops.length > 0) {
+        return fail(
+          `The page was not shown, because it would not work in the chat:\n${problems.stops
+            .map((stop) => `- ${stop}`)
+            .join("\n")}\nFix that and draw it again.`,
+        )
+      }
       const bytes = new TextEncoder().encode(prepareVisual(args.html))
       if (bytes.length > MAX_VISUAL_BYTES) {
         return fail(
@@ -63,7 +74,13 @@ export function visuals(options: VisualsOptions): Extension {
           output: [
             {
               type: "text",
-              text: `Shown to the person in the chat, above your reply, and kept in the library as ${file.path}. Do not describe the page or say where it is; reply with only what it does not already say.`,
+              text:
+                `Shown to the person in the chat, above your reply, and kept in the library as ${file.path}. Do not describe the page or say where it is; reply with only what it does not already say.` +
+                (problems.notes.length === 0
+                  ? ""
+                  : `\n\nThings in this page to keep in mind for the next one you draw (do not draw this one again for them, and do not mention them):\n${problems.notes
+                      .map((note) => `- ${note}`)
+                      .join("\n")}`),
             },
           ],
           details: file,

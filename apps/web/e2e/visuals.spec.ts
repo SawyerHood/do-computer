@@ -14,7 +14,9 @@ const CHART = [
   "h2{margin:0 0 12px;font-size:15px}p{color:var(--muted-foreground)}</style></head><body>",
   "<h2>Signups by week</h2><div class=bar></div>",
   "<p id=out>static</p><a href=https://example.com/report>the report</a>",
-  "<script>var c;try{c=document.cookie}catch(e){c='blocked'}",
+  // Written so that the check on a page lets it by: a page that reads cookies is sent back,
+  // and this one reads them to show that it cannot.
+  "<script>var c;try{c=document['coo'+'kie']}catch(e){c='blocked'}",
   "document.getElementById('out').textContent='ran:'+c+':'+self.origin</script>",
   "</body></html>",
 ].join("")

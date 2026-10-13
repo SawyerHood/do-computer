@@ -231,8 +231,8 @@ A visual is already an interactive page in the app's colors. These make one easy
   already written gets them. `PAGE_STYLE_GUIDE` says so in two lines.
 - **Talking back.** The frame learns three more MCP Apps requests, and the page gets a small
   `window.dc` so an agent does not write JSON-RPC by hand: `dc.say(text)` puts text in the
-  message box for the person to send, `dc.expand()` shows the page large, `dc.save(name, data)`
-  hands the reader a file. A widget with choices can then answer the agent.
+  message box for the person to send, `dc.expand()` shows the page large, `dc.save(name, text,
+  type)` hands the reader a file. A widget with choices can then answer the agent.
 - **Data beside the page.** Not as first written: a page in a chat cannot `fetch` a library
   file beside it, and that is on purpose (the address it is served at opens the whole library,
   so the library does not let a page read with it). A widget over a large file would need the

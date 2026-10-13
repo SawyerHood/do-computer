@@ -185,6 +185,43 @@ export const INLINE_ATTRIBUTE = "data-dc-inline"
 const DARK = declarations(THEME_TOKENS, "dark").join(";")
 const BASE = `:root[${PAGE_ATTRIBUTE}]`
 
+const FIELD = `input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=image])`
+const FILLED = `color-mix(in oklch,var(--secondary),var(--foreground) 6%)`
+
+/**
+ * The app's own controls, for a page that asked for its look: a button, a field, a choice, a
+ * slider, a folding section, a window, written bare, are drawn as the app draws its own. A
+ * button is quiet unless it says it is the main one (`data-variant="primary"`) or has no fill
+ * at all (`data-variant="ghost"`); one that is on says so with `aria-pressed="true"`.
+ */
+const CONTROLS =
+  `:where(${BASE}) :where(button,input[type=button],input[type=submit],input[type=reset]){` +
+  "appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;" +
+  "min-height:32px;padding:0 12px;border:1px solid transparent;border-radius:var(--radius);" +
+  "background:var(--secondary);color:var(--secondary-foreground);font-size:13px;font-weight:500;" +
+  "line-height:1.2;cursor:pointer;transition:background-color .12s,box-shadow .12s}" +
+  `:where(${BASE}) :where(button,input[type=button],input[type=submit],input[type=reset]):where(:hover){background:${FILLED}}` +
+  `:where(${BASE}) :where(button[data-variant=primary]){background:var(--primary);color:var(--primary-foreground)}` +
+  `:where(${BASE}) :where(button[data-variant=primary]):where(:hover){background:color-mix(in oklch,var(--primary) 86%,var(--foreground))}` +
+  `:where(${BASE}) :where(button[data-variant=ghost]){background:transparent}` +
+  `:where(${BASE}) :where(button[data-variant=ghost]):where(:hover){background:var(--accent)}` +
+  `:where(${BASE}) :where(button[aria-pressed=true]){background:var(--accent);box-shadow:inset 0 0 0 1px var(--input)}` +
+  `:where(${BASE}) :where(button,input,select,textarea):where(:disabled){opacity:.5;cursor:not-allowed}` +
+  `:where(${BASE}) :where(${FIELD},select,textarea){min-height:32px;padding:0 10px;border:1px solid var(--input);` +
+  "border-radius:var(--radius);background:var(--background);font-size:13px}" +
+  `:where(${BASE}) :where(textarea){padding:7px 10px;line-height:1.45}` +
+  `:where(${BASE}) :where(::placeholder){color:var(--muted-foreground);opacity:1}` +
+  `:where(${BASE}) :where(input[type=checkbox],input[type=radio],input[type=range],progress,meter){accent-color:var(--primary)}` +
+  `:where(${BASE}) :where(label){font-size:13px}` +
+  `:where(${BASE}) :where(fieldset){margin:0;padding:12px;border:1px solid var(--border);border-radius:var(--radius)}` +
+  `:where(${BASE}) :where(legend){padding:0 4px;font-size:12px;color:var(--muted-foreground)}` +
+  `:where(${BASE}) :where(summary){cursor:pointer;font-weight:500}` +
+  `:where(${BASE}) :where(dialog){padding:16px;border:0;border-radius:calc(var(--radius)*1.4);` +
+  "background:var(--popover);color:var(--popover-foreground);box-shadow:var(--elevation-float)}" +
+  `:where(${BASE}) :where(dialog)::backdrop{background:oklch(0 0 0/.4)}` +
+  `:where(${BASE}) :where(kbd){padding:1px 5px;border:1px solid var(--border);border-bottom-width:2px;` +
+  "border-radius:5px;background:var(--surface);font-size:.85em}"
+
 /**
  * What is put in a page for it to be in the app's look.
  *
@@ -194,8 +231,8 @@ const BASE = `:root[${PAGE_ATTRIBUTE}]`
  * as one opened in a tab of its own, follows the system.
  *
  * A page that asks for it, by `data-dc-page` on its root, also starts from the app's own page:
- * its background, its text and the way it sets a table or a field. Those are in `:where()` too,
- * so the page's own styles win wherever it has any.
+ * its background, its text, the way it sets a table, and its controls. Those are in `:where()`
+ * too, so the page's own styles win wherever it has any.
  *
  * A visual is a page written to be part of an answer. Shown by itself, in a tab or a viewer, it
  * is given margins and a measure; in a chat it has neither, since the answer around it gives it
@@ -223,6 +260,7 @@ export const PAGE_THEME_CSS =
   `:where(${BASE}) :where(th){font-weight:500;color:var(--muted-foreground)}` +
   `:where(${BASE}) :where(hr){border:0;border-top:1px solid var(--border)}` +
   `:where(${BASE}) :where(button,input,select,textarea){font:inherit;color:inherit}` +
+  CONTROLS +
   `:where(${BASE}) :where(:focus-visible){outline:2px solid var(--ring);outline-offset:2px}` +
   `${BASE}[${INLINE_ATTRIBUTE}]{scrollbar-width:none}${BASE}[${INLINE_ATTRIBUTE}]::-webkit-scrollbar{display:none}` +
   `:root[${PAGE_ATTRIBUTE}="visual"]:not([${INLINE_ATTRIBUTE}]) body{max-width:720px;margin:0 auto;padding:24px}`
@@ -243,6 +281,8 @@ export const PAGE_STYLE_GUIDE = [
   "Meaning: --success, --warning, --destructive.",
   "Charts: --chart-1 to --chart-6, one per series and always in that order; they are for marks, never for text.",
   "Shape and type: --radius for corners, --elevation-card and --elevation-float as a box-shadow, --font-sans, --font-mono.",
+  'Controls: write a button, input, select, textarea, checkbox, radio, range slider, progress bar, details and dialog bare, with no styles of your own, and they are drawn as the app draws its own. A button is quiet; give the one main action data-variant="primary", one that should have no fill data-variant="ghost", and one that is switched on aria-pressed="true".',
+  "Code: --syntax-keyword, --syntax-string, --syntax-constant, --syntax-function, --syntax-parameter, --syntax-comment and --syntax-punctuation, where a page colors code itself.",
   "Type: text is 14px in --font-sans; use three sizes at most (20px a title, 16px a heading, 12 or 13px a label), weight 600 for headings and 500 for labels, and font-variant-numeric: tabular-nums wherever figures line up.",
   "Space: steps of 4px. 8 within a group, 16 between groups and as a box's padding, 24 to 32 between sections.",
   "Contrast: write only in --foreground or --muted-foreground on a surface, and on a filled color only in its own -foreground. Never let color alone carry a meaning: name a series beside its line or in a legend, and put a word or a sign with a good or bad figure.",

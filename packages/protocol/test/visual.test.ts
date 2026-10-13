@@ -102,12 +102,12 @@ describe("what a visual and its frame say to each other", () => {
   it("opens only a web address for a page", () => {
     const asked = (url: unknown) => ({
       jsonrpc: "2.0",
-      id: "dc-link-1",
+      id: "dc-1",
       method: "ui/open-link",
       params: { url },
     })
     expect(readVisualLink(asked("https://example.com/a"))).toEqual({
-      id: "dc-link-1",
+      id: "dc-1",
       url: "https://example.com/a",
     })
     expect(readVisualLink(asked("javascript:alert(1)"))).toBeUndefined()

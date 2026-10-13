@@ -11,6 +11,15 @@ export const AgentIdContext = createContext<string | undefined>(undefined)
  */
 export const OpenFileContext = createContext<((fileId: string) => void) | undefined>(undefined)
 
+/**
+ * The chat on screen, as what is typed for it is kept under: for something in the chat to put
+ * words in its message box.
+ */
+export const DraftKeyContext = createContext<string | undefined>(undefined)
+
+/** Said when words were put in a chat's message box from elsewhere, so that the box takes the caret. */
+export const DRAFTED = "dc-drafted"
+
 /** A file the agent delivered, shown as the file. */
 export function SentFile({ part }: { part: ToolPart }) {
   const agentId = useContext(AgentIdContext)
