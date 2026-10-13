@@ -7,7 +7,7 @@ import {
 } from "@do-computer/protocol"
 import { ArrowUpIcon, MicrophoneIcon, PaperclipIcon, StopIcon, XIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
-import { useEffect, useRef, useState } from "react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { draftAtom } from "@/lib/atoms"
@@ -48,6 +48,7 @@ export function Composer({
   sees,
   agentName,
   onTyping,
+  extras,
 }: {
   draftKey: string
   placeholder: string
@@ -65,6 +66,8 @@ export function Composer({
   onAttach: (file: File) => Promise<LibraryFile>
   /** Told as the user writes and when they stop, where others in the chat are shown it. */
   onTyping?: ((typing: boolean) => void) | undefined
+  /** Buttons of the chat's own for the row under the message, drawn beside the paperclip. */
+  extras?: ReactNode
 }) {
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
@@ -196,10 +199,14 @@ export function Composer({
           }}
           // Pressing a button, or the room around what is written, does not take the cursor out
           // of the message: the box would shrink under the press.
+          // A menu one of its buttons opened is drawn elsewhere on the page, and what is pressed
+          // there still arrives here: it is left alone, or nothing in the menu could be typed in.
           onMouseDown={(event) => {
+            if (!event.currentTarget.contains(event.target as Node)) return
             if (event.target !== input.current) event.preventDefault()
           }}
           onClick={(event) => {
+            if (!event.currentTarget.contains(event.target as Node)) return
             // Anywhere in the box that is not a button is a place to write.
             if (!(event.target as Element).closest("button, textarea")) input.current?.focus()
           }}
@@ -261,12 +268,14 @@ export function Composer({
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="mr-auto text-muted-foreground"
+                className="text-muted-foreground"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
                 <PaperclipIcon className="size-5" />
               </Button>
+              {extras}
+              <span className="flex-1" />
               {dictation.supported ? (
                 <Button
                   type="button"

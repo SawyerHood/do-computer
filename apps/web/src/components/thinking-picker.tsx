@@ -1,7 +1,9 @@
 import { nearestThinking, type ThinkingLevel } from "@do-computer/protocol"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { cn } from "@/lib/utils"
 
-const LABELS: Record<ThinkingLevel, string> = {
+/** What each level is called where a person reads it. */
+export const THINKING_LABELS: Record<ThinkingLevel, string> = {
   off: "Off",
   minimal: "Minimal",
   low: "Low",
@@ -21,6 +23,7 @@ export function ThinkingPicker({
   levels,
   value,
   onChange,
+  snug = false,
 }: {
   label: string
   /** What the chosen model offers, least first. Empty for one that does not reason. */
@@ -28,6 +31,8 @@ export function ThinkingPicker({
   /** What the agent was set to. Where the model lacks it, the nearest it has is shown chosen. */
   value: ThinkingLevel
   onChange: (level: ThinkingLevel) => void
+  /** Where there is little room across: each level as wide as its word, not all alike. */
+  snug?: boolean
 }) {
   const chosen = nearestThinking(levels, value)
   return (
@@ -48,9 +53,12 @@ export function ThinkingPicker({
             <ToggleGroupItem
               key={level}
               value={level}
-              className="min-w-0 flex-1 px-2 font-normal aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground"
+              className={cn(
+                "min-w-0 font-normal aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground",
+                snug ? "flex-auto px-1.5" : "flex-1 px-2",
+              )}
             >
-              <span className="truncate">{LABELS[level]}</span>
+              <span className="truncate">{THINKING_LABELS[level]}</span>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>

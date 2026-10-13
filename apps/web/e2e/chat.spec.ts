@@ -116,6 +116,9 @@ test("a picture pasted into the message box is attached, under a name of its own
   await expect(composer(page)).toHaveValue("Look at this: ")
   // The built-in echo model cannot look at pictures, and the box says what that means.
   await expect(attached.getByRole("note")).toContainText("cannot look at pictures")
+  // It is also the only model there is, so the box has no button for choosing one.
+  await expect(page.getByRole("button", { name: "Attach a file" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Model and thinking" })).toHaveCount(0)
 
   await composer(page).press("Enter")
   await expect(
