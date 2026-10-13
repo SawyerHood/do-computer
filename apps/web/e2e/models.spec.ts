@@ -117,6 +117,42 @@ test.describe("signing in to model providers", () => {
     await expect(picker).toHaveValue("Claude Haiku 5.5")
   })
 
+  test("the message box changes the agent's model and how hard it thinks", async ({ page }) => {
+    await signIn(page)
+    // One quiet button, which says what is chosen only when it is pointed at.
+    const button = page.getByRole("button", { name: "Model and thinking" })
+    await expect(button).toHaveAttribute("title", /^Claude Haiku 5\.5/)
+    await button.click()
+    const menu = page.getByRole("dialog", { name: "Model and thinking" })
+    const search = menu.getByRole("combobox", { name: "Search models" })
+    await expect(search).toBeFocused()
+    await search.fill("sonnet 5.5")
+    await menu.getByRole("option", { name: /Claude Sonnet 5\.5/ }).click()
+    // Choosing does not shut the menu: the levels under the list are now that model's.
+    await expect(button).toHaveAttribute("title", /^Claude Sonnet 5\.5/)
+    const level = menu.getByRole("group", { name: "Thinking" }).getByRole("button", { name: "Low" })
+    await level.click()
+    await expect(level).toHaveAttribute("aria-pressed", "true")
+    await expect(button).toHaveAttribute("title", "Claude Sonnet 5.5 · Low")
+    // What was typed in the menu stayed out of the message, which has the cursor back.
+    await page.keyboard.press("Escape")
+    await expect(menu).toHaveCount(0)
+    await expect(composer(page)).toHaveValue("")
+    await expect(composer(page)).toBeFocused()
+
+    // It is the agent's own setting: the page loaded again has it, and so do its settings.
+    await page.reload()
+    await expect(button).toHaveAttribute("title", "Claude Sonnet 5.5 · Low")
+    await openSettings(page, "Model and computers")
+    await expect(page.getByRole("combobox", { name: "Model" })).toHaveValue("Claude Sonnet 5.5")
+    await expect(
+      page
+        .getByRole("dialog")
+        .getByRole("group", { name: "Thinking" })
+        .getByRole("button", { name: "Low" }),
+    ).toHaveAttribute("aria-pressed", "true")
+  })
+
   test("an agent says so when its workspace is no longer signed in, with the ways out", async ({
     page,
   }) => {

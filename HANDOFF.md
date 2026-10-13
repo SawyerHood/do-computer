@@ -2848,6 +2848,37 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       state was forced for its picture; and the upload fix on a phone since it was written.
       The owner asked for no more cloud builds for now: they are paid for.
 
+69. **The message box has a button for the model and how hard it thinks** (2026-10-13;
+    `apps/web/src/components/chat/thinks-with.tsx`, `model-picker.tsx`, `composer.tsx`). The
+    owner asked for a mock-up of the model and effort pickers inside the message box
+    (`prototypes/model-in-composer`), then asked whether so advanced a thing should be hidden
+    a little, and chose the arrangement with one quiet button: "I love this lets ship it".
+    - **One button beside the paperclip** opens a menu: a search and the models, under where
+      each comes from, and under them the thinking levels of the one chosen. Each choice is
+      saved as it is made and the menu stays open, so a model and then its level are one
+      visit. Pointing at the button says what is chosen. Shut with Escape, it gives the cursor
+      back to the message.
+    - **It is the agent's own setting**, the one under Model and computers, which is still
+      there: it holds for every chat with the agent, for whoever else talks to it, and for
+      sub-agents started afterwards. A choice for one chat alone would be server work and was
+      not asked for.
+    - **Nothing is drawn where there is nothing to choose**: one model that thinks one way,
+      which is a server with no key and no sign-in.
+    - **The list is the settings' list.** `ModelList` is `ModelPicker` with nothing to open,
+      over the same rows (`inline` on Base UI's combobox); in the menu a row leaves the model's
+      id out, which there is not the room across for beside its price.
+    - **A menu a button of the box opens is drawn elsewhere on the page, and what is pressed in
+      it still reaches the box's own handlers**, which keep the cursor in the message: they now
+      leave alone what is not inside the box. Without that the search could not be typed in.
+    - **Mine, not the owner's:** the button is a brain where the mock-up had sliders, because
+      sliders already open the agent's settings from the bar above the chat; and the word is
+      "Thinking", as in settings, where they said "effort".
+    - **Checked:** a browser test (`models.spec.ts`) that changes both from the box and finds
+      them in settings and after a reload, one that the button is absent with a single model,
+      and the menu looked at in both themes and at a phone's width. **Not checked:** the side
+      chat's box, which gets the same button and was only type-checked; a team, with another
+      person's page open on the same agent; a real model. The phone app has no such button.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

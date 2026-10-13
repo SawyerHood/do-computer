@@ -1,0 +1,347 @@
+<!doctype html>
+<!-- A mock-up: the model and thinking pickers of a Dood's settings, moved into the message box.
+     Not part of the app, and everything in it is pretend. Open it from the file system. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Model and thinking in the message box · mock-up</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" />
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      button, input, textarea { font: inherit; color: inherit; }
+      button { border: 0; background: none; padding: 0; cursor: pointer; }
+      svg { flex: none; fill: currentColor; }
+
+      /* The page around the mock-up, which is not part of the design. */
+      .page { display: flex; flex-direction: column; gap: 18px; font: 14px/1.5 var(--font-sans, Geist, system-ui, sans-serif); color: var(--foreground, #24292c); }
+      .lede { margin: 0; color: var(--muted-foreground, #6b7377); }
+      .bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
+      .seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border, #d9dddf); border-radius: 9px; }
+      .seg button { padding: 3px 10px; border-radius: 6px; font-size: 13px; color: var(--muted-foreground, #6b7377); }
+      .seg button[aria-pressed="true"] { background: var(--secondary, #eceeef); color: var(--foreground, #24292c); }
+      .cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 24px; align-items: start; }
+      .cell h3 { margin: 10px 0 2px; font-size: 13px; font-weight: 600; }
+      .cell p { margin: 0; font-size: 13px; color: var(--muted-foreground, #6b7377); }
+
+      /* The app's own tokens, copied from apps/web/src/styles.css. */
+      .mock {
+        --m-canvas: oklch(0.997 0.001 212);
+        --m-ink: oklch(0.27 0.008 212);
+        --m-frame: color-mix(in oklch, var(--m-ink) 4.5%, var(--m-canvas));
+        --m-hairline: color-mix(in oklch, var(--m-ink) 10%, transparent);
+        --m-shade: oklch(0.27 0.02 212);
+        --m-card: 0 0 0 1px var(--m-hairline), 0 1px 2px oklch(from var(--m-shade) l c h / 0.04), 0 10px 28px -14px oklch(from var(--m-shade) l c h / 0.12);
+        --m-float: 0 0 0 1px var(--m-hairline), 0 2px 5px oklch(from var(--m-shade) l c h / 0.05), 0 22px 48px -22px oklch(from var(--m-shade) l c h / 0.26);
+        --m-popover: var(--m-canvas);
+        --m-primary: oklch(0.5 0.08 195);
+        --m-primary-fg: oklch(0.985 0.01 195);
+        --m-accent: color-mix(in oklch, var(--m-ink) 8%, var(--m-canvas));
+        --m-muted-fg: color-mix(in oklch, var(--m-ink) 62%, var(--m-canvas));
+        --m-border: color-mix(in oklch, var(--m-ink) 13%, var(--m-canvas));
+        --m-tint: color-mix(in oklch, var(--m-primary) 13%, var(--m-canvas));
+        background: var(--m-frame);
+        color: var(--m-ink);
+        border-radius: 14px;
+        padding: 16px;
+        font-family: Geist, "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mock.dark {
+        --m-canvas: oklch(0.212 0.004 212);
+        --m-ink: oklch(0.9 0.006 212);
+        --m-frame: oklch(0.168 0.004 212);
+        --m-hairline: color-mix(in oklch, var(--m-ink) 11%, transparent);
+        --m-card: 0 0 0 1px var(--m-hairline);
+        --m-float: 0 0 0 1px var(--m-hairline), inset 0 1px 0 oklch(1 0 0 / 0.05), 0 22px 48px -22px oklch(0 0 0 / 0.7);
+        --m-popover: color-mix(in oklch, var(--m-ink) 5%, var(--m-canvas));
+        --m-primary: oklch(0.52 0.08 195);
+        --m-primary-fg: oklch(0.97 0.012 195);
+        --m-accent: color-mix(in oklch, var(--m-ink) 11%, var(--m-canvas));
+      }
+      .sheet { background: var(--m-canvas); border-radius: 12px; box-shadow: var(--m-card); padding-top: 24px; }
+      .col { max-width: 45rem; margin: 0 auto; padding: 0 16px 16px; }
+      .msgs { display: flex; flex-direction: column; gap: 16px; padding: 0 4px 22px; font-size: 16px; line-height: 1.6; }
+      .msgs p, .msgs ul { margin: 0; }
+      .msgs ul { padding-left: 20px; }
+      .me { align-self: flex-end; max-width: 80%; background: var(--m-tint); border-radius: 18px; padding: 6px 14px; }
+
+      /* The message box, as in apps/web/src/components/chat/composer.tsx. */
+      .composer { display: flex; flex-direction: column; min-height: 5.375rem; border-radius: 1.25rem; background: var(--m-popover); box-shadow: var(--m-float); }
+      .composer textarea, .ph { display: block; width: 100%; padding: 12px 16px 6px; font-size: 16px; line-height: 24px; }
+      .composer textarea { resize: none; border: 0; outline: 0; background: transparent; }
+      .composer textarea::placeholder, .ph { color: var(--m-muted-fg); }
+      .row { display: flex; align-items: center; gap: 4px; margin-top: auto; padding: 0 6px 6px; }
+      .spacer { flex: 1; }
+      .ib, .send { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; color: var(--m-muted-fg); }
+      .ib:hover, .ib[aria-expanded="true"] { background: var(--m-accent); color: var(--m-ink); }
+      .ib svg { width: 20px; height: 20px; }
+      .send { border-radius: 99px; background: var(--m-primary); color: var(--m-primary-fg); }
+      .send:disabled { opacity: 0.5; }
+      .send svg { width: 18px; height: 18px; }
+
+      /* What is new: the buttons that say what the Dood thinks with, and what each opens. */
+      .anchor { position: relative; display: inline-flex; min-width: 0; }
+      .chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; height: 32px; padding: 0 8px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--m-muted-fg); }
+      .chip:hover, .chip[aria-expanded="true"] { background: var(--m-accent); color: var(--m-ink); }
+      .chip .t { overflow: hidden; text-overflow: ellipsis; }
+      .chip .sep { opacity: 0.6; }
+      .caret { width: 11px; height: 11px; opacity: 0.7; }
+      .meter { width: 15px; height: 15px; }
+      .pop { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 5; overflow: hidden; border-radius: 12px; background: var(--m-popover); box-shadow: var(--m-float); font-size: 14px; color: var(--m-ink); }
+      .pop.model { width: 312px; }
+      .pop.think { left: 50%; width: 216px; padding: 4px; translate: -50% 0; }
+      .search { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--m-border); color: var(--m-muted-fg); }
+      .search svg { width: 16px; height: 16px; }
+      .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--m-ink); }
+      .search input::placeholder { color: var(--m-muted-fg); }
+      .list { max-height: 268px; overflow: auto; padding: 4px; }
+      .list.short { max-height: 190px; }
+      .glabel { padding: 9px 10px 4px; font-size: 12px; font-weight: 500; color: var(--m-muted-fg); }
+      .opt { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 6px 10px; border-radius: 8px; text-align: left; }
+      .opt.one { align-items: center; }
+      .opt:hover { background: var(--m-accent); }
+      .grow { flex: 1; min-width: 0; }
+      .n { font-weight: 500; }
+      .sug { margin-left: 8px; font-size: 12px; color: var(--m-muted-fg); }
+      .f { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; color: var(--m-muted-fg); }
+      .ck { width: 15px; height: 15px; margin-top: 3px; }
+      .opt.one .ck { margin-top: 0; }
+      .none, .foot { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--m-muted-fg); }
+      .thinkrow { padding: 0 4px 2px; border-top: 1px solid var(--m-border); }
+      .levels { display: flex; gap: 2px; margin: 0 6px; padding: 3px; border: 1px solid var(--m-border); border-radius: 9px; }
+      .levels button { flex: auto; padding: 3px 6px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
+      .levels button:hover { background: var(--m-accent); }
+      .levels button[aria-pressed="true"] { background: var(--m-primary); color: var(--m-primary-fg); }
+
+      /* A picture of one state: nothing in it answers a click. */
+      .still { pointer-events: none; }
+      .still.crop { overflow: hidden; padding: 12px 0 12px 12px; }
+      .still.crop .sheet { overflow: hidden; border-radius: 12px 0 0 12px; zoom: 0.85; }
+      .still.crop .col { width: 620px; max-width: none; margin: 0; }
+      .still.phone { overflow: hidden; max-width: 360px; padding: 0; }
+      .still.phone .sheet { border-radius: 0; box-shadow: none; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="lede">The first box works: open a menu, choose, type. The pictures under it show each menu opened. The models and prices are pretend.</p>
+      <div class="bar">
+        <div class="seg" id="variants">
+          <button type="button" data-variant="two">Two buttons</button>
+          <button type="button" data-variant="one">One button</button>
+          <button type="button" data-variant="tucked">Tucked away</button>
+        </div>
+        <div class="seg" id="themes">
+          <button type="button" data-theme="light">Light</button>
+          <button type="button" data-theme="dark">Dark</button>
+        </div>
+      </div>
+      <div class="mock" id="live">
+        <div class="sheet">
+          <div class="col">
+            <div class="msgs">
+              <p class="me">What’s taking up all the space on my laptop?</p>
+              <p>Most of it is video. Three places hold 71% of the disk:</p>
+              <ul>
+                <li>Movies/Screen recordings, 212 GB</li>
+                <li>Library/Developer, 96 GB</li>
+                <li>Downloads, 41 GB</li>
+              </ul>
+              <p>Everything recorded before June is already exported. Want me to move those to the external drive?</p>
+              <p class="me">Yes, move them.</p>
+              <p>Done. 164 GB moved, and this month’s are where they were.</p>
+            </div>
+            <div id="slot"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cells" id="cells"></div>
+    </div>
+    <script>
+      const svg = (d, cls = "") => `<svg class="${cls}" viewBox="0 0 256 256" aria-hidden="true"><path d="${d}"/></svg>`
+      // Phosphor, as the app draws them.
+      const I = {
+        clip: svg("M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"),
+        mic: svg("M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V240a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"),
+        up: svg("M208.49,120.49a12,12,0,0,1-17,0L140,69V216a12,12,0,0,1-24,0V69L64.49,120.49a12,12,0,0,1-17-17l72-72a12,12,0,0,1,17,0l72,72A12,12,0,0,1,208.49,120.49Z"),
+        caret: svg("M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z", "caret"),
+        check: svg("M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z", "ck"),
+        sliders: svg("M40,88H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm64-24A16,16,0,1,1,88,80,16,16,0,0,1,104,64ZM216,168H199a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h97a32,32,0,0,0,62,0h17a8,8,0,0,0,0-16Zm-48,24a16,16,0,1,1,16-16A16,16,0,0,1,168,192Z"),
+        find: svg("M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"),
+      }
+
+      const ORDER = ["off", "minimal", "low", "medium", "high", "xhigh", "max"]
+      const LABELS = { off: "Off", minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" }
+      const SUB = "on the subscription"
+      const GROUPS = [
+        {
+          name: "Anthropic subscription · signed in by Sawyer",
+          items: [
+            { id: "opus", name: "Claude Opus 5.5", facts: `${SUB} · 1M context`, thinking: ["off", "low", "medium", "high", "xhigh", "max"] },
+            { id: "sonnet", name: "Claude Sonnet 5.5", suggested: true, facts: `${SUB} · 1M context`, thinking: ["off", "low", "medium", "high", "xhigh"] },
+            { id: "haiku", name: "Claude Haiku 5.5", facts: `${SUB} · 200K context`, thinking: ["off", "low", "medium", "high"] },
+          ],
+        },
+        {
+          name: "Do Computer · OpenRouter",
+          items: [
+            { id: "luna", name: "GPT-6 Luna", facts: "$2.5 in, $10 out per million tokens · 400K context", thinking: ["minimal", "low", "medium", "high"] },
+            { id: "flash", name: "Gemini 3.8 Flash", facts: "$0.30 in, $2.5 out per million tokens · 1M context", thinking: [] },
+            { id: "muse", name: "Muse Spark 1.3", facts: "free · 256K context", thinking: ["low", "high"] },
+          ],
+        },
+      ]
+      const find = (id) => GROUPS.flatMap((group) => group.items).find((model) => model.id === id)
+      // Where the model lacks the level that was set, the nearest it has: as the app does.
+      const nearest = (levels, value) =>
+        [...levels].sort((a, b) => Math.abs(ORDER.indexOf(a) - ORDER.indexOf(value)) - Math.abs(ORDER.indexOf(b) - ORDER.indexOf(value)))[0]
+
+      /** A level as bars: one for each the model offers above "off", filled up to the chosen one. */
+      function meter(levels, value) {
+        const steps = levels.filter((level) => level !== "off")
+        const gap = 1.5
+        const width = Math.min(3, (14 - (steps.length - 1) * gap) / steps.length)
+        const left = (16 - steps.length * width - (steps.length - 1) * gap) / 2
+        const bars = steps.map((_, i) => {
+          const height = 4 + (9 * (i + 1)) / steps.length
+          return `<rect x="${left + i * (width + gap)}" y="${14.5 - height}" width="${width}" height="${height}" rx="0.75" opacity="${i <= steps.indexOf(value) ? 1 : 0.28}"/>`
+        })
+        return `<svg class="meter" viewBox="0 0 16 16" aria-hidden="true">${bars.join("")}</svg>`
+      }
+
+      const NOTE = "More is slower and costs more. Applies from Pip’s next reply."
+      const search = `<label class="search">${I.find}<input placeholder="Search 214 models" aria-label="Search models" /></label>`
+      const options = (o, query = "") =>
+        GROUPS.map((group) => {
+          const items = group.items.filter((model) => model.name.toLowerCase().includes(query.trim().toLowerCase()))
+          if (items.length === 0) return ""
+          const rows = items.map(
+            (model) =>
+              `<button type="button" class="opt" data-model="${model.id}"><span class="grow"><span class="n">${model.name}</span>${model.suggested ? '<span class="sug">suggested</span>' : ""}<span class="f">${model.facts}</span></span>${model.id === o.model ? I.check : ""}</button>`,
+          )
+          return `<div class="glabel">${group.name}</div>${rows.join("")}`
+        }).join("") || '<p class="none">No model matches.</p>'
+      const popModel = (o) => `<div class="pop model">${search}<div class="list">${options(o)}</div></div>`
+      const popThink = (o, levels, chosen) =>
+        `<div class="pop think"><div class="glabel">Thinking</div>${levels
+          .map((level) => `<button type="button" class="opt one" data-level="${level}">${meter(levels, level)}<span class="grow">${LABELS[level]}</span>${level === chosen ? I.check : ""}</button>`)
+          .join("")}<p class="foot">${NOTE}</p></div>`
+      const popBoth = (o, levels, chosen) =>
+        `<div class="pop model">${search}<div class="list short">${options(o)}</div><div class="thinkrow"><div class="glabel">Thinking</div>${
+          levels.length === 0
+            ? '<p class="foot">This model does not think before it answers.</p>'
+            : `<div class="levels">${levels.map((level) => `<button type="button" data-level="${level}" aria-pressed="${level === chosen}">${LABELS[level]}</button>`).join("")}</div><p class="foot">${NOTE}</p>`
+        }</div></div>`
+
+      /** The message box. `o.live` is the one that can be written in; the others are pictures. */
+      function composer(o) {
+        const model = find(o.model)
+        const levels = model.thinking
+        const chosen = nearest(levels, o.level)
+        const anchor = (which, label, chip, pop, kind = "chip") =>
+          `<span class="anchor"><button type="button" class="${kind}" data-open="${which}" aria-expanded="${o.open === which}" aria-label="${label}" title="${label}">${chip}</button>${o.open === which ? pop() : ""}</span>`
+        const both = () => popBoth(o, levels, chosen)
+        const level = levels.length === 0 ? "" : meter(levels, chosen) + (o.phone ? "" : `<span>${LABELS[chosen]}</span>`)
+        const name = `<span class="t">${model.name}</span>`
+        const chips =
+          o.variant === "two"
+            ? anchor("model", "Model", name + I.caret, () => popModel(o)) +
+              (levels.length === 0 ? "" : anchor("think", "Thinking", level + (o.phone ? "" : I.caret), () => popThink(o, levels, chosen)))
+            : o.variant === "one"
+              ? anchor("both", "Model and thinking", name + (level === "" ? "" : `<span class="sep">·</span>${level}`) + I.caret, both)
+              : // Tucked away: one quiet button, which says what is chosen only when pointed at.
+                anchor("both", model.name + (levels.length === 0 ? "" : ` · ${LABELS[chosen]}`), I.sliders, both, "ib")
+        const box = o.live ? '<textarea rows="1" placeholder="Message Pip" aria-label="Message"></textarea>' : '<div class="ph">Message Pip</div>'
+        return `<form class="composer">${box}<div class="row"><button type="button" class="ib" aria-label="Attach a file">${I.clip}</button>${chips}<span class="spacer"></span><button type="button" class="ib" aria-label="Dictate">${I.mic}</button><button type="submit" class="send" aria-label="Send" ${o.draft ? "" : "disabled"}>${I.up}</button></div></form>`
+      }
+
+      /** Whether the page this is shown on is dark, so that the mock-up starts out matching it. */
+      function dark() {
+        const canvas = document.createElement("canvas")
+        canvas.width = canvas.height = 1
+        const context = canvas.getContext("2d")
+        context.fillStyle = "#fff"
+        context.fillStyle = getComputedStyle(document.documentElement).backgroundColor
+        context.fillRect(0, 0, 1, 1)
+        const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data
+        return a === 0 ? matchMedia("(prefers-color-scheme: dark)").matches : r * 0.3 + g * 0.59 + b * 0.11 < 128
+      }
+
+      const state = { variant: "two", theme: dark() ? "dark" : "light", model: "sonnet", level: "high", open: null, draft: "" }
+      const live = document.getElementById("live")
+      const slot = document.getElementById("slot")
+
+      function drawLive() {
+        slot.innerHTML = composer({ ...state, live: true })
+        slot.querySelector("textarea").value = state.draft
+        slot.querySelector(".search input")?.focus()
+      }
+
+      const still = (o, room, kind = "crop") =>
+        `<div class="mock still ${kind} ${state.theme}"><div class="sheet"><div class="col"><div style="height:${room}px"></div>${composer({ level: "high", variant: state.variant, ...o })}</div></div></div>`
+      const cell = (picture, title, note) => `<div class="cell">${picture}<h3>${title}</h3><p>${note}</p></div>`
+
+      function draw() {
+        const two = state.variant === "two"
+        const tucked = state.variant === "tucked"
+        live.className = `mock ${state.theme}`
+        for (const button of document.querySelectorAll(".seg button"))
+          button.setAttribute("aria-pressed", String(button.dataset.variant === state.variant || button.dataset.theme === state.theme))
+        drawLive()
+        document.getElementById("cells").innerHTML =
+          (two
+            ? cell(still({ model: "sonnet", open: "model" }, 285), "Choosing a model", "The list from a Dood’s settings: a search, then the models under where each comes from.") +
+              cell(still({ model: "sonnet", open: "think" }, 285), "Choosing how hard it thinks", "Only the levels this model offers. The bars on the button show the level without opening it.")
+            : cell(still({ model: "sonnet", open: "both" }, 320), "One menu for both", "Choosing a model changes the levels under it, and the menu stays open until you click away.")) +
+          cell(
+            still({ model: "sonnet", phone: true }, 24, "phone"),
+            "At a phone’s width",
+            two ? "The level is its bars alone, and a long model name is cut short." : tucked ? "The same one button: there is nothing to cut short." : "The level is its bars alone, beside the name.",
+          ) +
+          (tucked ? "" : cell(still({ model: "flash" }, 24), "A model that does not think", "There is no level to choose, so none is shown."))
+      }
+
+      document.querySelector(".bar").addEventListener("click", (event) => {
+        const button = event.target.closest("button")
+        if (!button) return
+        Object.assign(state, button.dataset, { open: null })
+        draw()
+      })
+      slot.addEventListener("click", (event) => {
+        const pressed = event.target.closest("[data-open], [data-model], [data-level]")
+        if (!pressed) return
+        const { open, model, level } = pressed.dataset
+        if (open) state.open = state.open === open ? null : open
+        else {
+          if (model) state.model = model
+          if (level) state.level = level
+          // With one menu for both, a model is chosen and then its level, in one visit.
+          if (state.variant === "two") state.open = null
+        }
+        drawLive()
+      })
+      slot.addEventListener("input", (event) => {
+        if (event.target.matches(".search input")) slot.querySelector(".list").innerHTML = options(state, event.target.value)
+        else {
+          state.draft = event.target.value
+          slot.querySelector(".send").disabled = state.draft.trim() === ""
+        }
+      })
+      slot.addEventListener("submit", (event) => event.preventDefault())
+      const shut = () => {
+        if (state.open === null) return
+        state.open = null
+        drawLive()
+      }
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".anchor")) shut()
+      })
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") shut()
+      })
+      draw()
+    </script>
+  </body>
+</html>

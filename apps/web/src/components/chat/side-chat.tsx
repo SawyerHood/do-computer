@@ -25,6 +25,7 @@ import { useWide } from "@/lib/use-wide"
 import { TeamContext, usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
 import { Composer } from "./composer.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
+import { ThinksWith } from "./thinks-with.tsx"
 import { Transcript } from "./transcript.tsx"
 
 /** A link that looks like one of the small buttons it sits among. */
@@ -224,6 +225,7 @@ export function SideChat({
         sees={models?.find((model) => model.id === agent.model)?.images === true}
         agentName={name}
         onAttach={attach}
+        extras={<ThinksWith agent={agent} models={models} />}
       />
     </aside>
   )
