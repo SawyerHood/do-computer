@@ -168,7 +168,7 @@ test("what is at another site is not asked for until the reader says so", async 
 
   await answer.getByRole("button", { name: "Show", exact: true }).click()
   await expect(answer.getByRole("img", { name: "A cat" })).toBeVisible()
-  expect(asked).toEqual(["/cat.png"])
+  await expect.poll(() => [...new Set(asked)]).toEqual(["/cat.png"])
   // The site was not told which page asked.
   await expect(answer.getByRole("img", { name: "A cat" })).toHaveAttribute(
     "referrerpolicy",
@@ -183,6 +183,6 @@ test("what is at another site is not asked for until the reader says so", async 
   const third = await reply(page, "![A bird](https://pictures.example/bird.png)")
   await expect(third.getByRole("img", { name: "A bird" })).toBeVisible()
   // Each was asked for only once it could be, in that order: one may be asked for again as
-  // its reply settles.
-  expect([...new Set(asked)]).toEqual(["/cat.png", "/dog.png", "/bird.png"])
+  // its reply settles, and a picture is asked for a moment after it is on the page.
+  await expect.poll(() => [...new Set(asked)]).toEqual(["/cat.png", "/dog.png", "/bird.png"])
 })
