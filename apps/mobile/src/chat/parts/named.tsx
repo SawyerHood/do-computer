@@ -1,5 +1,5 @@
 import type { LibraryFile, LibraryListing } from "@do-computer/protocol"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { type ReactNode, useState } from "react"
 import { Pressable, View } from "react-native"
@@ -7,6 +7,7 @@ import { useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
 import { haptic, Icon, Text } from "@/ui"
 import type { MarkdownProps, PictureBlock } from "@/ui/markdown"
+import { Film } from "./film"
 import { fileIcon, namedBy, shownAs } from "./logic"
 import { Rows } from "./rows"
 import { Card, ChipIcon, useChatScope } from "./shared"
@@ -15,35 +16,54 @@ import { Sound } from "./sound"
 
 type Draw = (src: string) => ReactNode
 
-/** The library of the agent whose chat this is, asked for only where something needs it. */
-export function useListing(wanted = true): LibraryListing | undefined {
+/** How the library of the agent whose chat this is, is asked for. */
+function useListingQuery() {
   const { agentId } = useChatScope()
   const { client } = useSession()
-  // Under the library's own name, so that whatever asks for the library again asks for this too.
-  return useQuery({
+  return {
+    // Under the library's own name, so that whatever asks for the library again asks for this too.
     queryKey: ["agents", agentId, "library", "listing"],
     queryFn: () => client.agent(agentId).libraryListing(),
-    enabled: wanted,
-  }).data
+  }
+}
+
+/** The library of the agent whose chat this is, asked for only where something needs it. */
+export function useListing(wanted = true): LibraryListing | undefined {
+  return useQuery({ ...useListingQuery(), enabled: wanted }).data
 }
 
 /**
- * A file of the library shown in a chat as what it is: a sound to play, a table to read.
- * Nothing, for a file of any other kind: a picture has a way of its own, and the rest are only
- * named.
+ * A file of the library shown in a chat as what it is: a film or a sound to play, a table to
+ * read. Nothing, for a file of any other kind: a picture has a way of its own, and the rest are
+ * only named.
  */
 export function LibraryEmbed({ file, view }: { file: LibraryFile; view: string }) {
   const { agentId } = useChatScope()
   const { client } = useSession()
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const listing = useListingQuery()
   const as = shownAs(file)
   if (as === "table") return <Rows file={file} view={view} />
-  if (as !== "sound") return null
+  if (as !== "film" && as !== "sound") return null
+  const address = (view: string) =>
+    `${client.agent(agentId).libraryViewUrl(view, file.path)}?v=${file.rev}`
+  const Player = as === "film" ? Film : Sound
   return (
-    <Sound
+    <Player
       // Another file, or the same one changed, is another thing to play.
       key={`${file.id}:${file.rev}`}
-      src={`${client.agent(agentId).libraryViewUrl(view, file.path)}?v=${file.rev}`}
+      src={address(view)}
       name={file.name}
+      // The address a file is viewed at stops working after some hours. The library is asked
+      // again, and gives the one that works now.
+      onStale={async () =>
+        address((await queryClient.fetchQuery({ ...listing, staleTime: 0 })).view)
+      }
+      way={{
+        label: "Open in the library",
+        onPress: () => router.push(`/a/${agentId}/library/${file.id}`),
+      }}
     />
   )
 }
@@ -63,8 +83,8 @@ function Missing({ words }: { words: string }) {
 
 /**
  * Something named by where it is in the library, which is where the agent's files are: a
- * picture drawn, a sound played, a table's first rows. Anything else there, a film among them,
- * is a chip that opens it in the library, and anything that is not there is its words.
+ * picture drawn, a film or a sound played, a table's first rows. Anything else there is a chip
+ * that opens it in the library, and anything that is not there is its words.
  */
 function LibraryThing({ path, alt, draw }: { path: string; alt: string; draw: Draw }) {
   const { agentId } = useChatScope()

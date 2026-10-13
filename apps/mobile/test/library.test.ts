@@ -71,6 +71,18 @@ describe("the library's model", () => {
     expect(kindOf({ name: "a.png", size: 9 * 1024 * 1024 })).toBe("image")
   })
 
+  it("tells a film and a sound by the name, and then by the type", () => {
+    expect(kindOf({ name: "demo.MP4", size: 20 * 1024 * 1024 })).toBe("film")
+    expect(kindOf({ name: "chime.wav", size: 1 })).toBe("sound")
+    expect(kindOf({ name: "recording", size: 1, contentType: "video/webm" })).toBe("film")
+    expect(kindOf({ name: "memo", size: 1, contentType: "audio/mpeg; charset=binary" })).toBe(
+      "sound",
+    )
+    // A name the library has a viewer for is that, whatever type it was kept with.
+    expect(kindOf({ name: "index.ts", size: 1, contentType: "video/mp2t" })).toBe("text")
+    expect(kindOf({ name: "a.zip", size: 1, contentType: "application/zip" })).toBe("other")
+  })
+
   it("shares a folder for its front page, and a file for itself", () => {
     expect(sharedPathOf("pricing/index.html")).toBe("pricing")
     expect(sharedPathOf("index.html")).toBe("index.html")

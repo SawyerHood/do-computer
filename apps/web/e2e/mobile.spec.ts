@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Page } from "@playwright/test"
@@ -499,6 +499,20 @@ const SOUND = (() => {
   return wav
 })()
 
+/** Four seconds of film, of a kind the test browser plays. */
+const CLIP = readFileSync(new URL("./media/clip.webm", import.meta.url))
+
+/** The player of the film called `name` on the screen in front: the latest, where a chat has several. */
+const film = (page: Page, name: string) =>
+  page.getByLabel(name, { exact: true }).filter({ visible: true }).locator("video").last()
+const lengthOf = (video: HTMLVideoElement) => video.duration
+/** Move a film to `at` seconds in, and say where it then is. */
+const moveTo = (video: HTMLVideoElement, at: number) =>
+  new Promise<number>((resolve) => {
+    video.addEventListener("seeked", () => resolve(video.currentTime), { once: true })
+    video.currentTime = at
+  })
+
 /** Put a file in the library of the agent the first test hatched: at its top, or in `dir`. */
 async function keep(page: Page, name: string, type: string, body: Buffer, dir = "") {
   const response = await page.request.post(
@@ -555,7 +569,7 @@ test("a picture at another site is not asked for until the reader says so, and a
   await expect(always).toHaveCount(0)
 })
 
-test("a file of the library named in a reply is shown as what it is: a picture, a sound, a table", async ({
+test("a file of the library named in a reply is shown as what it is: a picture, a film, a sound, a table", async ({
   page,
 }) => {
   await openChat(page)
@@ -567,7 +581,13 @@ test("a file of the library named in a reply is shown as what it is: a picture, 
     "text/csv",
     Buffer.from('Region,Signups,Note\nNorth,"1,204","grew ""fast"""\nSouth,987,steady\n'),
   )
-  await keep(page, "clip.webm", "video/webm", Buffer.from("no film at all"))
+  await keep(page, "clip.webm", "video/webm", CLIP)
+  await keep(page, "broken.webm", "video/webm", Buffer.from("no film at all"))
+  // How often the library is asked what it holds, which is how a fresh address is had.
+  let listings = 0
+  page.on("request", (request) => {
+    if (/\/api\/agents\/[^/]+\/library$/.test(new URL(request.url()).pathname)) listings += 1
+  })
 
   // The picture is asked for where the library's files are viewed, which needs no session.
   const drawn = page.waitForResponse((response) =>
@@ -580,11 +600,23 @@ test("a file of the library named in a reply is shown as what it is: a picture, 
       "![A chime](chime.wav)",
       "![Signups](signups.csv)",
       "![The film](clip.webm)",
+      "![A film that is none](broken.webm)",
       "![A lost thing](nowhere.png)",
     ].join("\n\n"),
   )
   expect((await drawn).status()).toBe(200)
   await expect(page.getByRole("img", { name: "The chart" }).first()).toBeVisible()
+
+  // The film has a player with the browser's own controls, which knows how long it is without
+  // having been played, and can be moved about in.
+  const player = film(page, "clip.webm")
+  await expect(player).toHaveJSProperty("controls", true)
+  await expect.poll(() => player.evaluate(lengthOf)).toBeCloseTo(4, 0)
+  expect(await player.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true)
+  expect(await player.evaluate(moveTo, 3)).toBeCloseTo(3, 0)
+  // It is in a box of the usual shape, whatever its own is.
+  const shape = (await page.getByLabel("clip.webm", { exact: true }).boundingBox())!
+  expect(shape.width / shape.height).toBeCloseTo(16 / 9, 1)
 
   // The sound has a player, which knows how long it is and can be moved along.
   const play = page.getByRole("button", { name: "Play chime.wav" })
@@ -606,10 +638,90 @@ test("a file of the library named in a reply is shown as what it is: a picture, 
   for (const cell of ["Region", "North", "1,204", 'grew "fast"', "987", "steady"]) {
     await expect(words(page, cell, { exact: true })).toBeVisible()
   }
-  // What is not in the library is its words, and a film is a way into the library.
+  // What is not in the library is its words.
   await expect(words(page, "A lost thing", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "The film", exact: true }).click()
+  // A film that cannot be played says so, once the library has been asked again for where it
+  // is, and no more than once; and there is a way to it in the library.
+  await expect(words(page, "broken.webm could not be played here.")).toBeVisible()
+  await expect(film(page, "broken.webm")).toHaveCount(0)
+  const asked = listings
+  await page.waitForTimeout(500)
+  expect(listings).toBe(asked)
+  await page.getByRole("button", { name: "Open in the library" }).click()
   await expect(page).toHaveURL(/\/library\/[^/?]+$/)
+})
+
+test("a film or a sound whose address has grown old is asked for again, and then plays", async ({
+  page,
+}) => {
+  await openChat(page)
+  await keep(page, "old.webm", "video/webm", CLIP)
+  await keep(page, "old.wav", "audio/wav", SOUND)
+  await reply(page, "![An old film](old.webm)\n\n![An old sound](old.wav)")
+  const player = film(page, "old.webm")
+  const bar = page.getByRole("slider", { name: "Where old.wav is played from" })
+  await expect.poll(() => player.evaluate(lengthOf)).toBeCloseTo(4, 0)
+  await expect(bar).toHaveAttribute("aria-valuemax", "4")
+
+  // The chat is opened afresh, and the first the app then hears of the library, its files are
+  // at an address that no longer works: the film and the sound both start from there.
+  let old = true
+  await page.route(/\/api\/agents\/[^/]+\/library$/, async (route) => {
+    if (route.request().method() !== "GET") return route.continue()
+    const response = await route.fetch()
+    const listing = (await response.json()) as { view: string }
+    if (!old) return route.fulfill({ response })
+    old = false
+    return route.fulfill({ response, json: { ...listing, view: "an-old-address" } })
+  })
+  const refused = (name: string) =>
+    page.waitForResponse((response) => response.url().includes(`/an-old-address/${name}`))
+  const asked = [refused("old.webm"), refused("old.wav")]
+  await page.reload()
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
+  for (const response of await Promise.all(asked)) expect(response.ok()).toBe(false)
+  // The library is asked where its files are now, and each is played from there.
+  await expect.poll(() => player.evaluate(lengthOf)).toBeCloseTo(4, 0)
+  expect(await player.evaluate((video: HTMLVideoElement) => video.currentSrc)).not.toContain(
+    "an-old-address",
+  )
+  await expect(bar).toHaveAttribute("aria-valuemax", "4")
+  await expect(words(page, /^old\.\w+ could not be played here\.$/)).toHaveCount(0)
+})
+
+test("a film the agent sends has the player over its card, and the library plays it", async ({
+  page,
+}) => {
+  await openChat(page)
+  // The agent has the film where it works, as it would one it had recorded, and sends it. The
+  // model here says a long thing slowly, so the film is not written out by it.
+  await keep(page, "take.webm", "video/webm", CLIP)
+  await send(page, '/tool library {"action":"get","file":"take.webm","path":"sent.webm"}')
+  await expect(words(page, /Copied take\.webm/).first()).toBeVisible()
+  await send(page, '/tool send_file {"path":"sent.webm"}')
+  const card = page.getByRole("button", { name: /^sent\.webm, [\d.]+ KB$/ })
+  await expect(card).toBeVisible()
+  const player = film(page, "sent.webm")
+  await expect.poll(() => player.evaluate(lengthOf)).toBeCloseTo(4, 0)
+  expect(await player.evaluate(moveTo, 2)).toBeCloseTo(2, 0)
+  // The player is over the card, and not under it.
+  expect((await player.boundingBox())!.y).toBeLessThan((await card.boundingBox())!.y)
+
+  // The card opens the film in the library, which plays it too, and the one in the chat stops.
+  const stopped = () =>
+    page
+      .locator("video")
+      .evaluateAll((all) => all.every((video) => (video as HTMLVideoElement).paused))
+  await player.evaluate((video: HTMLVideoElement) => {
+    video.muted = true
+    video.loop = true
+    return video.play()
+  })
+  expect(await stopped()).toBe(false)
+  await card.click()
+  await expect(page).toHaveURL(/\/library\/[^/?]+$/)
+  await expect.poll(() => film(page, "sent.webm").evaluate(lengthOf)).toBeCloseTo(4, 0)
+  await expect.poll(stopped).toBe(true)
 })
 
 test("a table the agent sends has its first rows over its card", async ({ page }) => {

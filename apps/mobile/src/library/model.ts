@@ -1,9 +1,10 @@
 // What the library's screens work out from the list of files: which folder holds what, how a
 // file is shown, what is shared, and the small edits the format buttons make. Nothing here draws.
-import { type LibraryFile, resolveLink, type SiteSummary } from "@do-computer/protocol"
+import { embedKind, type LibraryFile, resolveLink, type SiteSummary } from "@do-computer/protocol"
 
 /** How a file is shown: each kind has a viewer of its own, and `other` only a download. */
-export type FileKind = "markdown" | "page" | "image" | "text" | "csv" | "pdf" | "other"
+export type FileKind =
+  "markdown" | "page" | "image" | "text" | "csv" | "pdf" | "film" | "sound" | "other"
 
 const KINDS: Record<string, FileKind> = {
   md: "markdown",
@@ -37,8 +38,13 @@ const KINDS: Record<string, FileKind> = {
 /** Text larger than this is not opened in the page; it would be slow to show and to edit. */
 const MAX_TEXT_BYTES = 1024 * 1024
 
-export function kindOf(file: Pick<LibraryFile, "name" | "size">): FileKind {
-  const kind = KINDS[file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase()] ?? "other"
+export function kindOf(
+  file: Pick<LibraryFile, "name" | "size"> & { contentType?: string },
+): FileKind {
+  const named = KINDS[file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase()]
+  // A film and a sound are told as a chat tells them: by the name, and then by the type.
+  const played = embedKind(file.name, file.contentType)
+  const kind = named ?? (played === "video" ? "film" : played === "audio" ? "sound" : "other")
   const text = kind === "markdown" || kind === "page" || kind === "text" || kind === "csv"
   return text && file.size > MAX_TEXT_BYTES ? "other" : kind
 }
@@ -51,6 +57,8 @@ export const KIND_ICON = {
   text: "code",
   csv: "chart",
   pdf: "doc",
+  film: "play",
+  sound: "play",
   other: "clip",
 } as const satisfies Record<FileKind, string>
 

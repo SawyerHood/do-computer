@@ -14,6 +14,8 @@ import {
   View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Film } from "@/chat/parts/film"
+import { Sound } from "@/chat/parts/sound"
 import { formatBytes } from "@/lib/files"
 import { authHeaders } from "@/lib/session"
 import { mono, useTheme } from "@/lib/theme"
@@ -51,7 +53,8 @@ const BROWSER =
 
 /**
  * One file of the library, shown as what it is: a document to read and edit, a page, a
- * picture, a PDF, text, or for anything else its name and a way to get it.
+ * picture, a film or a sound to play, a PDF, text, or for anything else its name and a way to
+ * get it.
  */
 export default function Document() {
   const params = useLocalSearchParams<{ agentId: string; fileId: string; mode?: string }>()
@@ -219,6 +222,32 @@ function Opened({
           }}
         />
       </ScrollView>
+    )
+  } else if (kind === "film" || kind === "sound") {
+    const Player = kind === "film" ? Film : Sound
+    const address = (view: string) => `${api.libraryViewUrl(view, file.path)}?v=${file.rev}`
+    body = (
+      <Screen page>
+        <View style={{ alignItems: "center", paddingHorizontal: 16, paddingTop: 24 }}>
+          <Player
+            // The same file changed is another thing to play.
+            key={file.rev}
+            src={address(view)}
+            name={file.name}
+            // The address stops working after some hours, and the library gives the one that
+            // works now.
+            onStale={async () => {
+              const fresh = (await library.listing.refetch()).data?.view
+              return fresh === undefined ? undefined : address(fresh)
+            }}
+            way={{
+              label: Platform.OS === "web" ? "Download" : "Open in…",
+              onPress: () => actions.download(file),
+            }}
+            width={window.width - 32}
+          />
+        </View>
+      </Screen>
     )
   } else if (kind === "pdf" && Platform.OS === "ios") {
     body = <PageView uri={`${viewUrl}?v=${file.rev}`} title={file.name} />

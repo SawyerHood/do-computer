@@ -1,9 +1,11 @@
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio"
+import { useEventListener } from "expo"
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio"
 import { useState } from "react"
-import { View } from "react-native"
+import { Platform, View } from "react-native"
 import { useTheme } from "@/lib/theme"
 import { Text } from "@/ui"
 import { lengthOf } from "./logic"
+import { Unplayed, usePlayed, type Way } from "./played"
 import { Card, RoundButton } from "./shared"
 
 /**
@@ -12,22 +14,46 @@ import { Card, RoundButton } from "./shared"
  * place in it. It keeps the address it was first given, since a new one would start it again;
  * whoever draws it gives it a key that changes when the sound itself does.
  */
-export function Sound({ src, name }: { src: string; name: string }) {
+export function Sound({
+  src,
+  name,
+  onStale,
+  way,
+}: {
+  src: string
+  name: string
+  onStale?: () => Promise<string | undefined>
+  way?: Way
+}) {
   const theme = useTheme()
-  const [address] = useState(src)
-  const player = useAudioPlayer(address, { updateInterval: 250 })
+  const played = usePlayed(src, onStale)
+  const player = useAudioPlayer(played.address, { updateInterval: 250 })
   const status = useAudioPlayerStatus(player)
+  // What the player itself says, and not what was last heard from the one before it: a fresh
+  // address has a player of its own.
+  useEventListener(player, "playbackStatusUpdate", (now) => {
+    if (now.error !== null) return played.stopped(now.currentTime)
+    if (now.playing) played.playing()
+    if (!now.isLoaded) return
+    const at = played.place()
+    if (at > 0) void player.seekTo(at)
+  })
   // How wide the bar is drawn, which is what a press on it is measured against.
   const [wide, setWide] = useState(0)
   // Until the sound has said how long it is, it is not known, and nothing can be moved to.
   const total = Number.isFinite(status.duration) && status.duration > 0 ? status.duration : 0
   const at = Math.min(Math.max(0, status.currentTime), total)
-  const toggle = () => {
+  const toggle = async () => {
     if (status.playing) return player.pause()
+    // On an iPhone a sound is heard with the ringer off, as in any app that plays one. This is
+    // said when it is played and not before, since saying it ends a recording: dictation says
+    // what it needs each time it starts, so it is not kept from recording afterwards.
+    if (Platform.OS === "ios") await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {})
     // One that was played to its end starts again from its beginning.
-    if (total > 0 && total - at < 0.1) void player.seekTo(0).then(() => player.play())
-    else player.play()
+    if (total > 0 && total - at < 0.1) await player.seekTo(0)
+    player.play()
   }
+  if (played.failed) return <Unplayed name={name} way={way} />
   return (
     <Card
       style={{
@@ -42,7 +68,7 @@ export function Sound({ src, name }: { src: string; name: string }) {
       <RoundButton
         icon={status.playing ? "pause" : "play"}
         label={status.playing ? `Pause ${name}` : `Play ${name}`}
-        onPress={toggle}
+        onPress={() => void toggle()}
       />
       <Text variant="footnote" tone="ink2" style={{ fontVariant: ["tabular-nums"] }}>
         {lengthOf(at)}
