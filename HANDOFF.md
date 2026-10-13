@@ -6328,7 +6328,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       at once share a browser on the real service; the pictures a page loads from the
       library, which are not loaded in a look; a real model using what it is told.
 
-79. **On the phone a reply's pictures, sounds and tables are shown, and a page can speak to
+80. **On the phone a reply's pictures, sounds and tables are shown, and a page can speak to
     the chat** (2026-10-13; `apps/mobile/src/chat/parts/named.tsx`, `sound.tsx`, `rows.tsx`,
     `shown-hosts.ts`, `logic.ts`, `visual-frame.native.tsx` and `visual-frame.tsx`,
     `apps/mobile/src/ui/markdown.tsx`, `packages/protocol/src/delimited.ts`; phase 6 of
