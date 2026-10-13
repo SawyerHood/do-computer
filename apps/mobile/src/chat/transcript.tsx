@@ -5,6 +5,7 @@ import {
   type ChatState,
   chatUses,
   isAgentMessage,
+  isMcpApp,
   isJobStart,
   isSentFile,
   isSiteShare,
@@ -14,6 +15,7 @@ import {
   type MessagePart,
   type NoticePart,
   type Person,
+  readMcpApp,
 } from "@do-computer/protocol"
 import {
   type ComponentType,
@@ -105,6 +107,12 @@ const AssistantPart = memo(function AssistantPart({
   part: MessagePart
   whole: string
 }) {
+  // A connector's own page for a tool is shown in a browser, where it can be kept apart as it
+  // has to be. Here it is said to be there, and what the tool answered is in the reply.
+  if (isMcpApp(part)) {
+    const connector = readMcpApp(part.details)?.app.connector ?? "The connector"
+    return <Marker icon="globe">{connector} has a page for this, shown in a browser.</Marker>
+  }
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
   if (isSiteShare(part)) return <SiteCard part={part} />

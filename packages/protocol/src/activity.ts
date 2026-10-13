@@ -3,6 +3,7 @@ import type { ChatMessage, ChatState, MessagePart, ToolPart } from "./chat.ts"
 import type { ShotPoint, UseDetails, UseWhat } from "./screen.ts"
 import { type Pin, PIN_TOOL } from "./pins.ts"
 import { SHARE_TOOL, type SiteSummary } from "./sites.ts"
+import { isMcpApp } from "./mcp-app.ts"
 import { VISUAL_TOOL } from "./visual.ts"
 
 const MAX_DETAIL = 72
@@ -404,7 +405,9 @@ export function isShownPart(part: MessagePart): boolean {
     isSubagentStart(part) ||
     isJobStart(part) ||
     isAgentMessage(part) ||
-    isUse(part)
+    isUse(part) ||
+    // A tool of a connector whose server has a page for it is shown as that page.
+    isMcpApp(part)
   )
 }
 

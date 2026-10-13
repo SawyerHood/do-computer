@@ -5,6 +5,7 @@ import {
   describeChatError,
   foldFailures,
   isAgentMessage,
+  isMcpApp,
   isSentFile,
   isPinning,
   isSiteShare,
@@ -53,6 +54,7 @@ import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { TeamContext } from "@/lib/workspaces"
 import { Markdown } from "./markdown.tsx"
+import { McpAppFrame } from "./mcp-app.tsx"
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
@@ -74,6 +76,7 @@ const isShown = (part: MessagePart) => isShownPart(part) || signInOf(part) !== u
 
 function AssistantPart({ part, writing }: { part: MessagePart; writing: boolean }) {
   if (part.type === "tool" && signInOf(part) !== undefined) return <SignInLine part={part} />
+  if (isMcpApp(part)) return <McpAppFrame part={part} />
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
   if (isSiteShare(part)) return <SiteCard part={part} />

@@ -1,13 +1,15 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type {
-  ChatState,
-  ChatSummary,
-  AddConnectorRequest,
-  ConnectorResult,
-  ConnectorSummary,
-  ToolPart,
+import {
+  type ChatState,
+  type ChatSummary,
+  type AddConnectorRequest,
+  type ConnectorResult,
+  type ConnectorSummary,
+  isMcpApp,
+  readMcpApp,
+  type ToolPart,
 } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -18,7 +20,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { CONNECTOR_REDIRECT_HEADER, connectorToolName, createAgentActor } from "../src/index.ts"
-import { fakeMcp, type FakeMcpOptions, GOOD_CODE, ISSUER } from "./fake-mcp.ts"
+import { APP_PAGE, APP_URI, fakeMcp, type FakeMcpOptions, GOOD_CODE, ISSUER } from "./fake-mcp.ts"
 
 const REDIRECT = "https://app.example/api/connectors/callback"
 
@@ -367,5 +369,153 @@ describe("connectors", () => {
     await expect(
       call(world, "/connectors", "POST", { name: "Sneaky", url: world.mcp.url }),
     ).rejects.toThrow("only be connected from the app")
+  })
+})
+
+describe("a page a connector's server has for a tool", () => {
+  const withPage = async (apps: FakeMcpOptions["apps"] = true) => {
+    const { world, chat } = await setup({ apps })
+    const { connector } = await add(world, { name: "Weather", url: world.mcp.url })
+    return { world, chat, connector }
+  }
+  const page = (world: World, id: string) =>
+    world.namespace.get("agent-1").fetch(new Request(`http://actor/apps/${id}`))
+  const appCall = (world: World, id: string, asked: Record<string, unknown>) =>
+    call<Record<string, unknown>>(world, `/connectors/${id}/app-call`, "POST", asked)
+
+  it("is asked for, kept, and goes with what the tool answered", async () => {
+    const { world, chat, connector } = await withPage()
+    // The server was told that pages are taken here: it offers none to a client that is not.
+    expect(world.mcp.clients.at(-1)).toMatchObject({
+      extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } },
+    })
+    world.faux.setResponses(useTool("weather__forecast", { city: "Lisbon" }))
+    const part = lastTool(await say(world, chat.id, "the weather in Lisbon"))
+    expect(part.status).toBe("done")
+    expect(part.output).toBe("Sunny, 21 degrees")
+    expect(isMcpApp(part)).toBe(true)
+    const { app, input, result } = readMcpApp(part.details)!
+    expect(app).toMatchObject({
+      connectorId: connector.id,
+      connector: "Weather",
+      tool: "forecast",
+      uri: APP_URI,
+      border: false,
+      // Only whole origins are kept of what the page says it needs.
+      csp: {
+        connectDomains: ["https://api.weather.example"],
+        resourceDomains: ["https://cdn.weather.example"],
+      },
+    })
+    expect(input).toEqual({ city: "Lisbon" })
+    expect(result).toEqual({
+      content: [{ type: "text", text: "Sunny, 21 degrees" }],
+      structuredContent: { city: "Lisbon", high: 21 },
+    })
+
+    // The page is served as it was kept, kept apart, and let load only what it named.
+    const served = await page(world, app.id)
+    expect(served.status).toBe(200)
+    expect(await served.text()).toBe(APP_PAGE)
+    expect(served.headers.get("content-type")).toBe("text/html; charset=utf-8")
+    expect(served.headers.get("x-content-type-options")).toBe("nosniff")
+    const policy = served.headers.get("content-security-policy")!
+    expect(policy).toContain("sandbox allow-scripts allow-forms")
+    expect(policy).not.toContain("allow-same-origin")
+    expect(policy).toContain("default-src 'none'")
+    expect(policy).toContain("connect-src https://api.weather.example;")
+    expect(policy).toContain("script-src 'unsafe-inline' https://cdn.weather.example")
+    expect(policy).not.toContain("unsafe-eval")
+    expect((await page(world, "0".repeat(32))).status).toBe(404)
+    expect((await page(world, "not-a-page")).status).toBe(404)
+
+    // Used again at once, the tool is shown with the page as it was read, not read again.
+    const reads = () => world.mcp.requests.length
+    const before = reads()
+    world.faux.setResponses(useTool("weather__forecast", { city: "Porto" }))
+    const again = lastTool(await say(world, chat.id, "and Porto"))
+    expect(readMcpApp(again.details)!.app.id).toBe(app.id)
+    // One request for the tool itself, and none for the page.
+    expect(reads() - before).toBe(1)
+  })
+
+  it("is not shown for a tool that failed, or where what the server gives is no page", async () => {
+    const big = await withPage({
+      page: {
+        uri: APP_URI,
+        mimeType: "text/html;profile=mcp-app",
+        text: "x".repeat(2 * 1024 * 1024 + 1),
+      },
+    })
+    big.world.faux.setResponses(useTool("weather__forecast", {}))
+    const tooBig = lastTool(await say(big.world, big.chat.id, "weather"))
+    expect(tooBig.output).toBe("Sunny, 21 degrees")
+    expect(isMcpApp(tooBig)).toBe(false)
+
+    const other = await withPage({
+      page: { uri: APP_URI, mimeType: "application/json", text: "{}" },
+    })
+    other.world.faux.setResponses(useTool("weather__forecast", {}))
+    expect(isMcpApp(lastTool(await say(other.world, other.chat.id, "weather")))).toBe(false)
+
+    const { world, chat } = await withPage()
+    world.faux.setResponses(useTool("weather__always_fails", {}))
+    const failed = lastTool(await say(world, chat.id, "break"))
+    expect(failed.status).toBe("error")
+    expect(isMcpApp(failed)).toBe(false)
+  })
+
+  it("has tools of its own, which the agent is not given", async () => {
+    const { world, chat, connector } = await withPage()
+    // The person is shown everything the server has.
+    expect(connector.tools.map((tool) => tool.name)).toContain("hourly")
+    world.faux.setResponses(useTool("weather__hourly", {}))
+    const part = lastTool(await say(world, chat.id, "hour by hour"))
+    expect(part.status).toBe("error")
+    expect(world.mcp.calls.map((made) => made.tool)).not.toContain("hourly")
+  })
+
+  it("may use its own server's tools: what only reads at once, the rest once the person agrees", async () => {
+    const { world, connector } = await withPage()
+    expect(await appCall(world, connector.id, { tool: "refresh", arguments: {} })).toEqual({
+      content: [{ type: "text", text: "refresh done" }],
+    })
+    // A tool kept for pages is one a page may use.
+    expect(await appCall(world, connector.id, { tool: "hourly" })).toMatchObject({
+      content: [{ type: "text", text: "hourly done" }],
+    })
+    // One that may change something is not run, and says so in a way the app can ask about.
+    const made = () => world.mcp.calls.filter((each) => each.tool === "book").length
+    expect(await appCall(world, connector.id, { tool: "book", arguments: {} })).toEqual({
+      needsConsent: { tool: "book", description: "Book a trip there" },
+    })
+    expect(made()).toBe(0)
+    expect(
+      await appCall(world, connector.id, { tool: "book", arguments: {}, confirmed: true }),
+    ).toMatchObject({ content: [{ type: "text", text: "book done" }] })
+    expect(made()).toBe(1)
+
+    await expect(appCall(world, connector.id, { tool: "no_such_tool" })).rejects.toThrow()
+    await expect(appCall(world, connector.id, { tool: "refresh", arguments: [] })).rejects.toThrow(
+      /400/,
+    )
+    await expect(appCall(world, "no-such-connector", { tool: "refresh" })).rejects.toThrow()
+    // A connector that is switched off answers nothing, to a page as to the agent.
+    await call(world, `/connectors/${connector.id}`, "PATCH", { enabled: false })
+    await expect(appCall(world, connector.id, { tool: "refresh" })).rejects.toThrow(/not connected/)
+  })
+
+  it("may read what its server has, and nothing where the server says there is nothing", async () => {
+    const { world, connector } = await withPage()
+    const read = (uri: unknown) =>
+      call<{ contents: { uri: string; text: string }[] }>(
+        world,
+        `/connectors/${connector.id}/app-read`,
+        "POST",
+        { uri },
+      )
+    expect((await read(APP_URI)).contents[0]).toMatchObject({ uri: APP_URI, text: APP_PAGE })
+    await expect(read("ui://weather/none")).rejects.toThrow()
+    await expect(read("")).rejects.toThrow(/400/)
   })
 })
