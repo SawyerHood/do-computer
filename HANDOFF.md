@@ -6044,7 +6044,6 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       with and without Stop, a level and a model chosen and kept, and a recording of the box
       opening and shutting read frame by frame. **Not checked:** a phone, Android, and the
       listening bars in the new box anywhere but the browser build.
-
 75. **A side chat always carries the main chat, and the provider's cache is kept for an hour**
     (2026-10-13; `packages/agent/src/branch.ts`, `#branchChat` in `actor.ts`;
     `PLAN-forked-chats.md` is the plan, and this is its first step). The owner found a Dood
@@ -6107,6 +6106,61 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not done, and in the plan:** sub-agents and conversations with another Dood forking
       (step 2), a side chat's work written back into the main chat (step 3), and a background
       memory, which the owner put off.
+
+76. **A reply's Markdown is drawn richly: tables, code in its colors, diagrams, notes**
+    (2026-10-13; `apps/web/src/components/markdown/`, `components/chat/markdown.tsx`,
+    `components/picture-viewer.tsx`, `packages/agent/src/visuals.ts`; the plan is
+    `PLAN-rich-embeds.md`, of which this is phase 1). The owner asked for what T3 Code's chat
+    has: "make tables inline, make interactive HTML widgets that are styled correctly, embed
+    videos, all that stuff". Asked what "tables inline" meant, they said Markdown. T3 Code was
+    read for what it does and nothing was copied from it.
+    - **One renderer** (`RichMarkdown`) for a reply, a document of the library and a pinned
+      one, with one list of plugins (`pipeline.ts`) that a document shared with a link is read
+      with too, on the server. Before, a reply was `react-markdown` with nothing added.
+    - **A table** is as wide as what is in it and scrolls sideways past the reply's width,
+      with hairlines between rows. Pointed at, it has two buttons over its corner: keep each
+      row on one line, and copy it as Markdown or as CSV.
+    - **The agent is told** (`REPLY_GUIDE`, in the `visuals` section) that a table, code, a
+      simple diagram, a note and folded detail go in the reply as Markdown, and the `visual`
+      tool no longer lists a table. Before, it was told to draw "a table of figures" as a page.
+    - **Code** has a head with its language, a button to wrap long lines and one to copy, and
+      its colors from Shiki. The colors are seven variables in `THEME_TOKENS` (`--syntax-*`),
+      so a block follows light and dark without being read again and a library page has them
+      too. The highlighter, each of 44 grammars, and Mermaid are each asked for only when a
+      block needs them, and are left out of the server's build (`import.meta.env.SSR`): the
+      Worker is no larger for them.
+    - **A `mermaid` block** is drawn as its diagram in the app's colors once the reply has
+      closed it, with a switch to the code. One that cannot be drawn stays code. A box is as
+      wide as its words (`minNodeWidth: 0`), and a diagram wider than the reply is made
+      smaller only to four fifths, then scrolls.
+    - **While a reply is arriving,** the block of code it is still writing is plain
+      (`endsInOpenFence`, and a mark on the last block), since half a block reads wrongly.
+    - **Raw HTML** is read and then cleaned with GitHub's own list (`rehype-sanitize`'s
+      default, plus `mark`): folding sections, `kbd`, `sub`, `sup`, a picture with a size. No
+      script, style, frame, form, handler or inline style gets through, which
+      `pipeline.test.tsx` and a browser test check. A document's ids are prefixed.
+    - **Also drawn:** `> [!NOTE]` and its four kin as notes, task lists, and headings that a
+      `[link](#heading)` in the same text goes to.
+    - **A picture** may be named by its place in the library (`![Chart](charts/q3.png)`), as
+      a link may (`[the notes](notes.md)`, which opens beside the chat). A picture alone on
+      its line holds a box while it loads and opens large when clicked, with the reply's
+      other pictures a step away; one that cannot be had is its words.
+    - **The owner's:** that a table is Markdown in the reply. **Mine:** everything about
+      how: GitHub's allow list rather than the shorter one the plan named; the buttons over a
+      table's corner and not under it; no header that stays while a long table scrolls (a
+      table in a reply scrolls with the page, so there is nothing for it to stay against);
+      which 44 languages; the syntax colors (each measured at 4.5:1 or better on a block's
+      fill, in light and dark); the viewer having a download and no copy. The plan put a
+      mock-up first and none was made: the owner had said "It all looks good" and "Just start
+      building", which I took to cover it, and the screens were shown as built instead.
+    - **Checked:** `pipeline.test.tsx` (what is kept and dropped, alerts, ids, the open
+      fence, a table as CSV and Markdown), `site-pages.test.ts`, and in a browser
+      `e2e/markdown.spec.ts`: a table copied both ways from the clipboard, code in its colors
+      and copied line for line, a diagram in the reply's own ink, a script, a handler and a
+      `javascript:` link that do nothing, a library picture in the viewer, a library link
+      opening beside the chat. Looked at in light and dark, at 1280 and 390 wide. **Not
+      checked:** Safari, Workers, a real model writing any of it, the phone app (which has
+      its own Markdown and none of this), a very long reply while it streams.
 
 ## 6. What the owner has said they want
 

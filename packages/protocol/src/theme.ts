@@ -109,6 +109,15 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--chart-4", light: "oklch(0.62 0.15 30)", dark: "oklch(0.65 0.14 30)" },
   { name: "--chart-5", light: "oklch(0.58 0.15 315)", dark: "oklch(0.62 0.14 315)" },
   { name: "--chart-6", light: "oklch(0.54 0.148 150)", dark: "oklch(0.55 0.14 150)" },
+  // Code in its colors: what each kind of word in a program is written in. Each was measured
+  // in a browser at 4.5:1 or better on the fill a block of code has, in light and in dark.
+  { name: "--syntax-keyword", light: "oklch(0.5 0.17 305)", dark: "oklch(0.79 0.12 305)" },
+  { name: "--syntax-constant", light: "oklch(0.5 0.14 250)", dark: "oklch(0.79 0.1 245)" },
+  { name: "--syntax-string", light: "oklch(0.49 0.12 150)", dark: "oklch(0.8 0.12 150)" },
+  { name: "--syntax-function", light: "oklch(0.52 0.12 60)", dark: "oklch(0.82 0.11 80)" },
+  { name: "--syntax-parameter", light: "oklch(0.52 0.14 30)", dark: "oklch(0.79 0.1 30)" },
+  { name: "--syntax-comment", light: mix(65) },
+  { name: "--syntax-punctuation", light: mix(74) },
   { name: "--radius", light: "0.5rem" },
   // The app's own typefaces, then what a device has. The app's stylesheet names them where
   // its other fonts are, and loads them itself.

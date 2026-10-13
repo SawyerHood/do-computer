@@ -64,7 +64,7 @@ import { CommandChip, CommandWord } from "./commands.tsx"
 import { SubagentChip, SubagentWord } from "./subagents.tsx"
 import { UsesContext, UseView } from "./uses.tsx"
 
-function AssistantPart({ part }: { part: MessagePart }) {
+function AssistantPart({ part, writing }: { part: MessagePart; writing: boolean }) {
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
   if (isSiteShare(part)) return <SiteCard part={part} />
@@ -79,7 +79,7 @@ function AssistantPart({ part }: { part: MessagePart }) {
         // What the agent says is the page's own text, with nothing drawn around it.
         <Bubble variant="ghost">
           <BubbleContent className="px-1!">
-            <Markdown text={part.text} />
+            <Markdown text={part.text} writing={writing} />
           </BubbleContent>
         </Bubble>
       )
@@ -451,7 +451,11 @@ function MessageView({
                 ),
           )
           .map((part, index) => (
-            <AssistantPart key={part.type === "tool" ? part.toolCallId : index} part={part} />
+            <AssistantPart
+              key={part.type === "tool" ? part.toolCallId : index}
+              part={part}
+              writing={message.status === "streaming"}
+            />
           ))}
         {message.status === "error" ? (
           <ReplyError error={message.error} failures={failures} onRetry={onRetry} />

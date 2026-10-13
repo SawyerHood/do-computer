@@ -137,21 +137,21 @@
   .prose-chat code {
     @apply rounded-md border border-hairline bg-muted px-1.25 py-px font-mono text-[0.85em];
   }
-  .prose-chat pre {
-    @apply overflow-x-auto rounded-lg bg-foreground/8 p-3 font-mono text-[0.8125rem] leading-normal;
-  }
-  .prose-chat pre code {
-    @apply border-0 bg-transparent p-0;
-  }
-  .prose-chat table {
-    @apply block w-full overflow-x-auto text-sm;
-  }
-  .prose-chat th,
-  .prose-chat td {
-    @apply border border-border px-2 py-1 text-left;
-  }
   .prose-chat hr {
     @apply border-border;
+  }
+  .prose-chat h4,
+  .prose-chat h5,
+  .prose-chat h6 {
+    @apply mt-4 text-[0.9375rem] font-semibold;
+  }
+  /* A picture alone on its line is a figure. Until it has loaded it holds a box, so that what
+     is under it moves once. */
+  .prose-chat img[data-alone] {
+    @apply max-h-96 w-auto max-w-[min(100%,30rem)] rounded-xl border border-hairline;
+  }
+  .prose-chat img[data-alone][data-loading]:not([width]) {
+    @apply aspect-video w-[30rem] bg-muted;
   }
 }
 
@@ -199,27 +199,165 @@
   .prose-doc code {
     @apply rounded-md border border-hairline bg-muted px-1.25 py-px font-mono text-[0.85em];
   }
-  .prose-doc pre {
-    @apply overflow-x-auto rounded-xl bg-foreground/8 p-3.5 font-mono text-[0.8125rem] leading-normal;
-  }
-  .prose-doc pre code {
-    @apply border-0 bg-transparent p-0;
-  }
-  .prose-doc table {
-    @apply block w-full overflow-x-auto text-sm;
-  }
-  .prose-doc th,
-  .prose-doc td {
-    @apply border border-border px-2.5 py-1.5 text-left;
-  }
-  .prose-doc th {
-    @apply bg-surface font-semibold;
-  }
   .prose-doc img {
     @apply max-w-full rounded-xl border;
   }
   .prose-doc hr {
     @apply my-7 border-border;
+  }
+}
+
+/*
+ * What Markdown is drawn with wherever it is: a reply, a document of the library. The text
+ * around these is set by `.prose-chat` and `.prose-doc`.
+ */
+@layer components {
+  /* A block of code: what it is written in and its buttons, then the code. */
+  .md-code {
+    @apply overflow-hidden rounded-lg bg-foreground/[0.06];
+  }
+  .md-code-head {
+    @apply flex h-8 items-center gap-0.5 pr-1 pl-3 text-xs text-muted-foreground;
+  }
+  .md-code-language {
+    @apply min-w-0 flex-1 truncate font-mono;
+  }
+  .md-code pre {
+    @apply m-0 overflow-x-auto px-3 pb-3 font-mono text-[0.8125rem] leading-normal;
+  }
+  .md-code pre[data-wrap] {
+    @apply wrap-anywhere whitespace-pre-wrap;
+  }
+  .md .md-code pre code {
+    @apply border-0 bg-transparent p-0 text-[1em];
+  }
+  .md-diagram {
+    @apply flex overflow-x-auto px-3 pt-1 pb-3;
+    justify-content: safe center;
+  }
+  .md-diagram svg {
+    @apply h-auto flex-none;
+    width: max(100%, calc(var(--drawn, 0px) * 0.8));
+  }
+
+  /* A table: as wide as what is in it, scrolling sideways past the text's own width, with
+     its two buttons over its corner while it is pointed at. */
+  .md-table {
+    @apply relative;
+  }
+  .md-table-scroll {
+    @apply overflow-x-auto;
+  }
+  .md table {
+    @apply border-collapse text-sm tabular-nums;
+  }
+  .md th,
+  .md td {
+    @apply border-b border-border px-3 py-1.5 text-left align-top;
+  }
+  .md th:first-child,
+  .md td:first-child {
+    @apply pl-0;
+  }
+  .md th {
+    @apply border-input align-bottom font-medium text-muted-foreground;
+  }
+  .md tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .md-table[data-one-line] :is(th, td) {
+    @apply whitespace-nowrap;
+  }
+  .md-table-tools {
+    @apply absolute top-0 right-0 flex gap-0.5 rounded-lg bg-background/80 p-0.5 text-muted-foreground opacity-0 shadow-raised backdrop-blur transition-opacity;
+  }
+  .md-table:hover .md-table-tools,
+  .md-table:focus-within .md-table-tools,
+  .md-table-tools:has([data-popup-open]) {
+    @apply opacity-100;
+  }
+  @media (pointer: coarse) {
+    .md-table-tools {
+      @apply opacity-100;
+    }
+  }
+
+  /* A note of one of GitHub's five kinds: a line down its side and its name, in its color. */
+  .md-alert {
+    --alert: var(--muted-foreground);
+    @apply border-l-2 pl-3;
+    border-color: var(--alert);
+  }
+  .md-alert > * + * {
+    @apply mt-1.5;
+  }
+  .md-alert-title {
+    @apply flex items-center gap-1.5 text-sm font-medium;
+    color: var(--alert);
+  }
+  .md-alert[data-alert="tip"] {
+    --alert: var(--success);
+  }
+  .md-alert[data-alert="important"] {
+    --alert: var(--syntax-keyword);
+  }
+  .md-alert[data-alert="warning"] {
+    --alert: var(--warning);
+  }
+  .md-alert[data-alert="caution"] {
+    --alert: var(--destructive);
+  }
+
+  /* A section that folds: its heading is pressed to open it. */
+  .md details {
+    @apply border-y border-border;
+  }
+  .md details + details {
+    @apply mt-0 border-t-0;
+  }
+  .md summary {
+    @apply flex cursor-pointer list-none items-center gap-2 py-2 font-medium select-none;
+  }
+  .md summary::-webkit-details-marker {
+    display: none;
+  }
+  .md summary::before {
+    content: "";
+    @apply size-1.5 shrink-0 rotate-45 border-t-[1.5px] border-r-[1.5px] border-muted-foreground transition-transform;
+  }
+  .md details[open] > summary::before {
+    @apply rotate-135;
+  }
+  .md details > :not(summary) {
+    @apply ml-3.5;
+  }
+  .md details > :last-child:not(summary) {
+    @apply mb-3;
+  }
+  .md details > summary + * {
+    @apply mt-0;
+  }
+
+  .md ul.contains-task-list {
+    @apply list-none pl-1;
+  }
+  .md input[type="checkbox"] {
+    @apply mr-2 translate-y-px accent-primary;
+  }
+  .md kbd {
+    @apply rounded-md border border-b-2 border-border bg-surface px-1.25 py-px font-mono text-[0.8em];
+  }
+  .md mark {
+    @apply rounded-sm px-0.5 text-inherit;
+    background: color-mix(in oklch, var(--warning) 28%, transparent);
+  }
+  /* A picture in a sentence stays in it. */
+  .md img:not([data-alone]) {
+    @apply inline-block align-middle;
+  }
+  /* What stands where something named cannot be shown. */
+  .md-missing {
+    @apply inline-flex items-center gap-1 rounded-md border border-hairline bg-muted px-1.5 py-px text-[0.85em] text-muted-foreground;
   }
 }
 

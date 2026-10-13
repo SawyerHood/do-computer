@@ -1,6 +1,6 @@
 /**
- * A visual is a page an agent draws into a chat: a chart, a table, a diagram. The agent writes
- * one self-contained HTML document. It is kept in the library, with a few lines put in its head
+ * A visual is a page an agent draws into a chat: a chart, a dashboard, a mock-up. The agent
+ * writes one self-contained HTML document. It is kept in the library, with a few lines put in its head
  * that give it the app's colors and let it speak to whatever shows it, and a client shows it in
  * a frame kept apart from the app, on the chat's own background and as tall as the page is.
  *
@@ -326,6 +326,20 @@ export const VISUAL_GUIDE = [
   "Let the content set the height: no 100vh, and no height:100% on html or body. Give a chart a fixed height in pixels. The frame grows to fit the page; past 1600px it scrolls.",
   "It starts from the app's own page, in the app's colors and type, and is styled as your instructions on pages say.",
   "Scripts run, but the page is kept apart from the app: it has no storage and cannot reach the person's session. A link to another site opens in a new tab.",
+].join(" ")
+
+/**
+ * What an agent is told its reply itself can show, so that it does not draw a page for what
+ * Markdown says as well: a reply's Markdown is drawn with tables, code in its colors and
+ * diagrams.
+ */
+export const REPLY_GUIDE = [
+  "Your reply is Markdown, and the chat draws it well, so put these in the reply itself and not in a page:",
+  "a table, as a Markdown table, which the person can scroll and copy into a spreadsheet;",
+  "code, in a fenced block with its language;",
+  "a flowchart, sequence or other simple diagram, as a fenced `mermaid` block;",
+  "a note that must not be missed, as `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]` or `> [!CAUTION]`;",
+  "and detail most readers will skip, inside `<details><summary>…</summary>` with a blank line after the summary.",
 ].join(" ")
 
 /**
