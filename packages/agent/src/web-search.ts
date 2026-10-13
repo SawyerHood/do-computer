@@ -37,7 +37,7 @@ const INSTRUCTIONS = `You are a search step for another assistant. Using the web
  */
 export function webSearchExtension(options: WebSearchOptions): Extension {
   const send = options.fetch ?? ((url, init) => fetch(url, init))
-  const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+  const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const tool = defineTool({
     name: "web_search",
     description:
@@ -113,7 +113,7 @@ export function webSearchExtension(options: WebSearchOptions): Extension {
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: cost },
       }
       return {
-        content: [{ type: "text", text }],
+        output: [{ type: "text", text }],
         details: { sources: [...sources].map(([url, title]) => ({ url, title })) },
         usage,
       }

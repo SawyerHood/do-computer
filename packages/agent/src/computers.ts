@@ -261,7 +261,7 @@ export type ComputersOptions = {
 
 const fail = (text: string): ToolExecutionResult => ({
   isError: true,
-  content: [{ type: "text", text }],
+  output: [{ type: "text", text }],
 })
 
 const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`
@@ -792,7 +792,7 @@ export class Computers {
         ),
       }),
       execute: async (args, api, context) => {
-        const reply = (text: string) => ({ content: [{ type: "text" as const, text }] })
+        const reply = (text: string) => ({ output: [{ type: "text" as const, text }] })
         const fail = (text: string) => ({ isError: true, ...reply(text) })
         const { agentId, lookup } = this.#directory!
         const chatId = String(api.conversationId)

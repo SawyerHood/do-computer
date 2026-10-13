@@ -41,6 +41,7 @@ import {
 } from "@do-computer/protocol"
 import type {
   Actor,
+  ActorDatabase,
   ActorHost,
   ActorNamespace,
   ActorSocket,
@@ -133,6 +134,22 @@ const context = BACKGROUND_CONTEXT
  * reopens the store and resumes the run from its last checkpoint.
  */
 const KEEPALIVE_MS = 20_000
+/** How soon an agent whose store failed under it is woken, to open again. */
+const REOPEN_MS = 1_000
+
+/**
+ * The host's database for a harness to work over, which closing the harness leaves open. A
+ * harness whose store failed closes itself, and the agent opens another over the same database,
+ * which is closed when the agent is.
+ */
+const keptOpen = (sql: ActorDatabase): ActorDatabase => ({
+  exec: (text) => sql.exec(text),
+  run: (text, ...params) => sql.run(text, ...params),
+  get: (text, ...params) => sql.get(text, ...params),
+  all: (text, ...params) => sql.all(text, ...params),
+  transaction: (callback) => sql.transaction(callback),
+  close: async () => {},
+})
 /** How long an automation's check may run before it is stopped and counted as broken. */
 const CHECK_TIMEOUT_MS = 60_000
 const MAX_MESSAGE_CHARS = 200_000
@@ -194,6 +211,12 @@ export type AgentActorOptions = {
    * of an idle agent paid for after every answer: pass 0 there, and nothing is kept.
    */
   readonly contextRetentionMs?: number
+  /**
+   * How long a document nothing is watching stays in memory after it was last read or written.
+   * Default: ten minutes. It is kept by a timer as a quiet chat is, so pass 0 where
+   * `contextRetentionMs` is 0: a document is then read from the store each time it is used.
+   */
+  readonly documentRetentionMs?: number
   /** Where the links to the user's own paired computers live. Without it, none can be used. */
   readonly computerLinks?: ActorNamespace
   /**
@@ -947,7 +970,7 @@ export class AgentActor implements Actor {
   }
 
   #open(): Promise<Harness> {
-    this.#harness ??= (async () => {
+    const opening: Promise<Harness> = (this.#harness ??= (async () => {
       const registry = createRegistry()
       // For tools that read the harness they are installed in, once it exists.
       let opened: Harness | undefined
@@ -1030,7 +1053,7 @@ export class AgentActor implements Actor {
       )
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       const harness = await Harness.open(
-        await SqliteStorage.open(this.#host.sql),
+        await SqliteStorage.open(keptOpen(this.#host.sql)),
         {
           models: this.#options.models,
           registry,
@@ -1041,12 +1064,27 @@ export class AgentActor implements Actor {
             ...(this.#options.contextRetentionMs === undefined
               ? {}
               : { contextRetentionMs: this.#options.contextRetentionMs }),
+            ...(this.#options.documentRetentionMs === undefined
+              ? {}
+              : { documentRetentionMs: this.#options.documentRetentionMs }),
           },
         },
         context,
       )
       opened = harness
       this.#opened = harness
+      // A storage error ends a harness for good: it closes itself, and every call after is
+      // refused. The agent is then put away as `close()` does, and woken to pick up from
+      // what is stored, which is whole, since nothing is stored by halves.
+      void harness.closed.then(async (end) => {
+        if (end.reason !== "failed" || this.#harness !== opening) return
+        try {
+          await this.#putAway()
+          await this.#host.setAlarm(this.#host.now() + REOPEN_MS)
+        } catch (error) {
+          this.#options.onReport?.(error)
+        }
+      })
       this.#approvals.attach(harness)
       this.#keepGoing.attach(harness)
       this.#journal.attach(harness)
@@ -1119,11 +1157,11 @@ export class AgentActor implements Actor {
       // Pick up whatever a previous process left unfinished.
       harness.resume()
       return harness
-    })()
-    this.#harness.catch(() => {
-      this.#harness = undefined
+    })())
+    opening.catch(() => {
+      if (this.#harness === opening) this.#harness = undefined
     })
-    return this.#harness
+    return opening
   }
 
   /**
@@ -1252,6 +1290,15 @@ export class AgentActor implements Actor {
 
   /** Unfinished runs stay pending in the store; the next process resumes them. */
   async close(): Promise<void> {
+    try {
+      await this.#putAway()
+    } finally {
+      await this.#host.sql.close()
+    }
+  }
+
+  /** Stop work and let go of the harness. The database stays open, for whatever opens next. */
+  async #putAway(): Promise<void> {
     const harness = this.#harness
     this.#harness = undefined
     this.#opened = undefined

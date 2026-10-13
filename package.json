@@ -21,7 +21,7 @@
     "desktop": "pnpm --filter @do-computer/desktop start"
   },
   "devDependencies": {
-    "prettier": "^3.8.3",
+    "prettier": "^3.9.10",
     "typescript": "catalog:",
     "@typescript/native": "catalog:"
   }

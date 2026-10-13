@@ -137,8 +137,10 @@ export class Followers {
         for (const frame of frames) socket.send(frame)
       }
     })
-    // It ended by itself: the chat was deleted. One that was let go of is no longer kept here.
-    void watch.closed.then(() => {
+    // It ended by itself: the chat was deleted. One that was let go of is no longer kept here,
+    // and one that ended with the harness is followed again by whoever opens the agent next.
+    void watch.closed.then((end) => {
+      if (end.reason === "session_closed" || end.reason === "session_failed") return
       if (this.#chats.get(chatId) !== entry) return
       this.#chats.delete(chatId)
       for (const socket of this.#sockets()) this.#drop(socket, chatId, true)

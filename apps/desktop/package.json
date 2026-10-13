@@ -19,14 +19,14 @@
     "@do-computer/computers": "workspace:*",
     "@do-computer/daemon": "workspace:*",
     "@do-computer/protocol": "workspace:*",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "@trycua/cua-driver": "0.34.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
-    "electron": "^44.0.0",
-    "electron-builder": "^26.0.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "electron-updater": "^6.8.9",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

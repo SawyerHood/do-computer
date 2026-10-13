@@ -2,28 +2,9 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pi 1.1.0 was published on 2026-10-07; let it through the release-age gate.
+# pi 1.2.0 was published on 2026-10-12; let it through the release-age gate.
 minimumReleaseAgeExclude:
   - "@earendil-works/*"
-  - "@cloudflare/workerd-darwin-64@1.20261001.1"
-  - "@cloudflare/workerd-darwin-arm64@1.20261001.1"
-  - "@cloudflare/workerd-linux-64@1.20261001.1"
-  - "@cloudflare/workerd-linux-arm64@1.20261001.1"
-  - "@cloudflare/workerd-windows-64@1.20261001.1"
-  - "@cloudflare/workers-types@5.20261001.1"
-  - miniflare@5.20261001.0-alpha
-  - workerd@1.20261001.1
-  - wrangler@4.146.0
-  - "@cloudflare/vite-plugin@1.62.4"
-  - vite@8.3.2
-  - just-bash@3.6.0
-  - '@trycua/cua-driver-darwin-arm64@0.34.1'
-  - '@trycua/cua-driver-darwin-x64@0.34.1'
-  - '@trycua/cua-driver-linux-arm64-gnu@0.34.1'
-  - '@trycua/cua-driver-linux-x64-gnu@0.34.1'
-  - '@trycua/cua-driver-win32-arm64-msvc@0.34.1'
-  - '@trycua/cua-driver-win32-x64-msvc@0.34.1'
-  - '@trycua/cua-driver@0.34.1'
 
 allowBuilds:
   esbuild: true
@@ -42,8 +23,8 @@ allowBuilds:
 catalog:
   typescript: npm:@typescript/typescript6@^6.0.2
   "@typescript/native": npm:typescript@^7.0.2
-  vitest: ^4.1.11
+  vitest: ^5.0.3
   "@types/node": ^24
-  "@earendil-works/pi-durable": 1.1.0
-  "@earendil-works/pi-ai": 1.1.0
-  "@earendil-works/chord": 1.1.0
+  "@earendil-works/pi-durable": 1.2.0
+  "@earendil-works/pi-ai": 1.2.0
+  "@earendil-works/chord": 1.2.0

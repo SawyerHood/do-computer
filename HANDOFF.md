@@ -1702,7 +1702,10 @@ Since then, newest last:
       quiet chat's context by a timer, and means to keep none where timers cannot be
       unreferenced. With `nodejs_compat` a timer has an `unref`, which does nothing, so the
       timer was kept and a pending timer keeps a Durable Object from being put away. On
-      Cloudflare the agent is now made with `contextRetentionMs: 0`.
+      Cloudflare the agent is now made with `contextRetentionMs: 0`. Since pi-durable 1.2.0
+      a document that nothing watches is kept in memory the same way, by the same kind of
+      timer, so the agent is made with `documentRetentionMs: 0` there too; the test below
+      fails without it.
     - **Checked in the Workers runtime:** a test follows a chat over a socket, leaves the
       object alone for fourteen seconds, and asserts that it came back with `resumed` and
       sent the next answer as changes (`agent.workers.test.ts`); it fails if anything keeps
@@ -1964,7 +1967,7 @@ Since then, newest last:
       Appending to a file with `>>` sets its mode back to 644, which the shell inside the
       server did not do; writing it anew does in both.
     - **The `experimental` flag** the package's README asks for was not needed, in
-      vitest-pool-workers or in `vite dev`.
+      Cloudflare's Vitest plugin or in `vite dev`.
     - **Tested:** `packages/sandbox/test/workers` runs both conformance suites, the network
       rules, deletion and the move inside the Workers runtime; `scripts/smoke.sh` passes
       against `vite dev` on Cloudflare with it. The move was also made for real: an agent
@@ -3057,10 +3060,14 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 - **A Durable Object's SQLite row has a size limit** (about 2 MB) that Node's does not. A message
   is one row. That is why pictures are scaled down in the browser to fit a message, and why
   anything large belongs in blob storage, not in a document.
-- **The harness cannot be closed and reopened on the same database on Node**, because closing it
-  closes the database. A change that seems to need a reopen (such as switching an agent's
-  computer) has to swap extensions in the registry while it stays open. Installing an extension
-  under a name that is taken replaces it where it stands, which keeps hook order.
+- **Closing the harness closes the database it was opened over**, which on Node cannot be
+  opened again. A change that seems to need a reopen (such as switching an agent's computer)
+  swaps extensions in the registry while it stays open. Installing an extension under a name
+  that is taken replaces it where it stands, which keeps hook order. Since pi-durable 1.2.0
+  a harness also closes itself, for good, on the first storage error. So the agent hands it a
+  database whose `close` does nothing and closes the real one itself: after such an error it
+  lets go of the harness, sets a wake-up a second on, and opens another over the same
+  database (`actor.test.ts`, "opens again after its store failed under it").
 - **Tests must not count things machine-wide.** One counted every `sleep 300` process on the
   host and failed when something unrelated ran one.
 - **Tests that always pass an option hide the default path.** The daemon bug in section 5 lived

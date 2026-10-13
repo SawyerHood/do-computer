@@ -53,7 +53,7 @@ const describeModel = (model: ModelOption) =>
  * does that arrives while it is working, its timezone, and what it has cost so far.
  */
 export function settingsExtension(options: SettingsOptions): Extension {
-  const reply = (text: string) => ({ content: [{ type: "text" as const, text }] })
+  const reply = (text: string) => ({ output: [{ type: "text" as const, text }] })
   const fail = (text: string) => ({ isError: true, ...reply(text) })
   const tool = defineTool({
     name: TOOL,

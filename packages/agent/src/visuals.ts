@@ -24,7 +24,7 @@ export type VisualsOptions = {
  * and shared like any other, and the chat shows it as the page itself. It needs no computer.
  */
 export function visuals(options: VisualsOptions): Extension {
-  const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+  const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const tool = defineTool({
     name: VISUAL_TOOL,
     description: `Show the person a page you wrote, drawn in the chat itself above your reply: a chart, a table, a diagram, a mock-up, anything that says more laid out than in prose. Give one complete, self-contained HTML document with its styles and scripts inline. Call it before you write your reply. The person already sees the page, so your reply should not announce it, say where it is or repeat it: add only what the page does not say. ${VISUAL_GUIDE} The page is also kept in their library, in ${VISUALS_FOLDER}/, where it can be opened full size and shared.`,
@@ -57,7 +57,7 @@ export function visuals(options: VisualsOptions): Extension {
           contentType: "text/html",
         })
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `Shown to the person in the chat, above your reply, and kept in the library as ${file.path}. Do not describe the page or say where it is; reply with only what it does not already say.`,
