@@ -6015,6 +6015,33 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       simulator did not); recording in the simulator, which gets no microphone over SSH.
       There, a tap on the microphone also holds up everything the app asks of Expo after it,
       a later message included, with or without this change.
+    - **Later the same day the box itself was laid out again,** at the owner's ask, after T3
+      Code's phone app (`apps/mobile/src/features/threads/ThreadComposer.tsx` there, read and
+      not copied): "I would like the plus button to be sort of like inside of the text area
+      ... when you start typing, it wraps under, so you have more horizontal room on a small
+      screen", and "when you expand it, this gives us room to show the button to change the
+      model and the thinking like you can on the web app". Left alone and empty it is one
+      line: "+", the words, the microphone. Focused, or with anything written or attached, the
+      words have its whole width and one row under them has "+" and the model button on the
+      left and the microphone, Stop or the send button on the right. It is one box and one row
+      of buttons in both shapes (shut, the row lies over the line), so the box being written
+      in is never made again and keeps the keyboard.
+    - **The model button** (`thinks-with.tsx`) is the web app's one quiet brain. It opens the
+      system's menu: the chosen model's levels of thinking, and one line with the model's
+      name, behind which are the models suggested first and "All models", which goes to the
+      list with a search on the Dood's page. All of it in one menu was too tall to be seen
+      above the keyboard. It is the Dood's own setting, as on the web. Nothing is drawn where
+      there is one model with one way of thinking.
+    - **Mine:** that the box opens on focus and not at the first letter (T3's does, and the
+      box would otherwise change shape under a finger that is typing); that it stays open
+      while anything is written or attached; the shape changing at once and not over a
+      moment, which the keyboard's own slide covers; the models behind one line of the menu.
+    - **Checked for these:** a third browser test (one line with "+" inside it, the words at
+      full width once written, the buttons under them, a level chosen from the button and
+      kept by the server), and in the simulator with a real list of 393 models: both shapes,
+      with and without Stop, a level and a model chosen and kept, and a recording of the box
+      opening and shutting read frame by frame. **Not checked:** a phone, Android, and the
+      listening bars in the new box anywhere but the browser build.
 
 ## 6. What the owner has said they want
 

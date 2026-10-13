@@ -272,6 +272,68 @@ test("the agent can be spoken to while it works", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Dictate" })).toBeVisible()
 })
 
+test("the message box is one line until it is written in, and then has the model under it", async ({
+  page,
+}) => {
+  // The deployment has one model here, and one is nothing to choose between. The app is told
+  // of a second, and that the first has more than one way of thinking.
+  await page.route(/\/api\/models(\?.*)?$/, async (route) => {
+    const response = await route.fetch()
+    const { models } = (await response.json()) as { models: Record<string, unknown>[] }
+    await route.fulfill({
+      response,
+      json: {
+        models: [
+          { ...models[0], thinking: ["low", "medium", "high"] },
+          { ...models[0], id: "echo/echo-2", name: "Echo Two" },
+        ],
+      },
+    })
+  })
+  await openChat(page)
+  const box = (await composer(page).boundingBox())!
+  const attach = page.getByRole("button", { name: "Attach a file" })
+  const dictate = page.getByRole("button", { name: "Dictate" })
+  const model = page.getByRole("button", { name: "Model and thinking" })
+  const middle = async (of: typeof attach) => {
+    const at = (await of.boundingBox())!
+    return at.y + at.height / 2
+  }
+  // Left alone, "+" and the microphone are on its one line, inside it.
+  expect(await middle(attach)).toBeGreaterThan(box.y)
+  expect(await middle(attach)).toBeLessThan(box.y + box.height)
+  expect(await middle(dictate)).toBeLessThan(box.y + box.height)
+  expect((await attach.boundingBox())!.x).toBeGreaterThanOrEqual(box.x)
+  await expect(model).toHaveCount(0)
+
+  // Written in, the words have its whole width, and the buttons are in a row under them.
+  await composer(page).fill("a message long enough to want the room")
+  const open = (await composer(page).boundingBox())!
+  expect(open.width).toBeCloseTo(box.width, 0)
+  expect(await middle(attach)).toBeGreaterThan(open.y + open.height)
+  expect(await middle(page.getByRole("button", { name: "Send" }))).toBeGreaterThan(
+    open.y + open.height,
+  )
+
+  // What the agent thinks with is beside "+": the models, and how hard the chosen one thinks.
+  await model.click()
+  await expect(item(page, "Echo Two")).toBeVisible()
+  await expect(item(page, "Thinking: Medium")).toBeVisible()
+  await item(page, "Thinking: High").click()
+  await expect
+    .poll(async () => {
+      const { agents } = (await (await page.request.get("/api/agents")).json()) as {
+        agents: { thinking: string }[]
+      }
+      return agents[0]!.thinking
+    })
+    .toBe("high")
+  // Choosing left what was written as it was.
+  await expect(composer(page)).toHaveValue("a message long enough to want the room")
+  await page.request.patch(`/api/agents/${await agentId(page)}`, { data: { thinking: "medium" } })
+  await composer(page).fill("")
+})
+
 test("Markdown in a reply is rendered, not shown as markup", async ({ page }) => {
   await openChat(page)
   await send(page, "a list:\n\n- one\n- **two**")

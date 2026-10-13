@@ -19,6 +19,7 @@ import {
 } from "./attachments"
 import { Dictating, useChatDictation } from "./dictation"
 import { PasteTarget } from "./paste"
+import { ThinksWith } from "./thinks-with"
 
 /** What is written and not sent yet, by chat, for as long as the app is open. */
 const draftsAtom = atom<Readonly<Record<string, string>>>({})
@@ -40,13 +41,17 @@ function useDraft(
 
 const LINE = 22
 const MAX_LINES = 7
+/** The room under the words when the buttons are in a row below them. */
+const UNDER = 4
 
 /**
- * The message box: a round "+" and a capsule to write in, floating over the foot of the chat.
- * At the capsule's end is the microphone while it is empty, with Stop beside it while the agent
- * works, and the send button once there is something to send. What is sent while the agent
- * works steers it or waits, as the agent is set to. A picture that was copied is pasted into
- * the box as words are, and is attached.
+ * The message box, floating over the foot of the chat. Left alone and empty it is one line: "+"
+ * at its start, the microphone at its end, and what is written between them. Once it is being
+ * written in, the words have its whole width and the buttons are in a row under them: "+" and
+ * what the agent thinks with on the left, and on the right the microphone, or the send button
+ * once there is something to send. Stop is beside the microphone while the agent works. What
+ * is sent while the agent works steers it or waits, as the agent is set to. A picture that was
+ * copied is pasted into the box as words are, and is attached.
  */
 export function Composer({
   agentId,
@@ -94,6 +99,7 @@ export function Composer({
   const [attachError, setAttachError] = useState<string>()
   // A browser's box does not grow with what is written in it, so there it is told how tall to be.
   const [tall, setTall] = useState(LINE)
+  const [focused, setFocused] = useState(false)
   // Files of the library chosen on its own screen go with the message as those chosen here do.
   const picked = usePicked(chatId)
   const attached = useMemo<AttachedFile[]>(
@@ -102,6 +108,8 @@ export function Composer({
   )
 
   const ready = (draft.trim() !== "" || attached.length > 0) && uploading === 0
+  // Open, the words have the box's whole width and its buttons are under them.
+  const open = focused || draft !== "" || attached.length > 0 || uploading > 0
 
   const send = (typed = draft) => {
     if ((typed.trim() === "" && attached.length === 0) || uploading > 0) return
@@ -206,6 +214,8 @@ export function Composer({
   ]
 
   const wrong = error ?? dictation.error ?? attachError
+  // What is above and below the words, which the box's height is its lines and this.
+  const edges = 11 + (open ? UNDER : 11)
   const round = {
     width: 34,
     height: 34,
@@ -243,151 +253,145 @@ export function Composer({
           </Text>
         </View>
       ) : null}
-      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
-        <Menu items={add} title="Attach a file">
-          <View accessibilityLabel="Attach a file">
-            <Glass
-              interactive
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="plus" size={21} color={theme.ink} weight="medium" />
-            </Glass>
-          </View>
-        </Menu>
-        <Glass
-          style={{
-            flex: 1,
-            minHeight: 44,
-            borderRadius: 22,
-            borderCurve: "continuous",
-            overflow: "hidden",
-          }}
-        >
-          <AttachedFiles
-            files={attached}
-            uploading={uploading}
-            note={
-              !sees && attached.some((file) => file.image !== undefined)
-                ? `${agentName}’s model cannot look at pictures, so it gets these as files. Pick a model that can on its page.`
-                : undefined
-            }
-            onRemove={(id) =>
-              picked.some((file) => file.id === id)
-                ? unpick(chatId, id)
-                : setChosen((current) => current.filter((file) => file.id !== id))
-            }
+      <Glass
+        style={{ minHeight: 44, borderRadius: 22, borderCurve: "continuous", overflow: "hidden" }}
+      >
+        <AttachedFiles
+          files={attached}
+          uploading={uploading}
+          note={
+            !sees && attached.some((file) => file.image !== undefined)
+              ? `${agentName}’s model cannot look at pictures, so it gets these as files. Pick a model that can on its page.`
+              : undefined
+          }
+          onRemove={(id) =>
+            picked.some((file) => file.id === id)
+              ? unpick(chatId, id)
+              : setChosen((current) => current.filter((file) => file.id !== id))
+          }
+        />
+        {dictating ? (
+          <Dictating
+            state={dictation.state}
+            recorder={dictation.recorder}
+            accent={accent}
+            onCancel={dictation.cancel}
+            onStop={(end) => void dictation.stop(end)}
           />
-          {dictating ? (
-            <Dictating
-              state={dictation.state}
-              recorder={dictation.recorder}
-              accent={accent}
-              onCancel={dictation.cancel}
-              onStop={(end) => void dictation.stop(end)}
-            />
-          ) : (
-            <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-              <PasteTarget
-                onPaste={(files) => void attach(() => files)}
-                onRefused={() => setAttachError("What was copied could not be pasted.")}
-              >
-                <TextInput
-                  accessibilityLabel="Message"
-                  multiline
-                  value={draft}
-                  placeholder={placeholder}
-                  placeholderTextColor={theme.ink3}
-                  selectionColor={accent.a}
-                  onContentSizeChange={
-                    Platform.OS === "web"
-                      ? (event) => setTall(event.nativeEvent.contentSize.height)
-                      : undefined
-                  }
-                  // With a keyboard of keys, Enter sends and Shift+Enter adds a line, as on the web.
-                  onKeyPress={
-                    Platform.OS === "web"
-                      ? (event) => {
-                          const key = event.nativeEvent as { key: string; shiftKey?: boolean }
-                          if (key.key !== "Enter" || key.shiftKey) return
-                          event.preventDefault()
-                          send()
-                        }
-                      : undefined
-                  }
-                  onChangeText={(text) => {
-                    setDraft(text)
-                    onKey?.()
-                    onTyping?.(text.trim() !== "")
-                  }}
-                  style={{
-                    color: theme.ink,
-                    fontSize: 17,
-                    lineHeight: LINE,
-                    letterSpacing: -0.41,
-                    paddingLeft: 16,
-                    paddingRight: 4,
-                    paddingTop: 11,
-                    paddingBottom: 11,
-                    maxHeight: LINE * MAX_LINES + 22,
-                    ...(Platform.OS === "web"
-                      ? { height: Math.min(Math.max(tall, LINE + 22), LINE * MAX_LINES + 22) }
-                      : // A phone's box grows with what is written in it, and does not always
-                        // shrink again when that is sent: an empty one is told how tall it is.
-                        draft === ""
-                        ? { height: LINE + 22 }
-                        : null),
-                  }}
-                />
-              </PasteTarget>
-              <View style={{ flexDirection: "row", gap: 2, padding: 5 }}>
-                {ready ? (
+        ) : (
+          <View>
+            <PasteTarget
+              onPaste={(files) => void attach(() => files)}
+              onRefused={() => setAttachError("What was copied could not be pasted.")}
+            >
+              <TextInput
+                accessibilityLabel="Message"
+                multiline
+                value={draft}
+                placeholder={placeholder}
+                placeholderTextColor={theme.ink3}
+                selectionColor={accent.a}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                onContentSizeChange={
+                  Platform.OS === "web"
+                    ? (event) => setTall(event.nativeEvent.contentSize.height)
+                    : undefined
+                }
+                // With a keyboard of keys, Enter sends and Shift+Enter adds a line, as on the web.
+                onKeyPress={
+                  Platform.OS === "web"
+                    ? (event) => {
+                        const key = event.nativeEvent as { key: string; shiftKey?: boolean }
+                        if (key.key !== "Enter" || key.shiftKey) return
+                        event.preventDefault()
+                        send()
+                      }
+                    : undefined
+                }
+                onChangeText={(text) => {
+                  setDraft(text)
+                  onKey?.()
+                  onTyping?.(text.trim() !== "")
+                }}
+                style={{
+                  color: theme.ink,
+                  fontSize: 17,
+                  lineHeight: LINE,
+                  letterSpacing: -0.41,
+                  // Shut, the buttons are on the one line, and the words keep clear of them.
+                  paddingLeft: open ? 16 : 44,
+                  paddingRight: open ? 16 : busy ? 80 : 44,
+                  paddingTop: 11,
+                  paddingBottom: open ? UNDER : 11,
+                  maxHeight: LINE * MAX_LINES + edges,
+                  ...(Platform.OS === "web"
+                    ? { height: Math.min(Math.max(tall, LINE + edges), LINE * MAX_LINES + edges) }
+                    : // A phone's box grows with what is written in it, and does not always
+                      // shrink again when that is sent: an empty one is told how tall it is.
+                      draft === ""
+                      ? { height: LINE + edges }
+                      : null),
+                }}
+              />
+            </PasteTarget>
+            {/* One row of buttons in both shapes, so that none of them, nor the box being
+                written in, is made again when the shape changes. Shut, it lies over the line. */}
+            <View
+              pointerEvents="box-none"
+              style={[
+                { flexDirection: "row", alignItems: "center", gap: 2, padding: 5 },
+                open ? { paddingTop: 0 } : { position: "absolute", left: 0, right: 0, bottom: 0 },
+              ]}
+            >
+              <Menu items={add} title="Attach a file">
+                <View accessibilityLabel="Attach a file" style={round}>
+                  <Icon name="plus" size={21} color={theme.ink2} weight="medium" />
+                </View>
+              </Menu>
+              {open ? <ThinksWith agentId={agentId} /> : null}
+              <View pointerEvents="none" style={{ flex: 1 }} />
+              {ready ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Send"
+                  onPress={() => send()}
+                  style={[round, { backgroundColor: accent.a }]}
+                >
+                  <Icon name="arrowUp" size={17} color={accent.onA} weight="bold" />
+                </Pressable>
+              ) : (
+                <>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Send"
-                    onPress={() => send()}
-                    style={[round, { backgroundColor: accent.a }]}
+                    accessibilityLabel="Dictate"
+                    disabled={uploading > 0}
+                    onPress={() => void dictation.start()}
+                    style={round}
                   >
-                    <Icon name="arrowUp" size={17} color={accent.onA} weight="bold" />
+                    <Icon name="mic" size={20} color={theme.ink2} />
                   </Pressable>
-                ) : (
-                  <>
+                  {/* The agent can be spoken to while it works, so Stop does not take the
+                      microphone's place. */}
+                  {busy && uploading === 0 ? (
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Dictate"
-                      disabled={uploading > 0}
-                      onPress={() => void dictation.start()}
-                      style={round}
+                      accessibilityLabel="Stop"
+                      onPress={() => {
+                        haptic.medium()
+                        onStop()
+                      }}
+                      style={[round, { backgroundColor: theme.ink }]}
                     >
-                      <Icon name="mic" size={20} color={theme.ink2} />
+                      <Icon name="stop" size={15} color={theme.bg} />
                     </Pressable>
-                    {/* The agent can be spoken to while it works, so Stop does not take the
-                        microphone's place. */}
-                    {busy && uploading === 0 ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Stop"
-                        onPress={() => {
-                          haptic.medium()
-                          onStop()
-                        }}
-                        style={[round, { backgroundColor: theme.ink }]}
-                      >
-                        <Icon name="stop" size={15} color={theme.bg} />
-                      </Pressable>
-                    ) : null}
-                  </>
-                )}
-              </View>
+                  ) : null}
+                </>
+              )}
             </View>
-          )}
-        </Glass>
-      </View>
+          </View>
+        )}
+      </Glass>
       {wrong === undefined ? null : (
         <Text
           variant="footnote"

@@ -41,7 +41,6 @@ export function PasteTarget({
   return (
     <TextInputWrapper
       ref={box}
-      style={{ flex: 1 }}
       onPaste={(pasted) => {
         if (pasted.type === "images") told.current(pastedPictures(pasted.uris))
         else if (pasted.type === "unsupported") onRefused()
