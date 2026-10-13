@@ -6444,6 +6444,57 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       owner's own Chrome with its real Allow prompt; the desktop app, which needs a release
       before its daemon can do this at all; Cloudflare beyond the store's tests in workerd;
       the phone, where the form for a login was built and never run.
+82. **A connector's own page for a tool is shown in the chat (MCP Apps)** (2026-10-13;
+    `packages/protocol/src/mcp-app.ts`, `packages/agent/src/connectors.ts` and `actor.ts`,
+    `apps/web/src/lib/mcp-app-host.ts`, `components/chat/mcp-app.tsx`; phase 5 of
+    `PLAN-rich-embeds.md`). MCP Apps is a standard (SEP-1865) by which a tool of an MCP
+    server can name a page of the server's, and a client shows that page as a live view of
+    what the tool answered. T3 Code has it. The owner said to "work on 5" once the first
+    four phases were merged.
+    - **The server is told** that pages are taken here (the `io.modelcontextprotocol/ui`
+      extension, when a connector is connected), or it would not offer them.
+    - **When the agent uses a tool that names a page** (`_meta.ui.resourceUri`, a `ui://`
+      address) and the tool does not fail, the page is read from the server, kept among the
+      agent's blobs under a name made from what is in it, and the tool's details carry where
+      it is, whose it is, and what the tool was asked and answered (`McpAppDetails`). A page
+      read a minute ago is not read again. One over 2 MB, or that is not HTML, is not kept,
+      and the tool is then only its answer, as before.
+    - **The chat shows the page** where the tool call is, under "From <connector>", with a
+      line round it unless the page asks for none. It is somebody else's page, so it is kept
+      further apart than a page the agent drew: the frame's origin is nobody's, and it is
+      served (`GET /apps/<id>` on the agent) under a policy that lets it load only the
+      origins its server named, and nothing from the app's own address. Only whole origins
+      are kept of what a page names: a keyword or a path would widen the policy.
+    - **The talk** is the standard's JSON-RPC through the frame (`createAppHost`): the page
+      says it is there and is told where it is shown (light or dark, the app's colors under
+      the standard's names, inline or large); once ready it is told what the tool was asked
+      and what it answered; after that it may ask for its server's tools, read its server's
+      resources, have a link opened, put words in the message box, and be shown large. A
+      link, words and large are only on the reader's own press. `ui/update-model-context`
+      and a file to download are answered as not done here.
+    - **A page may use only its own server's tools** (`POST /connectors/<id>/app-call`), and
+      only those the server lets a page use. One the server says only reads runs at once.
+      Any other is not run until the person has said yes in a dialog, and so is every tool of
+      a connector the agent itself asks before using. A tool a server keeps for its pages
+      alone (`visibility: ["app"]`) is not given to the agent.
+    - **On the phone** such a tool call is a line saying the connector has a page for it,
+      shown in a browser: the page is served to a signed-in browser, which a phone's web
+      view is not.
+    - **The owner's:** that it be built. **Mine:** everything about how: keeping the page
+      with the agent and serving it by the session, where the plan had not said; 2 MB; that
+      a page's words fill the box and do not send; asking for every tool not marked as only
+      reading, which a server may mark wrongly; the line and "From"; what is left undone.
+    - **Checked:** `mcp-app.test.ts` (what is kept of a page's origins, the policy, who a
+      tool is for), `connectors.test.ts` against a stand-in server (the extension said, the
+      page kept and served with its policy, not read twice, no page for a failed tool or a
+      thing that is no page, a page's tool not given to the agent, a reading tool run and
+      another not until agreed, a connector switched off), `mcp-app-host.test.ts` (the talk,
+      turn by turn), and in a browser `e2e/mcp-apps.spec.ts` with a page written by hand to
+      the standard: told the tool's question and answer, in the app's ink, without cookies
+      and unable to reach the app, a reading tool at once, a dialog and a no and a yes for
+      another, words in the message box, large and back. **Not checked:** a real MCP server
+      that has pages, or a page built with the standard's own SDK; Composio's Apps, which
+      may have none; Workers; Safari.
 
 ## 6. What the owner has said they want
 

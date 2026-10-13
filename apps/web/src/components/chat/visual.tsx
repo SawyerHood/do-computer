@@ -26,19 +26,19 @@ import {
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { useSetAtom } from "jotai"
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useAgentsById } from "@/components/computer-requests"
 import { SharePopover } from "@/components/sites/share"
 import { Button } from "@/components/ui/button"
-import { draftAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { libraryQuery } from "@/lib/collections"
 import { siteOfFile, useSites } from "@/lib/sites"
+import { pressedIn } from "@/lib/pressed"
 import { cn } from "@/lib/utils"
 import { heightBefore, keepHeight } from "@/lib/visual-heights"
 import { useAppColors } from "@/lib/visual-theme"
-import { AgentIdContext, DRAFTED, DraftKeyContext, OpenFileContext } from "./sent-file.tsx"
+import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
+import { useSay } from "./use-say.ts"
 
 /**
  * A visual the agent drew, in the chat: the page itself on the chat's own background, as tall
@@ -63,8 +63,7 @@ function saveFile(name: string, type: string, text: string) {
 
 function FrameOf({ agentId, part }: { agentId: string; part: ToolPart }) {
   const open = useContext(OpenFileContext)
-  const draftKey = useContext(DraftKeyContext)
-  const setDraft = useSetAtom(draftAtom(draftKey ?? ""))
+  const put = useSay()
   const agentName = useAgentsById().get(agentId)?.name
   const drawn = part.details as unknown as LibraryFile
   const { data: listing } = useQuery(libraryQuery(agentId))
@@ -114,15 +113,10 @@ function FrameOf({ agentId, part }: { agentId: string; part: ToolPart }) {
     if (before !== undefined) setHeight((now) => now ?? before)
   }, [page, measured, file?.rev, drawn.rev])
 
-  /** Put words in the chat's message box, after whatever is there, for the person to send. */
+  /** Put words in the chat's message box. The box is under the page while the page is large. */
   const say = (text: string): boolean => {
-    if (draftKey === undefined) return false
-    setDraft((typed) => (typed.trim() === "" ? text : `${typed.trimEnd()}\n${text}`))
-    // The box is under the page while the page is large.
+    if (!put(text)) return false
     setLarge(false)
-    requestAnimationFrame(() =>
-      window.dispatchEvent(new CustomEvent(DRAFTED, { detail: draftKey })),
-    )
     return true
   }
 
@@ -153,19 +147,21 @@ function FrameOf({ agentId, part }: { agentId: string; part: ToolPart }) {
       const asked = link ?? said ?? mode ?? saved
       if (asked === undefined) return
       // Only on the reader's own press in the page: a page does none of these by itself.
-      if (document.activeElement !== target || navigator.userActivation?.isActive === false) {
-        return answer(visualRefusal(asked.id, "Only when the person has just pressed something."))
-      }
-      if (link !== undefined) window.open(link.url, "_blank", "noopener,noreferrer")
-      if (said !== undefined && !now.say(said.text)) {
-        return answer(visualRefusal(said.id, "There is no message box here."))
-      }
-      if (mode !== undefined) {
-        setLarge(mode.mode === "fullscreen")
-        return answer(visualResult(mode.id, { mode: mode.mode }))
-      }
-      if (saved !== undefined) saveFile(saved.name, saved.type, saved.text)
-      answer(visualResult(asked.id))
+      void pressedIn(target).then((pressed) => {
+        if (!pressed) {
+          return answer(visualRefusal(asked.id, "Only when the person has just pressed something."))
+        }
+        if (link !== undefined) window.open(link.url, "_blank", "noopener,noreferrer")
+        if (said !== undefined && !heard.current.say(said.text)) {
+          return answer(visualRefusal(said.id, "There is no message box here."))
+        }
+        if (mode !== undefined) {
+          setLarge(mode.mode === "fullscreen")
+          return answer(visualResult(mode.id, { mode: mode.mode }))
+        }
+        if (saved !== undefined) saveFile(saved.name, saved.type, saved.text)
+        answer(visualResult(asked.id))
+      })
     }
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)

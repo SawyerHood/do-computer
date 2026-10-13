@@ -332,12 +332,15 @@ is built for this beyond the draft address; it is the fallback, not the plan.
 
 ### Phase 5: MCP Apps from connectors
 
-The connectors' client says it takes UI resources. When a tool that names a `ui://` page
-finishes, the page is read (5 MB at most), kept as a blob that is not a library file, and shown
-in the frame a visual uses, with the rest of the bridge: the tool's input and result, calls to
-the server's tools through the approvals that already exist, resource reads, and teardown. The
-page's declared origins become its `Content-Security-Policy`, sent as a header. This runs a
-third party's HTML, so it wants its own review before it ships.
+Built on 2026-10-13. The connectors' client says it takes UI resources. When a tool that names
+a `ui://` page finishes, the page is read (2 MB at most), kept among the agent's blobs under a
+name made from what is in it, and shown where the tool call is, under the name of the
+connector it is from. The frame's origin is nobody's, and the page's declared origins become
+its `Content-Security-Policy`, sent as a header. The bridge is the standard's: the tool's input
+and result, calls to the server's tools, resource reads, a link, words for the message box,
+large and back. A tool the server does not mark as only reading is not run for a page until
+the person has said yes. Not done: `ui/update-model-context`, a file to download, the phone.
+It runs a third party's HTML, so it wants a careful read before it is relied on.
 
 ### Phase 6: the phone app
 
