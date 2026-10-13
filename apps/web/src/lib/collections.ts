@@ -33,6 +33,8 @@ export const secretsKey = (agentId: string) => ["agents", agentId, "secrets"] as
 export const slackKey = (agentId: string) => ["agents", agentId, "slack"] as const
 export const jobsKey = (agentId: string) => ["agents", agentId, "jobs"] as const
 export const libraryKey = (agentId: string) => ["agents", agentId, "library"] as const
+/** What of the library is pinned to the agent. */
+export const pinsKey = (agentId: string) => ["agents", agentId, "pins"] as const
 /** A library file's text at one revision. Kept apart from the listing, which changes; this never does. */
 export const libraryTextKey = (agentId: string, fileId: string, rev: number) =>
   ["agents", agentId, "library-text", fileId, rev] as const
@@ -209,6 +211,10 @@ export function refreshAgent(agentId: string, what: string): void {
   if (what === "jobs") {
     // What each has printed is kept under the same key, and is not asked for again here.
     void queryClient.invalidateQueries({ queryKey: jobsKey(agentId), exact: true })
+    return
+  }
+  if (what === "pins") {
+    void queryClient.invalidateQueries({ queryKey: pinsKey(agentId) })
     return
   }
   if (what === "skills") {

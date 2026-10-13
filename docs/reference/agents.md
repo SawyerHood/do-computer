@@ -91,6 +91,12 @@
   link opens for the people in the workspace, signed in, until someone chooses "Anyone with the
   link"; a Dood has to ask before making one public. A link shows the files as they are, so
   it changes when they do. Pages a Dood wrote run apart from the app and from your account.
+- **Keep something in view.** Anything in the Library can be pinned to a Dood, by the Dood or
+  with the pin on a file's card in the chat and on the bar of an open document. What is pinned
+  stays beside the Dood's chat, under its face: the first is drawn small as what it is and
+  follows the file as it changes, the rest are listed by name, and each opens beside the chat
+  at a press. It is for a board or a tracker the Dood keeps up to date, or a plan the two of
+  you work from. A Dood's pins are its own, and everyone who shares the Dood sees them.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
   prints a link; confirm it, say whose the computer is, and choose which Doods get it. Those
   Doods can then run commands and read and write files there, and everything they do is logged

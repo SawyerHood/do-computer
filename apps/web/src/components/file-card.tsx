@@ -4,12 +4,15 @@ import {
   FileIcon,
   GlobeIcon,
   LockIcon,
+  PushPinIcon,
   ShareNetworkIcon,
 } from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { client } from "@/lib/client"
 import { SharePopover } from "@/components/sites/share"
 import { formatBytes, isViewable } from "@/lib/library"
+import { usePin } from "@/lib/pins"
+import { cn } from "@/lib/utils"
 import { siteOfFile, useSites } from "@/lib/sites"
 
 export { formatBytes }
@@ -55,6 +58,25 @@ export function FileCard({
           )}
         </button>
       </SharePopover>
+    )
+  // Pinned, it stays beside the chat, under the agent's face.
+  const pin = usePin(agentId, file)
+  const pinning =
+    file.path === undefined ? null : (
+      <button
+        type="button"
+        aria-pressed={pin.pinned}
+        aria-label={pin.pinned ? `Unpin ${file.name}` : `Pin ${file.name}`}
+        title={pin.pinned ? "Pinned beside the chat. Press to unpin" : "Pin beside the chat"}
+        disabled={pin.pending}
+        onClick={pin.toggle}
+        className={cn(
+          "flex shrink-0 items-center border-l px-3 text-muted-foreground hover:bg-accent hover:text-foreground",
+          pin.pinned && "text-primary hover:text-primary",
+        )}
+      >
+        <PushPinIcon weight={pin.pinned ? "fill" : "regular"} className="size-4" />
+      </button>
     )
   const label = (
     <>
@@ -102,6 +124,7 @@ export function FileCard({
             <DownloadSimpleIcon className="size-4" />
           </a>
           {share}
+          {pinning}
         </div>
       ) : (
         <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
@@ -114,6 +137,7 @@ export function FileCard({
             <DownloadSimpleIcon className="ml-2 size-4 shrink-0 text-muted-foreground" />
           </a>
           {share}
+          {pinning}
         </div>
       )}
     </div>

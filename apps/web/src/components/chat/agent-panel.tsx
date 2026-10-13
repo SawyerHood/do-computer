@@ -23,6 +23,7 @@ import {
 import { useAtomValue, useSetAtom } from "jotai"
 import { useMemo } from "react"
 import { CreatureCare } from "@/components/creature/care"
+import { PinnedShelf } from "@/components/pins/shelf"
 import { RowsPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
@@ -324,6 +325,8 @@ export function AgentPanel({
         )}
         {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
       </div>
+      {/* What is pinned to the agent is the agent's, not a sub-agent's. */}
+      {subagent === undefined ? <PinnedShelf agentId={agent.id} onOpen={onOpenFile} /> : null}
       {using === undefined ? null : (
         // The last screen the agent used here may still be its own; the section says when it is.
         <AgentIdContext value={agent.id}>

@@ -174,6 +174,7 @@ export type AgentEvent =
         | "secrets"
         | "creature"
         | "jobs"
+        | "pins"
     }
 
 export type ModelOption = {

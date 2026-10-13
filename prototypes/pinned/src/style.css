@@ -1,0 +1,311 @@
+* { box-sizing: border-box; margin: 0; }
+html { background: var(--background, #14181a); color: var(--foreground, #e8ecee); }
+body {
+  font-family: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; cursor: pointer; }
+ul { list-style: none; padding: 0; }
+.ic { flex: none; display: block; }
+
+/* The mock-up's own bar: scenes and what each shows. Not part of the design. */
+#nav { padding: 2px 0 0; }
+.ngroups { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.ng { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ng > span { font-size: 11.5px; color: var(--muted-foreground, #8b979c); margin-right: 4px; }
+.nb { font-size: 12.5px; padding: 5px 10px; border-radius: 7px; color: var(--foreground, #c9d2d6); background: var(--muted, #1f2528); white-space: nowrap; }
+.nb:hover { filter: brightness(1.12); }
+.nb.on { background: #2f8f8a; color: #fff; }
+.nb.act { background: transparent; box-shadow: inset 0 0 0 1px var(--border, #3a4347); }
+.nb.act:hover { background: var(--muted, #1f2528); }
+#cap { font-size: 13px; line-height: 1.5; color: var(--muted-foreground, #aab5ba); margin-top: 8px; max-width: 1100px; min-height: 39px; }
+#cap b { color: var(--foreground, #e8ecee); font-weight: 600; }
+#wrap { padding: 10px 0 0; }
+#wrap.real { overflow-x: auto; }
+#fit { position: relative; }
+#stage { width: 1200px; height: 770px; box-shadow: 0 0 0 1px var(--border, #2a3033); transform-origin: 0 0; border-radius: 12px; overflow: hidden; position: absolute; top: 0; left: 0; }
+
+/* The app's colors, as in apps/web/src/styles.css. */
+.t {
+  --agent-color: oklch(0.5 0.08 195);
+  --canvas: oklch(0.997 0.001 212);
+  --ink: oklch(0.27 0.008 212);
+  --shade: oklch(0.27 0.02 212);
+  --frame: color-mix(in oklch, var(--ink) 4.5%, var(--canvas));
+  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.07);
+  --elevation-card: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.04), 0 10px 28px -14px oklch(from var(--shade) l c h / 0.12);
+  --elevation-float: 0 0 0 1px var(--hairline), 0 2px 5px oklch(from var(--shade) l c h / 0.05), 0 22px 48px -22px oklch(from var(--shade) l c h / 0.26);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --primary: oklch(from var(--agent-color) 0.5 c h);
+  --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
+  color: var(--foreground);
+  font-size: 14px;
+}
+.dk .t {
+  --canvas: oklch(0.212 0.004 212);
+  --ink: oklch(0.9 0.006 212);
+  --frame: oklch(0.168 0.004 212);
+  --hairline: color-mix(in oklch, var(--ink) 11%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  --elevation-card: 0 0 0 1px var(--hairline);
+  --elevation-float: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.05), 0 22px 48px -22px oklch(0 0 0 / 0.7);
+  --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  --primary: oklch(from var(--agent-color) 0.62 c h);
+  --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
+}
+.muted { color: var(--muted-foreground); }
+
+/* Frame, sidebar and sheet. */
+.app { width: 1200px; height: 770px; display: flex; background: var(--frame); }
+.side { width: 252px; flex: none; display: flex; flex-direction: column; padding: 8px; }
+.shead { display: flex; align-items: center; gap: 10px; padding: 8px 8px 14px; }
+.shead b { font-weight: 600; }
+.shead .ib { margin-left: auto; }
+.av { width: 28px; height: 28px; border-radius: 50%; background: #1d2b3a; color: #fff; font-size: 10.5px; font-weight: 600; display: grid; place-items: center; flex: none; }
+.slbl { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 8px; font-size: 13px; color: var(--muted-foreground); }
+.row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; }
+.row.sel { background: var(--card); box-shadow: var(--elevation-raised); }
+.row .cr { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.rt { min-width: 0; flex: 1; }
+.nm { display: flex; justify-content: space-between; align-items: baseline; font-weight: 500; font-size: 14.5px; }
+.nm time { font-size: 11.5px; color: var(--muted-foreground); font-weight: 400; }
+.ln { font-size: 12.5px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.ln.work { color: var(--primary); }
+.sfoot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px; font-weight: 500; }
+.sfoot .ic { margin-left: auto; color: var(--muted-foreground); }
+
+/* B: what a Dood has pinned, under its row. */
+.rowpins { margin: 1px 0 7px 29px; padding-left: 15px; border-left: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 1px; }
+.rp { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 13px; color: color-mix(in oklch, var(--ink) 84%, var(--canvas)); }
+.rp:hover { background: var(--accent); }
+.rp .ic { color: var(--muted-foreground); }
+.rp .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 450; }
+.rp time { font-size: 11.5px; color: var(--muted-foreground); }
+.rp .pop { display: none; color: var(--muted-foreground); }
+.rp:hover .pop { display: block; }
+.rp:hover time { display: none; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex: none; }
+.pulse { animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+.sheet { flex: 1; min-width: 0; margin: 8px 8px 8px 0; background: var(--background); border-radius: 14px; box-shadow: var(--elevation-card); display: flex; flex-direction: column; overflow: hidden; }
+.strip { height: 56px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 12px 0 14px; }
+.who { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15.5px; }
+.who img { width: 30px; height: 30px; }
+.who .ic { color: var(--muted-foreground); }
+.tabs { display: flex; background: var(--muted); border-radius: 9px; padding: 3px; gap: 2px; }
+.tab { padding: 5px 12px; border-radius: 7px; font-size: 13.5px; color: var(--muted-foreground); display: flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; }
+.tab.on { background: var(--card); box-shadow: var(--elevation-raised); color: var(--foreground); }
+.tab .dot { margin-left: 1px; }
+.tsep { width: 1px; background: var(--border); margin: 6px 4px; }
+.sr { margin-left: auto; display: flex; align-items: center; gap: 4px; color: var(--muted-foreground); font-size: 13.5px; }
+.sr .sc { display: flex; align-items: center; gap: 7px; padding: 0 10px; font-weight: 500; }
+.sr .n { font-size: 11.5px; background: var(--muted); border-radius: 99px; padding: 1px 7px; }
+.ib { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted-foreground); flex: none; position: relative; }
+.ib:hover { background: var(--accent); color: var(--foreground); }
+.ib.pressed { background: color-mix(in oklch, var(--primary) 15%, var(--canvas)); color: var(--primary); }
+.ib.hot { box-shadow: 0 0 0 2px var(--primary); color: var(--foreground); }
+.body { flex: 1; min-height: 0; display: flex; }
+
+/* The chat. */
+.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.msgs { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 18px; padding: 12px 28px 20px; width: 100%; max-width: 736px; margin: 0 auto; }
+.me { align-self: flex-end; max-width: 86%; background: color-mix(in oklch, var(--primary) 15%, var(--canvas)); padding: 10px 16px; border-radius: 16px; font-size: 15px; line-height: 1.55; }
+.ai { font-size: 15px; line-height: 1.65; }
+.ai code, .md code { font-family: "Geist Mono", ui-monospace, monospace; font-size: 0.85em; border: 1px solid var(--hairline); background: var(--muted); border-radius: 6px; padding: 1px 5px; }
+.comp { margin: 0 auto 14px; width: calc(100% - 56px); max-width: 680px; flex: none; border-radius: 16px; box-shadow: var(--elevation-float); background: var(--card); padding: 14px 14px 10px; }
+.comp .ph { color: var(--muted-foreground); font-size: 15px; padding: 0 4px 16px; }
+.comp .cb { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); }
+.comp .cb .sp { flex: 1; }
+.send { margin-left: 6px; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in oklch, var(--primary) 55%, var(--canvas)); color: #fff; display: grid; place-items: center; }
+.chip { align-self: center; display: flex; align-items: center; gap: 10px; padding: 5px 14px 5px 8px; border-radius: 12px; box-shadow: var(--elevation-raised); margin-top: 6px; font-weight: 500; flex: none; color: var(--foreground); }
+.chip img { width: 38px; height: 38px; }
+.chip .ic { color: var(--muted-foreground); }
+.narrow .msgs { padding: 12px 20px 18px; }
+.narrow .comp { width: calc(100% - 36px); }
+.narrow .ai, .narrow .me { font-size: 14.5px; }
+
+/* What the chat shows when something is pinned, and a file's card. */
+.pcard { display: inline-flex; align-items: center; gap: 12px; padding: 8px 8px 8px 12px; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); font-size: 13.5px; align-self: flex-start; }
+.pcard .pi { color: var(--primary); }
+.pcard b { font-weight: 500; }
+.pcard small { display: block; color: var(--muted-foreground); font-size: 12px; margin-top: 1px; }
+.pcard .bs { display: flex; gap: 6px; margin-left: 8px; }
+.btn { font-size: 12.5px; padding: 5px 10px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
+.btn:hover { background: var(--accent); }
+.fcard { display: inline-flex; align-self: flex-start; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); font-size: 13.5px; position: relative; }
+.fcard > div { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+.fcard b { font-weight: 500; display: block; }
+.fcard small { color: var(--muted-foreground); font-size: 12px; }
+.fcard > button { width: 44px; display: grid; place-items: center; border-left: 1px solid var(--hairline); color: var(--muted-foreground); position: relative; }
+.fcard > button:hover { color: var(--foreground); }
+.fcard > button.pressed { color: var(--primary); background: color-mix(in oklch, var(--primary) 10%, var(--canvas)); border-radius: 0 12px 12px 0; }
+.fcard > button.hot::after { content: ""; position: absolute; inset: 5px; border-radius: 8px; box-shadow: 0 0 0 2px var(--primary); }
+.tip { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--canvas); font-size: 12px; font-weight: 500; padding: 5px 9px; border-radius: 7px; white-space: nowrap; z-index: 5; pointer-events: none; }
+.tip.r { left: auto; right: -6px; transform: none; }
+
+/* The Dood's panel, and A: what it has pinned, under its face. */
+.aside { width: 320px; flex: none; margin: 0 10px 10px 0; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); display: flex; flex-direction: column; overflow: hidden; }
+.face { position: relative; padding: 16px 16px 14px; text-align: center; flex: none; }
+.face .ib { position: absolute; top: 10px; right: 10px; }
+.face .big { width: 132px; height: 132px; animation: bob 3.4s ease-in-out infinite; }
+.face.tall .big { width: 190px; height: 190px; margin: 14px 0 6px; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.an { font-size: 18px; font-weight: 500; margin-top: 2px; }
+.as { font-size: 13.5px; color: var(--muted-foreground); margin-top: 2px; height: 20px; display: flex; justify-content: center; align-items: center; gap: 7px; }
+.as.work { color: var(--primary); }
+.pins { padding: 2px 16px 16px; flex: none; }
+.lbl { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted-foreground); font-weight: 500; margin-bottom: 8px; height: 22px; }
+.lbl .ib { width: 22px; height: 22px; border-radius: 6px; }
+.tile { border-radius: 10px; box-shadow: var(--elevation-raised); background: var(--card); overflow: hidden; cursor: pointer; transition: box-shadow 0.2s; }
+.tile:hover { box-shadow: var(--elevation-card); }
+.tile.busy { box-shadow: 0 0 0 1.5px var(--primary), 0 0 0 5px color-mix(in oklch, var(--primary) 18%, transparent); }
+.thumb { height: 160px; overflow: hidden; position: relative; background: var(--background); }
+.thumb::after { content: ""; position: absolute; inset: auto 0 0 0; height: 30px; background: linear-gradient(transparent, var(--card)); }
+.thumb-in { width: 600px; transform: scale(0.48); transform-origin: 0 0; pointer-events: none; }
+.tf { display: flex; align-items: center; gap: 8px; padding: 7px 7px 7px 10px; font-size: 13px; border-top: 1px solid var(--hairline); }
+.tf > .ic { color: var(--muted-foreground); }
+.tt { font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.ta { display: flex; gap: 1px; }
+.ta button { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--muted-foreground); }
+.ta button:hover { background: var(--accent); color: var(--foreground); }
+.prow { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin-top: 7px; border-radius: 9px; box-shadow: var(--elevation-raised); font-size: 13px; cursor: pointer; }
+.prow:hover { background: var(--muted); }
+.prow .ic { color: var(--muted-foreground); }
+.did { border-top: 1px solid var(--hairline); padding: 14px 18px; flex: 1; min-height: 0; overflow: hidden; }
+.did .lbl { margin-bottom: 6px; }
+.did li { display: flex; gap: 9px; align-items: baseline; font-size: 13px; padding: 4px 0; color: color-mix(in oklch, var(--ink) 80%, var(--canvas)); }
+.did li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--input); flex: none; transform: translateY(-2px); }
+.did li time { margin-left: auto; color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
+.did p { font-size: 13px; line-height: 1.55; color: var(--muted-foreground); }
+
+/* The pretend board Juniper keeps: a page in the library, drawn in the app's colors. */
+.board { width: 600px; padding: 20px 22px 22px; background: var(--background); color: var(--foreground); font-size: 13px; }
+.bhead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.bt { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+.bs { font-size: 12.5px; color: var(--muted-foreground); margin-top: 2px; }
+.bs .upd { color: var(--primary); }
+.bday { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--muted); color: var(--muted-foreground); font-weight: 500; white-space: nowrap; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kpi, .bcard { border-radius: 10px; box-shadow: var(--elevation-raised); padding: 12px 14px; }
+.kl { font-size: 12px; color: var(--muted-foreground); }
+.kv { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.kd { font-size: 12px; color: var(--muted-foreground); }
+.kd.up { color: oklch(0.52 0.12 155); }
+.dk .kd.up { color: oklch(0.75 0.14 155); }
+.kbar { height: 4px; border-radius: 9px; background: var(--muted); margin-top: 7px; overflow: hidden; }
+.kbar i { display: block; height: 100%; background: var(--primary); border-radius: 9px; }
+.brow { display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; margin-top: 10px; }
+.bl { font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px; display: flex; justify-content: space-between; }
+.bl b { color: var(--foreground); font-weight: 600; }
+.bcard svg { display: block; width: 100%; height: auto; overflow: visible; }
+.step { display: flex; align-items: center; gap: 8px; padding: 4px 4px; margin: 0 -4px; font-size: 13px; cursor: pointer; border-radius: 6px; }
+.step:hover { background: var(--muted); }
+.cbx { width: 15px; height: 15px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--input); display: grid; place-items: center; flex: none; color: var(--canvas); }
+.cbx .ic { opacity: 0; }
+.step.done .cbx { background: var(--primary); box-shadow: none; }
+.step.done .cbx .ic { opacity: 1; }
+.step.done .st { color: var(--muted-foreground); text-decoration: line-through; }
+.st { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.whoc { margin-left: auto; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--muted); color: var(--muted-foreground); flex: none; }
+.whoc.you { background: color-mix(in oklch, var(--primary) 14%, var(--canvas)); color: var(--primary); }
+.flash { animation: flash 2.6s ease-out; }
+@keyframes flash { 0%, 35% { background: color-mix(in oklch, var(--primary) 22%, var(--canvas)); } 100% { background: transparent; } }
+.board.n { width: 100%; padding: 14px 14px 18px; }
+.board.n .bt { font-size: 18px; }
+.board.n .kpis { gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.board.n .kpi { padding: 9px 10px; }
+.board.n .kv { font-size: 21px; }
+.board.n .kl, .board.n .kd { font-size: 10.5px; line-height: 1.3; }
+.board.n .brow { grid-template-columns: 1fr; }
+.board.n .brow .bcard:first-child { display: none; }
+
+/* A pinned thing open beside the chat: the app's document panel. */
+.doc { flex: none; width: 572px; margin: 0 10px 10px 0; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); display: flex; flex-direction: column; overflow: hidden; }
+.dbar { height: 54px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--hairline); }
+.dn { font-weight: 500; font-size: 14px; white-space: nowrap; }
+.dp { font-size: 12.5px; color: var(--muted-foreground); margin: 0 8px; white-space: nowrap; }
+.seg { display: flex; background: var(--muted); border-radius: 8px; padding: 2px; margin: 0 6px 0 auto; font-size: 13px; }
+.seg span { padding: 4px 10px; border-radius: 6px; color: var(--muted-foreground); display: flex; gap: 6px; align-items: center; font-weight: 500; }
+.seg .on { background: var(--card); box-shadow: var(--elevation-raised); color: var(--foreground); }
+.dbody { flex: 1; min-height: 0; overflow: hidden; background: var(--background); display: flex; justify-content: center; }
+.dbody > .bw { width: 600px; flex: none; transform: scale(0.92); transform-origin: 50% 0; }
+.dfoot { height: 34px; flex: none; border-top: 1px solid var(--hairline); display: flex; align-items: center; gap: 8px; padding: 0 16px; font-size: 12.5px; color: var(--muted-foreground); }
+.dfoot.work { color: var(--primary); }
+.dfoot span:last-child { margin-left: auto; }
+.md { padding: 34px 40px; font-size: 15px; line-height: 1.7; width: 100%; }
+.md h1 { font-size: 28px; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 12px; }
+.md h2 { font-size: 19px; margin: 30px 0 10px; }
+.md ul.b { list-style: disc; padding-left: 22px; }
+.md li { padding: 2px 0; }
+.md .step { cursor: default; font-size: 15px; padding: 3px 4px; }
+
+/* C: a pinned thing as a page of the Dood's own. */
+.page { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.pbar { display: flex; align-items: center; gap: 6px; padding: 4px 16px 10px 20px; font-size: 13px; color: var(--muted-foreground); }
+.pbar .btn { color: var(--foreground); display: flex; align-items: center; gap: 6px; }
+.pbar .sp { flex: 1; }
+.pwrap { flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding-top: 6px; }
+.pwrap > div { width: 600px; transform: scale(1.3); transform-origin: 50% 0; }
+
+/* Popped out to a window of its own, over whatever else is on the screen. */
+.desk { width: 1200px; height: 770px; position: relative; background: linear-gradient(135deg, #7fb8b0, #2f6a80 55%, #283a63); overflow: hidden; }
+.mbar { height: 28px; background: rgba(255, 255, 255, 0.24); display: flex; gap: 18px; align-items: center; padding: 0 16px; font-size: 13px; color: #fff; }
+.mbar b { font-weight: 600; }
+.mbar span:last-child { margin-left: auto; }
+.win { position: absolute; border-radius: 12px; background: var(--background); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 30px 70px -20px rgba(0, 0, 0, 0.55); overflow: hidden; }
+.wbar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--hairline); font-size: 13px; font-weight: 500; }
+.lights { display: flex; gap: 7px; margin-right: 8px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.lights i:nth-child(2) { background: #febc2e; }
+.lights i:nth-child(3) { background: #28c840; }
+.other { left: 50px; top: 60px; width: 860px; height: 640px; }
+.other .tb { height: 38px; border-bottom: 1px solid var(--hairline); display: flex; gap: 14px; align-items: center; padding: 0 14px; color: var(--muted-foreground); font-size: 12.5px; }
+.grid { height: 100%; background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 120px 28px; position: relative; }
+.grid span { position: absolute; height: 28px; line-height: 28px; padding: 0 8px; font-size: 12.5px; white-space: nowrap; }
+.float { right: 40px; bottom: 46px; width: 384px; overflow: visible; }
+.float > div { overflow: hidden; }
+.float .wbar { border-radius: 12px 12px 0 0; padding-left: 66px; height: 44px; gap: 2px; }
+.float .wbar small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted-foreground); }
+.float .wbar > div { flex: 1; line-height: 1.25; }
+.float .perch { position: absolute; left: 4px; top: -30px; width: 64px; height: 64px; animation: bob 3.4s ease-in-out infinite; z-index: 2; }
+.float .fb { height: 264px; border-radius: 0 0 12px 12px; }
+.float .fb > div { width: 600px; transform: scale(0.64); transform-origin: 0 0; }
+.note { position: absolute; right: 40px; top: 74px; width: 222px; color: #fff; font-size: 13.5px; line-height: 1.55; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); opacity: 0.92; }
+
+/* On a phone. */
+.phones { width: 1200px; height: 770px; background: var(--frame); display: flex; justify-content: center; align-items: center; gap: 80px; }
+.phone { width: 320px; height: 670px; border-radius: 46px; background: var(--background); box-shadow: 0 0 0 9px #16191b, 0 0 0 10px #3a3f42, 0 40px 80px -30px rgba(0, 0, 0, 0.4); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+.pst { height: 46px; flex: none; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 30px 6px; font-size: 13.5px; font-weight: 600; }
+.pnav { display: flex; align-items: center; gap: 8px; padding: 6px 12px 8px; font-weight: 600; font-size: 15.5px; flex: none; }
+.pnav img { width: 30px; height: 30px; }
+.pnav .sp { flex: 1; }
+.pchips { display: flex; gap: 6px; padding: 2px 12px 10px; border-bottom: 1px solid var(--hairline); overflow: hidden; flex: none; }
+.pchip { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px; box-shadow: var(--elevation-raised); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.pchip .ic { color: var(--muted-foreground); }
+.pchip time { color: var(--muted-foreground); font-weight: 400; }
+.phone .msgs { padding: 12px 14px 14px; gap: 14px; }
+.phone .ai, .phone .me { font-size: 14.5px; }
+.phone .comp { width: calc(100% - 24px); margin-bottom: 22px; padding: 11px 12px 8px; }
+.phone .comp .ph { padding-bottom: 10px; }
+.phone .pcard { font-size: 13px; }
+.sheetp { position: absolute; inset: 52px 0 0 0; background: var(--background); border-radius: 18px 18px 0 0; box-shadow: var(--elevation-float); display: flex; flex-direction: column; }
+.sheetp .grab { width: 36px; height: 5px; border-radius: 9px; background: var(--input); margin: 7px auto 2px; }
+.sheetp .sh { display: flex; align-items: center; gap: 8px; padding: 6px 14px 10px; border-bottom: 1px solid var(--hairline); }
+.sheetp .sh div { flex: 1; font-weight: 600; font-size: 15px; line-height: 1.25; }
+.sheetp .sh small { display: block; font-weight: 400; font-size: 12px; color: var(--muted-foreground); }
+.sheetp .sh a { color: var(--primary); font-weight: 600; font-size: 15px; }
+.dim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.28); }
+.plabel { text-align: center; font-size: 13px; color: var(--muted-foreground); margin-top: 22px; }

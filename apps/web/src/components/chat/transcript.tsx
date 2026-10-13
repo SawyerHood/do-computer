@@ -6,6 +6,7 @@ import {
   foldFailures,
   isAgentMessage,
   isSentFile,
+  isPinning,
   isSiteShare,
   isVisual,
   sharedSite,
@@ -55,6 +56,7 @@ import { Markdown } from "./markdown.tsx"
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
 import { SentFile } from "./sent-file.tsx"
+import { PinCard } from "./pin-card.tsx"
 import { SiteCard } from "./site-card.tsx"
 import { VisualFrame } from "./visual.tsx"
 import { SlackMark } from "./slack-threads.tsx"
@@ -66,6 +68,7 @@ function AssistantPart({ part }: { part: MessagePart }) {
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
   if (isSiteShare(part)) return <SiteCard part={part} />
+  if (isPinning(part)) return <PinCard part={part} />
   if (isSubagentStart(part)) return <SubagentChip part={part} />
   if (isJobStart(part)) return <CommandChip part={part} />
   if (isUse(part)) return <UseView part={part} />

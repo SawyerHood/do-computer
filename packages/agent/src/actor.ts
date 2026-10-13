@@ -106,6 +106,7 @@ import { harnessDocs, Library, LibraryDoc, LibraryError, LibraryStore } from "./
 import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
+import { PinError, Pins, PinsDoc } from "./pins.ts"
 import { type SiteDirectory, sites } from "./sites.ts"
 import { visuals } from "./visuals.ts"
 import { offeredModels } from "./model-providers.ts"
@@ -387,6 +388,7 @@ const TOLD: readonly (readonly [Told, Doc, "here" | "before"])[] = [
   ["secrets", SecretsDoc as unknown as Doc, "here"],
   ["creature", CreatureDoc as unknown as Doc, "here"],
   ["jobs", JobsDoc as unknown as Doc, "here"],
+  ["pins", PinsDoc as unknown as Doc, "here"],
 ]
 
 /**
@@ -487,6 +489,7 @@ export class AgentActor implements Actor {
   readonly #choices: ComputerChoices
   readonly #computers: Computers
   readonly #library: Library
+  readonly #pins: Pins
   /** The library the agent keeps for itself, where its workspace has none for it to share. */
   readonly #ownLibrary: LibraryStore
   /** The harness, once it is open, for what is built before it and needs it later. */
@@ -569,6 +572,14 @@ export class AgentActor implements Actor {
       onProblem: report(
         "A machine's library folder could not be brought into step with the library",
       ),
+    })
+    this.#pins = new Pins({
+      backend: async () => (await this.#sharedLibrary()) ?? this.#ownLibrary,
+      read: async () => (await (await this.#open()).snapshot(PinsDoc, context))?.pins ?? [],
+      change: async (apply) => {
+        await (await this.#open()).commit(async (tx) => apply(await tx.doc(PinsDoc)), context)
+      },
+      now: () => host.now(),
     })
     const skillFetch = guardedFetch(
       (input, init) => (options.fetch ?? fetch)(String(input), init),
@@ -1006,6 +1017,7 @@ export class AgentActor implements Actor {
           }),
         )
       }
+      registry.install(this.#pins.extension)
       registry.install(this.#scheduler.extension)
       registry.install(this.#subagents.extension)
       registry.install(this.#jobs.extension)
@@ -1371,6 +1383,7 @@ export class AgentActor implements Actor {
         error instanceof SlackError ||
         error instanceof SkillError ||
         error instanceof LibraryError ||
+        error instanceof PinError ||
         error instanceof HistoryError ||
         error instanceof ApprovalError ||
         error instanceof ConnectorError ||
@@ -1582,6 +1595,27 @@ export class AgentActor implements Actor {
       }
       const response = await routeLibrary(this.#ownLibrary, request, segments.slice(1))
       if (response !== undefined) return response
+    }
+    if (segments[0] === "pins") {
+      // What is pinned to the agent, and a person pinning a file of the library or taking a pin off.
+      const fileId = segments[1]
+      if (fileId === undefined && method === "GET") return json({ pins: await this.#pins.list() })
+      if (fileId !== undefined && segments[2] === undefined && method === "PUT") {
+        const backend = (await this.#sharedLibrary()) ?? this.#ownLibrary
+        const file = (await backend.list()).find((entry) => entry.id === fileId)
+        if (file === undefined) throw new HttpError(404, "That file is not in the library")
+        // A title comes with a pin that is put back as it was. Pinning a file sends nothing.
+        const { title } = await request
+          .json()
+          .then((sent) => (sent ?? {}) as { title?: unknown })
+          .catch(() => ({ title: undefined }))
+        await this.#pins.pin(file, "user", typeof title === "string" ? title : undefined)
+        return json({ pins: await this.#pins.list() })
+      }
+      if (fileId !== undefined && segments[2] === undefined && method === "DELETE") {
+        await this.#pins.unpin({ id: fileId })
+        return json({ pins: await this.#pins.list() })
+      }
     }
     if (segments[0] === "skills") {
       const name = segments[1]

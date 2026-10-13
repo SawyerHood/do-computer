@@ -43,6 +43,7 @@ export { Library, LIBRARY_FOLDER, LibraryError, MAX_LIBRARY_FILE_BYTES } from ".
 export { createLibraryActor, LIBRARY_AGENT_HEADER, LIBRARY_SITE_HEADER } from "./library-actor.ts"
 export { remoteLibrary } from "./library-remote.ts"
 export { type SiteDirectory, SiteError } from "./sites.ts"
+export { PinError } from "./pins.ts"
 export {
   type AddableKind,
   type AgentComputer,

@@ -53,6 +53,7 @@ import {
   readSse,
   SSE_HEARTBEAT_MS,
   reduceChat,
+  type Pin,
   type ScheduleSummary,
   type SecretRequest,
   type SendMessageRequest,
@@ -919,6 +920,22 @@ export function createClient(options: ClientOptions) {
           post<LibraryFile>(`${base}/library/${fileId}/revert`, { rev }),
         restoreLibraryFile: (fileId: string) =>
           request<LibraryFile>(`${base}/library/deleted/${fileId}/restore`, { method: "POST" }),
+        /** What is pinned to the agent, in the order it is shown. */
+        pins: async () => (await request<{ pins: Pin[] }>(`${base}/pins`)).pins,
+        /**
+         * Pin a file of the library to the agent, by the file's own name or under a title.
+         * Answers with all that is then pinned.
+         */
+        pin: async (fileId: string, title?: string) =>
+          (
+            await request<{ pins: Pin[] }>(`${base}/pins/${fileId}`, {
+              method: "PUT",
+              ...(title === undefined ? {} : { body: JSON.stringify({ title }) }),
+            })
+          ).pins,
+        /** Take a pin off, by the file it is of. The file stays in the library. */
+        unpin: async (fileId: string) =>
+          (await request<{ pins: Pin[] }>(`${base}/pins/${fileId}`, { method: "DELETE" })).pins,
         /** What of the library is shared as a website, newest first. */
         sites: async () => (await request<{ sites: SiteSummary[] }>(`${base}/sites`)).sites,
         /**

@@ -1,6 +1,7 @@
 import type { LibraryFile } from "./agent.ts"
 import type { ChatMessage, ChatState, MessagePart, ToolPart } from "./chat.ts"
 import type { ShotPoint, UseDetails, UseWhat } from "./screen.ts"
+import { type Pin, PIN_TOOL } from "./pins.ts"
 import { SHARE_TOOL, type SiteSummary } from "./sites.ts"
 import { VISUAL_TOOL } from "./visual.ts"
 
@@ -66,6 +67,12 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       if (args.action === "private") return withDetail("Making a site private", what)
       if (args.action === "stop") return withDetail("Stopping a site being shared", what)
       return "Looking at the shared sites"
+    }
+    case "pin": {
+      const what = text(args.title) ?? (path === undefined ? undefined : fileName(path))
+      if (args.action === "pin") return withDetail("Pinning", what)
+      if (args.action === "unpin") return withDetail("Unpinning", what)
+      return "Looking at what is pinned"
     }
     case "schedule":
       if (args.action === "create")
@@ -165,6 +172,8 @@ const PAST: Record<string, string> = {
   Making: "Made",
   Drawing: "Drew",
   Sharing: "Shared",
+  Pinning: "Pinned",
+  Unpinning: "Unpinned",
 }
 
 /**
@@ -221,6 +230,7 @@ export function toolKind(name: string): WorkKind {
     case "skill":
     case "visual":
     case "share":
+    case "pin":
       return "file"
     case "web_search":
     case "history":
@@ -317,6 +327,20 @@ export function isSiteShare(part: MessagePart): part is ToolPart {
   return typeof site?.id === "string"
 }
 
+/**
+ * Whether a part is the agent pinning something from the library. That is shown too, as what
+ * was pinned and the way to open it or take it off again.
+ */
+export function isPinning(part: MessagePart): part is ToolPart {
+  if (part.type !== "tool" || part.name !== PIN_TOOL || part.status !== "done") return false
+  if ((part.args as { action?: unknown } | null)?.action !== "pin") return false
+  const details = part.details as { pin?: { fileId?: unknown }; file?: { id?: unknown } } | null
+  return typeof details?.pin?.fileId === "string" && typeof details.file?.id === "string"
+}
+
+/** What a part pinned, as it was when the agent pinned it. */
+export const pinned = (part: ToolPart) => part.details as unknown as { pin: Pin; file: LibraryFile }
+
 /** The site a part is about, as it was when the agent shared it or changed it. */
 export const sharedSite = (part: ToolPart) =>
   (part.details as unknown as { site: SiteSummary }).site
@@ -369,6 +393,7 @@ export function isShownPart(part: MessagePart): boolean {
     isSentFile(part) ||
     isVisual(part) ||
     isSiteShare(part) ||
+    isPinning(part) ||
     isSubagentStart(part) ||
     isJobStart(part) ||
     isAgentMessage(part) ||
