@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { cameBack, isWebAddress, onServer, serverAddress } from "../src/server.ts"
+import { atServer, cameBack, isWebAddress, onServer, serverAddress } from "../src/server.ts"
 
 describe("the address of a deployment", () => {
   it("is its origin, whatever page of it was pasted", () => {
@@ -48,5 +48,20 @@ describe("where a link leads", () => {
     expect(cameBack("https://linear.app/oauth/authorize", server)).toBe(false)
     expect(cameBack("https://do.example.evil.test/a/7", server)).toBe(false)
     expect(cameBack("nonsense", server)).toBe(false)
+  })
+
+  it("is a page of the app's own server by either of its addresses, and shown at the first", () => {
+    const server = "http://127.0.0.1:4310"
+    const also = "https://box.tail1234.ts.net:4310"
+    expect(atServer("http://127.0.0.1:4310/a/7", server, also)).toBe("http://127.0.0.1:4310/a/7")
+    expect(atServer("https://box.tail1234.ts.net:4310/a/7/c/1?x=1#end", server, also)).toBe(
+      "http://127.0.0.1:4310/a/7/c/1?x=1#end",
+    )
+    // Another port of the same computer is another program's.
+    expect(atServer("https://box.tail1234.ts.net/a/7", server, also)).toBeUndefined()
+    expect(atServer("https://linear.app/oauth/authorize", server, also)).toBeUndefined()
+    // A server with one address has only that one.
+    expect(atServer("https://box.tail1234.ts.net:4310/a/7", server)).toBeUndefined()
+    expect(atServer("nonsense", server, also)).toBeUndefined()
   })
 })

@@ -23,6 +23,12 @@ if (location.protocol === "file:") {
     changeServer: () => ipcRenderer.invoke("change-server"),
     retry: () => ipcRenderer.invoke("retry"),
     update: () => ipcRenderer.invoke("update"),
+    devices: () => ipcRenderer.invoke("devices"),
+    lookForTailnet: () => ipcRenderer.invoke("tailnet-look"),
+    setTailnet: (on) => ipcRenderer.invoke("tailnet-set", on),
+    deviceLink: () => ipcRenderer.invoke("device-link"),
+    copy: (text) => ipcRenderer.invoke("copy", text),
+    open: (page) => ipcRenderer.invoke("open", page),
   }
   contextBridge.exposeInMainWorld("desktop", api)
 } else if (location.protocol === "https:" || location.protocol === "http:") {
@@ -36,6 +42,7 @@ if (location.protocol === "file:") {
       finish: (options) => ipcRenderer.invoke(CHANNELS.finish, options),
       askForScreen: () => ipcRenderer.invoke(CHANNELS.screen),
       setIcon: (picture) => ipcRenderer.invoke(CHANNELS.icon, picture),
+      signInHere: (name) => ipcRenderer.invoke(CHANNELS.signInHere, name),
     }
     contextBridge.exposeInMainWorld("doComputer", bridge)
   }

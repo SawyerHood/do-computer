@@ -105,6 +105,8 @@ export function AuthForm({ mode, door }: { mode: "sign-in" | "sign-up"; door?: F
   }
   // The way between signing in and signing up keeps where the visitor was headed.
   const carried = typeof location === "undefined" ? "" : location.search
+  // The desktop app runs this server for one person, who has no password to type here.
+  const local = methods?.local === true
   // Where the landing page says "coming soon", this page does not offer what that one withheld.
   // Someone a page sent here to come back to it, as an invitation does, may still be new.
   const shut =
@@ -211,7 +213,14 @@ export function AuthForm({ mode, door }: { mode: "sign-in" | "sign-up"; door?: F
           alert
         )}
 
-        <p className={cn("text-sm text-muted-foreground", shut && "hidden")}>
+        {local && !signingUp ? (
+          <p className="rounded-lg bg-muted px-3.5 py-3 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Is this your Do Computer?</span> It runs
+            in the Do Computer app on your computer. Open the app there and choose Other Devices to
+            sign this one in: there is no password to type.
+          </p>
+        ) : null}
+        <p className={cn("text-sm text-muted-foreground", (shut || local) && "hidden")}>
           {signingUp ? "Already have an account? " : "New here? "}
           <a href={other} className="text-foreground underline underline-offset-3">
             {signingUp ? "Sign in" : "Create an account"}

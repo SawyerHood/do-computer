@@ -1,4 +1,6 @@
+import type { Serving } from "./local-server.ts"
 import type { Sharing } from "./status.ts"
+import type { Tailnet } from "./tailscale.ts"
 import type { Update } from "./update.ts"
 
 /** Everything the app's own pages show. */
@@ -7,6 +9,25 @@ export type AppState = {
   server?: string
   /** The deployment the app was built for, or the one in use: what the address field starts with. */
   suggestedServer: string
+  /** Whether the deployment is the app's own: Do Computer run by the app, on this computer. */
+  local: boolean
+  /** Whether this copy of the app brings Do Computer with it, to run here. */
+  canRunLocally: boolean
+  /** How the app's own server stands. `off` where the app shows one somewhere else. */
+  serving: Serving
+  /** Reaching the app's own server from its owner's other devices. */
+  tailnet: {
+    /** How this computer stands with Tailscale, as of the last look. */
+    status: Tailnet
+    /** Whether its owner has asked for the server to be served to their other devices. */
+    on: boolean
+    /** The address it is reached at from them, while it is. */
+    address?: string
+    /** Why it is not served though it was asked to be, in words to show. */
+    problem?: string
+    /** Whether the app is in the middle of starting or stopping that. */
+    busy: boolean
+  }
   /** Whether the first run is over. Until it is, the deployment's welcome asks what the app would. */
   welcomed: boolean
   sharing: Sharing
@@ -49,7 +70,11 @@ export type DesktopApi = {
    * run only the address is heeded: the deployment's welcome asks the rest.
    */
   connect(choice: {
+    /** Run Do Computer on this computer. `server` is then not read. */
+    local: boolean
     server: string
+    /** With `local`: serve it to the owner's other devices over Tailscale. */
+    tailnet: boolean
     share: boolean
     openAtLogin: boolean
   }): Promise<string | undefined>
@@ -68,6 +93,28 @@ export type DesktopApi = {
   retry(): Promise<void>
   /** Look for a newer app, or, when one has been fetched, restart as it. */
   update(): Promise<void>
+  /** Show the page about the owner's other devices. */
+  devices(): Promise<void>
+  /** Ask Tailscale again how this computer stands with it. */
+  lookForTailnet(): Promise<void>
+  /** Serve the app's own server to the owner's other devices, or stop. */
+  setTailnet(on: boolean): Promise<void>
+  /** A link that signs one other device in, once, and the code to scan that says it. */
+  deviceLink(): Promise<DeviceLink | { error: string }>
+  /** Put words where the next paste takes them from. */
+  copy(text: string): Promise<void>
+  /** Open one of the pages about Tailscale in the owner's browser. */
+  open(page: "tailscale" | "tailscale-https"): Promise<void>
+}
+
+/** A way in for one other device of the owner's. */
+export type DeviceLink = {
+  link: string
+  /** The link as a code to scan: `size` rows of `size` cells, dark where 1. */
+  cells: number[]
+  size: number
+  /** How long the link can be used for. */
+  seconds: number
 }
 
 declare global {

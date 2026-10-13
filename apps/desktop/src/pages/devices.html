@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'"
+    />
+    <link rel="stylesheet" href="pages.css" />
+    <title>Other Devices</title>
+  </head>
+  <body>
+    <main class="scrolls">
+      <div>
+        <h1>Other devices</h1>
+        <p class="quiet">
+          Do Computer runs on this computer. With Tailscale, your phone and your other computers can
+          use it too, and nobody else can.
+        </p>
+      </div>
+      <section class="card">
+        <div class="row">
+          <span id="dot" class="dot"></span>
+          <strong id="headline" class="grow" role="status"></strong>
+        </div>
+        <p id="words" class="quiet small"></p>
+        <div id="fix" class="row" hidden>
+          <button id="fix-open" type="button"></button>
+          <button id="look" type="button">Look again</button>
+        </div>
+        <label class="switch-row" id="reach-row" hidden>
+          <span class="grow">
+            <strong>Reach it from your other devices</strong>
+            <span class="quiet small">
+              Any device on your Tailscale network can open it. It answers only while this app is
+              running and this computer is awake.
+            </span>
+          </span>
+          <input id="reach" class="switch" type="checkbox" role="switch" />
+        </label>
+        <p id="problem" class="error small" role="alert" hidden></p>
+      </section>
+      <div id="reached" class="contents" hidden>
+        <h2>Its address</h2>
+        <div class="row">
+          <span id="address" class="address grow truncate"></span>
+          <button id="copy-address" type="button">Copy</button>
+        </div>
+        <h2>Sign a device in</h2>
+        <section class="card">
+          <p class="quiet small">
+            You have no password here, so a device is signed in with a code from this app. Scan it
+            with the device’s camera, or open the link on it. It works once.
+          </p>
+          <div class="row top">
+            <svg id="code" class="qr" role="img" aria-label="A code that signs a device in"></svg>
+            <div class="grow stack">
+              <span id="code-words" class="small" role="status"></span>
+              <button id="new-code" type="button">New code</button>
+              <button id="copy-link" type="button">Copy the link</button>
+            </div>
+          </div>
+        </section>
+      </div>
+      <p class="quiet small">
+        Slack, public links to shared pages and signing in with Google or GitHub need a server on
+        the internet, and stay off here.
+      </p>
+    </main>
+    <script src="devices.js"></script>
+  </body>
+</html>

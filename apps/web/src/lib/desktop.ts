@@ -15,6 +15,16 @@ export type DesktopBridge = {
   /** Whether agents can use this computer, as things stood when the page loaded. */
   sharing: "off" | "on"
   /**
+   * Whether the app runs the server itself, on this computer, for its owner alone. They have
+   * no account to sign in to: `signInHere` says who they are. An app older than this never does.
+   */
+  local?: boolean
+  /**
+   * Where the app runs the server: sign this window in as its owner, who is called `name`
+   * from the first time on. Resolves with what went wrong, in words to show, or with nothing.
+   */
+  signInHere?(name: string): Promise<{ ok: true } | { error: string }>
+  /**
    * Sign in through the owner's own browser, where they are at home: the app opens it on
    * `/desktop/sign-in`, and resolves once whoever is signed in there has agreed. The token is
    * exchanged for a session by `signInThroughBrowser`. Only one is waited for at a time.

@@ -10,6 +10,11 @@ export type FrontDoor = {
   signup: "open" | "invite" | "waitlist"
   /** Whether `/` is the landing page for someone who is not signed in. */
   landing: boolean
+  /**
+   * Set where the desktop app runs this server for its owner, on their own computer. They have
+   * no password: the app signs them in, there and on their other devices.
+   */
+  local?: true
   /** Whether a stranger may make an account: sign-up is not by invitation, or nobody has one yet. */
   open: boolean
 }

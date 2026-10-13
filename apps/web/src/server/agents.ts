@@ -15,7 +15,7 @@ import {
 } from "@do-computer/agent"
 import { isPersonalWorkspace, personalWorkspaceId } from "@do-computer/protocol"
 import { getAuth, getSignedIn, getUser, type SessionUser } from "./auth.ts"
-import { provideFor } from "./computers.ts"
+import { giveOwnComputers, provideFor } from "./computers.ts"
 import { announce } from "./presence.ts"
 import { defaultModelFor } from "./settings.ts"
 import { type AgentAccess, agentAccess, roleIn, workspaceIdsOf } from "./teams.ts"
@@ -221,6 +221,7 @@ export async function makeAgent(
   }
   // It has no computer of its own. It works on its workspace's, which gets one if it has none.
   await provideFor(id, workspaceId, ownerId)
+  await giveOwnComputers(id, workspaceId, ownerId)
   const { agent } = (await response.json()) as { agent: AgentSummary }
   await announce(workspaceId)
   return { agent }

@@ -6,6 +6,18 @@ import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 export type Config = {
   /** Public origin of the app, for example https://agent.example.com. */
   readonly baseUrl: string | undefined
+  /**
+   * Other origins the app is reached at besides `baseUrl`: the same server by another name, as
+   * one on a private network is at home and through its tunnel. Sign-in and the live
+   * connections are accepted from them too. Links the server hands out are still to `baseUrl`.
+   */
+  readonly alsoAt: readonly string[]
+  /**
+   * Set where the Do Computer desktop app runs this server itself, for one person, on their
+   * own computer: a secret only the app has. Whoever sends it is signed in as the owner, with
+   * no password. Undefined everywhere else.
+   */
+  readonly ownerKey: string | undefined
   /** Signs sessions. Required outside development. */
   readonly authSecret: string | undefined
   readonly openrouterApiKey: string | undefined
@@ -109,6 +121,19 @@ export type Config = {
   }
 }
 
+/** The address the owner's account goes by where the desktop app runs the server: nobody types it. */
+export const LOCAL_OWNER_EMAIL = "you@localhost"
+
+/** An address someone wrote down, as the origin a browser would say it is. Undefined: not one. */
+function originOf(address: string): string | undefined {
+  try {
+    const url = new URL(address)
+    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const SANDBOX_KINDS = ["just-bash", "none", "daytona", "modal", "cloudflare"] as const
 export type SandboxKind = (typeof SANDBOX_KINDS)[number]
 
@@ -183,11 +208,17 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .filter(Boolean)
   return {
     baseUrl: optional("DC_BASE_URL"),
+    alsoAt: listed("DC_ALSO_AT").flatMap((address) => originOf(address) ?? []),
+    ownerKey: optional("DC_OWNER_KEY"),
     authSecret: optional("DC_AUTH_SECRET"),
     openrouterApiKey: optional("OPENROUTER_API_KEY"),
     defaultModel: optional("DC_DEFAULT_MODEL"),
     allowedModels: listed("DC_MODELS").length === 0 ? undefined : listed("DC_MODELS"),
-    adminEmails: listed("DC_ADMIN_EMAILS").map((email) => email.toLowerCase()),
+    adminEmails: [
+      ...listed("DC_ADMIN_EMAILS").map((email) => email.toLowerCase()),
+      // The one person a server run by the desktop app is for signs it in for all their Doods.
+      ...(optional("DC_OWNER_KEY") === undefined ? [] : [LOCAL_OWNER_EMAIL]),
+    ],
     searchModel: optional("DC_SEARCH_MODEL"),
     judgeModel: optional("DC_JUDGE_MODEL"),
     reviewModel: optional("DC_REVIEW_MODEL"),

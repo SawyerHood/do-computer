@@ -5,6 +5,18 @@ import * as path from "node:path"
 export type Settings = {
   /** The deployment the window shows and this computer is paired with. Absent until chosen. */
   server?: string
+  /**
+   * Whether that deployment is the app's own: Do Computer run by the app, on this computer.
+   * `server` is then its address here.
+   */
+  local: boolean
+  /**
+   * The port the app's own server listens on, chosen the first time and kept: what the window
+   * remembers and this computer's pairing go by the address.
+   */
+  localPort?: number
+  /** Whether the app's own server is served to its owner's other devices, over Tailscale. */
+  tailnet: boolean
   /** Whether the owner wants agents to be able to use this computer. */
   share: boolean
   /** Asked for when sharing: agents can read files here and nothing more. */
@@ -30,6 +42,8 @@ export type Settings = {
 // The screen is everything its owner can see and do, so it is asked for. A browser is what a
 // computer with agents on it is mostly for, and is theirs until it is taken away.
 export const DEFAULTS: Settings = {
+  local: false,
+  tailnet: false,
   share: false,
   readOnly: false,
   openAtLogin: false,
@@ -43,8 +57,20 @@ export function loadSettings(file: string): Settings {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<Settings>
     const server =
       typeof parsed.server === "string" && parsed.server !== "" ? parsed.server : undefined
+    const localPort =
+      typeof parsed.localPort === "number" &&
+      Number.isInteger(parsed.localPort) &&
+      parsed.localPort > 0 &&
+      parsed.localPort < 65536
+        ? parsed.localPort
+        : undefined
+    // The app's own server is at the port it was given. Without one there is none to be its own.
+    const local = parsed.local === true && localPort !== undefined && server !== undefined
     return {
       ...(server === undefined ? {} : { server }),
+      local,
+      ...(localPort === undefined ? {} : { localPort }),
+      tailnet: local && parsed.tailnet === true,
       share: parsed.share === true,
       readOnly: parsed.readOnly === true,
       openAtLogin: parsed.openAtLogin === true,

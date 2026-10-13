@@ -50,6 +50,8 @@ describe("what the app remembers", () => {
   it("is nothing on a first run, and what was saved after", () => {
     const file = join(scratch(), "nested", "settings.json")
     expect(loadSettings(file)).toEqual({
+      local: false,
+      tailnet: false,
       share: false,
       readOnly: false,
       openAtLogin: false,
@@ -59,6 +61,8 @@ describe("what the app remembers", () => {
     })
     saveSettings(file, {
       server: "https://do.example",
+      local: false,
+      tailnet: false,
       share: true,
       readOnly: false,
       openAtLogin: true,
@@ -68,6 +72,8 @@ describe("what the app remembers", () => {
     })
     expect(loadSettings(file)).toEqual({
       server: "https://do.example",
+      local: false,
+      tailnet: false,
       share: true,
       readOnly: false,
       openAtLogin: true,
@@ -81,6 +87,8 @@ describe("what the app remembers", () => {
     const file = join(scratch(), "settings.json")
     writeFileSync(file, "{ not json")
     expect(loadSettings(file)).toEqual({
+      local: false,
+      tailnet: false,
       share: false,
       readOnly: false,
       openAtLogin: false,

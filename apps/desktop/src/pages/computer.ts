@@ -63,7 +63,7 @@ function show(state: AppState): void {
   }
   at("login-row").hidden = !state.canOpenAtLogin
   login.checked = state.openAtLogin
-  at("server").textContent = state.server ?? "None chosen yet"
+  at("server").textContent = state.local ? "This computer" : (state.server ?? "None chosen yet")
   at("version").textContent = state.version
   const words = at("update-words")
   words.textContent = updateWords(state.update)

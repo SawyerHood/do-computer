@@ -6531,7 +6531,6 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       phone; Android; a film on the library's screen and a sent film in the simulator (the
       browser build only); an address growing old on a phone; the ringer switch, which a
       simulator has not got; a long film, or one over a slow connection.
-
 84. **Someone who has a Dood signs in to the desktop app and is in the app at once; this
     computer goes to a workspace** (2026-10-13; `apps/web/src/components/shell/this-computer.tsx`,
     `scene.tsx`). The owner: "if you are logging into the desktop app again you should be able
@@ -6566,6 +6565,76 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not checked:** a Mac or Windows; a real GitHub sign-in through the browser; a
       deployed Worker. No desktop release holds it: the change is all in the deployment's
       pages, so an installed app gets it when the deployment does.
+85. **The desktop app runs Do Computer itself, and Tailscale serves it to its owner's other
+    devices** (2026-10-13; `apps/desktop/src/local-server.ts`, `tailscale.ts`, `cookies.ts`,
+    `pages/devices.*`, `apps/web/src/server/local-owner.ts`, `routes/local.sign-in.tsx`,
+    `scripts/build-packed.mjs`). The owner asked what it would take "to let you run the desktop
+    app in fully self contained mode where the whole server is bundled with it", then whether
+    there could be "a built in tailscale integration" that detects Tailscale "to serve it
+    there", said "I like having a tailscale mode if you self host", and then: "build this".
+    - **The server is packed into the app.** `pnpm --filter @do-computer/web build:packed` is
+      the Node build with every import inside it (`ssr.noExternal`, into `dist/packed`; the
+      Daytona and Modal SDKs are still left out, and such a server never asks for them). The
+      desktop build copies it to `dist/server/dist/node` and bundles `server.node.mjs` beside
+      it as `server.mjs`: 23 MB, no `node_modules`. Packed, it is in `Resources/server`, as
+      files, like the screen driver, because it is run as a program. The app runs it as a
+      child process with itself as Node (`LocalServer`), on `127.0.0.1` at a port chosen once
+      and kept in the settings (4310 where free), with its data in `<the app's folder>/server`,
+      starts it again when it dies, and stops it by closing its input, which is also how it
+      ends if the app is killed (`DC_STOP_WITH_INPUT` in `server.node.mjs`).
+    - **Its owner has no account to make.** The app makes a key (`owner-key` beside the data)
+      and gives it to the server as `DC_OWNER_KEY`. `POST /api/auth/local/session` with the key
+      signs in as the owner, an account at `you@localhost` that is made the first time, with
+      the name the first run asked for; `POST /api/auth/local/token` gives a token that signs
+      one other device in, exchanged at the same `/desktop/session` the browser hand-off uses.
+      The app asks from its main process and gives the window the cookies that came back, so
+      no page is shown the key. With the key set: the owner is an admin for Server models, the
+      first account is not open to whoever arrives, nobody can make an account by that
+      address with a password, and a new Dood is connected to the computers its maker paired
+      (`giveOwnComputers`).
+    - **The first run is the same scene.** The app's bridge says `local` and has
+      `signInHere(name)`, and the "who are you" card then asks only for a name. The rest,
+      including "may I work on this computer?", is as it was.
+    - **The first screen asks where Do Computer runs:** "On this computer" or "Somewhere
+      else", with the address under the second. A build made for a deployment still opens it
+      without asking, so there it is under File → Change Server…. Choosing a server later
+      stops the app's own and keeps its data; nothing moves between the two.
+    - **Tailscale.** The app looks for the installed command (`findTailscale`), reads
+      `tailscale status --json` (`readStatus`: missing, not connected, no certificates,
+      ready), and when asked runs `tailscale serve --bg --yes --https=<port>
+      http://127.0.0.1:<port>`, and `… off` to stop. It only ever names its own port. The
+      server is then started again with `DC_BASE_URL` as the Tailscale address and the new
+      `DC_ALSO_AT` as the local one: `alsoAt` origins are trusted by Better Auth and by the
+      socket checks (`fromApp` in `auth.ts`), which a self-hoster can use by hand as well.
+      The session cookies change name with the address (`__Secure-`), so the app signs its
+      window in again, as it does whenever the window lands on `/login`. Where Tailscale is
+      not up when the app starts, it looks again every minute.
+    - **The window stays at this computer's address.** Served that way, the server sends
+      whoever it answers to its Tailscale address: after a connector's sign-in, for one. The
+      app's windows are signed in at `127.0.0.1`, and a window that never leaves the deployment
+      (PR #114) took the other address for somewhere else and opened its small sign-in window
+      on it. `atServer` (`apps/desktop/src/server.ts`) says a page by either address is the
+      deployment's and gives it at the first: a window sent there is shown the same page here,
+      a service's answer in the small window is taken here, and a link opened from a page
+      gets a window of the app.
+    - **Other Devices** (File menu and tray, only in this mode) says how the computer stands
+      with Tailscale, has the switch, the address, and a QR code and a link that sign a device
+      in once within ten minutes (`/local/sign-in#<token>`; the token is after the `#`).
+    - **Mine, not the owner's:** keeping the creature's question about this computer, where I
+      had proposed handing it over silently; asking for a name; `you@localhost`; port 4310;
+      the wording of both windows; that a failed switch-on goes back to off with the reason;
+      that the app will not restart itself to update while a Dood is working; no Funnel.
+    - **Not built:** the native phone app signing in (it has only email and password); moving
+      data between a server and this mode; anything on the web app that offers this mode.
+    - **Checked:** `apps/desktop/e2e/local.spec.ts` runs the app with no server: the first
+      run with only a name, a Dood running a command on this machine, a second Dood getting
+      the computer, the switch with a stand-in for Tailscale (the window stays signed in
+      under the other address, the link signs a device in once), a restart, and choosing
+      another server. Unit tests for the key, the token, the sign-up rules, the settings,
+      Tailscale's answers and the cookies. **Not checked:** a real `tailscale serve`, so the
+      headers its proxy sends, the wording of its refusals and a phone scanning the code are
+      unseen; macOS and Windows, which only CI will have run; a packed app; a real model; an
+      update of the app while its server holds data.
 
 ## 6. What the owner has said they want
 
