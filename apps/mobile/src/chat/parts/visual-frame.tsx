@@ -1,6 +1,8 @@
 import {
   readVisualHeight,
   readVisualLink,
+  readVisualSay,
+  visualRefusal,
   visualResult,
   type VisualTheme,
   visualThemeMessage,
@@ -15,6 +17,8 @@ export type VisualPageProps = {
   theme: VisualTheme
   /** The page said how tall it is. */
   onHeight: (height: number) => void
+  /** The page asked, on the reader's own press, for words to be put in the message box. */
+  onSay: (text: string) => void
 }
 
 /** The little of a browser's frame that is used here, so that this file needs no DOM types. */
@@ -32,10 +36,11 @@ type Host = {
  * A visual's page in a browser: a frame kept apart from the app, exactly as the web app shows
  * it. (On a phone it is a web view: see visual-frame.native.tsx.)
  */
-export function VisualPage({ src, title, theme, onHeight }: VisualPageProps): ReactNode {
+export function VisualPage({ src, title, theme, onHeight, onSay }: VisualPageProps): ReactNode {
   const frame = useRef<Frame>(null)
-  const heard = useRef(onHeight)
-  heard.current = onHeight
+  // What the page says is heard by whatever these are now, without listening anew each time.
+  const heard = useRef({ onHeight, onSay })
+  heard.current = { onHeight, onSay }
   // Its origin is nobody's, so "*" is the only address that reaches it; the window is what
   // makes sure it is this frame that hears.
   const say = () => frame.current?.contentWindow?.postMessage(visualThemeMessage(theme), "*")
@@ -46,16 +51,23 @@ export function VisualPage({ src, title, theme, onHeight }: VisualPageProps): Re
       const target = frame.current
       if (target === null || event.source !== target.contentWindow) return
       const tall = readVisualHeight(event.data)
-      if (tall !== undefined) return heard.current(tall)
+      if (tall !== undefined) return heard.current.onHeight(tall)
+      // Only on the reader's own click in the page: a page does neither of these by itself.
+      const pressed =
+        host.document.activeElement === target && host.navigator.userActivation?.isActive !== false
+      const said = readVisualSay(event.data)
+      if (said !== undefined) {
+        if (pressed) heard.current.onSay(said.text)
+        return target.contentWindow?.postMessage(
+          pressed
+            ? visualResult(said.id)
+            : visualRefusal(said.id, "Only when the person has just pressed something."),
+          "*",
+        )
+      }
       const link = readVisualLink(event.data)
       if (link === undefined) return
-      // Only on the reader's own click in the page: a page cannot open tabs by itself.
-      if (
-        host.document.activeElement === target &&
-        host.navigator.userActivation?.isActive !== false
-      ) {
-        host.open(link.url, "_blank", "noopener,noreferrer")
-      }
+      if (pressed) host.open(link.url, "_blank", "noopener,noreferrer")
       target.contentWindow?.postMessage(visualResult(link.id), "*")
     }
     host.addEventListener("message", onMessage)

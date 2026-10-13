@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Linking,
   Platform,
@@ -47,6 +47,7 @@ export type Block =
   | { type: "table"; head: string[]; align: Align[]; rows: string[][] }
   | { type: "image"; alt: string; src: string; href?: string }
 
+export type PictureBlock = Extract<Block, { type: "image" }>
 type ListBlock = Extract<Block, { type: "list" }>
 type TableBlock = Extract<Block, { type: "table" }>
 
@@ -208,7 +209,13 @@ function quoteAt(lines: string[], from: number, end: number): [string, number] {
 }
 
 /** A list that starts at this line, with everything its items hold, and the line after it. */
-function listAt(lines: string[], from: number, end: number, depth: number): [Block, number] {
+function listAt(
+  lines: string[],
+  from: number,
+  end: number,
+  depth: number,
+  every: boolean,
+): [Block, number] {
   const items: string[] = []
   const checked: (boolean | null)[] = []
   const children: Block[][] = []
@@ -258,7 +265,7 @@ function listAt(lines: string[], from: number, end: number, depth: number): [Blo
     const inner: Block[] =
       depth >= MAX_DEPTH
         ? [{ type: "paragraph", text: body.join("\n").trim() }]
-        : blocksOf(body, depth + 1)
+        : blocksOf(body, depth + 1, every)
     const lead = inner[0]
     if (lead?.type === "paragraph") {
       items.push(lead.text)
@@ -288,9 +295,10 @@ const isWeb = (address: string) => /^https?:\/\//i.test(address)
 /**
  * A paragraph, with its pictures taken out to stand on their own: a picture cannot sit inside a
  * line of text on a phone. Only pictures on the web are taken out; any other is left in the
- * text, where it is shown as its description.
+ * text, where it is shown as its description, unless `every` picture is wanted: the caller then
+ * knows what to make of one that is somewhere else.
  */
-function withPictures(text: string): Block[] {
+function withPictures(text: string, every: boolean): Block[] {
   if (!text.includes("![")) return [{ type: "paragraph", text }]
   const blocks: Block[] = []
   let from = 0
@@ -317,7 +325,7 @@ function withPictures(text: string): Block[] {
       const target = picture && text.charAt(picture.end) === "]" && targetAt(text, picture.end + 1)
       if (picture && target) found = { ...picture, end: target.end, href: target.href }
     }
-    if (!found || !isWeb(found.src)) {
+    if (!found || !(every || isWeb(found.src))) {
       at++
       continue
     }
@@ -331,7 +339,7 @@ function withPictures(text: string): Block[] {
   return blocks
 }
 
-function blocksOf(lines: string[], depth: number): Block[] {
+function blocksOf(lines: string[], depth: number, every: boolean): Block[] {
   const blocks: Block[] = []
   let end = lines.length
   while (end > 0 && blank(lines[end - 1] ?? "")) end--
@@ -375,7 +383,7 @@ function blocksOf(lines: string[], depth: number): Block[] {
       continue
     }
     if (markerOf(line)) {
-      const [list, next] = listAt(lines, index, end, depth)
+      const [list, next] = listAt(lines, index, end, depth, every)
       blocks.push(list)
       index = next
       continue
@@ -408,7 +416,7 @@ function blocksOf(lines: string[], depth: number): Block[] {
     }
     const text = paragraph.join("\n").trimEnd()
     if (level > 0) blocks.push({ type: "heading", level, text })
-    else blocks.push(...withPictures(text))
+    else blocks.push(...withPictures(text, every))
   }
   return blocks
 }
@@ -417,14 +425,15 @@ function blocksOf(lines: string[], depth: number): Block[] {
  * Split Markdown into blocks: paragraphs, headings, fenced code, lists (nested, numbered, tasks),
  * quotes, rules, tables and pictures. It never throws on Markdown that is only half written, so
  * it can be run on a reply at every step of its arriving. HTML is not read: it stays text.
+ * With `every`, a picture is taken out wherever its address is, and not only one on the web.
  */
-export function parseBlocks(source: string): Block[] {
+export function parseBlocks(source: string, every = false): Block[] {
   const lines = source
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.replace(/^[ \t]*\t[ \t]*/, (lead) => lead.replaceAll("\t", "    ")))
   try {
-    return blocksOf(lines, 0)
+    return blocksOf(lines, 0, every)
   } catch {
     // Nothing above is meant to throw; if it ever does, the words are still shown.
     return [{ type: "paragraph", text: source }]
@@ -815,6 +824,8 @@ type Ink = {
   selectable: boolean
   breaks: boolean
   open: (href: string) => void
+  /** The caller's own way of drawing a picture, if it has one. */
+  image: MarkdownProps["image"]
 }
 
 type Piece = {
@@ -1020,9 +1031,11 @@ const SHAPE = { unknown: 16 / 9, tallest: 0.5, widest: 4 }
  * A picture from the web, as wide as the text, or as wide as it really is when that is less (a
  * badge is not blown up to the width of the page). If it cannot be loaded, its description.
  */
-function Picture({ block, ink }: { block: Extract<Block, { type: "image" }>; ink: Ink }) {
+function Picture({ block, ink }: { block: PictureBlock; ink: Ink }) {
   const theme = useTheme()
   const [size, setSize] = useState<{ shape: number; width?: number }>({ shape: SHAPE.unknown })
+  // How much room there is across, which is as wide as a picture is ever drawn.
+  const [room, setRoom] = useState<number>()
   const [failed, setFailed] = useState(false)
   const { href } = block
   if (failed) {
@@ -1030,7 +1043,11 @@ function Picture({ block, ink }: { block: Extract<Block, { type: "image" }>; ink
     const words = (block.alt || block.src).replace(/[\\[\]`*_~<!]/g, "\\$&")
     return <Line text={`[${words}](<${href ?? block.src}>)`} ink={ink} muted />
   }
-  const picture = (
+  // Its width and height are both said once they are known. Left to work out the height from
+  // the shape, a phone takes the width for all the room there is, and a small picture is then
+  // set in a box far taller than it.
+  const wide = room === undefined ? undefined : Math.min(room, size.width ?? room)
+  const image = (
     <Image
       source={{ uri: block.src }}
       accessible
@@ -1049,9 +1066,17 @@ function Picture({ block, ink }: { block: Extract<Block, { type: "image" }>; ink
       }}
       style={[
         styles.picture,
-        { aspectRatio: size.shape, maxWidth: size.width, backgroundColor: theme.fill },
+        wide === undefined
+          ? { aspectRatio: size.shape }
+          : { width: wide, height: wide / size.shape },
+        { backgroundColor: theme.fill },
       ]}
     />
+  )
+  const picture = (
+    <View style={styles.pictureRoom} onLayout={(event) => setRoom(event.nativeEvent.layout.width)}>
+      {image}
+    </View>
   )
   if (!href) return picture
   return (
@@ -1125,7 +1150,11 @@ function List({ block, ink, depth, muted }: Piece & { block: ListBlock }) {
 /** A quote: a rule down the left, and whatever Markdown was quoted beside it. */
 function Quote({ text, ink, depth }: Piece & { text: string }) {
   const theme = useTheme()
-  const blocks = useMemo(() => (depth >= MAX_DEPTH * 2 ? null : parseBlocks(text)), [text, depth])
+  const every = ink.image !== undefined
+  const blocks = useMemo(
+    () => (depth >= MAX_DEPTH * 2 ? null : parseBlocks(text, every)),
+    [text, depth, every],
+  )
   return (
     <View style={[styles.quote, { borderLeftColor: ink.color ?? theme.sep }]}>
       {blocks ? (
@@ -1205,7 +1234,11 @@ const BlockView = memo(
       case "table":
         return <Table block={block} ink={ink} muted={muted} />
       case "image":
-        return <Picture block={block} ink={ink} />
+        return ink.image === undefined ? (
+          <Picture block={block} ink={ink} />
+        ) : (
+          ink.image(block, (src) => <Picture block={{ ...block, src }} ink={ink} />)
+        )
       default:
         return <Line text={block.text} ink={ink} muted={muted} />
     }
@@ -1231,6 +1264,13 @@ export type MarkdownProps = {
    * address is opened, and anything else an agent wrote is shown, not followed.
    */
   onLink?: (href: string) => boolean
+  /**
+   * Draws what is written as a picture, wherever its address is, for a caller that knows more
+   * of where pictures are than this does: `draw` gives the picture at an address, as it is drawn
+   * here. Without it only a picture on the web is drawn, at once. It must be the same function
+   * each time, or every block is drawn again.
+   */
+  image?: (picture: PictureBlock, draw: (src: string) => ReactNode) => ReactNode
 }
 
 /**
@@ -1243,8 +1283,10 @@ export const Markdown = memo(function Markdown({
   selectable = true,
   breaks = false,
   onLink,
+  image,
 }: MarkdownProps) {
-  const blocks = useMemo(() => parseBlocks(text), [text])
+  const every = image !== undefined
+  const blocks = useMemo(() => parseBlocks(text, every), [text, every])
   // Kept aside so a caller that makes a new function each time does not redraw every block.
   const handler = useRef(onLink)
   useEffect(() => {
@@ -1255,8 +1297,8 @@ export const Markdown = memo(function Markdown({
     if (/^(https?:\/\/|mailto:)/i.test(href)) Linking.openURL(href).catch(() => {})
   }, [])
   const ink = useMemo<Ink>(
-    () => ({ color, selectable, breaks, open }),
-    [color, selectable, breaks, open],
+    () => ({ color, selectable, breaks, open, image }),
+    [color, selectable, breaks, open, image],
   )
   return (
     <View style={styles.blocks}>
@@ -1321,4 +1363,5 @@ const styles = StyleSheet.create({
   cellText: { ...type.subhead },
   headCell: { ...type.subhead, fontWeight: "600" },
   picture: { width: "100%", borderRadius: radius.sm },
+  pictureRoom: { width: "100%" },
 })

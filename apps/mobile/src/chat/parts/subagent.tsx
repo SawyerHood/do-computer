@@ -7,6 +7,7 @@ import { radius, useTheme } from "@/lib/theme"
 import { Icon, type IconName, Text } from "@/ui"
 import { Avatar } from "@/ui/avatar"
 import { Markdown } from "@/ui/markdown"
+import { drawNamed } from "./named"
 import { Chip, Fold, NoticeLine, useChatScope } from "./shared"
 
 /**
@@ -127,7 +128,7 @@ export const SubagentWord = memo(function SubagentWord({ part }: { part: NoticeP
               paddingVertical: 8,
             }}
           >
-            <Markdown text={part.detail} />
+            <Markdown text={part.detail} image={drawNamed} />
           </View>
         </Fold>
       )}

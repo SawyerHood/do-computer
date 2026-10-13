@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { delimiterOf, parseDelimited } from "./delimited.ts"
+import { delimiterOf, parseDelimited } from "../src/delimited.ts"
 
 describe("a CSV file as rows", () => {
   it("reads cells, with what quotes hold kept whole", () => {

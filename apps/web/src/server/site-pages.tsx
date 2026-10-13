@@ -1,5 +1,6 @@
 import {
   dirOf,
+  parseDelimited,
   resolveLink,
   SITE_LISTING_HEADER,
   type SiteListing,
@@ -8,7 +9,6 @@ import {
 import { renderToStaticMarkup } from "react-dom/server"
 import ReactMarkdown from "react-markdown"
 import { REHYPE_PLUGINS, REMARK_PLUGINS } from "@/components/markdown/pipeline"
-import { parseDelimited } from "@/lib/delimited"
 
 /** Text larger than this is offered as a download: it would be slow to show as a page. */
 const MAX_SHOWN_BYTES = 1024 * 1024

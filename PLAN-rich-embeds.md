@@ -341,10 +341,13 @@ third party's HTML, so it wants its own review before it ships.
 
 ### Phase 6: the phone app
 
-Sound with `expo-audio`, a CSV through the table block the parser already has, the picture
-viewer, and controls in a visual for free (they are in the served page). Video needs
-`expo-video`, a native module, so it needs a new build of the app. It is checked in the simulator
-on the Air; no cloud build is started without the owner asking.
+Built on 2026-10-13, all but the film: a picture at another site waits for a tap, a library
+picture, sound (`expo-audio`) and CSV named in a reply or sent are shown as what they are, and
+`dc.say` in a visual fills the message box. Controls in a visual came free, since they are in
+the served page. `dc.expand` and `dc.save` do nothing on the phone. Video needs `expo-video`,
+a native module, so it needs a new build of the app, which is not started without the owner
+asking; until then a film is a chip that opens it in the library. It was checked in the
+simulator on the Air.
 
 ### Elsewhere
 

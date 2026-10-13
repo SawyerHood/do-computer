@@ -473,6 +473,187 @@ test("a side chat is started from the agent's side chats and is listed there aft
   await expect(row(page, "an aside about kites")).toBeVisible()
 })
 
+/** A picture of four dots, small enough to write here. */
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGNgSJn+H4QZYIz/KdP/AwBPaAl/8Kk5fgAAAABJRU5ErkJggg==",
+  "base64",
+)
+
+/** Four seconds of quiet, as a WAV file. */
+const SOUND = (() => {
+  const samples = 4 * 8000
+  const wav = Buffer.alloc(44 + samples)
+  wav.write("RIFF", 0)
+  wav.writeUInt32LE(36 + samples, 4)
+  wav.write("WAVEfmt ", 8)
+  wav.writeUInt32LE(16, 16)
+  wav.writeUInt16LE(1, 20)
+  wav.writeUInt16LE(1, 22)
+  wav.writeUInt32LE(8000, 24)
+  wav.writeUInt32LE(8000, 28)
+  wav.writeUInt16LE(1, 32)
+  wav.writeUInt16LE(8, 34)
+  wav.write("data", 36)
+  wav.writeUInt32LE(samples, 40)
+  wav.fill(128, 44)
+  return wav
+})()
+
+/** Put a file in the library of the agent the first test hatched: at its top, or in `dir`. */
+async function keep(page: Page, name: string, type: string, body: Buffer, dir = "") {
+  const response = await page.request.post(
+    `/api/agents/${await agentId(page)}/library?name=${encodeURIComponent(name)}&dir=${encodeURIComponent(dir)}`,
+    { data: body, headers: { "content-type": type } },
+  )
+  expect(response.ok()).toBe(true)
+}
+
+/** Have the agent answer with `markdown`: the model here repeats what it is told. */
+const reply = (page: Page, markdown: string) => send(page, `as follows\n\n${markdown}`)
+
+test("a picture at another site is not asked for until the reader says so, and a yes for a site is kept", async ({
+  page,
+}) => {
+  // A site of pictures, standing in for anywhere on the web, which notes what it is asked.
+  const asked: string[] = []
+  await page.route("https://pictures.example/**", (route) => {
+    asked.push(new URL(route.request().url()).pathname)
+    return route.fulfill({ contentType: "image/png", body: PNG })
+  })
+  const always = page.getByRole("button", { name: "Always from pictures.example" })
+  await openChat(page)
+  await reply(page, "![A cat](https://pictures.example/cat.png?who=reader)")
+  // It says where the picture is from, and has not asked there.
+  await expect(always).toBeVisible()
+  await expect(words(page, /^A cat from pictures\.example$/)).toBeVisible()
+  await expect(page.getByRole("img", { name: "A cat" })).toHaveCount(0)
+  // A picture is asked for a moment after it is on the page, so it is given that moment.
+  await page.waitForTimeout(500)
+  expect(asked).toEqual([])
+
+  await page.getByRole("button", { name: "Show", exact: true }).click()
+  await expect(page.getByRole("img", { name: "A cat" }).first()).toBeVisible()
+  await expect.poll(() => [...new Set(asked)]).toEqual(["/cat.png"])
+
+  // Another from the same site asks again, until the site is said yes to for good.
+  await reply(page, "![A dog](https://pictures.example/dog.png)")
+  await expect(always).toBeVisible()
+  await page.waitForTimeout(500)
+  expect([...new Set(asked)]).toEqual(["/cat.png"])
+  await always.click()
+  await expect(page.getByRole("img", { name: "A dog" }).first()).toBeVisible()
+  await expect.poll(() => [...new Set(asked)]).toEqual(["/cat.png", "/dog.png"])
+  await reply(page, "![A bird](https://pictures.example/bird.png)")
+  await expect(page.getByRole("img", { name: "A bird" }).first()).toBeVisible()
+  await expect(always).toHaveCount(0)
+
+  // The yes is kept on the device: the chat opened afresh shows all three without asking.
+  await page.reload()
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
+  await expect(page.getByRole("img", { name: "A cat" }).first()).toBeVisible()
+  await expect(page.getByRole("img", { name: "A bird" }).first()).toBeVisible()
+  await expect(always).toHaveCount(0)
+})
+
+test("a file of the library named in a reply is shown as what it is: a picture, a sound, a table", async ({
+  page,
+}) => {
+  await openChat(page)
+  await keep(page, "q3.png", "image/png", PNG, "charts")
+  await keep(page, "chime.wav", "audio/wav", SOUND)
+  await keep(
+    page,
+    "signups.csv",
+    "text/csv",
+    Buffer.from('Region,Signups,Note\nNorth,"1,204","grew ""fast"""\nSouth,987,steady\n'),
+  )
+  await keep(page, "clip.webm", "video/webm", Buffer.from("no film at all"))
+
+  // The picture is asked for where the library's files are viewed, which needs no session.
+  const drawn = page.waitForResponse((response) =>
+    /\/d\/[^/]+\/[^/]+\/charts\/q3\.png/.test(response.url()),
+  )
+  await reply(
+    page,
+    [
+      "![The chart](charts/q3.png)",
+      "![A chime](chime.wav)",
+      "![Signups](signups.csv)",
+      "![The film](clip.webm)",
+      "![A lost thing](nowhere.png)",
+    ].join("\n\n"),
+  )
+  expect((await drawn).status()).toBe(200)
+  await expect(page.getByRole("img", { name: "The chart" }).first()).toBeVisible()
+
+  // The sound has a player, which knows how long it is and can be moved along.
+  const play = page.getByRole("button", { name: "Play chime.wav" })
+  const bar = page.getByRole("slider", { name: "Where chime.wav is played from" })
+  await expect(play).toBeVisible()
+  await expect(bar).toHaveAttribute("aria-valuemax", "4")
+  await expect(words(page, "0:04", { exact: true })).toBeVisible()
+  const box = (await bar.boundingBox())!
+  // A little past three seconds of its four.
+  await bar.click({ position: { x: box.width * 0.8, y: box.height / 2 } })
+  await expect(bar).toHaveAttribute("aria-valuenow", "3")
+  await expect(words(page, "0:03", { exact: true })).toBeVisible()
+  await play.click()
+  await expect(page.getByRole("button", { name: "Pause chime.wav" })).toBeVisible()
+  // It plays to its end, and is then ready to be played again.
+  await expect(play).toBeVisible()
+
+  // The table's first rows, with what quotes hold kept whole.
+  for (const cell of ["Region", "North", "1,204", 'grew "fast"', "987", "steady"]) {
+    await expect(words(page, cell, { exact: true })).toBeVisible()
+  }
+  // What is not in the library is its words, and a film is a way into the library.
+  await expect(words(page, "A lost thing", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "The film", exact: true }).click()
+  await expect(page).toHaveURL(/\/library\/[^/?]+$/)
+})
+
+test("a table the agent sends has its first rows over its card", async ({ page }) => {
+  await openChat(page)
+  await send(page, '/tool write {"path":"sent.csv","content":"City,Visits\\nLeeds,41\\nYork,7\\n"}')
+  await expect(words(page, /Successfully wrote to sent\.csv/).first()).toBeVisible()
+  await send(page, '/tool send_file {"path":"sent.csv"}')
+  await expect(page.getByRole("button", { name: /^sent\.csv, \d+ B$/ })).toBeVisible()
+  for (const cell of ["City", "Visits", "Leeds", "41", "York"]) {
+    await expect(words(page, cell, { exact: true })).toBeVisible()
+  }
+})
+
+test("a page the agent drew puts words in the message box when the reader presses in it, and not by itself", async ({
+  page,
+}) => {
+  const draw = (title: string, html: string) =>
+    send(page, `/tool visual ${JSON.stringify({ title, html })}`)
+  const frameOf = (file: string) => page.getByLabel(`Visual: ${file}`).frameLocator("iframe")
+  await openChat(page)
+  // One that tries the moment it loads, with nobody having pressed anything.
+  await draw("Eager", "<p>hello</p><script>dc.say('I was never pressed')</script>")
+  await expect(frameOf("eager.html").getByText("hello")).toBeVisible()
+  // What a page says reaches the app a moment after it says it, so it is given that moment.
+  await page.waitForTimeout(500)
+  await expect(composer(page)).toHaveValue("")
+  await draw(
+    "Plans",
+    "<button id=pick>Plan B</button><script>pick.onclick = function () { dc.say('Go with plan B') }</script>",
+  )
+  const pick = frameOf("plans.html").getByRole("button", { name: "Plan B" })
+  await expect(pick).toBeVisible()
+  await expect(composer(page)).toHaveValue("")
+
+  await pick.click()
+  await expect(composer(page)).toHaveValue("Go with plan B")
+  // The words are the reader's to send: nothing was said for them.
+  await expect(page.getByRole("button", { name: "Send" })).toBeVisible()
+  await expect(words(page, "Go with plan B", { exact: true })).toHaveCount(1) // only in the box
+  // More goes after what is there, on a line of its own.
+  await pick.click()
+  await expect(composer(page)).toHaveValue("Go with plan B\nGo with plan B")
+})
+
 test("a second agent hatches and names itself, settings show who and what there is, and signing out ends the session", async ({
   page,
 }) => {

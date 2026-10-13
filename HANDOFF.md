@@ -6328,6 +6328,55 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       at once share a browser on the real service; the pictures a page loads from the
       library, which are not loaded in a look; a real model using what it is told.
 
+80. **On the phone a reply's pictures, sounds and tables are shown, and a page can speak to
+    the chat** (2026-10-13; `apps/mobile/src/chat/parts/named.tsx`, `sound.tsx`, `rows.tsx`,
+    `shown-hosts.ts`, `logic.ts`, `visual-frame.native.tsx` and `visual-frame.tsx`,
+    `apps/mobile/src/ui/markdown.tsx`, `packages/protocol/src/delimited.ts`; phase 6 of
+    `PLAN-rich-embeds.md`, the parts that need no new native module). Most of it was written
+    by a second session given the brief, and read over and run by the first.
+    - **A picture at another site waits for a tap**, as on the web: a box naming the host,
+      with Show and "Always from <host>". Before, the phone asked for any picture a reply
+      named at once. A yes for a host is kept on the device (`dc.shown-hosts`), and the
+      deployment's own address is always shown. The address asked for is the one the host
+      was read from, written out plainly. The same in a sub-agent's report and in another
+      agent's message, which are agent-written too.
+    - **A library file written as a picture** (`![The chart](charts/q3.png)`) is shown as
+      what it is: a picture from the library's view address, a sound with a player, a CSV or
+      TSV as its first rows (25 rows, 12 columns; the first 256 KB of the file), and anything
+      else, a film among them, as a chip that opens it in the library. The Markdown drawing
+      in `ui/markdown.tsx` is given the chat's way of drawing a picture as a prop (`image`),
+      and knows nothing of chats itself.
+    - **A sound player** made with `expo-audio`: play and pause, how far in and how long, and
+      a bar that is pressed to move. Also over the card of a sound the agent sends, as a
+      table's rows are over a table's.
+    - **`dc.say` in a visual** puts words in the chat's draft and does not send them. In the
+      browser build it is read from the frame, only on the reader's own press. On a phone
+      the page is the whole of a web view, where the page's own `dc` does nothing, so the
+      script the app puts in gives it a `say` that posts to the app, honoured within two
+      seconds of a touch. `dc.expand` and `dc.save` do nothing on the phone.
+    - **`parseDelimited`** is in the protocol package now, for both apps.
+    - **A small picture is no longer set in a tall grey box** on a phone: its width and
+      height are both said once they are known. This was there before this work (a phone
+      works the height out from all the room there is, before the picture's own width is
+      applied) and was seen in the simulator.
+    - **Not built:** a film player, which needs `expo-video`, a native module, and so a new
+      build of the app. The player does not ask for a fresh address when the library's has
+      grown old. No audio mode is set, so a sound may be silent with the ringer off.
+    - **Mine:** that this was built at all without the owner saying so again (the plan they
+      approved has it); 25 rows; the storage key; that the message box is not given the
+      caret after `dc.say`; that a sub-agent's report and an agent's message are gated too.
+    - **Checked:** `apps/mobile` unit tests (the host rule, what a reply names, the script
+      for the web view run against a stand-in window); `e2e/mobile.spec.ts` on the phone
+      app's browser build (a remote picture not asked for until Show, and a yes kept across
+      a reload; a library picture, a sound whose bar moves it, a table; a sent table; words
+      from a press in the message box and none from a page that was not pressed). And in an
+      iOS 27 simulator on the owner's MacBook Air, with this branch built there: the box and
+      Show for a remote picture, which then loaded; a library picture; the sound played to
+      its end; the table; the chip for a film; and a press on a visual's button putting its
+      words in the message box through the real web view. **Not checked:** a real phone;
+      Android; the ringer switch; a host's yes surviving the app being closed (it is kept
+      through the app's own store, which was not looked at there).
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

@@ -1,6 +1,6 @@
 import { type MessageImage, type QueuedInput, randomId } from "@do-computer/protocol"
 import { useRouter } from "expo-router"
-import { atom, useAtom } from "jotai"
+import { atom, useAtom, useSetAtom } from "jotai"
 import { useCallback, useMemo, useState } from "react"
 import { Platform, Pressable, TextInput, View } from "react-native"
 import { pick, unpick, usePicked } from "@/lib/attach"
@@ -37,6 +37,22 @@ function useDraft(
     [chatId, setDrafts],
   )
   return [drafts[chatId] ?? "", set]
+}
+
+/**
+ * Puts words in a chat's message box, after whatever is there, for the person to send: how a
+ * page the agent drew hands over a choice pressed in it.
+ */
+export function useSay(chatId: string): (text: string) => void {
+  const setDrafts = useSetAtom(draftsAtom)
+  return useCallback(
+    (text: string) =>
+      setDrafts((kept) => {
+        const typed = kept[chatId] ?? ""
+        return { ...kept, [chatId]: typed.trim() === "" ? text : `${typed.trimEnd()}\n${text}` }
+      }),
+    [chatId, setDrafts],
+  )
 }
 
 const LINE = 22

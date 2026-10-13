@@ -10,7 +10,8 @@ import { authHeaders } from "@/lib/session"
 import { radius, useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
 import { errorText, haptic, tell, Text } from "@/ui"
-import { fileIcon, isPreviewable, isViewable, siteOfFile } from "./logic"
+import { fileIcon, isPreviewable, isViewable, shownAs, siteOfFile } from "./logic"
+import { LibraryEmbed, useListing } from "./named"
 import { Card, ChipIcon, RoundButton, useChatScope } from "./shared"
 
 /** What of an agent's library is shared with a link. The event socket keeps it current. */
@@ -23,8 +24,9 @@ export function useSites(agentId: string): SiteSummary[] | undefined {
 }
 
 /**
- * A file the agent delivered, shown as the file: a preview when it is a picture, a way into the
- * library when it is something that can be shown there, and a download and a share either way.
+ * A file the agent delivered, shown as the file: a preview when it is a picture, a player when
+ * it is a sound, its first rows when it is a table, a way into the library when it is something
+ * that can be shown there, and a download and a share either way.
  */
 export const SentFile = memo(function SentFile({ part }: { part: ToolPart }) {
   const file = part.details as unknown as LibraryFile
@@ -38,6 +40,11 @@ export const SentFile = memo(function SentFile({ part }: { part: ToolPart }) {
   const viewable = isViewable(file)
   // Shared with a link, or the way to share it. One from before files had a place has none.
   const site = siteOfFile(useSites(agentId), file.path ?? "")
+  // A sound and a table are served where the library's files are viewed, which the library
+  // says, and as the file is now: it may have been changed, moved, or deleted since it was sent.
+  const as = shownAs(file)
+  const listing = useListing(file.path !== undefined && (as === "sound" || as === "table"))
+  const now = listing?.files.find((entry) => entry.id === file.id)
 
   /** Hand it to the share sheet, where it can be saved or opened in another app. */
   const download = () => {
@@ -86,6 +93,9 @@ export const SentFile = memo(function SentFile({ part }: { part: ToolPart }) {
           />
         </Pressable>
       ) : null}
+      {listing === undefined || now === undefined ? null : (
+        <LibraryEmbed file={now} view={listing.view} />
+      )}
       <Card style={{ flexDirection: "row", alignItems: "center", paddingRight: 10, gap: 8 }}>
         <Pressable
           accessibilityRole="button"
