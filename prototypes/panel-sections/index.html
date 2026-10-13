@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel sections · mock-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; }
+html { background: var(--background, #14181a); color: var(--foreground, #e8ecee); }
+body {
+  font-family: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; cursor: pointer; }
+ul { padding: 0; }
+.ic { flex: none; display: block; }
+
+/* The mock-up's own bar: the scenes and a few things to press. Not part of the design. */
+#nav { padding: 2px 0 0; }
+.ngroups { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.ng { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ng > span { font-size: 11.5px; color: var(--muted-foreground, #8b979c); margin-right: 4px; }
+.nb { font-size: 12.5px; padding: 5px 10px; border-radius: 7px; color: var(--foreground, #c9d2d6); background: var(--muted, #1f2528); white-space: nowrap; }
+.nb:hover { filter: brightness(1.12); }
+.nb.on { background: #2f8f8a; color: #fff; }
+.nb.act { background: transparent; box-shadow: inset 0 0 0 1px var(--border, #3a4347); }
+.nb.act:hover { background: var(--muted, #1f2528); }
+#wrap { padding: 12px 0 0; }
+
+/* The app's colors, as in apps/web/src/styles.css. */
+.t {
+  --agent-color: oklch(0.5 0.08 195);
+  --canvas: oklch(0.997 0.001 212);
+  --ink: oklch(0.27 0.008 212);
+  --shade: oklch(0.27 0.02 212);
+  --frame: color-mix(in oklch, var(--ink) 4.5%, var(--canvas));
+  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.07);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --primary: oklch(from var(--agent-color) 0.5 c h);
+  --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
+  --rail: color-mix(in oklch, var(--frame) 50%, var(--canvas));
+  color: var(--foreground);
+  font-size: 14px;
+}
+.dk .t {
+  --canvas: oklch(0.212 0.004 212);
+  --ink: oklch(0.9 0.006 212);
+  --frame: oklch(0.168 0.004 212);
+  --hairline: color-mix(in oklch, var(--ink) 11%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  --primary: oklch(from var(--agent-color) 0.62 c h);
+  --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
+}
+.muted { color: var(--muted-foreground); }
+
+/* The piece of the app that is drawn: the Dood's panel, on the sheet, with notes beside it. */
+#stage { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; padding: 16px; border-radius: 14px; background: var(--background); box-shadow: inset 0 0 0 1px var(--border); }
+.notes { flex: 1; min-width: 240px; padding: 6px 4px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--muted-foreground); }
+.notes h2 { font-size: 16px; font-weight: 600; color: var(--foreground); letter-spacing: -0.015em; }
+.notes p { margin-top: 8px; }
+.notes ul { margin: 6px 0 0 17px; }
+.notes li { margin-top: 7px; padding-left: 2px; }
+.notes b { color: var(--foreground); font-weight: 550; }
+.notes .cost { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.notes .pick { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: color-mix(in oklch, var(--primary) 18%, var(--canvas)); color: var(--primary); vertical-align: 2px; letter-spacing: 0; }
+
+.aside { width: 372px; height: 800px; flex: none; position: relative; overflow: hidden; display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--border); background: var(--rail); }
+.tallw .aside { height: 1150px; }
+.scroller { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+.ib { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--muted-foreground); flex: none; }
+.ib:hover { background: var(--accent); color: var(--foreground); }
+
+/* Its face, as today. */
+.face { flex: none; position: relative; padding: 40px 24px 20px; text-align: center; }
+.face .fresh { position: absolute; top: 10px; right: 10px; opacity: 0.6; }
+.face .big { width: 188px; height: 188px; object-fit: contain; animation: bob 3.4s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.an { display: flex; justify-content: center; align-items: center; gap: 7px; margin-top: 12px; font-size: 18px; font-weight: 500; }
+.as { font-size: 14px; color: var(--muted-foreground); margin-top: 3px; }
+
+/* The face once it has been scrolled away: a bar that stays. */
+.bar { position: absolute; inset: 0 0 auto 0; z-index: 3; height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 12px; background: color-mix(in oklch, var(--rail) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); transform: translateY(-101%); transition: transform 0.18s ease-out; }
+.bar.on { transform: none; }
+.bar img { width: 38px; height: 38px; object-fit: contain; }
+.bar b { font-weight: 500; font-size: 14.5px; }
+.bar span { font-size: 13px; color: var(--muted-foreground); }
+.bar .ib { margin-left: auto; }
+
+/* A section and its heading. */
+.sec { flex: none; border-top: 1px solid var(--border); }
+.sh { display: flex; align-items: center; gap: 6px; width: 100%; padding: 16px 20px 8px; text-align: left; font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
+.sh.f { padding: 12px 14px 8px 12px; cursor: pointer; }
+.sh.f:hover { color: var(--foreground); }
+.folded .sh.f { padding-bottom: 12px; }
+.car { transition: transform 0.15s; transform: rotate(90deg); opacity: 0.8; }
+.folded .car { transform: none; }
+.sum { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 400; white-space: nowrap; }
+.n { min-width: 20px; text-align: center; font-size: 11.5px; padding: 1px 6px; border-radius: 99px; background: var(--muted); font-variant-numeric: tabular-nums; }
+.hot { color: var(--foreground); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex: none; }
+.pulse { animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+.rows { display: flex; flex-direction: column; gap: 2px; padding: 0 10px 12px; }
+.r { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; min-width: 0; flex: none; }
+.r:hover { background: var(--accent); }
+.r > .ic { color: var(--muted-foreground); }
+.r > img { width: 32px; height: 32px; object-fit: contain; flex: none; }
+.sq { width: 32px; height: 32px; border-radius: 9px; background: var(--muted); display: grid; place-items: center; flex: none; color: var(--muted-foreground); }
+.rt { min-width: 0; flex: 1; }
+.t1, .t2 { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t1 { font-size: 14px; }
+.t2 { font-size: 12px; color: var(--muted-foreground); }
+.t2.hot { color: var(--foreground); }
+.r.one { padding: 8px 10px; }
+.r.one .t1 { flex: 1; min-width: 0; }
+.r small { font-size: 12px; color: var(--muted-foreground); flex: none; }
+.mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 13px; }
+.more { align-self: flex-start; margin: 2px 0 0 10px; padding: 4px 10px; border-radius: 8px; font-size: 12.5px; color: var(--muted-foreground); }
+.more:hover { background: var(--accent); color: var(--foreground); }
+
+/* What is pinned: the first as the page itself drawn small, the rest as rows. */
+.tile { display: block; margin: 0 2px 6px; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); overflow: hidden; flex: none; }
+.pv { overflow: hidden; position: relative; padding: 14px 14px 0; background: var(--background); }
+.pv::after { content: ""; position: absolute; inset: auto 0 0 0; height: 26px; background: linear-gradient(transparent, var(--background)); }
+.pvt { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+.pvs { font-size: 9.5px; color: var(--muted-foreground); margin-top: 1px; }
+.pvn { font-size: 10px; color: var(--muted-foreground); margin: 9px 0 10px; }
+.pvn b { font-size: 21px; color: var(--foreground); font-weight: 600; margin-right: 3px; }
+.pvc { border-radius: 9px; background: var(--card); box-shadow: var(--elevation-raised); padding: 9px 11px 10px; font-size: 10.5px; line-height: 1.5; color: var(--muted-foreground); margin-bottom: 8px; }
+.pvc small { font-size: 9px; display: block; }
+.pvc u { display: block; color: oklch(0.78 0.11 350); font-weight: 600; font-size: 11.5px; margin: 2px 0 5px; }
+.tf { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 14px; border-top: 1px solid var(--hairline); }
+.tf .ic { color: oklch(0.78 0.13 75); }
+.tf b { font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf time { font-size: 12px; color: var(--muted-foreground); }
+
+/* Today: every section takes a share of the height and scrolls by itself; the last has what is left. */
+.old { display: flex; flex-direction: column; }
+.old .rows { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+.cap30 { max-height: 30%; }
+.cap40 { max-height: 40%; }
+.rest { flex: 1; min-height: 0; }
+
+/* B: tabs under the face. */
+.face.short { padding: 26px 24px 14px; }
+.face.short .big { width: 150px; height: 150px; }
+.tabsb { flex: none; display: flex; gap: 2px; margin: 0 12px 4px; padding: 3px; border-radius: 10px; background: var(--muted); }
+.tb { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; padding: 6px 0; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
+.tb:hover { color: var(--foreground); }
+.tb.on { background: var(--card); box-shadow: var(--elevation-raised); color: var(--foreground); }
+.sub { padding: 14px 20px 6px; font-size: 12.5px; font-weight: 500; color: var(--muted-foreground); }
+.tabbody { padding-top: 6px; }
+.tabbody .tile { margin: 6px 12px 8px; }
+</style>
+</head>
+<body>
+<div id="nav"><div class="ngroups" id="groups"></div></div>
+<div id="wrap" class="dk"><div id="stage" class="t"></div></div>
+<script>
+window.CREATURES = {"bboss":"data:image/png;base64,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","penjamin":"data:image/png;base64,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"}
+</script>
+<script>
+// The panel sections mock-up: the Dood's panel with a lot in it, as it is today and three ways it
+// could make room. Every scene is drawn from the little state below.
+const C = window.CREATURES
+
+const I = {
+  next: '<path d="m9 18 6-6-6-6"/>',
+  ok: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  hash: '<line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/>',
+  term: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+  shirt: '<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+}
+const ic = (name, size = 16, cls = "") =>
+  `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${I[name]}</svg>`
+
+// `window.START` lets a page that wraps this one open it on a scene, in a state.
+const S = {
+  // A: which sections are folded. Messages that have all been answered start folded.
+  fold: { pinned: false, running: false, doods: true, slack: true, shared: true, did: false },
+  tuck: true,
+  // B: the tab that is open.
+  tab: "pinned",
+  // C: which lists have been opened to their whole length.
+  more: {},
+  tall: false,
+  ping: false,
+  ...(window.START ?? {}),
+}
+
+const mark = (wait) => (wait ? '<span class="dot pulse"></span>' : ic("ok", 16))
+const thread = (lead, title, under, wait) =>
+  `<a class="r">${lead}<span class="rt"><span class="t1">${title}</span><span class="t2${wait ? " hot" : ""}">${under}</span></span>${mark(wait)}</a>`
+const slackLead = `<span class="sq">${ic("hash", 15)}</span>`
+const fileRow = (name, size) => `<a class="r one">${ic("file", 16)}<span class="t1">${name}</span><small>${size}</small></a>`
+const work = (title) => `<a class="r one">${ic("ok", 16)}<span class="t1">${title}</span></a>`
+
+// The pinned page, drawn small. `height` is how much of it shows.
+const tile = (height) =>
+  `<a class="tile"><div class="pv" style="height:${height}px"><div class="pvt">your t3 attention queue</div><div class="pvs">bboss keeps the inbox tidy</div><div class="pvn"><b>1</b>waiting for you</div>
+    <div class="pvc"><small>durable-computer · ready for review</small><u>Bundle Server With Desktop App</u>PR #130 is open and CI is running; rebased on latest main, desktop and web tests pass locally. agent will merge when checks pass.</div>
+    <div class="pvc"><small>do-code · working</small><u>Closed sign-ups page</u>Drafting the copy for the waiting list; nothing needed from you yet.</div>
+    <div class="pvc"><small>durable-computer · done today</small><u>Phone plays a film where it is</u>Merged as #128.</div></div>
+    <div class="tf">${ic("globe", 17)}<b>t3 attention queue</b><time>3:29 PM</time></div></a>`
+
+// Everything the panel has to show, top to bottom, in the order the app has it.
+function sections() {
+  const slack = [
+    ...(S.ping ? [["the deploy went red after #129, can you look?", "waiting for an answer", true]] : []),
+    ["can you use bb-150k to start a thread on the export bug", "answered"],
+    ["how do i ssh into `brsbl-gmktec` from the office", "answered"],
+    ["can you make some mocks of what the queue could look like", "answered"],
+    ["can you generate another sign in link for staging", "answered"],
+  ]
+  return [
+    {
+      key: "pinned",
+      title: "Pinned",
+      lead: tile(148),
+      rows: [`<a class="r one">${ic("file", 16)}<span class="t1">release checklist.md</span><small>Yesterday</small></a>`],
+      cap: 9,
+    },
+    {
+      key: "running",
+      title: "Running in the background",
+      live: "1 running",
+      rows: [
+        `<a class="r">${`<span class="sq">${ic("term", 15)}</span>`}<span class="rt"><span class="t1 mono">pnpm dev --filter web</span><span class="t2">Started 12 minutes ago</span></span><span class="dot pulse"></span></a>`,
+      ],
+    },
+    {
+      key: "doods",
+      title: "From other Doods",
+      quiet: "answered",
+      rows: [thread(`<img src="${C.penjamin}" alt="">`, "Hi BBoss, this is Penjamin, Sawyer asked me to check the queue", "Penjamin · answered")],
+    },
+    {
+      key: "slack",
+      title: "From Slack",
+      wait: S.ping ? 1 : 0,
+      quiet: "all answered",
+      rows: slack.map(([title, state, wait]) => thread(slackLead, title, `#all-terragon-labs · ${state}`, wait)),
+    },
+    {
+      key: "shared",
+      title: "Shared here",
+      rows: [fileRow("attention-queue.html", "14 KB"), fileRow("watcher-notes.md", "3 KB")],
+    },
+    {
+      key: "did",
+      title: "What it did here",
+      cap: 4,
+      rows: [
+        "Build t3 attention watcher dashboard",
+        "Start a thread for the export bug",
+        "Write up how to reach brsbl-gmktec",
+        "Mock up three layouts for the queue",
+        "Make a sign-in link for staging",
+        "Answer Penjamin about the queue",
+      ].map(work),
+    },
+  ]
+}
+
+const face = (cls = "") =>
+  `<div class="face ${cls}"><button class="ib fresh" title="Start fresh">${ic("refresh", 16)}</button><img class="big" src="${C.bboss}" alt=""><div class="an">BBoss${ic("shirt", 16, "muted")}</div><div class="as">Ready</div></div>`
+const bar = `<div class="bar"><img src="${C.bboss}" alt=""><b>BBoss</b><span>Ready</span><button class="ib" title="Start fresh">${ic("refresh", 16)}</button></div>`
+const body = (s, rows = s.rows) => `${s.lead ?? ""}${rows.join("")}`
+const count = (s) => s.rows.length + (s.lead ? 1 : 0)
+
+const scenes = {
+  // As the app is: a share of the height each, a scroll area each, and the last has what is left.
+  today() {
+    const all = sections()
+    return `<div class="aside">${face()}${all
+      .map((s, i) => {
+        const share = i === all.length - 1 ? "rest" : s.key === "pinned" ? "" : s.key === "running" ? "cap40" : "cap30"
+        return `<div class="sec old ${share}"><div class="sh">${s.title}</div><div class="rows">${body(s)}</div></div>`
+      })
+      .join("")}</div>`
+  },
+
+  // A: a heading folds its section. Folded, it still says how many and whether one is waiting.
+  a() {
+    const secs = sections()
+      .map((s) => {
+        const folded = S.fold[s.key]
+        const said = s.wait
+          ? `<span class="hot">${s.wait} waiting</span><span class="dot"></span>`
+          : s.live
+            ? `<span>${s.live}</span><span class="dot pulse"></span>`
+            : folded && s.quiet
+              ? `<span>${s.quiet}</span>`
+              : ""
+        return `<div class="sec${folded ? " folded" : ""}"><button class="sh f" data-fold="${s.key}" aria-expanded="${!folded}">${ic("next", 14, "car")}<span>${s.title}</span><span class="sum">${
+          folded ? said : ""
+        }<span class="n">${count(s)}</span></span></button>${folded ? "" : `<div class="rows">${body(s)}</div>`}</div>`
+      })
+      .join("")
+    return S.tuck
+      ? `<div class="aside">${bar}<div class="scroller">${face()}${secs}</div></div>`
+      : `<div class="aside">${face()}<div class="scroller">${secs}</div></div>`
+  },
+
+  // B: one group at a time, with all the room under the face.
+  b() {
+    const by = Object.fromEntries(sections().map((s) => [s.key, s]))
+    const tabs = [
+      ["pinned", "Pinned", ""],
+      ["work", "Work", '<span class="dot pulse"></span>'],
+      ["msgs", "Messages", S.ping ? '<span class="dot"></span>' : ""],
+      ["files", "Files", ""],
+    ]
+    const group = (...keys) => keys.map((k) => `<div class="sub">${by[k].title}</div><div class="rows">${body(by[k])}</div>`).join("")
+    const inside = {
+      pinned: `${tile(S.tall ? 520 : 262)}<div class="rows">${by.pinned.rows.join("")}</div>`,
+      work: group("running", "did"),
+      msgs: group("doods", "slack"),
+      files: group("shared"),
+    }[S.tab]
+    return `<div class="aside">${face("short")}<div class="tabsb">${tabs
+      .map(([key, label, dot]) => `<button class="tb${S.tab === key ? " on" : ""}" data-tab="${key}">${label}${dot}</button>`)
+      .join("")}</div><div class="scroller tabbody">${inside}</div></div>`
+  },
+
+  // C: nothing folds. A list shows its newest few and says how many more there are.
+  c() {
+    const secs = sections()
+      .map((s) => {
+        const cap = s.cap ?? 2
+        const open = S.more[s.key]
+        const more =
+          s.rows.length > cap
+            ? `<button class="more" data-more="${s.key}">${open ? "Show fewer" : `Show ${s.rows.length - cap} more`}</button>`
+            : ""
+        return `<div class="sec"><div class="sh">${s.title}</div><div class="rows">${body(s, open ? s.rows : s.rows.slice(0, cap))}${more}</div></div>`
+      })
+      .join("")
+    return `<div class="aside">${bar}<div class="scroller">${face()}${secs}</div></div>`
+  },
+}
+
+const caps = {
+  today: `<h2>Today</h2>
+    <p>Every section is given a share of the panel's height and scrolls by itself, and the last one has whatever is left.</p>
+    <ul><li>In a laptop window the face and what is pinned take most of it. <b>From Slack</b>, <b>Shared here</b> and <b>What it did here</b> are pushed off the bottom, and nothing scrolls to them.</li>
+    <li>In a <b>tall window</b> (above) it only runs out a little further down: Shared here is cut and What it did here still does not show. A list longer than its share gets a scroll bar of its own.</li></ul>`,
+  a: `<h2>A · Folding sections<span class="pick">my pick</span></h2>
+    <ul><li><b>Press a heading</b> to fold or open it. What you fold stays folded, for every Dood.</li>
+    <li>A folded heading still says <b>how many</b>, and whether something is running or <b>waiting for an answer</b>. Try “A Slack message comes in”.</li>
+    <li>Messages that have all been answered <b>start folded</b>; so does Shared here.</li>
+    <li>The panel <b>scrolls as one</b>. No more small scroll areas.</li>
+    <li>Scroll down and the <b>face tucks into a bar</b>, so the lists get the whole height. Scroll back up and it is big again.</li></ul>
+    <p class="cost">Costs: one more press to reach a folded list, and a section with something new does not open by itself, it only shows the dot.</p>`,
+  b: `<h2>B · Tabs</h2>
+    <ul><li>Four tabs under the face: <b>Pinned</b>, <b>Work</b> (what is running and what it did), <b>Messages</b> (other Doods and Slack), <b>Files</b>.</li>
+    <li>One group at a time with <b>all the room</b>, so the pinned page is drawn much larger.</li>
+    <li>A dot on a tab says something is running or waiting.</li>
+    <li>The face is a little smaller to pay for the row of tabs.</li></ul>
+    <p class="cost">Costs: the pinned page and what the Dood is doing can no longer be seen together, and a new message is only a dot until its tab is opened.</p>`,
+  c: `<h2>C · Short lists</h2>
+    <ul><li>Nothing folds. Each list shows its <b>newest two</b> (four for What it did here) and a “Show 3 more”.</li>
+    <li>The panel scrolls as one and the face tucks into a bar, as in A.</li>
+    <li>The smallest change: nothing to remember, nothing hidden behind a press.</li></ul>
+    <p class="cost">Costs: with everything present it is still a long scroll, and there is no way to put away a section you never look at.</p>`,
+}
+
+const nav = [
+  ["Now", [["today", "Today"]]],
+  ["Ways to make room", [["a", "A · Folding sections"], ["b", "B · Tabs"], ["c", "C · Short lists"]]],
+]
+
+let cur = scenes[window.START?.scene] ? window.START.scene : "a"
+const stage = document.getElementById("stage")
+
+function render(keep = true) {
+  const before = stage.querySelector(".scroller")
+  const top = keep && before ? before.scrollTop : (window.START?.scroll ?? 0)
+  stage.innerHTML = `${scenes[cur]()}<div class="notes">${caps[cur]}</div>`
+  stage.classList.toggle("tallw", S.tall)
+  const scroller = stage.querySelector(".scroller")
+  const tucked = stage.querySelector(".bar")
+  if (scroller) {
+    scroller.scrollTop = top
+    if (tucked) {
+      // The bar comes in once the Dood's name has gone under the top edge.
+      const follow = () => tucked.classList.toggle("on", scroller.scrollTop > 236)
+      scroller.addEventListener("scroll", follow)
+      follow()
+    }
+  }
+  const dark = document.getElementById("wrap").classList.contains("dk")
+  document.getElementById("groups").innerHTML =
+    nav
+      .map(
+        ([label, items]) =>
+          `<div class="ng"><span>${label}</span>${items.map(([key, text]) => `<button class="nb${cur === key ? " on" : ""}" data-go="${key}">${text}</button>`).join("")}</div>`,
+      )
+      .join("") +
+    `<div class="ng"><button class="nb act" data-act="ping">${S.ping ? "Take the Slack message away" : "▶ A Slack message comes in"}</button>${
+      cur === "a" ? `<button class="nb act" data-act="tuck">Face tucks away: ${S.tuck ? "on" : "off"}</button>` : ""
+    }<button class="nb act" data-act="tall">${S.tall ? "Laptop window" : "Tall window"}</button><button class="nb act" data-act="dark">${dark ? "Light" : "Dark"}</button></div>`
+}
+
+document.addEventListener("click", (event) => {
+  const at = (name) => event.target.closest(`[data-${name}]`)?.dataset[name]
+  const go = at("go")
+  if (go) {
+    cur = go
+    history.replaceState(null, "", `#${go}`)
+    window.START = undefined
+    return render(false)
+  }
+  const fold = at("fold")
+  if (fold) S.fold[fold] = !S.fold[fold]
+  const more = at("more")
+  if (more) S.more[more] = !S.more[more]
+  const tab = at("tab")
+  if (tab) S.tab = tab
+  const act = at("act")
+  if (act === "dark") document.getElementById("wrap").classList.toggle("dk")
+  else if (act) S[act] = !S[act]
+  if (fold || more || tab || act) render(act !== "tuck" && !tab)
+})
+if (scenes[location.hash.slice(1)]) cur = location.hash.slice(1)
+if (window.START?.light) document.getElementById("wrap").classList.remove("dk")
+render(false)
+</script>
+</body>
+</html>

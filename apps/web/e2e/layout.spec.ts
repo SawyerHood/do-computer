@@ -5,10 +5,12 @@ import {
   composer,
   newChat,
   openSettings,
+  sectionHeading,
   sideChats,
   signIn,
   tab,
   tool,
+  unfold,
 } from "./helpers.ts"
 
 asOwner()
@@ -116,6 +118,71 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await expect.poll(() => width(panel)).toBe(320)
 })
 
+test("a section of the panel folds under its heading, and the face gives way to a bar", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await tool(
+    page,
+    "write",
+    { path: "library/folds/notes.md", content: "# Fold notes\n" },
+    "Successfully wrote to library/folds/notes.md",
+  )
+  await composer(page).fill('/tool send_file {"path":"library/folds/notes.md"}')
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("link", { name: "Download notes.md" })).toBeVisible()
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  const panel = page.getByRole("complementary", { name: "About Juniper" })
+  const did = panel.getByRole("region", { name: "What it did here" })
+  for (const title of ["One", "Two", "Three", "Four", "Five", "Six", "Seven"]) {
+    await composer(page).fill(`/tool log {"title":"Thing ${title}","outcome":"Done."}`)
+    await page.keyboard.press("Enter")
+    await expect(did.getByRole("listitem").filter({ hasText: `Thing ${title}` })).toBeVisible()
+  }
+
+  // What it did is open, with its latest few and a way to the rest, and its heading counts them all.
+  const didHeading = sectionHeading(page, "What it did here")
+  await expect(didHeading).toHaveText(/What it did here\s*7/)
+  await expect(did.getByRole("listitem")).toHaveCount(5)
+  await did.getByRole("button", { name: "Show 2 more" }).click()
+  await expect(did.getByRole("listitem")).toHaveCount(7)
+  await did.getByRole("button", { name: "Show fewer" }).click()
+  await expect(did.getByRole("listitem")).toHaveCount(5)
+  // It folds away under its heading.
+  await didHeading.click()
+  await expect(didHeading).toHaveAttribute("aria-expanded", "false")
+  await expect(did.getByRole("listitem")).toHaveCount(0)
+  // What was shared starts folded, and is opened.
+  const shared = panel.getByRole("region", { name: "Shared here" })
+  await expect(sectionHeading(page, "Shared here")).toHaveAttribute("aria-expanded", "false")
+  await unfold(page, "Shared here")
+  await expect(shared.getByRole("listitem")).toHaveText([/notes\.md/])
+
+  // Both are as they were left after a reload.
+  await page.reload()
+  await expect(composer(page)).toBeVisible()
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await expect(didHeading).toHaveAttribute("aria-expanded", "false")
+  await expect(shared.getByRole("listitem")).toHaveText([/notes\.md/])
+  await didHeading.click()
+  await expect(did.getByRole("listitem")).toHaveCount(5)
+
+  // In a short window the panel scrolls as one. Once the name has gone, a bar says who this is,
+  // and a press on it brings the face back.
+  await page.setViewportSize({ width: 1280, height: 420 })
+  const bar = panel.getByRole("button", { name: "Back to Juniper" })
+  await expect(bar).toHaveCount(0)
+  await panel.getByRole("heading", { name: "Juniper" }).hover()
+  await page.mouse.wheel(0, 2000)
+  await expect(bar).toBeVisible()
+  await expect(bar).toContainText("Juniper")
+  await page.screenshot({ path: "test-results/panel-tucked.png" })
+  await bar.click()
+  await expect(bar).toHaveCount(0)
+  await expect(panel.getByRole("heading", { name: "Juniper" })).toBeInViewport()
+})
+
 test("what the agent shared is listed in its panel, and a document's edge is dragged too", async ({
   page,
 }) => {
@@ -143,6 +210,10 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   await page.getByRole("button", { name: "Show Juniper's panel" }).click()
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const shared = panel.getByRole("region", { name: "Shared here" })
+  // Folded until it is asked for, it says how many there are.
+  await expect(sectionHeading(page, "Shared here")).toHaveText(/Shared here\s*2/)
+  await expect(shared.getByRole("listitem")).toHaveCount(0)
+  await unfold(page, "Shared here")
   await expect(shared.getByRole("listitem")).toHaveText([/index\.html/, /notes\.md/])
   await page.screenshot({ path: "test-results/panel-shared.png" })
 

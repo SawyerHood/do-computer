@@ -40,6 +40,7 @@ import { PendingApprovals } from "./approvals.tsx"
 import { PendingSecrets, PendingSignIns } from "./secrets.tsx"
 import { RunningCount, useRunningJobs } from "./commands.tsx"
 import { Composer } from "./composer.tsx"
+import { PanelSection } from "./panel-section.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
 import { SideChat, SideChatBar, SideChatWelcome } from "./side-chat.tsx"
@@ -667,10 +668,11 @@ export function ChatView({
           chatId={chatId}
           presence={
             team === undefined ? undefined : (
-              <section aria-label="Here now" className="shrink-0 border-t px-5 pt-4 pb-3.5">
-                <h3 className="flex items-center justify-between pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-                  Here now
-                  {team.role === "member" ? null : (
+              <PanelSection
+                id="here"
+                title="Here now"
+                action={
+                  team.role === "member" ? undefined : (
                     <Button
                       variant="link"
                       size="xs"
@@ -679,9 +681,10 @@ export function ChatView({
                     >
                       Invite
                     </Button>
-                  )}
-                </h3>
-                <div className="flex items-center gap-1.5 [--face-ring:var(--rail)]">
+                  )
+                }
+              >
+                <div className="flex items-center gap-1.5 px-5 pb-3.5 [--face-ring:var(--rail)]">
                   {present.map((person) => (
                     <PersonFace key={person.id} person={person} here className="size-7" />
                   ))}
@@ -693,7 +696,7 @@ export function ChatView({
                         : names(present, me.user.name)}
                   </span>
                 </div>
-              </section>
+              </PanelSection>
             )
           }
           onOpenFile={setOpenDoc}

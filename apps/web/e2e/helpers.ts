@@ -54,6 +54,25 @@ export async function signIn(page: Page) {
 
 export const composer = (page: Page) => page.getByRole("textbox", { name: "Message" })
 
+/** The heading of a section of the agent's panel, which folds it and opens it. */
+export const sectionHeading = (page: Page, section: string) =>
+  page
+    .getByRole("complementary", { name: /^About / })
+    .getByRole("region", { name: section, exact: true })
+    .getByRole("heading")
+    .getByRole("button")
+
+/**
+ * Open a section of the agent's panel that is folded under its heading, as the ones that are
+ * seldom wanted are until they are asked for. One that is open already is left as it is.
+ */
+export async function unfold(page: Page, section: string) {
+  const heading = sectionHeading(page, section)
+  await expect(heading).toBeVisible()
+  if ((await heading.getAttribute("aria-expanded")) === "false") await heading.click()
+  await expect(heading).toHaveAttribute("aria-expanded", "true")
+}
+
 /**
  * Open a section of the open agent's settings, from the end of the strip above its pages. They
  * are one part of the settings window, which is over whichever page is showing. Slack is set
