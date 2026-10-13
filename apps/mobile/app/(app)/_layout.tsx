@@ -82,7 +82,7 @@ export default function AppLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: "Agents",
+          title: "Doods",
           headerLargeTitle: true,
           contentStyle: { backgroundColor: theme.page },
         }}

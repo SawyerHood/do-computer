@@ -73,7 +73,7 @@ export default function Invite() {
       <HeaderItems placement="left" items={[{ label: "Cancel", text: "Cancel", onPress: close }]} />
       <Text variant="subhead" tone="ink2" style={{ marginHorizontal: 32, marginBottom: 18 }}>
         {workspace === undefined ? "" : `Invite people to ${workspace.name}. `}
-        They will be able to use every agent here and read its chats.
+        They will be able to use every Dood here and read its chats.
       </Text>
       <Section footer="Anything without an @ in the middle is taken as a GitHub username. Separate people with a comma or Return.">
         <WhoInput who={who} onChange={setWho} typed={typed} onTyped={setTyped} label="Who to invite" autoFocus />

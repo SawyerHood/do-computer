@@ -11,7 +11,7 @@ import { tellPerson } from "./feed.ts"
  */
 export async function markAgentSeen(user: SessionUser, agentId: string): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   const seenAt = Date.now()
   await getPlatform().db.run(
     `INSERT INTO dc_agent_seen (user_id, agent_id, seen_at) VALUES (?, ?, ?)

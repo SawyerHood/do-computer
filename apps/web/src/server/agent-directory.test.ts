@@ -36,7 +36,7 @@ function fakeAgents(names: Record<string, string | null>) {
         const path = new URL(request.url).pathname
         if (request.method === "GET") {
           return names[to] === undefined
-            ? Response.json({ error: "Agent is not initialized" }, { status: 409 })
+            ? Response.json({ error: "Dood is not initialized" }, { status: 409 })
             : Response.json({ agent: { id: to, name: names[to], tagline: null } })
         }
         calls.push({ to, path, body: await request.json() })

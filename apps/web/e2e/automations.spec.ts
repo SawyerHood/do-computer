@@ -79,11 +79,11 @@ test("an automation with a check starts the agent only when the check finds some
   await expect(card.getByText("cat broken.txt 2>/dev/null || true")).toBeVisible()
   await card.getByRole("button", { name: "Run now" }).click()
   // Nothing was found, so there is no run to look at.
-  await expect(card.getByText(/the check found nothing, so the agent was not started/)).toBeVisible(
-    { timeout: 15_000 },
-  )
+  await expect(card.getByText(/the check found nothing, so the Dood was not started/)).toBeVisible({
+    timeout: 15_000,
+  })
   await expect(card.getByRole("link", { name: "View run" })).toHaveCount(0)
-  await expect(card.getByText("Checked once and never started the agent.")).toBeVisible()
+  await expect(card.getByText("Checked once and never started the Dood.")).toBeVisible()
 
   await newChat(page)
   await tool(
@@ -96,7 +96,7 @@ test("an automation with a check starts the agent only when the check finds some
   await tab(page, "Automations").click()
   await card.getByRole("button", { name: "Run now" }).click()
   await expect(card.getByText(/reported back/)).toBeVisible({ timeout: 15_000 })
-  await expect(card.getByText("Checked 2 times and started the agent once.")).toBeVisible()
+  await expect(card.getByText("Checked 2 times and started the Dood once.")).toBeVisible()
   await card.getByRole("link", { name: "View run" }).click()
   await expect(page.getByText(/the tests fail on main/).first()).toBeVisible()
 
@@ -142,7 +142,7 @@ test("opening the agent lands on its main chat, whatever was used last", async (
   await page.getByRole("menuitem", { name: /^Chat to put away/ }).click()
   await page.getByRole("link", { name: "Give it the whole chat" }).click()
   await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
-  await page.getByRole("navigation", { name: "Agents" }).getByRole("link").first().click()
+  await page.getByRole("navigation", { name: "Doods" }).getByRole("link").first().click()
   await expect(page).toHaveURL(main)
 
   // The main chat is always there: it is not one that can be put away.
@@ -294,7 +294,7 @@ test("the agent saves a skill, and it can be read, switched off and deleted", as
 
   await openSettings(page, "Skills")
   const card = page.getByRole("listitem").filter({ hasText: "morning-brief" })
-  await expect(card.getByText("Written by the agent")).toBeVisible()
+  await expect(card.getByText("Written by the Dood")).toBeVisible()
   await expect(page.getByRole("listitem").filter({ hasText: "writing-skills" })).toContainText(
     "Built in",
   )

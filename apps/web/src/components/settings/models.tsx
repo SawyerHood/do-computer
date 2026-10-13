@@ -178,7 +178,7 @@ function Typed({
       <p className="text-xs text-muted-foreground">
         {prompt.type !== "manual_code"
           ? secret
-            ? "Kept on the server and never shown again. Agents never see it."
+            ? "Kept on the server and never shown again. Doods never see it."
             : null
           : address
             ? `After you sign in, the tab goes to an address that starts with localhost and does not load. That is expected. Copy the whole address from the address bar.`
@@ -269,14 +269,14 @@ export function ModelSignIn({
   const description = key
     ? `Paid for by the token, on your account with ${provider.name}.`
     : method.subscription
-      ? `Use a ${way} subscription for ${whose(workspace)} agents.`
-      : `Use your own ${provider.name} account for ${whose(workspace)} agents.`
+      ? `Use a ${way} subscription for ${whose(workspace)} Doods.`
+      : `Use your own ${provider.name} account for ${whose(workspace)} Doods.`
   const shared =
     workspace.kind === "deployment"
-      ? "Everyone on this server can then set agents to these models, and what the agents use counts against your account there."
+      ? "Everyone on this server can then set Doods to these models, and what the Doods use counts against your account there."
       : workspace.kind === "team"
-        ? `Everyone in ${workspace.name} can then set agents to these models, and what the agents use counts against your account there.`
-        : "Your agents can then be set to these models, and what they use counts against your account there."
+        ? `Everyone in ${workspace.name} can then set Doods to these models, and what the Doods use counts against your account there.`
+        : "Your Doods can then be set to these models, and what they use counts against your account there."
   const prompt = login?.prompt ?? null
   const problem =
     failure ?? (login?.status === "failed" ? (login.error ?? "It failed.") : undefined)
@@ -635,8 +635,8 @@ export function ModelProviderList({
         const agreed = await confirm({
           title: `Sign out of ${provider.name}?`,
           description: server
-            ? "Agents set to one of its models stop answering until they are set to another."
-            : "An agent set to one of its models stops answering until it is set to another.",
+            ? "Doods set to one of its models stop answering until they are set to another."
+            : "A Dood set to one of its models stops answering until it is set to another.",
           action: "Sign out",
           destructive: true,
         })
@@ -716,11 +716,11 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
         <ModelProviderList workspace={workspace} meId={meId} through={through} />
         <p className="pt-2 text-xs text-muted-foreground">
           {server
-            ? "A sign-in here is the server's: everyone's agents can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
+            ? "A sign-in here is the server's: everyone's Doods can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
             : workspace.kind === "team"
-              ? `A sign-in belongs to the workspace: everyone in ${workspace.name} can then set agents to its models, and what the agents use counts against whoever signed in.`
-              : "A sign-in belongs to this workspace: your agents here can then be set to its models."}{" "}
-          Nobody is shown a key or a token again, and agents never see one.
+              ? `A sign-in belongs to the workspace: everyone in ${workspace.name} can then set Doods to its models, and what the Doods use counts against whoever signed in.`
+              : "A sign-in belongs to this workspace: your Doods here can then be set to its models."}{" "}
+          Nobody is shown a key or a token again, and Doods never see one.
         </p>
       </section>
     </>
@@ -737,8 +737,8 @@ export function ModelsSettings({ workspace, meId }: { workspace: WorkspaceSummar
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Models</h2>
         <p className="text-sm text-muted-foreground">
-          What {whose(workspace)} agents can run on. Sign in with a subscription or a key, and every
-          agent of the workspace can be set to its models.
+          What {whose(workspace)} Doods can run on. Sign in with a subscription or a key, and every
+          Dood of the workspace can be set to its models.
         </p>
       </div>
       <Loads key={workspace.id} fallback={<CardsPlaceholder cards={3} />}>
@@ -758,8 +758,8 @@ export function ServerModelsSettings({ meId }: { meId: string }) {
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Server models</h2>
         <p className="text-sm text-muted-foreground">
-          What everyone's agents can run on without signing in to anything. Sign the server in with
-          a subscription or a key, and its models are offered to every workspace.
+          What everyone's Doods can run on without signing in to anything. Sign the server in with a
+          subscription or a key, and its models are offered to every workspace.
         </p>
       </div>
       <Loads fallback={<CardsPlaceholder cards={3} />}>

@@ -137,7 +137,7 @@ export default function AgentInfo() {
 
       {agent === undefined ? (
         query.error ? (
-          <Empty title="This agent could not be loaded">{errorText(query.error)}</Empty>
+          <Empty title="This Dood could not be loaded">{errorText(query.error)}</Empty>
         ) : (
           <ActivityIndicator style={{ marginTop: 80 }} />
         )
@@ -323,7 +323,7 @@ function MainChat({
     const went = await confirm({
       title: "Start fresh",
       message:
-        "The agent stops carrying this chat's earlier messages. Its memory is kept, and you can still read them.",
+        "The Dood stops carrying this chat's earlier messages. Its memory is kept, and you can still read them.",
       action: "Start fresh",
     })
     if (!went) return
@@ -406,7 +406,7 @@ function MainChat({
         {threads.length === 0 ? null : (
           <Row
             icon={["people", "#c0607a"]}
-            title="From other agents"
+            title="From other Doods"
             value={String(threads.length)}
             go
             onPress={() => router.push(`${base}/threads`)}

@@ -62,7 +62,7 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
           <span className="min-w-0 flex-1 truncate text-sm">{me.name}</span>
           {asking > 0 ? (
             <span
-              title="An agent is asking to use a computer"
+              title="A Dood is asking to use a computer"
               className="size-2 shrink-0 rounded-full bg-primary"
             />
           ) : null}
@@ -85,9 +85,7 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
             >
               <DesktopIcon />
               <span className="flex-1">
-                {asking === 1
-                  ? "An agent asks for a computer"
-                  : `${asking} agents ask for computers`}
+                {asking === 1 ? "A Dood asks for a computer" : `${asking} Doods ask for computers`}
               </span>
               <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
             </DropdownMenuItem>
@@ -176,7 +174,7 @@ export function Sidebar({
             >
               <CaretLeftIcon className="size-3.5 shrink-0" />
               {agent === undefined ? null : <AgentFace agent={agent} className="size-5" quiet />}
-              <span className="min-w-0 truncate">Agents</span>
+              <span className="min-w-0 truncate">Doods</span>
             </Link>
             <div ref={setSlot} className="min-h-0 flex-1" />
           </>

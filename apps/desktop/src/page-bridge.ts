@@ -141,10 +141,10 @@ export function screenRefusal(now: {
 }): string | undefined {
   if (now.unavailable !== undefined) return now.unavailable
   if (now.sharing === "off") {
-    return "Agents cannot use this computer yet. Let them in the Do Computer app, under This Computer."
+    return "Doods cannot use this computer yet. Let them in the Do Computer app, under This Computer."
   }
   if (now.readOnly) {
-    return "Agents may only read files on this computer. That is changed in the Do Computer app, under This Computer."
+    return "Doods may only read files on this computer. That is changed in the Do Computer app, under This Computer."
   }
   return undefined
 }

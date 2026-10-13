@@ -55,7 +55,7 @@ export default function AddComputer() {
         <>
           <Section
             title="Kind of computer"
-            footer="A machine made here for the workspace. Every agent in it can work there, each in a folder of its own, until you choose which ones may."
+            footer="A machine made here for the workspace. Every Dood in it can work there, each in a folder of its own, until you choose which ones may."
           >
             {addable.length > 1 ? (
               addable.map((entry) => (

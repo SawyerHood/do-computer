@@ -43,15 +43,15 @@ const times = (count: number) => (count === 1 ? "once" : `${count} times`)
 /** How often a check ran, and how often it led to the agent being started. */
 const tally = (checked: number, started: number) =>
   started === 0
-    ? `Checked ${times(checked)} and never started the agent.`
-    : `Checked ${times(checked)} and started the agent ${times(started)}.`
+    ? `Checked ${times(checked)} and never started the Dood.`
+    : `Checked ${times(checked)} and started the Dood ${times(started)}.`
 
 const OUTCOMES = {
   delivered: "reported back",
   silent: "had nothing to report",
   failed: "did not finish",
-  skipped: "the check found nothing, so the agent was not started",
-  "check-failed": "the check is still failing, so the agent was not started",
+  skipped: "the check found nothing, so the Dood was not started",
+  "check-failed": "the check is still failing, so the Dood was not started",
 } as const
 
 function status(schedule: ScheduleSummary): { label: string; tone: string } {
@@ -103,7 +103,7 @@ function ScheduleCard({ agentId, schedule }: { agentId: string; schedule: Schedu
           {schedule.check ? (
             <div className="flex flex-col gap-1.5">
               <p className="text-muted-foreground">
-                Checks first on {schedule.check.computer}, and only starts the agent{" "}
+                Checks first on {schedule.check.computer}, and only starts the Dood{" "}
                 {schedule.check.wake === "change"
                   ? "when what this prints changes"
                   : "if this prints something"}
@@ -209,7 +209,7 @@ function AutomationsPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Automations</h1>
             <p className="text-sm text-muted-foreground">
-              Things your agent does on its own, once or on a schedule. To add one, ask in chat:
+              Things your Dood does on its own, once or on a schedule. To add one, ask in chat:
               “Every weekday at 9, tell me what is on my calendar.”
             </p>
           </div>

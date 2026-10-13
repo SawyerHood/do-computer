@@ -123,12 +123,12 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
     case "browser":
       return where === undefined ? "Using a browser" : `Using a browser on ${where}`
     case "agents":
-      if (args.action === "create") return withDetail("Making a new agent", text(args.name))
+      if (args.action === "create") return withDetail("Making a new Dood", text(args.name))
       if (args.action === "message") {
         const to = text(args.to)
-        return to === undefined ? "Writing to another agent" : `Writing to ${clip(to)}`
+        return to === undefined ? "Writing to another Dood" : `Writing to ${clip(to)}`
       }
-      return "Looking at the other agents"
+      return "Looking at the other Doods"
     default: {
       // A connector's tool is named `<connector>__<tool>`.
       const [connector, tool] = part.name.split("__")

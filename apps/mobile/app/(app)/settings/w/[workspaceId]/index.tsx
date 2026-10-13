@@ -82,8 +82,8 @@ export default function Workspace() {
   const admin = workspace.role !== "member"
   const has = count(
     (agents.data ?? []).filter((agent) => agent.workspaceId === workspace.id).length,
-    "agent",
-    "agents",
+    "Dood",
+    "Doods",
   )
   const signedIn = (providers.data ?? [])
     .filter((provider) => provider.signedIn !== null)
@@ -112,7 +112,7 @@ export default function Workspace() {
       <Stack.Screen options={{ title: workspace.name, headerLargeTitle: true }} />
       <Text variant="subhead" tone="ink2" style={{ marginHorizontal: 20, marginBottom: 18 }}>
         {team
-          ? `Team · ${count(workspace.members.length, "person", "people")} · ${has}\nEveryone here can use every agent in this team, read its chats and make new agents.`
+          ? `Team · ${count(workspace.members.length, "person", "people")} · ${has}\nEveryone here can use every Dood in this team, read its chats and make new Doods.`
           : `Only you · ${has}`}
       </Text>
 
@@ -121,7 +121,7 @@ export default function Workspace() {
       {team ? (
         <Section
           title="People"
-          footer="Members use every agent here, start chats, read each other’s, and make new agents. Admins also invite and remove people, rename the team, and move or delete its agents. The owner also decides who is an admin, and can hand the team on or delete it."
+          footer="Members use every Dood here, start chats, read each other’s, and make new Doods. Admins also invite and remove people, rename the team, and move or delete its Doods. The owner also decides who is an admin, and can hand the team on or delete it."
         >
           {workspace.members.map((member) => (
             <MemberRow
@@ -187,7 +187,7 @@ export default function Workspace() {
       </Section>
 
       {!team ? null : workspace.role === "owner" ? (
-        <Section footer="A team can be deleted once it has no agents: move or delete those first.">
+        <Section footer="A team can be deleted once it has no Doods: move or delete those first.">
           <Row
             title="Delete team"
             tone="red"
@@ -210,7 +210,7 @@ export default function Workspace() {
             onPress={async () => {
               const sure = await confirm({
                 title: `Leave ${workspace.name}?`,
-                message: "You will lose its agents and their chats.",
+                message: "You will lose its Doods and their chats.",
                 action: "Leave",
               })
               if (sure) {

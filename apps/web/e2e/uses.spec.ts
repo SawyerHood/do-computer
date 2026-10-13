@@ -266,7 +266,7 @@ process.exit(1)
 
     await openWorkspaceSettings(page, "Computers")
     const shows = page.getByRole("dialog").getByRole("switch", {
-      name: "Show the browser agents use",
+      name: "Show the browser Doods use",
     })
     await expect(shows).toBeChecked()
     await shows.click()

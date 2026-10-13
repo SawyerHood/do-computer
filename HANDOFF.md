@@ -2023,7 +2023,8 @@ Since then, newest last:
       than "Your open source personal assistant.": "I'm thinking of calling the agents Doods is
       there anything with that for the headline", and to "Meet your Dood.", "Do it!". The name
       is in the headline, the copy under it, the questions (the first is "What is a Dood?") and
-      the page's description. It is on this page only: the app itself still says "agent".
+      the page's description. It was on this page only until item 69, which took it to the
+      whole app.
     - **The pictures of the app** in `apps/web/public/landing` are real: taken from the built
       server with a real model (`prototypes/landing/README.md` says how), and are the light
       ones. They will go out of date as the app changes.
@@ -2844,6 +2845,56 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       in the simulator, which gets no microphone from a Mac reached over SSH, so the listening
       state was forced for its picture; and the upload fix on a phone since it was written.
       The owner asked for no more cloud builds for now: they are paid for.
+
+69. **The app calls an agent a Dood, wherever a person reads** (2026-10-13;
+    `packages/agent/src/persona.ts`, and copy in every app). The owner: "Can we make sure that
+    in all of the user facing copy we refer to the agents as Doods?" Until then only the
+    landing page did (item 48).
+    - **What says Dood now.** Every label, sentence, error a person is shown, notification,
+      invitation email, permission and line of activity in the web app, the phone app, the
+      desktop app and the daemon ("New Dood", "Doods" over the sidebar's list, "Your Dood",
+      "Dood not found"); a Dood's Slack app description; the phone and desktop apps' reasons
+      for asking for the microphone; the desktop release notes; `README.md`, the guides in
+      `docs/` and the pages in `docs/reference`. "Dood" keeps its capital inside a sentence,
+      which is why the settings window's "Back to …" no longer lower-cases every label.
+    - **What still says agent, on purpose.** Code, and every address and name a program reads:
+      `/a/<id>`, `/api/agents`, `?settings=agent.<id>`, the `agents` and `subagent` tools,
+      `packages/agent`. What the model is told (tool descriptions and results, the notes
+      between chats), except one sentence added to the persona, `CALLED`, which tells it that
+      the app's word for it is Dood: without it "make me another Dood" would mean nothing to
+      it, and it would call itself an agent beside a page that says Dood. A guide's first
+      block, "If you are an agent", and the card beside a guide, "Have an agent set it up",
+      which are for Claude Code, Codex and the like. The README's first line, which says what
+      kind of thing this is to someone who has not met the word, and the sentence after it,
+      which introduces it ("agents, called Doods"). The titles of tests.
+    - **Chosen for the owner, not confirmed:** "sub-agent" is left as it was ("Sub-agents at
+      work", "Only the Dood talks to its sub-agents."), since nobody has said what a Dood's
+      copy of itself is called; the sentence in the persona; "Meet your Dood, an always-on
+      personal assistant." as the installed web app's description.
+    - **How it was done**, for the next sweep of this kind: a script read each file with
+      TypeScript's parser and changed the word only inside string literals, the pieces of
+      template strings and JSX text, leaving identifiers, addresses and one-word lower-case
+      strings (ids) alone. Three things it got wrong at first are worth knowing: a file whose
+      name has a `$` in it was dropped by the shell, a fragment such as `} agents.` at the end
+      of a template string was taken for an id, and the head of `` `agent.${id}.slack` `` is an
+      address and not a word. Words handed to a plural helper (`count(n, "agent", "agents")`)
+      are ids to such a script and were changed by hand.
+    - **Pictures.** Five of the README's six (`docs/screenshots`) and two of the Apps guide's
+      five (`docs/images/apps-connect.png`, `apps-connected.png`) showed "Agents" or "Your
+      agent" and were taken again, as items 61 and 60 say how; the others never showed the
+      word. `prototypes/polish/tour.mjs` now also puts the swapped answer's first words under
+      the name in the sidebar, where the echo model's own line was showing.
+    - **Checked:** the type checks, every package's tests, the browser tests of the web app
+      and of the phone app's web build and the desktop app's tests under Xvfb, with the labels
+      in them changed to match. A few pages were looked at in a browser. A real model
+      (`claude-haiku-5.5` through OpenRouter, on the built Node server) asked "what are you?"
+      said "a persistent personal agent (a Dood)", and asked "Do I have any other Doods?"
+      looked with its `agents` tool and answered in the same word. **Not checked:** the phone
+      app in a simulator and the desktop app's windows by eye. **Not done:** the landing
+      page's picture of Automations, at a desk's width and a phone's
+      (`apps/web/public/landing/automations.jpg`, `phone-automations.jpg`), still reads
+      "Things your agent does on its own". Those six pictures are of the app before its
+      restyle and want taking again together, with a real model.
 
 ## 6. What the owner has said they want
 

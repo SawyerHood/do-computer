@@ -32,7 +32,7 @@ export function useLibrary(agentId: string) {
   const team = workspace?.kind === "team"
   /** The agents that share this library: every one in the workspace. */
   const sharers = (agents ?? []).filter((each) => each.workspaceId === agent?.workspaceId)
-  const agentName = agent?.name ?? "Your agent"
+  const agentName = agent?.name ?? "Your Dood"
 
   /** Who last changed a file, or deleted it: the agent by its name, or "you". */
   const by = (who: "agent" | "user", file: Pick<LibraryFile, "agentId">) =>

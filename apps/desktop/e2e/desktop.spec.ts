@@ -142,7 +142,7 @@ test("a first run asks which Do Computer to use, and says so when there is none 
   const welcome = await windowAt("welcome.html")
   await expect(welcome.getByRole("heading", { name: "Do Computer" })).toBeVisible()
   // Whether agents may work here is not asked on this form: the first run asks it.
-  await expect(welcome.getByLabel("Let my agents work on this computer")).toBeHidden()
+  await expect(welcome.getByLabel("Let my Doods work on this computer")).toBeHidden()
 
   await welcome.getByLabel("Server").fill("http://127.0.0.1:9")
   await welcome.getByRole("button", { name: "Continue" }).click()
@@ -196,7 +196,7 @@ test("the first run asks who its owner is, a name for the agent, and for this co
   // The app's own window about this computer says that it is connected.
   const computer = await openComputer()
   await expect(computer.getByRole("status")).toContainText("Connected as", { timeout: 20_000 })
-  await expect(computer.getByRole("button", { name: "Stop letting agents use it" })).toBeVisible()
+  await expect(computer.getByRole("button", { name: "Stop letting Doods use it" })).toBeVisible()
   await expect(computer.getByRole("list", { name: "What the daemon did" })).toContainText(
     "Connected to",
   )
@@ -230,7 +230,7 @@ test("its first hello offers to draw, and the app asks its owner for the screen 
   // An owner who says no is left where they were: nothing is said for them or switched on.
   await answer(1)
   await draw.click()
-  await expect.poll(asked).toEqual(["Let agents use this computer’s screen?"])
+  await expect.poll(asked).toEqual(["Let Doods use this computer’s screen?"])
   await expect(draw).toBeEnabled()
   await expect(main.getByRole("heading", { name: "Hi Sawyer, I’m Pip." })).toBeVisible()
   await expect(computer.getByRole("switch", { name: /The screen/ })).not.toBeChecked()
@@ -315,7 +315,7 @@ test("an agent uses the screen once its owner switches that on here, and not bef
   // Off until its owner says otherwise, and the agent is told whose it is to switch on.
   await expect(computer.getByRole("switch", { name: /The screen/ })).not.toBeChecked()
   await ask(`/tool screen {"computer":"${name}","action":"screenshot"}`)
-  await expect(main.getByText(/does not let agents use its screen/)).toBeVisible({
+  await expect(main.getByText(/does not let Doods use its screen/)).toBeVisible({
     timeout: 30_000,
   })
   // A browser is theirs to use from the start.
@@ -339,11 +339,11 @@ test("an agent uses the screen once its owner switches that on here, and not bef
 
 test("it can be switched off and on again without pairing again", async () => {
   const computer = await windowAt("computer.html")
-  await computer.getByRole("button", { name: "Stop letting agents use it" }).click()
-  await expect(computer.getByRole("status")).toHaveText("Agents cannot use this computer")
+  await computer.getByRole("button", { name: "Stop letting Doods use it" }).click()
+  await expect(computer.getByRole("status")).toHaveText("Doods cannot use this computer")
   await expect.poll(() => daemons()).toBe(0)
 
-  await computer.getByRole("button", { name: "Let agents use this computer" }).click()
+  await computer.getByRole("button", { name: "Let Doods use this computer" }).click()
   await expect(computer.getByRole("status")).toContainText("Connected as", { timeout: 20_000 })
 })
 

@@ -36,7 +36,7 @@ export default function SideChats() {
   const agent = useAgentSummary(agentId)
   const accent = useAgentAccent(agent)
   const state = useAgentState(agentId)
-  const name = agent?.name ?? "New agent"
+  const name = agent?.name ?? "New Dood"
   const chats = sideChatsOf(state.data?.chats)
   const main = mainChatOf(state.data?.chats)
   const [creating, setCreating] = useState(false)

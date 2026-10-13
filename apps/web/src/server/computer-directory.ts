@@ -1,8 +1,4 @@
-import {
-  type AddableKind,
-  computerActorName,
-  type ComputerDirectory,
-} from "@do-computer/agent"
+import { type AddableKind, computerActorName, type ComputerDirectory } from "@do-computer/agent"
 import { linkStatus } from "@do-computer/computers"
 import { isPersonalWorkspace } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
@@ -136,7 +132,7 @@ export function computerDirectory(
             db,
             userId,
             {
-              title: input.agentName ?? "Your agent",
+              title: input.agentName ?? "Your Dood",
               body: `Asks to use the computer ${row.name}${reason === "" ? "" : `: ${reason}`}`,
               data: { agentId, chatId: input.chatId },
             },

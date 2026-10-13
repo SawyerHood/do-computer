@@ -114,7 +114,7 @@ function ComputerCard({
   const mine = computer.pairedBy.id === meId
   const team = workspaces.find((workspace) => workspace.id === computer.workspaceId)
   const teams = workspaces.filter((workspace) => workspace.kind === "team")
-  const everyone = `Every agent in ${personal ? "your workspace" : (team?.name ?? "the team")}`
+  const everyone = `Every Dood in ${personal ? "your workspace" : (team?.name ?? "the team")}`
   // One's own computer serves any agent one can use; a team's, and any machine, serves the
   // agents of its workspace.
   const connectable = chosen
@@ -147,7 +147,7 @@ function ComputerCard({
   }))
   const open = [
     { value: "open", label: everyone },
-    { value: "chosen", label: "Chosen agents" },
+    { value: "chosen", label: "Chosen Doods" },
   ]
   return (
     <li>
@@ -212,7 +212,7 @@ function ComputerCard({
                       losing.length > 0 &&
                       !(await confirm({
                         title: `Give ${computer.name} to ${to.name}?`,
-                        description: `Agents outside ${to.name} will be disconnected from it.`,
+                        description: `Doods outside ${to.name} will be disconnected from it.`,
                         action: `Give to ${to.name}`,
                       }))
                     ) {
@@ -280,11 +280,11 @@ function ComputerCard({
                 </dd>
               </>
             ) : null}
-            <dt className="self-start pt-1 text-muted-foreground">Agents</dt>
+            <dt className="self-start pt-1 text-muted-foreground">Doods</dt>
             <dd className="flex min-w-0 flex-wrap items-center gap-1.5">
               {computer.agentIds.map((id) => {
                 const agent = agents.get(id)
-                const name = agent?.name ?? "New agent"
+                const name = agent?.name ?? "New Dood"
                 const folder = computer.folders.find((entry) => entry.agentId === id)?.path
                 return (
                   <span
@@ -331,18 +331,18 @@ function ComputerCard({
                         variant="outline"
                         className="font-normal text-muted-foreground"
                         disabled={busy}
-                        aria-label={`Connect an agent to ${computer.name}`}
+                        aria-label={`Connect a Dood to ${computer.name}`}
                       />
                     }
                   >
                     <PlusIcon />
-                    {computer.agentIds.length === 0 ? "Connect an agent…" : "Connect another…"}
+                    {computer.agentIds.length === 0 ? "Connect a Dood…" : "Connect another…"}
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-auto max-w-72">
                     {connectable.map((agent) => (
                       <DropdownMenuItem key={agent.id} onClick={() => connect.mutate(agent.id)}>
                         <AgentFace agent={agent} className="size-5" still />
-                        <span className="min-w-0 flex-1 truncate">{agent.name ?? "New agent"}</span>
+                        <span className="min-w-0 flex-1 truncate">{agent.name ?? "New Dood"}</span>
                         {personal && teams.length > 0 ? (
                           <span className="text-xs font-normal text-muted-foreground">
                             {workspaces.find((workspace) => workspace.id === agent.workspaceId)
@@ -363,7 +363,7 @@ function ComputerCard({
         <CardFooter className="gap-2">
           <p className="text-sm text-muted-foreground">
             {machine && !computer.shareable
-              ? "It keeps its files with its agent, so no other agent can work on it."
+              ? "It keeps its files with its Dood, so no other Dood can work on it."
               : machine && computer.access === "open"
                 ? `${everyone} can work on it, each in a folder of its own.`
                 : computer.online
@@ -374,8 +374,8 @@ function ComputerCard({
                         ? "Its daemon is out of date and does not update itself. Update it from here, or run the install command there again."
                         : "Its daemon is out of date and does not update itself. Run the install command there again."
                     : computer.agentIds.length === 0
-                      ? "No agent can work on it until one is connected. An agent can also ask."
-                      : "Its agents can work on it now."
+                      ? "No Dood can work on it until one is connected. A Dood can also ask."
+                      : "Its Doods can work on it now."
                   : computer.lastSeenAt
                     ? `Last connected ${ago(computer.lastSeenAt)}. Start the daemon there to bring it back.`
                     : "Its daemon has not connected yet."}
@@ -546,7 +546,7 @@ function AddComputer({
           Add a computer
         </h2>
         <p className="text-sm text-muted-foreground">
-          A machine made here for the workspace. Every agent in it can work there, each in a folder
+          A machine made here for the workspace. Every Dood in it can work there, each in a folder
           of its own, until you choose which ones may.
         </p>
       </div>
@@ -639,10 +639,10 @@ function ShownBrowser({ workspaceId }: { workspaceId: string }) {
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-dashed p-4">
       <div>
-        <h2 className="text-sm font-medium">The browser agents use</h2>
+        <h2 className="text-sm font-medium">The browser Doods use</h2>
         <p className="text-sm text-muted-foreground">
-          On a computer with a screen, the browser an agent uses opens in a window you can watch.
-          Off, it works out of sight.
+          On a computer with a screen, the browser a Dood uses opens in a window you can watch. Off,
+          it works out of sight.
         </p>
       </div>
       <Label className="font-normal">
@@ -651,7 +651,7 @@ function ShownBrowser({ workspaceId }: { workspaceId: string }) {
           disabled={save.isPending || !options.canChange}
           onCheckedChange={(next) => save.mutate(next)}
         />
-        Show the browser agents use
+        Show the browser Doods use
       </Label>
       {save.isError ? (
         <p role="alert" className="text-sm text-destructive">
@@ -715,19 +715,19 @@ export function ComputersSettings({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Computers</h2>
         <p className="text-sm text-muted-foreground">
-          Where agents run commands, and read and write files: machines made here for a workspace,
-          and computers of your own or of a team that you connect. Everything an agent does on a
+          Where Doods run commands, and read and write files: machines made here for a workspace,
+          and computers of your own or of a team that you connect. Everything a Dood does on a
           connected computer is logged on that machine.
         </p>
       </div>
 
       {requests.length > 0 ? (
-        <ul aria-label="Agents asking to use a computer" className="flex flex-col gap-2">
+        <ul aria-label="Doods asking to use a computer" className="flex flex-col gap-2">
           {requests.map((request) => (
             <ComputerRequestCard
               key={request.id}
               request={request}
-              agentName={agents.get(request.agentId)?.name ?? "An agent"}
+              agentName={agents.get(request.agentId)?.name ?? "A Dood"}
             />
           ))}
         </ul>
@@ -767,11 +767,11 @@ export function ComputersSettings({
           command={install}
         />
         <Command
-          label="Or let agents read files there without being able to run commands or change anything:"
+          label="Or let Doods read files there without being able to run commands or change anything:"
           command={`${install} -s -- --read-only`}
         />
         <p className="text-sm text-muted-foreground">
-          It prints a link. Open it here to say whose the computer is and which agents get access.
+          It prints a link. Open it here to say whose the computer is and which Doods get access.
           Stopping the daemon, or removing the computer on this page, ends that access at once. The
           daemon keeps itself up to date from this server; add{" "}
           <code className="font-mono text-xs">--no-auto-update</code> to the command to stop it

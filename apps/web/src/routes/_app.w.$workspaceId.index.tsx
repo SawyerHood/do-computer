@@ -39,15 +39,15 @@ function EmptyTeam() {
         <h1 className="text-xl font-semibold tracking-tight">{workspace.name}</h1>
         <p className="text-sm font-medium text-muted-foreground">
           {workspace.members.length} {workspace.members.length === 1 ? "person" : "people"} · 0
-          agents
+          Doods
         </p>
         <p className="text-sm text-muted-foreground">
-          This team has no agents yet. Everyone in it can use the ones made here, and read their
+          This team has no Doods yet. Everyone in it can use the ones made here, and read their
           chats.
         </p>
         <div className="mt-2 flex flex-wrap justify-center gap-2">
           <Button onClick={() => void newAgent()}>
-            <PlusIcon /> New agent for the team
+            <PlusIcon /> New Dood for the team
           </Button>
           {workspace.role === "member" ? null : (
             <Button variant="outline" onClick={() => setInviting(true)}>

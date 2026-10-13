@@ -26,7 +26,7 @@ export async function readSlack(
   request: Request,
   agentId: string,
 ): Promise<Response> {
-  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
+  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Dood not found")
   return json(await slackState(getPlatform().db, agentId, await nameOf(agentId), origin(request)))
 }
 
@@ -36,7 +36,7 @@ export async function addToSlack(
   request: Request,
   agentId: string,
 ): Promise<Response> {
-  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
+  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Dood not found")
   const { db } = getPlatform()
   const input = (await request.json().catch(() => null)) as Partial<ConnectSlackRequest> | null
   try {
@@ -49,7 +49,7 @@ export async function addToSlack(
 }
 
 export async function removeFromSlack(user: SessionUser, agentId: string): Promise<Response> {
-  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Agent not found")
+  if ((await agentFor(user, agentId)) === undefined) return fail(404, "Dood not found")
   await disconnectSlack(getPlatform().db, agentId)
   return json({ ok: true })
 }

@@ -30,8 +30,8 @@ function DefaultModel({ settings }: { settings: UserSettings }) {
           Default model
         </h2>
         <p className="text-sm text-muted-foreground">
-          The model a new agent of yours starts on. Agents you already have keep theirs; change one
-          in its own settings.
+          The model a new Dood of yours starts on. Doods you already have keep theirs; change one in
+          its own settings.
         </p>
       </div>
       {models === undefined ? null : (
@@ -91,9 +91,9 @@ function DefaultComputer({ settings }: { settings: UserSettings }) {
           Default computer
         </h2>
         <p className="text-sm text-muted-foreground">
-          The kind of computer a workspace is given when you make an agent in one that has none the
-          agent could use. A workspace that already has a computer keeps it, and more are added
-          under Computers.
+          The kind of computer a workspace is given when you make a Dood in one that has none the
+          Dood could use. A workspace that already has a computer keeps it, and more are added under
+          Computers.
         </p>
       </div>
       <ComputerPicker
@@ -173,8 +173,8 @@ export function GeneralSettings() {
       <div>
         <h2 className="text-lg font-semibold tracking-tight">General</h2>
         <p className="text-sm text-muted-foreground">
-          Yours, whichever workspace you are in. What one agent is like is set on that agent, and
-          what a workspace has is set on the workspace.
+          Yours, whichever workspace you are in. What one Dood is like is set on that Dood, and what
+          a workspace has is set on the workspace.
         </p>
       </div>
       <Theme />

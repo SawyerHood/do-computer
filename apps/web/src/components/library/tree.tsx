@@ -347,7 +347,7 @@ export function LibraryTree({
                       {file.path}
                     </span>
                     <span>
-                      {file.deletedBy === "agent" ? "by an agent" : "by you"} ·{" "}
+                      {file.deletedBy === "agent" ? "by a Dood" : "by you"} ·{" "}
                       {formatWhen(file.deletedAt)}
                     </span>
                   </span>

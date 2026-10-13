@@ -104,7 +104,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
         <CardContent>
           {apps && connector.status === "connected" ? (
             <p className="text-muted-foreground">
-              Ask your agent for something in Gmail, your calendar, Slack, Notion, GitHub or any
+              Ask your Dood for something in Gmail, your calendar, Slack, Notion, GitHub or any
               other service. The first time, it gives you a link to sign in to that service. It asks
               before it does anything in an account of yours. Your accounts are kept at{" "}
               <a
@@ -119,7 +119,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
             </p>
           ) : apps && connector.status === "needs_auth" ? (
             <p className="text-muted-foreground">
-              Sign in with a Composio account, which is free to make. Your agent then reaches the
+              Sign in with a Composio account, which is free to make. Your Dood then reaches the
               services you connect there. <AppsGuide>How Apps works</AppsGuide>
             </p>
           ) : connector.status === "connected" ? (
@@ -129,9 +129,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
                 : `${connector.tools.length} tools: ${connector.tools.map((tool) => tool.name).join(", ")}`}
             </p>
           ) : connector.status === "needs_auth" ? (
-            <p className="text-muted-foreground">
-              Sign in to the service to let your agent use it.
-            </p>
+            <p className="text-muted-foreground">Sign in to the service to let your Dood use it.</p>
           ) : (
             <p className="text-destructive">{connector.error}</p>
           )}
@@ -253,7 +251,7 @@ function AddForm({ agentId }: { agentId: string }) {
         />
         <p className="text-xs text-muted-foreground">
           Leave empty for a service you sign in to. A token is kept on the server and never shown to
-          the agent.
+          the Dood.
         </p>
       </div>
       {/* For the few services whose sign-in does not let an app introduce itself. */}
@@ -326,8 +324,8 @@ export function ConnectorsSettings({
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connectors</h2>
         <p className="text-sm text-muted-foreground">
-          Services your agent can use, such as a calendar or a task tracker, connected through MCP.
-          Your agent uses them without asking first, with whatever access you grant.
+          Services your Dood can use, such as a calendar or a task tracker, connected through MCP.
+          Your Dood uses them without asking first, with whatever access you grant.
         </p>
       </div>
       {search.connector_error ? (
@@ -357,7 +355,7 @@ function SlackOffer({ agent, onOpen }: { agent: AgentSummary; onOpen: () => void
     queryKey: slackKey(agent.id),
     queryFn: () => client.agent(agent.id).slack(),
   })
-  const name = agent.name ?? "your agent"
+  const name = agent.name ?? "your Dood"
   const app = state?.app ?? null
   return (
     <Card>
@@ -442,7 +440,7 @@ function AppsOffer({ agentId }: { agentId: string }) {
       <CardContent>
         <p className="text-muted-foreground">
           You sign in with a Composio account, which is free to make, and then to each service the
-          first time it is needed. Your agent asks before it does anything in an account of yours.{" "}
+          first time it is needed. Your Dood asks before it does anything in an account of yours.{" "}
           <AppsGuide>What you get and how to set it up</AppsGuide>
         </p>
       </CardContent>

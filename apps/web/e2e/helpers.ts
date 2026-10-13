@@ -64,7 +64,7 @@ export async function openSettings(page: Page, section: string) {
   // Settings that are open somewhere else, at their top or on a workspace, are shut first.
   if (
     (await dialog.count()) > 0 &&
-    (await dialog.getByRole("button", { name: "Back to agents" }).count()) === 0
+    (await dialog.getByRole("button", { name: "Back to Doods" }).count()) === 0
   ) {
     await closeSettings(page)
   }

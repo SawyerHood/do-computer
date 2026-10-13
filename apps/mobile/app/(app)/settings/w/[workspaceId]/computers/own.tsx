@@ -52,11 +52,11 @@ export default function ConnectOwnComputer() {
         command={install}
       />
       <Command
-        label="Or let agents read files there without being able to run commands or change anything:"
+        label="Or let Doods read files there without being able to run commands or change anything:"
         command={`${install} -s -- --read-only`}
       />
       <Text variant="footnote" tone="ink2" style={{ marginHorizontal: 32, marginBottom: 22 }}>
-        It prints a link. Open it here to say whose the computer is and which agents get access.
+        It prints a link. Open it here to say whose the computer is and which Doods get access.
         Stopping the daemon, or removing the computer on this page, ends that access at once. The
         daemon keeps itself up to date from this server; add --no-auto-update to the command to
         stop it doing so.

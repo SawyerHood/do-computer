@@ -185,7 +185,7 @@ export function AppShell({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="Agents"
+              aria-label="Doods"
               className="text-muted-foreground md:hidden"
               onClick={() => setSheetOpen(true)}
             >
@@ -223,7 +223,7 @@ export function AppShell({
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent ref={setSheet} side="left" className="w-80 p-0" showCloseButton={false}>
-          <SheetTitle className="sr-only">Agents</SheetTitle>
+          <SheetTitle className="sr-only">Doods</SheetTitle>
           <Sidebar
             workspace={workspace}
             settled={settled}

@@ -150,7 +150,7 @@ function Usage({ agentId }: { agentId: string }) {
   return (
     <Section
       title="Usage"
-      hint="What this agent's thinking has cost so far, across its chats and scheduled runs."
+      hint="What this Dood's thinking has cost so far, across its chats and scheduled runs."
     >
       <Loads key={agentId} fallback={<RowsPlaceholder />}>
         <UsageNumbers agentId={agentId} />
@@ -266,7 +266,7 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
   })
   return (
     <Section
-      title="Delete this agent"
+      title="Delete this Dood"
       hint="Removes its memory, chats, schedules, skills and connectors, and disconnects it from every computer. Files in the library stay with the workspace. This cannot be undone."
     >
       {open ? (
@@ -298,8 +298,8 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
               </label>
               <p className="pl-6 text-sm text-muted-foreground">
                 {alone.length === 1
-                  ? "No other agent can use this computer. Deleting it deletes everything on it."
-                  : "No other agent can use these computers. Deleting them deletes everything on them."}
+                  ? "No other Dood can use this computer. Deleting it deletes everything on it."
+                  : "No other Dood can use these computers. Deleting them deletes everything on them."}
               </p>
             </div>
           ) : null}
@@ -337,7 +337,7 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
           className="self-start text-destructive"
           onClick={() => setOpen(true)}
         >
-          Delete agent…
+          Delete Dood…
         </Button>
       )}
     </Section>
@@ -444,8 +444,8 @@ function Workspace({ agentId, name }: { agentId: string; name: string }) {
         <Alert role="note" className="border-transparent bg-muted px-3 py-2">
           <AlertDescription className="text-foreground">
             {to.kind === "team"
-              ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other agents stay behind, and it can work on the ones ${to.name} has open to every agent.`
-              : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other agents stay with the team.`}
+              ? `Everyone in ${to.name} will be able to use ${name}, read all of its chats and what it remembers, and use its connectors and paired computers. Machines it shares with other Doods stay behind, and it can work on the ones ${to.name} has open to every Dood.`
+              : `Only you will be able to use ${name}. Everyone else loses its chats. Machines it shares with other Doods stay with the team.`}
           </AlertDescription>
         </Alert>
       )}
@@ -479,14 +479,14 @@ function Computers({ agentId }: { agentId: string }) {
   return (
     <Section
       title="Computers"
-      hint="Where this agent can keep files and run commands. Computers belong to the workspace, and an agent has a folder of its own on each machine it has worked on."
+      hint="Where this Dood can keep files and run commands. Computers belong to the workspace, and a Dood has a folder of its own on each machine it has worked on."
     >
       {computers === undefined ? (
         <RowsPlaceholder rows={1} />
       ) : usable.length === 0 ? (
         <p className="text-sm text-muted-foreground">It has no computer to work on.</p>
       ) : (
-        <ul aria-label="Computers this agent can use" className="flex flex-col gap-2">
+        <ul aria-label="Computers this Dood can use" className="flex flex-col gap-2">
           {usable.map((computer) => {
             const folder = computer.folders.find((entry) => entry.agentId === agentId)?.path
             return (
@@ -605,7 +605,7 @@ export function ProfileSettings({
   }
 
   const typed = section === "profile" || section === "memory" || section === "model"
-  const name = state.agent.name ?? "this agent"
+  const name = state.agent.name ?? "this Dood"
   return (
     <form hidden={section === undefined} className="flex flex-col gap-6" onSubmit={submit}>
       <div hidden={section !== "profile"} className="flex flex-col gap-6">
@@ -687,7 +687,7 @@ export function ProfileSettings({
 
         <Section
           title="Personality"
-          hint="How the agent talks and behaves, written to it in the second person."
+          hint="How the Dood talks and behaves, written to it in the second person."
         >
           <Textarea
             id="soul"
@@ -699,7 +699,7 @@ export function ProfileSettings({
           />
         </Section>
 
-        <Workspace agentId={agentId} name={state.agent.name ?? "This agent"} />
+        <Workspace agentId={agentId} name={state.agent.name ?? "This Dood"} />
         {/* A team's agent is everyone's, so deleting it is for the people who run the team. */}
         {workspace?.role === "member" ? null : (
           <DeleteAgent agentId={agentId} name={state.agent.name} />
@@ -712,7 +712,7 @@ export function ProfileSettings({
         </div>
         <Section
           title="Memory"
-          hint="The agent's own long-term notes, also read in every conversation."
+          hint="The Dood's own long-term notes, also read in every conversation."
         >
           <Counted
             id="memory"
@@ -726,8 +726,8 @@ export function ProfileSettings({
           title={state.team ? "About the team" : "About you"}
           hint={
             state.team
-              ? `What the agent knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
-              : "What the agent knows about you. It reads this in every conversation, one entry per line."
+              ? `What the Dood knows about ${state.team} and the people in it. It reads this in every conversation, one entry per line.`
+              : "What the Dood knows about you. It reads this in every conversation, one entry per line."
           }
         >
           <Counted
@@ -746,7 +746,7 @@ export function ProfileSettings({
         </div>
         <Section
           title="Model"
-          hint="Which model this agent thinks with. Applies from its next reply."
+          hint="Which model this Dood thinks with. Applies from its next reply."
         >
           <ModelPicker
             label="Model"

@@ -34,6 +34,9 @@ Working for a team:
 - Any conversation here can be read by anyone in the team, and what you remember is the team's. In "the person" below, read the team and its people: when you save something about one of them, say who it is about.
 - When two people ask for things that conflict, say so and ask, instead of quietly doing what the last one said.`
 
+/** The app's word for an agent, which the person reads everywhere in it and will use. */
+const CALLED = `The app you live in is Do Computer, and its word for an agent like you is "Dood". The person sees you and the others like you called Doods everywhere in it, so when they say Dood they mean you or one of them, and that is the word to use when you speak of what you are.`
+
 const HOW = `
 How to work:
 - Be direct and useful. Do the thing rather than describing how it could be done.
@@ -232,7 +235,7 @@ export const Persona = defineExtension({
       "preamble",
       async (input, context) => {
         const team = (await readIdentity(input.read, context))?.team
-        return `${team ? shared(team) : ALONE}\n${HOW}`
+        return `${team ? shared(team) : ALONE}\n\n${CALLED}\n${HOW}`
       },
       { tag: false },
     ),

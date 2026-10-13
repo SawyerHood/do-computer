@@ -110,7 +110,7 @@ export default function AddConnector() {
       </Section>
       <Section
         title="Access token (optional)"
-        footer="Leave empty for a service you sign in to. A token is kept on the server and never shown to the agent."
+        footer="Leave empty for a service you sign in to. A token is kept on the server and never shown to the Dood."
       >
         <Field
           accessibilityLabel="Access token (optional)"

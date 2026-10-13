@@ -17,9 +17,9 @@ export async function deleteAgent(
   keepComputers = false,
 ): Promise<Response> {
   const access = await agentFor(user, agentId)
-  if (access === undefined) return fail(404, "Agent not found")
+  if (access === undefined) return fail(404, "Dood not found")
   // A team's agent is everyone's, so deleting it is for the people who run the team.
-  if (!mayRemoveAgent(access)) return fail(403, "Only an admin can delete a team's agent.")
+  if (!mayRemoveAgent(access)) return fail(403, "Only an admin can delete a team's Dood.")
   const { db } = getPlatform()
   // The machines first, while nothing else is lost yet. If a provider cannot be reached the
   // agent is left whole, to try again, instead of a machine being paid for that nobody can find.

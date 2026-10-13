@@ -42,7 +42,7 @@ function RequestCard({
                 : request.chatKind === "subagent"
                   ? "From the sub-agent "
                   : request.chatKind === "agent"
-                    ? "In a conversation with another agent "
+                    ? "In a conversation with another Dood "
                     : request.chatKind === "slack"
                       ? "In the Slack thread "
                       : "In the chat "}

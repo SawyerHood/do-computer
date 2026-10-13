@@ -45,7 +45,7 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(panel).toHaveCount(0)
   await header.click()
   await expect(header).toHaveCount(0)
-  await expect(panel.getByRole("img", { name: "Agent avatar" })).toHaveAttribute(
+  await expect(panel.getByRole("img", { name: "Dood avatar" })).toHaveAttribute(
     "data-mood",
     /idle|done/,
   )

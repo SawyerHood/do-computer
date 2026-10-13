@@ -47,7 +47,7 @@ export default function Automation() {
           <ActivityIndicator style={{ marginTop: 40 }} />
         ) : (
           <Empty title="This automation is gone.">
-            {schedules.isError ? errorText(schedules.error) : "It was deleted, here or by the agent."}
+            {schedules.isError ? errorText(schedules.error) : "It was deleted, here or by the Dood."}
           </Empty>
         )}
       </Screen>
@@ -103,7 +103,7 @@ export default function Automation() {
         <Section
           title={`Checks first on ${schedule.check.computer}`}
           footer={[
-            `Only starts the agent ${
+            `Only starts the Dood ${
               schedule.check.wake === "change"
                 ? "when what this prints changes"
                 : "if this prints something"
@@ -160,7 +160,7 @@ export default function Automation() {
           onPress={async () => {
             const sure = await confirm({
               title: `Delete ${schedule.title}?`,
-              message: "Your agent will stop doing this.",
+              message: "Your Dood will stop doing this.",
               action: "Delete",
             })
             if (!sure) return

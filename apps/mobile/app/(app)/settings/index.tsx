@@ -111,8 +111,8 @@ export default function Settings() {
         {list.map((workspace) => {
           const has = count(
             (agents.data ?? []).filter((agent) => agent.workspaceId === workspace.id).length,
-            "agent",
-            "agents",
+            "Dood",
+            "Doods",
           )
           const team = workspace.kind === "team"
           return (
@@ -150,7 +150,7 @@ export default function Settings() {
         <Row title="New team" tone="tint" onPress={() => leaveFor("/new-team")} />
       </Section>
 
-      <Section title="Agents">
+      <Section title="Doods">
         {inOrder.map((agent) => (
           <Row
             key={agent.id}
@@ -159,9 +159,9 @@ export default function Settings() {
                 <Avatar avatar={agent.avatar} seed={agent.id} outfit={agent.outfit} size={34} hatched={agent.hatched} still />
               </View>
             }
-            title={agent.name ?? "New agent"}
+            title={agent.name ?? "New Dood"}
             subtitle={list.find((workspace) => workspace.id === agent.workspaceId)?.name}
-            accessibilityLabel={`${agent.name ?? "New agent"}'s settings`}
+            accessibilityLabel={`${agent.name ?? "New Dood"}'s settings`}
             go
             onPress={() => leaveFor(`/a/${agent.id}/info`)}
           />

@@ -20,7 +20,7 @@ function TeamLayout() {
           It may have been deleted, or you may no longer be in it.
         </p>
         <Link to="/" className="text-sm underline underline-offset-3">
-          Back to your agents
+          Back to your Doods
         </Link>
       </main>
     )

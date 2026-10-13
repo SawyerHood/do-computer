@@ -22,7 +22,7 @@ export function MainChatLive({
   const chat = mainChatOf(query.data?.chats)
   if (chat === undefined) {
     return query.error ? (
-      <Empty title="This agent could not be loaded">{errorText(query.error)}</Empty>
+      <Empty title="This Dood could not be loaded">{errorText(query.error)}</Empty>
     ) : query.data !== undefined ? (
       <Empty title="Nothing yet.">It has no main chat yet.</Empty>
     ) : (

@@ -65,7 +65,7 @@ describe("an automation's pill", () => {
 
 describe("the tally of an automation's checks", () => {
   it("says how often it checked and how often the agent was started", () => {
-    expect(tally(1, 0)).toBe("Checked once and never started the agent.")
-    expect(tally(12, 1)).toBe("Checked 12 times and started the agent once.")
+    expect(tally(1, 0)).toBe("Checked once and never started the Dood.")
+    expect(tally(12, 1)).toBe("Checked 12 times and started the Dood once.")
   })
 })

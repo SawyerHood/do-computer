@@ -61,7 +61,7 @@ An [OpenRouter](https://openrouter.ai) key pays for the models. Without one the 
    node --env-file="$HOME/.config/do-computer.env" server.node.mjs
    ```
 
-   Check: your agent answers in its own words and no longer repeats yours.
+   Check: your Dood answers in its own words and no longer repeats yours.
 
 5. **Reach it from other devices.** Optional. Add the address to listen on and the address you will open to the settings file, then start it again. Sign-in is only accepted from that one address.
 
@@ -99,7 +99,7 @@ An [OpenRouter](https://openrouter.ai) key pays for the models. Without one the 
 
    Check: `systemctl --user is-active do-computer` prints `active`, and the check of step 2 still answers.
 
-Everything it knows is in `apps/web/.data`: one SQLite file for accounts and one for each agent. Copy that folder to back it up, or set `DC_DATA_DIR` to keep it somewhere else. To update, pull, build and start it again:
+Everything it knows is in `apps/web/.data`: one SQLite file for accounts and one for each Dood. Copy that folder to back it up, or set `DC_DATA_DIR` to keep it somewhere else. To update, pull, build and start it again:
 
 ```sh
 git pull && pnpm install && pnpm build
@@ -108,7 +108,7 @@ systemctl --user restart do-computer
 
 ## On Cloudflare
 
-Each agent is a Durable Object with its own SQLite storage, accounts and teams are in D1, and files are in R2. The built-in shell runs agents' commands in Dynamic Workers, which is what needs the Workers Paid plan.
+Each Dood is a Durable Object with its own SQLite storage, accounts and teams are in D1, and files are in R2. The built-in shell runs Doods' commands in Dynamic Workers, which is what needs the Workers Paid plan.
 
 1. **Sign in to Cloudflare.** **Needs you:** a browser window opens.
 
@@ -173,14 +173,14 @@ These are the ones most deployments set. On a machine of yours they are lines in
 | `DC_BASE_URL`        | The address people open. Needed behind a proxy and for sign-in with Google or GitHub.               |
 | `DC_SIGNUP`          | `invite` (the default) or `open`.                                                                   |
 | `DC_ALLOWED_EMAILS`  | Emails that may sign up without an invitation, separated by commas.                                 |
-| `DC_DEFAULT_MODEL`   | The model a new agent starts on.                                                                    |
+| `DC_DEFAULT_MODEL`   | The model a new Dood starts on.                                                                     |
 | `DC_SANDBOX`         | The kind of computer a workspace is given: `just-bash`, `daytona`, `modal`, `cloudflare` or `none`. |
 
 ## When something goes wrong
 
 - **Sign-in is refused from another device.** `DC_BASE_URL` is not the address you opened.
 - **The microphone is not offered.** A browser only offers it on https or localhost.
-- **The agent only repeats what you say.** There is no `OPENROUTER_API_KEY`, so it is on the echo model.
+- **The Dood only repeats what you say.** There is no `OPENROUTER_API_KEY`, so it is on the echo model.
 - **`pnpm` is missing, or complains about its version.** Run `corepack enable`, or put `corepack` in front: `corepack pnpm install`.
 - **The bucket cannot be made.** R2 has to be switched on once for the account, in the Cloudflare dashboard.
 - **Commands fail on Cloudflare.** The built-in shell needs the Workers Paid plan.

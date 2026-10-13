@@ -65,14 +65,14 @@ describe("the words of model sign-ins", () => {
     expect(signInWords(team, anthropic, oauth)).toMatchObject({
       key: false,
       title: "Sign in with Claude Pro or Max",
-      description: "Use a Claude Pro or Max subscription for Tidewater's agents.",
+      description: "Use a Claude Pro or Max subscription for Tidewater's Doods.",
     })
     expect(signInWords(team, anthropic, oauth).shared).toContain("Everyone in Tidewater")
     expect(signInWords(team, anthropic, oauth).shared).toContain("Anthropic decides")
     const server = signInWords(DEPLOYMENT, anthropic, key)
     expect(server.title).toBe("Anthropic API key")
     expect(server.shared).toBe(
-      "Everyone on this server can then set agents to these models, and what the agents use counts against your account there.",
+      "Everyone on this server can then set Doods to these models, and what the Doods use counts against your account there.",
     )
   })
 })

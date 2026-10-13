@@ -52,7 +52,7 @@ async function holdRequests(page: Page) {
 const frame = (page: Page) => page.locator("[data-loading]:has(> main)").filter({ visible: true })
 
 const agentRow = (page: Page, name: RegExp) =>
-  page.getByRole("navigation", { name: "Agents" }).getByRole("link", { name })
+  page.getByRole("navigation", { name: "Doods" }).getByRole("link", { name })
 
 test("the frame of the app is in the page as it is sent", async ({ page }) => {
   await signIn(page)
@@ -69,7 +69,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   await page.keyboard.press("Enter")
   await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()
   const juniper = page.url()
-  await page.getByRole("button", { name: "New agent", exact: true }).click()
+  await page.getByRole("button", { name: "New Dood", exact: true }).click()
   await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== juniper)
   await expect(composer(page)).toBeVisible()
 
@@ -81,7 +81,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   // The address, the row, the strip and the message box are Juniper's at once.
   await page.waitForURL(juniper)
   await expect(agentRow(page, /Juniper/)).toHaveAttribute("aria-current", "page")
-  await expect(page.getByRole("button", { name: "Juniper: another agent" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Juniper: another Dood" })).toBeVisible()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
   // What was said is on its way, and its place is held. It is not an empty chat.
   await expect(page.locator("main [data-loading]").first()).toBeVisible()
@@ -94,7 +94,7 @@ test("choosing an agent moves the page before the server has answered", async ({
 
   // Going back to an agent that was open: what it last showed is there without asking.
   const again = await holdRequests(page)
-  await agentRow(page, /New agent/).click()
+  await agentRow(page, /New Dood/).click()
   await expect(composer(page)).toHaveAttribute("placeholder", "Say hello")
   await agentRow(page, /Juniper/).click()
   await expect(page.getByRole("main").getByText("You said: Said to Juniper")).toBeVisible()

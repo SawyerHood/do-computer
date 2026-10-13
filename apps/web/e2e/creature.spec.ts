@@ -44,7 +44,7 @@ test("the creature is given a treat as often as anyone likes, and none of them i
 test("a treat carried onto the creature is eaten when it is let go", async ({ page }) => {
   await open(page)
   const from = (await treat(page).boundingBox())!
-  const creature = (await panel(page).getByRole("img", { name: "Agent avatar" }).boundingBox())!
+  const creature = (await panel(page).getByRole("img", { name: "Dood avatar" }).boundingBox())!
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
   await page.mouse.down()
   await page.mouse.move(from.x + from.width / 2 + 30, from.y - 30, { steps: 4 })

@@ -101,7 +101,7 @@ function AgentSwitcher({
         .orderBy(({ agent }) => agent.createdAt, "asc"),
     [workspace.id],
   )
-  const name = agent.name ?? "New agent"
+  const name = agent.name ?? "New Dood"
   const openWardrobe = useSetAtom(creatureWardrobeAtom)
   const creature = useCreature(agent.id, agent.hatched)
   const waiting = (creature?.boxes ?? 0) > 0
@@ -130,8 +130,8 @@ function AgentSwitcher({
         </span>
       )}
       <DropdownMenuTrigger
-        aria-label={tabbed ? `${name}: another agent` : `${name}: pages and other agents`}
-        title={tabbed ? "Another agent" : undefined}
+        aria-label={tabbed ? `${name}: another Dood` : `${name}: pages and other Doods`}
+        title={tabbed ? "Another Dood" : undefined}
         className="flex min-w-0 items-center gap-2 rounded-xl py-1 pr-2 pl-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
       >
         <span className="flex min-w-0 text-[0.9375rem]">
@@ -165,7 +165,7 @@ function AgentSwitcher({
           </>
         )}
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Agents in {workspace.name}</DropdownMenuLabel>
+          <DropdownMenuLabel>Doods in {workspace.name}</DropdownMenuLabel>
           {(agents ?? [agent]).map((entry) => (
             <DropdownMenuItem
               key={entry.id}
@@ -173,7 +173,7 @@ function AgentSwitcher({
             >
               <AgentFace agent={entry} className="size-7" still />
               <span className="min-w-0 flex-1">
-                <span className="block truncate">{entry.name ?? "New agent"}</span>
+                <span className="block truncate">{entry.name ?? "New Dood"}</span>
                 {entry.tagline ? (
                   <span className="block truncate text-xs text-muted-foreground">
                     {entry.tagline}
@@ -241,7 +241,7 @@ export function AgentStrip({
       : whoIs(here, (place) => place.agentId === agentId && place.chatId === chatId).flatMap(
           (id) => people.get(id) ?? [],
         )
-  const name = agent?.name ?? "New agent"
+  const name = agent?.name ?? "New Dood"
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-x-1.5 px-2.5 md:h-13 md:px-3">
@@ -249,8 +249,8 @@ export function AgentStrip({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Agents"
-          title="Agents"
+          aria-label="Doods"
+          title="Doods"
           className="text-muted-foreground md:hidden"
           onClick={onOpenSheet}
         >

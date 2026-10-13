@@ -45,7 +45,7 @@ export default function ComputerAgents() {
   if (computer === undefined) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: "Agents" }} />
+        <Stack.Screen options={{ title: "Doods" }} />
         {computers.data === undefined ? (
           <ActivityIndicator style={{ marginVertical: 32 }} />
         ) : (
@@ -59,7 +59,7 @@ export default function ComputerAgents() {
   const personal = isPersonalWorkspace(computer.workspaceId)
   const teams = workspaces.filter((workspace) => workspace.kind === "team")
   const team = workspaces.find((workspace) => workspace.id === computer.workspaceId)
-  const everyone = `Every agent in ${personal ? "your workspace" : (team?.name ?? "the team")}`
+  const everyone = `Every Dood in ${personal ? "your workspace" : (team?.name ?? "the team")}`
   const offered = connectable(computer, agents)
   const busy = connect.isPending || disconnect.isPending
   const face = (agent: AgentSummary | undefined) =>
@@ -78,14 +78,14 @@ export default function ComputerAgents() {
     <Screen {...refresh}>
       <Stack.Screen options={{ title: computer.name }} />
       <Section
-        title="Agents"
+        title="Doods"
         footer={
           <View style={{ gap: 4 }}>
             <Text variant="footnote" tone="ink2">
               {isMachine(computer) && !computer.shareable
-                ? "It keeps its files with its agent, so no other agent can work on it."
+                ? "It keeps its files with its Dood, so no other Dood can work on it."
                 : chosen
-                  ? "An agent that is not connected can ask for it, and is answered under Computers or in its chat."
+                  ? "A Dood that is not connected can ask for it, and is answered under Computers or in its chat."
                   : `${everyone} can work on it, each in a folder of its own.`}
             </Text>
             <Problem error={disconnect.error ?? connect.error} />
@@ -95,7 +95,7 @@ export default function ComputerAgents() {
         {computer.agentIds.length === 0 ? <Row title={<Text tone="ink2">None yet</Text>} /> : null}
         {computer.agentIds.map((id) => {
           const agent = agents.get(id)
-          const name = agent?.name ?? "New agent"
+          const name = agent?.name ?? "New Dood"
           const folder = computer.folders.find((entry) => entry.agentId === id)?.path
           return (
             <Row
@@ -137,12 +137,12 @@ export default function ComputerAgents() {
 
       {offered.length === 0 ? null : (
         // Not a choice that is kept: each agent picked is connected, and leaves the list.
-        <Section title={computer.agentIds.length === 0 ? "Connect an agent…" : "Connect another…"}>
+        <Section title={computer.agentIds.length === 0 ? "Connect a Dood…" : "Connect another…"}>
           {offered.map((agent) => (
             <Row
               key={agent.id}
               lead={face(agent)}
-              title={agent.name ?? "New agent"}
+              title={agent.name ?? "New Dood"}
               subtitle={
                 personal && teams.length > 0
                   ? workspaces.find((workspace) => workspace.id === agent.workspaceId)?.name
@@ -153,7 +153,7 @@ export default function ComputerAgents() {
                   kind="grey"
                   size="small"
                   title="Connect"
-                  accessibilityLabel={`Connect ${agent.name ?? "New agent"} to ${computer.name}`}
+                  accessibilityLabel={`Connect ${agent.name ?? "New Dood"} to ${computer.name}`}
                   busy={connect.isPending && connect.variables === agent.id}
                   disabled={busy}
                   onPress={() => connect.mutate(agent.id)}

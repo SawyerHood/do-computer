@@ -1,6 +1,6 @@
 # Notifications, and the app on a phone's home screen
 
-The web app tells you when an agent answers in a chat you do not have open, needs your OK, or
+The web app tells you when a Dood answers in a chat you do not have open, needs your OK, or
 reports on a schedule. Turn it on under your name, then **Notifications**, in each browser you
 want it in. It uses Web Push, so it works with the app closed, and needs nothing set up: the
 server makes its own signing keys the first time and keeps them with its data. The site has to

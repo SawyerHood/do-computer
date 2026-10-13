@@ -177,7 +177,7 @@ export default function Invitation() {
         {invitation.agents.length === 0 ? null : (
           <View
             accessibilityRole="list"
-            accessibilityLabel={`${team}'s agents`}
+            accessibilityLabel={`${team}'s Doods`}
             style={{
               marginTop: 28,
               flexDirection: "row",
@@ -196,7 +196,7 @@ export default function Invitation() {
                   still
                 />
                 <Text variant="subhead" weight="500" numberOfLines={1}>
-                  {agent.name ?? "New agent"}
+                  {agent.name ?? "New Dood"}
                 </Text>
               </View>
             ))}
@@ -215,7 +215,7 @@ export default function Invitation() {
           <Text variant="subhead" tone="ink2" style={{ flexShrink: 1, textAlign: "center" }}>
             {invitation.agents.length === 0
               ? `${names(invitation.members)} ${invitation.members.length === 1 ? "is" : "are"} in it`
-              : `You would share ${invitation.agents.length === 1 ? "this agent and its" : "these agents and their"} chats with ${names(invitation.members)}`}
+              : `You would share ${invitation.agents.length === 1 ? "this Dood and its" : "these Doods and their"} chats with ${names(invitation.members)}`}
           </Text>
         </View>
         <View style={{ flexGrow: 1, minHeight: 32 }} />

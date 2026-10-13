@@ -92,7 +92,7 @@ export function useThreads(agentId: string): ChatSummary[] {
 export function ThreadRows({ agentId, threads }: { agentId: string; threads: ChatSummary[] }) {
   const agents = useAgentsById()
   return (
-    <ul aria-label="From other agents" className="flex flex-col gap-0.5">
+    <ul aria-label="From other Doods" className="flex flex-col gap-0.5">
       {threads.map((thread) => {
         const peerId = thread.peer?.agentId ?? ""
         const peer = agents.get(peerId)
@@ -112,7 +112,7 @@ export function ThreadRows({ agentId, threads }: { agentId: string; threads: Cha
                     thread.status === "waiting" && "text-foreground",
                   )}
                 >
-                  {peer?.name ?? thread.peer?.name ?? "An agent"} ·{" "}
+                  {peer?.name ?? thread.peer?.name ?? "A Dood"} ·{" "}
                   {threadWords(thread.status).toLowerCase()}
                 </span>
               </span>

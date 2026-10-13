@@ -97,7 +97,7 @@ function InvitationPage() {
           <p className="mt-1.5 text-sm text-muted-foreground">“{invitation.note}”</p>
         ) : null}
         {invitation.agents.length === 0 ? null : (
-          <ul aria-label={`${team}'s agents`} className="mt-6 flex flex-wrap justify-center gap-5">
+          <ul aria-label={`${team}'s Doods`} className="mt-6 flex flex-wrap justify-center gap-5">
             {invitation.agents.slice(0, 4).map((agent) => (
               <li key={agent.id} className="flex flex-col items-center gap-1.5 text-sm font-medium">
                 <AgentAvatar
@@ -107,7 +107,7 @@ function InvitationPage() {
                   quiet
                   className="size-20"
                 />
-                {agent.name ?? "New agent"}
+                {agent.name ?? "New Dood"}
               </li>
             ))}
           </ul>
@@ -116,7 +116,7 @@ function InvitationPage() {
           <FaceStack people={invitation.members} className="size-5" />
           {invitation.agents.length === 0
             ? `${names(invitation.members)} ${invitation.members.length === 1 ? "is" : "are"} in it`
-            : `You would share ${invitation.agents.length === 1 ? "this agent and its" : "these agents and their"} chats with ${names(invitation.members)}`}
+            : `You would share ${invitation.agents.length === 1 ? "this Dood and its" : "these Doods and their"} chats with ${names(invitation.members)}`}
         </p>
         {failure ? (
           <p role="alert" className="mt-4 text-sm text-destructive">

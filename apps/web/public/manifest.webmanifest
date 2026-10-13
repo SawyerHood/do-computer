@@ -1,7 +1,7 @@
 {
   "name": "Do Computer",
   "short_name": "Do Computer",
-  "description": "An always-on personal agent.",
+  "description": "Meet your Dood, an always-on personal assistant.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

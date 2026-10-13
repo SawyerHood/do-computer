@@ -168,7 +168,7 @@ function useTyped(text: string, key: string, on: boolean, each: (count: number) 
 /** The pictures of the creature under the scene that are large enough to be where it is going. */
 function places(scene: HTMLElement): HTMLElement[] {
   return [
-    ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Agent avatar"]'),
+    ...document.querySelectorAll<HTMLElement>('[role="img"][aria-label="Dood avatar"]'),
   ].filter((face) => !scene.contains(face) && face.offsetWidth >= 120)
 }
 
@@ -437,7 +437,7 @@ export default function WelcomeScene() {
     drawing?.measure()
     patch({
       first,
-      name: theirs.name ?? "Your agent",
+      name: theirs.name ?? "Your Dood",
       back: true,
       waiting: false,
       color: (theirs.avatar?.color as AvatarColorId | undefined) ?? seen.current.color,
@@ -1126,7 +1126,7 @@ export default function WelcomeScene() {
               ) : view.step === "wait" ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
-                    Come back any time. {view.name} waits here, and is your agent from the day you
+                    Come back any time. {view.name} waits here, and is your Dood from the day you
                     are let in.
                   </span>
                   <Button variant="ghost" className="text-muted-foreground" onClick={leave}>

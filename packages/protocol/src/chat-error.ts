@@ -48,7 +48,7 @@ const WORDS: Record<ChatErrorKind, { title: string; hint?: string; retryable: bo
   },
   signIn: {
     title: "The workspace isn't signed in to this model's provider.",
-    hint: "Sign the workspace in to the provider again, or pick another model for this agent.",
+    hint: "Sign the workspace in to the provider again, or pick another model for this Dood.",
     retryable: false,
   },
   rateLimit: {
@@ -63,7 +63,7 @@ const WORDS: Record<ChatErrorKind, { title: string; hint?: string; retryable: bo
   },
   modelGone: {
     title: "This model isn't available.",
-    hint: "Pick another model for this agent.",
+    hint: "Pick another model for this Dood.",
     retryable: false,
   },
   timeout: {

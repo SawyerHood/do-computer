@@ -63,7 +63,7 @@ export function agentDirectory(
       )
   const problem = async (response: Response) => {
     const { error } = (await response.json().catch(() => ({}))) as { error?: string }
-    return new Error(error ?? `The agent answered ${response.status}`)
+    return new Error(error ?? `The Dood answered ${response.status}`)
   }
   return {
     ...(create === undefined ? {} : { create }),

@@ -98,8 +98,8 @@ export default function Connect() {
         </Text>
         <Text tone="ink2" style={{ marginTop: 6 }}>
           {signingUp
-            ? "Then meet your agent: it gets its own name and memory, and a computer to work on."
-            : "Sign in to pick up where you and your agent left off."}
+            ? "Then meet your Dood: it gets its own name and memory, and a computer to work on."
+            : "Sign in to pick up where you and your Dood left off."}
         </Text>
       </View>
       <AccountForm

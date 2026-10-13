@@ -24,7 +24,7 @@ export function SharedSites({
   if (sites === undefined || sites.length === 0) return null
   const by = (site: SiteSummary) =>
     site.agentId !== null
-      ? (agents.get(site.agentId)?.name ?? "An agent")
+      ? (agents.get(site.agentId)?.name ?? "A Dood")
       : site.userId !== null
         ? (people.get(site.userId)?.name ?? "Someone")
         : "Someone"

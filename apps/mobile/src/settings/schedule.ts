@@ -15,16 +15,16 @@ const times = (count: number) => (count === 1 ? "once" : `${count} times`)
 /** How often a check ran, and how often it led to the agent being started. */
 export const tally = (checked: number, started: number) =>
   started === 0
-    ? `Checked ${times(checked)} and never started the agent.`
-    : `Checked ${times(checked)} and started the agent ${times(started)}.`
+    ? `Checked ${times(checked)} and never started the Dood.`
+    : `Checked ${times(checked)} and started the Dood ${times(started)}.`
 
 /** What came of a run, in the web app's words. */
 export const OUTCOMES = {
   delivered: "reported back",
   silent: "had nothing to report",
   failed: "did not finish",
-  skipped: "the check found nothing, so the agent was not started",
-  "check-failed": "the check is still failing, so the agent was not started",
+  skipped: "the check found nothing, so the Dood was not started",
+  "check-failed": "the check is still failing, so the Dood was not started",
 } as const
 
 export type ScheduleStatus = "Running" | "Active" | "Paused" | "Done"

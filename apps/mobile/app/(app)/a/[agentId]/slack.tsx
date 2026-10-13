@@ -41,7 +41,7 @@ export default function Slack() {
     queryFn: () => client.agent(agentId).slack(),
   })
   const [refreshing, setRefreshing] = useState(false)
-  const name = agent?.name ?? "your agent"
+  const name = agent?.name ?? "your Dood"
 
   const refresh = async () => {
     setRefreshing(true)

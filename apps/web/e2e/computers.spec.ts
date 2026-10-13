@@ -107,7 +107,7 @@ test.describe("pairing a computer", () => {
     await expect(chip).toContainText("test-laptop · in the background")
     await expect(page.getByRole("button", { name: "1 running" })).toBeVisible()
     // The agent is waiting on it, and says so in the sidebar.
-    await expect(page.getByRole("navigation", { name: "Agents" })).toContainText(
+    await expect(page.getByRole("navigation", { name: "Doods" })).toContainText(
       "Waiting on echo serving",
     )
 
@@ -149,9 +149,7 @@ test.describe("pairing a computer", () => {
     const card = page.getByRole("listitem").filter({ hasText: "test-laptop" })
     await card.getByRole("button", { name: "Disconnect Juniper from test-laptop" }).click()
     await expect(card.getByText("None yet")).toHaveCount(0)
-    await expect(
-      card.getByRole("button", { name: "Connect an agent to test-laptop" }),
-    ).toBeVisible()
+    await expect(card.getByRole("button", { name: "Connect a Dood to test-laptop" })).toBeVisible()
 
     // The computer is still paired, and the agent can no longer touch it.
     await newChat(page)
@@ -176,7 +174,7 @@ test.describe("pairing a computer", () => {
     await expect(asked.getByText("to read hello.txt")).toBeVisible()
     // The user's own menu says so too, wherever in the app they are.
     await page.getByRole("button", { name: /settings and signing out$/ }).click()
-    await expect(page.getByRole("menuitem", { name: "An agent asks for a computer" })).toBeVisible()
+    await expect(page.getByRole("menuitem", { name: "A Dood asks for a computer" })).toBeVisible()
     await page.keyboard.press("Escape")
     await asked.getByRole("button", { name: "Allow", exact: true }).click()
     await expect(asked).toHaveCount(0)
@@ -242,7 +240,7 @@ test.describe("the machines of a workspace", () => {
   /** Make another agent and land on it, leaving the first one as it is. */
   async function newAgent(page: Page): Promise<string> {
     const before = agentIn(page)
-    await page.getByRole("button", { name: "New agent", exact: true }).click()
+    await page.getByRole("button", { name: "New Dood", exact: true }).click()
     await expect(page).not.toHaveURL(new RegExp(`/a/${before}`))
     await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
     return agentIn(page)
@@ -276,7 +274,7 @@ test.describe("the machines of a workspace", () => {
     await expect(card.getByText("Wren", { exact: true })).toBeVisible()
     // There is no one to open it to, and no agent to connect or disconnect. Nor is it ever offline.
     await expect(card.getByRole("combobox")).toHaveCount(0)
-    await expect(card.getByRole("button", { name: /^Connect an agent/ })).toHaveCount(0)
+    await expect(card.getByRole("button", { name: /^Connect a Dood/ })).toHaveCount(0)
     await expect(card.getByRole("button", { name: /^Disconnect/ })).toHaveCount(0)
     await expect(card.getByText(/^(Online|Offline)$/)).toHaveCount(0)
     // This server has no kind of machine that can be added by hand.
@@ -286,7 +284,7 @@ test.describe("the machines of a workspace", () => {
     // The agent's own page says what it can work on, and leads back here to change that.
     await openSettings(page, "Model and computers")
     const section = page.getByRole("region", { name: "Computers" })
-    const usable = section.getByRole("list", { name: "Computers this agent can use" })
+    const usable = section.getByRole("list", { name: "Computers this Dood can use" })
     await expect(usable.getByRole("listitem")).toHaveCount(1)
     await expect(usable).toContainText(machine.name)
     await expect(usable).toContainText("Built-in shell")
@@ -299,7 +297,7 @@ test.describe("the machines of a workspace", () => {
 
     // Deleting the agent takes the machine only it can use with it, unless that is unticked.
     await openSettings(page, "Profile")
-    await page.getByRole("button", { name: "Delete agent…" }).click()
+    await page.getByRole("button", { name: "Delete Dood…" }).click()
     await expect(page.getByRole("checkbox", { name: `Also delete ${machine.name}` })).toBeChecked()
     await page.getByLabel(/to confirm/).fill("Wren")
     await page.getByRole("button", { name: "Delete for good" }).click()

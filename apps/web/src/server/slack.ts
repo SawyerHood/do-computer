@@ -273,7 +273,7 @@ export function slackManifest(agentName: string | null, origin: string, agentId:
   return {
     display_information: {
       name: name.slice(0, 35),
-      description: `${name.slice(0, 35)}, an agent on Do Computer`,
+      description: `${name.slice(0, 35)}, a Dood on Do Computer`,
     },
     features: {
       bot_user: { display_name: handle, always_online: true },

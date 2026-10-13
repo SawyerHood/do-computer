@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Do Computer on your desktop: the app in a window of its own, and the daemon that lets your agents work on this computer.",
+  "description": "Do Computer on your desktop: the app in a window of its own, and the daemon that lets your Doods work on this computer.",
   "author": "Do Computer",
   "type": "module",
   "main": "dist/main.cjs",

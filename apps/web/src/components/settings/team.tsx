@@ -207,7 +207,7 @@ function MemberRow({
             if (
               !(await confirm({
                 title: `Leave ${workspace.name}?`,
-                description: "You will lose its agents and their chats.",
+                description: "You will lose its Doods and their chats.",
                 action: "Leave",
                 destructive: true,
               }))
@@ -344,7 +344,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
           ) : null}
         </header>
         <p className="mt-3 text-sm text-muted-foreground">
-          Everyone here can use every agent in this team, read its chats and make new agents.
+          Everyone here can use every Dood in this team, read its chats and make new Doods.
         </p>
         {error ? (
           <p role="alert" className="mt-3 text-sm text-destructive">
@@ -385,10 +385,10 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
 
         <h2 className={heading}>Roles</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          <b className="font-medium text-foreground">Members</b> use every agent here, start chats,
-          read each other's, and make new agents.{" "}
+          <b className="font-medium text-foreground">Members</b> use every Dood here, start chats,
+          read each other's, and make new Doods.{" "}
           <b className="font-medium text-foreground">Admins</b> also invite and remove people,
-          rename the team, and move or delete its agents. The{" "}
+          rename the team, and move or delete its Doods. The{" "}
           <b className="font-medium text-foreground">owner</b> also decides who is an admin, and can
           hand the team on or delete it.
         </p>
@@ -397,7 +397,7 @@ export function TeamSettings({ workspace }: { workspace: WorkspaceSummary }) {
           <>
             <h2 className={heading}>Delete</h2>
             <p className="mb-3 text-sm text-muted-foreground">
-              A team can be deleted once it has no agents: move or delete those first.
+              A team can be deleted once it has no Doods: move or delete those first.
             </p>
             <Button
               variant="outline"

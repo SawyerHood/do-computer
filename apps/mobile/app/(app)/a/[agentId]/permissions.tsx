@@ -75,7 +75,7 @@ export default function Permissions() {
     <Screen onRefresh={refresh} refreshing={refreshing}>
       <Stack.Screen options={{ title: "Permissions" }} />
       <Text variant="footnote" tone="ink2" style={styles.intro}>
-        Your agent acts without asking unless you say otherwise here. A few things that cost money
+        Your Dood acts without asking unless you say otherwise here. A few things that cost money
         or give it more reach start on “Ask first”.
       </Text>
       {state === undefined ? (

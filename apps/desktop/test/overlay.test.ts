@@ -112,7 +112,7 @@ describe("what the bar says", () => {
 
   it("has something to say of an agent with no name and nothing said", () => {
     expect(barOf({ agent: { ...pip, name: " " }, held: false })).toMatchObject({
-      title: "An agent is using this computer",
+      title: "A Dood is using this computer",
       detail: "",
     })
   })
@@ -125,7 +125,7 @@ describe("what the bar says", () => {
       esc: false,
     })
     expect(barOf({ agent: { ...pip, name: "" }, held: false, behind: true }).title).toBe(
-      "An agent is working in the background",
+      "A Dood is working in the background",
     )
     // Not behind is the same as never having been said.
     expect(barOf({ agent: pip, held: false, behind: false })).toEqual(

@@ -39,13 +39,7 @@ import {
   type UpdateScheduleRequest,
   wearItem,
 } from "@do-computer/protocol"
-import type {
-  Actor,
-  ActorHost,
-  ActorNamespace,
-  ActorSocket,
-  ActorStub,
-} from "@do-computer/runtime"
+import type { Actor, ActorHost, ActorNamespace, ActorSocket, ActorStub } from "@do-computer/runtime"
 import type { Sandbox } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
@@ -531,7 +525,7 @@ export class AgentActor implements Actor {
     })
     this.#ownLibrary = new LibraryStore({
       docs: harnessDocs(() => {
-        if (this.#opened === undefined) throw new Error("The agent is not open yet")
+        if (this.#opened === undefined) throw new Error("The Dood is not open yet")
         return this.#opened
       }),
       blobs: host.blobs,
@@ -589,7 +583,7 @@ export class AgentActor implements Actor {
         const identity = await this.#identity(await this.#open())
         return {
           id: host.name,
-          name: identity.name ?? "Your agent",
+          name: identity.name ?? "Your Dood",
           color: avatarLook(identity.avatar, host.name).color,
         }
       },
@@ -616,14 +610,14 @@ export class AgentActor implements Actor {
         ? {}
         : { directory: { agentId: host.name, lookup: options.computerDirectory } }),
       around: this.#library.around,
-      onProblem: report("A machine could not be made ready for the agent"),
+      onProblem: report("A machine could not be made ready for the Dood"),
       appUrl: () => this.#appUrl(),
     })
     this.#secrets = new Secrets({
       now: () => host.now(),
       computer: (name, c) => this.#computers.resolve(name, c),
       addConnector: async (input, c) => {
-        if (this.#connectors === undefined) throw new Error("The agent is not open yet")
+        if (this.#connectors === undefined) throw new Error("The Dood is not open yet")
         // A token is sent with every request, so nobody signs in and nothing returns anywhere.
         return this.#connectors.add(input, this.#connectorRedirect() ?? "", c)
       },
@@ -1024,7 +1018,7 @@ export class AgentActor implements Actor {
       registry.install(this.#journal.extension)
       registry.install(
         historyExtension(() => {
-          if (opened === undefined) throw new Error("The agent is not open yet")
+          if (opened === undefined) throw new Error("The Dood is not open yet")
           return opened
         }, this.#history),
       )
@@ -1296,7 +1290,7 @@ export class AgentActor implements Actor {
       } catch (error) {
         throw new HttpError(
           502,
-          `The agent's computer could not be deleted, so nothing was: ${
+          `The Dood's computer could not be deleted, so nothing was: ${
             error instanceof Error ? error.message : String(error)
           }`,
         )
@@ -1732,12 +1726,12 @@ export class AgentActor implements Actor {
         const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.kind
         const subagent = kind === "subagent"
         if (subagent && (rest === "messages" || rest === "reset") && method === "POST") {
-          throw new HttpError(409, "Only the agent talks to its sub-agents.", "subagent")
+          throw new HttpError(409, "Only the Dood talks to its sub-agents.", "subagent")
         }
         // A conversation with another agent is the two agents' to write in, in the same way.
         const thread = kind === "agent"
         if (thread && (rest === "messages" || rest === "reset") && method === "POST") {
-          throw new HttpError(409, "Only the two agents write in this conversation.", "agent")
+          throw new HttpError(409, "Only the two Doods write in this conversation.", "agent")
         }
         // A thread in Slack is written in from Slack, and read here.
         const slack = kind === "slack"
@@ -1770,7 +1764,7 @@ export class AgentActor implements Actor {
   async #identity(harness: Harness): Promise<Readonly<IdentityState>> {
     const identity = await harness.snapshot(IdentityDoc, context)
     if (identity === undefined || identity.ownerId === "") {
-      throw new HttpError(409, "Agent is not initialized", "not_initialized")
+      throw new HttpError(409, "Dood is not initialized", "not_initialized")
     }
     return identity
   }
@@ -1803,7 +1797,7 @@ export class AgentActor implements Actor {
       }
       return "new"
     }, context)
-    if (outcome === "taken") throw new HttpError(409, "Agent belongs to another account")
+    if (outcome === "taken") throw new HttpError(409, "Dood belongs to another account")
     if (outcome === "new" && machine !== undefined) {
       await this.#computers.setMachines([machine], context)
     }

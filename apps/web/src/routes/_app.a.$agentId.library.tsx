@@ -138,9 +138,9 @@ function LibraryHeading() {
     <div className="max-w-xl">
       <h1 className="text-xl font-semibold tracking-tight">Library</h1>
       <p className="text-sm text-muted-foreground">
-        Documents and files made by the agents of this workspace, and ones you have given them.
-        Every agent in the workspace shares this library, and what is in it is kept here whatever
-        happens to a computer.
+        Documents and files made by the Doods of this workspace, and ones you have given them. Every
+        Dood in the workspace shares this library, and what is in it is kept here whatever happens
+        to a computer.
       </p>
     </div>
   )
@@ -198,7 +198,7 @@ function LibraryPage() {
           <LibraryPlaceholder opening={search.path !== undefined || search.file !== undefined} />
         }
       >
-        <Library agentId={agentId} agentName={agent?.name ?? "Your agent"} />
+        <Library agentId={agentId} agentName={agent?.name ?? "Your Dood"} />
       </Loads>
       {agent === undefined ? null : <AgentAside agent={agent} />}
     </div>
@@ -340,7 +340,7 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
               {files.length === 0 ? (
                 <p className="flex flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
                   <UploadSimpleIcon className="size-5" />
-                  Nothing here yet. Ask your agent to write you something, or start a document
+                  Nothing here yet. Ask your Dood to write you something, or start a document
                   yourself.
                 </p>
               ) : (

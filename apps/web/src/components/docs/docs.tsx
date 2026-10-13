@@ -161,8 +161,8 @@ function handOffOf(guide: Guide): { title: string; lead: string } {
   }
   if (guide.slug === "apps") {
     return {
-      title: "Or ask your agent",
-      lead: "Say this to your agent in Do Computer. It asks to add Apps, and a Sign in button appears beside the chat.",
+      title: "Or ask your Dood",
+      lead: "Say this to your Dood in Do Computer. It asks to add Apps, and a Sign in button appears beside the chat.",
     }
   }
   return {

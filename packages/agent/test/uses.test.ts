@@ -9,13 +9,7 @@ import {
 } from "@do-computer/computers"
 import { fakeScreen } from "@do-computer/computers/fake-screen"
 import { nodeDaemonIO } from "@do-computer/computers/node"
-import type {
-  ChatState,
-  ChatSummary,
-  LiveView,
-  ToolPart,
-  UseDetails,
-} from "@do-computer/protocol"
+import type { ChatState, ChatSummary, LiveView, ToolPart, UseDetails } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
 import { justBashSandbox } from "@do-computer/sandbox"
 import type { Message } from "@earendil-works/pi-ai"
@@ -286,8 +280,8 @@ describe("the screen of somebody's own computer", () => {
     ])
     const [screen, browse, vague] = tools(await say(chat.id, "and on the tower?")).slice(-3)
     expect(screen!.status).toBe("error")
-    expect(screen!.output).toMatch(/does not let agents use its screen/)
-    expect(browse!.output).toMatch(/does not let agents use a browser/)
+    expect(screen!.output).toMatch(/does not let Doods use its screen/)
+    expect(browse!.output).toMatch(/does not let Doods use a browser/)
     expect(vague!.output).toMatch(/click needs x and y/)
   })
 

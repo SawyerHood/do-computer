@@ -257,7 +257,7 @@ export function AgentPanel({
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
   const files = useMemo(() => sentFiles(state), [state])
   const using = useMemo(() => chatUses(state).at(-1), [state])
-  const agentName = agent.name ?? "New agent"
+  const agentName = agent.name ?? "New Dood"
   const name = subagent?.title ?? agentName
   // A sub-agent at rest says how it ended; one at work says what it is doing.
   // An agent at rest with a command still running is waiting on it, not ready.
@@ -353,7 +353,7 @@ export function AgentPanel({
       {subagent !== undefined || threads.length === 0 ? null : (
         <div className="flex max-h-[30%] shrink-0 flex-col border-t">
           <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            From other agents
+            From other Doods
           </h3>
           <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
             <ThreadRows agentId={agent.id} threads={threads} />

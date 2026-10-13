@@ -4,10 +4,10 @@ How Do Computer works, for whoever runs a deployment or wants the detail behind 
 set one up, start with [the self-hosting guide](../self-hosting.md).
 
 - [Configuration](configuration.md): every environment variable
-- [Computers](computers.md): the kinds of machine an agent can work on, and what each keeps
+- [Computers](computers.md): the kinds of machine a Dood can work on, and what each keeps
 - [Models](models.md): the deployment's models, a workspace's own, and what is paid by whom
-- [Security and trust](security.md): what an agent can reach, and what limits it
-- [What an agent can do](agents.md)
+- [Security and trust](security.md): what a Dood can reach, and what limits it
+- [What a Dood can do](agents.md)
 - [Teams](teams.md)
 - [Slack](slack.md)
 - [Apps](apps.md): how the Composio connector works

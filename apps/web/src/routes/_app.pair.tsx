@@ -74,10 +74,10 @@ function PairPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Connected</h1>
             <p className="text-sm text-muted-foreground">
               {agentIds.length === 0
-                ? "No agent can use it yet: connect one under Computers, or let an agent ask. It is called "
+                ? "No Dood can use it yet: connect one under Computers, or let a Dood ask. It is called "
                 : agentIds.length === 1
-                  ? "Your agent knows this computer as "
-                  : "Your agents know this computer as "}
+                  ? "Your Dood knows this computer as "
+                  : "Your Doods know this computer as "}
               <span className="font-mono text-foreground">{confirm.data.name}</span>. The daemon in
               your terminal will connect in a moment; you can close this page.
             </p>
@@ -126,8 +126,8 @@ function PairPage() {
               <WarningIcon />
               <AlertDescription className="text-foreground">
                 {pairing.data.readOnly
-                  ? "An agent connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
-                  : "An agent connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
+                  ? "A Dood connected to it will be able to read any file your account can read on this computer. It will not be able to run commands or change anything."
+                  : "A Dood connected to it will be able to run any command and read and change any file your account can on this computer, without asking first. Only connect a machine you are comfortable handing over."}
               </AlertDescription>
             </Alert>
             {teams.length === 0 ? null : (
@@ -157,8 +157,8 @@ function PairPage() {
                           </span>
                           <span className="block text-muted-foreground">
                             {workspace.kind === "personal"
-                              ? "Only you decide which agents use it, in any of your workspaces."
-                              : `Anyone in ${workspace.name} can connect its agents to it.`}
+                              ? "Only you decide which Doods use it, in any of your workspaces."
+                              : `Anyone in ${workspace.name} can connect its Doods to it.`}
                           </span>
                         </span>
                       </label>
@@ -168,7 +168,7 @@ function PairPage() {
               </fieldset>
             )}
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-medium">Which agents can use it?</legend>
+              <legend className="mb-2 text-sm font-medium">Which Doods can use it?</legend>
               {offered.map((agent) => (
                 <label
                   key={agent.id}
@@ -188,7 +188,7 @@ function PairPage() {
                     }
                   />
                   <AgentFace agent={agent} className="size-7" still />
-                  <span className="min-w-0 flex-1 truncate">{agent.name ?? "New agent"}</span>
+                  <span className="min-w-0 flex-1 truncate">{agent.name ?? "New Dood"}</span>
                   {teamId === undefined && teams.length > 0 ? (
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {workspaces.find((workspace) => workspace.id === agent.workspaceId)?.name}
@@ -197,8 +197,8 @@ function PairPage() {
                 </label>
               ))}
               <p className="text-xs text-muted-foreground">
-                You can change this later under Computers, and an agent that is not connected can
-                ask you for it.
+                You can change this later under Computers, and a Dood that is not connected can ask
+                you for it.
               </p>
             </fieldset>
             {confirm.isError ? (
