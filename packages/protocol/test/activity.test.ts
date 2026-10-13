@@ -33,6 +33,10 @@ describe("toolActivity", () => {
     [tool("edit", { path: "plan.md", computer: "studio" }), "Editing plan.md on studio"],
     [tool("web_search", { query: "latest Node LTS" }), "Searching the web: latest Node LTS"],
     [tool("sign_in", {}), "Signing in"],
+    [
+      tool("pay", { purpose: "A domain, $12.98", computer: "MacBook" }),
+      "Paying on MacBook: A domain, $12.98",
+    ],
     [tool("sign_in", { login: "GitHub", computer: "MacBook" }), "Signing in on MacBook: GitHub"],
     [tool("send_file", { path: "out/report.pdf" }), "Sending you report.pdf"],
     [tool("schedule", { action: "create", title: "Stretch" }), "Scheduling: Stretch"],
@@ -71,6 +75,7 @@ describe("toolSummary", () => {
     [tool("edit", { path: "plan.md", computer: "studio" }), "Edited plan.md on studio"],
     [tool("web_search", { query: "node lts" }), "Searched the web: node lts"],
     [tool("sign_in", { login: "GitHub" }), "Asked to sign in: GitHub"],
+    [tool("pay", {}), "Asked to pay"],
     [tool("send_file", { path: "out/report.pdf" }), "Sent you report.pdf"],
     [tool("memory", { action: "add" }), "Updated its memory"],
     [tool("log", { title: "Fix the build" }), "Noted what it did"],

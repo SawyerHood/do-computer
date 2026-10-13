@@ -26,6 +26,7 @@ import { client } from "@/lib/client"
 import { savedLoginsKey } from "@/lib/collections"
 import { loginToSend, usedWords } from "@/lib/passwords"
 import { queryClient } from "@/lib/query"
+import { CardsSettings } from "./cards.tsx"
 
 /**
  * What is being done to the workspace's logins in a window over the list: one added, or one of
@@ -349,7 +350,7 @@ function LoginList({
  * The logins a workspace keeps for its agents to sign in to websites with. An agent uses one
  * without seeing it, and nobody is shown a password here: one can be replaced or removed.
  */
-export function PasswordsSettings({ workspace }: { workspace: WorkspaceSummary }) {
+function LoginsSettings({ workspace }: { workspace: WorkspaceSummary }) {
   const [editing, setEditing] = useState<Editing>()
   return (
     <div className="flex flex-col gap-6">
@@ -387,6 +388,19 @@ export function PasswordsSettings({ workspace }: { workspace: WorkspaceSummary }
           onClose={() => setEditing(undefined)}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * The Passwords page of a workspace: its logins, its cards, or both, whichever of them it
+ * keeps and this person may see.
+ */
+export function PasswordsSettings({ workspace }: { workspace: WorkspaceSummary }) {
+  return (
+    <div className="flex flex-col gap-10">
+      {workspace.savedLogins ? <LoginsSettings workspace={workspace} /> : null}
+      {workspace.savedCards ? <CardsSettings workspace={workspace} /> : null}
     </div>
   )
 }

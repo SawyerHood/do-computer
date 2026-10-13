@@ -118,6 +118,7 @@ import { type AgentDirectory, PeerError, type PeerMessage, type PeerReply, Peers
 import { formatTime, isValidTimezone } from "./schedule.ts"
 import { type CheckResult, ScheduleError, Scheduler } from "./schedules.ts"
 import { SecretError, Secrets, SecretsDoc } from "./secrets.ts"
+import { Pays } from "./pay.ts"
 import { bindingOf, SignIns } from "./sign-in.ts"
 import { type SettingsChange, SettingsError, settingsExtension } from "./settings.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
@@ -258,6 +259,8 @@ export type AgentActorOptions = {
    * Absent: no agent here has any.
    */
   readonly savedLogins?: (agentId: string) => Promise<ActorStub | undefined>
+  /** The same, for the cards the workspace saved to pay with. Absent: no agent here has any. */
+  readonly savedCards?: (agentId: string) => Promise<ActorStub | undefined>
   /**
    * Who the other agents of the agent's workspace are, and how a message reaches one. Without
    * it, the agent knows of no other agent.
@@ -538,6 +541,7 @@ export class AgentActor implements Actor {
   readonly #approvals: Approvals
   readonly #secrets: Secrets
   readonly #signIns: SignIns
+  readonly #pays: Pays
   readonly #keepGoing: KeepGoing
   readonly #journal: Journal
   readonly #history: HistoryIndex
@@ -716,12 +720,32 @@ export class AgentActor implements Actor {
       askForLogin: (input, c) => this.#secrets.askForLogin(input, c),
       returnPass: (chatId, binding, c) => this.#approvals.allowOnce(chatId, binding, c),
     })
+    this.#pays = new Pays({
+      agent: async () => {
+        const identity = await this.#identity(await this.#open())
+        return {
+          id: host.name,
+          name: identity.name ?? "Your Dood",
+          color: avatarLook(identity.avatar, host.name).color,
+        }
+      },
+      computer: (name, c) => this.#computers.resolve(name, c),
+      vault: () => this.#cards(),
+      chatKind: async (chatId, c) =>
+        own((await (await this.#open()).snapshot(ChatsDoc, c))?.chats ?? {}, chatId)?.kind,
+      returnPass: (chatId, binding, c) => this.#approvals.allowOnce(chatId, binding, c),
+      now: () => host.now(),
+    })
     this.#approvals = new Approvals({
       now: () => host.now(),
       computerOf: (name, c) => this.#computers.peek(name, c),
       connectorOf: async (tool, c) => this.#connectors?.connectorOf(tool, c),
       connectors: async (c) => (await this.#connectors?.list(c)) ?? [],
-      describe: (call, chatId, c) => this.#signIns.describe(call, chatId, c),
+      describe: async (call, chatId, c) =>
+        (await this.#signIns.describe(call, chatId, c)) ??
+        (await this.#pays.describe(call, chatId, c)),
+      // A card's security code, typed by whoever said the card may be used.
+      onTyped: (binding, typed) => this.#pays.hold(binding, typed),
       // Signing in is something only an agent whose workspace keeps logins can do.
       has: async (ability) => ability !== SIGN_IN_ABILITY || (await this.#vault()) !== undefined,
       onRequest: (request) =>
@@ -851,6 +875,16 @@ export class AgentActor implements Actor {
   async #vault(): Promise<ActorStub | undefined> {
     try {
       return await this.#options.savedLogins?.(this.#host.name)
+    } catch (error) {
+      this.#options.onReport?.(error)
+      return undefined
+    }
+  }
+
+  /** Where the agent's workspace keeps its saved cards, or undefined where it has none to use. */
+  async #cards(): Promise<ActorStub | undefined> {
+    try {
+      return await this.#options.savedCards?.(this.#host.name)
     } catch (error) {
       this.#options.onReport?.(error)
       return undefined
@@ -1101,6 +1135,7 @@ export class AgentActor implements Actor {
       // Signing in with a saved login, where the agent's workspace has any to use. It is
       // looked up as the agent is opened: one that gains or loses them is told the next time.
       if ((await this.#vault()) !== undefined) registry.install(this.#signIns.extension)
+      if ((await this.#cards()) !== undefined) registry.install(this.#pays.extension)
       registry.install(
         settingsExtension({
           models: () => this.#modelOptions(),
@@ -1790,12 +1825,15 @@ export class AgentActor implements Actor {
         )
       }
       if (requestId !== undefined && segments[2] === undefined && method === "POST") {
-        const { decision } = await body<{ decision: ApprovalDecision }>(request)
+        const { decision, typed } = await body<{ decision: ApprovalDecision; typed?: unknown }>(
+          request,
+        )
         const told = await this.#approvals.resolve(
           requestId,
           decision,
           context,
           identity.team ? caller : undefined,
+          typed,
         )
         // What the agent says once it has its answer is its latest line, and nothing more
         // follows from it.

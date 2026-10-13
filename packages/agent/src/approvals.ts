@@ -43,6 +43,8 @@ type StoredRequest = {
   onceOnly?: true
   /** What exactly was asked about, where a yes is for that and nothing like it. */
   binding?: string
+  /** What whoever says yes has to type as they do. What they type is not kept here. */
+  wants?: { label: string }
 }
 
 /**
@@ -92,6 +94,8 @@ type Ability = {
  */
 /** Signing in on a website with a login the workspace saved. */
 export const SIGN_IN_ABILITY = "tool:sign_in"
+/** Paying on a website with a card the workspace saved. */
+export const PAY_ABILITY = "tool:pay"
 
 const ABILITIES: readonly Ability[] = [
   {
@@ -147,6 +151,13 @@ const ABILITIES: readonly Ability[] = [
     hint: "On a website, with a login the workspace saved for it. The Dood is never shown the password.",
     tools: ["sign_in"],
     ask: true,
+  },
+  {
+    id: PAY_ABILITY,
+    label: "Pay with saved cards",
+    tools: ["pay"],
+    // Money spent is not unspent, and the card's code is typed by whoever says yes.
+    locked: true,
   },
   { id: "tool:web_search", label: "Search the web", tools: ["web_search"] },
   {
@@ -233,6 +244,7 @@ const TOOL_TITLES: Record<string, string> = {
   connectors: "See its connectors",
   request_secret: "Ask you for a secret",
   sign_in: "Sign in with a saved login",
+  pay: "Pay with a saved card",
   settings: "See its settings",
   agents: "Work with the other Doods",
   slack: "Read Slack",
@@ -356,6 +368,7 @@ const COMPUTER_TOOLS = new Set([
   "screen",
   "browser",
   "sign_in",
+  "pay",
 ])
 const usesComputer = (call: ToolCall) =>
   COMPUTER_TOOLS.has(call.name) ||
@@ -380,7 +393,15 @@ function describe(args: Record<string, unknown>): string {
 }
 
 /** What a call asks to do, in words, and what exactly a yes to it is a yes to. */
-export type Described = { title: string; detail: string; binding: string } | { pass: true }
+export type Described =
+  | {
+      title: string
+      detail: string
+      binding: string
+      /** Something to be typed by whoever says yes, such as a card's security code. */
+      wants?: { label: string }
+    }
+  | { pass: true }
 
 export type ApprovalsOptions = {
   readonly now: () => number
@@ -410,6 +431,12 @@ export type ApprovalsOptions = {
     chatId: string,
     context: Context,
   ) => Promise<Described | undefined>
+  /**
+   * Take what someone typed as they said yes to a request that wanted it, for the one use it
+   * was asked for. Resolves with what is wrong with it, where something is. It is handed on
+   * and kept nowhere here.
+   */
+  readonly onTyped?: (binding: string, typed: string) => string | undefined
   /** Whether the agent has an ability at all. One it has not is not listed for a rule. */
   readonly has?: (ability: string, context: Context) => Promise<boolean>
   /** Called when the agent has asked for something, to tell the user wherever they are. */
@@ -546,7 +573,9 @@ export class Approvals {
       governed.some((subject) => defaultRule(subject.id) === "ask")
     ) {
       // A saved login changes nothing in the app: what it wants is someone's yes.
-      const why = governed.some((subject) => subject.id === SIGN_IN_ABILITY)
+      const why = governed.some(
+        (subject) => subject.id === SIGN_IN_ABILITY || subject.id === PAY_ABILITY,
+      )
         ? "someone has to say that it may, and only a conversation with the user can ask them. It can be done from here once they have said, in your Permissions, that you need not ask"
         : "it changes the app, and only a conversation with the user can ask for that"
       return {
@@ -596,6 +625,7 @@ export class Approvals {
         resolvedAt: null,
         ...(onceOnly ? { onceOnly: true as const } : {}),
         ...(binding === undefined ? {} : { binding }),
+        ...(described?.wants === undefined ? {} : { wants: described.wants }),
       }
       return { allowed: false as const, id, isNew: true }
     }, context)
@@ -654,6 +684,7 @@ export class Approvals {
         detail: request.detail,
         createdAt: request.createdAt,
         ...(request.onceOnly === true ? { onceOnly: true } : {}),
+        ...(request.wants === undefined ? {} : { wants: request.wants }),
       }))
       .sort((a, b) => a.createdAt - b.createdAt)
   }
@@ -749,12 +780,23 @@ export class Approvals {
     decision: ApprovalDecision,
     context: Context,
     by?: Caller,
+    typed?: unknown,
   ): Promise<{ chatId: string; turn: Awaited<ReturnType<Conversation["submit"]>> } | undefined> {
     if (decision !== "once" && decision !== "always" && decision !== "deny") {
       throw new ApprovalError("The answer is one of: once, always, deny.")
     }
     const harness = this.#require()
     const now = this.#options.now()
+    // A yes that has to come with something typed is no yes without it. What was typed is
+    // handed on before the answer is written down, and is in nothing that is written.
+    const asked = own((await harness.snapshot(ApprovalsDoc, context))?.requests ?? {}, id)
+    if (asked?.status === "pending" && asked.wants !== undefined && decision !== "deny") {
+      const problem =
+        asked.binding === undefined || this.#options.onTyped === undefined
+          ? "That cannot be answered here."
+          : this.#options.onTyped(asked.binding, typeof typed === "string" ? typed : "")
+      if (problem !== undefined) throw new ApprovalError(problem)
+    }
     const request = await harness.commit(async (tx) => {
       const doc = await tx.doc(ApprovalsDoc)
       const found = own(doc.requests, id)

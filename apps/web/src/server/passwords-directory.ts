@@ -1,6 +1,7 @@
 import {
   isPersonalWorkspace,
   personalWorkspaceId,
+  type SecretKind,
   type WorkspaceSummary,
 } from "@do-computer/protocol"
 import type { ActorNamespace, ActorStub, AppDatabase } from "@do-computer/runtime"
@@ -13,7 +14,7 @@ import type { Config } from "./platform.ts"
  * database and the settings instead of finding the platform.
  */
 
-type Settings = Pick<Config, "secrets" | "adminEmails" | "signup">
+type Settings = Pick<Config, "secrets" | "secretKinds" | "adminEmails" | "signup">
 
 /**
  * Whether an account is one of the deployment's admins, going by the account as it is kept:
@@ -49,22 +50,29 @@ async function accountsOf(
 }
 
 /**
- * Whether a workspace has saved logins at all. Where the deployment keeps them for its admins,
+ * Whether a workspace has one of the kinds of thing that are kept for Doods to use unseen:
+ * saved logins, or cards. It has none of a kind the deployment does not name. Where the
+ * deployment keeps them for its admins,
  * which it does unless told otherwise, that is a workspace in which everyone is one: a team
  * with anyone else in it has none, since that person's conversations with its Doods could
  * otherwise use what an admin saved. Asked each time, of the database, so that it stops being
  * so the moment someone else joins.
  */
-export async function hasSavedLogins(
+export async function hasSaved(
   db: AppDatabase,
   settings: Settings,
   workspaceId: string,
+  kind: SecretKind,
 ): Promise<boolean> {
-  if (settings.secrets === "off") return false
+  if (settings.secrets === "off" || !settings.secretKinds.includes(kind)) return false
   if (settings.secrets === "on") return true
   const accounts = await accountsOf(db, workspaceId)
   return accounts.length > 0 && accounts.every((account) => isAdminAccount(settings, account))
 }
+
+/** Whether a workspace has saved logins. */
+export const hasSavedLogins = (db: AppDatabase, settings: Settings, workspaceId: string) =>
+  hasSaved(db, settings, workspaceId, "passwords")
 
 /**
  * Where an agent's workspace keeps its saved logins, for the agent to sign in with: the actor
@@ -72,25 +80,26 @@ export async function hasSavedLogins(
  * does, which is not always where requests are served, so it is handed what it needs. Looked
  * up each time, since an agent can be moved and a workspace can gain a member.
  */
-export function savedLoginsDirectory(
+export function savedDirectory(
   db: AppDatabase,
   modelAccess: ActorNamespace,
   settings: Settings,
+  kind: SecretKind,
 ): (agentId: string) => Promise<ActorStub | undefined> {
   return async (agentId) => {
-    if (settings.secrets === "off") return undefined
+    if (settings.secrets === "off" || !settings.secretKinds.includes(kind)) return undefined
     const row = await db.get<{ owner_id: string; workspace_id: string | null }>(
       "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",
       agentId,
     )
     if (row === undefined) return undefined
     const workspaceId = row.workspace_id ?? personalWorkspaceId(row.owner_id)
-    if (!(await hasSavedLogins(db, settings, workspaceId))) return undefined
+    if (!(await hasSaved(db, settings, workspaceId, kind))) return undefined
     return modelAccess.get(workspaceId)
   }
 }
 
-/** Mark the workspaces of a person's that keep logins they may see. */
+/** Mark the workspaces of a person's that keep logins, and cards, they may see. */
 export async function withSavedLogins(
   db: AppDatabase,
   settings: Settings,
@@ -98,10 +107,14 @@ export async function withSavedLogins(
 ): Promise<WorkspaceSummary[]> {
   if (settings.secrets === "off") return workspaces
   return Promise.all(
-    workspaces.map(async (workspace) =>
-      (await hasSavedLogins(db, settings, workspace.id))
-        ? { ...workspace, savedLogins: true as const }
-        : workspace,
-    ),
+    workspaces.map(async (workspace) => ({
+      ...workspace,
+      ...((await hasSaved(db, settings, workspace.id, "passwords"))
+        ? { savedLogins: true as const }
+        : {}),
+      ...((await hasSaved(db, settings, workspace.id, "cards"))
+        ? { savedCards: true as const }
+        : {}),
+    })),
   )
 }

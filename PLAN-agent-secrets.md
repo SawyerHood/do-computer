@@ -1,9 +1,9 @@
 # Passwords and keys for agents: plan
 
-**Status:** the first pull request is built (2026-10-13): our own store, signing in with it,
-asking first, and the switch that keeps it to admins. `docs/reference/passwords.md` says what
-it does as built, and HANDOFF.md section 5 how, and where the build departed from this plan.
-The rest of this plan is still to come: cards next, then the others in section 6.
+**Status:** two parts are built (2026-10-13). First our own store, signing in with it, asking
+first, and the switch that keeps it to admins. Then cards. `docs/reference/passwords.md` says
+what both do as built, and HANDOFF.md section 5 how, and where the build departed from this
+plan. The rest is still to come: the others in section 6.
 
 The owner asked for research into what OpenClaw and Hermes Agent do, for agents to be able to
 use 1Password "for both browser use and other things they need to fill out", and for a plan.
@@ -16,8 +16,11 @@ Having read it, the owner decided the same day:
 - **An admin must be able to turn the whole feature off with an environment variable** (4.9).
 - **On do.computer only admins may use it**, so that the owner can try it and nobody else's
   passwords are at risk while it is new (4.9).
-- **Cards are the next thing after the first pull request**, and not in it (4.4). Where a card
-  may be kept is still open.
+- **Cards are the next thing after the first pull request**, and not in it (4.4).
+- For cards, once shown what the card industry's rules are (PCI DSS): **the security code is
+  never kept**, and is typed with each yes; **the owner's own card only, while it is for
+  admins**; and **before cards are opened to anyone else**, they move onto the person's own
+  computer, or someone who knows those rules says what they ask.
 
 Everything else below was a proposal when it was built from. Section 6 says what the first
 pull request holds, section 7 what is still open, and section 8 what was and was not checked.
@@ -243,14 +246,28 @@ things that are not the same as a login:
   a person's own card for them the way a password manager does is a question for someone who
   knows them, not for this plan. It weighs on do.computer; a self-hoster keeps their own.
 
-What follows from the last one:
+What follows from the last one, as it was built:
 
 - Cards are **off unless the deployment names them** in `DC_SECRET_KINDS` (4.9).
+- **The security code is never kept.** Every use asks a person anyway, so the request has a
+  box for it: typed with the yes, held in memory for the one payment, written nowhere. That is
+  the one thing those rules forbid outright, and it makes what is kept much less use to a thief.
 - The better thing to save is **a card made for the purpose with a limit on it** (a virtual
-  card from the bank or a service like Privacy), and the form should say so.
-- Cards are the strongest case for keeping the value **on the person's computer and never on
-  the server**: the browser runs there anyway. That is 1Password when it comes, or a store in
-  the desktop app's keychain before then.
+  card from the bank or a service like Privacy), and the form says so.
+- For now the number is **in the server's store, sealed, beside the passwords**, which is only
+  as good as it being for admins alone. Before anyone else has cards it moves **onto the
+  person's computer** (1Password when it comes, or the desktop app's keychain), or the rules
+  are checked.
+
+What else it took:
+
+- **The page is loaded afresh first**, as for a login, so whatever else the page needs filled
+  in is given with the call and filled in by the daemon too.
+- **The Dood names the button that pays**, by its words, and the daemon presses it: the card
+  is typed and sent in one step, and taken out again if the page is still there.
+- **The boxes are found in every frame of the page.** Tried against Stripe's test pages before
+  anything was built: the daemon's own DevTools socket reaches the payment company's frame,
+  and what it types there is taken and formatted as if typed by hand.
 
 Addresses are the easy part of the same form and carry none of this.
 
@@ -380,7 +397,7 @@ To be mocked up in `prototypes/secrets` before any of it is built:
 All of it can be run here against a test site. Left out of it on purpose: one-time codes,
 cards, keys for commands, 1Password, and everything under "later".
 
-**Next: cards** (4.4), as the owner decided, once it is settled where a card may be kept.
+**Cards** (4.4) were built next, as the owner decided.
 
 **After that, each on its own, in an order to be chosen once those are in use:**
 
@@ -406,10 +423,9 @@ access; a variable that turns it off; admins only on do.computer; cards next. St
 4. **The name.** "Passwords" for the first pull request, "Passwords and keys" once there are
    keys; "Secrets" stays the word in the code.
 5. **What the model is told.** Proposed wording is permissive (4.1), after Hermes's trouble.
-6. **Cards: may do.computer's server keep them?** Cards are next, and admins only like the
-   rest. Proposed: kept on the person's computer and not on the server, always asking. The
-   other answer is the store beside passwords, which is less to build and is the heavier thing
-   described in 4.4.
+6. **Cards: where they are kept** is answered for now (the store, admins only, no security
+   code) and open for later (4.4). Still proposals: that the daemon presses the button itself,
+   and that there is no "Never" for paying, only not saving a card.
 7. **An unset `DC_SECRETS` means admins only.** The owner asked for that on do.computer; making
    it the default everywhere, the name, and the rule that a team with anyone else in it does
    not have the feature are proposals.

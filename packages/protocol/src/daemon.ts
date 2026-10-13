@@ -8,7 +8,7 @@
  * Durable Object WebSocket.
  */
 
-import type { ScreenAction, SignInWith, UsingAgent } from "./screen.ts"
+import type { PayField, PayWith, ScreenAction, SignInWith, UsingAgent } from "./screen.ts"
 import type { Person } from "./workspace.ts"
 
 /** Cap on each of stdout and stderr, so a result always fits in a frame. */
@@ -103,19 +103,24 @@ export type ScreenFrame = {
  * answers with what it printed and the pictures it took; `view`, and `hold` are as for the
  * screen; `close` closes the browser kept for agents, and lets go of the owner's own. `front`
  * answers with the page in front, as the browser says; `sign_in` signs in on that page with
- * `login`, for `agent`, and answers with how it went.
+ * `login`, for `agent`, and answers with how it went; `pay` types `card` into that page, fills
+ * `fields` in beside it, and presses the button that says `button`.
  *
- * A `sign_in` frame carries a password. It is the one frame that must never be written to a
- * log, an audit record or anything else that is kept.
+ * A `sign_in` frame carries a password and a `pay` frame a card. They are the frames that must
+ * never be written to a log, an audit record or anything else that is kept.
  */
 export type BrowserFrame = {
   t: "browser"
   id: string
-  op: "run" | "view" | "hold" | "close" | "front" | "sign_in"
+  op: "run" | "view" | "hold" | "close" | "front" | "sign_in" | "pay"
   agent?: UsingAgent
   script?: string
   /** With `sign_in`: what to sign in with. */
   login?: SignInWith
+  /** With `pay`: the card, what else to fill in, and the words on the button to press. */
+  card?: PayWith
+  fields?: PayField[]
+  button?: string
   timeoutMs?: number
   say?: string
   /**
@@ -180,6 +185,8 @@ export type HelloFrame = {
    * frame). Absent on one from before it could, which is never sent either.
    */
   signIn?: boolean
+  /** True when the daemon can pay with a saved card (`pay` of a browser frame). Absent on one from before it could. */
+  pay?: boolean
 }
 export type ExecResultFrame = {
   t: "exec_result"

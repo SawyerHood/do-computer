@@ -50,10 +50,10 @@ export type SignInBrowser = {
 
 export type PageTarget = { targetId: string; url: string; title: string; openerId?: string }
 
-type Json = Record<string, unknown>
-const obj = (value: unknown): Json =>
+export type Json = Record<string, unknown>
+export const obj = (value: unknown): Json =>
   typeof value === "object" && value !== null ? (value as Json) : {}
-const text = (value: unknown) => (typeof value === "string" ? value : "")
+export const text = (value: unknown) => (typeof value === "string" ? value : "")
 
 const SOCKET_OPEN = 1
 const BLANK = new Set(["", "about:blank"])
@@ -172,17 +172,17 @@ const IS_PASSWORD_BOX = `function () {
 }`
 
 /** Run on a box: put the caret in it, with what it holds selected, so that typing replaces that. */
-const FOCUS = `function () { this.focus(); this.select(); return document.activeElement === this; }`
+export const FOCUS = `function () { this.focus(); this.select(); return document.activeElement === this; }`
 
 /** Run on a password box just before the password is typed: whether typing would go into it. */
 const HAS_FOCUS_AS_PASSWORD = `function () {
   return document.activeElement === this && this.isConnected && this.type === "password";
 }`
 
-const VALUE = `function () { return String(this.value); }`
+export const VALUE = `function () { return String(this.value); }`
 
 /** Run on a box: empty it, and tell the page so as typing would. */
-const EMPTY = `function () {
+export const EMPTY = `function () {
   this.value = "";
   this.dispatchEvent(new Event("input", { bubbles: true }));
   this.dispatchEvent(new Event("change", { bubbles: true }));
@@ -289,10 +289,12 @@ export function withoutPassword(value: string, password: string): string {
   return cleaned
 }
 
-type Cdp = {
+export type Cdp = {
   send(method: string, params: Json, sessionId?: string): Promise<Json>
   /** Resolves with true when the browser next says `method` of a session, or false after `waitMs`. */
   heard(method: string, sessionId: string, waitMs: number): Promise<boolean>
+  /** Hands on everything the browser says by itself from now on, with what it said of it. */
+  on(listener: (method: string, sessionId: string, params: Json) => void): void
   close(): void
 }
 
@@ -300,11 +302,11 @@ type Cdp = {
  * A DevTools socket to speak over. A call that fails says only which call it was: what it was
  * given is never part of an error.
  */
-function connect(open: () => PreviewSocket, callMs: number): Promise<Cdp> {
+export function connect(open: () => PreviewSocket, callMs: number): Promise<Cdp> {
   return new Promise((resolve, reject) => {
     const socket = open()
     const calls = new Map<number, { resolve(value: Json): void; reject(error: Error): void }>()
-    const listeners = new Set<(method: string, sessionId: string) => void>()
+    const listeners = new Set<(method: string, sessionId: string, params: Json) => void>()
     let nextId = 0
     let closed = false
     const end = () => {
@@ -364,6 +366,9 @@ function connect(open: () => PreviewSocket, callMs: number): Promise<Cdp> {
           listeners.add(listener)
         })
       },
+      on(listener) {
+        listeners.add(listener)
+      },
       close() {
         if (closed) return
         end()
@@ -391,12 +396,44 @@ function connect(open: () => PreviewSocket, callMs: number): Promise<Cdp> {
       }
       const method = text(message.method)
       const sessionId = text(message.sessionId)
-      for (const listener of [...listeners]) listener(method, sessionId)
+      for (const listener of [...listeners]) listener(method, sessionId, obj(message.params))
     })
     socket.addEventListener("close", end)
     socket.addEventListener("error", end)
   })
 }
+
+/**
+ * One session of a socket, a page or a frame of one that the browser keeps apart from it, and
+ * what is asked of it over and over.
+ */
+export function speakTo(cdp: Cdp, sessionId: string, worldName: string) {
+  const send = (method: string, params: Json = {}) => cdp.send(method, params, sessionId)
+  return {
+    sessionId,
+    send,
+    /**
+     * A world in a frame to run fixed code in, which the frame's own scripts cannot reach into.
+     * The page's own frame where none is named.
+     */
+    async world(frameId?: string) {
+      const frame = frameId ?? text(obj(obj((await send("Page.getFrameTree")).frameTree).frame).id)
+      const made = await send("Page.createIsolatedWorld", { frameId: frame, worldName })
+      return Number(made.executionContextId)
+    },
+    /** Run fixed code on something of the page that is held, and resolve with what it answers. */
+    async on(objectId: string, declaration: string, ...given: unknown[]) {
+      const ran = await send("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: declaration,
+        returnByValue: true,
+        ...(given.length === 0 ? {} : { arguments: given.map((value) => ({ value })) }),
+      })
+      return obj(ran.result).value
+    },
+  }
+}
+export type Speak = ReturnType<typeof speakTo>
 
 /** How long the browser is given to say which page is in front: whoever asks does not wait long. */
 const FRONT_WAIT_MS = 3_000
@@ -494,7 +531,8 @@ async function attempt(
         .sessionId,
     )
     sessionId = session
-    const send = (method: string, params: Json = {}) => speak.send(method, params, session)
+    // Fixed code is run in the page in a world its own scripts cannot reach into.
+    const { send, world, on } = speakTo(speak, session, "dc-sign-in")
     await send("Page.enable")
     // A page that is not the one being looked at takes what is typed all the same.
     await send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {})
@@ -510,25 +548,6 @@ async function attempt(
     /** The page's address, as the browser has it now. */
     const address = async () =>
       text(obj(obj((await send("Page.getFrameTree")).frameTree).frame).url)
-    /** Run fixed code in the page, in a world its own scripts cannot reach into. */
-    const world = async () => {
-      const frame = text(obj(obj((await send("Page.getFrameTree")).frameTree).frame).id)
-      const made = await send("Page.createIsolatedWorld", {
-        frameId: frame,
-        worldName: "dc-sign-in",
-      })
-      return Number(made.executionContextId)
-    }
-    const on = async (objectId: string, declaration: string) =>
-      obj(
-        (
-          await send("Runtime.callFunctionOn", {
-            objectId,
-            functionDeclaration: declaration,
-            returnByValue: true,
-          })
-        ).result,
-      ).value
     /** The page's inputs now, and a way to take hold of one. Undefined while it is between pages. */
     const look = async () => {
       try {
@@ -742,7 +761,7 @@ async function attempt(
 }
 
 /** The host of an address, for saying which page it was. */
-function hostOf(url: string): string {
+export function hostOf(url: string): string {
   try {
     return new URL(url).hostname || "a page of the browser's own"
   } catch {

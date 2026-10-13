@@ -59,6 +59,8 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return withDetail("Searching the web", text(args.query))
     case "sign_in":
       return withDetail(`Signing in${on}`, text(args.login))
+    case "pay":
+      return withDetail(`Paying${on}`, text(args.purpose))
     case "send_file":
       return path === undefined ? "Sending you a file" : `Sending you ${fileName(path)}`
     case "visual":
@@ -181,6 +183,7 @@ const PAST: Record<string, string> = {
   Unpinning: "Unpinned",
   // Whether it got in is not something the call's arguments say.
   Signing: "Asked to sign",
+  Paying: "Asked to pay",
 }
 
 /**

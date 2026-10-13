@@ -27,7 +27,7 @@ import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
 import { siteDirectory } from "./server/site-directory.ts"
 import { modelAccessDirectory } from "./server/model-access-directory.ts"
-import { savedLoginsDirectory } from "./server/passwords-directory.ts"
+import { savedDirectory } from "./server/passwords-directory.ts"
 import {
   addableKinds,
   addMachineFor,
@@ -94,10 +94,17 @@ export const AgentObject = createDurableActorClass<Env>({
       library: libraryDirectory(d1Database(env.DB), durableObjectNamespace(env.LIBRARY)),
       sites: siteDirectory(d1Database(env.DB)),
       showsBrowser: browserDirectory(d1Database(env.DB)),
-      savedLogins: savedLoginsDirectory(
+      savedLogins: savedDirectory(
         d1Database(env.DB),
         durableObjectNamespace(env.MODEL_ACCESS),
         config,
+        "passwords",
+      ),
+      savedCards: savedDirectory(
+        d1Database(env.DB),
+        durableObjectNamespace(env.MODEL_ACCESS),
+        config,
+        "cards",
       ),
       agentDirectory: agentDirectory(
         d1Database(env.DB),
