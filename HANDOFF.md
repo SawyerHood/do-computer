@@ -5979,6 +5979,70 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       document there follows the device and has the teal accent, not the agent's), a real
       model writing a page from the guide.
 
+74. **On a phone a copied picture is pasted into the message box, and the microphone stays
+    while a Dood works** (2026-10-13; `apps/mobile/src/chat/paste.tsx`, `composer.tsx`,
+    `attachments.tsx`). The owner asked for both: "I should be able to paste images into the
+    text box", and "When a thread is working, I can no longer use speech-to-text. I should
+    still be able to. Maybe if I focus the text box, I can see the record button."
+    - **Pasting.** React Native's box pastes words only: with a picture copied, iOS did not
+      offer Paste in it at all. `expo-paste-input` goes around the box (`PasteTarget`), so the
+      box's own Paste is offered, and what it pastes is handed over as files the phone wrote.
+      They are attached as a chosen picture is: saved to the library as `pasted-<the moment>`,
+      shown small above the words, and sent for the model to look at. In the browser build
+      the page's paste event does the same for any copied file, as the web app does. Words
+      are pasted as they were.
+    - **A picture is drawn smaller on the phone** (`scaledOnDevice`, with
+      `expo-image-manipulator`), to the sizes the web app tries. Before, a picture went as it
+      was or not at all: one over about a megabyte reached the Dood only as a file's name,
+      and nothing said so. That was true of a photograph from the phone's photos as well, so
+      this is for those too. One that already leaves room for the other three a message may
+      hold still goes untouched.
+    - **The microphone.** Stop took its place while the Dood worked and the box was empty;
+      dictating was still under "+", which nobody would look for. Now the microphone is beside
+      Stop, as it is in the web app.
+    - **Mine:** the microphone always beside Stop, and not only once the box is focused, which
+      is what the owner supposed; the two packages; drawing pictures smaller for every way of
+      attaching one, and not for a pasted one alone.
+    - **Checked:** two browser tests of the web build (a pasted picture is attached and goes
+      with the message; dictating starts while a command runs, with the browser's fake
+      microphone), and in an iOS 27 simulator on a Mac: Paste is offered with a picture
+      copied; a screenshot and a 12.7 MB photograph 6016 pixels wide were attached, saved and
+      sent, the photograph as a JPEG of 276,000 characters; words still paste; the microphone
+      stands beside Stop while a command sleeps. The app bundles as a release build does.
+      **Not checked:** a phone, which needs a new build for the two packages (builds are paid
+      for, and none was started); Android, where the package has a half of its own that was
+      never run; whether a phone asks "Allow Paste" for a picture copied in another app (the
+      simulator did not); recording in the simulator, which gets no microphone over SSH.
+      There, a tap on the microphone also holds up everything the app asks of Expo after it,
+      a later message included, with or without this change.
+    - **Later the same day the box itself was laid out again,** at the owner's ask, after T3
+      Code's phone app (`apps/mobile/src/features/threads/ThreadComposer.tsx` there, read and
+      not copied): "I would like the plus button to be sort of like inside of the text area
+      ... when you start typing, it wraps under, so you have more horizontal room on a small
+      screen", and "when you expand it, this gives us room to show the button to change the
+      model and the thinking like you can on the web app". Left alone and empty it is one
+      line: "+", the words, the microphone. Focused, or with anything written or attached, the
+      words have its whole width and one row under them has "+" and the model button on the
+      left and the microphone, Stop or the send button on the right. It is one box and one row
+      of buttons in both shapes (shut, the row lies over the line), so the box being written
+      in is never made again and keeps the keyboard.
+    - **The model button** (`thinks-with.tsx`) is the web app's one quiet brain. It opens the
+      system's menu: the chosen model's levels of thinking, and one line with the model's
+      name, behind which are the models suggested first and "All models", which goes to the
+      list with a search on the Dood's page. All of it in one menu was too tall to be seen
+      above the keyboard. It is the Dood's own setting, as on the web. Nothing is drawn where
+      there is one model with one way of thinking.
+    - **Mine:** that the box opens on focus and not at the first letter (T3's does, and the
+      box would otherwise change shape under a finger that is typing); that it stays open
+      while anything is written or attached; the shape changing at once and not over a
+      moment, which the keyboard's own slide covers; the models behind one line of the menu.
+    - **Checked for these:** a third browser test (one line with "+" inside it, the words at
+      full width once written, the buttons under them, a level chosen from the button and
+      kept by the server), and in the simulator with a real list of 393 models: both shapes,
+      with and without Stop, a level and a model chosen and kept, and a recording of the box
+      opening and shutting read frame by frame. **Not checked:** a phone, Android, and the
+      listening bars in the new box anywhere but the browser build.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
