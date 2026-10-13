@@ -1,8 +1,4 @@
-import type {
-  AddConnectorRequest,
-  ConnectorResult,
-  ConnectorSummary,
-} from "@do-computer/protocol"
+import type { AddConnectorRequest, ConnectorResult, ConnectorSummary } from "@do-computer/protocol"
 import type { SqliteDatabase } from "@do-computer/runtime"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
@@ -161,7 +157,7 @@ export type ConnectorsOptions = {
   readonly appsAdded?: (connectorId: string, context: Context) => Promise<void>
 }
 
-const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
 
 /** A name as it is written into a note for the model, which it must not be able to end. */
 const personOf = (caller: Caller | undefined) =>
@@ -506,13 +502,14 @@ export class Connectors {
   }
 
   /**
-   * Finish a sign-in with the code the service sent the user back with, then connect. Where the
-   * agent asked for the connector from a chat, it is told there how it went, and `chatId` and
-   * `turn` are that chat and the turn it is given.
+   * Finish a sign-in with the code the service sent the user back with, then connect. `iss` is who
+   * the service said it was when it did (RFC 9207): the code is used only if that is the service
+   * being signed in to. Where the agent asked for the connector from a chat, it is told there how
+   * it went, and `chatId` and `turn` are that chat and the turn it is given.
    */
   async authorize(
     id: string,
-    code: string,
+    { code, iss }: { code: string; iss?: string },
     context: Context,
     by?: Caller,
   ): Promise<ConnectorResult & { chatId?: string; turn?: Turn }> {
@@ -527,6 +524,7 @@ export class Connectors {
         {
           serverUrl: connector.url,
           authorizationCode: code,
+          ...(iss === undefined ? {} : { iss }),
           fetch: this.#fetch,
         },
       )
@@ -695,7 +693,7 @@ export class Connectors {
       }),
       execute: async (args, api, context) => {
         const reply = (text: string, connector?: ConnectorSummary) => ({
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
           ...(connector === undefined
             ? {}
             : {
@@ -882,13 +880,13 @@ export class Connectors {
             result = await call()
           }
           // MCP reports a failing tool in its result, not as a protocol error.
-          return { content: bounded(toLlmContent(result)), isError: result.isError === true }
+          return { output: bounded(toLlmContent(result)), isError: result.isError === true }
         } catch (error) {
           const message =
             error instanceof McpOAuthAuthorizationRequiredError
               ? `${connector.name} needs the user to sign in again. Ask them to reconnect it under Connectors.`
               : `${connector.name} could not be reached: ${error instanceof Error ? error.message : String(error)}`
-          return { isError: true, content: [{ type: "text", text: message }] }
+          return { isError: true, output: [{ type: "text", text: message }] }
         }
       },
     }

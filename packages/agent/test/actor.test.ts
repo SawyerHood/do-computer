@@ -13,6 +13,7 @@ import {
   readSse,
   reduceChat,
 } from "@do-computer/protocol"
+import type { ActorDatabase } from "@do-computer/runtime"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
@@ -43,7 +44,13 @@ type Told = { agentId: string } & AgentActivity
 
 const worlds: World[] = []
 
-function open(directory: string, tokensPerSecond = 2_000, sandbox?: () => Sandbox): World {
+function open(
+  directory: string,
+  tokensPerSecond = 2_000,
+  sandbox?: () => Sandbox,
+  /** The agent's database as the agent is to have it, in place of the host's. */
+  database: (sql: ActorDatabase) => ActorDatabase = (sql) => sql,
+): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -53,7 +60,7 @@ function open(directory: string, tokensPerSecond = 2_000, sandbox?: () => Sandbo
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
     factory: (host) =>
-      createAgentActor(host, {
+      createAgentActor(Object.assign(host, { sql: database(host.sql) }), {
         models,
         defaultModel: "test/model",
         modelOptions: [
@@ -414,6 +421,54 @@ describe("agent actor", () => {
       role: "assistant",
       status: "done",
       parts: [{ type: "text", text: "Finished after the restart." }],
+    })
+  })
+
+  it("opens again after its store failed under it, and finishes the run", async () => {
+    // A store that refuses everything while it is `down`, as a full disk does.
+    let down = false
+    const flaky = (sql: ActorDatabase): ActorDatabase => {
+      const unless = <T>(run: () => Promise<T>) =>
+        down ? Promise.reject(new Error("disk I/O error")) : run()
+      return {
+        exec: (text) => unless(() => sql.exec(text)),
+        run: (text, ...params) => unless(() => sql.run(text, ...params)),
+        get: (text, ...params) => unless(() => sql.get(text, ...params)),
+        all: (text, ...params) => unless(() => sql.all(text, ...params)),
+        transaction: (callback) => unless(() => sql.transaction(callback)),
+        close: () => sql.close(),
+      }
+    }
+    const world = open(temporary(), 60, undefined, flaky)
+    const chat = await setup(world)
+    world.faux.setResponses([
+      fauxAssistantMessage("word ".repeat(200)),
+      fauxAssistantMessage("Finished after the failure."),
+    ])
+    await send(world, chat.id, "keep going")
+    await follow(world, chat.id, (state) => state.messages.some((m) => m.status === "streaming"))
+
+    // The run is writing as it goes, so the next thing it writes is refused.
+    down = true
+    const deadline = Date.now() + 10_000
+    while (world.reports.length === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    expect(String(world.reports[0])).toContain("disk I/O error")
+    down = false
+
+    // Nothing addresses the agent: it wakes itself, and the run is picked up where it was.
+    let state: ChatState | undefined
+    do {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      state = await call<ChatState>(world, `/chats/${chat.id}`).catch(() => undefined)
+    } while ((state === undefined || state.busy) && Date.now() < deadline)
+
+    expect(state?.busy).toBe(false)
+    expect(state?.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      status: "done",
+      parts: [{ type: "text", text: "Finished after the failure." }],
     })
   })
 

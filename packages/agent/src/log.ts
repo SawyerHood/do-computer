@@ -29,7 +29,7 @@ const log = (now: () => number) =>
       if (args.title.trim() === "" || args.outcome.trim() === "") {
         return {
           isError: true,
-          content: [{ type: "text" as const, text: "An entry needs a title and an outcome." }],
+          output: [{ type: "text" as const, text: "An entry needs a title and an outcome." }],
         }
       }
       await api.commit(async (tx) => {
@@ -40,7 +40,7 @@ const log = (now: () => number) =>
           at: now(),
         })
       }, context)
-      return { content: [{ type: "text" as const, text: "Added to the list." }] }
+      return { output: [{ type: "text" as const, text: "Added to the list." }] }
     },
   })
 

@@ -12,6 +12,7 @@ import {
   MAX_FOLLOWED_CHATS,
   reduceChat,
 } from "@do-computer/protocol"
+import type { ActorDatabase } from "@do-computer/runtime"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
@@ -27,7 +28,11 @@ type World = {
 
 const worlds: World[] = []
 
-function open(tokensPerSecond = 2_000): World {
+function open(
+  tokensPerSecond = 2_000,
+  /** The agent's database as the agent is to have it, in place of the host's. */
+  database: (sql: ActorDatabase) => ActorDatabase = (sql) => sql,
+): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-agent-sockets-"))
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond })
   const models = createModels()
@@ -38,7 +43,7 @@ function open(tokensPerSecond = 2_000): World {
     directory: join(directory, "actors"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
     factory: (host) =>
-      createAgentActor(host, {
+      createAgentActor(Object.assign(host, { sql: database(host.sql) }), {
         models,
         defaultModel: "test/model",
         modelOptions: [
@@ -338,6 +343,43 @@ describe("following an agent over a socket", () => {
         ),
     )
     expect(world.reports).toEqual([])
+  })
+
+  it("comes back to its sockets after its store failed, and calls no chat gone", async () => {
+    // A store that refuses whatever is written while it is `down`, as a full disk does.
+    let down = false
+    const world = open(200, (sql) => ({
+      exec: (text) => sql.exec(text),
+      run: (text, ...params) => sql.run(text, ...params),
+      get: (text, ...params) => sql.get(text, ...params),
+      all: (text, ...params) => sql.all(text, ...params),
+      transaction: (callback) =>
+        down ? Promise.reject(new Error("disk I/O error")) : sql.transaction(callback),
+      close: () => sql.close(),
+    }))
+    const chat = await setup(world)
+    world.faux.setResponses([fauxAssistantMessage("One."), fauxAssistantMessage("Two.")])
+    const client = await connect(world)
+    client.say({ type: "follow", chat: chat.id })
+    await client.until(() => client.chats.has(chat.id))
+    await send(world, chat.id, "hi")
+    await client.until(answered(client, chat.id, 1))
+    await settled()
+
+    const heard = client.heard.length
+    down = true
+    await expect(send(world, chat.id, "again")).rejects.toThrow("disk I/O error")
+    down = false
+    // It opens again by itself, and says where things stand to the socket that stayed.
+    await client.until(() => client.heard.slice(heard).some((m) => m.type === "resumed"))
+    await send(world, chat.id, "again")
+    await client.until(answered(client, chat.id, 2))
+
+    const since = client.heard.slice(heard)
+    expect(since.some((message) => message.type === "gone")).toBe(false)
+    expect(digest(client.chats.get(chat.id))).toBe(
+      digest(await call<ChatState>(world, `/chats/${chat.id}`)),
+    )
   })
 
   it("sends a chat again to a client that asks again, as one out of step does", async () => {

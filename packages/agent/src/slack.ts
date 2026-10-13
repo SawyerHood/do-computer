@@ -345,12 +345,12 @@ export class SlackChats {
       }),
       execute: async (args) => {
         const reply = (text: string, details?: Record<string, string | null>) => ({
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
           ...(details === undefined ? {} : { details }),
         })
         const fail = (text: string) => ({
           isError: true,
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
         })
         const { agentId, directory } = this.#options
         const channel = (args.channel ?? "").trim()

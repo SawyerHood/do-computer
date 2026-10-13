@@ -125,7 +125,7 @@ export type JobsOptions = {
   readonly onError?: (error: unknown) => void
 }
 
-const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
 
 const statusOf = (state: JobState): JobStatus =>
   state.state === "running"
@@ -630,13 +630,16 @@ export class Jobs {
         }
         const target = api.env instanceof ComputerEnv ? api.env.target : undefined
         const runner = target === undefined ? undefined : this.#runner(target)
-        // As it was before there were jobs: the call is the command.
-        const plainly = () =>
-          this.#plain.execute(
+        // As it was before there were jobs: the call is the command. What pi-durable's own
+        // gives to programs is left out, as this `bash` declares nothing for them.
+        const plainly = async () => {
+          const { structuredOutput: _programs, ...result } = await this.#plain.execute(
             { command, ...(timeout === undefined ? {} : { timeout }) },
             api as never,
             context,
           )
+          return result
+        }
         if (target === undefined || runner === undefined) {
           if (background === true) {
             return fail(
@@ -736,7 +739,7 @@ export class Jobs {
           const rest = `You will get a message when it ends, so do not wait for it or run it again. Everything it prints is written to ${log}.`
           if (background === true) {
             return {
-              content: [
+              output: [
                 {
                   type: "text" as const,
                   text: [
@@ -777,7 +780,17 @@ export class Jobs {
           )
         }
         if (followed.exitCode !== 0) {
-          throw new Error(`Command exited with code ${followed.exitCode}`)
+          // As pi-durable's own `bash` answers it: an error result, and nothing thrown.
+          return {
+            isError: true,
+            diagnostics: [
+              {
+                severity: "error" as const,
+                code: "exit_code",
+                message: `Command exited with code ${followed.exitCode}`,
+              },
+            ],
+          }
         }
         return {}
       },
@@ -802,7 +815,7 @@ export class Jobs {
       }),
       outputLimits: { retain: "tail" },
       execute: async (args, api, context) => {
-        const reply = (text: string) => ({ content: [{ type: "text" as const, text }] })
+        const reply = (text: string) => ({ output: [{ type: "text" as const, text }] })
         const now = this.#options.now()
         try {
           switch (args.action) {

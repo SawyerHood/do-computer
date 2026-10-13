@@ -358,7 +358,7 @@ function day(at: number, timezone: string | null | undefined): string {
 
 /** The agent's own way into its past: a tool to search every chat and to read around a match. */
 export function historyExtension(harness: () => Harness, index: HistoryIndex): Extension {
-  const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+  const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const tool = defineTool({
     name: "history",
     description:
@@ -392,7 +392,7 @@ export function historyExtension(harness: () => Harness, index: HistoryIndex): E
           if (hits.length === 0) {
             const none = "Nothing in your other chats matches that."
             return {
-              content: [{ type: "text", text: caughtUp ? none : `${none} ${reading}` }],
+              output: [{ type: "text", text: caughtUp ? none : `${none} ${reading}` }],
             }
           }
           const lines = hits.map(
@@ -408,7 +408,7 @@ export function historyExtension(harness: () => Harness, index: HistoryIndex): E
           else if (!complete) {
             lines.push("(There may be more; narrow the search to see other matches.)")
           }
-          return { content: [{ type: "text", text: lines.join("\n") }], details: { hits } }
+          return { output: [{ type: "text", text: lines.join("\n") }], details: { hits } }
         }
         if (args.action === "list") {
           const here = String(api.conversationId)
@@ -422,13 +422,13 @@ export function historyExtension(harness: () => Harness, index: HistoryIndex): E
             .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
             .slice(0, MAX_LISTED)
           if (recent.length === 0) {
-            return { content: [{ type: "text", text: "You have no other chats." }] }
+            return { output: [{ type: "text", text: "You have no other chats." }] }
           }
           const lines = recent.map(([id, chat]) => {
             const note = own(journal?.notes, id)?.text
             return `${chatLabel(id, chat, state?.main)}, last active ${day(chat.updatedAt, identity?.timezone)}${note ? `: ${note}` : ""}`
           })
-          return { content: [{ type: "text", text: lines.join("\n") }] }
+          return { output: [{ type: "text", text: lines.join("\n") }] }
         }
         if (args.chat === undefined) return fail("`read` needs the chat id.")
         // A few messages after the match too, so its answer is in view.
@@ -457,7 +457,7 @@ export function historyExtension(harness: () => Harness, index: HistoryIndex): E
             return `${message.role === "user" ? "user" : "you"} (message ${message.id}): ${clipped}`
           })
           .join("\n\n")
-        return { content: [{ type: "text", text: text || "That chat has nothing there." }] }
+        return { output: [{ type: "text", text: text || "That chat has nothing there." }] }
       } catch (error) {
         if (error instanceof HistoryError) return fail(error.message)
         throw error

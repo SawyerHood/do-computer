@@ -145,13 +145,13 @@ const setIdentity = defineTool({
       if ("error" in parsed) {
         return {
           isError: true,
-          content: [{ type: "text", text: `${parsed.error}. ${colorCatalog()}` }],
+          output: [{ type: "text", text: `${parsed.error}. ${colorCatalog()}` }],
         }
       }
     }
     const name = args.name?.trim()
     if (name === "") {
-      return { isError: true, content: [{ type: "text", text: "A name cannot be empty." }] }
+      return { isError: true, output: [{ type: "text", text: "A name cannot be empty." }] }
     }
     const saved = await api.commit(async (tx) => {
       const doc = await tx.doc(IdentityDoc)
@@ -167,7 +167,7 @@ const setIdentity = defineTool({
       return { name: doc.name, tagline: doc.tagline, color: doc.avatar?.color ?? null }
     }, context)
     return {
-      content: [{ type: "text", text: `Saved. You are now: ${JSON.stringify(saved)}` }],
+      output: [{ type: "text", text: `Saved. You are now: ${JSON.stringify(saved)}` }],
       details: saved,
     }
   },
@@ -187,7 +187,7 @@ const memory = defineTool({
   execute: async (args, api, context) => {
     const store = STORES[args.target]
     const content = args.content?.replace(/\s*\n\s*/g, " ").trim()
-    const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+    const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
     if (args.action !== "remove" && (content === undefined || content === "")) {
       return fail(`"${args.action}" needs content.`)
     }
@@ -220,7 +220,7 @@ const memory = defineTool({
     }, context)
     if ("error" in outcome) return fail(outcome.error)
     return {
-      content: [
+      output: [
         { type: "text", text: `Saved. ${store.label}: ${outcome.used}/${store.limit} characters.` },
       ],
     }

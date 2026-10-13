@@ -99,6 +99,8 @@ export async function connectorCallback(request: Request): Promise<Response> {
 
   const denied = url.searchParams.get("error")
   const code = url.searchParams.get("code")
+  // Who the service says it is (RFC 9207), for the agent to check before it uses the code.
+  const iss = url.searchParams.get("iss")
   if (denied !== null || code === null) {
     return back(row.agent_id, {
       connector_error: url.searchParams.get("error_description") ?? "The sign-in was cancelled.",
@@ -111,7 +113,7 @@ export async function connectorCallback(request: Request): Promise<Response> {
         "content-type": "application/json",
         [CALLER_HEADER]: encodeCaller({ id: user.id, name: user.name }),
       },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, ...(iss ? { iss } : {}) }),
     }),
   )
   if (!response.ok) {

@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@cloudflare/computer": "0.5.0",
-    "@daytona/sdk": "^0.218.0",
+    "@daytona/sdk": "^0.223.1",
     "@do-computer/protocol": "workspace:*",
     "@do-computer/runtime": "workspace:*",
     "@earendil-works/chord": "catalog:",
@@ -29,12 +29,12 @@
     "modal": "^0.11.0"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20261001.1",
+    "@cloudflare/vitest-plugin": "^1.4.0",
+    "@cloudflare/workers-types": "^5.20261011.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.146.0"
+    "wrangler": "^4.149.0"
   }
 }

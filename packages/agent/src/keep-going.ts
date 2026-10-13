@@ -1,9 +1,4 @@
-import {
-  type ChatState,
-  type ChatUsage,
-  toolSummary,
-  type ToolPart,
-} from "@do-computer/protocol"
+import { type ChatState, type ChatUsage, toolSummary, type ToolPart } from "@do-computer/protocol"
 import type { Context } from "@earendil-works/chord"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import {
@@ -73,7 +68,7 @@ const progress = defineTool({
     message: Type.String({ description: "What to tell them, in a sentence or two" }),
   }),
   execute: async () => ({
-    content: [{ type: "text" as const, text: "Shown to them. Carry on with the work." }],
+    output: [{ type: "text" as const, text: "Shown to them. Carry on with the work." }],
   }),
 })
 

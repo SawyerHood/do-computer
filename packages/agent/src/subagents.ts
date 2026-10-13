@@ -496,12 +496,12 @@ export class Subagents {
       }),
       execute: async (args, api, context) => {
         const reply = (text: string, details?: { chatId: string; title: string }) => ({
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
           ...(details === undefined ? {} : { details }),
         })
         const fail = (text: string) => ({
           isError: true,
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
         })
         const chatId = String(api.conversationId)
         try {

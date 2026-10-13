@@ -76,7 +76,7 @@ export class Library {
 
   constructor(options: LibraryOptions) {
     this.#options = options
-    const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+    const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
     const made = (file: { source: "agent" | "user"; agentId?: string | null }) =>
       file.source === "user"
         ? "uploaded by the user"
@@ -131,7 +131,7 @@ export class Library {
             const kept = (await backend.list()).find((file) => file.path === path)
             if (kept !== undefined) {
               return {
-                content: [
+                output: [
                   {
                     type: "text",
                     text: `Showed the user ${kept.path} (${kept.size} bytes) from the library.`,
@@ -153,9 +153,7 @@ export class Library {
             whenTaken: "replace",
           })
           return {
-            content: [
-              { type: "text", text: `Sent ${file.name} (${file.size} bytes) to the user.` },
-            ],
+            output: [{ type: "text", text: `Sent ${file.name} (${file.size} bytes) to the user.` }],
             details: file,
           }
         } catch (error) {
@@ -188,7 +186,7 @@ export class Library {
                 .slice(0, 10)}, id ${file.id})`,
           )
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text: lines.length === 0 ? "The library is empty." : lines.join("\n"),
@@ -215,7 +213,7 @@ export class Library {
         const written = await api.env.writeFile(target, bytes, context)
         if (!written.ok) return fail(`Could not write ${target}: ${written.error.message}`)
         return {
-          content: [
+          output: [
             { type: "text", text: `Copied ${file.name} (${file.size} bytes) to ${target}.` },
           ],
           details: { path: target, file },
