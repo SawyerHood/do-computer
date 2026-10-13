@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { type AppDisplayMode, createAppHost } from "@/lib/mcp-app-host"
 import { appStyleVariables } from "@/lib/mcp-app-styles"
+import { pressedIn } from "@/lib/pressed"
 import { cn } from "@/lib/utils"
 import { useAppColors } from "@/lib/visual-theme"
 import { AgentIdContext } from "./sent-file.tsx"
@@ -63,8 +64,7 @@ function FrameOf({ agentId, details }: { agentId: string; details: McpAppDetails
           locale: navigator.language,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
-        pressed: () =>
-          document.activeElement === frame.current && navigator.userActivation?.isActive !== false,
+        pressed: () => pressedIn(frame.current),
         callTool: async (tool, given) => {
           const first = await api.appCall(app.connectorId, { tool, arguments: given })
           if (!("needsConsent" in first)) return first

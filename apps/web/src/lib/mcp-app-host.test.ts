@@ -37,7 +37,7 @@ function open(with_: { pressed?: boolean; box?: boolean } = {}) {
   const host = createAppHost(DETAILS, {
     post: (message) => posted.push(message as Record<string, unknown>),
     context: () => ({ ...context }),
-    pressed: () => state.pressed,
+    pressed: async () => state.pressed,
     callTool: async (name) => {
       if (name === "refused") throw new Error("The person said no.")
       return { content: [{ type: "text", text: `${name} done` }] }
@@ -108,11 +108,12 @@ describe("the app's side of the talk with a connector's page", () => {
     expect(page.posted.filter((message) => message.result !== undefined)).toHaveLength(8)
   })
 
-  it("opens a link, takes words and goes large only on the reader's own press", () => {
+  it("opens a link, takes words and goes large only on the reader's own press", async () => {
     const idle = open({ pressed: false })
     idle.ask(1, "ui/open-link", { url: "https://example.com" })
     idle.ask(2, "ui/message", { role: "user", content: [{ type: "text", text: "book it" }] })
     idle.ask(3, "ui/request-display-mode", { mode: "fullscreen" })
+    await settle()
     expect(idle.done).toMatchObject({ opened: [], said: [], modes: [] })
     expect(idle.answer(1)!.error).toBeDefined()
     expect(idle.answer(2)!.error).toBeDefined()
@@ -128,7 +129,9 @@ describe("the app's side of the talk with a connector's page", () => {
     })
     page.ask(5, "ui/message", { role: "user", content: [{ type: "image", data: "…" }] })
     page.ask(6, "ui/request-display-mode", { mode: "fullscreen" })
+    await settle()
     page.ask(7, "ui/request-display-mode", { mode: "picture-in-picture" })
+    await settle()
     expect(page.done.opened).toEqual(["https://example.com/a"])
     expect(page.done.said).toEqual(["book it"])
     expect(page.done.modes).toEqual(["fullscreen"])
@@ -140,6 +143,7 @@ describe("the app's side of the talk with a connector's page", () => {
     // Where there is no message box, the page is told its words went nowhere.
     const boxless = open({ box: false })
     boxless.ask(1, "ui/message", { role: "user", content: { type: "text", text: "hello" } })
+    await settle()
     expect(boxless.answer(1)!.error).toBeDefined()
   })
 

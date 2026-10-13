@@ -29,7 +29,7 @@ export type AppHostOptions = {
   /** Where the page is shown, as it is now. */
   context: () => AppHostContext
   /** Whether the reader has just pressed something in the page: what a page does by itself is less. */
-  pressed: () => boolean
+  pressed: () => Promise<boolean>
   /** Use one of the page's own server's tools. Rejects with words for the page where it is not done. */
   callTool: (name: string, given: Record<string, unknown>) => Promise<McpAppToolResult>
   /** Read something of the page's own server. */
@@ -46,6 +46,8 @@ export type AppHostOptions = {
 
 /** How many things a page may have asked for that are not yet answered. */
 const MAX_WAITING = 8
+/** What a page is told when it asks for something only a press of the reader's own gets it. */
+const UNPRESSED = "Only when the person has just pressed something."
 /** The longest thing a page can put in the message box. */
 const MAX_SAID = 4_000
 
@@ -142,11 +144,11 @@ export function createAppHost(details: McpAppDetails, options: AppHostOptions) {
           return options.post(mcpAppError(id, "Only a web address can be opened.", -32602))
         }
         // Only on the reader's own press: a page opens no tabs by itself.
-        if (!options.pressed()) {
-          return options.post(mcpAppError(id, "Only when the person has just pressed something."))
-        }
-        options.openLink(url)
-        return options.post(mcpAppResult(id, {}))
+        return answer(id, async () => {
+          if (!(await options.pressed())) throw new Error(UNPRESSED)
+          options.openLink(url)
+          return {}
+        })
       }
       case "ui/message": {
         const blocks = Array.isArray(params.content) ? params.content : [params.content]
@@ -158,26 +160,24 @@ export function createAppHost(details: McpAppDetails, options: AppHostOptions) {
         if (params.role !== "user" || text === "") {
           return options.post(mcpAppError(id, "Only words from the person's side.", -32602))
         }
-        if (!options.pressed()) {
-          return options.post(mcpAppError(id, "Only when the person has just pressed something."))
-        }
         // The words go in the message box, for the person to send or not.
-        return options.post(
-          options.say(text)
-            ? mcpAppResult(id, {})
-            : mcpAppError(id, "There is no message box here."),
-        )
+        return answer(id, async () => {
+          if (!(await options.pressed())) throw new Error(UNPRESSED)
+          if (!options.say(text)) throw new Error("There is no message box here.")
+          return {}
+        })
       }
       case "ui/request-display-mode": {
         const { mode } = params
         const now = options.context().displayMode
         if (mode !== "inline" && mode !== "fullscreen")
           return options.post(mcpAppResult(id, { mode: now }))
-        if (mode === "fullscreen" && !options.pressed()) {
-          return options.post(mcpAppResult(id, { mode: now }))
-        }
-        options.setMode(mode)
-        return options.post(mcpAppResult(id, { mode }))
+        return answer(id, async () => {
+          // Put back by itself it may be; made large only on the reader's own press.
+          if (mode === "fullscreen" && !(await options.pressed())) return { mode: now }
+          options.setMode(mode)
+          return { mode }
+        })
       }
       default:
         return options.post(mcpAppError(id, `${method} is not something this app does.`, -32601))

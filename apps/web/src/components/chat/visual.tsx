@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { libraryQuery } from "@/lib/collections"
 import { siteOfFile, useSites } from "@/lib/sites"
+import { pressedIn } from "@/lib/pressed"
 import { cn } from "@/lib/utils"
 import { heightBefore, keepHeight } from "@/lib/visual-heights"
 import { useAppColors } from "@/lib/visual-theme"
@@ -146,19 +147,21 @@ function FrameOf({ agentId, part }: { agentId: string; part: ToolPart }) {
       const asked = link ?? said ?? mode ?? saved
       if (asked === undefined) return
       // Only on the reader's own press in the page: a page does none of these by itself.
-      if (document.activeElement !== target || navigator.userActivation?.isActive === false) {
-        return answer(visualRefusal(asked.id, "Only when the person has just pressed something."))
-      }
-      if (link !== undefined) window.open(link.url, "_blank", "noopener,noreferrer")
-      if (said !== undefined && !now.say(said.text)) {
-        return answer(visualRefusal(said.id, "There is no message box here."))
-      }
-      if (mode !== undefined) {
-        setLarge(mode.mode === "fullscreen")
-        return answer(visualResult(mode.id, { mode: mode.mode }))
-      }
-      if (saved !== undefined) saveFile(saved.name, saved.type, saved.text)
-      answer(visualResult(asked.id))
+      void pressedIn(target).then((pressed) => {
+        if (!pressed) {
+          return answer(visualRefusal(asked.id, "Only when the person has just pressed something."))
+        }
+        if (link !== undefined) window.open(link.url, "_blank", "noopener,noreferrer")
+        if (said !== undefined && !heard.current.say(said.text)) {
+          return answer(visualRefusal(said.id, "There is no message box here."))
+        }
+        if (mode !== undefined) {
+          setLarge(mode.mode === "fullscreen")
+          return answer(visualResult(mode.id, { mode: mode.mode }))
+        }
+        if (saved !== undefined) saveFile(saved.name, saved.type, saved.text)
+        answer(visualResult(asked.id))
+      })
     }
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
