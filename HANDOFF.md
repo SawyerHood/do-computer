@@ -1271,8 +1271,8 @@ Since then, newest last:
       picture taken there; the two macOS permissions (an unsigned app loses them with every
       build: see Signing under the desktop app);
       how the overlay looks on a real desktop, its clicks, its being kept out of pictures, and
-      Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch,
-      where Chrome may ask twice, once for dev-browser and once for the picture. The browser on
+      Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch
+      (since run, and found to ask far more than twice: item 72). The browser on
       macOS. dev-browser has no Windows build, so on Windows the browser tool says so. On a
       Linux machine: the driver in Electron under Xvfb clicked, typed, scrolled and
       dragged in a real window; the browser ran for real through a built server and a real
@@ -4194,8 +4194,8 @@ Since then, newest last:
       picture taken there; the two macOS permissions (an unsigned app loses them with every
       build: see Signing under the desktop app);
       how the overlay looks on a real desktop, its clicks, its being kept out of pictures, and
-      Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch,
-      where Chrome may ask twice, once for dev-browser and once for the picture. The browser on
+      Esc. The screen with a real model. The owner's own Chrome through Chrome 144's switch
+      (since run, and found to ask far more than twice: item 72). The browser on
       macOS. dev-browser has no Windows build, so on Windows the browser tool says so. On a
       Linux machine: the driver in Electron under Xvfb clicked, typed, scrolled and
       dragged in a real window; the browser ran for real through a built server and a real
@@ -5877,6 +5877,40 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       person pinning from a card and from the Library, a deleted file. Looked at in both
       themes with the echo model. **Not checked:** a real model deciding to pin, a team with
       two people looking at one agent, Workers, Safari.
+
+72. **A person's own Chrome asks them once** (2026-10-13;
+    `packages/computers/src/browser/relay.ts`, `index.ts`). The owner, of the browser tool on
+    their own Chromium, switched on at `chrome://inspect/#remote-debugging`: "every time the
+    agent uses the tool I get another permission prompt to allow it to control the browser. I
+    got three in one session."
+    - **Why.** A Chrome allowed that way asks about every DevTools socket that is opened to
+      it, even while one it allowed is still open. The daemon opened two, one by dev-browser
+      and one for the live view, and the live view closed its own after fifteen seconds with
+      nobody watching and opened another at the next script. A socket that is given up while
+      the question is up leaves the question on the screen.
+    - **Now there is one socket**, opened by the daemon and kept until Chrome closes, the
+      daemon stops or the browser is let go of (`close`). After fifteen idle minutes only
+      dev-browser is stopped. Through it dev-browser and the live view each get a session on
+      the browser itself (`Target.attachToBrowserTarget`), which to them is a socket of their
+      own: dev-browser over a Unix socket in a folder that only the user can open
+      (`--connect unix:…`, one message to a line), the live view inside the process. Calls are
+      numbered again on the way, a session belongs to whoever attached it, and leaving detaches
+      what was attached. A script waits thirty seconds for the answer. After that it fails,
+      saying that the question is still up, and the next one finds it answered. A no fails the
+      script, and the next one asks again. On Windows, and where Node has no WebSocket, the
+      daemon does as it did before.
+    - **Mine, not the owner's:** keeping the socket through idle time instead of asking again
+      after a while; thirty seconds; failing on a no instead of using the browser kept for
+      Doods; that whoever can open the socket's file, which is the user, is let into the
+      browser unasked.
+    - **Checked:** on Linux with Chrome for Testing 149 on a virtual display, remote debugging
+      switched on in its preferences, and a helper counting the questions. Three uses twenty
+      seconds apart were asked three times before and once after. Also: nobody answering and
+      then answering, a script out of time, a no, Chrome closed under it, and two users of the
+      socket kept out of each other's sessions. `test/browser.test.ts` has the relay against a
+      pretended Chrome, and the live suite (`DC_BROWSER_LIVE=1`) goes through it for the Chrome
+      with a port. **Not checked:** Google Chrome itself, macOS, the desktop app, a real model,
+      and fifteen idle minutes waited out.
 
 ## 6. What the owner has said they want
 
