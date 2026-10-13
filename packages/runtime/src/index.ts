@@ -26,10 +26,23 @@ export type BlobObject = {
   readonly uploadedAt: number
 }
 
+/**
+ * The part of an object to read: `length` bytes from `offset`, or all that follows `offset`. What
+ * lies past the object's end is left out, so a part that starts there is empty.
+ */
+export type BlobRange = { offset: number; length?: number }
+
 /** Object storage for files that outlive a sandbox: library files, uploads, workspace saves. */
 export interface BlobStore {
   put(key: string, data: Uint8Array, metadata?: BlobMetadata): Promise<void>
-  get(key: string): Promise<(BlobObject & { bytes(): Promise<Uint8Array> }) | undefined>
+  /**
+   * The object and a way to its bytes. With a `range`, `bytes()` gives that part alone and no
+   * more of the object is read, while `size` is still the size of the whole.
+   */
+  get(
+    key: string,
+    options?: { range?: BlobRange },
+  ): Promise<(BlobObject & { bytes(): Promise<Uint8Array> }) | undefined>
   head(key: string): Promise<BlobObject | undefined>
   delete(key: string): Promise<void>
   /** Objects whose key starts with `prefix`, in key order. */

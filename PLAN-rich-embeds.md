@@ -233,8 +233,11 @@ A visual is already an interactive page in the app's colors. These make one easy
   `window.dc` so an agent does not write JSON-RPC by hand: `dc.say(text)` puts text in the
   message box for the person to send, `dc.expand()` shows the page large, `dc.save(name, data)`
   hands the reader a file. A widget with choices can then answer the agent.
-- **Data beside the page.** A page can already `fetch` a library file next to it. The agent is
-  told, so a widget over a large CSV stays under the 512 KB a page may be.
+- **Data beside the page.** Not as first written: a page in a chat cannot `fetch` a library
+  file beside it, and that is on purpose (the address it is served at opens the whole library,
+  so the library does not let a page read with it). A widget over a large file would need the
+  agent to name the files the page may read and the app to hand them over; that is not in this
+  phase.
 - **No jump.** A client remembers each page's height for its width, and holds that box next
   time. While the agent is still writing a visual, the chat holds a box with its title, where
   today there is nothing until the call ends.

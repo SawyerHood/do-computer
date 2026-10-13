@@ -6162,6 +6162,66 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       checked:** Safari, Workers, a real model writing any of it, the phone app (which has
       its own Markdown and none of this), a very long reply while it streams.
 
+77. **A film, a sound, a table and a PDF are shown as what they are** (2026-10-13;
+    `packages/protocol/src/embed.ts`, `packages/runtime` (`BlobStore.get` with a range),
+    `packages/agent/src/library-store.ts`, `apps/web/src/components/embed/`,
+    `components/file-card.tsx`, `components/library/viewer.tsx`, `lib/shown-hosts.ts`; phase 2
+    of `PLAN-rich-embeds.md`). Before, nothing in the app played a film or a sound but a
+    shared link, an `.mp4` in the library was "cannot be shown here yet", and every file was
+    sent whole.
+    - **One table says what a file is** (`embedKind`, `contentTypeOf`): image, video, audio,
+      page, table, pdf, markdown, text or other, by its extension, and by its content type
+      where the extension says nothing. The library's types, the web app's kinds and the
+      types served in place are all read from it; they were three tables that disagreed.
+      `.ts` is source code and never `video/mp2t`.
+    - **A part of a file** can be read from where it is kept (`BlobStore.get(key, { range })`,
+      on R2 and on disk, held to the same by the host conformance tests), and both addresses
+      a file is served at answer `Range` with `206`, `416` for a part that is not there, and
+      the whole file for several parts at once or an `If-Range` that is not its etag. A page
+      is always whole. The gateway had been dropping `Range` on its way to the library, in
+      three places (`agents.ts`, `sites.ts`).
+    - **What is played is sent a piece at a time:** Chromium's player asks for "from here to
+      the end" every time the reader moves in a film, so at the address a file is viewed at,
+      a film or a sound is answered with at most 2 MB (`MAX_PLAYED_PART`) and the player asks
+      for the next. A download, and anything that is not played, is sent to its end.
+    - **In a chat,** a file the agent sends is the thing itself over its card: a player for a
+      film or a sound, the first hundred rows for a CSV or TSV (only the first 256 KB of the
+      file is asked for). The same where a reply names a library file as a picture is named,
+      `![The demo](recordings/demo.mp4)`, which the agent is told in `REPLY_GUIDE` and in
+      `send_file`'s description. A player loads nothing until it is near the screen, stops
+      when the tab is put away, and asks the library for a fresh address when its own has
+      grown old (they last 6 to 12 hours), carrying on from where it was.
+    - **In the library,** a film and a sound play, a table has Table and Source, and a PDF is
+      given to the browser's own reader. For that one kind the view address sends no
+      `sandbox` policy, since the reader will not run in a frame that is kept apart; it is
+      served as `application/pdf` with `nosniff` whatever its bytes are. A shared link shows
+      a CSV as a table too.
+    - **What is at another site is not asked for until the reader says so** (`Remote` in
+      `chat/markdown.tsx`): a reply that names a picture, a film or a sound at a web address
+      shows where it is from, with Show and "Always from <host>". Before, any picture a reply
+      named was loaded at once, which tells that site who is reading and whatever the address
+      was written to carry. The app's own address is always shown. Yes to a host is kept in
+      this browser (`dc-shown-hosts`).
+    - **The owner's:** films in a reply; that remote media waits for a click ("click the
+      load is fine"); no players for YouTube and the like; the 25 MB limit stays. **Mine:**
+      the 2 MB piece; that a host's yes is kept in the browser and not for the workspace,
+      which the plan said (the workspace has nowhere to keep it yet); a PDF beside the chat
+      and in the library but never in a reply; a hundred rows; that a page named as a picture
+      is not shown as its frame (the plan left that for the owner to say).
+    - **Checked:** `embed.test.ts`, the host conformance tests on both hosts,
+      `library-ranges.test.ts` (each form of range, 416, `If-Range`, that only the part is
+      read, the 2 MB piece, a PDF's headers and that a page under a PDF's name is still not
+      a page), `delimited.test.ts`, and in a browser `e2e/embeds.spec.ts`: a film that knows
+      its length unplayed and is moved in, every request for it answered `206`; a sound; a
+      CSV in a reply, from `send_file`, and in the library; a PDF's frame and headers; a
+      remote picture not asked for until Show, and a host said yes to for good. By hand
+      against the built server and local Workers, with curl on all three addresses.
+      **Not checked:** Safari, which is where ranges matter most; an MP4 (the browser here
+      plays only WebM); real R2; a PDF drawn by a browser's reader (headless Chromium has
+      none); the phone app, which shows none of this. **Not built:** a film or a sound the
+      person attaches is still only named in their message, since a message carries its
+      attachments as names in its text.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

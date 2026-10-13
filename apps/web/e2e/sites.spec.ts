@@ -227,9 +227,10 @@ test("anything in the library is shared, and shown as what it is", async ({ page
     )
     .toBe(40)
   await page.screenshot({ path: "test-results/site-document.png" })
-  // Text is shown as text, and a picture as the picture.
+  // A file of rows is shown as a table, and a picture as the picture.
   await frame.getByRole("link", { name: "the numbers" }).click()
-  await expect(frame.locator("pre")).toHaveText("week,signups")
+  await expect(frame.getByRole("columnheader", { name: "week" })).toBeVisible()
+  await expect(frame.getByRole("columnheader", { name: "signups" })).toBeVisible()
   await page.goto(`/s/${folder.id}/chart.svg`)
   await expect
     .poll(() => frame.getByRole("img").evaluate((img: HTMLImageElement) => img.naturalWidth))

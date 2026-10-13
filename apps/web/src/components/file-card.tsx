@@ -1,4 +1,4 @@
-import type { LibraryFile } from "@do-computer/protocol"
+import { INLINE_IMAGE_TYPES, type LibraryFile } from "@do-computer/protocol"
 import {
   DownloadSimpleIcon,
   FileIcon,
@@ -7,8 +7,11 @@ import {
   PushPinIcon,
   ShareNetworkIcon,
 } from "@phosphor-icons/react"
+import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+import { embedsInChat, LibraryEmbed } from "@/components/embed/library-embed"
 import { client } from "@/lib/client"
+import { libraryQuery } from "@/lib/collections"
 import { SharePopover } from "@/components/sites/share"
 import { formatBytes, isViewable } from "@/lib/library"
 import { usePin } from "@/lib/pins"
@@ -18,11 +21,12 @@ import { siteOfFile, useSites } from "@/lib/sites"
 export { formatBytes }
 
 /** Raster images are previewed; the server serves only these types in place. */
-const PREVIEWABLE = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
+const PREVIEWABLE = INLINE_IMAGE_TYPES
 
 /**
- * A file from the library, in a chat: a preview when it is an image, a way into the library when
- * it is something that can be shown there, and a download either way.
+ * A file from the library, in a chat: the thing itself when it is a picture, a film, a sound or
+ * a table, a way into the library when it is something that can be shown there, and a download
+ * either way.
  */
 export function FileCard({
   agentId,
@@ -36,6 +40,11 @@ export function FileCard({
 }) {
   const url = client.agent(agentId).libraryFileUrl(file.id)
   const viewable = isViewable(file)
+  // What can be played or read here is asked for as the library has it now: it may have been
+  // changed or moved since it was sent, and one that is gone is only its card.
+  const embeds = file.path !== undefined && embedsInChat(file)
+  const { data: listing } = useQuery({ ...libraryQuery(agentId), enabled: embeds })
+  const kept = embeds ? listing?.files.find((entry) => entry.id === file.id) : undefined
   // Shared with a link, or the way to share it. One from before files had a place has none.
   const site = siteOfFile(useSites(agentId), file.path ?? "")
   const share =
@@ -88,10 +97,13 @@ export function FileCard({
     </>
   )
   return (
-    <div className="flex w-fit max-w-full flex-col gap-2">
+    <div className={cn("flex max-w-full flex-col gap-2", embeds ? "w-full" : "w-fit")}>
       {PREVIEWABLE.has(file.contentType) ? (
         <img src={url} alt={file.name} loading="lazy" className="max-h-80 rounded-2xl border" />
       ) : null}
+      {kept === undefined || listing === undefined ? null : (
+        <LibraryEmbed agentId={agentId} file={kept} view={listing.view} />
+      )}
       {viewable ? (
         <div className="flex w-fit max-w-full items-stretch overflow-hidden rounded-2xl bg-card shadow-raised text-sm">
           {onOpen === undefined ? (

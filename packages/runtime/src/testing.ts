@@ -130,7 +130,20 @@ export function conformanceActor(host: ActorHost): Actor {
           })
           return json({ ok: true })
         case "/blob/get": {
-          const object = await host.blobs.get(key)
+          // With `offset`, and `length` or not, only that part of the object is read.
+          const offset = url.searchParams.get("offset")
+          const length = url.searchParams.get("length")
+          const object = await host.blobs.get(
+            key,
+            offset === null
+              ? undefined
+              : {
+                  range: {
+                    offset: Number(offset),
+                    ...(length === null ? {} : { length: Number(length) }),
+                  },
+                },
+          )
           if (object === undefined) return json({ found: false })
           return json({
             found: true,
@@ -468,6 +481,51 @@ export function registerHostConformance(
       })
       await call(namespace, name, "/blob/delete?key=library/c.txt")
       expect(await call(namespace, name, "/blob/get?key=library/c.txt")).toEqual({ found: false })
+    })
+
+    it("reads a part of a blob, and still says how large the whole is", async () => {
+      const namespace = options.namespace()
+      const name = options.uniqueName()
+      const body = new Uint8Array(100).map((_, index) => index)
+      await call(namespace, name, "/blob/put?key=library/film.bin", {
+        method: "POST",
+        body,
+        headers: { "content-type": "application/x-test" },
+      })
+      const part = (query: string) =>
+        call<{ found: boolean; size: number; contentType: string | null; bytes: number[] }>(
+          namespace,
+          name,
+          `/blob/get?key=library/film.bin&${query}`,
+        )
+      expect(await part("offset=10&length=5")).toEqual({
+        found: true,
+        size: 100,
+        contentType: "application/x-test",
+        bytes: [10, 11, 12, 13, 14],
+      })
+      expect((await part("offset=0&length=1")).bytes).toEqual([0])
+      expect((await part("offset=99&length=1")).bytes).toEqual([99])
+      // With no length, everything from there on.
+      expect((await part("offset=97")).bytes).toEqual([97, 98, 99])
+      expect((await part("offset=0")).bytes).toEqual([...body])
+      // A part that runs past the end stops at the end.
+      const past = await part("offset=98&length=50")
+      expect(past.bytes).toEqual([98, 99])
+      expect(past.size).toBe(100)
+      // A part with no byte of the object in it is empty, and is not an error on either host.
+      for (const empty of ["offset=150", "offset=150&length=5", "offset=10&length=0"]) {
+        expect(await part(empty)).toEqual({
+          found: true,
+          size: 100,
+          contentType: "application/x-test",
+          bytes: [],
+        })
+      }
+      // Asking for a part of what is not there finds nothing, as asking for all of it does.
+      expect(
+        await call(namespace, name, "/blob/get?key=library/none.bin&offset=0&length=4"),
+      ).toEqual({ found: false })
     })
 
     it("streams a response body through the stub", async () => {

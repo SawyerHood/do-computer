@@ -8,6 +8,7 @@ import {
 import { renderToStaticMarkup } from "react-dom/server"
 import ReactMarkdown from "react-markdown"
 import { REHYPE_PLUGINS, REMARK_PLUGINS } from "@/components/markdown/pipeline"
+import { parseDelimited } from "@/lib/delimited"
 
 /** Text larger than this is offered as a download: it would be slow to show as a page. */
 const MAX_SHOWN_BYTES = 1024 * 1024
@@ -46,6 +47,11 @@ const CENTER_STYLE =
   ".file{text-align:center}.file svg{color:var(--muted-foreground)}.file h1{margin:12px 0 2px;font-size:17px;font-weight:600;overflow-wrap:anywhere}" +
   ".file p{margin:0;color:var(--muted-foreground);font-size:13px}" +
   ".file a{display:inline-block;margin-top:20px;padding:8px 16px;border-radius:var(--radius);background:var(--primary);color:var(--primary-foreground);font-weight:500;text-decoration:none}"
+
+const TABLE_STYLE =
+  "body{max-width:none!important}.rows{overflow-x:auto}table{font-size:13.5px}" +
+  "th,td{white-space:pre-wrap;vertical-align:top;max-width:320px}th{position:sticky;top:0;background:var(--background)}" +
+  ".cut{margin:12px 0 0;color:var(--muted-foreground);font-size:13px}"
 
 const TEXT_STYLE =
   "body{max-width:960px!important}pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55}"
@@ -189,6 +195,48 @@ function mediaPage(title: string, kind: "image" | "video" | "audio", own: string
   return themedPage({ title, style: CENTER_STYLE, body })
 }
 
+/** The most rows of a table a shared link shows: past this it is its file. */
+const SHARED_ROWS = 1000
+
+/** A CSV or TSV file as the table it is: its first row the headings. */
+function tablePage(title: string, text: string, delimiter: "," | "\t"): string {
+  const table = parseDelimited(text, delimiter, { rows: SHARED_ROWS + 1 })
+  const [head, ...rows] = table.rows
+  const body = renderToStaticMarkup(
+    <main>
+      <div className="rows">
+        <table>
+          <thead>
+            <tr>
+              {(head ?? []).map((cell, column) => (
+                <th key={column} scope="col">
+                  {cell}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, at) => (
+              <tr key={at}>
+                {row.map((cell, column) => (
+                  <td key={column}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {table.cut ? (
+        <p className="cut">
+          Showing the first {rows.length} rows. <a href="?download">Download</a> the file for the
+          rest.
+        </p>
+      ) : null}
+    </main>,
+  )
+  return themedPage({ title, style: TABLE_STYLE, body })
+}
+
 function textPage(title: string, text: string): string {
   return themedPage({ title, style: TEXT_STYLE, body: renderToStaticMarkup(<pre>{text}</pre>) })
 }
@@ -258,7 +306,9 @@ export async function shownAs(
           : isText(type) && (known ?? 0) <= MAX_SHOWN_BYTES
             ? type === "text/markdown"
               ? documentPage(what.title, await answer.text(), what.alone)
-              : textPage(what.title, await answer.text())
+              : type === "text/csv" || type === "text/tab-separated-values"
+                ? tablePage(what.title, await answer.text(), type === "text/csv" ? "," : "\t")
+                : textPage(what.title, await answer.text())
             : downloadPage(what.title, what.name, known)
   return new Response(page, {
     headers: {

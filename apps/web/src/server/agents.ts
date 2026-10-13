@@ -322,9 +322,12 @@ export async function proxyToAgent(
     // Where the app is, for a link the agent hands someone.
     [APP_ORIGIN_HEADER]: getPlatform().config.baseUrl ?? url.origin,
   }
-  // So that a file the browser already has is not sent again.
-  const cached = request.headers.get("if-none-match")
-  if (cached !== null) headers["if-none-match"] = cached
+  // So that a file the browser already has is not sent again, and one it wants a part of is
+  // sent that part: a film is played, and moved about in, a part at a time.
+  for (const name of ["if-none-match", "range", "if-range"]) {
+    const value = request.headers.get(name)
+    if (value !== null) headers[name] = value
+  }
   // The library is its workspace's, which answers for itself. It is told which agent the
   // request came through: a file's chat is that agent's.
   if (route[0] === "library") {
@@ -364,7 +367,8 @@ export async function viewLibraryFile(request: Request, agentId: string): Promis
   const { pathname } = new URL(request.url)
   const rest = pathname.slice(`/d/${encodeURIComponent(agentId)}/`.length)
   const headers: Record<string, string> = {}
-  for (const name of ["if-none-match", "sec-fetch-dest"]) {
+  // `range` and `if-range` are how a player asks for a part of a film or a sound.
+  for (const name of ["if-none-match", "sec-fetch-dest", "range", "if-range"]) {
     const value = request.headers.get(name)
     if (value !== null) headers[name] = value
   }

@@ -1,5 +1,7 @@
 import {
+  contentTypeOf,
   type DeletedLibraryFile,
+  INLINE_IMAGE_TYPES,
   type LibraryFile,
   type LibraryListing,
   type LibraryVersion,
@@ -10,7 +12,7 @@ import {
   type SiteListing,
   themePageBytes,
 } from "@do-computer/protocol"
-import type { BlobStore } from "@do-computer/runtime"
+import type { BlobRange, BlobStore } from "@do-computer/runtime"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { defineDoc, type Harness } from "@earendil-works/pi-durable"
 import type { Base } from "./library-sync.ts"
@@ -86,43 +88,8 @@ export class LibraryError extends Error {}
 /** The file changed since the caller last saw it. */
 export class LibraryConflict extends LibraryError {}
 
-const TYPES: Record<string, string> = {
-  txt: "text/plain",
-  md: "text/markdown",
-  markdown: "text/markdown",
-  csv: "text/csv",
-  json: "application/json",
-  map: "application/json",
-  html: "text/html",
-  htm: "text/html",
-  css: "text/css",
-  js: "text/javascript",
-  mjs: "text/javascript",
-  xml: "application/xml",
-  pdf: "application/pdf",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  avif: "image/avif",
-  ico: "image/x-icon",
-  svg: "image/svg+xml",
-  woff: "font/woff",
-  woff2: "font/woff2",
-  ttf: "font/ttf",
-  wasm: "application/wasm",
-  zip: "application/zip",
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  mp4: "video/mp4",
-  webm: "video/webm",
-}
-
-export function contentTypeFor(name: string): string {
-  const extension = name.slice(name.lastIndexOf(".") + 1).toLowerCase()
-  return TYPES[extension] ?? "application/octet-stream"
-}
+/** What a file's name says it is. The table is the one every part of the app reads. */
+export const contentTypeFor = contentTypeOf
 
 /** A file name safe to store and to put in a header: no path, no control characters. */
 export function cleanFileName(name: string): string {
@@ -231,10 +198,50 @@ function same(a: string, b: string): boolean {
   return difference === 0
 }
 
+/** The most of a film or a sound sent in answer to "from here on": the player asks for more. */
+const MAX_PLAYED_PART = 2 * 1024 * 1024
+
 /** Types a browser may show in place from the app's own address. Anything else is downloaded. */
-const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
+const INLINE_TYPES = INLINE_IMAGE_TYPES
 const isText = (type: string) =>
   type.startsWith("text/") || type === "application/json" || type === "application/xml"
+
+/**
+ * The part of a file of `size` bytes a request asks for with `Range`, "none" when no byte of the
+ * file is in what it asks for, or undefined when the file is to be sent whole: no part was asked
+ * for, or several at once, or a part of a copy that is no longer the one kept.
+ */
+function partAsked(
+  request: Request,
+  size: number,
+  etag: string,
+  most?: number,
+): BlobRange | "none" | undefined {
+  const asked = request.headers.get("range")
+  // A file with nothing in it has no part to send, and is not an error to ask for.
+  if (asked === null || size === 0) return undefined
+  // `If-Range` names the copy the browser has some of. The rest of another copy is no use to it.
+  const copy = request.headers.get("if-range")
+  if (copy !== null && copy !== etag) return undefined
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(asked.trim())
+  if (match === null) return undefined
+  const [, first, last] = match
+  if (first === "") {
+    if (last === "") return undefined
+    // The last so many bytes, which is all of a file that has fewer.
+    const length = Math.min(Number(last), size)
+    return length === 0 ? "none" : { offset: size - length, length }
+  }
+  const offset = Number(first)
+  if (last !== "" && Number(last) < offset) return undefined
+  if (offset >= size) return "none"
+  // To the byte named, or to the end where none is named or the file stops sooner. A player
+  // asks for "from here on" and means "some, for now": it is given no more than `most`, and
+  // asks again from where that ended.
+  const end = last === "" ? size - 1 : Math.min(Number(last), size - 1)
+  const length = end - offset + 1
+  return { offset, length: last === "" && most !== undefined ? Math.min(length, most) : length }
+}
 
 /**
  * Where the record of what is in a library is kept: in the store of the agent it belongs to, or
@@ -830,30 +837,76 @@ export class LibraryStore implements LibraryBackend {
     const kept =
       rev === (entry.rev ?? 0) || entry.versions?.some((version) => version.rev === rev) === true
     if (!kept) return undefined
+    const page = contentTypeFor(entry.name) === "text/html"
     // A page that is taken out of the app, as a download, is asked for with the app's look in
     // it, so that it is the same page wherever it is then opened. It is still only handed over.
-    const look =
-      new URL(request.url).searchParams.has("look") && contentTypeFor(entry.name) === "text/html"
+    const look = new URL(request.url).searchParams.has("look") && page
     const etag = look ? `"${id}.${rev}.${PAGE_THEME_VERSION}"` : `"${id}.${rev}"`
     // An address that names a revision always serves the same bytes; one that does not, the newest.
     const cache = asked === null ? "private, no-cache" : "private, max-age=31536000, immutable"
     if (request.headers.get("if-none-match") === etag) {
       return new Response(null, { status: 304, headers: { etag, "cache-control": cache } })
     }
+    const inline = INLINE_TYPES.has(entry.contentType)
+    const headers: Record<string, string> = {
+      "content-type": inline ? entry.contentType : "application/octet-stream",
+      // Files are untrusted content on the app's own origin: never let one run as a page.
+      "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(entry.name)}`,
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "sandbox; default-src 'none'",
+      "cache-control": cache,
+      etag,
+    }
+    // A page is only ever sent whole, here as where it is viewed: with the app's look in it, it
+    // is not the bytes that are kept.
+    if (!page) {
+      headers["accept-ranges"] = "bytes"
+      const size =
+        rev === (entry.rev ?? 0)
+          ? entry.size
+          : entry.versions?.find((version) => version.rev === rev)?.size
+      const part = await this.#part(request, { id, rev, size: size ?? 0 }, headers)
+      if (part !== undefined) return part
+    }
     const written = await this.bytes({ id, rev })
     if (written === undefined) return undefined
     const bytes = look ? themePageBytes(written) : written
-    const inline = INLINE_TYPES.has(entry.contentType)
     return new Response(bytes.slice().buffer, {
+      headers: { ...headers, "content-length": String(bytes.length) },
+    })
+  }
+
+  /**
+   * The answer to a request for a part of a file, with `headers` as the whole file would have
+   * them, or undefined when the file is to be sent whole. Only the part asked for is read from
+   * where the file is kept, so a film is not all held in memory to send a little of it. `most`
+   * is the most that is sent of a part asked for with no end.
+   */
+  async #part(
+    request: Request,
+    file: { id: string; rev: number; size: number },
+    headers: Record<string, string>,
+    most?: number,
+  ): Promise<Response | undefined> {
+    const asked = partAsked(request, file.size, headers.etag ?? "", most)
+    if (asked === undefined) return undefined
+    if (asked === "none") {
+      return new Response(null, {
+        status: 416,
+        headers: { ...headers, "content-range": `bytes */${file.size}` },
+      })
+    }
+    const kept = await this.#blobs.get(blobKey(file.id, file.rev), { range: asked })
+    // What is kept should be the size on record. Where it is not, the part worked out from that
+    // size is a part of something else, and the file is sent whole.
+    if (kept === undefined || kept.size !== file.size) return undefined
+    const bytes = await kept.bytes()
+    return new Response(bytes.slice().buffer, {
+      status: 206,
       headers: {
-        "content-type": inline ? entry.contentType : "application/octet-stream",
+        ...headers,
+        "content-range": `bytes ${asked.offset}-${asked.offset + bytes.length - 1}/${file.size}`,
         "content-length": String(bytes.length),
-        // Files are untrusted content on the app's own origin: never let one run as a page.
-        "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(entry.name)}`,
-        "x-content-type-options": "nosniff",
-        "content-security-policy": "sandbox; default-src 'none'",
-        "cache-control": cache,
-        etag,
       },
     })
   }
@@ -1005,13 +1058,19 @@ export class LibraryStore implements LibraryBackend {
         })
       }
     }
-    const type = TYPES[file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase()]
-    const contentType = type ?? file.contentType
+    // A name that says nothing leaves it to what the file was said to be when it was kept.
+    const named = contentTypeFor(file.name)
+    const contentType = named === "application/octet-stream" ? file.contentType : named
     const page = contentType.startsWith("text/html")
     const headers: Record<string, string> = {
       "content-type": isText(contentType) ? `${contentType}; charset=utf-8` : contentType,
       "x-content-type-options": "nosniff",
-      "content-security-policy": options.sandbox,
+      // A PDF in the app's own viewer is the exception to being kept apart: a browser's reader
+      // will not run in a frame that is, and a PDF has no script that reaches the page around
+      // it. It is served as a PDF whatever its bytes are, so nothing else can pass as one.
+      ...(contentType === "application/pdf" && options.opens
+        ? { "content-disposition": "inline" }
+        : { "content-security-policy": options.sandbox }),
       // The address is the permission. It must not travel to whatever the page loads or links to.
       "referrer-policy": "no-referrer",
       "cache-control": "private, no-cache",
@@ -1042,6 +1101,15 @@ export class LibraryStore implements LibraryBackend {
           },
         },
       )
+    }
+    // A page is only ever sent whole: with the app's look in it, it is not the bytes that are kept.
+    if (!page) {
+      headers["accept-ranges"] = "bytes"
+      // What is played is asked for "from here to the end" each time the reader moves in it,
+      // and is sent a piece at a time.
+      const played = contentType.startsWith("video/") || contentType.startsWith("audio/")
+      const part = await this.#part(request, file, headers, played ? MAX_PLAYED_PART : undefined)
+      if (part !== undefined) return part
     }
     const kept = await this.bytes(file)
     if (kept === undefined) return undefined

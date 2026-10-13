@@ -355,6 +355,21 @@
   .md img:not([data-alone]) {
     @apply inline-block align-middle;
   }
+  /* A film, a sound or a table named in the text: on a line of its own. */
+  .md-embed {
+    @apply my-1 block;
+  }
+  /* What is at another site, until the reader says to ask it: where it is from, and two ways
+     to say so. */
+  .md-remote {
+    @apply inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-dashed border-input px-2.5 py-1.5 align-middle text-sm text-muted-foreground;
+  }
+  .md-remote[data-alone] {
+    @apply flex w-fit;
+  }
+  .md-remote button {
+    @apply rounded-md px-1.5 py-0.5 font-medium text-foreground underline decoration-input underline-offset-3 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/40;
+  }
   /* What stands where something named cannot be shown. */
   .md-missing {
     @apply inline-flex items-center gap-1 rounded-md border border-hairline bg-muted px-1.5 py-px text-[0.85em] text-muted-foreground;

@@ -53,6 +53,20 @@ describe("what a site's address shows", () => {
     expect(text).toContain("--muted-foreground")
   })
 
+  it("is a CSV file as the table it is, its quoted cells whole", async () => {
+    const { text } = await show(
+      file(
+        'Region,Note\nNorth,"grew ""fast"", twice"\n<b>South</b>,steady\n',
+        "text/csv; charset=utf-8",
+      ),
+    )
+    expect(text).toContain('<th scope="col">Region</th>')
+    expect(text).toContain("<td>grew &quot;fast&quot;, twice</td>")
+    // What a cell says is text, whatever it looks like.
+    expect(text).toContain("<td>&lt;b&gt;South&lt;/b&gt;</td>")
+    expect(text).not.toContain("Showing the first")
+  })
+
   it("asks for the pictures beside a document shared by itself by their places in the library", async () => {
     const text = "![chart](chart.svg) ![logo](../brand/a%20b.png) ![out](https://example.com/x.png)"
     const alone = await shownAs(asked("iframe"), file(text, "text/markdown"), {
@@ -99,7 +113,7 @@ describe("what a site's address shows", () => {
   })
 
   it("is text as text, with nothing in it taken for markup", async () => {
-    const { text } = await show(file('a,b\n<b>1</b>,"2"', "text/csv; charset=utf-8"))
+    const { text } = await show(file('a,b\n<b>1</b>,"2"', "text/plain; charset=utf-8"))
     expect(text).toContain("<pre>a,b\n&lt;b&gt;1&lt;/b&gt;,&quot;2&quot;</pre>")
   })
 
