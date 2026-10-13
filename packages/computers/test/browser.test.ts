@@ -339,7 +339,8 @@ function listen(socket: PreviewSocket) {
   return { heard, events }
 }
 
-describe("the one socket to the owner's own Chrome", () => {
+// It listens on a Unix socket, which Windows has none of: there the daemon does without it.
+describe.skipIf(process.platform === "win32")("the one socket to the owner's own Chrome", () => {
   it("is opened once, however many use it, and gives each what looks like its own", async () => {
     const chrome = fakeOwnChrome()
     const relay = await createRelay("ws://x", { openSocket: chrome.openSocket })
