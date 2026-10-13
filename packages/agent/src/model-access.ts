@@ -770,6 +770,31 @@ export function cachedSignIns(
 }
 
 /**
+ * A store read only for its subscriptions: an account that pays for whatever is used of it, as
+ * against a key, or an account that hands one out, which is charged by the token. `subscribes`
+ * says whether signing in to a provider with an account is the one or the other.
+ */
+export function subscriptionsOf(
+  store: CredentialStore,
+  subscribes: (providerId: string) => boolean,
+): CredentialStore {
+  const read: CredentialStore["read"] = async (providerId, options) => {
+    if (!subscribes(providerId)) return undefined
+    const credential = await store.read(providerId, options)
+    return credential?.type === "oauth" ? credential : undefined
+  }
+  return {
+    read,
+    list: async (options) =>
+      (await store.list(options)).filter(
+        (entry) => entry.type === "oauth" && subscribes(entry.providerId),
+      ),
+    modify: (providerId, _change, options) => read(providerId, options),
+    delete: (providerId, options) => store.delete(providerId, options),
+  }
+}
+
+/**
  * Two stores read as one, the first one's credential for a provider before the second's: what
  * a workspace is signed in to itself, then what the deployment is signed in to for everyone.
  * Read only, as both are to an agent.

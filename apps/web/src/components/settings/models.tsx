@@ -716,7 +716,7 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
         <ModelProviderList workspace={workspace} meId={meId} through={through} />
         <p className="pt-2 text-xs text-muted-foreground">
           {server
-            ? "A sign-in here is the server's: everyone's Doods can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
+            ? "A sign-in here is the server's: everyone's Doods can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, a key gives only those of them; a subscription gives all of its own."
             : workspace.kind === "team"
               ? `A sign-in belongs to the workspace: everyone in ${workspace.name} can then set Doods to its models, and what the Doods use counts against whoever signed in.`
               : "A sign-in belongs to this workspace: your Doods here can then be set to its models."}{" "}

@@ -5878,6 +5878,33 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       themes with the echo model. **Not checked:** a real model deciding to pin, a team with
       two people looking at one agent, Workers, Safari.
 
+72. **`DC_MODELS` narrows what is paid for by the token, and a subscription the server is
+    signed in to is offered whole** (2026-10-13; `packages/agent/src/models.ts`,
+    `model-access.ts`). It changes item 46. The owner signed the server in with Claude on a
+    deployment whose list names three OpenRouter models, and none of Claude's appeared: the
+    list narrowed everything the deployment offered, and it names none of Anthropic's own ids.
+    They then asked: "I want the DC_Models to only make an allow list for things that are
+    installed server wide via server api key. For example openai account models still show
+    up".
+    - **The rule.** The list narrows the deployment's key and any key the server was signed in
+      with. A subscription the server is signed in to (a sign-in with an account that pi marks
+      `isSubscription`: Claude, ChatGPT, Copilot and a few more) gives everyone every one of
+      its models, listed after the ones named.
+    - **At the call too.** Of the two sets of models behind `routed`, the second is no longer
+      the workspace's sign-ins alone: it is those, then the server's subscriptions
+      (`subscriptionsOf`), and still never a key. So a model the list does not name is called
+      with the workspace's own sign-in, or the server's subscription, or not at all.
+    - **New Doods still start on the first model named**, not on a model a subscription
+      suggests, unless `DC_DEFAULT_MODEL` names one of the subscription's.
+    - **Mine, not the owner's:** that a key typed in under Server → Models is narrowed as the
+      deployment's own key is (their words were "via server api key"); that an OpenRouter
+      account counts as a key, since it is charged by the token; where the subscription's
+      models stand in the list; what new Doods start on.
+    - **Checked:** `packages/agent/test/models.test.ts` (a server subscription and a server key
+      under a list: what is offered, what new Doods start on, what each model is called with).
+      **Not checked:** a real subscription, Workers, and the real actor with an account
+      sign-in, which the test stands in for.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

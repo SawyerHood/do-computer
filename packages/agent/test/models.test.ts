@@ -5,8 +5,8 @@ import type { ModelOption } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import type { Credential, CredentialStore } from "@earendil-works/pi-ai"
 import { afterEach, describe, expect, it } from "vitest"
-import { createAgentActor, createAgentModels } from "../src/index.ts"
-import { modelOption } from "../src/model-providers.ts"
+import { createAgentActor, createAgentModels, type DeploymentAccess } from "../src/index.ts"
+import { inOfferedOrder, isSuggested, modelOption } from "../src/model-providers.ts"
 
 const HAIKU = "openrouter/anthropic/claude-haiku-5.5"
 const LUNA = "openrouter/openai/gpt-6-luna"
@@ -29,6 +29,40 @@ function signIns(kept: Record<string, Credential> = {}): CredentialStore & {
     modify: (providerId) => read(providerId),
     delete: async () => {},
   }
+}
+
+/** What the deployment itself is signed in to, as the actor that keeps it would answer. */
+function serverSignIns(kept: Record<string, Credential>): DeploymentAccess {
+  const { models } = createAgentModels({})
+  const signedIn = Object.entries(kept).map(([id, credential]) => {
+    const provider = models.getProvider(id)!
+    return { id, credential, provider }
+  })
+  const answers: Record<string, () => unknown> = {
+    "/providers": () => ({
+      providers: signedIn.map(({ id, credential }) => ({ id, signedIn: { type: credential.type } })),
+    }),
+    "/models": () => ({
+      models: signedIn.flatMap(({ credential, provider }) =>
+        inOfferedOrder(provider.getModels()).map((model) => ({
+          ...modelOption(model, provider, isSuggested(model)),
+          signIn: {
+            subscription: credential.type === "oauth" && provider.auth.oauth?.isSubscription === true,
+            by: "Sawyer",
+          },
+        })),
+      ),
+    }),
+  }
+  return async () => ({
+    fetch: async (request: Request) => {
+      const { pathname } = new URL(request.url)
+      const kind = pathname.startsWith("/credentials/")
+        ? { credential: kept[decodeURIComponent(pathname.slice("/credentials/".length))] ?? null }
+        : answers[pathname]?.()
+      return Response.json(kind ?? { error: "Not found" }, { status: kind ? 200 : 404 })
+    },
+  })
 }
 
 const ids = (options: readonly ModelOption[]) => options.map((option) => option.id)
@@ -85,6 +119,57 @@ describe("a deployment that names the models it offers", () => {
     })
     expect(ids(options)).toEqual(["echo/echo-1"])
     expect(defaultModel).toBe("echo/echo-1")
+  })
+})
+
+describe("a deployment that names its models and is signed in besides", () => {
+  const config = { openrouterApiKey: "sk-or-server", allowedModels: [HAIKU, "openai/gpt-6-luna"] }
+  const SONNET = "anthropic/claude-sonnet-5-5"
+  const claude = (id: string) => id.startsWith("anthropic/")
+  const subscription: Credential = {
+    type: "oauth",
+    access: "claude-subscription",
+    refresh: "refresh",
+    expires: Date.now() + 3_600_000,
+  }
+
+  it("offers every model of a subscription, after the ones it names", async () => {
+    const deployment = serverSignIns({ anthropic: subscription })
+    const { models, offered } = createAgentModels(config, { workspace: signIns(), deployment })
+    const { options, defaultModel } = await offered()
+    expect(ids(options).slice(0, 3)).toEqual([HAIKU, LUNA, SONNET])
+    expect(ids(options).filter(claude)).toHaveLength(models.getModels("anthropic").length)
+    // New agents still start on the first it names, not on what a subscription suggests.
+    expect(options.find((option) => option.id === SONNET)?.recommended).toBe(true)
+    expect(defaultModel).toBe(HAIKU)
+    // Unless the deployment says to start them on one of the subscription's.
+    const started = createAgentModels(
+      { ...config, defaultModel: SONNET },
+      { workspace: signIns(), deployment },
+    )
+    expect((await started.offered()).defaultModel).toBe(SONNET)
+
+    // It is what such a model is called with, and never the deployment's key.
+    const auth = await models.getAuth(models.getModel("anthropic", "claude-sonnet-5-5")!)
+    expect(JSON.stringify(auth)).toContain("claude-subscription")
+    const opus = models.getModel("openrouter", OPUS.slice("openrouter/".length))!
+    expect(await models.getAuth(opus)).toBeUndefined()
+  })
+
+  it("keeps a key it was signed in with to the models it names", async () => {
+    const deployment = serverSignIns({ anthropic: { type: "api_key", key: "sk-ant-server" } })
+    const { models, offered } = createAgentModels(config, { workspace: signIns(), deployment })
+    expect(ids((await offered()).options)).toEqual([HAIKU, LUNA])
+    const sonnet = models.getModel("anthropic", "claude-sonnet-5-5")!
+    expect(await models.getAuth(sonnet)).toBeUndefined()
+
+    // One of that provider's that it does name is offered, and paid for with that key.
+    const naming = createAgentModels(
+      { ...config, allowedModels: [...config.allowedModels, SONNET] },
+      { workspace: signIns(), deployment },
+    )
+    expect(ids((await naming.offered()).options)).toEqual([HAIKU, LUNA, SONNET])
+    expect((await naming.models.getAuth(sonnet))?.auth.apiKey).toBe("sk-ant-server")
   })
 })
 

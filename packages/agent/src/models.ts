@@ -15,6 +15,7 @@ import {
   cachedSignIns,
   credentialChain,
   deploymentModelOptions,
+  subscriptionsOf,
   workspaceCredentials,
 } from "./model-access.ts"
 import { mergeModelOptions, modelOption, modelProviders } from "./model-providers.ts"
@@ -83,9 +84,10 @@ export type AgentModelsConfig = {
    */
   readonly defaultModel?: string
   /**
-   * The only models the deployment offers on its own account, each `provider/model` or an
-   * OpenRouter model id. Absent: every model of whatever the deployment has a key for or is
-   * signed in to. What a workspace signs in to with an account of its own is not narrowed.
+   * The only models the deployment pays for by the token, each `provider/model` or an
+   * OpenRouter model id: of what its key gives, and of what it was signed in to with a key.
+   * Absent: every model of those. A subscription the deployment is signed in to is offered
+   * whole either way, and so is what a workspace signs in to with an account of its own.
    */
   readonly allowedModels?: readonly string[]
   /** OpenRouter model id that reads web search results. Default: a small, fast model. */
@@ -186,17 +188,23 @@ function allows(allowed: ReadonlySet<string> | undefined, id: string): boolean {
   return id.startsWith(OPENROUTER) && allowed.has(id.slice(OPENROUTER.length))
 }
 
-/** Where a model stands among those the deployment names, for putting them in that order. */
+/**
+ * Where a model stands among those the deployment names, for putting them in that order. One
+ * it does not name stands after them all.
+ */
 function placeIn(allowed: readonly string[], id: string): number {
   const at = allowed.indexOf(id)
-  return at !== -1 || !id.startsWith(OPENROUTER) ? at : allowed.indexOf(id.slice(OPENROUTER.length))
+  const found =
+    at !== -1 || !id.startsWith(OPENROUTER) ? at : allowed.indexOf(id.slice(OPENROUTER.length))
+  return found === -1 ? allowed.length : found
 }
 
 /**
- * One `Models` in front of two. A model the deployment offers is called with whatever there is
+ * One `Models` in front of two. A model the deployment names is called with whatever there is
  * for its provider: the workspace's own sign-in, then the deployment's, then its key. Any other
- * model is called with the workspace's sign-in or not at all, so a deployment that names the
- * models it pays for never pays for another, whatever an agent was set to before.
+ * model is called with the workspace's sign-in, or a subscription the deployment is signed in
+ * to, or not at all, so a deployment that names the models it pays for by the token never pays
+ * that way for another, whatever an agent was set to before.
  */
 function routed(own: Models, theirs: Models, offers: (id: string) => boolean): Models {
   const calls = new Set<string | symbol>([
@@ -269,8 +277,19 @@ export function createAgentModels(
     return built
   }
   const own = build(credentialChain(sources.workspace, signedIn), true)
+  // A subscription is paid for whatever is used of it, so none of its models is kept back.
+  const subscribed =
+    signedIn === undefined
+      ? undefined
+      : subscriptionsOf(
+          signedIn,
+          (providerId) => own.getProvider(providerId)?.auth.oauth?.isSubscription === true,
+        )
   // Where every model is offered there is nothing to keep apart.
-  const models = allowed === undefined ? own : routed(own, build(sources.workspace, false), offers)
+  const models =
+    allowed === undefined
+      ? own
+      : routed(own, build(credentialChain(sources.workspace, subscribed), false), offers)
 
   // The echo model is always there to call, and offered where there is nothing else.
   const faux = fauxProvider({
@@ -303,14 +322,14 @@ export function createAgentModels(
   /** The one new agents start on, out of what is offered: the one configured, if it is there. */
   const startsOn = (options: readonly ModelOption[]): string => {
     // A deployment that names its models and no default starts on the first it names, whether
-    // or not the usual default is among them.
+    // or not the usual default is among them, and before anything of a subscription's.
     const wanted = config.defaultModel ?? (allowed === undefined ? DEFAULT_OPENROUTER_MODEL : "")
-    const found = options.find(
-      (option) => option.id === wanted || option.id === OPENROUTER + wanted,
-    )
+    const found =
+      options.find((option) => option.id === wanted || option.id === OPENROUTER + wanted) ??
+      (allowed === undefined ? undefined : options.find((option) => allows(allowed, option.id)))
     return (found ?? options.find((option) => option.recommended === true) ?? options[0] ?? echo).id
   }
-  /** In the order the deployment names its models, where it names them. */
+  /** The ones the deployment names first, in the order it names them, where it names any. */
   const inNamedOrder = (options: ModelOption[]): ModelOption[] =>
     allowed === undefined
       ? options
@@ -348,9 +367,10 @@ export function createAgentModels(
 
   const offered = async (): Promise<DeploymentModels> => {
     if (sources.deployment === undefined) return { defaultModel, options }
-    // Offered as the deployment's own, whoever it was that signed the deployment in.
+    // Offered as the deployment's own, whoever it was that signed the deployment in. What a
+    // key pays for is narrowed to the models named; a subscription's are all there.
     const theirs = (await deploymentModelOptions(sources.deployment))
-      .filter((option) => offers(option.id))
+      .filter((option) => offers(option.id) || option.signIn?.subscription === true)
       .map(({ signIn: _, ...option }) => option)
     if (theirs.length === 0) return { defaultModel, options }
     const all = inNamedOrder(mergeModelOptions(keyed, theirs))
