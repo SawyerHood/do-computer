@@ -502,13 +502,14 @@ export class Connectors {
   }
 
   /**
-   * Finish a sign-in with the code the service sent the user back with, then connect. Where the
-   * agent asked for the connector from a chat, it is told there how it went, and `chatId` and
-   * `turn` are that chat and the turn it is given.
+   * Finish a sign-in with the code the service sent the user back with, then connect. `iss` is who
+   * the service said it was when it did (RFC 9207): the code is used only if that is the service
+   * being signed in to. Where the agent asked for the connector from a chat, it is told there how
+   * it went, and `chatId` and `turn` are that chat and the turn it is given.
    */
   async authorize(
     id: string,
-    code: string,
+    { code, iss }: { code: string; iss?: string },
     context: Context,
     by?: Caller,
   ): Promise<ConnectorResult & { chatId?: string; turn?: Turn }> {
@@ -523,6 +524,7 @@ export class Connectors {
         {
           serverUrl: connector.url,
           authorizationCode: code,
+          ...(iss === undefined ? {} : { iss }),
           fetch: this.#fetch,
         },
       )

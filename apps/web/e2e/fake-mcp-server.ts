@@ -67,6 +67,8 @@ export async function startFakeMcp(port = 0) {
         grant_types_supported: ["authorization_code", "refresh_token"],
         code_challenge_methods_supported: ["S256"],
         token_endpoint_auth_methods_supported: ["none"],
+        // It names itself in what it sends the user back with, and a client must look (RFC 9207).
+        authorization_response_iss_parameter_supported: true,
       })
     }
     if (path === "/register" && method === "POST") {
@@ -80,6 +82,7 @@ export async function startFakeMcp(port = 0) {
       const back = (params: Record<string, string>) => {
         const target = new URL(url.searchParams.get("redirect_uri") ?? origin)
         target.searchParams.set("state", url.searchParams.get("state") ?? "")
+        target.searchParams.set("iss", origin)
         for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value)
         return target.toString().replaceAll("&", "&amp;")
       }
