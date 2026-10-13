@@ -21,6 +21,7 @@ import {
 } from "./chrome.ts"
 import { isJpeg, keepEnd, readFrames } from "./frames.ts"
 import { createPreview, type Preview } from "./preview.ts"
+import { createRelay, type Relay } from "./relay.ts"
 
 export type NodeBrowserOptions = {
   /** A folder of the daemon's own to keep things in: the dev-browser binary, the profile of the browser kept for agents. */
@@ -35,6 +36,11 @@ export type NodeBrowserOptions = {
 
 /** How long the browser kept for agents stays open with no agent using it. */
 const KEPT_IDLE_MS = 15 * 60_000
+/**
+ * How long a script waits for the owner to answer their own browser, which asks them whether it
+ * may be used. The question stays on their screen after that, for the next script to find answered.
+ */
+const ASK_WAIT_MS = 30_000
 /** The most pictures one script hands back, and the largest any may be. */
 const MAX_SHOTS = 10
 const MAX_SHOT_BYTES = 4_000_000
@@ -42,9 +48,12 @@ const MAX_SHOT_BYTES = 4_000_000
 const MAX_PRINTED = 8_000_000
 
 type Session = {
-  ws: string
+  /** What dev-browser is told to connect to. */
+  connect: string
   port: number
   own: boolean
+  /** The one socket to the owner's own browser, which dev-browser and the live view share. */
+  relay?: Relay
   /** The browser itself, where it is one this started. */
   chrome?: Supervised
   /** Whether this one was started to have a window, whether or not it then could open one. */
@@ -218,7 +227,14 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         log(
           `browser: started ${chrome} for Doods, ${shown ? "in a window" : "without a window"}${sandbox ? "" : " (without its sandbox)"}`,
         )
-        return { ...endpoint, own: false, chrome: program, windowed, preview: preview(endpoint.ws) }
+        return {
+          connect: endpoint.ws,
+          port: endpoint.port,
+          own: false,
+          chrome: program,
+          windowed,
+          preview: createPreview(endpoint.ws, { seq, onClick }),
+        }
       } catch (error) {
         failure = error
         await program.close()
@@ -227,14 +243,15 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     throw failure
   }
 
-  function preview(ws: string): Preview {
-    return createPreview(ws, { seq, onClick: () => (state.clicks += 1) })
+  const onClick = () => {
+    state.clicks += 1
   }
 
   async function dropSession(): Promise<void> {
     const old = session
     session = undefined
     old?.preview.close()
+    await old?.relay?.close()
     await old?.chrome?.close()
   }
 
@@ -244,7 +261,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     if (session) {
       const there = session.chrome
         ? session.chrome.alive()
-        : ownAllowed && (await listening(session.port))
+        : ownAllowed && (session.relay ? session.relay.alive() : await listening(session.port))
       if (!there) await dropSession()
     }
     // The owner may have opened their Chrome since: theirs is preferred as soon as it is there.
@@ -253,7 +270,38 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       if (own) {
         await dropSession()
         log(`browser: using the owner's own browser on port ${own.port}`)
-        session = { ...own, own: true, preview: preview(own.ws) }
+        // One socket for dev-browser and the live view both, kept from one script to the next:
+        // a Chrome that asks its owner asks about each socket, so they are asked once. Where
+        // there is nothing to open it with, or to listen on, dev-browser opens its own.
+        const relay =
+          typeof globalThis.WebSocket === "function" && process.platform !== "win32"
+            ? await createRelay(own.ws, { log })
+            : undefined
+        session = {
+          connect: relay?.address ?? own.ws,
+          port: own.port,
+          own: true,
+          ...(relay ? { relay } : {}),
+          preview: createPreview(own.ws, {
+            seq,
+            onClick,
+            ...(relay ? { openSocket: () => relay.open() } : {}),
+          }),
+        }
+      }
+    }
+    if (session?.relay) {
+      const answer = await session.relay.answer(ASK_WAIT_MS)
+      if (answer === "asking") {
+        throw new Error(
+          "Their own Chrome is asking whoever is at the computer whether it may be used, and nobody has answered yet. The question is still on their screen: tell them to press Allow in Chrome, and try again once they have.",
+        )
+      }
+      if (answer === "closed") {
+        await dropSession()
+        throw new Error(
+          "Their own Chrome asked whoever is at the computer whether it may be used, and the answer was no, or it was closed just then. Do not try again unless they say to.",
+        )
       }
     }
     // The one kept for agents is started again when it is asked for the other way: with a
@@ -339,7 +387,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         [
           "--json",
           "--connect",
-          current.ws,
+          current.connect,
           "--timeout",
           String(seconds),
           "--quiet-page",
@@ -357,6 +405,11 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         error ??= `dev-browser stopped before the script finished${ran.stderr.trim() ? `: ${ran.stderr.trim().slice(-500)}` : "."}`
       } else if (frames.exitCode !== 0)
         error ??= `The script failed (exit code ${frames.exitCode}).`
+      // The owner may close their Chrome, or switch off what lets it be used, under a script.
+      if (current.relay && !current.relay.alive()) {
+        error =
+          "Their own Chrome went away while the script ran: it was closed, or no longer lets itself be used. What the script did before that may or may not have happened."
+      }
       // After a script that ran out of time dev-browser may still be busy with it: start it afresh.
       if (ran.stopped || frames.exitCode === 124 || frames.exitCode === undefined) {
         const old = daemon
@@ -367,7 +420,13 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       const front = (await current.preview.front()) ?? (await frontPage(current.port))
       // Where the browser can be reached is not something for an agent to be told, or to tell.
       const hide = (text: string) =>
-        text.split(current.ws).join("[the browser]").split(home).join("[dev-browser]")
+        text
+          .split(current.connect)
+          .join("[the browser]")
+          .split(current.connect.replace(/^unix:/, ""))
+          .join("[the browser]")
+          .split(home)
+          .join("[dev-browser]")
       return {
         output: keepEnd(hide(frames.output)),
         ...(error === undefined ? {} : { error: hide(error) }),
@@ -386,19 +445,29 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       clearInterval(touching)
       current.preview.running(false)
       idleTimer = setTimeout(() => {
-        queue = queue.then(letGo, letGo)
+        queue = queue.then(rest, rest)
       }, KEPT_IDLE_MS)
       idleTimer.unref()
     }
   }
 
-  /** Close the browser kept for agents, stop dev-browser, and stop watching the owner's own. */
-  async function letGo(): Promise<void> {
+  /**
+   * No agent has used the browser for a while: close the one kept for agents and stop
+   * dev-browser. The owner's own stays connected, since connecting to it again would have it
+   * ask them again.
+   */
+  async function rest(): Promise<void> {
     clearTimeout(idleTimer)
-    await dropSession()
+    if (!session?.own) await dropSession()
     const old = daemon
     daemon = undefined
     await old?.close()
+  }
+
+  /** Close the browser kept for agents, stop dev-browser, and let go of the owner's own. */
+  async function letGo(): Promise<void> {
+    await rest()
+    await dropSession()
   }
 
   return {

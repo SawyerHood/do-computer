@@ -110,7 +110,9 @@
   a browser, with [dev-browser](https://github.com/SawyerHood/dev-browser), which the daemon
   fetches the first time. It uses your own Chrome when that is open and lets itself be used
   (tick "Allow remote debugging for this browser instance" at `chrome://inspect/#remote-debugging`,
-  or start Chrome with a debugging port), and is then signed in wherever you are. Otherwise it
+  or start Chrome with a debugging port), and is then signed in wherever you are. Chrome asks
+  you once whether to allow it, the first time a Dood uses it, and not again until Chrome or
+  the daemon is started again. Otherwise it
   keeps a browser of its own, with its own sign-ins, which nobody sees but in the chat. Start
   the daemon with `--no-browser` to allow neither.
 - **Use your screen.** In the [desktop app](desktop.md), under This Computer, you can let

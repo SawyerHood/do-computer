@@ -1,4 +1,5 @@
-import { mkdtempSync } from "node:fs"
+import { existsSync, mkdtempSync } from "node:fs"
+import { connect } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -17,6 +18,7 @@ import {
   readPointer,
   type PreviewSocket,
 } from "../src/browser/preview.ts"
+import { createRelay } from "../src/browser/relay.ts"
 
 const line = (frame: unknown) => `${JSON.stringify(frame)}\n`
 
@@ -269,6 +271,211 @@ describe("the live view of a browser", () => {
     expect(readPointer("x,1,2")).toBeNull()
     expect(readPointer("m,1")).toBeNull()
     expect(readPointer({ x: 1 })).toBeNull()
+  })
+})
+
+/**
+ * The owner's own Chrome, as one that asks them: its socket opens only when `allow` is called,
+ * and it gives each `Target.attachToBrowserTarget` a session of the browser, b1, b2 and so on.
+ */
+function fakeOwnChrome() {
+  const sent: { id: number; method: string; params: unknown; sessionId?: string }[] = []
+  const listeners: Record<string, ((event: { data: unknown }) => void)[]> = {}
+  const tell = (type: string, data?: unknown) => {
+    for (const listener of listeners[type] ?? []) listener({ data })
+  }
+  let opened = 0
+  let sessions = 0
+  const state = { readyState: 0 }
+  const socket: PreviewSocket = {
+    get readyState() {
+      return state.readyState
+    },
+    send(data) {
+      const call = JSON.parse(data)
+      sent.push(call)
+      if (call.method === "Target.attachToBrowserTarget" && call.sessionId === undefined) {
+        const sessionId = `b${++sessions}`
+        queueMicrotask(() =>
+          tell("message", JSON.stringify({ id: call.id, result: { sessionId } })),
+        )
+      }
+    },
+    close() {
+      state.readyState = 3
+    },
+    addEventListener(type: string, listener: (event: { data: unknown }) => void) {
+      ;(listeners[type] ??= []).push(listener)
+    },
+  }
+  return {
+    sent,
+    opens: () => opened,
+    openSocket: () => {
+      opened += 1
+      return socket
+    },
+    allow() {
+      state.readyState = 1
+      tell("open")
+    },
+    refuse() {
+      state.readyState = 3
+      tell("close")
+    },
+    say: (message: unknown) => tell("message", JSON.stringify(message)),
+    /** What was last asked of the browser with this method. */
+    last: (method: string) => sent.findLast((call) => call.method === method),
+  }
+}
+
+/** What a socket on the relay heard, as it came. */
+function listen(socket: PreviewSocket) {
+  const heard: unknown[] = []
+  const events: string[] = []
+  socket.addEventListener("open", () => events.push("open"))
+  socket.addEventListener("close", () => events.push("close"))
+  socket.addEventListener("message", (event) => heard.push(JSON.parse(String(event.data))))
+  return { heard, events }
+}
+
+describe("the one socket to the owner's own Chrome", () => {
+  it("is opened once, however many use it, and gives each what looks like its own", async () => {
+    const chrome = fakeOwnChrome()
+    const relay = await createRelay("ws://x", { openSocket: chrome.openSocket })
+    const one = relay.open()
+    const two = relay.open()
+    const first = listen(one)
+    const second = listen(two)
+    expect(await relay.answer(10)).toBe("asking")
+    // Said before the owner answered: kept, and passed on once they have.
+    one.send(JSON.stringify({ id: 1, method: "Target.setDiscoverTargets", params: {} }))
+    expect(chrome.sent).toEqual([])
+    chrome.allow()
+    expect(await relay.answer(10)).toBe("open")
+    await settle()
+    expect(chrome.opens()).toBe(1)
+    expect(first.events).toEqual(["open"])
+    expect(second.events).toEqual(["open"])
+    expect(one.readyState).toBe(1)
+
+    // Each numbers its calls from one. The browser is asked with numbers of the relay's, in
+    // the session that stands for whoever asked.
+    two.send(JSON.stringify({ id: 1, method: "Browser.getVersion" }))
+    const discover = chrome.last("Target.setDiscoverTargets")
+    const version = chrome.last("Browser.getVersion")
+    expect(discover?.sessionId).toBe("b1")
+    expect(version?.sessionId).toBe("b2")
+    expect(discover?.id).not.toBe(version?.id)
+    chrome.say({ id: version?.id, result: { product: "Chrome" }, sessionId: "b2" })
+    chrome.say({ id: discover?.id, result: {}, sessionId: "b1" })
+    expect(first.heard).toEqual([{ id: 1, result: {} }])
+    expect(second.heard).toEqual([{ id: 1, result: { product: "Chrome" } }])
+    await relay.close()
+  })
+
+  it("tells each only of its own sessions, and lets none into another's", async () => {
+    const chrome = fakeOwnChrome()
+    const relay = await createRelay("ws://x", { openSocket: chrome.openSocket })
+    const one = relay.open()
+    const two = relay.open()
+    const first = listen(one)
+    const second = listen(two)
+    chrome.allow()
+    await settle()
+    // A page attached under the first one's session is the first one's.
+    const attached = {
+      method: "Target.attachedToTarget",
+      params: { sessionId: "p1", targetInfo: { targetId: "t1", type: "page" } },
+    }
+    chrome.say({ ...attached, sessionId: "b1" })
+    chrome.say({ method: "Page.frameNavigated", params: { frame: {} }, sessionId: "p1" })
+    expect(first.heard).toEqual([
+      attached,
+      { method: "Page.frameNavigated", params: { frame: {} }, sessionId: "p1" },
+    ])
+    expect(second.heard).toEqual([])
+
+    one.send(JSON.stringify({ id: 7, method: "Page.enable", sessionId: "p1" }))
+    expect(chrome.last("Page.enable")?.sessionId).toBe("p1")
+    two.send(JSON.stringify({ id: 7, method: "Page.enable", sessionId: "p1" }))
+    expect(chrome.sent.filter((call) => call.method === "Page.enable")).toHaveLength(1)
+    expect(second.heard).toEqual([
+      {
+        id: 7,
+        error: { code: -32001, message: "Session with given id not found." },
+        sessionId: "p1",
+      },
+    ])
+
+    // One it attached itself is its own from the answer on.
+    two.send(JSON.stringify({ id: 8, method: "Target.attachToTarget", params: { targetId: "t1" } }))
+    chrome.say({
+      id: chrome.last("Target.attachToTarget")?.id,
+      result: { sessionId: "p2" },
+      sessionId: "b2",
+    })
+    chrome.say({ method: "Page.screencastFrame", params: {}, sessionId: "p2" })
+    expect(second.heard.slice(1)).toEqual([
+      { id: 8, result: { sessionId: "p2" } },
+      { method: "Page.screencastFrame", params: {}, sessionId: "p2" },
+    ])
+    expect(first.heard).toHaveLength(2)
+
+    // Leaving lets go of its session on the browser, and of everything under it.
+    two.close()
+    expect(chrome.last("Target.detachFromTarget")).toMatchObject({ params: { sessionId: "b2" } })
+    chrome.say({ method: "Page.screencastFrame", params: {}, sessionId: "p2" })
+    expect(second.heard).toHaveLength(3)
+    await relay.close()
+  })
+
+  it("speaks to dev-browser over a socket of this machine, one message to a line", async () => {
+    const chrome = fakeOwnChrome()
+    const relay = await createRelay("ws://x", { openSocket: chrome.openSocket })
+    chrome.allow()
+    expect(relay.address).toMatch(/^unix:/)
+    const socket = connect(relay.address.slice(5))
+    socket.setEncoding("utf8")
+    let read = ""
+    socket.on("data", (chunk: string) => (read += chunk))
+    await new Promise((resolve) => socket.once("connect", resolve))
+    // Two messages in one write, and the second in two.
+    socket.write(`${JSON.stringify({ id: 1, method: "Browser.getVersion" })}\n{"id":2,`)
+    socket.write(`"method":"Target.getTargets"}\n`)
+    await settle()
+    const version = chrome.last("Browser.getVersion")
+    expect(version?.sessionId).toBe("b1")
+    expect(chrome.last("Target.getTargets")?.sessionId).toBe("b1")
+    chrome.say({ id: version?.id, result: { product: "Chrome" }, sessionId: "b1" })
+    chrome.say({ method: "Target.targetCreated", params: { targetInfo: {} }, sessionId: "b1" })
+    await settle()
+    expect(read.split("\n")).toEqual([
+      JSON.stringify({ id: 1, result: { product: "Chrome" } }),
+      JSON.stringify({ method: "Target.targetCreated", params: { targetInfo: {} } }),
+      "",
+    ])
+    const closed = new Promise((resolve) => socket.once("close", resolve))
+    await relay.close()
+    await closed
+    expect(existsSync(relay.address.slice(5))).toBe(false)
+  })
+
+  it("is of no more use once the owner has said no, or the browser has gone", async () => {
+    const chrome = fakeOwnChrome()
+    const relay = await createRelay("ws://x", { openSocket: chrome.openSocket })
+    const waiting = listen(relay.open())
+    const answer = relay.answer(2_000)
+    expect(relay.alive()).toBe(true)
+    chrome.refuse()
+    expect(await answer).toBe("closed")
+    expect(relay.alive()).toBe(false)
+    expect(waiting.events).toEqual(["close"])
+    // Whatever opens it afterwards is told at once.
+    const late = listen(relay.open())
+    await settle()
+    expect(late.events).toEqual(["close"])
+    await relay.close()
   })
 })
 
