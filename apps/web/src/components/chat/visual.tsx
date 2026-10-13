@@ -2,6 +2,7 @@ import {
   type LibraryFile,
   readVisualError,
   readVisualHeight,
+  readVisualHeights,
   readVisualLink,
   readVisualMode,
   readVisualSave,
@@ -9,6 +10,7 @@ import {
   type ToolPart,
   VISUAL_DEFAULT_HEIGHT,
   visualFrameHeight,
+  visualHeightAt,
   visualModeMessage,
   visualRefusal,
   visualResult,
@@ -98,13 +100,19 @@ function FrameOf({ agentId, part }: { agentId: string; part: ToolPart }) {
   useEffect(tell, [theme])
   useEffect(() => void post(visualModeMessage(large ? "fullscreen" : "inline")), [large])
 
-  // A page that was shown here before is given the room it took then, at once.
+  // A page that was shown here before is given the room it took then, at once. One that
+  // was not, but that the agent looked at before drawing it, is given the room it took there.
   const page = file === undefined ? undefined : `${file.id}:${file.rev}`
+  const measured = (part.details as { heights?: unknown } | undefined)?.heights
   useLayoutEffect(() => {
     if (page === undefined || place.current === null) return
-    const before = heightBefore(page, place.current.clientWidth)
+    const wide = place.current.clientWidth
+    // What was measured is of the page as it was drawn, not as it may have been changed since.
+    const looked = file?.rev === drawn.rev ? readVisualHeights(measured) : undefined
+    const before =
+      heightBefore(page, wide) ?? (looked === undefined ? undefined : visualHeightAt(looked, wide))
     if (before !== undefined) setHeight((now) => now ?? before)
-  }, [page])
+  }, [page, measured, file?.rev, drawn.rev])
 
   /** Put words in the chat's message box, after whatever is there, for the person to send. */
   const say = (text: string): boolean => {

@@ -10,6 +10,7 @@ import {
 import { createComputerLinkActor } from "@do-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@do-computer/protocol"
 import {
+  browserRunPreviewer,
   createDurableActorClass,
   d1Database,
   durableObjectNamespace,
@@ -75,6 +76,7 @@ export const AgentObject = createDurableActorClass<Env>({
       review: models.review,
       allowPrivateHosts: config.allowPrivateHosts,
       boxEveryMs: config.boxEveryMs,
+      ...(env.BROWSER === undefined ? {} : { pagePreviewer: browserRunPreviewer(env.BROWSER) }),
       // Nothing is kept in memory for a chat that has gone quiet, nor a document that nothing
       // is watching: what keeps each is a timer, and a pending timer keeps the whole object
       // from being put away.

@@ -4,7 +4,7 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { test as base } from "@playwright/test"
+import { test as base, chromium } from "@playwright/test"
 
 /**
  * Every file of tests has a server to itself: the built Node server on a fresh data directory and
@@ -57,6 +57,12 @@ async function start(file: string, settings: Record<string, string>): Promise<Se
       DC_APPS_URL: `${apps}/oauth/mcp`,
       // Where the tests sign the server itself in to a model provider, their owner may.
       ...(file.endsWith("models.spec.ts") ? { DC_ADMIN_EMAILS: "owner@example.com" } : {}),
+      // Only the tests of looking at a page before it is shown have a browser to look with:
+      // the one these tests are themselves run in. The rest draw without looking, whatever
+      // Chrome the machine happens to have.
+      DC_CHROME_PATH: file.endsWith("preview.spec.ts")
+        ? process.env.PLAYWRIGHT_CHROMIUM_PATH || chromium.executablePath()
+        : "none",
       ...settings,
     },
   })

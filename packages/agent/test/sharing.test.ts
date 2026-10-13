@@ -7,12 +7,14 @@ import {
   type ChatState,
   type ChatSummary,
   EMPTY_CHAT,
+  isShownPart,
   isSiteShare,
   isVisual,
   type LibraryFile,
   type LibraryListing,
   PAGE_THEME_VERSION,
   readSse,
+  readVisualHeights,
   SITE_LISTING_HEADER,
   type SiteListing,
   reduceChat,
@@ -21,6 +23,7 @@ import {
   THEME_TOKEN_NAMES,
   type ToolPart,
 } from "@do-computer/protocol"
+import { type PagePreviewer, PreviewError, type PreviewRequest } from "@do-computer/runtime"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
@@ -82,8 +85,11 @@ function directory(sites: SiteSummary[]): SiteDirectory {
   }
 }
 
-/** Agents of one workspace, which keeps a library for them and has no machine at all. */
-function open(): World {
+/**
+ * Agents of one workspace, which keeps a library for them and has no machine at all. With
+ * `previewer`, the server has a browser for them to look at a page with.
+ */
+function open(previewer?: PagePreviewer): World {
   const root = mkdtempSync(join(tmpdir(), "dc-sharing-"))
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
@@ -111,6 +117,7 @@ function open(): World {
         library: async () => libraries.get("workspace-1"),
         sites: directory(sites),
         appUrl: "https://app.example",
+        ...(previewer === undefined ? {} : { pagePreviewer: previewer }),
         onReport: (error) => reports.push(error),
       }),
     onError: (error) => reports.push(error),
@@ -239,6 +246,114 @@ describe("a visual", () => {
     expect(empty.status).toBe("error")
     expect(empty.output).toContain("needs a page")
     expect((await call<LibraryListing>(world, "/library")).files).toEqual([])
+  })
+})
+
+describe("looking at a page before it is shown", () => {
+  /** A browser that draws nothing, and notes what it was asked to. */
+  function browser(answer?: Error) {
+    const asked: PreviewRequest[] = []
+    const previewer: PagePreviewer = {
+      async preview(request) {
+        asked.push(request)
+        if (answer !== undefined) throw answer
+        return {
+          png: "aGVsbG8=",
+          width: request.width,
+          pictured: 120,
+          heights: request.widths.map((width) => [width, width < 500 ? 300 : 120] as const),
+          console: [
+            { level: "log", text: "drew 3 cards" },
+            { level: "error", text: "notThere is not defined" },
+          ],
+        }
+      },
+    }
+    return { asked, previewer }
+  }
+  const LOUD = PAGE.replace("<body>", "<body><style>p{color:#ff0000}</style>")
+
+  it("gives the agent how tall the page is, what it wrote and what failed, and keeps nothing", async () => {
+    const { asked, previewer } = browser()
+    const world = open(previewer)
+    const chat = await setup(world)
+    const part = await use(world, chat.id, "visual_preview", { html: LOUD })
+    expect(part.status).toBe("done")
+    expect(part.output).toContain("At 680px wide the page is 120px tall.")
+    expect(part.output).toContain(
+      "120px tall on a computer (680px wide) and 300px on a phone (360px wide)",
+    )
+    expect(part.output).toContain("[log] drew 3 cards\n[error] notThere is not defined")
+    // What will look out of place is to be fixed now, while nobody has seen it.
+    expect(part.output).toContain("To fix before you draw it:\n- Colors are written out (#ff0000)")
+    // The browser was given the page as a chat shows it, to measure where a reply is read.
+    expect(asked).toHaveLength(1)
+    expect(asked[0]!.width).toBe(680)
+    expect(asked[0]!.widths).toEqual([320, 360, 440, 560, 680, 760])
+    expect(asked[0]!.html).toContain(
+      'sandbox="allow-scripts allow-popups allow-forms allow-modals"',
+    )
+    expect(asked[0]!.html).toContain("data-dc-inline")
+    // The app's address is named, for the typefaces a page is given to load from.
+    expect(asked[0]!.html).toContain("https://app.example/")
+    // Nothing is shown to the person, and nothing is kept.
+    expect(isVisual(part)).toBe(false)
+    expect(isShownPart(part)).toBe(false)
+    expect((await call<LibraryListing>(world, "/library")).files).toEqual([])
+    expect(world.reports).toEqual([])
+  })
+
+  it("gives a page drawn as it was looked at the room it was measured to take", async () => {
+    const world = open(browser().previewer)
+    const chat = await setup(world)
+    await use(world, chat.id, "visual_preview", { html: PAGE })
+    const drawn = await use(world, chat.id, "visual", { title: "Signups", html: PAGE })
+    expect(isVisual(drawn)).toBe(true)
+    expect(readVisualHeights((drawn.details as { heights?: unknown }).heights)).toEqual([
+      [320, 300],
+      [360, 300],
+      [440, 300],
+      [560, 120],
+      [680, 120],
+      [760, 120],
+    ])
+    // One that was changed after it was looked at was not measured as it is.
+    const changed = await use(world, chat.id, "visual", {
+      title: "Signups again",
+      html: PAGE.replace("svg", "table"),
+    })
+    expect((changed.details as { heights?: unknown }).heights).toBeUndefined()
+  })
+
+  it("does not ask the browser for a page that would not work in the chat", async () => {
+    const { asked, previewer } = browser()
+    const world = open(previewer)
+    const chat = await setup(world)
+    const part = await use(world, chat.id, "visual_preview", {
+      html: "<p>x</p><script>localStorage.setItem('a', '1')</script>",
+    })
+    expect(part.status).toBe("error")
+    expect(part.output).toContain("has no storage")
+    expect(asked).toEqual([])
+  })
+
+  it("tells the agent to draw without looking when the browser cannot be had", async () => {
+    const world = open(browser(new PreviewError("No browser could be had just now.")).previewer)
+    const chat = await setup(world)
+    const part = await use(world, chat.id, "visual_preview", { html: PAGE })
+    expect(part.status).toBe("error")
+    expect(part.output).toBe(
+      "The page could not be looked at: No browser could be had just now. Draw it without looking.",
+    )
+    expect(world.reports).toEqual([])
+  })
+
+  it("is not offered where the server has no browser", async () => {
+    const world = open()
+    const chat = await setup(world)
+    const part = await use(world, chat.id, "visual_preview", { html: PAGE })
+    expect(part.status).toBe("error")
+    expect(part.output).not.toContain("At 680px wide")
   })
 })
 

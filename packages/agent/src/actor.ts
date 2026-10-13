@@ -47,6 +47,7 @@ import type {
   ActorNamespace,
   ActorSocket,
   ActorStub,
+  PagePreviewer,
 } from "@do-computer/runtime"
 import type { Sandbox } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
@@ -255,6 +256,12 @@ export type AgentActorOptions = {
    * in Slack arrives.
    */
   readonly slackDirectory?: SlackDirectory
+  /**
+   * A browser the server has, which draws a page for the agent to look at before it shows it
+   * to the person: Cloudflare's on a Worker, a Chrome on the machine under Node. Without one,
+   * the agent has no such tool and draws without looking.
+   */
+  readonly pagePreviewer?: PagePreviewer
   /** Used to reach connectors (remote MCP servers). Default: the global `fetch`. */
   readonly connectorFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>
   /**
@@ -1005,6 +1012,15 @@ export class AgentActor implements Actor {
         visuals({
           backend,
           ...(this.#options.library === undefined ? {} : { agentId: this.#host.name }),
+          ...(this.#options.pagePreviewer === undefined
+            ? {}
+            : { previewer: this.#options.pagePreviewer }),
+          // The built-in echo is shown the picture too: it is how the tool is tried.
+          sees: async () => {
+            const { model } = await this.#identity(await this.#open())
+            return model === ECHO_MODEL || this.#sees(model)
+          },
+          appUrl: () => this.#appUrl(),
         }),
       )
       if (this.#options.sites !== undefined) {

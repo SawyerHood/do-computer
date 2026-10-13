@@ -84,6 +84,11 @@ export type Config = {
   readonly appsUrl: string | undefined
   /** How long after a creature's box is opened the next one turns up. Only a test has it anything but six hours. */
   readonly boxEveryMs: number | undefined
+  /**
+   * Under Node: the Chrome that draws a page for an agent to look at before it shows it.
+   * Without it, one is looked for where a Chrome usually is; `none` says to have none.
+   */
+  readonly chromePath: string | undefined
   /** For sending invitations by email, through Resend. Without both, invitations are links only. */
   readonly email: {
     readonly resendApiKey: string | undefined
@@ -206,6 +211,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     slackApiUrl: optional("DC_SLACK_API_URL"),
     appsUrl: optional("DC_APPS_URL"),
     boxEveryMs: wholeNumber(optional("DC_BOX_EVERY_MS")),
+    chromePath: optional("DC_CHROME_PATH"),
     email: { resendApiKey: optional("RESEND_API_KEY"), from: optional("DC_EMAIL_FROM") },
   }
 }

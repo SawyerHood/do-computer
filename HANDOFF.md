@@ -6144,6 +6144,62 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       **Not checked:** Safari, Workers, the phone app (its web view has no chat to speak
       to: `dc` does nothing there), a real model writing a widget.
 
+77. **The agent looks at a page in a browser before it shows it** (2026-10-13;
+    `packages/runtime/src/preview.ts`, `cloudflare/preview.ts`, `node/preview.ts`,
+    `packages/protocol/src/visual.ts` (`visualPreviewDocument`), `packages/agent/src/visuals.ts`
+    (`visual_preview`), `apps/web/wrangler.jsonc`; phase 4 of `PLAN-rich-embeds.md`). T3 Code
+    has this as `html_preview`. Its server is on the person's own machine and starts Chrome
+    there; ours is a Worker on do.computer, which has nothing to draw with. The owner asked
+    for Cloudflare's headless browser to be looked into for it ("If we had that figured out
+    it would probably solve things for us"), and said the Cloudflare account could be changed
+    if need be.
+    - **The tool.** `visual_preview({ html, width?, appearance? })` answers a picture of the
+      page as the chat will draw it, how tall it is on a computer and on a phone, what it
+      wrote to its console and what failed in it, and what `visualProblems` notes. Nothing
+      is shown or kept. The agent is told to look before it draws. A model that takes no
+      pictures is given the words alone.
+    - **One interface, two browsers** (`PagePreviewer`). On Cloudflare it is Browser Run,
+      through the Worker's `browser` binding and `@cloudflare/puppeteer`
+      (`browserRunPreviewer`). Under Node it is a Chrome on the machine, through
+      `puppeteer-core` (`chromePreviewer`; `DC_CHROME_PATH`, or the usual places, or `none`).
+      Where the server has neither, the tool is not offered. What is done with a page
+      (`previewIn`) is written once against Puppeteer's `Page`.
+    - **What the browser is given** is one document: the page as it would be kept, in a
+      frame with the chat's own `sandbox`, on the chat's background, fitted to the height the
+      page reports. So the page's origin is nobody's, as in a chat, and the browser need not
+      reach the deployment. The app's address is named for the typefaces.
+    - **On Cloudflare** a look uses a browser that is already running and that nobody is
+      driving, or starts one, has a context of its own in it, and disconnects; a browser
+      left alone stops in a minute. Browsers are counted at once and paid for by the hour,
+      so nothing is kept running. Workers Paid includes ten hours a month, then $0.09 an
+      hour; Workers Free has ten minutes a day.
+    - **The heights** measured when a page was looked at go with it when it is drawn as it
+      was looked at (`details.heights`, six widths from 320 to 760), and the chat gives it
+      that room before it has loaded. A page drawn without being looked at is not measured:
+      that would be a browser's seconds before every page is shown.
+    - **Bounds:** 8 seconds for a page to load, 20 for a look, a picture at most 2000px
+      tall, thirty console lines, sixty looks an hour for an agent.
+    - **The owner's:** that there be such a thing, and Cloudflare's browser for it.
+      **Mine:** the frame in place of a draft at an address, which the plan had; sharing a
+      browser by its sessions and not through an object of its own; that only a page that
+      was looked at is measured; the bounds; `none`; that the tests' other servers are told
+      to have no browser, so that what an agent is told does not depend on the machine.
+    - **Checked:** `visual.test.ts` (the document, the heights), `sharing.test.ts` (the
+      tool through an agent with a stand-in browser: what it answers, heights carried to a
+      page drawn as looked at, a page that would not work not sent to the browser, a
+      browser that cannot be had, no tool without one), and in a browser
+      `e2e/preview.spec.ts` against the built server with a real Chromium. Under the local
+      Workers runtime (`DC_TARGET=cloudflare vite dev`) the tool was called through the
+      app, first with the browser the Vite plugin downloads and then, with `"remote": true`
+      on the binding, with Browser Run on the owner's account: the page's own request
+      came from an address that was not this machine's, its console and its error came
+      back, and a look took about two seconds. The Worker's upload with the library in it
+      is 4,513 KiB gzipped of 10 MB (`wrangler deploy --dry-run`).
+      **Not checked:** a deployed Worker; whether the token Actions deploys with needs
+      another permission for this binding, which the first deploy will say; that two looks
+      at once share a browser on the real service; the pictures a page loads from the
+      library, which are not loaded in a look; a real model using what it is told.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

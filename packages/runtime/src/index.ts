@@ -13,6 +13,14 @@ export type {
   SqliteExecutor,
   SqliteValue,
 } from "@earendil-works/pi-durable/storage/sqlite"
+export {
+  MAX_PICTURED_HEIGHT,
+  type PagePreview,
+  type PagePreviewer,
+  PreviewError,
+  type PreviewLine,
+  type PreviewRequest,
+} from "./preview.ts"
 export { SerialQueue } from "./serial-queue.ts"
 
 export type BlobMetadata = {

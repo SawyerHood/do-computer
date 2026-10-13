@@ -13,7 +13,9 @@ import {
 import { createComputerLinkActor } from "@do-computer/computers"
 import { PING_FRAME, PONG_FRAME } from "@do-computer/protocol"
 import {
+  chromePreviewer,
   fileBlobs,
+  findChrome,
   NodeActorNamespace,
   openNodeAppDatabase,
   type SocketLike,
@@ -85,6 +87,10 @@ function create(): NodePlatform {
     onError: (error, name) => console.error(`[model access ${name}]`, error),
   })
   const signIns = modelAccessDirectory(app, modelAccess)
+  // A Chrome on this machine draws a page for an agent to look at before it shows it. Where
+  // there is none, agents draw without looking.
+  const chrome = config.chromePath === "none" ? undefined : findChrome(config.chromePath)
+  const previewer = chrome === undefined ? undefined : chromePreviewer(chrome)
   const agents: NodeActorNamespace = new NodeActorNamespace({
     directory: join(directory, "agents"),
     blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -107,6 +113,7 @@ function create(): NodePlatform {
         review: models.review,
         allowPrivateHosts: config.allowPrivateHosts,
         boxEveryMs: config.boxEveryMs,
+        ...(previewer === undefined ? {} : { pagePreviewer: previewer }),
         resolveHost: nodeProviders.resolveHost,
         computerLinks: links,
         computerDirectory: computerDirectory(
