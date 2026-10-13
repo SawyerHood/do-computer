@@ -147,29 +147,106 @@ async function scaledInBrowser(blob: Blob): Promise<MessageImage | undefined> {
   }
 }
 
+/** On a device the phone draws a picture smaller until it fits, to the same sizes. */
+async function scaledOnDevice(uri: string): Promise<MessageImage | undefined> {
+  const { ImageManipulator, SaveFormat } = await import("expo-image-manipulator")
+  const whole = await ImageManipulator.manipulate(uri).renderAsync()
+  try {
+    const wide = whole.width >= whole.height
+    for (const [side, quality] of ATTEMPTS) {
+      const drawing = ImageManipulator.manipulate(whole)
+      if (Math.max(whole.width, whole.height) > side) {
+        drawing.resize(wide ? { width: side } : { height: side })
+      }
+      const drawn = await drawing.renderAsync()
+      const { base64 } = await drawn
+        .saveAsync({ format: SaveFormat.JPEG, compress: quality, base64: true })
+        .finally(() => drawn.release())
+      if (base64 !== undefined && base64.length <= BUDGET) {
+        return { mimeType: "image/jpeg", data: base64 }
+      }
+    }
+    return undefined
+  } finally {
+    // A photograph drawn in full is a great deal of memory to leave for later.
+    whole.release()
+  }
+}
+
+/** A picture on a device just as it is, where it is of a kind and a size a message can hold. */
+async function asItIs(chosen: Chosen): Promise<MessageImage | undefined> {
+  if (!(MESSAGE_IMAGE_TYPES as readonly string[]).includes(chosen.type)) return undefined
+  let data = chosen.base64 ?? undefined
+  if (data === undefined) {
+    const FileSystem = await import("expo-file-system/legacy")
+    const info = await FileSystem.getInfoAsync(chosen.uri)
+    // Base64 is a third longer than the file.
+    if (!info.exists || info.size * 1.34 > MAX_MESSAGE_IMAGE_CHARS) return undefined
+    data = await FileSystem.readAsStringAsync(chosen.uri, { encoding: "base64" })
+  }
+  return data.length <= MAX_MESSAGE_IMAGE_CHARS ? { mimeType: chosen.type, data } : undefined
+}
+
 /**
  * A copy of a picture to send with a message for the agent to look at. Undefined for a file
- * that is not a picture, or one too large to send. On a device there is nothing to draw it
- * smaller with, so it is the picker's own JPEG where that fits a message's allowance.
+ * that is not a picture, or one that cannot be made small enough to send. One that already
+ * leaves room for the others a message may hold goes as it is, and any other is drawn smaller.
  */
 export async function pictureFor(chosen: Chosen): Promise<MessageImage | undefined> {
   if (!chosen.type.startsWith("image/")) return undefined
   try {
     if (Platform.OS === "web") return await scaledInBrowser(await bodyOf(chosen))
-    const sendable = (MESSAGE_IMAGE_TYPES as readonly string[]).includes(chosen.type)
-    if (!sendable) return undefined
-    let data = chosen.base64 ?? undefined
-    if (data === undefined) {
-      const FileSystem = await import("expo-file-system/legacy")
-      const info = await FileSystem.getInfoAsync(chosen.uri)
-      // Base64 is a third longer than the file.
-      if (!info.exists || info.size * 1.34 > MAX_MESSAGE_IMAGE_CHARS) return undefined
-      data = await FileSystem.readAsStringAsync(chosen.uri, { encoding: "base64" })
-    }
-    return data.length <= MAX_MESSAGE_IMAGE_CHARS ? { mimeType: chosen.type, data } : undefined
+    const whole = await asItIs(chosen).catch(() => undefined)
+    if (whole !== undefined && whole.data.length <= BUDGET) return whole
+    // A picture the phone cannot draw is still sent whole, if a message can hold it.
+    return (await scaledOnDevice(chosen.uri).catch(() => undefined)) ?? whole
   } catch {
     return undefined
   }
+}
+
+const PASTED_TYPES: Readonly<Record<string, string>> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  tiff: "image/tiff",
+}
+
+/**
+ * A picture on the clipboard has no name, or is called "image.png" every time. Each is given
+ * the moment it was pasted, so that several can be told apart in the library and by the agent.
+ */
+const pastedName = (at: number, extension: string) => {
+  const stamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-").replace("T", "_")
+  return `pasted-${stamp}${at === 0 ? "" : `-${at + 1}`}.${extension}`
+}
+
+/** Pictures pasted into the message box on a phone, which hands them over as files it wrote. */
+export function pastedPictures(uris: readonly string[]): Chosen[] {
+  return uris.map((uri, at) => {
+    const extension = /\.([a-z0-9]+)$/i.exec(uri)?.[1]?.toLowerCase() ?? "png"
+    return {
+      uri,
+      name: pastedName(at, extension),
+      type: PASTED_TYPES[extension] ?? "image/png",
+    }
+  })
+}
+
+/** Files pasted into the message box in a browser: pictures, and anything else that was copied. */
+export function pastedFiles(files: readonly File[]): Chosen[] {
+  return files.map((file, at) => ({
+    uri: URL.createObjectURL(file),
+    name: /^image\.[a-z0-9]+$/i.test(file.name)
+      ? pastedName(at, file.name.slice(file.name.lastIndexOf(".") + 1))
+      : file.name,
+    type: file.type || "application/octet-stream",
+    file,
+  }))
 }
 
 /** The pictures of what is attached that go with the message: as many as a message may hold. */
