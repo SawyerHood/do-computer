@@ -9,6 +9,7 @@ import { FileIcon, PushPinSlashIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { PanelSection } from "@/components/chat/panel-section"
 import { DocMarkdown } from "@/components/library/doc-markdown"
 import { KindIcon } from "@/components/library/tree"
 import { client } from "@/lib/client"
@@ -273,9 +274,8 @@ export function PinnedShelf({
   const { unpin } = usePinning(agentId)
   if (!some || listing === undefined) return null
   return (
-    <section aria-label="Pinned" className="flex max-h-[55%] shrink-0 flex-col border-t">
-      <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">Pinned</h3>
-      <ul className="flex min-h-0 flex-col gap-1 overflow-y-auto px-2.5 pt-px pb-3">
+    <PanelSection id="pinned" title="Pinned" count={pins.length}>
+      <ul className="flex flex-col gap-1 px-2.5 pt-px pb-3">
         {pins.map((pin, index) => {
           const file = pinnedFile(pin, listing.files)
           const off = () => unpin.mutate(pin.fileId)
@@ -306,6 +306,6 @@ export function PinnedShelf({
           )
         })}
       </ul>
-    </section>
+    </PanelSection>
   )
 }

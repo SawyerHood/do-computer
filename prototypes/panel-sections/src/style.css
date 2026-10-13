@@ -1,0 +1,159 @@
+* { box-sizing: border-box; margin: 0; }
+html { background: var(--background, #14181a); color: var(--foreground, #e8ecee); }
+body {
+  font-family: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; cursor: pointer; }
+ul { padding: 0; }
+.ic { flex: none; display: block; }
+
+/* The mock-up's own bar: the scenes and a few things to press. Not part of the design. */
+#nav { padding: 2px 0 0; }
+.ngroups { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.ng { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ng > span { font-size: 11.5px; color: var(--muted-foreground, #8b979c); margin-right: 4px; }
+.nb { font-size: 12.5px; padding: 5px 10px; border-radius: 7px; color: var(--foreground, #c9d2d6); background: var(--muted, #1f2528); white-space: nowrap; }
+.nb:hover { filter: brightness(1.12); }
+.nb.on { background: #2f8f8a; color: #fff; }
+.nb.act { background: transparent; box-shadow: inset 0 0 0 1px var(--border, #3a4347); }
+.nb.act:hover { background: var(--muted, #1f2528); }
+#wrap { padding: 12px 0 0; }
+
+/* The app's colors, as in apps/web/src/styles.css. */
+.t {
+  --agent-color: oklch(0.5 0.08 195);
+  --canvas: oklch(0.997 0.001 212);
+  --ink: oklch(0.27 0.008 212);
+  --shade: oklch(0.27 0.02 212);
+  --frame: color-mix(in oklch, var(--ink) 4.5%, var(--canvas));
+  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.07);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --primary: oklch(from var(--agent-color) 0.5 c h);
+  --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
+  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
+  --rail: color-mix(in oklch, var(--frame) 50%, var(--canvas));
+  color: var(--foreground);
+  font-size: 14px;
+}
+.dk .t {
+  --canvas: oklch(0.212 0.004 212);
+  --ink: oklch(0.9 0.006 212);
+  --frame: oklch(0.168 0.004 212);
+  --hairline: color-mix(in oklch, var(--ink) 11%, transparent);
+  --elevation-raised: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.04);
+  --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
+  --primary: oklch(from var(--agent-color) 0.62 c h);
+  --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
+  --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
+  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
+}
+.muted { color: var(--muted-foreground); }
+
+/* The piece of the app that is drawn: the Dood's panel, on the sheet, with notes beside it. */
+#stage { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; padding: 16px; border-radius: 14px; background: var(--background); box-shadow: inset 0 0 0 1px var(--border); }
+.notes { flex: 1; min-width: 240px; padding: 6px 4px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--muted-foreground); }
+.notes h2 { font-size: 16px; font-weight: 600; color: var(--foreground); letter-spacing: -0.015em; }
+.notes p { margin-top: 8px; }
+.notes ul { margin: 6px 0 0 17px; }
+.notes li { margin-top: 7px; padding-left: 2px; }
+.notes b { color: var(--foreground); font-weight: 550; }
+.notes .cost { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.notes .pick { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: color-mix(in oklch, var(--primary) 18%, var(--canvas)); color: var(--primary); vertical-align: 2px; letter-spacing: 0; }
+
+.aside { width: 372px; height: 800px; flex: none; position: relative; overflow: hidden; display: flex; flex-direction: column; border-radius: 16px; border: 1px solid var(--border); background: var(--rail); }
+.tallw .aside { height: 1150px; }
+.scroller { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+.ib { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--muted-foreground); flex: none; }
+.ib:hover { background: var(--accent); color: var(--foreground); }
+
+/* Its face, as today. */
+.face { flex: none; position: relative; padding: 40px 24px 20px; text-align: center; }
+.face .fresh { position: absolute; top: 10px; right: 10px; opacity: 0.6; }
+.face .big { width: 188px; height: 188px; object-fit: contain; animation: bob 3.4s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.an { display: flex; justify-content: center; align-items: center; gap: 7px; margin-top: 12px; font-size: 18px; font-weight: 500; }
+.as { font-size: 14px; color: var(--muted-foreground); margin-top: 3px; }
+
+/* The face once it has been scrolled away: a bar that stays. */
+.bar { position: absolute; inset: 0 0 auto 0; z-index: 3; height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 12px; background: color-mix(in oklch, var(--rail) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); transform: translateY(-101%); transition: transform 0.18s ease-out; }
+.bar.on { transform: none; }
+.bar img { width: 38px; height: 38px; object-fit: contain; }
+.bar b { font-weight: 500; font-size: 14.5px; }
+.bar span { font-size: 13px; color: var(--muted-foreground); }
+.bar .ib { margin-left: auto; }
+
+/* A section and its heading. */
+.sec { flex: none; border-top: 1px solid var(--border); }
+.sh { display: flex; align-items: center; gap: 6px; width: 100%; padding: 16px 20px 8px; text-align: left; font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
+.sh.f { padding: 12px 14px 8px 12px; cursor: pointer; }
+.sh.f:hover { color: var(--foreground); }
+.folded .sh.f { padding-bottom: 12px; }
+.car { transition: transform 0.15s; transform: rotate(90deg); opacity: 0.8; }
+.folded .car { transform: none; }
+.sum { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 400; white-space: nowrap; }
+.n { min-width: 20px; text-align: center; font-size: 11.5px; padding: 1px 6px; border-radius: 99px; background: var(--muted); font-variant-numeric: tabular-nums; }
+.hot { color: var(--foreground); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); flex: none; }
+.pulse { animation: pulse 1.1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+.rows { display: flex; flex-direction: column; gap: 2px; padding: 0 10px 12px; }
+.r { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; min-width: 0; flex: none; }
+.r:hover { background: var(--accent); }
+.r > .ic { color: var(--muted-foreground); }
+.r > img { width: 32px; height: 32px; object-fit: contain; flex: none; }
+.sq { width: 32px; height: 32px; border-radius: 9px; background: var(--muted); display: grid; place-items: center; flex: none; color: var(--muted-foreground); }
+.rt { min-width: 0; flex: 1; }
+.t1, .t2 { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t1 { font-size: 14px; }
+.t2 { font-size: 12px; color: var(--muted-foreground); }
+.t2.hot { color: var(--foreground); }
+.r.one { padding: 8px 10px; }
+.r.one .t1 { flex: 1; min-width: 0; }
+.r small { font-size: 12px; color: var(--muted-foreground); flex: none; }
+.mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 13px; }
+.more { align-self: flex-start; margin: 2px 0 0 10px; padding: 4px 10px; border-radius: 8px; font-size: 12.5px; color: var(--muted-foreground); }
+.more:hover { background: var(--accent); color: var(--foreground); }
+
+/* What is pinned: the first as the page itself drawn small, the rest as rows. */
+.tile { display: block; margin: 0 2px 6px; border-radius: 12px; box-shadow: var(--elevation-raised); background: var(--card); overflow: hidden; flex: none; }
+.pv { overflow: hidden; position: relative; padding: 14px 14px 0; background: var(--background); }
+.pv::after { content: ""; position: absolute; inset: auto 0 0 0; height: 26px; background: linear-gradient(transparent, var(--background)); }
+.pvt { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+.pvs { font-size: 9.5px; color: var(--muted-foreground); margin-top: 1px; }
+.pvn { font-size: 10px; color: var(--muted-foreground); margin: 9px 0 10px; }
+.pvn b { font-size: 21px; color: var(--foreground); font-weight: 600; margin-right: 3px; }
+.pvc { border-radius: 9px; background: var(--card); box-shadow: var(--elevation-raised); padding: 9px 11px 10px; font-size: 10.5px; line-height: 1.5; color: var(--muted-foreground); margin-bottom: 8px; }
+.pvc small { font-size: 9px; display: block; }
+.pvc u { display: block; color: oklch(0.78 0.11 350); font-weight: 600; font-size: 11.5px; margin: 2px 0 5px; }
+.tf { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 14px; border-top: 1px solid var(--hairline); }
+.tf .ic { color: oklch(0.78 0.13 75); }
+.tf b { font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf time { font-size: 12px; color: var(--muted-foreground); }
+
+/* Today: every section takes a share of the height and scrolls by itself; the last has what is left. */
+.old { display: flex; flex-direction: column; }
+.old .rows { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+.cap30 { max-height: 30%; }
+.cap40 { max-height: 40%; }
+.rest { flex: 1; min-height: 0; }
+
+/* B: tabs under the face. */
+.face.short { padding: 26px 24px 14px; }
+.face.short .big { width: 150px; height: 150px; }
+.tabsb { flex: none; display: flex; gap: 2px; margin: 0 12px 4px; padding: 3px; border-radius: 10px; background: var(--muted); }
+.tb { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; padding: 6px 0; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
+.tb:hover { color: var(--foreground); }
+.tb.on { background: var(--card); box-shadow: var(--elevation-raised); color: var(--foreground); }
+.sub { padding: 14px 20px 6px; font-size: 12.5px; font-weight: 500; color: var(--muted-foreground); }
+.tabbody { padding-top: 6px; }
+.tabbody .tile { margin: 6px 12px 8px; }

@@ -3,7 +3,16 @@ import type { APIRequestContext, Page } from "@playwright/test"
 import { FIXED_TOKEN, startFakeMcp } from "./fake-mcp-server.ts"
 import { BOT_TOKEN, mention, SIGNING_SECRET, startFakeSlack } from "./fake-slack-server.ts"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, openSettings, owner, signIn, tool } from "./helpers.ts"
+import {
+  asOwner,
+  composer,
+  openSettings,
+  owner,
+  sectionHeading,
+  signIn,
+  tool,
+  unfold,
+} from "./helpers.ts"
 
 asOwner()
 
@@ -119,6 +128,9 @@ test.describe("slack", () => {
     expect(slack.posts()[0]!.text).toContain("You said: when is the launch?")
 
     // The thread is one of the agent's conversations, listed in its panel and not in the sidebar.
+    // They are folded under their heading until they are asked for, which says how they stand.
+    await expect(sectionHeading(page, "From Slack")).toHaveText(/From Slack\s*Answered\s*1/)
+    await unfold(page, "From Slack")
     const threads = page.getByRole("list", { name: "From Slack" })
     const row = threads.getByRole("link", { name: /when is the launch\?/ })
     await expect(row).toContainText("#launch · answered")
@@ -168,6 +180,7 @@ test.describe("slack", () => {
     await say(page.request, agentId, mention("UDANA", '/tool sums__add {"a":19,"b":23}'))
     await expect.poll(() => slack.posts().at(-1)?.text).toContain("sum is 42")
     expect(slack.posts()).toHaveLength(before + 1)
+    await unfold(page, "From Slack")
     const threads = page.getByRole("list", { name: "From Slack" })
     await threads.getByRole("link", { name: /sums__add/ }).click()
     const transcript = page.getByRole("log")
@@ -213,6 +226,7 @@ test.describe("slack", () => {
     await say(page.request, agentId, first)
     await expect.poll(() => slack.posts()).toHaveLength(before + 1)
     // The message says what came with it, and the file is in the library, whole.
+    await unfold(page, "From Slack")
     const row = page
       .getByRole("list", { name: "From Slack" })
       .getByRole("link", { name: /keep this for me/ })
@@ -264,6 +278,7 @@ test.describe("slack", () => {
     expect(response.status()).toBe(404)
     // What was said before can still be read.
     await page.keyboard.press("Escape")
+    await unfold(page, "From Slack")
     await expect(page.getByRole("list", { name: "From Slack" }).getByRole("link")).toHaveCount(3)
   })
 })

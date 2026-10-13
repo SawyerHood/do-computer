@@ -109,6 +109,44 @@ export const foldedWorkspacesAtom = atom(
   },
 )
 
+const PANEL_FOLDS_KEY = "dc-panel-folds"
+
+function keptFolds(): Readonly<Record<string, boolean>> {
+  if (typeof window === "undefined") return {}
+  try {
+    const found: unknown = JSON.parse(localStorage.getItem(PANEL_FOLDS_KEY) ?? "{}")
+    if (typeof found !== "object" || found === null) return {}
+    return Object.fromEntries(
+      Object.entries(found).filter((entry): entry is [string, boolean] => {
+        return typeof entry[1] === "boolean"
+      }),
+    )
+  } catch {
+    // Storage can be unavailable, or hold something else; then each is as it starts.
+    return {}
+  }
+}
+
+const panelFolds = atom(keptFolds())
+
+/**
+ * The sections of an agent's panel that were folded or opened by hand, by section: true where it
+ * was left folded. One that was never touched is not here and is as it starts. They are kept for
+ * every agent alike, so a section put away once is away beside all of them.
+ */
+export const panelFoldsAtom = atom(
+  (get) => get(panelFolds),
+  (get, set, section: string, folded: boolean) => {
+    const next = { ...get(panelFolds), [section]: folded }
+    set(panelFolds, next)
+    try {
+      localStorage.setItem(PANEL_FOLDS_KEY, JSON.stringify(next))
+    } catch {
+      // The choice then lasts for this page only.
+    }
+  },
+)
+
 /**
  * The place in the sidebar where the library puts its list of files while the Library tab is
  * showing, in place of the agents. Null when the sidebar is not on screen.

@@ -21,7 +21,8 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useAtomValue, useSetAtom } from "jotai"
-import { useMemo } from "react"
+import { type ReactNode, useMemo, useRef, useState } from "react"
+import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { CreatureCare } from "@/components/creature/care"
 import { PinnedShelf } from "@/components/pins/shelf"
 import { RowsPlaceholder } from "@/components/placeholders"
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils"
 
 import { ThreadRows } from "./agent-threads.tsx"
 import { JobRows, waitingWords } from "./commands.tsx"
+import { PanelSection } from "./panel-section.tsx"
 import { SlackRows } from "./slack-threads.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
 import { UseNow } from "./uses.tsx"
@@ -47,6 +49,12 @@ import { SubagentBrood, SubagentRows, subagentSeed, subagentWords } from "./suba
 
 /** How many of the latest pieces of work are listed. */
 const SHOWN = 30
+
+/** How many of them are listed until the rest are asked for. */
+const FIRST = 5
+
+/** How tall the bar is that stands in for the face once it has been scrolled away, in pixels. */
+const BAR = 52
 
 /** What it is doing, in a few words. The transcript's own line has the particulars. */
 function moodWords(mood: MascotMood, hatched: boolean): string {
@@ -196,10 +204,40 @@ function Shared({
 }
 
 /**
+ * What a folded list of conversations says of them: that some want an OK, that one is being
+ * answered, or that every one has had its answer.
+ */
+function threadsSaid(threads: ChatSummary[]): ReactNode {
+  const waiting = threads.filter((thread) => thread.status === "waiting").length
+  if (waiting > 0) {
+    return (
+      <>
+        <span className="text-foreground">{waiting} waiting</span>
+        <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
+      </>
+    )
+  }
+  if (threads.some((thread) => thread.status === "working")) {
+    return (
+      <>
+        Answering
+        <Spinner className="size-3.5" />
+      </>
+    )
+  }
+  const answered = threads.every((thread) => (thread.status ?? "done") === "done")
+  return answered ? (threads.length === 1 ? "Answered" : "All answered") : undefined
+}
+
+/**
  * The agent, beside its chat: its creature at a size where it can be watched, what it is doing,
  * what it has shared here and what it has done here. The transcript keeps only what was said; this
  * is where the work behind an answer can be opened and read, and a file found without scrolling
  * back to where it was sent.
+ *
+ * All of it scrolls as one, the face with it; a bar with the agent's name takes the face's place
+ * at the top once it has gone. Each section folds under its heading, so that a panel with a lot
+ * in it can be cut down to what is wanted.
  */
 export function AgentPanel({
   agent,
@@ -262,6 +300,17 @@ export function AgentPanel({
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
   const files = useMemo(() => sentFiles(state), [state])
   const using = useMemo(() => chatUses(state).at(-1), [state])
+  // Whether every piece of work is listed, or only the latest few.
+  const [allRuns, setAllRuns] = useState(false)
+  const scroller = useRef<HTMLDivElement>(null)
+  const nameplate = useRef<HTMLDivElement>(null)
+  // Whether the agent's name has gone up under where the bar is.
+  const [tucked, setTucked] = useState(false)
+  const follow = () => {
+    const [box, plate] = [scroller.current, nameplate.current]
+    if (box === null || plate === null) return
+    setTucked(plate.getBoundingClientRect().bottom <= box.getBoundingClientRect().top + BAR)
+  }
   const agentName = agent.name ?? "New Dood"
   const name = subagent?.title ?? agentName
   // A sub-agent at rest says how it ended; one at work says what it is doing.
@@ -272,6 +321,7 @@ export function AgentPanel({
       : subagent !== undefined && mood.state === "idle"
         ? subagentWords(subagent.status)
         : moodWords(mood, agent.hatched)
+  const seed = subagent === undefined ? undefined : subagentSeed(agent.id, subagent.chatId)
   return (
     <aside
       aria-label={`About ${name}`}
@@ -279,7 +329,7 @@ export function AgentPanel({
       style={{ width }}
     >
       <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
-      {/* Rarely wanted, so it is out of the way in the corner. */}
+      {/* Rarely wanted, so it is out of the way in the corner. It stays there over the bar. */}
       {startFresh === undefined ? null : (
         <Button
           variant="ghost"
@@ -288,125 +338,193 @@ export function AgentPanel({
           title={startFresh.title}
           disabled={startFresh.disabled}
           onClick={startFresh.run}
-          className="absolute top-2.5 right-2.5 size-7 text-muted-foreground/60"
+          className="absolute top-2.5 right-2.5 z-20 size-7 text-muted-foreground/60"
         >
           <ArrowsClockwiseIcon />
         </Button>
       )}
-      <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
-        {/* Its treats and its box are beside the agent's own creature, not a sub-agent's. */}
-        {subagent === undefined ? <CreatureCare agent={agent}>{face}</CreatureCare> : face}
-        {subagent === undefined ? <SubagentBrood agentId={agent.id} subagents={subagents} /> : null}
-        <div className="mt-3 flex items-center gap-0.5">
-          <h2 className="text-lg font-medium">{name}</h2>
-          {subagent !== undefined || !agent.hatched ? null : (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`${name}'s wardrobe`}
-              title="Wardrobe"
-              onClick={() => openWardrobe(true)}
-              className="-mr-8 size-7 text-muted-foreground/70"
-            >
-              <TShirtIcon />
-            </Button>
+      {tucked ? (
+        // The face has been scrolled away: who this is and what it is doing stay in sight, and
+        // a press brings the face back.
+        <button
+          type="button"
+          aria-label={`Back to ${name}`}
+          title="Back to the top"
+          onClick={() => scroller.current?.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{ height: BAR }}
+          className="absolute inset-x-0 top-0 z-10 flex animate-in cursor-default items-center gap-2.5 border-b bg-background pr-11 pl-3 text-left duration-150 outline-none slide-in-from-top-2 fade-in focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:ring-inset"
+        >
+          {/* Over the page's color, the panel's own tint, as the rest of the panel has. */}
+          <span aria-hidden className="absolute inset-0 bg-rail/50" />
+          {seed === undefined ? (
+            <AgentFace agent={agent} className="relative size-9 shrink-0" quiet />
+          ) : (
+            <AgentAvatar
+              avatar={null}
+              seed={seed}
+              mood={mood}
+              className="relative size-9 shrink-0"
+              quiet
+            />
           )}
-        </div>
-        {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
-        {loading ? (
-          // Not "Ready": nothing has been heard from it yet.
-          <div data-loading aria-busy="true" className="placeholder-late flex h-5 items-center">
-            <Skeleton className="h-2.5 w-16 rounded-full" />
+          <span className="relative truncate text-sm font-medium">{name}</span>
+          {loading ? null : (
+            <span className="relative min-w-0 flex-1 truncate text-sm text-muted-foreground">
+              {doing}
+            </span>
+          )}
+        </button>
+      ) : null}
+      <div ref={scroller} onScroll={follow} className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
+          {/* Its treats and its box are beside the agent's own creature, not a sub-agent's. */}
+          {subagent === undefined ? <CreatureCare agent={agent}>{face}</CreatureCare> : face}
+          {subagent === undefined ? (
+            <SubagentBrood agentId={agent.id} subagents={subagents} />
+          ) : null}
+          <div ref={nameplate} className="flex flex-col items-center gap-1">
+            <div className="mt-3 flex items-center gap-0.5">
+              <h2 className="text-lg font-medium">{name}</h2>
+              {subagent !== undefined || !agent.hatched ? null : (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`${name}'s wardrobe`}
+                  title="Wardrobe"
+                  onClick={() => openWardrobe(true)}
+                  className="-mr-8 size-7 text-muted-foreground/70"
+                >
+                  <TShirtIcon />
+                </Button>
+              )}
+            </div>
+            {/* The line in the transcript is the one announced; this repeats it beside the creature. */}
+            {loading ? (
+              // Not "Ready": nothing has been heard from it yet.
+              <div data-loading aria-busy="true" className="placeholder-late flex h-5 items-center">
+                <Skeleton className="h-2.5 w-16 rounded-full" />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">{doing}</p>
+            )}
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{doing}</p>
+          {subagent === undefined ? null : (
+            <p className="mt-1 text-xs text-muted-foreground">
+              A sub-agent of {agentName}
+              {subagent.parentTitle === undefined ? "" : `, for “${subagent.parentTitle}”`}
+            </p>
+          )}
+          {reconnecting ? (
+            <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p>
+          ) : null}
+        </div>
+        {/* What is pinned to the agent is the agent's, not a sub-agent's. */}
+        {subagent === undefined ? <PinnedShelf agentId={agent.id} onOpen={onOpenFile} /> : null}
+        {using === undefined ? null : (
+          // The last screen the agent used here may still be its own; the section says when it is.
+          <AgentIdContext value={agent.id}>
+            <UseNow key={using.id} use={using} chatId={chatId} />
+          </AgentIdContext>
         )}
-        {subagent === undefined ? null : (
-          <p className="mt-1 text-xs text-muted-foreground">
-            A sub-agent of {agentName}
-            {subagent.parentTitle === undefined ? "" : `, for “${subagent.parentTitle}”`}
-          </p>
+        {running.length === 0 ? null : (
+          <PanelSection
+            id="running"
+            title="Running in the background"
+            count={running.length}
+            said={<Spinner className="size-3.5" />}
+          >
+            <div className="px-2.5 pb-3">
+              <JobRows agentId={agent.id} jobs={running} />
+            </div>
+          </PanelSection>
         )}
-        {reconnecting ? <p className="mt-1 text-xs text-muted-foreground">reconnecting…</p> : null}
-      </div>
-      {/* What is pinned to the agent is the agent's, not a sub-agent's. */}
-      {subagent === undefined ? <PinnedShelf agentId={agent.id} onOpen={onOpenFile} /> : null}
-      {using === undefined ? null : (
-        // The last screen the agent used here may still be its own; the section says when it is.
-        <AgentIdContext value={agent.id}>
-          <UseNow key={using.id} use={using} chatId={chatId} />
-        </AgentIdContext>
-      )}
-      {running.length === 0 ? null : (
-        <div className="flex max-h-[40%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            Running in the background
-          </h3>
-          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
-            <JobRows agentId={agent.id} jobs={running} />
-          </div>
-        </div>
-      )}
-      {subagent !== undefined || subagents.length === 0 ? null : (
-        <div className="flex max-h-[40%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            Sub-agents at work
-          </h3>
-          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
-            <SubagentRows agentId={agent.id} subagents={subagents} />
-          </div>
-        </div>
-      )}
-      {subagent !== undefined || threads.length === 0 ? null : (
-        <div className="flex max-h-[30%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            From other Doods
-          </h3>
-          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
-            <ThreadRows agentId={agent.id} threads={threads} />
-          </div>
-        </div>
-      )}
-      {subagent !== undefined || slack.length === 0 ? null : (
-        <div className="flex max-h-[30%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            From Slack
-          </h3>
-          <div className="min-h-0 overflow-y-auto px-2.5 pb-3">
-            <SlackRows agentId={agent.id} threads={slack} current={chatId} />
-          </div>
-        </div>
-      )}
-      {presence}
-      {onOpenFile === undefined || files.length === 0 ? null : (
-        <section aria-label="Shared here" className="flex max-h-[30%] shrink-0 flex-col border-t">
-          <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-            Shared here
-          </h3>
-          <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2.5 pb-3">
-            {files.map((file) => (
-              <Shared key={file.id} agentId={agent.id} file={file} onOpen={onOpenFile} />
-            ))}
-          </ul>
-        </section>
-      )}
-      <div hidden={chatless} className="flex min-h-0 flex-1 flex-col border-t">
-        <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-          What it did here
-        </h3>
-        {loading ? (
-          <RowsPlaceholder className="px-2.5" />
-        ) : runs.length === 0 ? (
-          <p className="px-5 text-sm text-muted-foreground">
-            Nothing yet. When {name} gets something substantial done in this chat, it notes it here,
-            with its steps inside.
-          </p>
-        ) : (
-          <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-4">
-            {runs.map((run) => (
-              <Work key={run.id} run={run} />
-            ))}
-          </ul>
+        {subagent !== undefined || subagents.length === 0 ? null : (
+          <PanelSection
+            id="subagents"
+            title="Sub-agents at work"
+            count={subagents.length}
+            said={<Spinner className="size-3.5" />}
+          >
+            <div className="px-2.5 pb-3">
+              <SubagentRows agentId={agent.id} subagents={subagents} />
+            </div>
+          </PanelSection>
+        )}
+        {subagent !== undefined || threads.length === 0 ? null : (
+          // Mostly read and done with, so they are folded until they are wanted.
+          <PanelSection
+            id="doods"
+            title="From other Doods"
+            count={threads.length}
+            said={threadsSaid(threads)}
+            startsFolded
+          >
+            <div className="px-2.5 pb-3">
+              <ThreadRows agentId={agent.id} threads={threads} />
+            </div>
+          </PanelSection>
+        )}
+        {subagent !== undefined || slack.length === 0 ? null : (
+          <PanelSection
+            id="slack"
+            title="From Slack"
+            count={slack.length}
+            said={threadsSaid(slack)}
+            startsFolded
+          >
+            <div className="px-2.5 pb-3">
+              <SlackRows agentId={agent.id} threads={slack} current={chatId} />
+            </div>
+          </PanelSection>
+        )}
+        {presence}
+        {onOpenFile === undefined || files.length === 0 ? null : (
+          <PanelSection id="shared" title="Shared here" count={files.length} startsFolded>
+            <ul className="flex flex-col gap-0.5 px-2.5 pb-3">
+              {files.map((file) => (
+                <Shared key={file.id} agentId={agent.id} file={file} onOpen={onOpenFile} />
+              ))}
+            </ul>
+          </PanelSection>
+        )}
+        {chatless ? null : (
+          <PanelSection
+            id="did"
+            title="What it did here"
+            count={runs.length === 0 ? undefined : runs.length}
+            said={
+              runs.some((run) => run.status === "working") ? (
+                <Spinner className="size-3.5" />
+              ) : undefined
+            }
+          >
+            {loading ? (
+              <RowsPlaceholder className="px-2.5 pb-4" />
+            ) : runs.length === 0 ? (
+              <p className="px-5 pb-4 text-sm text-muted-foreground">
+                Nothing yet. When {name} gets something substantial done in this chat, it notes it
+                here, with its steps inside.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-0.5 px-2.5 pb-4">
+                <ul className="flex flex-col gap-0.5">
+                  {(allRuns ? runs : runs.slice(0, FIRST)).map((run) => (
+                    <Work key={run.id} run={run} />
+                  ))}
+                </ul>
+                {runs.length <= FIRST ? null : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAllRuns(!allRuns)}
+                    className="ml-0.5 self-start font-normal text-muted-foreground"
+                  >
+                    {allRuns ? "Show fewer" : `Show ${runs.length - FIRST} more`}
+                  </Button>
+                )}
+              </div>
+            )}
+          </PanelSection>
         )}
       </div>
     </aside>

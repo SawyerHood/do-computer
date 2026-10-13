@@ -29,6 +29,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { askAgain, endUse, holdUse, useLiveView } from "@/lib/use-live-view"
 import { cn } from "@/lib/utils"
+import { PanelSection } from "./panel-section.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
 
 /** The uses of the chat on screen, by the id of the call each begins with, and the chat's own id. */
@@ -588,10 +589,7 @@ export function UseNow({ use, chatId }: { use: Use; chatId: string | undefined }
   const stop = useStop(use)
   if (!live) return null
   return (
-    <section aria-label={`On ${use.computer.name} now`} className="shrink-0 border-t">
-      <h3 className="px-5 pt-4 pb-2 text-[0.8125rem] font-medium text-muted-foreground">
-        On {use.computer.name} now
-      </h3>
+    <PanelSection id="screen" title={`On ${use.computer.name} now`}>
       <div className="flex items-center gap-2.5 px-2.5 pb-3">
         <button
           type="button"
@@ -616,6 +614,6 @@ export function UseNow({ use, chatId }: { use: Use; chatId: string | undefined }
           Stop
         </Button>
       </div>
-    </section>
+    </PanelSection>
   )
 }

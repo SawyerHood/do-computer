@@ -6681,6 +6681,42 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       macOS, Windows, an owner's own Chrome with its real prompt; the desktop app, which needs
       a release for its daemon to pay; the phone's code box, which was type-checked only.
 
+87. **The sections of a Dood's panel fold, and the panel scrolls as one** (2026-10-13;
+    `apps/web/src/components/chat/panel-section.tsx`, `agent-panel.tsx`). The owner, of a
+    panel with a pin, a thread from another Dood and four from Slack in it: "this panel is a
+    little crammed when you have lots of stuff ... i wonder if these sections could be
+    collapsable". Before this each section had a share of the panel's height and a scroll
+    area of its own, and the last, What it did here, had what was left: in a window 800px
+    tall the face and a pin took most of it and the sections after them were cut off, with
+    nothing that scrolled to them. `prototypes/panel-sections` drew that and three ways out
+    (folding sections, tabs, short lists); the owner chose folding: "Yeah build A please".
+    - **Every section is a `PanelSection`**: a heading that is a button, with a caret, the
+      section's name and how many are in it. Pinned, the screen it is on, Running in the
+      background, Sub-agents at work, From other Doods, From Slack, Here now, Shared here and
+      What it did here all fold. What is folded is not drawn.
+    - **Folded, a heading still says how things stand** (`said`): how many threads are
+      waiting for an OK, that one is being answered, or that all were answered; a spinner
+      where something is running. Nothing opens a section but a press.
+    - **How a section was left is kept** in the browser (`dc-panel-folds`, `panelFoldsAtom`),
+      by section and for every Dood alike. One never touched is as it starts: From other
+      Doods, From Slack and Shared here start folded, the rest open.
+    - **The panel scrolls as one**, the face with it. Once the Dood's name has gone under the
+      top, a bar there has its face small, its name and what it is doing; a press on the bar
+      scrolls back to the face. Start fresh stays in the corner over it.
+    - **What it did here lists its latest five**, with "Show 2 more" for the rest of the
+      thirty it keeps.
+    - **Mine:** what starts folded; that a folded section with something new does not open
+      by itself; that folds are kept for every Dood and not for each; the bar, and that it
+      scrolls back when pressed; five and a "Show more"; that the screen and Here now fold
+      too, so every heading is alike. The owner was told each of these with the mock-up and
+      with the recommendation, and answered with the direction only.
+    - **Checked:** `e2e/layout.spec.ts` (folding, what is kept over a reload, the count, show
+      more, the bar in a short window and back), `e2e/slack.spec.ts` (a folded heading saying
+      "Answered"), and by eye, dark and light, in a panel with two pins, two files and seven
+      pieces of work.
+    - **Not checked:** the headings of a thread waiting for an OK or being answered, a
+      command running, sub-agents and Here now by eye; Safari; a deployed Worker.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
