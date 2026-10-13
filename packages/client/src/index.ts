@@ -37,9 +37,11 @@ import {
   type InvitationPreview,
   type InviteRequest,
   type InviteResult,
+  type Json,
   type LibraryFile,
   type LibraryListing,
   type LibraryVersion,
+  type McpAppToolResult,
   type AnswerModelLoginRequest,
   type ModelLogin,
   type ModelOption,
@@ -799,6 +801,23 @@ export function createClient(options: ClientOptions) {
           patch<ConnectorSummary>(`${base}/connectors/${connectorId}`, { enabled }),
         removeConnector: (connectorId: string) =>
           request<{ ok: true }>(`${base}/connectors/${connectorId}`, { method: "DELETE" }),
+        /** Where a page a connector's server gave for one of its tools is served from. */
+        appPageUrl: (pageId: string) => `${options.baseUrl}${base}/apps/${pageId}`,
+        /**
+         * Use one of a connector's tools for one of its server's pages. `needsConsent` comes
+         * back where the tool may change something and the person has not yet said yes.
+         */
+        appCall: (
+          connectorId: string,
+          call: { tool: string; arguments: Record<string, unknown>; confirmed?: boolean },
+        ) =>
+          post<McpAppToolResult | { needsConsent: { tool: string; description: string } }>(
+            `${base}/connectors/${connectorId}/app-call`,
+            call,
+          ),
+        /** Read something of a connector's server for one of its pages. */
+        appRead: (connectorId: string, uri: string) =>
+          post<{ contents: Json[] }>(`${base}/connectors/${connectorId}/app-read`, { uri }),
         /** Say no, for now, to signing in to a connector the agent added. The agent is told. */
         dismissConnector: (connectorId: string) =>
           post<{ ok: true }>(`${base}/connectors/${connectorId}/dismiss`),

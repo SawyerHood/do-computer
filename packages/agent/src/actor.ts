@@ -27,6 +27,7 @@ import {
   type ModelOption,
   NEW_CREATURE,
   parseAvatar,
+  mcpAppContentSecurityPolicy,
   parseOutfit,
   rollItem,
   type SendMessageRequest,
@@ -83,7 +84,7 @@ import { createEditTool, createReadTool, createWriteTool } from "@earendil-works
 import { ApprovalError, Approvals, ApprovalsDoc } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentMeta } from "./caller.ts"
-import { ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
+import { AppNeedsConsent, ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { Followers } from "./followers.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
 import {
@@ -1142,6 +1143,7 @@ export class AgentActor implements Actor {
         fetch: this.#options.connectorFetch,
         allowPrivateHosts: this.#options.allowPrivateHosts,
         resolveHost: this.#options.resolveHost,
+        blobs: this.#host.blobs,
         redirectUrl: () => this.#connectorRedirect(),
         appsUrl: this.#options.appsUrl,
         // It can send mail as someone, so it starts out asking before it does anything.
@@ -1589,6 +1591,46 @@ export class AgentActor implements Actor {
         await connectors.dismiss(connectorId, context, caller)
         return json({ ok: true })
       }
+      // A page one of this connector's tools was shown with asks its server for something.
+      if (connectorId !== undefined && action === "app-call" && method === "POST") {
+        const asked = await body<{ tool?: unknown; arguments?: unknown; confirmed?: unknown }>(
+          request,
+        )
+        if (typeof asked.tool !== "string" || asked.tool === "") {
+          throw new HttpError(400, "tool is required")
+        }
+        const given = asked.arguments ?? {}
+        if (typeof given !== "object" || given === null || Array.isArray(given)) {
+          throw new HttpError(400, "arguments must be an object")
+        }
+        // A connector the agent itself asks before using is asked about for a page too.
+        const rule = await this.#approvals.ruleFor(`connector:${connectorId}`, context)
+        try {
+          return json(
+            await connectors.appCall(
+              connectorId,
+              {
+                tool: asked.tool,
+                arguments: given as Record<string, unknown>,
+                confirmed: asked.confirmed === true,
+                ask: rule === "ask",
+              },
+              context,
+            ),
+          )
+        } catch (error) {
+          if (!(error instanceof AppNeedsConsent)) throw error
+          // Not an error to the page's client: it asks the person, and asks again with a yes.
+          return json({ needsConsent: { tool: error.tool, description: error.description } })
+        }
+      }
+      if (connectorId !== undefined && action === "app-read" && method === "POST") {
+        const { uri } = await body<{ uri?: unknown }>(request)
+        if (typeof uri !== "string" || uri === "" || uri.length > 2000) {
+          throw new HttpError(400, "uri is required")
+        }
+        return json(await connectors.appRead(connectorId, uri, context))
+      }
       if (connectorId !== undefined && action === undefined && method === "PATCH") {
         const { enabled } = await body<{ enabled?: boolean }>(request)
         if (typeof enabled !== "boolean") throw new HttpError(400, "enabled must be true or false")
@@ -1598,6 +1640,23 @@ export class AgentActor implements Actor {
         await connectors.remove(connectorId, context)
         return json({ ok: true })
       }
+    }
+    // A page a connector's server gave for one of its tools, as it was kept when the tool was
+    // used. It is somebody else's page: it is served to be shown in a frame whose origin is
+    // nobody's, under a policy that lets it load only what its server said it needs.
+    if (segments[0] === "apps" && segments[2] === undefined && method === "GET") {
+      const page = await this.#connectors?.appPage(segments[1] ?? "")
+      if (page === undefined) throw new HttpError(404, "No such page")
+      return new Response(page.html.slice().buffer, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "content-security-policy": mcpAppContentSecurityPolicy(page.csp),
+          "x-content-type-options": "nosniff",
+          "referrer-policy": "no-referrer",
+          // Kept under a name made from what is in it, so it never changes.
+          "cache-control": "private, max-age=31536000, immutable",
+        },
+      })
     }
     if (segments[0] === "view" || segments[0] === "library") {
       // A workspace's library answers for itself. The agent's own is answered for here.

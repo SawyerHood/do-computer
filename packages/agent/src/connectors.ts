@@ -1,5 +1,20 @@
-import type { AddConnectorRequest, ConnectorResult, ConnectorSummary } from "@do-computer/protocol"
-import type { SqliteDatabase } from "@do-computer/runtime"
+import {
+  type AddConnectorRequest,
+  type ConnectorResult,
+  type ConnectorSummary,
+  type Json,
+  MAX_MCP_APP_BYTES,
+  MCP_APP_EXTENSION,
+  MCP_APP_MIME_TYPE,
+  type McpAppCsp,
+  type McpAppDetails,
+  type McpAppRef,
+  type McpAppToolResult,
+  mcpAppToolFor,
+  mcpAppUriOf,
+  readMcpAppCsp,
+} from "@do-computer/protocol"
+import type { BlobStore, SqliteDatabase } from "@do-computer/runtime"
 import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import { BlockedAddressError, checkAddress, guardedFetch } from "./guarded-fetch.ts"
@@ -36,6 +51,8 @@ export const MAX_CONNECTORS = 20
 /** Tools past this many per connector are not offered: every tool costs prompt space each turn. */
 const MAX_TOOLS_PER_CONNECTOR = 60
 const EXTENSION_NAME = "dc.connectors"
+/** Where, among an agent's blobs, the pages servers give for their tools are kept. */
+const APP_PREFIX = "apps/"
 const TOOL = "connectors"
 /** How many of a connector's tools are named when the agent lists its connectors. */
 const MAX_TOOLS_NAMED = 12
@@ -86,7 +103,55 @@ const NUDGE =
   '<meta kind="connector">Word about a connector you asked for is above. Carry on with what you wanted it for, or tell the user where things stand.</meta>'
 
 type Turn = Awaited<ReturnType<Conversation["submit"]>>
-const CLIENT = { name: "do-computer", version: "0.1.0" }
+// A server is told that pages for its tools are taken here, or it does not offer them.
+const CLIENT = {
+  name: "do-computer",
+  version: "0.1.0",
+  // The client's own types do not know of extensions yet; it sends what it is given as it is.
+  capabilities: {
+    extensions: { [MCP_APP_EXTENSION]: { mimeTypes: [MCP_APP_MIME_TYPE] } },
+  } as unknown as { experimental?: Record<string, unknown> },
+}
+
+/** How long a server's page for a tool is taken to be what it was when it was last read. */
+const APP_FRESH_MS = 60_000
+/** The most a page may ask to have read for it at once, as text. */
+const MAX_APP_READ_CHARS = 2 * 1024 * 1024
+
+/** What an app's page asked for that is not done without the person saying so. */
+export class AppNeedsConsent extends Error {
+  constructor(
+    readonly tool: string,
+    readonly description: string,
+  ) {
+    super(`${tool} is not run for a page without the person saying so.`)
+  }
+}
+
+const hex = (bytes: ArrayBuffer) =>
+  [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+
+/** A tool's answer as a page is told it: what MCP says it is, and no more of it than fits. */
+function appResult(result: {
+  content?: unknown
+  structuredContent?: unknown
+  isError?: boolean
+}): McpAppToolResult {
+  const content = bounded(
+    (Array.isArray(result.content) ? result.content : []) as { type: string }[],
+  ) as unknown as Json[]
+  const structured = result.structuredContent
+  const fits =
+    typeof structured === "object" &&
+    structured !== null &&
+    !Array.isArray(structured) &&
+    JSON.stringify(structured).length <= MAX_RESULT_CHARS
+  return {
+    content,
+    ...(fits ? { structuredContent: structured as { [key: string]: Json } } : {}),
+    ...(result.isError === true ? { isError: true } : {}),
+  }
+}
 
 type ConnectorRecord = Omit<ConnectorSummary, "id">
 type ConnectorsState = { connectors: Record<string, ConnectorRecord> }
@@ -151,6 +216,11 @@ export type ConnectorsOptions = {
     input: { chatId: string; name: string; url: string },
     context: Context,
   ) => Promise<{ fresh: boolean }>
+  /**
+   * Where the pages servers give for their tools are kept, to be shown with the tools'
+   * answers. Without it no page is kept, and a tool that has one is only its answer.
+   */
+  readonly blobs?: BlobStore
   /** Where Apps is. Only a test's stand-in is anywhere but at Composio. */
   readonly appsUrl?: string
   /** Called with the id of an Apps connector when it is added, before it is connected. */
@@ -194,6 +264,8 @@ export class Connectors {
   readonly #options: ConnectorsOptions
   readonly #fetch: McpFetch
   readonly #clients = new Map<string, Promise<McpClient>>()
+  /** The pages read lately, by connector and address, so that each use of a tool does not read one again. */
+  readonly #pages = new Map<string, { at: number; app: Omit<McpAppRef, "tool"> | undefined }>()
   #harness: Harness | undefined
   #ready: Promise<void> | undefined
 
@@ -657,7 +729,8 @@ export class Connectors {
     for (const connector of await this.list(context)) {
       if (!connector.enabled || connector.status !== "connected") continue
       for (const tool of (await this.#secrets(connector.id)).tools ?? []) {
-        tools.push(this.#tool(connector, tool))
+        // A tool a server keeps for its own pages is not one for the agent.
+        if (mcpAppToolFor(tool._meta).model) tools.push(this.#tool(connector, tool))
       }
     }
     this.#options.install(defineExtension({ name: EXTENSION_NAME, tools }))
@@ -852,6 +925,132 @@ export class Connectors {
     return `${lead}${did === "Added" ? ", but it" : ""} could not be connected: ${connector.error ?? "it did not answer"}. If the address is wrong, remove it and add it again with the right one. If it needs an access token, remove it and add it again with needs_token.`
   }
 
+  /**
+   * The page a connector's server gives at `uri`, kept so that it can be shown: read from the
+   * server, unless it was read a moment ago. Undefined where there is nowhere to keep it, or
+   * the server gives nothing that is a page, or more than is kept. A page is kept under a name
+   * made from what is in it, so the same page is kept once however often it is read.
+   */
+  async #page(
+    connector: ConnectorSummary,
+    uri: string,
+  ): Promise<Omit<McpAppRef, "tool"> | undefined> {
+    const blobs = this.#options.blobs
+    if (blobs === undefined) return undefined
+    const key = `${connector.id}\n${uri}`
+    const lately = this.#pages.get(key)
+    if (lately !== undefined && this.#options.now() - lately.at < APP_FRESH_MS) return lately.app
+    let app: Omit<McpAppRef, "tool"> | undefined
+    try {
+      const client = await this.#client(connector.id, connector.url)
+      const read = await client.readResource(uri)
+      const page = read.contents.find((each) => each.uri === uri) ?? read.contents[0]
+      const { text, blob, mimeType, _meta } = (page ?? {}) as {
+        text?: unknown
+        blob?: unknown
+        mimeType?: unknown
+        _meta?: { ui?: { csp?: unknown; prefersBorder?: unknown } }
+      }
+      const html =
+        typeof text === "string"
+          ? new TextEncoder().encode(text)
+          : typeof blob === "string"
+            ? Uint8Array.from(atob(blob), (char) => char.charCodeAt(0))
+            : undefined
+      const isPage = typeof mimeType === "string" && mimeType.toLowerCase().startsWith("text/html")
+      if (html !== undefined && isPage && html.length > 0 && html.length <= MAX_MCP_APP_BYTES) {
+        const id = hex(await crypto.subtle.digest("SHA-256", html)).slice(0, 32)
+        const csp = readMcpAppCsp(_meta?.ui?.csp)
+        const border = _meta?.ui?.prefersBorder
+        // What the page may load is kept beside it: it is what the page is served under.
+        const said = new TextEncoder().encode(JSON.stringify({ csp: csp ?? null }))
+        await blobs.put(`${APP_PREFIX}${id}.html`, html, { contentType: "text/html" })
+        await blobs.put(`${APP_PREFIX}${id}.json`, said, { contentType: "application/json" })
+        app = {
+          id,
+          connectorId: connector.id,
+          connector: connector.name,
+          uri,
+          ...(csp === undefined ? {} : { csp }),
+          ...(typeof border === "boolean" ? { border } : {}),
+        }
+      }
+    } catch {
+      // A page that could not be had leaves the tool's answer, which is all there was before.
+    }
+    this.#pages.set(key, { at: this.#options.now(), app })
+    return app
+  }
+
+  /** A page that was kept, and what it may load, by the name it was kept under. */
+  async appPage(id: string): Promise<{ html: Uint8Array; csp: McpAppCsp | undefined } | undefined> {
+    const blobs = this.#options.blobs
+    if (blobs === undefined || !/^[a-f0-9]{16,64}$/.test(id)) return undefined
+    const [page, said] = await Promise.all([
+      blobs.get(`${APP_PREFIX}${id}.html`),
+      blobs.get(`${APP_PREFIX}${id}.json`),
+    ])
+    if (page === undefined) return undefined
+    let csp: McpAppCsp | undefined
+    try {
+      const kept = said === undefined ? undefined : new TextDecoder().decode(await said.bytes())
+      csp =
+        kept === undefined ? undefined : readMcpAppCsp((JSON.parse(kept) as { csp?: unknown }).csp)
+    } catch {
+      // Unreadable, it may load nothing from anywhere, which is what it is served under then.
+    }
+    return { html: await page.bytes(), csp }
+  }
+
+  /** A connected connector and one of its tools as the server gave it, for a page that asks. */
+  async #forApp(
+    id: string,
+    name: string | undefined,
+    context: Context,
+  ): Promise<{ connector: ConnectorSummary; tool: McpTool | undefined }> {
+    const connector = await this.#get(id, context)
+    if (!connector.enabled || connector.status !== "connected") {
+      throw new ConnectorError(`${connector.name} is not connected.`)
+    }
+    const tools = (await this.#secrets(id)).tools ?? []
+    return { connector, tool: tools.find((each) => each.name === name) }
+  }
+
+  /**
+   * Use one of a connector's tools for one of its server's pages. A page may only use the tools
+   * of the server it came from, and only those the server lets a page use. One the server does
+   * not say only reads is not run until the person has said so: `AppNeedsConsent` says which.
+   */
+  async appCall(
+    id: string,
+    call: { tool: string; arguments: Record<string, unknown>; confirmed: boolean; ask: boolean },
+    context: Context,
+  ): Promise<McpAppToolResult> {
+    const { connector, tool } = await this.#forApp(id, call.tool, context)
+    if (tool === undefined || !mcpAppToolFor(tool._meta).app) {
+      throw new ConnectorError(`${connector.name} has no tool of that name for a page to use.`)
+    }
+    if (!call.confirmed && (call.ask || tool.annotations?.readOnlyHint !== true)) {
+      throw new AppNeedsConsent(tool.name, (tool.description ?? tool.title ?? "").slice(0, 300))
+    }
+    const client = await this.#client(connector.id, connector.url)
+    return appResult(
+      await client.callTool(tool.name, call.arguments, { signal: context.abortSignal }),
+    )
+  }
+
+  /** Read something of a connector's server for one of its pages. */
+  async appRead(id: string, uri: string, context: Context): Promise<{ contents: Json[] }> {
+    const { connector } = await this.#forApp(id, undefined, context)
+    const client = await this.#client(connector.id, connector.url)
+    const read = await client.readResource(uri, { signal: context.abortSignal })
+    const contents = read.contents as unknown as Json[]
+    if (JSON.stringify(contents).length > MAX_APP_READ_CHARS) {
+      throw new ConnectorError("That is more than a page can be given at once.")
+    }
+    return { contents }
+  }
+
   #tool(connector: ConnectorSummary, tool: McpTool): ToolRegistration {
     return {
       name: connectorToolName(connector.name, tool.name),
@@ -880,7 +1079,18 @@ export class Connectors {
             result = await call()
           }
           // MCP reports a failing tool in its result, not as a protocol error.
-          return { output: bounded(toLlmContent(result)), isError: result.isError === true }
+          const output = bounded(toLlmContent(result))
+          if (result.isError === true) return { output, isError: true }
+          // A tool with a page of its server's is shown as that page, with what it answered.
+          const uri = mcpAppUriOf(tool._meta)
+          const app = uri === undefined ? undefined : await this.#page(connector, uri)
+          if (app === undefined) return { output, isError: false }
+          const details: McpAppDetails = {
+            app: { ...app, tool: tool.name },
+            input: args as Json,
+            result: appResult(result),
+          }
+          return { output, isError: false, details: details as unknown as Json }
         } catch (error) {
           const message =
             error instanceof McpOAuthAuthorizationRequiredError

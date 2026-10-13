@@ -19,7 +19,39 @@ export type FakeMcpOptions = {
   iss?: boolean
   /** The authorization server publishes nothing about itself, so a client goes by the usual paths. */
   noMetadata?: boolean
+  /**
+   * The server has a page for one of its tools (an MCP App), and tools for that page to use.
+   * `page` is what it gives when the page is read: left out, a small page of its own.
+   */
+  apps?: boolean | { page: Record<string, unknown> }
 }
+
+/** The address of the page the server has for its `forecast` tool. */
+export const APP_URI = "ui://weather/forecast"
+export const APP_PAGE = "<!doctype html><title>Forecast</title><p id=out>…</p>"
+
+const APP_TOOLS = [
+  {
+    name: "forecast",
+    description: "The weather somewhere",
+    inputSchema: { type: "object", properties: { city: { type: "string" } } },
+    _meta: { ui: { resourceUri: APP_URI } },
+  },
+  {
+    name: "refresh",
+    description: "The weather again",
+    inputSchema: { type: "object" },
+    annotations: { readOnlyHint: true },
+  },
+  { name: "book", description: "Book a trip there", inputSchema: { type: "object" } },
+  {
+    name: "hourly",
+    description: "The weather hour by hour, for the page",
+    inputSchema: { type: "object" },
+    annotations: { readOnlyHint: true },
+    _meta: { ui: { visibility: ["app"] } },
+  },
+]
 
 const MCP_URL = "https://mcp.test/mcp"
 export const ISSUER = "https://auth.test"
@@ -47,6 +79,8 @@ const TOOLS = [
 export function fakeMcp(options: FakeMcpOptions = {}) {
   const calls: { tool: string; args: unknown; authorization: string | null }[] = []
   const requests: string[] = []
+  /** What each client said of itself when it connected. */
+  const clients: Record<string, unknown>[] = []
   let down = false
 
   const json = (value: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -127,11 +161,18 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
     const message = JSON.parse(String(init?.body)) as {
       id?: number | string
       method: string
-      params?: { name?: string; arguments?: Record<string, number>; protocolVersion?: string }
+      params?: {
+        name?: string
+        uri?: string
+        arguments?: Record<string, number>
+        protocolVersion?: string
+        capabilities?: Record<string, unknown>
+      }
     }
     const result = (value: unknown) => json({ jsonrpc: "2.0", id: message.id, result: value })
     switch (message.method) {
       case "initialize":
+        clients.push(message.params?.capabilities ?? {})
         return result({
           protocolVersion: message.params?.protocolVersion ?? "2025-06-18",
           capabilities: { tools: {} },
@@ -142,7 +183,36 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
       case "ping":
         return result({})
       case "tools/list":
-        return result({ tools: TOOLS })
+        return result({ tools: options.apps ? [...TOOLS, ...APP_TOOLS] : TOOLS })
+      case "resources/read": {
+        if (!options.apps || message.params?.uri !== APP_URI) {
+          return json({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: { code: -32002, message: "No such resource" },
+          })
+        }
+        return result({
+          contents: [
+            typeof options.apps === "object"
+              ? options.apps.page
+              : {
+                  uri: APP_URI,
+                  mimeType: "text/html;profile=mcp-app",
+                  text: APP_PAGE,
+                  _meta: {
+                    ui: {
+                      csp: {
+                        connectDomains: ["https://api.weather.example", "'unsafe-eval'"],
+                        resourceDomains: ["https://cdn.weather.example"],
+                      },
+                      prefersBorder: false,
+                    },
+                  },
+                },
+          ],
+        })
+      }
       case "tools/call": {
         const { name, arguments: args = {} } = message.params ?? {}
         calls.push({ tool: name ?? "", args, authorization })
@@ -154,6 +224,13 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
           })
         if (name === "always.fails")
           return result({ isError: true, content: [{ type: "text", text: "It broke." }] })
+        if (options.apps && name === "forecast")
+          return result({
+            content: [{ type: "text", text: "Sunny, 21 degrees" }],
+            structuredContent: { city: (args as { city?: string }).city ?? "here", high: 21 },
+          })
+        if (options.apps && (name === "refresh" || name === "hourly" || name === "book"))
+          return result({ content: [{ type: "text", text: `${name} done` }] })
         return json({
           jsonrpc: "2.0",
           id: message.id,
@@ -174,6 +251,7 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
     url: MCP_URL,
     calls,
     requests,
+    clients,
     /** Make every request fail as if the network were down, or restore it. */
     setDown: (value: boolean) => void (down = value),
   }
