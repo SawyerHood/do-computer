@@ -2,15 +2,25 @@ import { describe, expect, it } from "vitest"
 import {
   appThemeCss,
   DOCUMENT_GUIDE,
+  MAX_VISUAL_SAVE_BYTES,
+  MAX_VISUAL_SAY,
   PAGE_STYLE_GUIDE,
   PAGE_THEME_CSS,
   PAGE_THEME_VERSION,
   prepareVisual,
+  readVisualError,
+  readVisualMode,
+  readVisualSave,
+  readVisualSay,
   THEME_TOKEN_NAMES,
   THEME_TOKENS,
   themePage,
   themePageBytes,
   VISUAL_GUIDE,
+  visualModeMessage,
+  visualProblems,
+  visualRefusal,
+  visualResult,
   visualThemeFragment,
   visualThemeMessage,
 } from "../src/index.ts"
@@ -234,6 +244,7 @@ function open(options: { page?: string; hash?: string; framed?: boolean }) {
   const root = {
     hasAttribute: (name: string) => attributes.has(name),
     setAttribute: (name: string, value: string) => attributes.set(name, value),
+    removeAttribute: (name: string) => attributes.delete(name),
     style: { setProperty: (name: string, value: string) => variables.set(name, value) },
     scrollHeight: 312,
     clientHeight: 240,
@@ -261,7 +272,18 @@ function open(options: { page?: string; hash?: string; framed?: boolean }) {
   const say = (data: unknown, source: unknown = parent) => {
     for (const listener of heard.get("window:message") ?? []) listener({ data, source })
   }
-  return { attributes, variables, posted, heard, address, say, parent }
+  /** Something happening in the page: a script failing, say. */
+  const happen = (type: string, event: unknown) => {
+    for (const listener of heard.get(`window:${type}`) ?? []) listener(event)
+  }
+  const dc = window.dc as
+    | {
+        say(text: unknown): boolean
+        expand(large?: boolean): boolean
+        save(name: unknown, text: unknown, type?: unknown): boolean
+      }
+    | undefined
+  return { attributes, variables, posted, heard, address, say, happen, dc, parent }
 }
 
 describe("the few lines a page is given", () => {
@@ -315,6 +337,8 @@ describe("the few lines a page is given", () => {
     expect(page.attributes.has("data-dc-inline")).toBe(false)
     expect(page.posted).toEqual([])
     expect([...page.heard.keys()]).toEqual(["window:message"])
+    // Nor is it given the way to speak to a chat.
+    expect(page.dc).toBeUndefined()
   })
 
   it("say how tall a page that asked is, and lay a visual out as part of an answer", () => {
@@ -354,7 +378,233 @@ describe("the few lines a page is given", () => {
     ]) {
       expect(script).not.toContain(reach)
     }
-    // All it ever sends is a height, and a link the reader clicked.
-    expect(count(script, "postMessage(")).toBe(2)
+    // Everything it sends goes out by one door.
+    expect(count(script, "postMessage(")).toBe(1)
+  })
+
+  const inChat = () =>
+    open({ page: "visual", hash: visualThemeFragment({ ...dark, inline: true }) })
+
+  it("let a page in a chat speak to it: words for the message box, large, a file", () => {
+    const page = inChat()
+    expect(page.dc!.say("Use the second plan")).toBe(true)
+    expect(page.dc!.expand()).toBe(true)
+    expect(page.dc!.expand(false)).toBe(true)
+    expect(page.dc!.save("signups by week.csv", "week,signups\n1,40", "text/csv")).toBe(true)
+    expect(page.posted).toEqual([
+      {
+        jsonrpc: "2.0",
+        id: "dc-1",
+        method: "ui/message",
+        params: { role: "user", content: [{ type: "text", text: "Use the second plan" }] },
+      },
+      {
+        jsonrpc: "2.0",
+        id: "dc-2",
+        method: "ui/request-display-mode",
+        params: { mode: "fullscreen" },
+      },
+      { jsonrpc: "2.0", id: "dc-3", method: "ui/request-display-mode", params: { mode: "inline" } },
+      {
+        jsonrpc: "2.0",
+        id: "dc-4",
+        method: "ui/download-file",
+        params: {
+          contents: [
+            {
+              type: "resource",
+              resource: {
+                uri: "file:///signups%20by%20week.csv",
+                mimeType: "text/csv",
+                text: "week,signups\n1,40",
+              },
+            },
+          ],
+        },
+      },
+    ])
+    // What the page says it reads back the way a client does.
+    expect(readVisualSay(page.posted[0])).toEqual({ id: "dc-1", text: "Use the second plan" })
+    expect(readVisualMode(page.posted[1])).toEqual({ id: "dc-2", mode: "fullscreen" })
+    expect(readVisualSave(page.posted[3])).toEqual({
+      id: "dc-4",
+      name: "signups by week.csv",
+      type: "text/csv",
+      text: "week,signups\n1,40",
+    })
+  })
+
+  it("say nothing for a page that is not in a chat, though the page may still ask", () => {
+    // In the library's viewer it is framed, and by itself in a tab it is not: neither is a chat.
+    for (const page of [
+      open({ page: "visual", hash: visualThemeFragment(dark) }),
+      open({ page: "visual", framed: false, hash: visualThemeFragment({ ...dark, inline: true }) }),
+    ]) {
+      expect(page.dc!.say("anything")).toBe(false)
+      expect(page.dc!.expand()).toBe(false)
+      expect(page.dc!.save("a.txt", "a")).toBe(false)
+      page.happen("error", { message: "boom", lineno: 3 })
+      expect(page.posted.filter((said) => (said as { id?: unknown }).id !== undefined)).toEqual([])
+    }
+  })
+
+  it("tell the chat when a script of the page's fails, a few times and no more", () => {
+    const page = inChat()
+    page.happen("error", { message: "x is not defined", lineno: 12 })
+    page.happen("unhandledrejection", { reason: new Error("no such file") })
+    page.happen("unhandledrejection", { reason: "plain words" })
+    page.happen("error", { message: "a fourth" })
+    expect(page.posted.map(readVisualError)).toEqual([
+      "x is not defined (line 12)",
+      "no such file",
+      "plain words",
+    ])
+  })
+
+  it("lay a page out as one by itself while it is shown large, and as part of a reply after", () => {
+    const page = inChat()
+    expect(page.attributes.has("data-dc-inline")).toBe(true)
+    page.say(visualModeMessage("fullscreen"))
+    expect(page.attributes.has("data-dc-inline")).toBe(false)
+    // Its colors are as they were: only where it is shown has changed.
+    expect(page.attributes.get("data-dc-theme")).toBe("dark")
+    page.say(visualModeMessage("inline"))
+    expect(page.attributes.has("data-dc-inline")).toBe(true)
+    // A page that is not in a chat is never laid out as part of one, whatever it is told.
+    const viewed = open({ page: "visual", hash: visualThemeFragment(dark) })
+    viewed.say(visualModeMessage("inline"))
+    expect(viewed.attributes.has("data-dc-inline")).toBe(false)
+  })
+})
+
+describe("what a client reads of what a page asks", () => {
+  const ask = (method: string, params: unknown, id: unknown = 7) => ({
+    jsonrpc: "2.0",
+    id,
+    method,
+    params,
+  })
+
+  it("is only plain words from the person's side, for the message box", () => {
+    const words = (content: unknown, role = "user") =>
+      readVisualSay(ask("ui/message", { role, content }))?.text
+    expect(words([{ type: "text", text: "  one  " }])).toBe("one")
+    // One block is read as a list of one, and several are joined.
+    expect(words({ type: "text", text: "one" })).toBe("one")
+    expect(
+      words([
+        { type: "text", text: "one" },
+        { type: "text", text: "two" },
+      ]),
+    ).toBe("one\ntwo")
+    expect(words([{ type: "text", text: "x".repeat(9000) }])).toHaveLength(MAX_VISUAL_SAY)
+    for (const refused of [
+      words([{ type: "text", text: "   " }]),
+      words([{ type: "image", data: "…" }]),
+      words([{ type: "text", text: "one" }, { type: "image" }]),
+      words([{ type: "text", text: "as the agent" }], "assistant"),
+      words([]),
+      readVisualSay({ jsonrpc: "2.0", method: "ui/message", params: { role: "user" } })?.text,
+      readVisualSay(ask("ui/open-link", { url: "https://example.com" }))?.text,
+    ]) {
+      expect(refused).toBeUndefined()
+    }
+  })
+
+  it("is a file's name and never a place, of a type that is a type", () => {
+    const save = (uri: unknown, text: unknown = "a", mimeType?: unknown) =>
+      readVisualSave(
+        ask("ui/download-file", {
+          contents: [{ type: "resource", resource: { uri, mimeType, text } }],
+        }),
+      )
+    expect(save("file:///report.csv", "a,b", "text/csv")).toEqual({
+      id: 7,
+      name: "report.csv",
+      type: "text/csv",
+      text: "a,b",
+    })
+    expect(save("file:///..%2F..%2Fetc%2Fpasswd")?.name).toBe("passwd")
+    expect(save("file:///a%5Cb%5Cc.txt")?.name).toBe("c.txt")
+    expect(save("file:///")?.name).toBe("file.txt")
+    expect(save("file:///..")?.name).toBe("file.txt")
+    expect(save("file:///x.html", "a", 'text/html"><script>')?.type).toBe("text/plain")
+    expect(save("file:///x.txt", 12)).toBeUndefined()
+    expect(save("file:///x.txt", "x".repeat(MAX_VISUAL_SAVE_BYTES + 1))).toBeUndefined()
+    expect(readVisualSave(ask("ui/download-file", { contents: [] }))).toBeUndefined()
+  })
+
+  it("is large or back again, and an error only where it is said to be one", () => {
+    expect(readVisualMode(ask("ui/request-display-mode", { mode: "pip" }))).toBeUndefined()
+    expect(readVisualMode(ask("ui/request-display-mode", { mode: "inline" }))?.mode).toBe("inline")
+    const log = (params: unknown) =>
+      readVisualError({ jsonrpc: "2.0", method: "notifications/message", params })
+    expect(log({ level: "error", data: " broke " })).toBe("broke")
+    expect(log({ level: "info", data: "fine" })).toBeUndefined()
+    expect(log({ level: "error", data: { not: "words" } })).toBeUndefined()
+    expect(log({ level: "error", data: "x".repeat(900) })).toHaveLength(500)
+  })
+
+  it("answers a request with what it gets, or with why not", () => {
+    expect(visualResult(3)).toEqual({ jsonrpc: "2.0", id: 3, result: {} })
+    expect(visualResult(3, { mode: "fullscreen" }).result).toEqual({ mode: "fullscreen" })
+    expect(visualRefusal("dc-2", "Not while nobody pressed anything.")).toEqual({
+      jsonrpc: "2.0",
+      id: "dc-2",
+      error: { code: -32000, message: "Not while nobody pressed anything." },
+    })
+  })
+})
+
+describe("what can be seen to be wrong with a page before it is shown", () => {
+  const page = (style: string, script = "") =>
+    `<html><head><style>${style}</style></head><body><p style="margin:0">x</p><script>${script}</script></body></html>`
+
+  it("is nothing, for a page written as pages should be", () => {
+    expect(
+      visualProblems(
+        page(
+          ".card{background:var(--card);color:var(--foreground);border:1px solid var(--border);height:240px}" +
+            ".bar{fill:var(--chart-1, currentColor);stroke:var(--chart-2, #888)}",
+          "let count = 0; document.querySelector('p').textContent = String(count)",
+        ),
+      ),
+    ).toEqual({ stops: [], notes: [] })
+  })
+
+  it("stops a page that uses storage, which a page in a chat does not have", () => {
+    for (const script of [
+      "localStorage.setItem('a', '1')",
+      "const kept = window.sessionStorage",
+      "indexedDB.open('x')",
+      "document.cookie = 'a=1'",
+    ]) {
+      expect(visualProblems(page("", script)).stops, script).toHaveLength(1)
+    }
+    // Words about storage, in the page and not in a script, are only words.
+    expect(visualProblems("<p>We keep this in localStorage on your phone.</p>").stops).toEqual([])
+  })
+
+  it("stops a page that takes its height from the window", () => {
+    expect(visualProblems(page(".app{min-height:100vh}")).stops).toHaveLength(1)
+    expect(visualProblems(page(".app{height:100dvh}")).stops).toHaveLength(1)
+    expect(visualProblems(page("html,body{height:100%;margin:0}")).stops).toHaveLength(1)
+    expect(visualProblems('<div style="height:100vh">x</div>').stops).toHaveLength(1)
+    // A box inside the page may fill the box it is in.
+    expect(visualProblems(page(".chart{height:240px}.bar{height:100%}")).stops).toEqual([])
+  })
+
+  it("notes what will look out of place, without stopping the page", () => {
+    const problems = visualProblems(
+      '<html><head><link rel="stylesheet" href="https://cdn.example.com/a.css">' +
+        "<style>body{background:#101010;color:rgb(250, 250, 250)}.wide{width:1200px}.a{color:#fff}.b{color:#000}.c{color:#abc}</style>" +
+        '</head><body><script src="//cdn.example.com/chart.js"></script></body></html>',
+    )
+    expect(problems.stops).toEqual([])
+    expect(problems.notes).toHaveLength(4)
+    expect(problems.notes[0]).toContain("#101010, rgb(250, 250, 250), #fff, …")
+    expect(problems.notes[1]).toContain("background")
+    expect(problems.notes[2]).toContain("cdn.example.com")
+    expect(problems.notes[3]).toContain("1200px")
   })
 })

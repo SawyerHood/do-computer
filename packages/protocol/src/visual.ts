@@ -40,6 +40,11 @@ export type VisualTheme = {
 const HOST_CONTEXT_CHANGED = "ui/notifications/host-context-changed"
 const SIZE_CHANGED = "ui/notifications/size-changed"
 const OPEN_LINK = "ui/open-link"
+const MESSAGE = "ui/message"
+const DISPLAY_MODE = "ui/request-display-mode"
+const DOWNLOAD_FILE = "ui/download-file"
+/** MCP's own way for one side to tell the other something for its log: here, that a script failed. */
+const LOG = "notifications/message"
 const THEME_KEY = "dc-theme"
 const STYLE_ID = "dc-visual-theme"
 const SCRIPT_ID = "dc-visual-host"
@@ -54,7 +59,13 @@ const SCRIPT_ID = "dc-visual-host"
  * to somewhere else never replaces the page where it is shown: in a chat the client is asked to
  * open it, and anywhere else it opens in a new tab.
  *
- * It reads nothing of the page and sends nothing but a height and a link the reader clicked.
+ * A page in a chat can also speak to the chat, through `window.dc`: `dc.say(text)` puts words
+ * in the message box for the person to send, `dc.expand()` shows the page large and
+ * `dc.expand(false)` puts it back, and `dc.save(name, text, type)` hands the person a file.
+ * And when a script of the page's fails, the client is told, so that the person is not left
+ * looking at half a page with nothing said. Out of a chat, `dc` is there and does nothing.
+ *
+ * It reads nothing of the page, and sends only what is named here.
  */
 const BOOTSTRAP_SCRIPT =
   `(function(){var r=document.documentElement,f=window.parent!==window,g=r.hasAttribute("${PAGE_ATTRIBUTE}"),k=false,n=0,h,o;` +
@@ -66,17 +77,29 @@ const BOOTSTRAP_SCRIPT =
   `history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}` +
   `window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;` +
   `if(e.source!==window.parent||!d||d.jsonrpc!=="2.0"||d.method!==${JSON.stringify(HOST_CONTEXT_CHANGED)}||!p)return;` +
-  `a({appearance:p.theme,color:p.styles&&p.styles.variables&&p.styles.variables["--agent-color"]});});` +
+  `a({appearance:p.theme,color:p.styles&&p.styles.variables&&p.styles.variables["--agent-color"]});` +
+  // Shown large, a page in a chat is a page by itself for as long as it is.
+  `if(k&&p.displayMode==="fullscreen")r.removeAttribute("${INLINE_ATTRIBUTE}");` +
+  `if(k&&p.displayMode==="inline")r.setAttribute("${INLINE_ATTRIBUTE}","");});` +
   `if(!g)return;` +
+  // Everything said to the client goes through here. `i` asks for an answer.
+  `var q=function(m,p,i){if(!f)return false;var d={jsonrpc:"2.0",method:m,params:p};if(i)d.id="dc-"+(++n);` +
+  `window.parent.postMessage(d,"*");return true;},c=0,` +
+  `w=function(m){if(k&&c++<3)q(${JSON.stringify(LOG)},{level:"error",data:String(m).slice(0,500)});};` +
+  `window.dc={say:function(t){return k&&q(${JSON.stringify(MESSAGE)},{role:"user",content:[{type:"text",text:String(t)}]},1);},` +
+  `expand:function(b){return k&&q(${JSON.stringify(DISPLAY_MODE)},{mode:b===false?"inline":"fullscreen"},1);},` +
+  `save:function(b,t,y){return k&&q(${JSON.stringify(DOWNLOAD_FILE)},{contents:[{type:"resource",resource:{` +
+  `uri:"file:///"+encodeURIComponent(String(b)),mimeType:y?String(y):"text/plain",text:String(t)}}]},1);}};` +
+  `window.addEventListener("error",function(e){w(e&&e.message?e.message+(e.lineno?" (line "+e.lineno+")":""):"A script failed");});` +
+  `window.addEventListener("unhandledrejection",function(e){var v=e&&e.reason;w(v&&v.message?v.message:v);});` +
   `document.addEventListener("click",function(e){var l=e.isTrusted&&e.composedPath?e.composedPath().find(function(t){` +
   `return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;` +
   `try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}` +
   `if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;` +
-  `if(k){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"dc-link-"+(++n),` +
-  `method:${JSON.stringify(OPEN_LINK)},params:{url:u.href}},"*");}` +
+  `if(k){e.preventDefault();q(${JSON.stringify(OPEN_LINK)},{url:u.href},1);}` +
   `else if(u.origin!==location.origin){l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);` +
   `if(f){var z=function(){var v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);` +
-  `if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(SIZE_CHANGED)},params:{height:v}},"*");};` +
+  `if(v===h)return;h=v;q(${JSON.stringify(SIZE_CHANGED)},{height:v});};` +
   `if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(r);}` +
   `document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});` +
   `window.addEventListener("load",z);}})();`
@@ -290,9 +313,127 @@ export function readVisualLink(
   return typeof url === "string" && /^https?:\/\//i.test(url) ? { id, url } : undefined
 }
 
-/** The answer a client gives a visual's request, which has nothing in it. */
-export function visualResult(id: string | number) {
-  return { jsonrpc: "2.0", id, result: {} } as const
+/** The answer a client gives a visual's request: nothing, or what the request says it gets. */
+export function visualResult(id: string | number, result: Record<string, string> = {}) {
+  return { jsonrpc: "2.0", id, result } as const
+}
+
+/** The answer to a request the client will not do, with why. */
+export function visualRefusal(id: string | number, message: string) {
+  return { jsonrpc: "2.0", id, error: { code: -32000, message } } as const
+}
+
+/** What a visual asks of its client, where `data` is one of the things it asks. */
+function readRequest(
+  data: unknown,
+  method: string,
+): { id: string | number; params: Record<string, unknown> } | undefined {
+  if (typeof data !== "object" || data === null) return undefined
+  const { jsonrpc, id, method: asked, params } = data as Record<string, unknown>
+  if (jsonrpc !== "2.0" || asked !== method) return undefined
+  if (typeof id !== "string" && typeof id !== "number") return undefined
+  return {
+    id,
+    params:
+      typeof params === "object" && params !== null ? (params as Record<string, unknown>) : {},
+  }
+}
+
+/** The longest thing a visual can put in the message box. */
+export const MAX_VISUAL_SAY = 4_000
+
+/**
+ * What a visual asks to have put in the message box, where `data` is it asking: words, as the
+ * person would have typed them. Anything that is not plain words is not read.
+ */
+export function readVisualSay(
+  data: unknown,
+): { readonly id: string | number; readonly text: string } | undefined {
+  const request = readRequest(data, MESSAGE)
+  if (request === undefined || request.params.role !== "user") return undefined
+  const content = request.params.content
+  const blocks = Array.isArray(content) ? content : [content]
+  const words = blocks.map((block) => {
+    const { type, text } = (block ?? {}) as { type?: unknown; text?: unknown }
+    return type === "text" && typeof text === "string" ? text : undefined
+  })
+  if (words.length === 0 || words.includes(undefined)) return undefined
+  const text = words.join("\n").trim().slice(0, MAX_VISUAL_SAY)
+  return text === "" ? undefined : { id: request.id, text }
+}
+
+/** Whether a visual asks to be shown large or put back, where `data` is it asking. */
+export function readVisualMode(
+  data: unknown,
+): { readonly id: string | number; readonly mode: "inline" | "fullscreen" } | undefined {
+  const request = readRequest(data, DISPLAY_MODE)
+  const mode = request?.params.mode
+  return request !== undefined && (mode === "inline" || mode === "fullscreen")
+    ? { id: request.id, mode }
+    : undefined
+}
+
+/** The largest file a visual can hand the person. */
+export const MAX_VISUAL_SAVE_BYTES = 10 * 1024 * 1024
+
+/**
+ * The file a visual asks to hand the person, where `data` is it asking: its name, its type, and
+ * its text. A name is only ever a name, never a place.
+ */
+export function readVisualSave(data: unknown):
+  | {
+      readonly id: string | number
+      readonly name: string
+      readonly type: string
+      readonly text: string
+    }
+  | undefined {
+  const request = readRequest(data, DOWNLOAD_FILE)
+  const contents = request?.params.contents
+  const first = Array.isArray(contents) ? contents[0] : undefined
+  const resource = (first as { type?: unknown; resource?: unknown } | undefined)?.resource
+  if (request === undefined || typeof resource !== "object" || resource === null) return undefined
+  const { uri, mimeType, text } = resource as Record<string, unknown>
+  if (typeof uri !== "string" || typeof text !== "string") return undefined
+  if (text.length > MAX_VISUAL_SAVE_BYTES) return undefined
+  let name = uri.slice(uri.lastIndexOf("/") + 1)
+  try {
+    name = decodeURIComponent(name)
+  } catch {
+    // Kept as it was written.
+  }
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point
+  name = (name.split(/[\\/]/).at(-1) ?? "")
+    .replace(/[\u0000-\u001f\u007f"]/g, "")
+    .trim()
+    .slice(0, 120)
+  return {
+    id: request.id,
+    name: name === "" || name === "." || name === ".." ? "file.txt" : name,
+    type:
+      typeof mimeType === "string" && /^[\w.+-]+\/[\w.+-]+$/.test(mimeType)
+        ? mimeType
+        : "text/plain",
+    text,
+  }
+}
+
+/** What a visual says went wrong in it, where `data` is it saying so. */
+export function readVisualError(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null) return undefined
+  const { jsonrpc, method, params } = data as Record<string, unknown>
+  if (jsonrpc !== "2.0" || method !== LOG || typeof params !== "object" || params === null) {
+    return undefined
+  }
+  const { level, data: said } = params as { level?: unknown; data?: unknown }
+  return level === "error" && typeof said === "string" && said.trim() !== ""
+    ? said.trim().slice(0, 500)
+    : undefined
+}
+
+/** What a client tells a visual when it is shown large, or put back in the reply. */
+export function visualModeMessage(mode: "inline" | "fullscreen") {
+  return { jsonrpc: "2.0", method: HOST_CONTEXT_CHANGED, params: { displayMode: mode } } as const
 }
 
 /** How tall the frame of a visual is, for a page that says it is `height` tall. */
@@ -301,6 +442,84 @@ export function visualFrameHeight(height: number | undefined): number {
     VISUAL_MAX_HEIGHT,
     Math.max(VISUAL_MIN_HEIGHT, Math.round(height ?? VISUAL_DEFAULT_HEIGHT)),
   )
+}
+
+/**
+ * What can be seen to be wrong with a page before anyone looks at it. `stops` are things that
+ * break a page in a chat, and the page is not shown until they are gone: storage, which a page
+ * kept apart from the app does not have and which throws, and a height taken from the window,
+ * which the frame grows to fit, and then grows again. `notes` are things that will make it
+ * look out of place, and are for the agent to weigh.
+ */
+export function visualProblems(html: string): { stops: string[]; notes: string[] } {
+  const stops: string[] = []
+  const notes: string[] = []
+  const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)(?:<\/script\s*>|$)/gi)]
+    .map((match) => match[1])
+    .join("\n")
+  // Everything that is not a script: the markup and its styles, where a color is written.
+  const rest = html.replace(/<script\b[\s\S]*?(?:<\/script\s*>|$)/gi, "")
+  const styles =
+    [...rest.matchAll(/<style\b[^>]*>([\s\S]*?)(?:<\/style\s*>|$)/gi)].map((m) => m[1]).join("\n") +
+    [...rest.matchAll(/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((m) => m[1] ?? m[2]).join(";")
+
+  const kept = /\b(localStorage|sessionStorage|indexedDB)\b|document\.cookie/.exec(scripts)
+  if (kept !== null) {
+    stops.push(
+      `The script uses ${kept[0]}. A page in a chat is kept apart from the app and has no storage: the call throws and the rest of the script does not run. Keep what you need in variables.`,
+    )
+  }
+  if (
+    /\b100[dsl]?vh\b/.test(styles) ||
+    /\b(?:html|body)\b[^{}]*\{[^{}]*\bheight\s*:\s*100%/i.test(styles)
+  ) {
+    stops.push(
+      "A style takes its height from the window (100vh, or height:100% on html or body). The frame grows to fit the page, so the page grows again. Give it a height in pixels, or let what is in it set the height.",
+    )
+  }
+
+  // A color written out, and not as a fallback inside var(): it will not follow light and dark.
+  const bare = styles.replace(/var\([^()]*(?:\([^()]*\)[^()]*)*\)/g, "")
+  const colors = [
+    ...new Set(
+      [...bare.matchAll(/#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\([^)]*\)/gi)].map((match) => match[0]),
+    ),
+  ]
+  if (colors.length > 0) {
+    notes.push(
+      `Colors are written out (${colors.slice(0, 3).join(", ")}${colors.length > 3 ? ", …" : ""}). They will not follow light and dark or the person's color: use the variables.`,
+    )
+  }
+  if (
+    /\b(?:html|body)\b[^{}]*\{[^{}]*\bbackground(?:-color)?\s*:(?!\s*(?:transparent|none|inherit))/i.test(
+      styles,
+    )
+  ) {
+    notes.push(
+      "html or body is given a background. In a chat the page sits on the chat's own background: leave it with none.",
+    )
+  }
+  const loaded = [
+    ...new Set(
+      [
+        ...html.matchAll(
+          /<(?:script|link|img|iframe|video|audio|source)\b[^>]*?\s(?:src|href)\s*=\s*["']?(https?:)?\/\/([^\s"'/>]+)/gi,
+        ),
+      ].map((match) => match[2]!),
+    ),
+  ]
+  if (loaded.length > 0) {
+    notes.push(
+      `It loads from ${loaded.slice(0, 3).join(", ")}. Write the page whole unless the person asked for something that needs this: what is loaded from elsewhere may not arrive, and tells that site who is reading.`,
+    )
+  }
+  const wide = /\b(?:min-)?width\s*:\s*(\d{3,})px/i.exec(styles)
+  if (wide !== null && Number(wide[1]) > 600) {
+    notes.push(
+      `Something is ${wide[1]}px wide. The reply is about 720px wide on a computer and 340px on a phone: use fluid widths.`,
+    )
+  }
+  return { stops, notes }
 }
 
 /** The file name a visual is kept under: its title in letters, digits and dashes. */
@@ -325,7 +544,8 @@ export const VISUAL_GUIDE = [
   "A box that needs a background of its own gets at least 16px of padding and var(--radius) corners.",
   "Let the content set the height: no 100vh, and no height:100% on html or body. Give a chart a fixed height in pixels. The frame grows to fit the page; past 1600px it scrolls.",
   "It starts from the app's own page, in the app's colors and type, and is styled as your instructions on pages say.",
-  "Scripts run, but the page is kept apart from the app: it has no storage and cannot reach the person's session. A link to another site opens in a new tab.",
+  "Scripts run, but the page is kept apart from the app: it has no storage and cannot reach the person's session or the library's other files, so put the data it shows in the page. A link to another site opens in a new tab.",
+  "The page can speak to the chat through window.dc: dc.say(text) puts text in the person's message box for them to send, which is how a choice they press in the page reaches you; dc.expand() shows the page large and dc.expand(false) puts it back; dc.save(name, text, type) hands them a file, such as the CSV behind a chart.",
 ].join(" ")
 
 /**

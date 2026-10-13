@@ -15,6 +15,7 @@ import { pictureFor } from "@/lib/pictures"
 import { type DictationEnd, type DictationState, useDictation } from "@/lib/use-dictation"
 import { cn } from "@/lib/utils"
 import { type AttachedFile, AttachedFiles } from "./attached-files.tsx"
+import { DRAFTED } from "./sent-file.tsx"
 import { Waveform } from "./waveform.tsx"
 
 const MAX_HEIGHT_PX = 200
@@ -134,6 +135,20 @@ export function Composer({
   useEffect(() => {
     if (!dictating) input.current?.focus()
   }, [draftKey, dictating])
+
+  // Words put in the box from elsewhere, by a page in the chat say, are there to be read over
+  // and sent: the caret goes to their end.
+  useEffect(() => {
+    const onDrafted = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== draftKey) return
+      const element = input.current
+      if (element === null) return
+      element.focus()
+      element.setSelectionRange(element.value.length, element.value.length)
+    }
+    window.addEventListener(DRAFTED, onDrafted)
+    return () => window.removeEventListener(DRAFTED, onDrafted)
+  }, [draftKey])
 
   const ready = (draft.trim() !== "" || attached.length > 0) && uploading === 0
   const send = (typed = draft) => {

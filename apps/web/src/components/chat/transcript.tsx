@@ -48,6 +48,7 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from "@/components/ui/message-scroller"
+import { chatKey } from "@/lib/atoms"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { TeamContext } from "@/lib/workspaces"
@@ -55,7 +56,7 @@ import { Markdown } from "./markdown.tsx"
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
-import { SentFile } from "./sent-file.tsx"
+import { AgentIdContext, DraftKeyContext, SentFile } from "./sent-file.tsx"
 import { PinCard } from "./pin-card.tsx"
 import { SiteCard } from "./site-card.tsx"
 import { VisualFrame } from "./visual.tsx"
@@ -528,37 +529,42 @@ export function Transcript({
     const status = use.steps.at(-1)?.status
     return status === "pending" || status === "running"
   })
+  const agentId = useContext(AgentIdContext)
+  const draftKey =
+    agentId === undefined || chatId === undefined ? undefined : chatKey(agentId, chatId)
   return (
-    <UsesContext value={uses}>
-      <MessageScrollerProvider autoScroll defaultScrollPosition="end">
-        <FollowSends lastSent={lastSent} />
-        <MessageScroller>
-          <MessageScrollerViewport>
-            {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
-            <MessageScrollerContent className="mx-auto w-full max-w-[45rem] justify-end gap-6 px-4 pt-24 pb-6">
-              {untouched && !state.busy ? empty : null}
-              {before}
-              {shown.map(({ message, failures }, index) => (
-                <MessageScrollerItem key={message.id} messageId={message.id}>
-                  <MessageView
-                    message={message}
-                    failures={failures}
-                    onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
-                    asker={asker}
-                  />
-                </MessageScrollerItem>
-              ))}
-              {activity === null || stepping ? null : (
-                // The moving shine says it is working; a spinner beside it would say it twice.
-                <Marker role="status" aria-live="polite" className="px-1">
-                  <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
-                </Marker>
-              )}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton />
-        </MessageScroller>
-      </MessageScrollerProvider>
-    </UsesContext>
+    <DraftKeyContext value={draftKey}>
+      <UsesContext value={uses}>
+        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+          <FollowSends lastSent={lastSent} />
+          <MessageScroller>
+            <MessageScrollerViewport>
+              {/* A short chat sits at the bottom, next to the box the next message is typed in. */}
+              <MessageScrollerContent className="mx-auto w-full max-w-[45rem] justify-end gap-6 px-4 pt-24 pb-6">
+                {untouched && !state.busy ? empty : null}
+                {before}
+                {shown.map(({ message, failures }, index) => (
+                  <MessageScrollerItem key={message.id} messageId={message.id}>
+                    <MessageView
+                      message={message}
+                      failures={failures}
+                      onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
+                      asker={asker}
+                    />
+                  </MessageScrollerItem>
+                ))}
+                {activity === null || stepping ? null : (
+                  // The moving shine says it is working; a spinner beside it would say it twice.
+                  <Marker role="status" aria-live="polite" className="px-1">
+                    <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
+                  </Marker>
+                )}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton />
+          </MessageScroller>
+        </MessageScrollerProvider>
+      </UsesContext>
+    </DraftKeyContext>
   )
 }
