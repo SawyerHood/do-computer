@@ -6097,7 +6097,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       checked:** Safari, Workers, a real model writing any of it, the phone app (which has
       its own Markdown and none of this), a very long reply while it streams.
 
-75. **A film, a sound, a table and a PDF are shown as what they are** (2026-10-13;
+76. **A film, a sound, a table and a PDF are shown as what they are** (2026-10-13;
     `packages/protocol/src/embed.ts`, `packages/runtime` (`BlobStore.get` with a range),
     `packages/agent/src/library-store.ts`, `apps/web/src/components/embed/`,
     `components/file-card.tsx`, `components/library/viewer.tsx`, `lib/shown-hosts.ts`; phase 2
