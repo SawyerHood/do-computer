@@ -422,6 +422,12 @@ export function createClient(options: ClientOptions) {
     /** Make an agent in a workspace: the user's own, unless a team is named. */
     createAgent: async (workspaceId?: string) =>
       (await post<{ agent: AgentSummary }>("/api/agents", { workspaceId })).agent,
+    /**
+     * The same, answering with the main chat the agent was given as well, which is where it is
+     * first talked to. A server from before it gave one sends none.
+     */
+    makeAgent: (workspaceId?: string) =>
+      post<{ agent: AgentSummary; chat?: ChatSummary }>("/api/agents", { workspaceId }),
     /** Move an agent, with everything it has, to another workspace the user is in. */
     moveAgent: (agentId: string, workspaceId: string) =>
       post<{ ok: true }>(`/api/agents/${encodeURIComponent(agentId)}/move`, { workspaceId }),

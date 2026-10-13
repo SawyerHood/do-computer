@@ -505,9 +505,22 @@ Since then, newest last:
       not carry the request's, so it is known to have arrived by its words: the first message
       of the user's with those words that was not there when it was sent. One that does not go
       is taken back out and put back in the box, as before.
+    - **Something asked for says so at once** (2026-10-13). Whatever is pressed that goes to
+      the server shows it is at work from the press: a spinner in place of its icon, or its
+      words changed ("Removing…"), and it cannot be pressed twice. What goes wrong is said
+      beside it (`role="alert"`); there are no toasts. A menu's row that starts something
+      stays open while it does (`closeOnClick={false}`), which is where its failure is said.
+      Making an agent (`lib/new-agent.ts`) puts a row for it in the sidebar from the press.
+    - **What the server just answered is not asked for again.** `POST /api/agents` answers
+      with the agent and the main chat it was given, so the app puts the agent in the list
+      (`listAgent`), remembers the chat and opens it: it used to ask for the whole list, which
+      waits for every agent, and then for the agent's state twice. A new side chat, and a main
+      chat settled on, are put among the agent's chats the same way (`keepChat`); deleting an
+      agent or leaving a team takes agents out of the list (`unlistAgents`). Each is followed
+      by asking again, which nothing waits for.
     - **Not done.** The gateway still does not know an agent's main chat, so an agent that has
-      never been open in this browser takes two trips (its state, then its chat). The native
-      mobile app was not changed.
+      never been open in this browser, and was not made in it, takes two trips (its state, then
+      its chat). The native mobile app was not changed.
 
 21. **Notifications in the browser, and the web app on a home screen** (2026-10-07). The owner
     asked for web notifications, and whether they would work with the app set up as a PWA on

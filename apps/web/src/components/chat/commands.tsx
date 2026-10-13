@@ -155,7 +155,7 @@ function StopButton({ agentId, job }: { agentId: string; job: JobSummary }) {
       }}
       className="shrink-0"
     >
-      Stop
+      {stopping ? "Stopping…" : "Stop"}
     </Button>
   )
 }

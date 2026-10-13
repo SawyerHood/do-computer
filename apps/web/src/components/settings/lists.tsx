@@ -5,12 +5,13 @@ import { useNavigate } from "@tanstack/react-router"
 import { type ReactNode, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { WorkspaceTile } from "@/components/people"
-import { useNewAgent } from "@/components/shell/agent-list"
 import { WorkspaceMark } from "@/components/shell/workspace-menu"
 import { NewTeamDialog } from "@/components/team/new-team"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { computersKey, modelsKey } from "@/lib/collections"
+import { useNewAgent } from "@/lib/new-agent"
 import { useSettings } from "@/lib/settings"
 
 const count = (many: number, one: string, more: string) => `${many} ${many === 1 ? one : more}`
@@ -61,8 +62,7 @@ function AgentsOf({
   about: (agent: AgentSummary) => string
 }) {
   const { open } = useSettings()
-  const create = useNewAgent(workspace.id)
-  const [creating, setCreating] = useState(false)
+  const { create, making, error } = useNewAgent(workspace.id)
   const heading = `agents-of-${workspace.id}`
   return (
     <section aria-labelledby={heading} className="flex flex-col gap-1.5">
@@ -73,17 +73,20 @@ function AgentsOf({
         <Button
           variant="ghost"
           size="xs"
-          disabled={creating}
+          disabled={making}
+          aria-busy={making}
           aria-label={`New agent in ${workspace.name}`}
           className="text-muted-foreground"
-          onClick={() => {
-            setCreating(true)
-            void create().finally(() => setCreating(false))
-          }}
+          onClick={() => void create()}
         >
-          <PlusIcon /> New agent
+          {making ? <Spinner /> : <PlusIcon />} New agent
         </Button>
       </div>
+      {error === undefined ? null : (
+        <p role="alert" className="px-1.5 text-sm text-destructive">
+          {error}
+        </p>
+      )}
       {agents.length === 0 ? (
         <p className="px-1.5 text-sm text-muted-foreground">No agents here yet.</p>
       ) : (

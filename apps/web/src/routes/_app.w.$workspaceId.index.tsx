@@ -2,10 +2,11 @@ import { PlusIcon, UserPlusIcon } from "@phosphor-icons/react"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { useState } from "react"
 import { WorkspaceTile } from "@/components/people"
-import { useNewAgent } from "@/components/shell/agent-list"
 import { InviteDialog } from "@/components/team/invite"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import { listedAgents } from "@/lib/collections"
+import { useNewAgent } from "@/lib/new-agent"
 import { useWorkspace } from "@/lib/workspaces"
 
 /**
@@ -46,8 +47,12 @@ function EmptyTeam() {
           chats.
         </p>
         <div className="mt-2 flex flex-wrap justify-center gap-2">
-          <Button onClick={() => void newAgent()}>
-            <PlusIcon /> New agent for the team
+          <Button
+            disabled={newAgent.making}
+            aria-busy={newAgent.making}
+            onClick={() => void newAgent.create()}
+          >
+            {newAgent.making ? <Spinner /> : <PlusIcon />} New agent for the team
           </Button>
           {workspace.role === "member" ? null : (
             <Button variant="outline" onClick={() => setInviting(true)}>
@@ -55,6 +60,11 @@ function EmptyTeam() {
             </Button>
           )}
         </div>
+        {newAgent.error === undefined ? null : (
+          <p role="alert" className="text-sm text-destructive">
+            {newAgent.error}
+          </p>
+        )}
       </div>
       <InviteDialog workspace={workspace} open={inviting} onOpenChange={setInviting} />
     </div>

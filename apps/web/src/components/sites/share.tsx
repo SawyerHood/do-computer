@@ -123,7 +123,7 @@ export function ShareControls({
           disabled={share.isPending}
           onClick={() => share.mutate({ path, ...(title === undefined ? {} : { title }) })}
         >
-          Share
+          {share.isPending ? "Sharing…" : "Share"}
         </Button>
         {error ? (
           <p role="alert" className="text-xs text-destructive">
@@ -186,7 +186,7 @@ export function ShareControls({
           disabled={stop.isPending}
           onClick={() => stop.mutate(site.id)}
         >
-          Stop sharing
+          {stop.isPending ? "Stopping…" : "Stop sharing"}
         </Button>
       </div>
     </>

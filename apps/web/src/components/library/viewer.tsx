@@ -49,6 +49,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { client } from "@/lib/client"
 import { libraryKey, libraryVersionsKey } from "@/lib/collections"
@@ -129,10 +130,13 @@ function History({
   })
   const revert = useMutation({
     mutationFn: (rev: number) => api.revertLibraryFile(file.id, rev),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: libraryKey(agentId) })
-      void queryClient.invalidateQueries({ queryKey: libraryVersionsKey(agentId, file.id) })
+    // The menu stays while it is put back, and says so. It goes once the file is as it was.
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: libraryKey(agentId) })
+      setOpen(false)
     },
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: libraryVersionsKey(agentId, file.id) }),
   })
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -154,10 +158,23 @@ function History({
             </span>
           </DropdownMenuItem>
           {(versions ?? []).map((version) => (
-            <DropdownMenuItem key={version.rev} onClick={() => revert.mutate(version.rev)}>
-              <ClockCounterClockwiseIcon />
+            <DropdownMenuItem
+              key={version.rev}
+              closeOnClick={false}
+              disabled={revert.isPending}
+              onClick={() => revert.mutate(version.rev)}
+            >
+              {revert.isPending && revert.variables === version.rev ? (
+                <Spinner />
+              ) : (
+                <ClockCounterClockwiseIcon />
+              )}
               <span>
-                <span className="block">Put back this version</span>
+                <span className="block">
+                  {revert.isPending && revert.variables === version.rev
+                    ? "Putting it back…"
+                    : "Put back this version"}
+                </span>
                 <span className="block text-xs font-normal text-muted-foreground">
                   {who(version.by, agentName)} · {formatFull(version.at)} ·{" "}
                   {formatBytes(version.size)}
@@ -165,9 +182,18 @@ function History({
               </span>
             </DropdownMenuItem>
           ))}
-          {versions !== undefined && versions.length === 0 ? (
+          {versions === undefined ? (
+            <p className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+              <Spinner className="size-3" /> Looking for earlier versions…
+            </p>
+          ) : versions.length === 0 ? (
             <p className="px-3 py-2 text-xs text-muted-foreground">
               It has not been changed since it was made.
+            </p>
+          ) : null}
+          {revert.isError ? (
+            <p role="alert" className="px-3 py-2 text-xs text-destructive">
+              {revert.error.message}
             </p>
           ) : null}
         </DropdownMenuGroup>
@@ -552,7 +578,7 @@ export function Viewer({
               className="h-8 max-w-md text-sm"
             />
             <Button type="submit" size="sm" disabled={move.isPending}>
-              Save
+              {move.isPending ? "Saving…" : "Save"}
             </Button>
           </form>
         )}
@@ -566,10 +592,13 @@ export function Viewer({
           aria-live="polite"
           className={cn(
             "shrink-0 text-xs text-muted-foreground",
-            (saveState === "error" || saveState === "conflict") && "text-destructive",
+            (saveState === "error" || saveState === "conflict" || move.isError || remove.isError) &&
+              "text-destructive",
           )}
         >
-          {move.isError ? move.error.message : SAVE_WORDS[saveState]}
+          {remove.isPending
+            ? "Deleting…"
+            : ((move.error ?? remove.error)?.message ?? SAVE_WORDS[saveState])}
         </p>
         <div className="flex-1" />
         {kind === "markdown" ? (
@@ -625,7 +654,11 @@ export function Viewer({
               <DownloadSimpleIcon /> Download
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => remove.mutate()}>
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate()}
+            >
               <TrashIcon /> Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
