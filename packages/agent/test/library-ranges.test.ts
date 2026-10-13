@@ -372,6 +372,95 @@ describe("a part of a library file", () => {
   })
 })
 
+describe("a film asked for from somewhere on", () => {
+  /** Larger than the most that is sent at once, each byte telling where it is. */
+  const LONG = new Uint8Array(5 * 1024 * 1024 + 123).map((_, index) => index % 251)
+  const MOST = 2 * 1024 * 1024
+
+  async function withLong(world: World, path: string, type: string) {
+    const init = await request(world, "/init", {
+      method: "POST",
+      body: JSON.stringify({ ownerId: "user-1" }),
+      headers: { "content-type": "application/json" },
+    })
+    expect(init.ok).toBe(true)
+    await put(world, path, LONG, type)
+    world.reads.length = 0
+  }
+
+  it("is sent a piece at a time where it is played, and the player asks for the next", async () => {
+    const world = open()
+    await withLong(world, "films/long.webm", "video/webm")
+    // A player asks for "all of it from here", meaning some for now.
+    const first = await viewed(world, "films/long.webm", { range: "bytes=0-" })
+    expect(first.status).toBe(206)
+    expect(first.headers.get("content-range")).toBe(`bytes 0-${MOST - 1}/${LONG.length}`)
+    expect((await first.arrayBuffer()).byteLength).toBe(MOST)
+    const moved = await viewed(world, "films/long.webm", { range: "bytes=4194304-" })
+    expect(moved.headers.get("content-range")).toBe(
+      `bytes 4194304-${LONG.length - 1}/${LONG.length}`,
+    )
+    expect(await bytesOf(moved)).toEqual([...LONG.slice(4194304)])
+    // Only what was sent was read from where the film is kept.
+    expect(world.reads.map((read) => read.bytes)).toEqual([MOST, LONG.length - 4194304])
+    // A part with an end is the part asked for, however long.
+    const named = await viewed(world, "films/long.webm", { range: "bytes=0-3000000" })
+    expect(named.headers.get("content-length")).toBe("3000001")
+  })
+
+  it("is sent to its end where it is not played: a download carries on to the end", async () => {
+    const world = open()
+    await withLong(world, "films/long.webm", "video/webm")
+    const listing = (await (await request(world, "/library")).json()) as LibraryListing
+    const id = listing.files.find((file) => file.path === "films/long.webm")!.id
+    const rest = await request(world, `/library/${id}`, { headers: { range: "bytes=100-" } })
+    expect(rest.status).toBe(206)
+    expect(rest.headers.get("content-range")).toBe(`bytes 100-${LONG.length - 1}/${LONG.length}`)
+    // And so is anything viewed that is not a film or a sound.
+    await put(world, "data/long.bin", LONG, "application/octet-stream")
+    const data = await viewed(world, "data/long.bin", { range: "bytes=0-" })
+    expect(data.headers.get("content-length")).toBe(String(LONG.length))
+  })
+})
+
+describe("a PDF of the library", () => {
+  const PDF = new TextEncoder().encode("%PDF-1.4 not really")
+
+  it("is served to the app's viewer as a PDF to read in place, and to nothing else that way", async () => {
+    const world = open()
+    const init = await request(world, "/init", {
+      method: "POST",
+      body: JSON.stringify({ ownerId: "user-1" }),
+      headers: { "content-type": "application/json" },
+    })
+    expect(init.ok).toBe(true)
+    const file = await put(world, "papers/report.pdf", PDF, "application/pdf")
+    // A page's bytes under a PDF's name are still served as a PDF, which they are not.
+    await put(world, "papers/page.pdf", "<script>alert(1)</script>", "text/html")
+
+    for (const path of ["papers/report.pdf", "papers/page.pdf"]) {
+      const viewedPdf = await viewed(world, path)
+      expect(viewedPdf.headers.get("content-type")).toBe("application/pdf")
+      expect(viewedPdf.headers.get("content-disposition")).toBe("inline")
+      expect(viewedPdf.headers.get("x-content-type-options")).toBe("nosniff")
+      // The browser's reader will not run in a frame that is kept apart.
+      expect(viewedPdf.headers.get("content-security-policy")).toBeNull()
+    }
+    // From the app's own address it is still only handed over.
+    const handed = await request(world, `/library/${file.id}`)
+    expect(handed.headers.get("content-type")).toBe("application/octet-stream")
+    expect(handed.headers.get("content-disposition")).toContain("attachment")
+    expect(handed.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'")
+    // And in a shared site it is kept apart like everything else there.
+    const share = await world.libraries.get("workspace-1").fetch(
+      new Request("http://library/site/report.pdf", {
+        headers: { [LIBRARY_SITE_HEADER]: encodeURIComponent("papers") },
+      }),
+    )
+    expect(share.headers.get("content-security-policy")).toContain("sandbox")
+  })
+})
+
 describe("a page of the library, asked for in part", () => {
   const PAGE =
     '<!doctype html><html lang="en"><head><title>Q3</title></head>' +

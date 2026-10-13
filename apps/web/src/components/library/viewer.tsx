@@ -16,6 +16,7 @@ import {
   PencilSimpleIcon,
   PushPinIcon,
   ShareNetworkIcon,
+  TableIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -61,11 +62,15 @@ import { siteOfFile, useSites } from "@/lib/sites"
 import { useThemedFrame } from "@/lib/visual-theme"
 import { cn } from "@/lib/utils"
 import { SharePopover } from "@/components/sites/share"
+import { LibraryEmbed, LibraryTable } from "@/components/embed/library-embed"
 import { DocMarkdown } from "./doc-markdown.tsx"
 import { type SaveState, useDocument } from "./use-document.ts"
 
 /** How a file is being looked at. Which of these a file has depends on its kind. */
 export type ViewMode = "read" | "edit" | "split" | "source"
+
+/** A table's file is edited as text, which a long one is too slow for. */
+const MAX_EDITED_BYTES = 1024 * 1024
 
 const who = (by: "agent" | "user", agentName: string) => (by === "agent" ? agentName : "You")
 
@@ -639,6 +644,16 @@ export function Viewer({
                 ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
               ]}
             />
+          ) : kind === "table" ? (
+            <Segmented
+              label="How to show it"
+              value={mode === "read" ? "read" : "source"}
+              onChange={onMode}
+              options={[
+                ["read", "Table", <TableIcon key="i" className="size-3.5" />],
+                ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+              ]}
+            />
           ) : null}
           <Button
             variant="ghost"
@@ -721,7 +736,24 @@ export function Viewer({
               className="max-h-full max-w-full rounded-lg shadow-lg"
             />
           </div>
-        ) : kind === "other" ? (
+        ) : kind === "video" || kind === "audio" ? (
+          <div className="grid h-full place-items-center overflow-auto p-8">
+            <LibraryEmbed agentId={agentId} file={file} view={view} />
+          </div>
+        ) : kind === "pdf" ? (
+          // The browser's own reader, which will not run in a frame that is kept apart. A PDF
+          // runs nothing of its own, and the library serves it as a PDF whatever is in it.
+          <iframe
+            key={`${file.id}:${file.rev}`}
+            src={`${api.libraryViewUrl(view, file.path)}?v=${file.rev}#toolbar=0&view=FitH`}
+            title={file.name}
+            className="size-full border-0 bg-white"
+          />
+        ) : kind === "table" && mode === "read" ? (
+          <div className="h-full overflow-auto p-4 md:p-6">
+            <LibraryTable agentId={agentId} file={file} view={view} />
+          </div>
+        ) : kind === "other" || (kind === "table" && file.size > MAX_EDITED_BYTES) ? (
           <Empty className="h-full">
             <EmptyHeader>
               <EmptyMedia className="text-muted-foreground">
@@ -729,7 +761,10 @@ export function Viewer({
               </EmptyMedia>
               <EmptyTitle className="text-base">{file.name}</EmptyTitle>
               <EmptyDescription>
-                {formatBytes(file.size)} · This kind of file cannot be shown here yet.
+                {formatBytes(file.size)} ·{" "}
+                {kind === "table"
+                  ? "It is too long to edit here."
+                  : "This kind of file cannot be shown here."}
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>

@@ -4,16 +4,20 @@ import {
   CaretDownIcon,
   CaretRightIcon,
   CloudCheckIcon,
+  FileAudioIcon,
   FileCodeIcon,
   FileIcon,
   FileImageIcon,
+  FilePdfIcon,
   FileTextIcon,
+  FileVideoIcon,
   FolderIcon,
   FolderOpenIcon,
   GlobeIcon,
   LockIcon,
   NotePencilIcon,
   ShareNetworkIcon,
+  TableIcon,
   TrashIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react"
@@ -38,6 +42,16 @@ export function KindIcon({ file, className }: { file: LibraryFile; className?: s
   if (kind === "image") {
     return <FileImageIcon className={cn(size, "text-violet-600 dark:text-violet-400")} />
   }
+  if (kind === "video") {
+    return <FileVideoIcon className={cn(size, "text-rose-600 dark:text-rose-400")} />
+  }
+  if (kind === "audio") {
+    return <FileAudioIcon className={cn(size, "text-sky-600 dark:text-sky-400")} />
+  }
+  if (kind === "table") {
+    return <TableIcon className={cn(size, "text-emerald-600 dark:text-emerald-400")} />
+  }
+  if (kind === "pdf") return <FilePdfIcon className={cn(size, "text-red-600 dark:text-red-400")} />
   if (kind === "text") return <FileCodeIcon className={size} />
   return <FileIcon className={size} />
 }

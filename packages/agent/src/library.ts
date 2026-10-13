@@ -100,7 +100,7 @@ export class Library {
     this.sendFileTool = defineTool({
       name: "send_file",
       description:
-        "Put a file from a computer in front of the user: a document, image, export or anything else they should have. It appears in the chat, where they can open it, and is kept in their library. Use it instead of pasting long file contents into a reply.",
+        "Put a file from a computer in front of the user: a document, image, export or anything else they should have. It appears in the chat, where they can open it, and is kept in their library: a picture is shown, a film or a sound file can be played there, and a CSV is shown as a table. Use it instead of pasting long file contents into a reply.",
       parameters: Type.Object({
         path: Type.String({ description: "Path of the file to send" }),
         name: Type.Optional(Type.String({ description: "File name to give it, if not its own" })),

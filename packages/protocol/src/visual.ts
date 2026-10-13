@@ -340,6 +340,8 @@ export const REPLY_GUIDE = [
   "a flowchart, sequence or other simple diagram, as a fenced `mermaid` block;",
   "a note that must not be missed, as `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]` or `> [!CAUTION]`;",
   "and detail most readers will skip, inside `<details><summary>…</summary>` with a blank line after the summary.",
+  "A picture, a film, a sound file or a CSV that is in the library is shown where you name it, on a line of its own, as `![what it is](its/path/in/the/library.mp4)`: the picture is drawn, the film or sound gets a player, the CSV its first rows as a table.",
+  "Something at a web address can be written the same way, but the person has to press to load it, so say what it is in the square brackets.",
 ].join(" ")
 
 /**

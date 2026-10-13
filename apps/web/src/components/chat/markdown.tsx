@@ -1,13 +1,17 @@
-import { resolveLink } from "@do-computer/protocol"
+import { embedKind, resolveLink } from "@do-computer/protocol"
 import { ImageBrokenIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { type ComponentProps, memo, type MouseEvent, useContext, useState } from "react"
 import type { Components, ExtraProps } from "react-markdown"
+import { embedsInChat, LibraryEmbed } from "@/components/embed/library-embed"
+import { MediaPlayer } from "@/components/embed/media"
 import { followHeadingLink, RichMarkdown } from "@/components/markdown/markdown"
 import { PictureViewer, type ViewedPicture } from "@/components/picture-viewer"
 import { client } from "@/lib/client"
 import { libraryQuery } from "@/lib/collections"
+import { kindOf } from "@/lib/library"
+import { alwaysShow, hostOf, useShownHost } from "@/lib/shown-hosts"
 import { cn } from "@/lib/utils"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
 
@@ -92,8 +96,12 @@ function Missing({ words }: { words: string }) {
   )
 }
 
-/** A picture named by where it is in the library, which is where the agent's files are. */
-function LibraryPicture({
+/**
+ * Something named by where it is in the library, which is where the agent's files are: a
+ * picture, or a film, a sound or a table shown as what it is. Anything else there, and anything
+ * that is not there, is its words.
+ */
+function LibraryThing({
   agentId,
   path,
   ...picture
@@ -102,15 +110,69 @@ function LibraryPicture({
   // Until the library has answered there is nothing to say of the file, either way.
   if (listing === undefined) return null
   const file = listing.files.find((entry) => entry.path === path)
-  if (file === undefined || !file.contentType.startsWith("image/")) {
-    return <Missing words={picture.alt === "" ? path : picture.alt} />
+  const words = picture.alt === "" ? path : picture.alt
+  if (file === undefined) return <Missing words={words} />
+  if (embedsInChat(file)) {
+    return (
+      <span className="md-embed">
+        <LibraryEmbed agentId={agentId} file={file} view={listing.view} />
+      </span>
+    )
   }
+  if (kindOf(file) !== "image") return <Missing words={words} />
   return (
     <Picture
       {...picture}
       src={`${client.agent(agentId).libraryViewUrl(listing.view, file.path)}?v=${file.rev}`}
     />
   )
+}
+
+/**
+ * Something at another site's address. It is not loaded until the reader says so, for that
+ * site: asking for it tells the site who is reading, and the address can be written to carry
+ * anything the agent has read. What it is, a picture or a film or a sound, its address says.
+ */
+function Remote({ src, ...picture }: ComponentProps<typeof Picture>) {
+  const host = hostOf(src)
+  const allowed = useShownHost(host)
+  const [once, setOnce] = useState(false)
+  if (host === undefined) return <Missing words={picture.alt === "" ? "A picture" : picture.alt} />
+  if (!allowed && !once) {
+    return (
+      <span className="md-remote" data-alone={picture.alone || undefined}>
+        <span className="min-w-0 truncate">
+          {picture.alt === "" ? "Something" : picture.alt} from{" "}
+          <span className="font-medium text-foreground">{host}</span>
+        </span>
+        <button type="button" onClick={() => setOnce(true)}>
+          Show
+        </button>
+        <button
+          type="button"
+          title={`Show what is at ${host} without asking, from now on`}
+          onClick={() => alwaysShow(host)}
+        >
+          Always from {host}
+        </button>
+      </span>
+    )
+  }
+  let name = src
+  try {
+    name = new URL(src, window.location.href).pathname
+  } catch {
+    // Whatever it is, it is tried as a picture.
+  }
+  const kind = embedKind(name)
+  if (kind === "video" || kind === "audio") {
+    return (
+      <span className="md-embed">
+        <MediaPlayer kind={kind} src={src} name={picture.alt === "" ? host : picture.alt} />
+      </span>
+    )
+  }
+  return <Picture {...picture} src={src} />
 }
 
 function Image({ node, src, alt, width, height }: ComponentProps<"img"> & ExtraProps) {
@@ -122,9 +184,13 @@ function Image({ node, src, alt, width, height }: ComponentProps<"img"> & ExtraP
   }
   const source = typeof src === "string" ? src : ""
   const path = resolveLink("", source)
-  if (path === undefined) return <Picture {...picture} src={source} />
+  // A picture written into the reply itself is already here.
+  if (path === undefined && /^(data|blob):/i.test(source)) {
+    return <Picture {...picture} src={source} />
+  }
+  if (path === undefined) return <Remote {...picture} src={source} />
   if (agentId === undefined) return <Missing words={picture.alt === "" ? path : picture.alt} />
-  return <LibraryPicture {...picture} agentId={agentId} path={path} />
+  return <LibraryThing {...picture} agentId={agentId} path={path} />
 }
 
 /** A link to a file of the library, which opens it beside the chat where there is room for that. */
@@ -192,7 +258,9 @@ const components: Components = { a: Anchor, img: Image }
 
 /**
  * Assistant text as Markdown. A link opens in a new tab, unless it is to a file of the library
- * or to a heading of the same reply; a picture may be at a web address or in the library.
+ * or to a heading of the same reply. What is written as a picture may be a picture, a film, a
+ * sound or a table: in the library, where it is shown at once, or at another site's address,
+ * where it is shown once the reader has said that site may be asked.
  */
 export const Markdown = memo(function Markdown({
   text,

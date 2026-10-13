@@ -113,9 +113,24 @@ function Anchor({ node: _node, href, children, ...props }: ComponentProps<"a"> &
   )
 }
 
+/**
+ * A paragraph. One that is only a picture is a figure, and what is written as a picture may
+ * be drawn as a film or a table, which a paragraph cannot hold: so it is a plain block.
+ */
+function Paragraph({ node, children, ...props }: ComponentProps<"p"> & ExtraProps) {
+  const only = node?.children.filter((child) => child.type !== "text" || child.value.trim() !== "")
+  const figure =
+    only?.length === 1 &&
+    only[0]!.type === "element" &&
+    only[0]!.tagName === "img" &&
+    only[0]!.properties.dataAlone !== undefined
+  return figure ? <div className="md-figure">{children}</div> : <p {...props}>{children}</p>
+}
+
 /** What every piece of Markdown in the app is drawn with. Kept the same from one draw to the next. */
 const COMPONENTS: Components = {
   a: Anchor,
+  p: Paragraph,
   pre: Fenced,
   blockquote: Quote,
   table: ({ node: _node, ...props }) => <MarkdownTable {...props} />,

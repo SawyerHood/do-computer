@@ -198,6 +198,9 @@ function same(a: string, b: string): boolean {
   return difference === 0
 }
 
+/** The most of a film or a sound sent in answer to "from here on": the player asks for more. */
+const MAX_PLAYED_PART = 2 * 1024 * 1024
+
 /** Types a browser may show in place from the app's own address. Anything else is downloaded. */
 const INLINE_TYPES = INLINE_IMAGE_TYPES
 const isText = (type: string) =>
@@ -208,7 +211,12 @@ const isText = (type: string) =>
  * file is in what it asks for, or undefined when the file is to be sent whole: no part was asked
  * for, or several at once, or a part of a copy that is no longer the one kept.
  */
-function partAsked(request: Request, size: number, etag: string): BlobRange | "none" | undefined {
+function partAsked(
+  request: Request,
+  size: number,
+  etag: string,
+  most?: number,
+): BlobRange | "none" | undefined {
   const asked = request.headers.get("range")
   // A file with nothing in it has no part to send, and is not an error to ask for.
   if (asked === null || size === 0) return undefined
@@ -227,9 +235,12 @@ function partAsked(request: Request, size: number, etag: string): BlobRange | "n
   const offset = Number(first)
   if (last !== "" && Number(last) < offset) return undefined
   if (offset >= size) return "none"
-  // To the byte named, or to the end where none is named or the file stops sooner.
+  // To the byte named, or to the end where none is named or the file stops sooner. A player
+  // asks for "from here on" and means "some, for now": it is given no more than `most`, and
+  // asks again from where that ended.
   const end = last === "" ? size - 1 : Math.min(Number(last), size - 1)
-  return { offset, length: end - offset + 1 }
+  const length = end - offset + 1
+  return { offset, length: last === "" && most !== undefined ? Math.min(length, most) : length }
 }
 
 /**
@@ -868,14 +879,16 @@ export class LibraryStore implements LibraryBackend {
   /**
    * The answer to a request for a part of a file, with `headers` as the whole file would have
    * them, or undefined when the file is to be sent whole. Only the part asked for is read from
-   * where the file is kept, so a film is not all held in memory to send a little of it.
+   * where the file is kept, so a film is not all held in memory to send a little of it. `most`
+   * is the most that is sent of a part asked for with no end.
    */
   async #part(
     request: Request,
     file: { id: string; rev: number; size: number },
     headers: Record<string, string>,
+    most?: number,
   ): Promise<Response | undefined> {
-    const asked = partAsked(request, file.size, headers.etag ?? "")
+    const asked = partAsked(request, file.size, headers.etag ?? "", most)
     if (asked === undefined) return undefined
     if (asked === "none") {
       return new Response(null, {
@@ -1052,7 +1065,12 @@ export class LibraryStore implements LibraryBackend {
     const headers: Record<string, string> = {
       "content-type": isText(contentType) ? `${contentType}; charset=utf-8` : contentType,
       "x-content-type-options": "nosniff",
-      "content-security-policy": options.sandbox,
+      // A PDF in the app's own viewer is the exception to being kept apart: a browser's reader
+      // will not run in a frame that is, and a PDF has no script that reaches the page around
+      // it. It is served as a PDF whatever its bytes are, so nothing else can pass as one.
+      ...(contentType === "application/pdf" && options.opens
+        ? { "content-disposition": "inline" }
+        : { "content-security-policy": options.sandbox }),
       // The address is the permission. It must not travel to whatever the page loads or links to.
       "referrer-policy": "no-referrer",
       "cache-control": "private, no-cache",
@@ -1087,7 +1105,10 @@ export class LibraryStore implements LibraryBackend {
     // A page is only ever sent whole: with the app's look in it, it is not the bytes that are kept.
     if (!page) {
       headers["accept-ranges"] = "bytes"
-      const part = await this.#part(request, file, headers)
+      // What is played is asked for "from here to the end" each time the reader moves in it,
+      // and is sent a piece at a time.
+      const played = contentType.startsWith("video/") || contentType.startsWith("audio/")
+      const part = await this.#part(request, file, headers, played ? MAX_PLAYED_PART : undefined)
       if (part !== undefined) return part
     }
     const kept = await this.bytes(file)
