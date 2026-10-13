@@ -13,7 +13,7 @@ P.shuffle = '<path d="M3 7h3.500l9 10H20M3 17h3.500l2.700-3M13.300 9l2.200-2H20M
 var PAL = { k: "#1b1d23", w: "#f6f3ea", s: "#d3cdbb", n: "#24382c", r: "#e5484d", R: "#b02a37", g: "#5fbf4a", b: "#7a4a2a", B: "#4f2f1a", t: "#dba968", T: "#b97a45", p: "#ff8fb3", Q: "#e0608a", y: "#ffd23f", c: "#2bb5a8", d: "#1f8a80", h: "#ffffff" };
 var GIFT = ["....yy..yy....", "...y..yy..y...", "....y.yy.y....", ".kkkkkyykkkkk.", ".kccccyycccdk.", ".kccccyycccdk.", ".kkkkkyykkkkk.", "..kcccyyccdk..", "..kcccyyccdk..", "..kcccyyccdk..", "..kcccyyccdk..", "..kdddyydddk..", "..kkkkkkkkkk.."];
 var ART = {
-  onigiri: ["....kkkk....", "...kwwwwk...", "..kwwwwwwk..", "..kwwwwwwk..", ".kwwwwwwwwk.", ".kwwwwwwwsk.", "kwwwnnnnwwsk", "kwwwnnnnwwsk", "kwwsnnnnwssk", "kssknnnnkssk", ".kkkkkkkkkk."],
+  riceball: ["....kkkk....", "...kwwwwk...", "..kwwwwwwk..", "..kwwwwwwk..", ".kwwwwwwwwk.", ".kwwwwwwwsk.", "kwwwnnnnwwsk", "kwwwnnnnwwsk", "kwwsnnnnwssk", "kssknnnnkssk", ".kkkkkkkkkk."],
   cookie: ["...kkkkkk...", "..kttttttk..", ".kttBttttTk.", "kttttttBttTk", "kttttttttTTk", "ktBttttttTTk", "kttttBtttTTk", "ktttttttBTTk", ".kttBtttTTk.", "..kTTTTTTk..", "...kkkkkk..."],
   apple: ["......kk....", ".....kgk....", "..kkkbkkkk..", ".krrrbrrrrk.", "krrhrrrrrrRk", "krhrrrrrrrRk", "krrrrrrrrrRk", "krrrrrrrrRRk", ".krrrrrrRRk.", ".krrrrrRRRk.", "..kkkkkkkk.."],
   donut: ["...kkkkkk...", "..kppppppk..", ".kpyppppcpk.", "kppppkkpppQk", "kpcpk..kpyQk", "kpppk..kppQk", "kpypkkkkpcQk", "ktppppppyQtk", ".kttppppttk.", "..kttttttk..", "...kkkkkk..."],
@@ -29,7 +29,7 @@ Object.keys(ART).forEach(function (name) {
   SPR[name] = c.toDataURL();
 });
 function px(name, size, cls) { return `<img class="px ${cls || ""}" src="${SPR[name]}" style="width:${size}px" alt="" draggable="false">`; }
-var TREATS = { onigiri: "#f6f3ea", cookie: "#dba968", apple: "#e5484d", donut: "#ff8fb3" };
+var TREATS = { riceball: "#f6f3ea", cookie: "#dba968", apple: "#e5484d", donut: "#ff8fb3" };
 
 /* ---------- what there is to wear: a hundred things, in four places and five rarities ---------- */
 var ITEMS = Wear ? Wear.ITEMS : {}, ORDER = Wear ? Wear.ORDER : [], SLOTS = Wear ? Wear.SLOTS : ["hat", "glasses", "face", "neck"], RARS = Wear ? Wear.RARITIES : [];
@@ -69,7 +69,7 @@ function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
 function setUp(over) {
   var owned = {};
   START.forEach(function (id) { owned[id] = true; });
-  Object.assign(view, { treats: ["apple", "onigiri", "cookie"], joy: 2, box: false, loot: null, owned: owned, tab: "hat", tryOn: null, step: 0, mood: "Ready" }, over || {});
+  Object.assign(view, { treats: ["apple", "riceball", "cookie"], joy: 2, box: false, loot: null, owned: owned, tab: "hat", tryOn: null, step: 0, mood: "Ready" }, over || {});
 }
 var KEYS = ["pip", "ledger", "scout", "mochi"];
 var LINE = {
