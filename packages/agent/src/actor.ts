@@ -53,7 +53,6 @@ import type { Context } from "@earendil-works/chord"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
-import { estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate"
 import {
   AssistantEntry,
   type Conversation,
@@ -64,6 +63,7 @@ import {
   type Extension,
   Harness,
   type JsonObject,
+  ProviderDoc,
   type SessionDocToken,
   UsageDoc,
 } from "@earendil-works/pi-durable"
@@ -122,6 +122,7 @@ import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { preview } from "./preview.ts"
 import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
+import { type Carried, cutDown, isWarm } from "./branch.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { UseError, Uses } from "./uses.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
@@ -158,16 +159,17 @@ const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
 /** The most treats its creature is given from outside the app in one go. */
 const MAX_GIFTED_TREATS = 400
-/**
- * The most of the main chat a side chat will carry, in tokens as estimated. Past it, a side chat
- * starts empty.
- */
-const MAX_BRANCH_TOKENS = 60_000
 /** How often an agent in use is looked at for a model its deployment has stopped offering. */
 const MODEL_CHECK_MS = 60_000
 /** What a side chat that branched off the main chat is told, once, where its own messages begin. */
-const BRANCH_NOTE =
-  '<meta kind="side-chat">This is a side chat. It branched off your main chat here: everything above was said in the main chat, and you carry it with you. What is said from here on is said in this side chat only, and the main chat goes on without it.</meta>'
+const branchNote = (carried: Carried, mainId: string) =>
+  '<meta kind="side-chat">This is a side chat. It branched off your main chat here: everything above was said in the main chat, and you carry it with you. ' +
+  (carried === "whole"
+    ? ""
+    : carried === "trimmed"
+      ? "To keep this chat light, the older tool output and pictures above were left behind in the main chat, and a line stands where each was. "
+      : `To keep this chat light, only the most recent part of the main chat is above. Its earlier messages were left out, and so were older tool output and pictures, with a line where each was. What was said earlier is in chat ${mainId}, which you can read with the \`history\` tool. `) +
+  "What is said from here on is said in this side chat only, and the main chat goes on without it.</meta>"
 
 export type AgentActorOptions = {
   readonly models: Models
@@ -1073,6 +1075,10 @@ export class AgentActor implements Actor {
           onReport: (error) => this.#options.onReport?.(error),
           settings: {
             toolExecution: "parallel",
+            // The longest cache a provider keeps: an hour on Claude where five minutes is usual.
+            // It costs more to write and the same to read. A chat picked up again within the
+            // hour then reads its prompt from the cache, and so does a side chat opened from it.
+            stream: { cacheRetention: "long" },
             ...(this.#options.contextRetentionMs === undefined
               ? {}
               : { contextRetentionMs: this.#options.contextRetentionMs }),
@@ -2360,8 +2366,8 @@ export class AgentActor implements Actor {
   }
 
   /**
-   * A chat beside the main one: a side chat. It branches off the main chat where it can, so the
-   * agent arrives knowing what was being talked about, and starts empty where it cannot.
+   * A chat beside the main one: a side chat. It branches off the main chat, so the agent arrives
+   * knowing what was being talked about, and starts empty where nothing has been answered there.
    */
   async #createChat(
     harness: Harness,
@@ -2384,9 +2390,12 @@ export class AgentActor implements Actor {
 
   /**
    * A side chat that carries the main chat's context up to where the agent last came to rest
-   * there. Undefined where there is nothing to carry yet, or more than is worth carrying: a
-   * side chat that began nearly full would be slow and dear from its first message, and what
-   * the main chat is about still reaches it as that chat's note.
+   * there. Undefined where there is nothing to carry yet.
+   *
+   * How much it carries turns on what it costs. Where the main chat's prompt is in the
+   * provider's cache still, the side chat is given all of it, whatever its size: the cache is
+   * read for a fraction of the price, and nothing is lost. Where it is not, every token is paid
+   * for in full, and a main chat too large for that is cut down: see `cutDown`.
    */
   async #branchChat(
     harness: Harness,
@@ -2402,13 +2411,13 @@ export class AgentActor implements Actor {
     const at = branchPoint(active.entries)
     if (at === undefined) return undefined
     const carried = at === active.entries.at(-1)?.id ? active : await main.context(context, { at })
-    const tokens = carried.messages.reduce(
-      (sum, message) => sum + estimateMessageTokens(message),
-      0,
-    )
-    if (tokens > MAX_BRANCH_TOKENS) return undefined
-
+    const model = parseModel(identity.model)
     const now = this.#host.now()
+    const cut = isWarm(carried.entries, model, now)
+      ? { carried: "whole" as const, edits: [] }
+      : cutDown(carried)
+    const session = (await harness.snapshot(ProviderDoc, main.id, context))?.sessionId
+
     const record: ChatRecord = {
       title: title?.trim().slice(0, MAX_TITLE_CHARS) || DEFAULT_CHAT_TITLE,
       kind: "chat",
@@ -2422,25 +2431,28 @@ export class AgentActor implements Actor {
       at,
       {
         ownership: { kind: "ownerless" },
-        agent: {
-          model: parseModel(identity.model),
-          thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
-        },
+        agent: { model, thinkingLevel: identity.thinking ?? DEFAULT_THINKING },
         init: async (tx, id) => {
           ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
+          // A fork is given a session of its own, and some providers keep their cache by
+          // session: under a new one the main chat's prompt would be paid for again.
+          if (session !== undefined) (await tx.doc(ProviderDoc, id)).sessionId = session
         },
       },
       context,
     )
     const id = String(conversation.id)
-    // Tells the agent where it is, and marks in the chat where its own messages begin.
+    // Tells the agent where it is, marks in the chat where its own messages begin, and holds
+    // what the side chat leaves behind of the main chat, which is unchanged by it.
     await conversation.submit(
       {
         type: "write",
         requestId: `branch:${id}`,
         entry: {
           kind: BRANCH_ENTRY,
-          model: [{ role: "user", content: BRANCH_NOTE, timestamp: now }],
+          data: { carried: cut.carried },
+          model: [{ role: "user", content: branchNote(cut.carried, mainId), timestamp: now }],
+          ...(cut.edits.length === 0 ? {} : { edits: cut.edits }),
         },
       },
       context,
