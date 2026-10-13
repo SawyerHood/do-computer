@@ -2,6 +2,7 @@ import {
   type ChatMessage,
   type ChatState,
   continuesMain,
+  embedKind,
   foldFailures,
   isShownPart,
   isSiteShare,
@@ -9,6 +10,7 @@ import {
   isVisibleMessage,
   type LibraryFile,
   type MessagePart,
+  resolveLink,
   sharedSite,
   type SiteSummary,
 } from "@do-computer/protocol"
@@ -63,6 +65,74 @@ export const isViewable = (file: Pick<LibraryFile, "name" | "size"> & { path?: s
 const PREVIEWABLE = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
 export const isPreviewable = (file: Pick<LibraryFile, "contentType">) =>
   PREVIEWABLE.has(file.contentType)
+
+/**
+ * How a file is shown in a chat as what it is, where a reply names it or the agent sends it: a
+ * picture drawn, a sound played, a table's first rows. Undefined for anything else, a film
+ * among them, which is only named: the phone has nothing to play one with.
+ */
+export function shownAs(
+  file: Pick<LibraryFile, "name" | "contentType">,
+): "picture" | "sound" | "table" | undefined {
+  const kind = embedKind(file.name, file.contentType)
+  if (kind === "image") return "picture"
+  if (kind === "audio") return "sound"
+  return kind === "table" ? "table" : undefined
+}
+
+/**
+ * A web address as it is asked for, and the host it is at. The address is the one the host was
+ * read from, written out plainly, so that what is asked is never somewhere other than what the
+ * reader was told. Undefined where it is not a web address.
+ */
+export function siteOf(address: string): { host: string; address: string } | undefined {
+  if (!/^https?:\/\//i.test(address)) return undefined
+  try {
+    const url = new URL(address)
+    return url.host === "" ? undefined : { host: url.host, address: url.href }
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Whether what is at `host` is loaded without asking: the deployment the app is connected to
+ * always is, and so is a site the reader said yes to for good. `kept` is those, one to a line.
+ */
+export function isShownHost(host: string, server: string | null, kept: string): boolean {
+  return host !== "" && (host === siteOf(server ?? "")?.host || kept.split("\n").includes(host))
+}
+
+/** `kept` with `host` added to it, once. */
+export const withHost = (kept: string, host: string) =>
+  [...new Set([...kept.split("\n").filter(Boolean), host])].join("\n")
+
+/**
+ * Where what a reply writes as a picture is: in the reply itself, at another site, or in the
+ * library, by its path from the top. Undefined for an address that is none of these.
+ */
+export function namedBy(
+  src: string,
+):
+  | { at: "reply"; src: string }
+  | { at: "site"; host: string; src: string }
+  | { at: "library"; path: string }
+  | undefined {
+  if (/^data:image\//i.test(src)) return { at: "reply", src }
+  const site = siteOf(src)
+  if (site !== undefined) return { at: "site", host: site.host, src: site.address }
+  const path = resolveLink("", src)
+  return path === undefined ? undefined : { at: "library", path }
+}
+
+/** How long a sound is, or how far into it, as minutes and seconds: 0:07, 12:05, 1:02:03. */
+export function lengthOf(seconds: number): string {
+  const whole = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
+  const hours = Math.floor(whole / 3600)
+  const minutes = Math.floor((whole % 3600) / 60)
+  const rest = String(whole % 60).padStart(2, "0")
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`
+}
 
 /** The symbol a file's card has, by what kind of file it is. */
 export function fileIcon(file: Pick<LibraryFile, "name" | "size">) {

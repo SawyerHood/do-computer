@@ -49,6 +49,7 @@ import { CommandChip, CommandWord } from "./parts/command"
 import { ReplyError } from "./parts/error"
 import { SentFile } from "./parts/file"
 import { clockOf, isAtEnd, isUntouched, shownMessages, shownParts, textOf } from "./parts/logic"
+import { drawNamed } from "./parts/named"
 import { type Picture, SentPictures } from "./parts/pictures"
 import {
   type ChatScope,
@@ -94,7 +95,7 @@ type Team = { meId: string; people: Map<string, Person> }
 /** What the agent says: the page's own text, with nothing drawn around it. */
 const Answer = memo(function Answer({ text }: { text: string }) {
   // Its words can be selected, which brings up the system's own Copy, Look Up and Share.
-  return <Markdown text={text} />
+  return <Markdown text={text} image={drawNamed} />
 })
 
 const AssistantPart = memo(function AssistantPart({

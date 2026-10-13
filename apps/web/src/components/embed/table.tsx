@@ -1,4 +1,4 @@
-import { type DelimitedTable, TABLE_COLUMNS } from "@/lib/delimited"
+import { type DelimitedTable, TABLE_COLUMNS } from "@do-computer/protocol"
 import { cn } from "@/lib/utils"
 
 /**

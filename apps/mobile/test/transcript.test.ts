@@ -3,15 +3,21 @@ import { describe, expect, it } from "vitest"
 import {
   fileIcon,
   isAtEnd,
+  isShownHost,
   isUntouched,
   isViewable,
   kindOf,
+  lengthOf,
+  namedBy,
   sharedPathOf,
   shownAddress,
+  shownAs,
   shownMessages,
   shownParts,
+  siteOf,
   siteOfFile,
   textOf,
+  withHost,
 } from "../src/chat/parts/logic.ts"
 
 const text = (value: string): MessagePart => ({ type: "text", text: value })
@@ -135,6 +141,88 @@ describe("files and sites", () => {
     expect(siteOfFile([site("site")], "site/other.html")).toBeUndefined()
     expect(siteOfFile(undefined, "a.md")).toBeUndefined()
     expect(shownAddress("https://do.computer/s/abc")).toBe("do.computer/s/abc")
+  })
+})
+
+describe("what a reply names as a picture", () => {
+  it("reads the host a web address is at, and the address as it is asked for", () => {
+    expect(siteOf("https://Pictures.Example/cat.png?who=reader")).toEqual({
+      host: "pictures.example",
+      address: "https://pictures.example/cat.png?who=reader",
+    })
+    expect(siteOf("http://localhost:8787/a.png")?.host).toBe("localhost:8787")
+    // A name before an @ is not where it is, and a backslash is a slash to whatever asks.
+    expect(siteOf("https://do.computer@evil.example/a.png")?.host).toBe("evil.example")
+    expect(siteOf("https://evil.example\\@do.computer/a.png")).toEqual({
+      host: "evil.example",
+      address: "https://evil.example/@do.computer/a.png",
+    })
+    for (const other of [
+      "",
+      "cat.png",
+      "//x.dev/a.png",
+      "file:///a.png",
+      "https://",
+      "ftp://x.dev/a",
+    ]) {
+      expect(siteOf(other)).toBeUndefined()
+    }
+  })
+
+  it("shows the app's own deployment and the sites said yes to, and asks of any other", () => {
+    expect(isShownHost("do.computer", "https://do.computer", "")).toBe(true)
+    expect(isShownHost("localhost:8787", "http://localhost:8787", "")).toBe(true)
+    expect(isShownHost("pictures.example", "https://do.computer", "")).toBe(false)
+    expect(isShownHost("evil.do.computer", "https://do.computer", "")).toBe(false)
+    expect(isShownHost("pictures.example", null, "")).toBe(false)
+    const kept = withHost(withHost(withHost("", "a.example"), "b.example"), "a.example")
+    expect(kept).toBe("a.example\nb.example")
+    expect(isShownHost("b.example", "https://do.computer", kept)).toBe(true)
+    expect(isShownHost("example", "https://do.computer", kept)).toBe(false)
+    expect(isShownHost("", "https://do.computer", "")).toBe(false)
+  })
+
+  it("tells a picture in the reply, at another site and in the library apart", () => {
+    expect(namedBy("data:image/png;base64,AAAA")).toEqual({
+      at: "reply",
+      src: "data:image/png;base64,AAAA",
+    })
+    expect(namedBy("https://x.dev/a%20b.png")).toEqual({
+      at: "site",
+      host: "x.dev",
+      src: "https://x.dev/a%20b.png",
+    })
+    expect(namedBy("charts/q3.png")).toEqual({ at: "library", path: "charts/q3.png" })
+    expect(namedBy("./charts/../My%20chart.png?v=2")).toEqual({
+      at: "library",
+      path: "My chart.png",
+    })
+    expect(namedBy("/notes/a.csv")).toEqual({ at: "library", path: "notes/a.csv" })
+    for (const other of ["", "../above.png", "file:///a.png", "data:text/html,<p>", "#top"]) {
+      expect(namedBy(other)).toBeUndefined()
+    }
+  })
+
+  it("shows a picture, a sound and a table as what they are, and only names the rest", () => {
+    const file = (name: string, contentType = "application/octet-stream") => ({ name, contentType })
+    expect(shownAs(file("q3.PNG"))).toBe("picture")
+    expect(shownAs(file("chime.wav"))).toBe("sound")
+    expect(shownAs(file("recording", "audio/mpeg; charset=binary"))).toBe("sound")
+    expect(shownAs(file("signups.csv"))).toBe("table")
+    expect(shownAs(file("signups.tsv"))).toBe("table")
+    expect(shownAs(file("clip.mp4"))).toBeUndefined()
+    expect(shownAs(file("plan.md"))).toBeUndefined()
+    expect(shownAs(file("report.pdf"))).toBeUndefined()
+  })
+
+  it("writes how long a sound is as minutes and seconds", () => {
+    expect(lengthOf(0)).toBe("0:00")
+    expect(lengthOf(7.9)).toBe("0:07")
+    expect(lengthOf(725)).toBe("12:05")
+    expect(lengthOf(3723)).toBe("1:02:03")
+    expect(lengthOf(Number.NaN)).toBe("0:00")
+    expect(lengthOf(Number.POSITIVE_INFINITY)).toBe("0:00")
+    expect(lengthOf(-3)).toBe("0:00")
   })
 })
 

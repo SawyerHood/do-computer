@@ -298,6 +298,34 @@ describe("mobile Markdown: blocks", () => {
     ])
   })
 
+  it("takes every picture out for a caller that knows where pictures are", () => {
+    expect(
+      parseBlocks("See ![The chart](charts/q3.png) and ![](data:image/png;base64,AA==)", true),
+    ).toEqual([
+      { type: "paragraph", text: "See" },
+      { type: "image", alt: "The chart", src: "charts/q3.png" },
+      { type: "paragraph", text: "and" },
+      { type: "image", alt: "", src: "data:image/png;base64,AA==" },
+    ])
+    expect(parseBlocks("- ![A sound](chime.wav)\n\n  ![rows](signups.csv)", true)).toEqual([
+      {
+        type: "list",
+        ordered: false,
+        items: [""],
+        children: [
+          [
+            { type: "image", alt: "A sound", src: "chime.wav" },
+            { type: "image", alt: "rows", src: "signups.csv" },
+          ],
+        ],
+      },
+    ])
+    // What is written as code is still code.
+    expect(parseBlocks("`![code](a.png)`", true)).toEqual([
+      { type: "paragraph", text: "`![code](a.png)`" },
+    ])
+  })
+
   it("shows raw HTML as the text it is", () => {
     const html = '<div onclick="x()">hi</div>\n<script>alert(1)</script>'
     expect(parseBlocks(html)).toEqual([{ type: "paragraph", text: html }])
