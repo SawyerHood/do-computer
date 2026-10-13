@@ -64,7 +64,7 @@ export class UseError extends Error {}
 
 const fail = (text: string): ToolExecutionResult => ({
   isError: true,
-  content: [{ type: "text", text }],
+  output: [{ type: "text", text }],
 })
 
 const shotKey = (id: string) => `shots/${id}`
@@ -468,7 +468,7 @@ export class Uses {
         if (note !== undefined) said.unshift(note)
         if (shot === undefined) {
           return {
-            content: [{ type: "text", text: said.join("\n") }],
+            output: [{ type: "text", text: said.join("\n") }],
             details: details() as unknown as Json,
           }
         }
@@ -480,7 +480,7 @@ export class Uses {
           (action.do === "in_window" && action.act.do === "screenshot")
         said.push(`${looked ? of : `Done. ${of} now`}, ${shot.width} by ${shot.height}:`)
         return {
-          content: [
+          output: [
             { type: "text", text: said.join("\n") },
             { type: "image", data: shot.data, mimeType: shot.mimeType },
           ],
@@ -566,7 +566,7 @@ export class Uses {
           .join("\n")
         return {
           ...(ran.error === undefined ? {} : { isError: true }),
-          content: [
+          output: [
             { type: "text", text: words === "" ? "(The script printed nothing.)" : words },
             ...(sees
               ? ran.shots.map((shot) => ({

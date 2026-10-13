@@ -817,7 +817,7 @@ export class Scheduler {
       execute: async (args, api, context) => {
         const reply = (text: string, isError = false) => ({
           isError,
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
         })
         const identity = await api.snapshot(IdentityDoc, context)
         const describe = (schedule: ScheduleSummary) =>

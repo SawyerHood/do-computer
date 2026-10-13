@@ -2,7 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pi 1.1.0 was published on 2026-10-07; let it through the release-age gate.
+# pi 1.2.0 was published on 2026-10-12; let it through the release-age gate.
 minimumReleaseAgeExclude:
   - "@earendil-works/*"
   - "@cloudflare/workerd-darwin-64@1.20261001.1"
@@ -44,6 +44,6 @@ catalog:
   "@typescript/native": npm:typescript@^7.0.2
   vitest: ^4.1.11
   "@types/node": ^24
-  "@earendil-works/pi-durable": 1.1.0
-  "@earendil-works/pi-ai": 1.1.0
-  "@earendil-works/chord": 1.1.0
+  "@earendil-works/pi-durable": 1.2.0
+  "@earendil-works/pi-ai": 1.2.0
+  "@earendil-works/chord": 1.2.0

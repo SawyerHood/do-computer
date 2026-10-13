@@ -75,9 +75,11 @@ export const AgentObject = createDurableActorClass<Env>({
       review: models.review,
       allowPrivateHosts: config.allowPrivateHosts,
       boxEveryMs: config.boxEveryMs,
-      // Nothing is kept in memory for a chat that has gone quiet: what keeps it is a timer,
-      // and a pending timer keeps the whole object from being put away.
+      // Nothing is kept in memory for a chat that has gone quiet, nor a document that nothing
+      // is watching: what keeps each is a timer, and a pending timer keeps the whole object
+      // from being put away.
       contextRetentionMs: 0,
+      documentRetentionMs: 0,
       computerLinks: durableObjectNamespace(env.COMPUTER),
       computerDirectory: computerDirectory(
         d1Database(env.DB),

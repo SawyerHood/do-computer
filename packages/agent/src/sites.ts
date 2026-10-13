@@ -48,7 +48,7 @@ export type SitesOptions = {
  */
 export function sites(options: SitesOptions): Extension {
   const { agentId, directory } = options
-  const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
+  const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const address = (site: SiteSummary) => {
     const app = options.appUrl()
     return app === undefined ? sitePath(site.id) : `${app}${sitePath(site.id)}`
@@ -103,7 +103,7 @@ export function sites(options: SitesOptions): Extension {
         if (args.action === "list") {
           const all = await directory.list(agentId)
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text:
@@ -132,7 +132,7 @@ export function sites(options: SitesOptions): Extension {
             title: title === "" ? siteTitleFor(root.path) : title,
           })
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text: `Shared ${site.path} as “${site.title}” at ${address(site)}. It can be opened by ${who(site)}. The person sees the link in the chat, with who can open it, and can change that there.`,
@@ -146,7 +146,7 @@ export function sites(options: SitesOptions): Extension {
         if (args.action === "stop") {
           await directory.remove(agentId, found.id)
           return {
-            content: [
+            output: [
               {
                 type: "text",
                 text: `“${found.title}” is no longer shared: ${address(found)} leads nowhere now. Its files are still in the library.`,
@@ -157,7 +157,7 @@ export function sites(options: SitesOptions): Extension {
         const site = await directory.setPublic(agentId, found.id, args.action === "public")
         if (site === undefined) return fail(`“${found.title}” is no longer shared.`)
         return {
-          content: [
+          output: [
             {
               type: "text",
               text: `“${site.title}” at ${address(site)} can now be opened by ${who(site)}.`,

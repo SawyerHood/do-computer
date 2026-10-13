@@ -85,8 +85,8 @@ export type SecretsOptions = {
   readonly onSettled?: () => void
 }
 
-const fail = (text: string) => ({ isError: true, content: [{ type: "text" as const, text }] })
-const reply = (text: string) => ({ content: [{ type: "text" as const, text }] })
+const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
+const reply = (text: string) => ({ output: [{ type: "text" as const, text }] })
 
 const line = (value: unknown, limit: number): string | null => {
   if (typeof value !== "string") return null

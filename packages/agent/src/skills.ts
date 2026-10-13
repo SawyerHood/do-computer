@@ -303,7 +303,7 @@ export class Skills {
       execute: async (args, api, context) => {
         const reply = (text: string, isError = false) => ({
           isError,
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
         })
         const need = <K extends keyof typeof args>(key: K): NonNullable<(typeof args)[K]> => {
           const value = args[key]

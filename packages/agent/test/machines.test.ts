@@ -84,7 +84,7 @@ const Antique = defineExtension({
           identity.computers = ["small", "real"]
           ;(await tx.doc(ComputersDoc)).computers = {}
         }, context)
-        return { content: [{ type: "text", text: "ok" }] }
+        return { output: [{ type: "text", text: "ok" }] }
       },
     }),
   ],

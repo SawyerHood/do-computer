@@ -605,12 +605,12 @@ export class Peers {
           text: string,
           details?: { agentId: string; name: string; chatId: string },
         ) => ({
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
           ...(details === undefined ? {} : { details }),
         })
         const fail = (text: string) => ({
           isError: true,
-          content: [{ type: "text" as const, text }],
+          output: [{ type: "text" as const, text }],
         })
         const { agentId, directory } = this.#options
         const called = (peer: PeerAgent) => (peer.name === null ? UNNAMED : `"${peer.name}"`)
