@@ -194,6 +194,37 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   expect(await width()).toBe(most - 72 + 16)
   await edge.dblclick()
   expect(await width()).toBe(640)
+
+  // As narrow as it goes, every button of its bar is still in view: the ways to show it are down
+  // to their pictures, and the file's name is what is cut short.
+  await drag(600)
+  expect(await width()).toBe(352)
+  const bar = beside.locator("header")
+  const spills = () => bar.evaluate((header) => header.scrollWidth - header.clientWidth)
+  expect(await spills()).toBe(0)
+  await expect(beside.getByRole("button", { name: "Split" })).toBeInViewport({ ratio: 1 })
+  await expect(beside.getByRole("button", { name: "Close the document" })).toBeInViewport({
+    ratio: 1,
+  })
+  await beside.getByRole("button", { name: "Edit" }).click()
+  await beside.getByRole("textbox", { name: "Edit notes.md" }).press("Control+End")
+  await page.keyboard.type("More.")
+  await expect(beside.getByText("Saved", { exact: true })).toBeInViewport({ ratio: 1 })
+  expect(await spills()).toBe(0)
+  await page.screenshot({ path: "test-results/document-narrow.png" })
+
+  // A new name is typed where the name was, with room made for it.
+  await beside.getByRole("button", { name: "More" }).click()
+  await page.getByRole("menuitem", { name: "Rename or move" }).click()
+  const name = beside.getByRole("textbox", { name: "Folder and name" })
+  await expect(name).toBeFocused()
+  expect((await name.boundingBox())!.width).toBeGreaterThan(100)
+  expect(await spills()).toBe(0)
+  await expect(beside.getByRole("button", { name: "Close the document" })).toBeInViewport({
+    ratio: 1,
+  })
+  await page.keyboard.press("Escape")
+  await expect(beside.getByRole("button", { name: "Split" })).toBeVisible()
 })
 
 test("the message box has its buttons under what is written, and grows where room was kept", async ({
