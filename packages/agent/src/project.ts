@@ -23,6 +23,7 @@ import type {
   LiveState,
   UsageState,
 } from "@earendil-works/pi-durable"
+import type { Carried } from "./branch.ts"
 import { agentSenderOf, type Caller, senderOf, type SlackSender, slackSenderOf } from "./caller.ts"
 
 type UserContent = UserMessage["content"]
@@ -235,8 +236,19 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       return notice(id, "reset", first?.role === "user" ? contentText(first.content) : "")
     case "pi.compaction":
       return notice(id, "compaction", "Earlier messages were summarized to free up context.")
-    case BRANCH_ENTRY:
-      return notice(id, "branch", "Continues from the main chat.")
+    case BRANCH_ENTRY: {
+      // Says how much of the main chat the side chat carries, where that is not all of it.
+      const carried = (entry.data as { carried?: Carried } | undefined)?.carried
+      return notice(
+        id,
+        "branch",
+        carried === "trimmed"
+          ? "Continues from the main chat, with older tool output left behind"
+          : carried === "recent"
+            ? "Continues from the most recent part of the main chat"
+            : "Continues from the main chat",
+      )
+    }
     case "dc.scheduled": {
       // A scheduled task's report, delivered into the chat the task was created in.
       const report = entry.data as { title?: string; text?: string } | undefined
