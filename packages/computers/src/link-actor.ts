@@ -92,13 +92,13 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
    * busy. Resolves with why not, where it still cannot.
    */
   const able = async (
-    ability: "jobs" | "screen" | "browser" | "signIn",
+    ability: "jobs" | "screen" | "browser" | "signIn" | "pay",
   ): Promise<string | undefined> => {
     let hello = (await status()).hello
     // A daemon that knows of a thing says whether it may be used, and answers for itself why
     // not. One that says nothing of it is from before there was such a thing.
     const knows = (said: LinkStatus["hello"]) =>
-      ability === "jobs" || ability === "signIn"
+      ability === "jobs" || ability === "signIn" || ability === "pay"
         ? said?.[ability] === true
         : said?.[ability] !== undefined
     if (knows(hello)) return undefined
@@ -153,7 +153,12 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
             // Signing in with a saved login is newer than the browser: one from before it
             // would not answer, and must never be sent a password it does not know to keep quiet.
             const signsIn = what === "browser" && (asked.op === "front" || asked.op === "sign_in")
-            const lacking = (await able(what)) ?? (signsIn ? await able("signIn") : undefined)
+            // Paying with a saved card is newer still, and a card is no more to be sent to one
+            // that would not know to keep quiet about it.
+            const pays = what === "browser" && asked.op === "pay"
+            const lacking =
+              (await able(what)) ??
+              (signsIn ? await able("signIn") : pays ? await able("pay") : undefined)
             if (lacking !== undefined) return json({ error: lacking, code: "unsupported" }, 409)
             return json({ value: await core.use({ ...asked, t: what } as never) })
           }

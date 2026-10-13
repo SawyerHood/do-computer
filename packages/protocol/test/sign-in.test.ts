@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { signInSite, siteHost } from "../src/index.ts"
+import { cardBrand, cardDigits, isCardNumber, paySite, signInSite, siteHost } from "../src/index.ts"
 
 describe("siteHost", () => {
   it.each([
@@ -93,5 +93,63 @@ describe("signInSite", () => {
   it("is for no site where the login names none that is one", () => {
     expect(signInSite("https://github.com/", [])).toBeNull()
     expect(signInSite("https://github.com/", ["com", ""])).toBeNull()
+  })
+})
+
+describe("a card's number", () => {
+  it.each([
+    "4242424242424242",
+    "5555555555554444",
+    "378282246310005",
+    "6011111111111117",
+    "2223003122003222",
+  ])("%s is one", (digits) => {
+    expect(isCardNumber(digits)).toBe(true)
+  })
+
+  it.each(["4242424242424241", "1234567890123456", "42424242", "", "4242 4242 4242 4242", "abcd"])(
+    "%j is not one",
+    (digits) => {
+      expect(isCardNumber(digits)).toBe(false)
+    },
+  )
+
+  it("is read with the spaces and dashes it was typed with taken out", () => {
+    expect(cardDigits(" 4242 4242-4242 4242 ")).toBe("4242424242424242")
+  })
+
+  it.each([
+    ["4242424242424242", "Visa"],
+    ["5555555555554444", "Mastercard"],
+    ["2223003122003222", "Mastercard"],
+    ["378282246310005", "American Express"],
+    ["6011111111111117", "Discover"],
+    ["3530111333300000", "JCB"],
+    ["9999999999999995", null],
+  ])("%s says whose it is: %j", (digits, brand) => {
+    expect(cardBrand(digits)).toBe(brand)
+  })
+})
+
+describe("paySite", () => {
+  it.each([
+    ["https://shop.example/checkout", "shop.example"],
+    ["https://Checkout.Stripe.com/c/pay/x", "checkout.stripe.com"],
+    ["http://localhost:3000/pay", "localhost"],
+    ["http://127.0.0.1:8080/pay", "127.0.0.1"],
+  ])("lets a card be typed on %j", (url, host) => {
+    expect(paySite(url)).toBe(host)
+  })
+
+  it.each([
+    "http://shop.example/checkout",
+    "about:blank",
+    "file:///tmp/checkout.html",
+    "data:text/html,<input autocomplete=cc-number>",
+    "chrome://settings",
+    "",
+    undefined,
+  ])("lets nothing be typed on %j", (url) => {
+    expect(paySite(url)).toBeNull()
   })
 })

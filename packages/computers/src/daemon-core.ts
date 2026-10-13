@@ -6,6 +6,7 @@ import {
   EXEC_STDIO_CAP,
   type BrowserFrame,
   type BrowserFront,
+  type BrowserPaid,
   type BrowserRan,
   type BrowserSignedIn,
   DEFAULT_BROWSER_TIMEOUT_MS,
@@ -14,6 +15,8 @@ import {
   type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
+  type PayField,
+  type PayWith,
   REMOTE_FILE_CAP,
   type LiveView,
   MAX_BROWSER_TIMEOUT_MS,
@@ -63,6 +66,17 @@ export interface BrowserIO {
     login: SignInWith,
     options: { timeoutMs: number; say?: string },
   ): Promise<BrowserSignedIn>
+  /**
+   * Pay on the page in front with `card`, for `agent`: the daemon fills `fields` in, types the
+   * card and presses the button that says `button` in one go, so that no script an agent wrote
+   * runs while the card is in the page. Never rejects for a payment that did not go through:
+   * that is in the answer, which has nothing of the card's number or code in it.
+   */
+  pay(
+    agent: UsingAgent,
+    card: PayWith,
+    options: { timeoutMs: number; say?: string; fields: PayField[]; button: string },
+  ): Promise<BrowserPaid>
   view(after: number, waitMs: number): Promise<LiveView>
   hold(held: boolean): Promise<void>
   /** Close the browser kept for agents, and let go of the owner's own. */
@@ -99,6 +113,40 @@ export interface DaemonIO {
   browser?: BrowserIO
   /** Record one thing the agent did on this machine. */
   audit(entry: Record<string, unknown>): void
+}
+
+/** The most boxes a payment may ask to have filled in beside the card. */
+const MAX_PAY_FIELDS = 20
+
+/** A card as a frame carried it, where it is whole. */
+function readCard(value: unknown): PayWith | undefined {
+  const card = value as Partial<PayWith> | null | undefined
+  if (typeof card !== "object" || card === null) return undefined
+  const { name, holder, number, expMonth, expYear, code, postalCode } = card
+  if (
+    typeof name !== "string" ||
+    typeof holder !== "string" ||
+    typeof number !== "string" ||
+    typeof expMonth !== "number" ||
+    typeof expYear !== "number" ||
+    typeof code !== "string" ||
+    typeof postalCode !== "string"
+  ) {
+    return undefined
+  }
+  return { name, holder, number, expMonth, expYear, code, postalCode }
+}
+
+/** What else to fill in as a frame carried it, where it is whole. None where the frame has none. */
+function readPayFields(value: unknown): PayField[] | undefined {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > MAX_PAY_FIELDS) return undefined
+  const fields: PayField[] = []
+  for (const field of value as Partial<PayField>[]) {
+    if (typeof field?.box !== "string" || typeof field.text !== "string") return undefined
+    fields.push({ box: field.box, text: field.text })
+  }
+  return fields
 }
 
 /** A failed file operation's errno, as an error code the host understands. */
@@ -287,11 +335,10 @@ export class DaemonCore {
         else void this.#screen(frame)
         return
       case "browser":
-        if (this.#readOnly && (frame.op === "run" || frame.op === "sign_in")) {
-          return this.#refuse(frame.id, "use a browser")
-        }
-        if (frame.op === "run" || frame.op === "sign_in") this.#track(this.#browser(frame))
-        else void this.#browser(frame)
+        if (frame.op === "run" || frame.op === "sign_in" || frame.op === "pay") {
+          if (this.#readOnly) return this.#refuse(frame.id, "use a browser")
+          this.#track(this.#browser(frame))
+        } else void this.#browser(frame)
         return
       case "update":
         this.#onUpdate?.()
@@ -492,6 +539,55 @@ export class DaemonCore {
             return {
               outcome: "failed",
               message: `This computer could not sign in with the login "${login.name}".`,
+              own: false,
+            }
+          }
+        })
+      }
+      case "pay": {
+        const { agent, button } = frame
+        const card = readCard(frame.card)
+        const fields = readPayFields(frame.fields)
+        if (
+          agent === undefined ||
+          card === undefined ||
+          fields === undefined ||
+          typeof button !== "string" ||
+          button.trim() === ""
+        ) {
+          return this.#error(
+            frame.id,
+            "bad_request",
+            "pay needs an agent, a card, the button to press, and at most twenty boxes to fill in.",
+          )
+        }
+        // The name of the card and its last four digits, as a receipt would have them, and no
+        // more: the frame holds the whole card, and is never kept.
+        this.#io.audit({
+          ts: this.#now(),
+          kind: "browser_pay",
+          agent: agent.name,
+          card: card.name,
+          last4: card.number.replace(/\D/g, "").slice(-4),
+        })
+        const timeoutMs = Math.min(
+          Math.max(1_000, frame.timeoutMs ?? DEFAULT_BROWSER_TIMEOUT_MS),
+          MAX_BROWSER_TIMEOUT_MS,
+        )
+        return this.#use(frame.id, async (): Promise<BrowserPaid> => {
+          try {
+            return await browser.pay(agent, card, {
+              timeoutMs,
+              ...(frame.say === undefined ? {} : { say: frame.say }),
+              fields,
+              button,
+            })
+          } catch (error) {
+            // As for signing in: why is not passed on, since what was being done was typing a card.
+            if (error instanceof UseRefused) throw error
+            return {
+              outcome: "failed",
+              message: `This computer could not pay with the card "${card.name}".`,
               own: false,
             }
           }

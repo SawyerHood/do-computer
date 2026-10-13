@@ -60,6 +60,8 @@ export type WorkspaceSummary = {
    * or keeps it for others.
    */
   savedLogins?: true
+  /** The same, for cards a Dood can pay with. */
+  savedCards?: true
 }
 
 /** Someone asked to join a team who has not answered yet. Addressed by email or GitHub username. */

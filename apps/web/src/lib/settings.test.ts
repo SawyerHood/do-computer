@@ -44,7 +44,7 @@ describe("a place in the settings, as the address has it", () => {
 })
 
 describe("the sections of a workspace's settings", () => {
-  it("have no Passwords where the workspace's summary does not say it keeps logins", () => {
+  it("have no Passwords where the workspace's summary does not say it keeps logins or cards", () => {
     expect(workspaceSections({ kind: "personal" })).toEqual(["computers", "models"])
     expect(workspaceSections({ kind: "team" })).toEqual(["people", "computers", "models"])
   })
@@ -56,6 +56,8 @@ describe("the sections of a workspace's settings", () => {
       "passwords",
     ])
     expect(workspaceSections({ kind: "team", savedLogins: true }).at(-1)).toBe("passwords")
+    // A workspace that keeps cards and no logins has the page too, for its cards.
+    expect(workspaceSections({ kind: "personal", savedCards: true }).at(-1)).toBe("passwords")
     // The address of the page is one that can be written and read back.
     expect(parseSettings("workspace.w1.passwords")).toEqual({
       at: "workspace",

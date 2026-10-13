@@ -1,5 +1,5 @@
 import type { ComputerChoices } from "@do-computer/agent"
-import type { SecretsMode } from "@do-computer/protocol"
+import { SECRET_KINDS, type SecretKind, type SecretsMode } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 
 /** Deployment settings, read from the environment of whichever runtime hosts the app. */
@@ -94,6 +94,11 @@ export type Config = {
    */
   readonly secrets: SecretsMode
   /**
+   * Which kinds of thing are kept for Doods to use unseen (`DC_SECRET_KINDS`): `passwords`,
+   * which is all an unset one means, and `cards` where a deployment names them.
+   */
+  readonly secretKinds: readonly SecretKind[]
+  /**
    * What saved logins are sealed with before they are kept: `DC_SECRETS_KEY`, or the secret
    * that signs sessions where there is none. Changing it makes what was saved unreadable.
    */
@@ -183,6 +188,22 @@ function secretsMode(value: string | undefined): SecretsMode {
   throw new ConfigError(`DC_SECRETS is "${value}". It must be one of: admins, on, off.`)
 }
 
+function secretKinds(value: string | undefined): readonly SecretKind[] {
+  const names = (value ?? "passwords")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean)
+  for (const name of names) {
+    // A kind that is misspelt must not be taken for one that was not asked for.
+    if (!(SECRET_KINDS as readonly string[]).includes(name)) {
+      throw new ConfigError(
+        `DC_SECRET_KINDS includes "${name}". It is a list of: ${SECRET_KINDS.join(", ")}.`,
+      )
+    }
+  }
+  return names as SecretKind[]
+}
+
 function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undefined {
   const names = (value ?? "")
     .split(",")
@@ -259,6 +280,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       instance: optional("DC_CLOUDFLARE_INSTANCE"),
     },
     secrets: secretsMode(optional("DC_SECRETS")),
+    secretKinds: secretKinds(optional("DC_SECRET_KINDS")),
     secretsKey: optional("DC_SECRETS_KEY") ?? optional("DC_AUTH_SECRET"),
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",

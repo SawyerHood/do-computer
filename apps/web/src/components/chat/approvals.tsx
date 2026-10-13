@@ -1,8 +1,16 @@
-import type { ApprovalDecision, ApprovalRequest, ApprovalsState } from "@do-computer/protocol"
+import {
+  type ApprovalDecision,
+  type ApprovalRequest,
+  type ApprovalsState,
+  CARD_CODE,
+} from "@do-computer/protocol"
 import { ShieldCheckIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { client } from "@/lib/client"
 import { approvalsKey } from "@/lib/collections"
 import { useWorkspaceOfAgent } from "@/lib/workspaces"
@@ -21,11 +29,24 @@ function RequestCard({
   here: boolean
 }) {
   const team = useWorkspaceOfAgent(agentId)
+  // What a yes has to come with, where the request wants something: a card's security code.
+  // It is held here until it is sent, and no longer.
+  const [typed, setTyped] = useState("")
   const answer = useMutation({
     mutationFn: (decision: ApprovalDecision) =>
-      client.agent(agentId).answerApproval(request.id, decision),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) }),
+      client
+        .agent(agentId)
+        .answerApproval(
+          request.id,
+          decision,
+          request.wants === undefined || decision === "deny" ? undefined : typed,
+        ),
+    onSettled: () => {
+      setTyped("")
+      return queryClient.invalidateQueries({ queryKey: approvalsKey(agentId) })
+    },
   })
+  const ready = request.wants === undefined || CARD_CODE.test(typed)
   return (
     <li className="flex flex-col gap-2.5 rounded-2xl bg-card p-3.5 shadow-raised">
       <div className="flex items-start gap-2.5">
@@ -62,13 +83,38 @@ function RequestCard({
           {request.detail}
         </pre>
       )}
+      {request.wants === undefined ? null : (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`typed-${request.id}`}>{request.wants.label}</Label>
+          <Input
+            id={`typed-${request.id}`}
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            maxLength={4}
+            disabled={answer.isPending}
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && ready) answer.mutate("once")
+            }}
+            className="w-24 font-mono"
+          />
+        </div>
+      )}
       {answer.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {answer.error.message}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={answer.isPending} onClick={() => answer.mutate("once")}>
+        <Button
+          size="sm"
+          disabled={answer.isPending || !ready}
+          onClick={() => answer.mutate("once")}
+        >
           Allow once
         </Button>
         {/* Asked about every time, "always" changes nothing. */}

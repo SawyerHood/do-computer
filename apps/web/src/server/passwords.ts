@@ -2,7 +2,8 @@ import { getPlatform } from "#platform"
 import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
 import { fail } from "./agents.ts"
 import type { SessionUser } from "./auth.ts"
-import { hasSavedLogins } from "./passwords-directory.ts"
+import type { SecretKind } from "@do-computer/protocol"
+import { hasSaved } from "./passwords-directory.ts"
 import { roleIn } from "./teams.ts"
 
 /**
@@ -12,7 +13,7 @@ import { roleIn } from "./teams.ts"
  * remove them. Nothing here, and no route there is, hands a password back.
  */
 
-/** Call the vault of a workspace. The path is relative to its saved logins. */
+/** Call the vault of a workspace. The path is `/passwords` or `/cards` and what follows. */
 function callVault(
   workspaceId: string,
   path: string,
@@ -22,7 +23,7 @@ function callVault(
   return getPlatform()
     .modelAccess.get(workspaceId)
     .fetch(
-      new Request(`http://models/passwords${path}`, {
+      new Request(`http://models${path}`, {
         ...rest,
         // Built from nothing, so that who is asking is only ever what this gateway says.
         headers: {
@@ -44,10 +45,11 @@ async function inVault(
   user: SessionUser,
   workspaceId: string,
   handle: () => Promise<Response>,
+  kind: SecretKind = "passwords",
 ): Promise<Response> {
   const { db, config } = getPlatform()
   const role = await roleIn(db, user.id, workspaceId)
-  if (role === undefined || !(await hasSavedLogins(db, config, workspaceId))) {
+  if (role === undefined || !(await hasSaved(db, config, workspaceId, kind))) {
     return fail(404, "Not found")
   }
   return handle()
@@ -55,7 +57,7 @@ async function inVault(
 
 /** The logins a workspace has saved: everything of each but its password. */
 export function listSavedLogins(user: SessionUser, workspaceId: string): Promise<Response> {
-  return inVault(user, workspaceId, () => callVault(workspaceId, ""))
+  return inVault(user, workspaceId, () => callVault(workspaceId, "/passwords"))
 }
 
 /** Save a login. Anyone in the workspace can: it is then the workspace's, for all its Doods. */
@@ -65,7 +67,11 @@ export function saveLogin(
   workspaceId: string,
 ): Promise<Response> {
   return inVault(user, workspaceId, async () =>
-    callVault(workspaceId, "", { method: "POST", body: await request.text(), by: user }),
+    callVault(workspaceId, "/passwords", {
+      method: "POST",
+      body: await request.text(),
+      by: user,
+    }),
   )
 }
 
@@ -77,7 +83,7 @@ export function changeSavedLogin(
   loginId: string,
 ): Promise<Response> {
   return inVault(user, workspaceId, async () =>
-    callVault(workspaceId, `/${encodeURIComponent(loginId)}`, {
+    callVault(workspaceId, `/passwords/${encodeURIComponent(loginId)}`, {
       method: "PATCH",
       body: await request.text(),
       by: user,
@@ -91,6 +97,39 @@ export function removeSavedLogin(
   loginId: string,
 ): Promise<Response> {
   return inVault(user, workspaceId, () =>
-    callVault(workspaceId, `/${encodeURIComponent(loginId)}`, { method: "DELETE" }),
+    callVault(workspaceId, `/passwords/${encodeURIComponent(loginId)}`, { method: "DELETE" }),
+  )
+}
+
+/** The cards a workspace has saved: everything of each but its number, of which the last four digits. */
+export function listSavedCards(user: SessionUser, workspaceId: string): Promise<Response> {
+  return inVault(user, workspaceId, () => callVault(workspaceId, "/cards"), "cards")
+}
+
+/** Save a card. Its security code is not asked for, and would not be kept. */
+export function saveCard(
+  user: SessionUser,
+  request: Request,
+  workspaceId: string,
+): Promise<Response> {
+  return inVault(
+    user,
+    workspaceId,
+    async () =>
+      callVault(workspaceId, "/cards", { method: "POST", body: await request.text(), by: user }),
+    "cards",
+  )
+}
+
+export function removeSavedCard(
+  user: SessionUser,
+  workspaceId: string,
+  cardId: string,
+): Promise<Response> {
+  return inVault(
+    user,
+    workspaceId,
+    () => callVault(workspaceId, `/cards/${encodeURIComponent(cardId)}`, { method: "DELETE" }),
+    "cards",
   )
 }

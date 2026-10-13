@@ -7,7 +7,7 @@ set one up, start with [the self-hosting guide](../self-hosting.md).
 - [Computers](computers.md): the kinds of machine a Dood can work on, and what each keeps
 - [Models](models.md): the deployment's models, a workspace's own, and what is paid by whom
 - [Security and trust](security.md): what a Dood can reach, and what limits it
-- [Saved passwords](passwords.md): how a Dood signs in without seeing a password, and who has them
+- [Saved passwords and cards](passwords.md): how a Dood signs in and pays without seeing a password or a card's number, and who has them
 - [What a Dood can do](agents.md)
 - [Teams](teams.md)
 - [Slack](slack.md)

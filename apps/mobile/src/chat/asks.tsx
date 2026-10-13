@@ -5,6 +5,7 @@ import {
   type ComputerRequest,
   type ConnectorSummary,
   isPersonalWorkspace,
+  CARD_CODE,
   LOGIN_PASSWORD,
   LOGIN_USERNAME,
   MAX_PASSWORD_CHARS,
@@ -120,8 +121,22 @@ function ApprovalCard({
   const answer = useAnswer(() =>
     queryClient.invalidateQueries({ queryKey: keys.approvals(agentId) }),
   )
+  // What a yes has to come with, where the request wants something typed: a card's security
+  // code, which is kept nowhere and forgotten here once it is sent.
+  const [typed, setTyped] = useState("")
+  const lacking = request.wants !== undefined && !CARD_CODE.test(typed.trim())
   const decide = (decision: ApprovalDecision) =>
-    void answer.run(() => client.agent(agentId).answerApproval(request.id, decision))
+    void answer
+      .run(() =>
+        client
+          .agent(agentId)
+          .answerApproval(
+            request.id,
+            decision,
+            request.wants === undefined || decision === "deny" ? undefined : typed.trim(),
+          ),
+      )
+      .finally(() => setTyped(""))
   return (
     <Card
       icon="shield"
@@ -171,7 +186,7 @@ function ApprovalCard({
             color={accent.a}
             onColor={accent.onA}
             style={{ flex: 1 }}
-            disabled={answer.busy}
+            disabled={answer.busy || lacking}
             onPress={() => decide("once")}
           />
         </>
@@ -196,6 +211,17 @@ function ApprovalCard({
             {request.detail}
           </Text>
         </View>
+      )}
+      {request.wants === undefined ? null : (
+        <TypedField
+          label={request.wants.label}
+          name={request.wants.label.toLowerCase()}
+          secret
+          value={typed}
+          busy={answer.busy}
+          accent={accent}
+          onChangeText={setTyped}
+        />
       )}
     </Card>
   )

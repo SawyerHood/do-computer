@@ -90,6 +90,8 @@ import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId
 import { Route as ApiAgentsAgentIdSitesSiteIdRouteImport } from './routes/api/agents/$agentId.sites.$siteId'
 import { Route as ApiComputersComputerIdAgentsAgentIdRouteImport } from './routes/api/computers/$computerId.agents.$agentId'
 import { Route as ApiComputersPairRequestCodeRouteImport } from './routes/api/computers/pair.request.$code'
+import { Route as ApiWorkspacesWorkspaceIdCardsIndexRouteImport } from './routes/api/workspaces/$workspaceId.cards.index'
+import { Route as ApiWorkspacesWorkspaceIdCardsCardIdRouteImport } from './routes/api/workspaces/$workspaceId.cards.$cardId'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport } from './routes/api/workspaces/$workspaceId.invitations.index'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId.invitations.$invitationId'
 import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId.members.$userId'
@@ -515,6 +517,18 @@ const ApiComputersPairRequestCodeRoute =
     path: '/api/computers/pair/request/$code',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdCardsIndexRoute =
+  ApiWorkspacesWorkspaceIdCardsIndexRouteImport.update({
+    id: '/api/workspaces/$workspaceId/cards/',
+    path: '/api/workspaces/$workspaceId/cards/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdCardsCardIdRoute =
+  ApiWorkspacesWorkspaceIdCardsCardIdRouteImport.update({
+    id: '/api/workspaces/$workspaceId/cards/$cardId',
+    path: '/api/workspaces/$workspaceId/cards/$cardId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorkspacesWorkspaceIdInvitationsIndexRoute =
   ApiWorkspacesWorkspaceIdInvitationsIndexRouteImport.update({
     id: '/api/workspaces/$workspaceId/invitations/',
@@ -663,10 +677,12 @@ export interface FileRoutesByFullPath {
   '/api/agents/$agentId/sites/$siteId': typeof ApiAgentsAgentIdSitesSiteIdRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/cards/$cardId': typeof ApiWorkspacesWorkspaceIdCardsCardIdRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/model-providers/$providerId': typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   '/api/workspaces/$workspaceId/passwords/$loginId': typeof ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute
+  '/api/workspaces/$workspaceId/cards/': typeof ApiWorkspacesWorkspaceIdCardsIndexRoute
   '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   '/api/workspaces/$workspaceId/model-logins/': typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
   '/api/workspaces/$workspaceId/model-providers/': typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
@@ -754,10 +770,12 @@ export interface FileRoutesByTo {
   '/api/agents/$agentId/sites/$siteId': typeof ApiAgentsAgentIdSitesSiteIdRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/cards/$cardId': typeof ApiWorkspacesWorkspaceIdCardsCardIdRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/model-providers/$providerId': typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   '/api/workspaces/$workspaceId/passwords/$loginId': typeof ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute
+  '/api/workspaces/$workspaceId/cards': typeof ApiWorkspacesWorkspaceIdCardsIndexRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   '/api/workspaces/$workspaceId/model-logins': typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
   '/api/workspaces/$workspaceId/model-providers': typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
@@ -849,10 +867,12 @@ export interface FileRoutesById {
   '/api/agents/$agentId/sites/$siteId': typeof ApiAgentsAgentIdSitesSiteIdRoute
   '/api/computers/$computerId/agents/$agentId': typeof ApiComputersComputerIdAgentsAgentIdRoute
   '/api/computers/pair/request/$code': typeof ApiComputersPairRequestCodeRoute
+  '/api/workspaces/$workspaceId/cards/$cardId': typeof ApiWorkspacesWorkspaceIdCardsCardIdRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/model-providers/$providerId': typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   '/api/workspaces/$workspaceId/passwords/$loginId': typeof ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute
+  '/api/workspaces/$workspaceId/cards/': typeof ApiWorkspacesWorkspaceIdCardsIndexRoute
   '/api/workspaces/$workspaceId/invitations/': typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   '/api/workspaces/$workspaceId/model-logins/': typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
   '/api/workspaces/$workspaceId/model-providers/': typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
@@ -944,10 +964,12 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/sites/$siteId'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/cards/$cardId'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/model-providers/$providerId'
     | '/api/workspaces/$workspaceId/passwords/$loginId'
+    | '/api/workspaces/$workspaceId/cards/'
     | '/api/workspaces/$workspaceId/invitations/'
     | '/api/workspaces/$workspaceId/model-logins/'
     | '/api/workspaces/$workspaceId/model-providers/'
@@ -1035,10 +1057,12 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/sites/$siteId'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/cards/$cardId'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/model-providers/$providerId'
     | '/api/workspaces/$workspaceId/passwords/$loginId'
+    | '/api/workspaces/$workspaceId/cards'
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/model-logins'
     | '/api/workspaces/$workspaceId/model-providers'
@@ -1129,10 +1153,12 @@ export interface FileRouteTypes {
     | '/api/agents/$agentId/sites/$siteId'
     | '/api/computers/$computerId/agents/$agentId'
     | '/api/computers/pair/request/$code'
+    | '/api/workspaces/$workspaceId/cards/$cardId'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/model-providers/$providerId'
     | '/api/workspaces/$workspaceId/passwords/$loginId'
+    | '/api/workspaces/$workspaceId/cards/'
     | '/api/workspaces/$workspaceId/invitations/'
     | '/api/workspaces/$workspaceId/model-logins/'
     | '/api/workspaces/$workspaceId/model-providers/'
@@ -1206,10 +1232,12 @@ export interface RootRouteChildren {
   ApiInvitationsKeyIndexRoute: typeof ApiInvitationsKeyIndexRoute
   ApiWorkspacesWorkspaceIdIndexRoute: typeof ApiWorkspacesWorkspaceIdIndexRoute
   ApiComputersPairRequestCodeRoute: typeof ApiComputersPairRequestCodeRoute
+  ApiWorkspacesWorkspaceIdCardsCardIdRoute: typeof ApiWorkspacesWorkspaceIdCardsCardIdRoute
   ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute: typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   ApiWorkspacesWorkspaceIdMembersUserIdRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute: typeof ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute
   ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute: typeof ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute
+  ApiWorkspacesWorkspaceIdCardsIndexRoute: typeof ApiWorkspacesWorkspaceIdCardsIndexRoute
   ApiWorkspacesWorkspaceIdInvitationsIndexRoute: typeof ApiWorkspacesWorkspaceIdInvitationsIndexRoute
   ApiWorkspacesWorkspaceIdModelLoginsIndexRoute: typeof ApiWorkspacesWorkspaceIdModelLoginsIndexRoute
   ApiWorkspacesWorkspaceIdModelProvidersIndexRoute: typeof ApiWorkspacesWorkspaceIdModelProvidersIndexRoute
@@ -1787,6 +1815,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiComputersPairRequestCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/cards/': {
+      id: '/api/workspaces/$workspaceId/cards/'
+      path: '/api/workspaces/$workspaceId/cards'
+      fullPath: '/api/workspaces/$workspaceId/cards/'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdCardsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/cards/$cardId': {
+      id: '/api/workspaces/$workspaceId/cards/$cardId'
+      path: '/api/workspaces/$workspaceId/cards/$cardId'
+      fullPath: '/api/workspaces/$workspaceId/cards/$cardId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdCardsCardIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspaces/$workspaceId/invitations/': {
       id: '/api/workspaces/$workspaceId/invitations/'
       path: '/api/workspaces/$workspaceId/invitations'
@@ -2034,6 +2076,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInvitationsKeyIndexRoute: ApiInvitationsKeyIndexRoute,
   ApiWorkspacesWorkspaceIdIndexRoute: ApiWorkspacesWorkspaceIdIndexRoute,
   ApiComputersPairRequestCodeRoute: ApiComputersPairRequestCodeRoute,
+  ApiWorkspacesWorkspaceIdCardsCardIdRoute:
+    ApiWorkspacesWorkspaceIdCardsCardIdRoute,
   ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute:
     ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute,
   ApiWorkspacesWorkspaceIdMembersUserIdRoute:
@@ -2042,6 +2086,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiWorkspacesWorkspaceIdModelProvidersProviderIdRoute,
   ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute:
     ApiWorkspacesWorkspaceIdPasswordsLoginIdRoute,
+  ApiWorkspacesWorkspaceIdCardsIndexRoute:
+    ApiWorkspacesWorkspaceIdCardsIndexRoute,
   ApiWorkspacesWorkspaceIdInvitationsIndexRoute:
     ApiWorkspacesWorkspaceIdInvitationsIndexRoute,
   ApiWorkspacesWorkspaceIdModelLoginsIndexRoute:

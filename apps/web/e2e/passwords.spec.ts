@@ -9,8 +9,9 @@ import {
   signUp,
 } from "./helpers.ts"
 
-// Saved passwords are for the deployment's admins unless it says otherwise: the owner is one here.
-test.use({ settings: { DC_ADMIN_EMAILS: owner.email } })
+// Saved passwords are for the deployment's admins unless it says otherwise, and cards are kept
+// only where it names them: the owner is an admin here, and it does.
+test.use({ settings: { DC_ADMIN_EMAILS: owner.email, DC_SECRET_KINDS: "passwords,cards" } })
 asOwner()
 
 const PASSWORD = "nobody-is-shown-this-again"
@@ -103,6 +104,51 @@ test.describe("a workspace's saved passwords", () => {
     await expect(window.getByRole("heading", { name: "No logins yet" })).toBeVisible()
   })
 
+  test("have cards beside them, kept without a security code and shown by their last four digits", async ({
+    page,
+  }) => {
+    await signIn(page)
+    await openWorkspaceSettings(page, "Passwords")
+    const window = page.getByRole("dialog").first()
+    await expect(window.getByRole("heading", { name: "Cards" })).toBeVisible()
+
+    await window.getByRole("button", { name: "Add a card" }).first().click()
+    const adding = page.getByRole("dialog", { name: "Add a card" })
+    // There is nowhere to type a security code: it is not kept.
+    await expect(adding.getByLabel(/security code|CVC|CVV/i)).toHaveCount(0)
+    // A number that is not a card's is said before anything is sent.
+    await adding.getByLabel("Card number").fill("4242 4242 4242 4241")
+    await adding.getByLabel("Expires").fill("08 / 40")
+    await adding.getByRole("button", { name: "Save" }).click()
+    await expect(adding.getByRole("alert")).toBeVisible()
+    await adding.getByLabel("Card number").fill("4242424242424242")
+    await expect(adding.getByLabel("Card number")).toHaveValue("4242 4242 4242 4242")
+    await adding.getByLabel("Name on the card").fill("Sawyer Hood")
+    await adding.getByRole("button", { name: "Save" }).click()
+    await expect(adding).toHaveCount(0)
+
+    const saved = window.getByRole("list", { name: "Saved cards" })
+    await expect(saved.getByRole("listitem")).toHaveCount(1)
+    await expect(saved).toContainText("Visa ending 4242")
+    await expect(saved).toContainText("expires 08/40")
+    await expect(saved).toContainText("Not used yet")
+    // Neither the page nor what the server answers with has the number in it.
+    expect(await page.content()).not.toContain("4242 4242")
+    const workspaces = (await (await page.request.get("/api/workspaces")).json()) as {
+      workspaces: { id: string; savedCards?: boolean }[]
+    }
+    const mine = workspaces.workspaces[0]!
+    expect(mine.savedCards).toBe(true)
+    const listed = await (await page.request.get(`/api/workspaces/${mine.id}/cards`)).text()
+    expect(listed).toContain('"last4":"4242"')
+    expect(listed).not.toContain("4242424242424242")
+
+    // Removing asks first.
+    await saved.getByRole("button", { name: /Remove/ }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click()
+    await expect(saved).toHaveCount(0)
+  })
+
   test("are something a Dood asks before using, until it is told it need not", async ({ page }) => {
     await signIn(page)
     await openSettings(page, "Permissions")
@@ -144,10 +190,12 @@ test.describe("a workspace's saved passwords", () => {
 
     // And the server answers as if there were no such thing, to looking and to saving alike.
     const workspaces = (await (await page.request.get("/api/workspaces")).json()) as {
-      workspaces: { id: string; savedLogins?: boolean }[]
+      workspaces: { id: string; savedLogins?: boolean; savedCards?: boolean }[]
     }
     const hers = workspaces.workspaces[0]!
     expect(hers.savedLogins).toBeUndefined()
+    expect(hers.savedCards).toBeUndefined()
+    expect((await page.request.get(`/api/workspaces/${hers.id}/cards`)).status()).toBe(404)
     expect((await page.request.get(`/api/workspaces/${hers.id}/passwords`)).status()).toBe(404)
     const tried = await page.request.post(`/api/workspaces/${hers.id}/passwords`, {
       data: { name: "x", username: "x", password: "x", sites: ["example.com"] },

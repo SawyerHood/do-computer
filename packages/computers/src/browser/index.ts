@@ -6,9 +6,12 @@ import { isAbsolute, join, relative } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import type {
   BrowserFront,
+  BrowserPaid,
   BrowserRan,
   BrowserSignedIn,
   LiveView,
+  PayField,
+  PayWith,
   Shot,
   SignInWith,
   UsingAgent,
@@ -30,7 +33,8 @@ import {
 import { isJpeg, keepEnd, readFrames } from "./frames.ts"
 import { createPreview, type Preview, type PreviewSocket } from "./preview.ts"
 import { createRelay, type Relay } from "./relay.ts"
-import { readFront, signInOnPage } from "./sign-in.ts"
+import { payOnPage } from "./pay.ts"
+import { type SignInBrowser, readFront, signInOnPage } from "./sign-in.ts"
 
 export type NodeBrowserOptions = {
   /** A folder of the daemon's own to keep things in: the dev-browser binary, the profile of the browser kept for agents. */
@@ -489,19 +493,15 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   }
 
   /**
-   * Sign in on the page in front of the browser agents are using, with dev-browser stopped for
-   * as long as it takes. Where no browser is open it says so, and starts none.
+   * Do something on the page in front of the browser agents are using that the daemon does
+   * itself, with dev-browser stopped for as long as it takes. Resolves with undefined where no
+   * browser is open, and starts none.
    */
-  async function signInOne(login: SignInWith, timeoutMs: number): Promise<BrowserSignedIn> {
+  async function onFront<Went>(
+    act: (browser: SignInBrowser) => Promise<Went>,
+  ): Promise<(Went & { own: boolean }) | undefined> {
     const current = openSession()
-    if (current === undefined) {
-      return {
-        outcome: "failed",
-        message:
-          "No browser is open for Doods on this computer. Open the page that asks to sign in with the browser tool first, and then sign in.",
-        own: false,
-      }
-    }
+    if (current === undefined) return undefined
     clearTimeout(idleTimer)
     const touching = setInterval(() => state.touch(), 10_000)
     current.preview.running(true)
@@ -511,21 +511,44 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         await delay(50)
       }
       const front = current.preview.target()
-      const went = await signInOnPage(
-        {
-          open: () => ownSocket(current),
-          ...(front === undefined ? {} : { front }),
-          stop: stopDaemon,
-        },
-        login,
-        { timeoutMs },
-      )
+      const went = await act({
+        open: () => ownSocket(current),
+        ...(front === undefined ? {} : { front }),
+        stop: stopDaemon,
+      })
       return { ...went, own: current.own }
     } finally {
       clearInterval(touching)
       current.preview.running(false)
       restLater()
     }
+  }
+
+  /** Sign in on the page in front. Where no browser is open it says so. */
+  async function signInOne(login: SignInWith, timeoutMs: number): Promise<BrowserSignedIn> {
+    return (
+      (await onFront((browser) => signInOnPage(browser, login, { timeoutMs }))) ?? {
+        outcome: "failed",
+        message:
+          "No browser is open for Doods on this computer. Open the page that asks to sign in with the browser tool first, and then sign in.",
+        own: false,
+      }
+    )
+  }
+
+  /** Pay on the page in front. Where no browser is open it says so. */
+  async function payOne(
+    card: PayWith,
+    asked: { timeoutMs: number; fields: PayField[]; button: string },
+  ): Promise<BrowserPaid> {
+    return (
+      (await onFront((browser) => payOnPage(browser, card, asked))) ?? {
+        outcome: "failed",
+        message:
+          "No browser is open for Doods on this computer. Open the checkout page with the browser tool first, and then pay.",
+        own: false,
+      }
+    )
   }
 
   /**
@@ -588,6 +611,20 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       const result = queue.then(
         () => signInOne(login, timeoutMs),
         () => signInOne(login, timeoutMs),
+      )
+      queue = result
+      try {
+        return await result
+      } finally {
+        state.touch()
+      }
+    },
+
+    async pay(agent: UsingAgent, card: PayWith, { say, ...asked }): Promise<BrowserPaid> {
+      await state.enter(agent, say)
+      const result = queue.then(
+        () => payOne(card, asked),
+        () => payOne(card, asked),
       )
       queue = result
       try {

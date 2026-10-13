@@ -191,6 +191,76 @@ export type BrowserSignedIn = {
 }
 
 /**
+ * A saved card as a computer is handed it to pay with, with the security code its owner typed
+ * for this one use. It is used for the one payment and kept nowhere: only `name` and the last
+ * four digits of `number` may be written down, said or sent back.
+ */
+export type PayWith = {
+  name: string
+  /** The name on the card. Empty where none is kept. */
+  holder: string
+  /** The number, as digits alone. */
+  number: string
+  expMonth: number
+  /** The year in full. */
+  expYear: number
+  code: string
+  /** Empty where none is kept. */
+  postalCode: string
+}
+
+/**
+ * Something else for a computer to fill in on the page it pays on, since the page is loaded
+ * afresh first and anything typed into it before is gone: an e-mail address, a name. None of
+ * it is secret. `box` is how the box is known: its label, its placeholder or its name.
+ */
+export type PayField = { box: string; text: string }
+
+/**
+ * How paying with a saved card went:
+ *
+ * - `sent`: the card was typed, the button pressed, and the form is gone. Whether the shop took
+ *   the payment is for the page to say.
+ * - `no_form`: no box for a card's number was found, or no such button. Nothing of the card was
+ *   typed.
+ * - `still_asking`: it was typed and the button pressed, and the page still shows the form: it
+ *   refused something, or asks for more (a code from the bank). What was typed was taken out.
+ * - `failed`: it could not be tried at all, or how it went is not known.
+ *
+ * Nothing in it is, or is made from, the card's number or its code.
+ */
+export type BrowserPaid = {
+  outcome: "sent" | "no_form" | "still_asking" | "failed"
+  /** What happened, in a sentence or two, for the agent to be told. */
+  message: string
+  /** The host of the page it was tried on, as the browser gave it. */
+  site?: string
+  /** Whether anything of the card was typed into the page at all. See `BrowserSignedIn.typed`. */
+  typed?: boolean
+  /** The page in front afterwards. */
+  url?: string
+  title?: string
+  own: boolean
+}
+
+/**
+ * Whether a page at `url` is one a card may be typed on: one reached by https, or a page on
+ * this computer itself, which is how such a thing is tried out. Resolves with its host.
+ */
+export function paySite(url: string | undefined): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url ?? "")
+  } catch {
+    return null
+  }
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "")
+  const local = host === "localhost" || host === "127.0.0.1"
+  if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) return null
+  return host === "" ? null : host
+}
+
+/**
  * Whether a page at `url` is one a login for `sites` may be typed on: https, and the same host
  * as one of them or a subdomain of it. A page on this computer itself (localhost) may be plain
  * http, which is how such a thing is tried out.

@@ -49,7 +49,7 @@ import {
   useMessageScroller,
 } from "@/components/ui/message-scroller"
 import { chatKey } from "@/lib/atoms"
-import { signInOf } from "@/lib/passwords"
+import { keptLine } from "@/lib/passwords"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { TeamContext } from "@/lib/workspaces"
@@ -59,7 +59,7 @@ import { McpAppFrame } from "./mcp-app.tsx"
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
 import { AgentIdContext, DraftKeyContext, SentFile } from "./sent-file.tsx"
-import { SignInLine } from "./sign-in.tsx"
+import { KeptLine } from "./sign-in.tsx"
 import { PinCard } from "./pin-card.tsx"
 import { SiteCard } from "./site-card.tsx"
 import { VisualFrame } from "./visual.tsx"
@@ -69,13 +69,13 @@ import { SubagentChip, SubagentWord } from "./subagents.tsx"
 import { UsesContext, UseView } from "./uses.tsx"
 
 /**
- * Whether a part of a message is shown here. A sign-in with a saved login is, as the one tool
- * call a chat keeps a line of, once it carries where it signed in and as whom.
+ * Whether a part of a message is shown here. A sign-in with a saved login is, and a payment
+ * with a saved card: the tool calls a chat keeps a line of, once they carry where and with what.
  */
-const isShown = (part: MessagePart) => isShownPart(part) || signInOf(part) !== undefined
+const isShown = (part: MessagePart) => isShownPart(part) || keptLine(part) !== undefined
 
 function AssistantPart({ part, writing }: { part: MessagePart; writing: boolean }) {
-  if (part.type === "tool" && signInOf(part) !== undefined) return <SignInLine part={part} />
+  if (part.type === "tool" && keptLine(part) !== undefined) return <KeptLine part={part} />
   if (isMcpApp(part)) return <McpAppFrame part={part} />
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
@@ -545,7 +545,8 @@ export function Transcript({
     const status = use.steps.at(-1)?.status
     return status === "pending" || status === "running"
   })
-  // A sign-in under way has its own line, which says more than what the agent is doing would.
+  // A sign-in or a payment under way has its own line, which says more than what the agent is
+  // doing would.
   const signingIn =
     state.messages
       .at(-1)
@@ -553,7 +554,7 @@ export function Transcript({
         (part) =>
           part.type === "tool" &&
           (part.status === "pending" || part.status === "running") &&
-          signInOf(part) !== undefined,
+          keptLine(part) !== undefined,
       ) === true
   const agentId = useContext(AgentIdContext)
   const draftKey =

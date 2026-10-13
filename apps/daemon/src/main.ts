@@ -208,9 +208,11 @@ function audit(entry: Record<string, unknown>): void {
               ? `${String(entry.agent)} ran in a browser: ${String(entry.script).replace(/\s+/g, " ").slice(0, 200)}`
               : entry.kind === "browser_sign_in"
                 ? `${String(entry.agent)} asked to sign in on a page with the login "${String(entry.login)}"`
-                : entry.kind === "job_stop"
-                  ? "stopped a command it had started"
-                  : `${String(entry.kind)} ${String(entry.path ?? "")}`
+                : entry.kind === "browser_pay"
+                  ? `${String(entry.agent)} asked to pay on a page with the card "${String(entry.card)}" (ending ${String(entry.last4)})`
+                  : entry.kind === "job_stop"
+                    ? "stopped a command it had started"
+                    : `${String(entry.kind)} ${String(entry.path ?? "")}`
   log(what)
 }
 
@@ -319,6 +321,7 @@ async function run(config: Config): Promise<void> {
             screen: screen !== undefined && !config.readOnly,
             browser: browser !== undefined,
             signIn: browser !== undefined,
+            pay: browser !== undefined,
           }),
         )
         core.onOpen()
