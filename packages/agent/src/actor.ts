@@ -17,6 +17,7 @@ import {
   diffChat,
   DEFAULT_THINKING,
   encodeSse,
+  CONNECTOR_CALLBACK_PATH,
   hasEverything,
   isThinkingLevel,
   MAX_MESSAGE_IMAGE_CHARS,
@@ -337,8 +338,7 @@ export const CONNECTOR_REDIRECT_HEADER = "x-dc-connector-redirect"
 /** Header in which the gateway tells the actor the address the app was reached at. */
 export const APP_ORIGIN_HEADER = "x-dc-origin"
 
-/** Where a service sends someone back after they sign in to a connector, under the app's address. */
-export const CONNECTOR_CALLBACK_PATH = "/api/connectors/callback"
+export { CONNECTOR_CALLBACK_PATH }
 
 class HttpError extends Error {
   constructor(

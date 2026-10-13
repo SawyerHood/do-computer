@@ -39,6 +39,7 @@ import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiComputersIndexRouteImport } from './routes/api/computers/index'
 import { Route as ApiComputersComputerIdRouteImport } from './routes/api/computers/$computerId'
+import { Route as ApiConnectorsBrowserRouteImport } from './routes/api/connectors/browser'
 import { Route as ApiConnectorsCallbackRouteImport } from './routes/api/connectors/callback'
 import { Route as ApiDoodsIndexRouteImport } from './routes/api/doods/index'
 import { Route as ApiPushKeyRouteImport } from './routes/api/push/key'
@@ -245,6 +246,11 @@ const ApiComputersIndexRoute = ApiComputersIndexRouteImport.update({
 const ApiComputersComputerIdRoute = ApiComputersComputerIdRouteImport.update({
   id: '/api/computers/$computerId',
   path: '/api/computers/$computerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConnectorsBrowserRoute = ApiConnectorsBrowserRouteImport.update({
+  id: '/api/connectors/browser',
+  path: '/api/connectors/browser',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiConnectorsCallbackRoute = ApiConnectorsCallbackRouteImport.update({
@@ -584,6 +590,7 @@ export interface FileRoutesByFullPath {
   '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
+  '/api/connectors/browser': typeof ApiConnectorsBrowserRoute
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/register': typeof ApiPushRegisterRoute
@@ -671,6 +678,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
+  '/api/connectors/browser': typeof ApiConnectorsBrowserRoute
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/register': typeof ApiPushRegisterRoute
@@ -762,6 +770,7 @@ export interface FileRoutesById {
   '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
+  '/api/connectors/browser': typeof ApiConnectorsBrowserRoute
   '/api/connectors/callback': typeof ApiConnectorsCallbackRoute
   '/api/push/key': typeof ApiPushKeyRoute
   '/api/push/register': typeof ApiPushRegisterRoute
@@ -853,6 +862,7 @@ export interface FileRouteTypes {
     | '/w/$workspaceId'
     | '/api/auth/$'
     | '/api/computers/$computerId'
+    | '/api/connectors/browser'
     | '/api/connectors/callback'
     | '/api/push/key'
     | '/api/push/register'
@@ -940,6 +950,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/api/auth/$'
     | '/api/computers/$computerId'
+    | '/api/connectors/browser'
     | '/api/connectors/callback'
     | '/api/push/key'
     | '/api/push/register'
@@ -1030,6 +1041,7 @@ export interface FileRouteTypes {
     | '/_app/w/$workspaceId'
     | '/api/auth/$'
     | '/api/computers/$computerId'
+    | '/api/connectors/browser'
     | '/api/connectors/callback'
     | '/api/push/key'
     | '/api/push/register'
@@ -1118,6 +1130,7 @@ export interface RootRouteChildren {
   DocsIndexRoute: typeof DocsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
+  ApiConnectorsBrowserRoute: typeof ApiConnectorsBrowserRoute
   ApiConnectorsCallbackRoute: typeof ApiConnectorsCallbackRoute
   ApiPushKeyRoute: typeof ApiPushKeyRoute
   ApiPushRegisterRoute: typeof ApiPushRegisterRoute
@@ -1374,6 +1387,13 @@ declare module '@tanstack/react-router' {
       path: '/api/computers/$computerId'
       fullPath: '/api/computers/$computerId'
       preLoaderRoute: typeof ApiComputersComputerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/connectors/browser': {
+      id: '/api/connectors/browser'
+      path: '/api/connectors/browser'
+      fullPath: '/api/connectors/browser'
+      preLoaderRoute: typeof ApiConnectorsBrowserRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/connectors/callback': {
@@ -1914,6 +1934,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsIndexRoute: DocsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,
+  ApiConnectorsBrowserRoute: ApiConnectorsBrowserRoute,
   ApiConnectorsCallbackRoute: ApiConnectorsCallbackRoute,
   ApiPushKeyRoute: ApiPushKeyRoute,
   ApiPushRegisterRoute: ApiPushRegisterRoute,

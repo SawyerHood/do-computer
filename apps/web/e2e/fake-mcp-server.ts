@@ -134,6 +134,12 @@ export async function startFakeMcp(port = 0) {
     }
     const result = (value: unknown) =>
       send(response, 200, { jsonrpc: "2.0", id: message.id, result: value })
+    const unknown = () =>
+      send(response, 200, {
+        jsonrpc: "2.0",
+        id: message.id,
+        error: { code: -32601, message: "Not found" },
+      })
     switch (message.method) {
       case "initialize":
         return result({
@@ -153,14 +159,10 @@ export async function startFakeMcp(port = 0) {
         if (name === "add")
           return result({ content: [{ type: "text", text: `sum is ${args.a! + args.b!}` }] })
         if (name === "today") return result({ content: [{ type: "text", text: "Dentist at 3pm" }] })
+        return unknown()
       }
-      // falls through
       default:
-        return send(response, 200, {
-          jsonrpc: "2.0",
-          id: message.id,
-          error: { code: -32601, message: "Not found" },
-        })
+        return unknown()
     }
   }
 

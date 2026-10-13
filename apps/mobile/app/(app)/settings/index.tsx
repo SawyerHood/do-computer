@@ -170,7 +170,7 @@ export default function Settings() {
 
       {me.data?.admin === true ? (
         <Section title="Server">
-          <Row icon={["cpu", theme.blue]} title="Models" go onPress={() => router.push("/settings/models")} />
+          <Row icon={["cpu", theme.blue]} title="Global models" go onPress={() => router.push("/settings/models")} />
           {me.data.signup === "waitlist" ? (
             <Row
               icon={["clock", theme.amber]}

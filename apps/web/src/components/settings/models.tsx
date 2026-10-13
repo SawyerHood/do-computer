@@ -6,6 +6,7 @@ import type {
   WorkspaceRole,
   WorkspaceSummary,
 } from "@do-computer/protocol"
+import { personalWorkspaceId } from "@do-computer/protocol"
 import {
   ArrowSquareOutIcon,
   CaretDownIcon,
@@ -35,6 +36,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
 import { modelProvidersKey, modelsKey, workspaceModelsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
+import { useSettings } from "@/lib/settings"
 
 const good = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
 const heading = "pb-2.5 text-[0.8125rem] font-medium text-muted-foreground"
@@ -716,7 +718,7 @@ function Section({ workspace, meId }: { workspace: Scope; meId: string }) {
         <ModelProviderList workspace={workspace} meId={meId} through={through} />
         <p className="pt-2 text-xs text-muted-foreground">
           {server
-            ? "A sign-in here is the server's: everyone's Doods can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
+            ? "A sign-in here is for everyone: the Doods of every workspace on this server can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
             : workspace.kind === "team"
               ? `A sign-in belongs to the workspace: everyone in ${workspace.name} can then set Doods to its models, and what the Doods use counts against whoever signed in.`
               : "A sign-in belongs to this workspace: your Doods here can then be set to its models."}{" "}
@@ -750,16 +752,30 @@ export function ModelsSettings({ workspace, meId }: { workspace: WorkspaceSummar
 
 /**
  * What the deployment itself offers everyone's agents, for whoever looks after it: the same
- * sign-ins a workspace has, kept for all of them.
+ * sign-ins a workspace has, kept for all of them. It says where a sign-in for one's own agents
+ * goes instead, since the two look alike and this one shares an account with everyone.
  */
 export function ServerModelsSettings({ meId }: { meId: string }) {
+  const { open } = useSettings()
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Server models</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Global models</h2>
         <p className="text-sm text-muted-foreground">
-          What everyone's Doods can run on without signing in to anything. Sign the server in with a
-          subscription or a key, and its models are offered to every workspace.
+          What everyone's Doods can run on without signing in to anything. A subscription or a key
+          signed in here is shared with every workspace on this server. For your own Doods only,
+          sign in under{" "}
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0 align-baseline text-foreground underline"
+            onClick={() =>
+              open({ at: "workspace", workspaceId: personalWorkspaceId(meId), section: "models" })
+            }
+          >
+            Models
+          </Button>{" "}
+          in your workspace's settings.
         </p>
       </div>
       <Loads fallback={<CardsPlaceholder cards={3} />}>

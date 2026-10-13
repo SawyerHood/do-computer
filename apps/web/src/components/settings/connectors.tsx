@@ -55,7 +55,11 @@ function AppsGuide({ children }: { children: string }) {
   )
 }
 
-/** A service that wants the user to sign in is reached by leaving this page for it. */
+/**
+ * A service that wants the user to sign in is reached by leaving this page for it. The desktop
+ * app does not leave: it sends its owner's browser to the service, and comes back here with
+ * the service's answer.
+ */
 const follow = (result: ConnectorResult) => {
   if (result.authorizationUrl) window.location.assign(result.authorizationUrl)
 }

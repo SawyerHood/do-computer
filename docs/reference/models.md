@@ -6,9 +6,10 @@ own.
 
 **The deployment's models.** A deployment with `OPENROUTER_API_KEY` offers every OpenRouter model
 that can call tools, and pays for them. It can also be signed in to any provider, in any of the
-ways a workspace can be (below): someone named in `DC_ADMIN_EMAILS` finds **Server → Models** in
-the settings, and what they sign the server in to there is offered to every workspace as the
-deployment's own. Where anyone can sign up (`DC_SIGNUP=open`), an admin's
+ways a workspace can be (below): someone named in `DC_ADMIN_EMAILS` finds **Server → Global
+models** in the settings, and what they sign the server in to there is offered to every
+workspace as the deployment's own. An account meant for one's own Doods is signed in to under
+a workspace's **Models** instead. Where anyone can sign up (`DC_SIGNUP=open`), an admin's
 address also has to be one a Google or GitHub sign-in vouches for.
 
 `DC_MODELS` narrows what the deployment offers to the models it names, for example

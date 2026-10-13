@@ -37,3 +37,11 @@ export function isWebAddress(address: string): boolean {
     return false
   }
 }
+
+/**
+ * Whether a sign-in that went somewhere else has come back: to a page of the deployment, and
+ * not to one of the addresses under `/api/` that a service answers at, which lead to a page.
+ */
+export function cameBack(address: string, server: string): boolean {
+  return onServer(address, server) && !new URL(address).pathname.startsWith("/api/")
+}

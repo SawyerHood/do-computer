@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { browserSignIn } from "../src/browser-sign-in.ts"
+import { browserConnect, browserSignIn } from "../src/browser-sign-in.ts"
 
 type Opened = { port: number; state: string }
 
@@ -123,5 +123,77 @@ describe("signing in through the browser", () => {
     signingIn = browserSignIn()
     const answer = await signingIn.signIn(() => Promise.reject(new Error("no browser")))
     expect(answer).toEqual({ error: "Your browser could not be opened. Try again." })
+  })
+})
+
+describe("a connector's sign-in in the browser", () => {
+  let connecting = browserConnect()
+  afterEach(() => connecting.cancel())
+
+  /** One that has got as far as opening the browser, and the port the answer is to come to. */
+  function started(state: string) {
+    let opened!: (port: number) => void
+    const port = new Promise<number>((resolve) => (opened = resolve))
+    return { port, answer: connecting.connect(state, opened) }
+  }
+  const back = (port: number, query: string, path = "/connector") =>
+    fetch(`http://127.0.0.1:${port}${path}${query}`)
+
+  it("resolves with what the service said, as it said it, and stops listening", async () => {
+    connecting = browserConnect()
+    const { port, answer } = started("st_1")
+    const at = await port
+    const query = "?code=abc%2B1&state=st_1&iss=https%3A%2F%2Fservice.example"
+
+    const response = await back(at, query)
+    expect(response.status).toBe(200)
+    const page = await response.text()
+    expect(page).toContain("Back to Do Computer.")
+    expect(page).not.toMatch(/(src|href)=|url\(|@import/)
+    expect(await answer).toEqual({ query })
+    expect(await listens(at)).toBe(false)
+  })
+
+  it("takes a refusal as an answer too", async () => {
+    connecting = browserConnect()
+    const { port, answer } = started("st_2")
+    const query = "?state=st_2&error=access_denied&error_description=You+said+no."
+    expect((await back(await port, query)).status).toBe(200)
+    expect(await answer).toEqual({ query })
+  })
+
+  it("has nothing for another sign-in's state, or at another path", async () => {
+    connecting = browserConnect()
+    const { port, answer } = started("st_3")
+    const at = await port
+    let settled = false
+    void answer.then(() => (settled = true))
+
+    expect((await back(at, "?code=stolen&state=st_4")).status).toBe(404)
+    expect((await back(at, "?code=stolen")).status).toBe(404)
+    expect((await back(at, "?code=abc&state=st_3", "/done")).status).toBe(404)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
+
+    expect((await back(at, "?code=abc&state=st_3")).status).toBe(200)
+    expect(await answer).toEqual({ query: "?code=abc&state=st_3" })
+  })
+
+  it("gives up at once when the deployment does not know the sign-in", async () => {
+    connecting = browserConnect()
+    const answer = await connecting.connect("st_5", () => Promise.reject(new Error("unknown")))
+    expect(answer).toHaveProperty("error")
+  })
+
+  it("waits for one at a time, and gives up when nobody comes back in time", async () => {
+    connecting = browserConnect({ timeoutMs: 60 })
+    const first = started("st_6")
+    const before = await first.port
+    const second = started("st_7")
+    expect(await first.answer).toHaveProperty("error")
+    expect(await listens(before)).toBe(false)
+    const at = await second.port
+    expect(await second.answer).toHaveProperty("error")
+    expect(await listens(at)).toBe(false)
   })
 })

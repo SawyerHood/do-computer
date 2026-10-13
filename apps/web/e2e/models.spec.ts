@@ -185,7 +185,14 @@ test.describe("signing in to model providers", () => {
 test.describe("the server's own models", () => {
   test("someone who looks after the server signs it in, for every workspace", async ({ page }) => {
     await signIn(page)
-    await openOwnSettings(page, "Models")
+    await openOwnSettings(page, "Global models")
+    const settings = page.getByRole("dialog")
+    await expect(settings.getByRole("heading", { name: "Global models" })).toBeVisible()
+    // It says where a sign-in for one's own Doods goes instead, and leads there.
+    await expect(settings).toContainText("shared with every workspace on this server")
+    await settings.getByRole("button", { name: "Models", exact: true }).click()
+    await expect(settings.getByText("What your Doods can run on.")).toBeVisible()
+    await openOwnSettings(page, "Global models")
     await expect(page.getByText("A built-in echo model")).toBeVisible()
     await page.getByRole("button", { name: "Use a key for OpenAI", exact: true }).click()
     const window = page.getByRole("dialog", { name: "OpenAI API key" })

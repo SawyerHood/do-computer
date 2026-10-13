@@ -15,11 +15,11 @@ export default function ServerModels() {
   if (me.data?.admin === true) return <ModelsPage workspaceId={DEPLOYMENT.id} />
   return (
     <Screen>
-      <Stack.Screen options={{ title: "Server models" }} />
+      <Stack.Screen options={{ title: "Global models" }} />
       {me.data === undefined ? (
         <ActivityIndicator style={{ marginVertical: 32 }} />
       ) : (
-        <Empty title="Server models">Only those who look after this server can change them.</Empty>
+        <Empty title="Global models">Only those who look after this server can change them.</Empty>
       )}
     </Screen>
   )
