@@ -15,16 +15,18 @@
     "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "@cloudflare/puppeteer": "^1.4.0",
+    "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
-    "@earendil-works/chord": "catalog:"
+    "puppeteer-core": "^25.13.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.0",
     "@cloudflare/workers-types": "^5.20261011.1",
     "@types/node": "catalog:",
-    "vitest": "catalog:",
-    "wrangler": "^4.149.0",
+    "@typescript/native": "catalog:",
     "typescript": "catalog:",
-    "@typescript/native": "catalog:"
+    "vitest": "catalog:",
+    "wrangler": "^4.149.0"
   }
 }

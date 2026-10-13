@@ -15,6 +15,7 @@ import { R2BlobStore } from "./blobs.ts"
 import { DurableObjectSqliteDatabase } from "./sqlite.ts"
 
 export { R2BlobStore } from "./blobs.ts"
+export { browserRunPreviewer } from "./preview.ts"
 export { DurableObjectSqliteDatabase } from "./sqlite.ts"
 
 const NAME_KEY = "dc:actor-name"

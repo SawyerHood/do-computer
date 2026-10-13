@@ -96,24 +96,24 @@ The phone app has its own version of each: `HtmlRenderWebView`, `McpAppWebView`,
 
 ## 3. The gap
 
-| | T3 Code | Do Computer | Phase |
-| --- | --- | --- | --- |
-| Table in a reply: scroll, wrap, copy | yes | plain grid | 1 |
-| Code: colors, copy, wrap, title | yes | none | 1 |
-| Mermaid diagram | yes | no | 1 |
-| Folding sections, alerts, task boxes | yes | no | 1 |
-| Picture: own file, reserved box, viewer | yes | web addresses only, no viewer | 1 |
-| Video in a reply | yes | no | 2 |
-| Sound, PDF, CSV as a table | side panel | no | 2 |
-| Byte ranges | yes | no | 2 |
-| HTML page in the chat, themed | yes | yes | — |
-| Page shared, pinned, kept as a file | no | yes | — |
-| Styled controls in a page | no (variables only) | no (variables only) | 3 |
-| Page talks back to the chat | MCP Apps only | no | 3 |
-| Height known before load | measured on the server | no | 3, 4 |
-| Agent sees its page first | `html_preview` | no | 4 |
-| MCP Apps from connectors | yes | no | 5 |
-| Phone: video | yes | no | 6 |
+|                                         | T3 Code                | Do Computer                   | Phase |
+| --------------------------------------- | ---------------------- | ----------------------------- | ----- |
+| Table in a reply: scroll, wrap, copy    | yes                    | plain grid                    | 1     |
+| Code: colors, copy, wrap, title         | yes                    | none                          | 1     |
+| Mermaid diagram                         | yes                    | no                            | 1     |
+| Folding sections, alerts, task boxes    | yes                    | no                            | 1     |
+| Picture: own file, reserved box, viewer | yes                    | web addresses only, no viewer | 1     |
+| Video in a reply                        | yes                    | no                            | 2     |
+| Sound, PDF, CSV as a table              | side panel             | no                            | 2     |
+| Byte ranges                             | yes                    | no                            | 2     |
+| HTML page in the chat, themed           | yes                    | yes                           | —     |
+| Page shared, pinned, kept as a file     | no                     | yes                           | —     |
+| Styled controls in a page               | no (variables only)    | no (variables only)           | 3     |
+| Page talks back to the chat             | MCP Apps only          | no                            | 3     |
+| Height known before load                | measured on the server | no                            | 3, 4  |
+| Agent sees its page first               | `html_preview`         | no                            | 4     |
+| MCP Apps from connectors                | yes                    | no                            | 5     |
+| Phone: video                            | yes                    | no                            | 6     |
 
 ## 4. The design
 
@@ -232,7 +232,7 @@ A visual is already an interactive page in the app's colors. These make one easy
 - **Talking back.** The frame learns three more MCP Apps requests, and the page gets a small
   `window.dc` so an agent does not write JSON-RPC by hand: `dc.say(text)` puts text in the
   message box for the person to send, `dc.expand()` shows the page large, `dc.save(name, text,
-  type)` hands the reader a file. A widget with choices can then answer the agent.
+type)` hands the reader a file. A widget with choices can then answer the agent.
 - **Data beside the page.** Not as first written: a page in a chat cannot `fetch` a library
   file beside it, and that is on purpose (the address it is served at opens the whole library,
   so the library does not let a page read with it). A widget over a large file would need the
@@ -280,55 +280,49 @@ documentation on 2026-10-13; nothing here has been run against an account.
   thousand more are about an hour and a half of browser, 13 cents. What could cost money is concurrency, which is why
   previews share a browser (below).
 
-How it is built:
+How it was built (2026-10-13), and where that departs from what was planned here:
 
-1. `PagePreviewer` in `packages/runtime`: `preview({ url, widths, appearance }) → { png,
-   heights, console }`. `createAgentActor` takes one as an option, as it takes `webSearch`, and
-   `visuals()` adds the tool only when it has one.
-2. `packages/runtime/src/cloudflare/preview.ts`: the Browser Run implementation, given
-   `env.BROWSER` in `server.cloudflare.ts`. The binding is optional in `Env`, so a deployment
-   without it has no tool and nothing else changes.
-3. **The page is a draft at a real address.** The library keeps the draft for a few minutes
-   under a reserved name beside `visuals/`, and the browser opens its view address. That is the
-   address a client opens, so the page gets the same tokens put into it, the same
-   `Content-Security-Policy: sandbox` and so the same origin that is nobody's, and the files
-   beside it load. A page that would break in the chat (one that uses `localStorage`, say)
-   breaks in the preview too. The page is laid out as part of a reply the way the phone app
-   does it: the mark is set before the page's own scripts run, since the page's own lines only
-   do that inside a frame.
-4. **One routine, any Puppeteer.** Open a page, listen for `console` and `pageerror`, go to the
-   address, wait for load, read the height at each width (320, 390, 720), screenshot at the
-   reply's width, close. It is written against Puppeteer's `Page`, so 4b reuses it whole.
-5. **Sharing a browser.** A preview first looks for a running browser with room
-   (`puppeteer.sessions()`, `puppeteer.connect()`), and launches one only when there is none.
-   Each preview gets a browser context of its own and disconnects when done; the browser shuts
-   itself a minute after the last one. Quiet hours cost nothing, and a busy hour is one or two
-   browsers, not one per Dood.
-6. **Bounds.** 10 seconds a preview, a screenshot at most 2000px tall, the console cut at a few
-   kilobytes, and a count per workspace per hour. When Browser Run answers that it is busy, the
-   tool says so and the agent draws without looking.
-7. **The agent's side.** The `visual` tool's description says to preview first, as T3 Code's
-   does. The screenshot goes back as a picture in the tool's result, as a screen's does today.
+1. `PagePreviewer` in `packages/runtime` (`preview.ts`): `preview({ html, width, widths })`
+   answers a picture, the page's height at each width, and its console. `createAgentActor`
+   takes one (`pagePreviewer`), and `visuals()` adds the `visual_preview` tool only when it
+   has one.
+2. `packages/runtime/src/cloudflare/preview.ts` is the Browser Run implementation, given
+   `env.BROWSER` in `server.cloudflare.ts`. The binding is optional in `Env`.
+3. **No draft at an address.** The plan was to keep a draft in the library and open its view
+   address. What was built gives the browser one document (`visualPreviewDocument`): the page
+   as it would be kept, inside a frame with the chat's own `sandbox`, on the chat's
+   background, fitted to the height the page reports. It is as faithful (the page's origin is
+   nobody's, so storage throws as it does in a chat) and it needs nothing kept, and the
+   browser does not have to be able to reach the deployment, which a server on `localhost`
+   could not be reached at. The cost: a page's pictures from the library are not loaded in
+   the preview.
+4. **One routine, any Puppeteer** (`previewIn`): listen for `console` and `pageerror`, load
+   the document, read the height at each of six widths from 320 to 760, picture it at the
+   width asked. Written against Puppeteer's `Page`, and used whole by 4b.
+5. **Sharing a browser:** a preview looks for a running browser nobody is driving
+   (`puppeteer.sessions()`, `puppeteer.connect()`) and launches one only when there is none.
+   Each preview has a context of its own and disconnects when done.
+6. **Bounds:** 8 seconds for a page to load and 20 for the whole look, a picture at most
+   2000px tall, thirty console lines, sixty looks an hour for an agent.
+7. **The heights** measured when a page was looked at go with it when it is then drawn as it
+   was looked at (`details.heights`), and the chat gives it that room at first paint.
 
-What to find out first, in a spike before anything else is written:
+What the spike found:
 
-- That the fork does what the routine needs: `console` and `pageerror` events, a script before
-  the page's own, and reading a height. It is Puppeteer's own `Page`, so it should; the
-  documentation only shows `goto`, `evaluate` and `screenshot`. (`evaluate` can return only
-  strings, numbers and booleans there, so the heights come back as one string.)
-- Whether the binding works under the Cloudflare Vite plugin, which is how this app runs
-  locally on Workers. The documentation covers `wrangler dev` only, where it starts a Chrome on
-  the machine.
-- Whether the token Actions deploys with needs another permission for a Worker with this
-  binding.
-- How long a launch takes, which decides whether sharing a browser is worth its code on day one.
+- **The fork does what the routine needs**, on the real service: console, uncaught errors, a
+  script's promise awaited, heights, a picture. A look took about two seconds.
+- **The binding works under the Cloudflare Vite plugin**: locally it downloads a browser of
+  its own, and with `"remote": true` it uses the account's.
+- **Not found out:** whether the token Actions deploys with needs another permission for a
+  Worker with this binding. That is seen at the first deploy.
 
 #### 4b. On a Node server: a Chrome on the machine
 
-`puppeteer-core` and whichever Chrome is found (`DC_CHROME_PATH`, or the usual places), running
-the same routine. Where none is found there is no tool. This is also what the tests use, with
-the Chromium Playwright already keeps here. The desktop app running the server itself would use
-its own Chromium in a hidden window; that waits for the local mode to land.
+`puppeteer-core` and whichever Chrome is found (`DC_CHROME_PATH`, or the usual places; `none`
+says to have none), running the same routine, a browser started for each look and stopped
+after. Where none is found there is no tool. This is what the tests use, with the Chromium
+Playwright already keeps. The desktop app running the server itself would use its own
+Chromium in a hidden window; that waits for the local mode to land.
 
 #### 4c. Where there is neither: the Dood's own machine
 

@@ -108,7 +108,7 @@ systemctl --user restart do-computer
 
 ## On Cloudflare
 
-Each Dood is a Durable Object with its own SQLite storage, accounts and teams are in D1, and files are in R2. The built-in shell runs Doods' commands in Dynamic Workers, which is what needs the Workers Paid plan.
+Each Dood is a Durable Object with its own SQLite storage, accounts and teams are in D1, and files are in R2. The built-in shell runs Doods' commands in Dynamic Workers, which is what needs the Workers Paid plan. A Dood looks over a page it has written in Cloudflare's headless browser before showing it (the `browser` binding in `wrangler.jsonc`), which that plan includes ten hours of a month; take the binding out and Doods draw without looking.
 
 1. **Sign in to Cloudflare.** **Needs you:** a browser window opens.
 

@@ -9,7 +9,13 @@
  * https://github.com/modelcontextprotocol/ext-apps
  */
 
-import { INLINE_ATTRIBUTE, PAGE_ATTRIBUTE, PAGE_THEME_CSS, THEME_ATTRIBUTE } from "./theme.ts"
+import {
+  INLINE_ATTRIBUTE,
+  PAGE_ATTRIBUTE,
+  PAGE_THEME_CSS,
+  THEME_ATTRIBUTE,
+  THEME_TOKENS,
+} from "./theme.ts"
 
 /** The tool an agent draws a visual with. */
 export const VISUAL_TOOL = "visual"
@@ -520,6 +526,91 @@ export function visualProblems(html: string): { stops: string[]; notes: string[]
     )
   }
   return { stops, notes }
+}
+
+/**
+ * The widths a visual's height is measured at, from a small phone to a reply on a computer.
+ * A reply is about 350 wide on a phone and about 690 on a computer, so those are measured on
+ * either side, and a few between for a window made narrow.
+ */
+export const VISUAL_MEASURED_WIDTHS = [320, 360, 440, 560, 680, 760] as const
+/** What a reply is on a phone and on a computer, of those: what an agent is told the height at. */
+export const VISUAL_PHONE_WIDTH = 360
+export const VISUAL_COMPUTER_WIDTH = 680
+
+/** How tall a page was measured to be, at each of some widths: narrowest first. */
+export type VisualHeights = readonly (readonly [width: number, height: number])[]
+
+/** What was measured, where `value` is that: a few pairs of whole numbers within bounds. */
+export function readVisualHeights(value: unknown): VisualHeights | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 12) return undefined
+  const heights: [number, number][] = []
+  for (const pair of value) {
+    if (!Array.isArray(pair) || pair.length !== 2) return undefined
+    const [width, height] = pair as unknown[]
+    if (typeof width !== "number" || typeof height !== "number") return undefined
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+      return undefined
+    }
+    heights.push([Math.round(width), visualFrameHeight(height)])
+  }
+  return heights.sort((a, b) => a[0] - b[0])
+}
+
+/**
+ * How tall a page is taken to be at `width`, from what was measured: the taller of the two
+ * measured widths it lies between, since a page that changes its layout somewhere between
+ * them may be as tall as either.
+ */
+export function visualHeightAt(heights: VisualHeights, width: number): number | undefined {
+  if (heights.length === 0) return undefined
+  const above = heights.findIndex(([measured]) => measured >= width)
+  const high = above === -1 ? heights.length - 1 : above
+  const low = heights[high]![0] === width ? high : Math.max(0, high - 1)
+  return Math.max(heights[low]![1], heights[high]![1])
+}
+
+/**
+ * The document a browser is given to draw a visual the way a chat shows it, for the agent to
+ * look at before the person does: the page as it would be kept, in a frame kept apart as the
+ * chat's is, on the chat's background, as tall as the page says it is. So what the agent sees
+ * is what the person will, and a page that would break in the chat breaks here.
+ *
+ * `base` is the app's address, for the typefaces the page is given to load from. The document
+ * says when it is ready with `window.dcReady`: once the page has loaded and had a moment to
+ * draw what its scripts draw.
+ */
+export function visualPreviewDocument(
+  html: string,
+  options: { appearance: "light" | "dark"; base?: string },
+): string {
+  const canvas = THEME_TOKENS.find((token) => token.name === "--canvas")!
+  const background = options.appearance === "dark" ? (canvas.dark ?? canvas.light) : canvas.light
+  // As a chat's frame tells it: in the reply, in these colors. There is no address to say so by.
+  let page = prepareVisual(html).replace(
+    `${PAGE_ATTRIBUTE}="visual"`,
+    `${PAGE_ATTRIBUTE}="visual" ${INLINE_ATTRIBUTE} ${THEME_ATTRIBUTE}="${options.appearance}"`,
+  )
+  if (options.base !== undefined && /^https?:\/\/[^\s"'<>]+$/.test(options.base)) {
+    page = page.replace(
+      `<style id="${STYLE_ID}">`,
+      `<base href="${options.base.replace(/\/*$/, "/")}"><style id="${STYLE_ID}">`,
+    )
+  }
+  // Written into a script, where the one thing it must not say is that the script has ended.
+  const written = JSON.stringify(page).replace(/</g, "\\u003c")
+  return (
+    `<!doctype html><html><head><meta charset="utf-8"><style>` +
+    `html,body{margin:0;background:${background}}` +
+    `iframe{display:block;width:100%;height:${VISUAL_DEFAULT_HEIGHT}px;border:0;color-scheme:${options.appearance}}` +
+    `</style></head><body><iframe id="page" sandbox="allow-scripts allow-popups allow-forms allow-modals"></iframe>` +
+    `<script>(function(){var f=document.getElementById("page");` +
+    `window.dcReady=new Promise(function(done){f.addEventListener("load",function(){setTimeout(done,350)})});` +
+    `window.addEventListener("message",function(e){var d=e.data,h=d&&d.params&&d.params.height;` +
+    `if(e.source!==f.contentWindow||!d||d.method!==${JSON.stringify(SIZE_CHANGED)}||typeof h!=="number"||!(h>0))return;` +
+    `f.style.height=Math.min(${VISUAL_MAX_HEIGHT},Math.max(${VISUAL_MIN_HEIGHT},Math.round(h)))+"px";});` +
+    `f.srcdoc=${written};})();</script></body></html>`
+  )
 }
 
 /** The file name a visual is kept under: its title in letters, digits and dashes. */

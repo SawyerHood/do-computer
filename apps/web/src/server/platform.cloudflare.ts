@@ -17,6 +17,11 @@ export type Env = {
   /** Starts the Worker a built-in shell runs its commands in. */
   LOADER: WorkerLoader
   BLOBS: R2Bucket
+  /**
+   * Cloudflare's headless browser, which draws a page for an agent to look at before it shows
+   * it. Absent where the Worker has no `browser` binding, and agents then draw without looking.
+   */
+  BROWSER?: Fetcher
   /** Counts the calls anyone can make without an account. Absent where none is configured. */
   PUBLIC_LIMIT?: RateLimit
 } & Record<string, string | undefined>

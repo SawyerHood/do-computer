@@ -21,6 +21,7 @@ import { checkSocketNote } from "../index.ts"
 import { FileBlobStore } from "./blobs.ts"
 
 export { FileBlobStore } from "./blobs.ts"
+export { chromePreviewer, findChrome } from "./preview.ts"
 
 /** Longest delay `setTimeout` takes; a later alarm is re-armed when this one fires. */
 const MAX_TIMER_MS = 2_147_483_647

@@ -7,6 +7,7 @@ import {
   isVisual,
   prepareVisual,
   readVisualHeight,
+  readVisualHeights,
   readVisualLink,
   sentFiles,
   siteRoot,
@@ -18,6 +19,8 @@ import {
   VISUAL_MIN_HEIGHT,
   visualFileName,
   visualFrameHeight,
+  visualHeightAt,
+  visualPreviewDocument,
   visualThemeFragment,
   visualThemeMessage,
 } from "../src/index.ts"
@@ -220,5 +223,80 @@ describe("what a site would serve", () => {
     expect(siteTitleFor("notes/launch-checklist.md")).toBe("Launch checklist")
     // Any other file keeps its name, which says what it is.
     expect(siteTitleFor("exports/q3-report.pdf")).toBe("q3-report.pdf")
+  })
+})
+
+describe("how tall a page was measured to be", () => {
+  const heights = [
+    [320, 400],
+    [360, 380],
+    [680, 120],
+    [760, 120],
+  ] as const
+
+  it("is taken at a width as the taller of the two measured widths it lies between", () => {
+    expect(visualHeightAt(heights, 360)).toBe(380)
+    // Between two, a page that changes its layout somewhere there may be as tall as either.
+    expect(visualHeightAt(heights, 350)).toBe(400)
+    expect(visualHeightAt(heights, 500)).toBe(380)
+    expect(visualHeightAt(heights, 690)).toBe(120)
+    // Narrower or wider than anything measured, it is as it was at the nearest.
+    expect(visualHeightAt(heights, 200)).toBe(400)
+    expect(visualHeightAt(heights, 1400)).toBe(120)
+    expect(visualHeightAt([], 400)).toBeUndefined()
+  })
+
+  it("is read only where it is a few pairs of numbers, and kept within a frame's bounds", () => {
+    expect(
+      readVisualHeights([
+        [680, 120.4],
+        [320, 99_999],
+      ]),
+    ).toEqual([
+      [320, VISUAL_MAX_HEIGHT],
+      [680, 120],
+    ])
+    for (const not of [
+      undefined,
+      [],
+      "tall",
+      [[320]],
+      [[320, "400"]],
+      [[0, 10]],
+      [[320, Number.NaN]],
+    ]) {
+      expect(readVisualHeights(not)).toBeUndefined()
+    }
+    expect(
+      readVisualHeights(Array.from({ length: 13 }, (_, at) => [300 + at, 100])),
+    ).toBeUndefined()
+  })
+})
+
+describe("the document a browser is given to look a visual over", () => {
+  const PAGE = '<p>x</p><script>const closed = "</script><script>alert(1)"</script>'
+
+  it("is the page as a chat shows it: kept apart, in the reply, in the colors asked for", () => {
+    const document = visualPreviewDocument(PAGE, { appearance: "dark" })
+    expect(document).toContain('sandbox="allow-scripts allow-popups allow-forms allow-modals"')
+    // What the page is written into cannot end the script it is written into.
+    const script = /<script>([\s\S]*)<\/script><\/body>/.exec(document)![1]!
+    expect(script).not.toContain("</script")
+    const written = JSON.parse(/f\.srcdoc=("[\s\S]*");\}\)\(\);$/.exec(script)![1]!) as string
+    // The page itself is whole in it, marked as part of a reply and as dark.
+    expect(written).toContain(PAGE)
+    expect(written).toContain('data-dc-page="visual" data-dc-inline data-dc-theme="dark"')
+    expect(written).toContain(MARK)
+    expect(written).not.toContain("<base")
+    expect(visualPreviewDocument(PAGE, { appearance: "light" })).toContain("color-scheme:light")
+  })
+
+  it("names the app's address for the typefaces, where it is a web address", () => {
+    const from = (base: string) => visualPreviewDocument("<p>x</p>", { appearance: "dark", base })
+    expect(from("https://do.computer")).toContain('\\u003cbase href=\\"https://do.computer/\\">')
+    expect(from("https://do.computer/")).toContain('\\u003cbase href=\\"https://do.computer/\\">')
+    for (const not of ['https://x.example/"><script>', "javascript:alert(1)", "//x.example"]) {
+      expect(from(not)).not.toContain("base href")
+    }
   })
 })

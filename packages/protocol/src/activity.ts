@@ -60,6 +60,8 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return path === undefined ? "Sending you a file" : `Sending you ${fileName(path)}`
     case "visual":
       return withDetail("Drawing", text(args.title))
+    case "visual_preview":
+      return "Looking over a page before showing it"
     case "share": {
       const what = text(args.site) ?? text(args.title) ?? text(args.path)
       if (args.action === "publish") return withDetail("Sharing a site", what)
@@ -229,6 +231,7 @@ export function toolKind(name: string): WorkKind {
     case "library":
     case "skill":
     case "visual":
+    case "visual_preview":
     case "share":
     case "pin":
       return "file"

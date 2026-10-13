@@ -41,6 +41,11 @@
     },
   ],
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "durable-computer" }],
+  // Cloudflare's headless browser (Browser Run), which draws a page an agent has written for
+  // the agent to look at before it shows it to anyone. The Workers Free plan has ten minutes
+  // of it a day, and Workers Paid ten hours a month before it is charged for. Take this out
+  // and agents draw without looking.
+  "browser": { "binding": "BROWSER" },
   // How often one address may sign in, sign up or ask to pair a computer: the calls that need no
   // account (src/server/rate-limit.ts). Counted per Cloudflare location, and not exactly. The
   // namespace id is any number no other Worker on the account uses for something else.
