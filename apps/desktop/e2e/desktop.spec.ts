@@ -362,6 +362,11 @@ test("quitting the app ends its daemon, and starting it again connects without a
   )
   await before.goto(`${url}/a/${agent.id}`)
   await before.waitForURL(new RegExp(`/a/${agent.id}/c/\\d+`))
+  // Its page opens before it has answered, and it is kept as the one to come back to once it
+  // has. A page that is still on its way cannot be asked, and is asked again.
+  await expect
+    .poll(() => before.evaluate(() => localStorage.getItem("dc-last-agent")).catch(() => null))
+    .toBe(agent.id)
   await app.evaluate(({ app }) => app.quit()).catch(() => {})
   await expect.poll(() => daemons(), { timeout: 15_000 }).toBe(0)
 
@@ -533,15 +538,19 @@ test("a connector's sign-in is done in the owner's browser, which brings the ans
       }
     })
     const opened = () => app.evaluate(() => (globalThis as { opened?: string[] }).opened ?? [])
+    // Asked through the app's page. While that is on its way somewhere it cannot be asked, and
+    // says nothing: whoever is waiting asks again.
     const connector = (agentId: string) =>
-      main.evaluate(async (agentId) => {
-        const { connectors } = (await (
-          await fetch(`/api/agents/${agentId}/connectors`)
-        ).json()) as {
-          connectors: { name: string; status: string }[]
-        }
-        return connectors.find((connector) => connector.name === "Calendar")?.status
-      }, agentId)
+      main
+        .evaluate(async (agentId) => {
+          const { connectors } = (await (
+            await fetch(`/api/agents/${agentId}/connectors`)
+          ).json()) as {
+            connectors: { name: string; status: string }[]
+          }
+          return connectors.find((connector) => connector.name === "Calendar")?.status
+        }, agentId)
+        .catch(() => undefined)
 
     // The page adds the connector, is told where its owner has to sign in, and goes there.
     const started = await main.evaluate(async (address) => {
