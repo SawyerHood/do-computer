@@ -1,5 +1,5 @@
 import type { MessageImage } from "@do-computer/protocol"
-import { CaretLeftIcon, CaretRightIcon, XIcon } from "@phosphor-icons/react"
+import { XIcon } from "@phosphor-icons/react"
 import { useMemo, useState } from "react"
 import {
   Attachment,
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/attachment"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { PictureViewer } from "@/components/picture-viewer"
 import { Spinner } from "@/components/ui/spinner"
 import { pictureSrc } from "@/lib/pictures"
 
@@ -114,7 +114,7 @@ export function AttachedFiles({
           </li>
         )}
       </ul>
-      <LargePicture
+      <PictureViewer
         pictures={pictures}
         id={large}
         open={open}
@@ -122,85 +122,5 @@ export function AttachedFiles({
         onClose={() => setOpen(false)}
       />
     </>
-  )
-}
-
-type Picture = { id: string; name: string; src: string }
-
-/** One of the attached pictures, large. With several, the arrows go from one to the next. */
-function LargePicture({
-  pictures,
-  id,
-  open,
-  onShow,
-  onClose,
-}: {
-  pictures: Picture[]
-  id: string | undefined
-  open: boolean
-  onShow: (id: string) => void
-  onClose: () => void
-}) {
-  const at = pictures.findIndex((picture) => picture.id === id)
-  const picture = pictures[at]
-  // Past either end it comes round to the other.
-  const step = (by: number) => {
-    const next = pictures[(at + by + pictures.length) % pictures.length]
-    if (next !== undefined) onShow(next.id)
-  }
-  return (
-    <Dialog
-      open={open && picture !== undefined}
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-    >
-      {picture === undefined ? null : (
-        <DialogContent
-          className="flex max-h-[calc(100dvh-2.5rem)] w-auto max-w-[calc(100%-2.5rem)] min-w-64 flex-col gap-0 overflow-hidden p-0 sm:max-w-[calc(100%-2.5rem)]"
-          onKeyDown={(event) => {
-            if (pictures.length < 2) return
-            if (event.key === "ArrowLeft") step(-1)
-            if (event.key === "ArrowRight") step(1)
-          }}
-        >
-          <div className="flex h-16 shrink-0 items-center gap-1 border-b pr-14 pl-4">
-            <DialogTitle className="min-w-0 flex-1 truncate text-[15px] font-semibold">
-              {picture.name}
-            </DialogTitle>
-            {pictures.length > 1 ? (
-              <>
-                <span className="px-1 text-[13px] text-muted-foreground tabular-nums">
-                  {at + 1} of {pictures.length}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Previous picture"
-                  onClick={() => step(-1)}
-                >
-                  <CaretLeftIcon />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Next picture"
-                  onClick={() => step(1)}
-                >
-                  <CaretRightIcon />
-                </Button>
-              </>
-            ) : null}
-          </div>
-          <div className="grid min-h-0 place-items-center bg-muted">
-            <img
-              src={picture.src}
-              alt={picture.name}
-              className="max-h-[calc(100dvh-6.5rem)] max-w-full object-contain"
-            />
-          </div>
-        </DialogContent>
-      )}
-    </Dialog>
   )
 }

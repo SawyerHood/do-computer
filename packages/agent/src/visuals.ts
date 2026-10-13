@@ -4,6 +4,7 @@ import {
   MAX_VISUAL_TITLE,
   PAGE_STYLE_GUIDE,
   prepareVisual,
+  REPLY_GUIDE,
   VISUAL_GUIDE,
   VISUAL_TOOL,
   VISUALS_FOLDER,
@@ -21,7 +22,7 @@ export type VisualsOptions = {
 }
 
 /**
- * Lets the agent answer with a page where a page says more than prose: a chart, a table, a
+ * Lets the agent answer with a page where a page says more than prose: a chart, a mock-up, a
  * diagram. The agent writes the page; it is kept in the library, where it can be opened, edited
  * and shared like any other, and the chat shows it as the page itself. It needs no computer.
  */
@@ -29,7 +30,7 @@ export function visuals(options: VisualsOptions): Extension {
   const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const tool = defineTool({
     name: VISUAL_TOOL,
-    description: `Show the person a page you wrote, drawn in the chat itself above your reply: a chart, a table, a diagram, a mock-up, anything that says more laid out than in prose. Give one complete, self-contained HTML document with its styles and scripts inline. Call it before you write your reply. The person already sees the page, so your reply should not announce it, say where it is or repeat it: add only what the page does not say. ${VISUAL_GUIDE} The page is also kept in their library, in ${VISUALS_FOLDER}/, where it can be opened full size and shared.`,
+    description: `Show the person a page you wrote, drawn in the chat itself above your reply: a chart, a dashboard, a mock-up, something to press and try, anything that says more laid out than in prose. A plain table or a simple diagram goes in your reply as Markdown instead. Give one complete, self-contained HTML document with its styles and scripts inline. Call it before you write your reply. The person already sees the page, so your reply should not announce it, say where it is or repeat it: add only what the page does not say. ${VISUAL_GUIDE} The page is also kept in their library, in ${VISUALS_FOLDER}/, where it can be opened full size and shared.`,
     parameters: Type.Object({
       title: Type.String({
         description: "A short name for the page, which it is kept under: “Signups by week, Q3”",
@@ -79,8 +80,9 @@ export function visuals(options: VisualsOptions): Extension {
     sections: [
       section("visuals", () =>
         [
-          `When a chart, a table of figures, a diagram, a timeline or a mock-up would say more than prose, draw it with the \`${VISUAL_TOOL}\` tool: you write a small HTML page and the person sees it in the chat itself, above your reply. Use it for answers that have a shape, and not for a few sentences or a short list.`,
+          `When a chart, a timeline, a mock-up or something to press and try would say more than prose, draw it with the \`${VISUAL_TOOL}\` tool: you write a small HTML page and the person sees it in the chat itself, above your reply. Use it for answers that have a shape, and not for a few sentences or a short list.`,
           "The person sees the page as part of your answer, so do not announce it or restate what is in it.",
+          REPLY_GUIDE,
         ].join(" "),
       ),
       // How a page should look is said once, for a visual and for a page kept in the library.

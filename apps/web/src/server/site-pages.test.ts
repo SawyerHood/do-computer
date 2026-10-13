@@ -40,7 +40,7 @@ describe("what a site's address shows", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store")
     expect(response.headers.get("etag")).toBeNull()
     expect(text).toContain("<title>Thing</title>")
-    expect(text).toContain("<h1>Plan</h1>")
+    expect(text).toContain('<h1 id="user-content-plan">Plan</h1>')
     expect(text).toContain('type="checkbox"')
     // A link out opens in a new tab; one to a file beside it stays where it is.
     expect(text).toContain(

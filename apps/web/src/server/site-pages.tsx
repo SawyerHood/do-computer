@@ -7,12 +7,10 @@ import {
 } from "@do-computer/protocol"
 import { renderToStaticMarkup } from "react-dom/server"
 import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
+import { REHYPE_PLUGINS, REMARK_PLUGINS } from "@/components/markdown/pipeline"
 
 /** Text larger than this is offered as a download: it would be slow to show as a page. */
 const MAX_SHOWN_BYTES = 1024 * 1024
-
-const plugins = [remarkGfm]
 
 const DOC_STYLE =
   ".doc{font-size:15.5px;line-height:1.7;overflow-wrap:anywhere}.doc>*{margin:0}.doc>*+*{margin-top:14px}" +
@@ -25,7 +23,15 @@ const DOC_STYLE =
   ".doc pre{background:var(--muted);border-radius:8px;padding:12px;overflow-x:auto;font-size:13px;line-height:1.5}" +
   ".doc pre code{background:none;padding:0}.doc table{border-collapse:collapse;display:block;overflow-x:auto}" +
   ".doc th,.doc td{border:1px solid var(--border);padding:4px 8px;text-align:left}" +
-  ".doc hr{border:0;border-top:1px solid var(--border)}.doc img{max-width:100%;border-radius:8px}"
+  ".doc hr{border:0;border-top:1px solid var(--border)}.doc img{max-width:100%;border-radius:8px}" +
+  ".doc .alert{--alert:var(--muted-foreground);border-left:2px solid var(--alert);padding-left:12px}" +
+  ".doc .alert>*{margin:0}.doc .alert>*+*{margin-top:6px}.doc .alert-title{color:var(--alert);font-weight:500;font-size:14px}" +
+  '.doc .alert[data-alert="tip"]{--alert:var(--success)}.doc .alert[data-alert="important"]{--alert:var(--syntax-keyword)}' +
+  '.doc .alert[data-alert="warning"]{--alert:var(--warning)}.doc .alert[data-alert="caution"]{--alert:var(--destructive)}' +
+  ".doc details{border-block:1px solid var(--border)}.doc summary{cursor:pointer;padding:8px 0;font-weight:500}" +
+  ".doc details>:not(summary){margin-left:14px}.doc details>:last-child:not(summary){margin-bottom:12px}" +
+  ".doc kbd{font-family:var(--font-mono);font-size:.8em;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:1px 5px;background:var(--surface)}" +
+  ".doc mark{background:color-mix(in oklch,var(--warning) 28%,transparent);color:inherit;border-radius:3px;padding:0 2px}"
 
 const LIST_STYLE =
   "h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-0.01em}.where{margin:2px 0 0;color:var(--muted-foreground);font-size:13px}" +
@@ -87,8 +93,21 @@ function documentPage(title: string, text: string, alone?: string): string {
   const body = renderToStaticMarkup(
     <main className="doc">
       <ReactMarkdown
-        remarkPlugins={plugins}
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
         components={{
+          // A note of one of GitHub's kinds says which it is, as it does in the app.
+          blockquote: ({ node, children }) => {
+            const kind = node?.properties.dataAlert
+            return typeof kind !== "string" ? (
+              <blockquote>{children}</blockquote>
+            ) : (
+              <div role="note" className="alert" data-alert={kind}>
+                <p className="alert-title">{kind[0]!.toUpperCase() + kind.slice(1)}</p>
+                {children}
+              </div>
+            )
+          },
           a: ({ node: _node, href, ...props }) =>
             href !== undefined && /^[a-z][a-z0-9+.-]*:/i.test(href) ? (
               <a {...props} href={href} target="_blank" rel="noopener noreferrer" />
