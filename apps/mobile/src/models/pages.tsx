@@ -89,7 +89,7 @@ export function ModelsPage({ workspaceId }: { workspaceId: string }) {
   const [more, setMore] = useState(false)
   const refresh = useRefresh(() => providers.refetch())
   const server = scope?.kind === "deployment"
-  const title = workspaceId === DEPLOYMENT.id ? "Server models" : "Models"
+  const title = workspaceId === DEPLOYMENT.id ? "Global models" : "Models"
 
   if (scope === undefined || providers.data === undefined) {
     return (
@@ -153,7 +153,7 @@ export function ModelsPage({ workspaceId }: { workspaceId: string }) {
         title="Model providers"
         footer={`${
           server
-            ? "A sign-in here is the server's: everyone's Doods can then be set to its models, and what they use counts against whoever signed in. Where the server's settings name the models it offers, only those of them are."
+            ? "A sign-in here is for everyone: the Doods of every workspace on this server can then be set to its models, and what they use counts against whoever signed in. For your own Doods only, sign in under Models in your workspace instead. Where the server's settings name the models it offers, only those of them are."
             : scope.kind === "team"
               ? `A sign-in belongs to the workspace: everyone in ${scope.name} can then set Doods to its models, and what the Doods use counts against whoever signed in.`
               : "A sign-in belongs to this workspace: your Doods here can then be set to its models."
