@@ -54,6 +54,12 @@ export type WorkspaceSummary = {
   /** Everyone in it. A personal workspace has only its owner. */
   members: WorkspaceMember[]
   createdAt: number
+  /**
+   * True where the workspace keeps logins for its Doods to sign in to websites with, and the
+   * signed-in user may see and change them. Absent where the deployment has that switched off,
+   * or keeps it for others.
+   */
+  savedLogins?: true
 }
 
 /** Someone asked to join a team who has not answered yet. Addressed by email or GitHub username. */

@@ -3,6 +3,7 @@ import type {
   LiveView,
   ScreenActed,
   ScreenWindow,
+  SignInWith,
   UsingAgent,
 } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
@@ -265,13 +266,27 @@ describe("the windows on the screen of a paired computer", () => {
 })
 
 describe("a browser on a paired computer", () => {
-  const browser = (ran: Partial<BrowserRan> = {}): BrowserIO & { scripts: string[] } => {
+  const browser = (
+    ran: Partial<BrowserRan> = {},
+  ): BrowserIO & { scripts: string[]; logins: SignInWith[] } => {
     const scripts: string[] = []
+    const logins: SignInWith[] = []
     return {
       scripts,
+      logins,
       run: async (_agent, script) => {
         scripts.push(script)
         return { output: "Example Domain", shots: [], own: false, ...ran }
+      },
+      front: async () => ({ url: "https://example.com/login", title: "Sign in", own: false }),
+      signIn: async (_agent, login) => {
+        logins.push(login)
+        return {
+          outcome: "signed_in",
+          message: "Signed in to example.com.",
+          site: "example.com",
+          own: false,
+        }
       },
       view: async (after) => ({ active: false, seq: after }),
       hold: async () => {},
@@ -328,6 +343,89 @@ describe("a browser on a paired computer", () => {
     await expect(
       wire(io()).link.use({ t: "browser", op: "run", agent: pip, script: "1" }),
     ).rejects.toThrow(/does not let Doods use a browser/)
+  })
+
+  const login: SignInWith = {
+    name: "Example",
+    username: "pip@example.com",
+    password: "correct horse battery staple",
+    sites: ["example.com"],
+  }
+
+  it("says which page is in front", async () => {
+    const { link } = wire(io({ browser: browser() }))
+    expect(await link.use({ t: "browser", op: "front" })).toEqual({
+      url: "https://example.com/login",
+      title: "Sign in",
+      own: false,
+    })
+  })
+
+  it("signs in with a login, and writes down its name and nothing else of it", async () => {
+    const theirs = browser()
+    const daemonIO = io({ browser: theirs })
+    const { link } = wire(daemonIO)
+    const went = await link.use({ t: "browser", op: "sign_in", agent: pip, login })
+    expect(went).toMatchObject({ outcome: "signed_in", site: "example.com" })
+    expect(theirs.logins).toEqual([login])
+    expect(daemonIO.audits).toHaveLength(1)
+    expect(daemonIO.audits[0]).toEqual({
+      ts: expect.any(Number),
+      kind: "browser_sign_in",
+      agent: "Pip",
+      login: "Example",
+    })
+    expect(JSON.stringify(daemonIO.audits)).not.toContain(login.password)
+  })
+
+  it("says nothing of why where signing in threw, which could be made of what was typed", async () => {
+    const theirs = browser()
+    theirs.signIn = async (_agent, given) => {
+      throw new Error(`could not type ${given.password}`)
+    }
+    const daemonIO = io({ browser: theirs })
+    const { link } = wire(daemonIO)
+    const went = await link.use({ t: "browser", op: "sign_in", agent: pip, login })
+    expect(went).toEqual({
+      outcome: "failed",
+      message: 'This computer could not sign in with the login "Example".',
+      own: false,
+    })
+    expect(JSON.stringify(daemonIO.audits)).not.toContain(login.password)
+
+    theirs.signIn = async () => {
+      throw new UseRefused("The person at the computer stopped you using the browser.")
+    }
+    await expect(link.use({ t: "browser", op: "sign_in", agent: pip, login })).rejects.toThrow(
+      /stopped you/,
+    )
+  })
+
+  it("does not sign in on a computer that may only be read, or with a login that is not whole", async () => {
+    const theirs = browser()
+    const readOnly = io({ browser: theirs })
+    await expect(
+      wire(readOnly, { readOnly: true }).link.use({
+        t: "browser",
+        op: "sign_in",
+        agent: pip,
+        login,
+      }),
+    ).rejects.toThrow(/read-only/)
+    expect(readOnly.audits).toEqual([
+      { ts: expect.any(Number), kind: "refused", what: "use a browser" },
+    ])
+    const daemonIO = io({ browser: theirs })
+    await expect(
+      wire(daemonIO).link.use({
+        t: "browser",
+        op: "sign_in",
+        agent: pip,
+        login: { ...login, sites: undefined } as never,
+      }),
+    ).rejects.toThrow(/needs an agent and a login/)
+    expect(theirs.logins).toEqual([])
+    expect(daemonIO.audits).toEqual([])
   })
 })
 

@@ -4,7 +4,15 @@ import { mkdir, readFile, realpath, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { isAbsolute, join, relative } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import type { BrowserRan, LiveView, Shot, UsingAgent } from "@do-computer/protocol"
+import type {
+  BrowserFront,
+  BrowserRan,
+  BrowserSignedIn,
+  LiveView,
+  Shot,
+  SignInWith,
+  UsingAgent,
+} from "@do-computer/protocol"
 import { VIEW_WAIT_MS } from "@do-computer/protocol"
 import type { BrowserIO } from "../daemon-core.ts"
 import { UseState } from "../use.ts"
@@ -20,8 +28,9 @@ import {
   type Supervised,
 } from "./chrome.ts"
 import { isJpeg, keepEnd, readFrames } from "./frames.ts"
-import { createPreview, type Preview } from "./preview.ts"
+import { createPreview, type Preview, type PreviewSocket } from "./preview.ts"
 import { createRelay, type Relay } from "./relay.ts"
+import { readFront, signInOnPage } from "./sign-in.ts"
 
 export type NodeBrowserOptions = {
   /** A folder of the daemon's own to keep things in: the dev-browser binary, the profile of the browser kept for agents. */
@@ -123,18 +132,26 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     return env
   }
 
-  /** Run dev-browser to its end. Resolves with what it printed, and whether it had to be stopped. */
+  /**
+   * Run dev-browser to its end. Resolves with what it printed, and whether it had to be stopped.
+   * A script is handed to it as its input, which no other program on the computer can read, as
+   * each can read the words a program was started with.
+   */
   function execute(
     binary: string,
     args: string[],
     limitMs: number,
+    script?: string,
   ): Promise<{ stdout: string; stderr: string; stopped: boolean }> {
     return new Promise((resolve, reject) => {
       const child = spawn(binary, args, {
         env: environment(),
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
       })
+      // One that ends before it has read its script is heard of when it closes.
+      child.stdin.on("error", () => {})
+      child.stdin.end(script)
       let stdout = ""
       let stderr = ""
       let stopped = false
@@ -384,18 +401,10 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       const seconds = Math.max(1, Math.ceil(timeoutMs / 1000))
       const ran = await execute(
         binary,
-        [
-          "--json",
-          "--connect",
-          current.connect,
-          "--timeout",
-          String(seconds),
-          "--quiet-page",
-          "-e",
-          script,
-        ],
+        ["--json", "--connect", current.connect, "--timeout", String(seconds), "--quiet-page"],
         // dev-browser ends a script that takes too long itself. This is for when it does not.
         timeoutMs + 10_000,
+        script,
       )
       const frames = readFrames(ran.stdout)
       let error = frames.error
@@ -412,9 +421,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       }
       // After a script that ran out of time dev-browser may still be busy with it: start it afresh.
       if (ran.stopped || frames.exitCode === 124 || frames.exitCode === undefined) {
-        const old = daemon
-        daemon = undefined
-        await old?.close()
+        await stopDaemon()
       }
       const shots = await readShots(frames.images)
       const front = (await current.preview.front()) ?? (await frontPage(current.port))
@@ -444,10 +451,80 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
     } finally {
       clearInterval(touching)
       current.preview.running(false)
-      idleTimer = setTimeout(() => {
-        queue = queue.then(rest, rest)
-      }, KEPT_IDLE_MS)
-      idleTimer.unref()
+      restLater()
+    }
+  }
+
+  /** Stop dev-browser. It is started again by the next script, and finds its named pages as they were. */
+  async function stopDaemon(): Promise<void> {
+    const old = daemon
+    daemon = undefined
+    await old?.close()
+  }
+
+  /** Let the browser rest once no agent has used it for a while. */
+  function restLater(): void {
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      queue = queue.then(rest, rest)
+    }, KEPT_IDLE_MS)
+    idleTimer.unref()
+  }
+
+  /** The browser agents are using now, where it is still there. Never starts one. */
+  function openSession(): Session | undefined {
+    if (session === undefined) return undefined
+    const there = session.chrome ? session.chrome.alive() : (session.relay?.alive() ?? true)
+    return there && typeof globalThis.WebSocket === "function" ? session : undefined
+  }
+
+  /**
+   * A DevTools socket of the daemon's own to a browser: through the one shared socket to the
+   * owner's own, which would ask them about another, and straight to the one kept for agents.
+   */
+  function ownSocket(current: Session): PreviewSocket {
+    return current.relay
+      ? current.relay.open()
+      : (new WebSocket(current.connect) as unknown as PreviewSocket)
+  }
+
+  /**
+   * Sign in on the page in front of the browser agents are using, with dev-browser stopped for
+   * as long as it takes. Where no browser is open it says so, and starts none.
+   */
+  async function signInOne(login: SignInWith, timeoutMs: number): Promise<BrowserSignedIn> {
+    const current = openSession()
+    if (current === undefined) {
+      return {
+        outcome: "failed",
+        message:
+          "No browser is open for Doods on this computer. Open the page that asks to sign in with the browser tool first, and then sign in.",
+        own: false,
+      }
+    }
+    clearTimeout(idleTimer)
+    const touching = setInterval(() => state.touch(), 10_000)
+    current.preview.running(true)
+    try {
+      // The live view knows which page is in front a moment after it has connected.
+      for (let tries = 0; tries < 20 && current.preview.target() === undefined; tries++) {
+        await delay(50)
+      }
+      const front = current.preview.target()
+      const went = await signInOnPage(
+        {
+          open: () => ownSocket(current),
+          ...(front === undefined ? {} : { front }),
+          stop: stopDaemon,
+        },
+        login,
+        { timeoutMs },
+      )
+      return { ...went, own: current.own }
+    } finally {
+      clearInterval(touching)
+      current.preview.running(false)
+      restLater()
     }
   }
 
@@ -459,9 +536,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   async function rest(): Promise<void> {
     clearTimeout(idleTimer)
     if (!session?.own) await dropSession()
-    const old = daemon
-    daemon = undefined
-    await old?.close()
+    await stopDaemon()
   }
 
   /** Close the browser kept for agents, stop dev-browser, and let go of the owner's own. */
@@ -478,6 +553,41 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       const result = queue.then(
         () => runOne(script, timeoutMs, asked),
         () => runOne(script, timeoutMs, asked),
+      )
+      queue = result
+      try {
+        return await result
+      } finally {
+        state.touch()
+      }
+    },
+
+    async front(): Promise<BrowserFront> {
+      const current = openSession()
+      if (current === undefined) return { own: false }
+      const hint = current.preview.target()
+      const page = await readFront({
+        open: () => ownSocket(current),
+        ...(hint === undefined ? {} : { front: hint }),
+      })
+      return {
+        ...(page === undefined
+          ? {}
+          : { url: page.url.slice(0, 2_000), title: page.title.slice(0, 300) }),
+        own: current.own,
+      }
+    },
+
+    async signIn(
+      agent: UsingAgent,
+      login: SignInWith,
+      { timeoutMs, say },
+    ): Promise<BrowserSignedIn> {
+      await state.enter(agent, say)
+      // After whatever script is running, and before the next: one thing at a time in the browser.
+      const result = queue.then(
+        () => signInOne(login, timeoutMs),
+        () => signInOne(login, timeoutMs),
       )
       queue = result
       try {

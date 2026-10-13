@@ -102,7 +102,8 @@ function sayOf(action: ScreenAction): string {
     case "scroll":
       return `Scrolling ${action.direction}`
     case "type":
-      return `Typing ${action.text.length > 40 ? `${action.text.slice(0, 40)}…` : action.text}`
+      // Not what is typed: it is said on the computer and kept with the chat, and may be private.
+      return "Typing"
     case "key":
       return `Pressing ${action.keys}`
     case "wait":

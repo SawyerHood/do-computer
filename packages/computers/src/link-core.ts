@@ -231,7 +231,7 @@ export class LinkCore {
    */
   async use(request: Omit<ScreenFrame, "id"> | Omit<BrowserFrame, "id">): Promise<unknown> {
     const id = this.#nextId()
-    const doing = request.op === "act" || request.op === "run"
+    const doing = request.op === "act" || request.op === "run" || request.op === "sign_in"
     const waitMs = doing
       ? USE_HELD_WAIT_MS + (request.t === "browser" ? MAX_BROWSER_TIMEOUT_MS : 60_000)
       : Math.min(Math.max(0, request.waitMs ?? 0), VIEW_WAIT_MS) + this.#useGraceMs

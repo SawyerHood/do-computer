@@ -41,9 +41,16 @@ type StoredRequest = {
   resolvedAt: number | null
   /** One of its subjects is asked about every time, so "always" is not an answer. */
   onceOnly?: true
+  /** What exactly was asked about, where a yes is for that and nothing like it. */
+  binding?: string
 }
 
-type Grant = { chatId: string; subjects: string[]; expiresAt: number }
+/**
+ * A pass for one use. With a `binding` it is for that one thing alone: a yes to signing in to
+ * one site is not a yes to the next. `subjects` of `*` stands for whatever the call asks about,
+ * and only ever goes with a binding.
+ */
+type Grant = { chatId: string; subjects: string[]; expiresAt: number; binding?: string }
 
 type State = {
   rules: Record<string, ApprovalRule>
@@ -83,6 +90,9 @@ type Ability = {
  * A rule is about what happens, not which tool does it: tools that can do the same thing answer
  * to the same rule, or the rule would only stop the agent that did not think of the other tool.
  */
+/** Signing in on a website with a login the workspace saved. */
+export const SIGN_IN_ABILITY = "tool:sign_in"
+
 const ABILITIES: readonly Ability[] = [
   {
     id: "tool:bash",
@@ -130,6 +140,13 @@ const ABILITIES: readonly Ability[] = [
     label: "Use a browser on a computer",
     hint: "On somebody's own computer: their own Chrome where it lets itself be used, with what they are signed in to.",
     tools: ["browser"],
+  },
+  {
+    id: SIGN_IN_ABILITY,
+    label: "Sign in with saved passwords",
+    hint: "On a website, with a login the workspace saved for it. The Dood is never shown the password.",
+    tools: ["sign_in"],
+    ask: true,
   },
   { id: "tool:web_search", label: "Search the web", tools: ["web_search"] },
   {
@@ -215,6 +232,7 @@ const TOOL_TITLES: Record<string, string> = {
   computers: "See your computers, and ask to use one",
   connectors: "See its connectors",
   request_secret: "Ask you for a secret",
+  sign_in: "Sign in with a saved login",
   settings: "See its settings",
   agents: "Work with the other Doods",
   slack: "Read Slack",
@@ -337,6 +355,7 @@ const COMPUTER_TOOLS = new Set([
   "request_secret",
   "screen",
   "browser",
+  "sign_in",
 ])
 const usesComputer = (call: ToolCall) =>
   COMPUTER_TOOLS.has(call.name) ||
@@ -360,6 +379,9 @@ function describe(args: Record<string, unknown>): string {
   return text.length > MAX_DETAIL ? `${text.slice(0, MAX_DETAIL)}…` : text
 }
 
+/** What a call asks to do, in words, and what exactly a yes to it is a yes to. */
+export type Described = { title: string; detail: string; binding: string } | { pass: true }
+
 export type ApprovalsOptions = {
   readonly now: () => number
   /** The connector a tool belongs to, if it is a connector's tool. */
@@ -377,6 +399,19 @@ export type ApprovalsOptions = {
     name: string | undefined,
     context: Context,
   ) => Promise<{ id: string; name: string } | undefined>
+  /**
+   * What a call is asking to do, where that cannot be read off its arguments and has to be
+   * looked up: signing in says which login and on which site, as the browser has it. Resolves
+   * with `pass` for a call that will come to nothing by itself, which is then not asked about,
+   * and with undefined for a call it has nothing to say of.
+   */
+  readonly describe?: (
+    call: ToolCall,
+    chatId: string,
+    context: Context,
+  ) => Promise<Described | undefined>
+  /** Whether the agent has an ability at all. One it has not is not listed for a rule. */
+  readonly has?: (ability: string, context: Context) => Promise<boolean>
   /** Called when the agent has asked for something, to tell the user wherever they are. */
   readonly onRequest?: (request: ApprovalRequest) => void
   /** Called when something it asked for waits on nobody any more: answered, or taken back. */
@@ -497,6 +532,12 @@ export class Approvals {
       }
     }
 
+    const described = await this.#options.describe?.(call, chatId, context)
+    // It will do nothing that needs a yes, and says why itself.
+    if (described !== undefined && "pass" in described) return undefined
+    const title = described?.title ?? what
+    const binding = described?.binding
+
     // What changes the app is for a person to ask for, and there is nobody in these to ask.
     const kind = own((await harness.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind
     if (
@@ -504,13 +545,18 @@ export class Approvals {
       kind !== "chat" &&
       governed.some((subject) => defaultRule(subject.id) === "ask")
     ) {
+      // A saved login changes nothing in the app: what it wants is someone's yes.
+      const why = governed.some((subject) => subject.id === SIGN_IN_ABILITY)
+        ? "someone has to say that it may, and only a conversation with the user can ask them. It can be done from here once they have said, in your Permissions, that you need not ask"
+        : "it changes the app, and only a conversation with the user can ask for that"
       return {
-        block: `${KIND_WORDS[kind] ?? "This conversation"} cannot do this (${what}): it changes the app, and only a conversation with the user can ask for that. Say in your answer what you would have done.`,
+        block: `${KIND_WORDS[kind] ?? "This conversation"} cannot do this (${title}): ${why}. Say in your answer what you would have done.`,
       }
     }
     const asking = governed.map((subject) => subject.id).sort()
     const onceOnly = asking.some((subject) => abilityOf(subject)?.locked === true)
-    const callKey = `${call.name}:${JSON.stringify(call.arguments)}`
+    // Two calls that look the same may ask for different things, where what is asked is looked up.
+    const callKey = `${call.name}:${binding ?? JSON.stringify(call.arguments)}`
     const now = this.#options.now()
     const outcome = await harness.commit(async (tx) => {
       const doc = await tx.doc(ApprovalsDoc)
@@ -520,7 +566,10 @@ export class Approvals {
       // A pass from "allow once" covers this call if it covers everything this call asks about.
       const pass = Object.entries(doc.grants).find(
         ([, grant]) =>
-          grant.chatId === chatId && asking.every((subject) => grant.subjects.includes(subject)),
+          grant.chatId === chatId &&
+          grant.binding === binding &&
+          ((binding !== undefined && grant.subjects.includes("*")) ||
+            asking.every((subject) => grant.subjects.includes(subject))),
       )
       if (pass !== undefined) {
         delete doc.grants[pass[0]]
@@ -537,12 +586,16 @@ export class Approvals {
         chatId,
         callKey,
         subjects: asking,
-        title: what,
-        detail: asked(call)?.detail ?? describe(call.arguments as Record<string, unknown>),
+        title,
+        detail:
+          described?.detail ??
+          asked(call)?.detail ??
+          describe(call.arguments as Record<string, unknown>),
         status: "pending",
         createdAt: now,
         resolvedAt: null,
         ...(onceOnly ? { onceOnly: true as const } : {}),
+        ...(binding === undefined ? {} : { binding }),
       }
       return { allowed: false as const, id, isNew: true }
     }, context)
@@ -552,8 +605,26 @@ export class Approvals {
       if (request !== undefined) this.#options.onRequest?.(request)
     }
     return {
-      block: `This needs the user's approval first (${what}), and they have now been asked. Stop here: do not try it again and do not look for another way to do the same thing. Tell the user in a sentence what you want to do and why, then wait. You will be told when they have answered.`,
+      block: `This needs the user's approval first (${title}), and they have now been asked. Stop here: do not try it again and do not look for another way to do the same thing. Tell the user in a sentence what you want to do and why, then wait. You will be told when they have answered.`,
     }
+  }
+
+  /**
+   * Let one thing through once in a chat without asking, because a person has just done what
+   * amounts to saying yes to it there: whoever typed a login for a site in answer to the agent
+   * need not then be asked whether it may be used on that site.
+   */
+  async allowOnce(chatId: string, binding: string, context: Context): Promise<void> {
+    const now = this.#options.now()
+    await this.#require().commit(async (tx) => {
+      const doc = await tx.doc(ApprovalsDoc)
+      doc.grants[`g${crypto.randomUUID().slice(0, 8)}`] = {
+        chatId,
+        subjects: ["*"],
+        expiresAt: now + GRANT_TTL_MS,
+        binding,
+      }
+    }, context)
   }
 
   /** The rule one subject answers to: the one set for it, or its default. */
@@ -609,9 +680,13 @@ export class Approvals {
     const harness = this.#require()
     const state = await harness.snapshot(ApprovalsDoc, context)
     const computers = (await harness.snapshot(ComputersDoc, context))?.computers ?? {}
+    const lacking = new Set<string>()
+    for (const { id } of ABILITIES) {
+      if ((await this.#options.has?.(id, context)) === false) lacking.add(id)
+    }
     const subjects: ApprovalSubject[] = [
       // One that is asked about every time has no rule to set.
-      ...ABILITIES.filter((ability) => ability.locked !== true).map(
+      ...ABILITIES.filter((ability) => ability.locked !== true && !lacking.has(ability.id)).map(
         ({ id, label, hint }): ApprovalSubject => ({
           id,
           label,
@@ -634,7 +709,7 @@ export class Approvals {
     const rules: Record<string, ApprovalRule> = {}
     for (const id of new Set([...Object.keys(state?.rules ?? {}), ...subjects.map((s) => s.id)])) {
       const rule = ruleOf(state?.rules ?? {}, id)
-      if (rule !== "allow") rules[id] = rule
+      if (rule !== "allow" && !lacking.has(id)) rules[id] = rule
     }
     return { rules, subjects, pending: await this.pending(context) }
   }
@@ -691,6 +766,7 @@ export class Approvals {
           chatId: found.chatId,
           subjects: [...found.subjects],
           expiresAt: now + GRANT_TTL_MS,
+          ...(found.binding === undefined ? {} : { binding: found.binding }),
         }
       }
       if (decision === "always") {

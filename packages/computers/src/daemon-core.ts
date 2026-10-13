@@ -5,7 +5,9 @@ import {
   DEFAULT_EXEC_TIMEOUT_MS,
   EXEC_STDIO_CAP,
   type BrowserFrame,
+  type BrowserFront,
   type BrowserRan,
+  type BrowserSignedIn,
   DEFAULT_BROWSER_TIMEOUT_MS,
   type FsFrame,
   type HostFrame,
@@ -19,6 +21,7 @@ import {
   type ScreenAction,
   type ScreenActed,
   type ScreenFrame,
+  type SignInWith,
   type UsingAgent,
   VIEW_WAIT_MS,
 } from "@do-computer/protocol"
@@ -45,6 +48,21 @@ export interface BrowserIO {
     script: string,
     options: { timeoutMs: number; say?: string; shown?: boolean },
   ): Promise<BrowserRan>
+  /**
+   * The page in front in the browser agents are using now, as the browser itself says. Where
+   * none is open it has no address, and none is started to find out.
+   */
+  front(): Promise<BrowserFront>
+  /**
+   * Sign in on the page in front with `login`, for `agent`: the daemon types it itself, so that
+   * no script an agent wrote ever holds the password. Never rejects for a sign-in that did not
+   * go through: that is in the answer, which has nothing of the password in it.
+   */
+  signIn(
+    agent: UsingAgent,
+    login: SignInWith,
+    options: { timeoutMs: number; say?: string },
+  ): Promise<BrowserSignedIn>
   view(after: number, waitMs: number): Promise<LiveView>
   hold(held: boolean): Promise<void>
   /** Close the browser kept for agents, and let go of the owner's own. */
@@ -101,6 +119,28 @@ function errorCode(error: unknown): DaemonErrorCode {
       return "invalid"
     default:
       return "io"
+  }
+}
+
+/** A login as a frame carried it, where it is whole. */
+function readLogin(value: unknown): SignInWith | undefined {
+  const login = value as Partial<SignInWith> | null | undefined
+  if (
+    typeof login !== "object" ||
+    login === null ||
+    typeof login.name !== "string" ||
+    typeof login.username !== "string" ||
+    typeof login.password !== "string" ||
+    !Array.isArray(login.sites) ||
+    !login.sites.every((site) => typeof site === "string")
+  ) {
+    return undefined
+  }
+  return {
+    name: login.name,
+    username: login.username,
+    password: login.password,
+    sites: login.sites,
   }
 }
 
@@ -247,8 +287,10 @@ export class DaemonCore {
         else void this.#screen(frame)
         return
       case "browser":
-        if (this.#readOnly && frame.op === "run") return this.#refuse(frame.id, "use a browser")
-        if (frame.op === "run") this.#track(this.#browser(frame))
+        if (this.#readOnly && (frame.op === "run" || frame.op === "sign_in")) {
+          return this.#refuse(frame.id, "use a browser")
+        }
+        if (frame.op === "run" || frame.op === "sign_in") this.#track(this.#browser(frame))
         else void this.#browser(frame)
         return
       case "update":
@@ -417,6 +459,43 @@ export class DaemonCore {
             ...(frame.shown === undefined ? {} : { shown: frame.shown }),
           }),
         )
+      }
+      case "front":
+        return this.#use(frame.id, () => browser.front())
+      case "sign_in": {
+        const { agent } = frame
+        const login = readLogin(frame.login)
+        if (agent === undefined || login === undefined) {
+          return this.#error(frame.id, "bad_request", "sign_in needs an agent and a login.")
+        }
+        // The name of the login and no more: the frame holds its password, and is never kept.
+        this.#io.audit({
+          ts: this.#now(),
+          kind: "browser_sign_in",
+          agent: agent.name,
+          login: login.name,
+        })
+        const timeoutMs = Math.min(
+          Math.max(1_000, frame.timeoutMs ?? DEFAULT_BROWSER_TIMEOUT_MS),
+          MAX_BROWSER_TIMEOUT_MS,
+        )
+        return this.#use(frame.id, async (): Promise<BrowserSignedIn> => {
+          try {
+            return await browser.signIn(agent, login, {
+              timeoutMs,
+              ...(frame.say === undefined ? {} : { say: frame.say }),
+            })
+          } catch (error) {
+            // Whoever paused the browser is told so. Anything else is not passed on: an error
+            // is made of what went wrong, and what was being done was typing a password.
+            if (error instanceof UseRefused) throw error
+            return {
+              outcome: "failed",
+              message: `This computer could not sign in with the login "${login.name}".`,
+              own: false,
+            }
+          }
+        })
       }
       case "view":
         return this.#use(frame.id, () => browser.view(frame.after ?? 0, wait))

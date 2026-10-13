@@ -9,13 +9,7 @@ import {
 } from "@do-computer/computers"
 import { fakeScreen } from "@do-computer/computers/fake-screen"
 import { nodeDaemonIO } from "@do-computer/computers/node"
-import type {
-  ChatState,
-  ChatSummary,
-  LiveView,
-  ToolPart,
-  UseDetails,
-} from "@do-computer/protocol"
+import type { ChatState, ChatSummary, LiveView, ToolPart, UseDetails } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
 import { justBashSandbox } from "@do-computer/sandbox"
 import type { Message } from "@earendil-works/pi-ai"
@@ -100,6 +94,8 @@ const pretendBrowser: BrowserIO = {
   view: async (after) => ({ active: false, seq: after }),
   hold: async () => {},
   close: async () => {},
+  front: async () => ({ own: true }),
+  signIn: async () => ({ outcome: "failed", message: "Not something this one does.", own: true }),
 }
 
 /** Run a daemon for computer `id`, connected to its link in memory. */

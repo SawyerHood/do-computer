@@ -6377,6 +6377,74 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       Android; the ringer switch; a host's yes surviving the app being closed (it is kept
       through the app's own store, which was not looked at there).
 
+81. **A Dood signs in to a website with a saved login, and never sees the password**
+    (2026-10-13; `packages/agent/src/vault.ts`, `sign-in.ts`, `approvals.ts`,
+    `packages/computers/src/browser/sign-in.ts`, `apps/web/src/server/passwords.ts`,
+    `apps/web/src/components/settings/passwords.tsx`). The owner asked for "a way for agents to
+    use 1Password for both browser use and ... other things they need to fill out", to see what
+    OpenClaw and Hermes Agent do, and how to keep secrets out of "the session logs and things
+    like that". `PLAN-agent-secrets.md` is the research and the whole plan; having read it the
+    owner chose to build our own store first, as one pull request, with 1Password later and
+    cards next, and said that it "should be a feature that only admin can use ... so that we
+    don't have leaks". `docs/reference/passwords.md` says what it does and does not protect.
+    - **The store.** A workspace's logins (a name, a username, a password, the sites it is for)
+      are kept by the actor that keeps its sign-ins to model providers, in a table of their own.
+      A password is sealed before it is written (AES-GCM, a key made for the workspace with HKDF
+      from `DC_SECRETS_KEY`, or `DC_AUTH_SECRET` where there is none) and opened in one place:
+      `POST /passwords/<id>/use`, which only an agent of the workspace can reach, through its
+      host. No route a person can reach returns one. A row sealed with a key the deployment no
+      longer has says so, and wants its password given again.
+    - **Who has it** (`DC_SECRETS`, `passwords-directory.ts`). Unset or `admins`: the accounts
+      `DC_ADMIN_EMAILS` names, in a workspace where everyone is one. `on`: everyone. `off`:
+      nobody, with no page, no form, no tool and nothing said of it to the model. Any other value
+      stops the server starting. It is asked of the database at each use, so a team loses its
+      logins the moment someone who is not an admin joins, and has them again if that person
+      leaves.
+    - **`sign_in`.** The Dood opens the page with `browser` and calls `sign_in`, naming a login
+      or letting the page say which. The server asks the computer which page is in front, and
+      only then asks the person: "Sign in to github.com as ...", with the site as the browser
+      has it. A yes is for that login on that site, once (`binding` in `approvals.ts`), and is
+      given back where the attempt typed no password. The page is looked at once to ask and
+      again to type: where it is no longer the page that was asked about, nothing is typed.
+      Where no login is saved for the site, the
+      same tool raises the form `request_secret` raises, asking for a login, and whoever types
+      it is not then asked a second time.
+    - **The typing** is done by the daemon itself, over a DevTools socket of its own. It stops
+      dev-browser first, loads the page afresh, finds the boxes in a world page scripts cannot
+      reach, types the password only where the caret is in a box that is a password box at
+      that moment, sends it, and empties what it typed where the page still asks. A daemon from
+      before this says nothing of `signIn` when it connects, and is never sent a password.
+    - **Why dev-browser is stopped.** Tried with dev-browser 1.0.0-rc.3: a script a Dood ran
+      earlier can leave a script for every new document that outlives a reload and reads every
+      key, and a loop inside dev-browser's own process that reaches new tabs too. Stopping
+      dev-browser drops both. A window of the same site that the page opened keeps a hold on
+      it that nothing ends, so a page with such a window is refused.
+    - **What is written down** is the login's name, the site, the username, and which Dood
+      used it and when. The script a Dood runs in a browser is now handed to dev-browser on its
+      input and no longer on its command line, and the screen tool's line for typing no longer
+      repeats what was typed.
+    - **Mine:** nearly all of it. The `sign_in` tool being apart from the browser's scripts; the
+      store living in the workspace's existing actor and not in one of its own; the session
+      secret as the key where none is set; an unset `DC_SECRETS` meaning admins only
+      everywhere (the owner asked for that on do.computer), its name and its values; a team
+      with anyone else in it having none; Ask first by default, a yes bound to one login and
+      site, and the pass for whoever just typed the login; a scheduled run may use a login the
+      Dood need not ask about, and Slack never; a login called after its site until someone
+      names it; https only, but for a page on the computer itself; the name "Passwords".
+    - **Checked:** unit tests of the store (among them that nothing of a password is in any
+      file it writes, and the same store inside workerd), of which pages a login may be typed
+      on, of who has it, and of the tool with a stand-in browser; the daemon's typing against a
+      real Chromium driven by the real dev-browser, with the two things a script can leave
+      behind planted first, on the browser kept for Doods and through the relay an owner's
+      Chrome is reached by; and one browser test of the whole of it (`e2e/sign-in.spec.ts`:
+      the app, the daemon, dev-browser, Chromium and a page that asks for a password), which
+      looks for the password in the page, the chat as the server keeps it, and everything the
+      daemon wrote. That one needs a dev-browser and does not run in CI.
+      **Not checked:** a real site (the page was a form of our own); macOS and Windows; an
+      owner's own Chrome with its real Allow prompt; the desktop app, which needs a release
+      before its daemon can do this at all; Cloudflare beyond the store's tests in workerd;
+      the phone, where the form for a login was built and never run.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

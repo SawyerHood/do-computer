@@ -25,6 +25,8 @@ export const workspaceModelsKey = (workspaceId: string | undefined) =>
   ["models", workspaceId ?? "any"] as const
 /** The model providers there are, and which of them a workspace is signed in to. */
 export const modelProvidersKey = (workspaceId: string) => ["model-providers", workspaceId] as const
+/** The logins a workspace keeps for its agents to sign in with. Never a password. */
+export const savedLoginsKey = (workspaceId: string) => ["saved-logins", workspaceId] as const
 export const settingsKey = ["settings"] as const
 export const computerKindsKey = ["computer-kinds"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const

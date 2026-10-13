@@ -15,6 +15,11 @@ paired computer. What limits the damage:
   token) without passing through the conversation: the Dood is told which names were saved and
   nothing else. The file is on a computer the Dood works on, so this keeps a secret out of
   transcripts, search and the model's context, not out of reach of a command the Dood runs.
+- **A Dood signs in to websites without seeing the password.** Where a workspace keeps
+  [saved passwords](passwords.md), a Dood names a login and the computer's own program types it:
+  only on the sites the login is for, only into a password box, after asking, and with nothing
+  the Dood wrote running at the time. The password is in nothing the Dood is sent or keeps. It
+  is closed to everyone but a deployment's admins unless `DC_SECRETS` says otherwise.
 
 - **Permissions.** For each thing the Dood can do, each connector and each of your computers,
   choose Allow, Ask first or Never. With Ask first the Dood stops, a request with the exact

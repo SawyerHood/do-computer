@@ -378,6 +378,8 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
       const answer = entry.data as
         { where?: string; to?: string; names?: string[]; saved?: boolean; by?: string } | undefined
       const token = answer?.to === "connector"
+      // A login is kept by the workspace, which is nowhere a person needs telling of.
+      const login = answer?.to === "login"
       return {
         id,
         role: "notice",
@@ -385,14 +387,20 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
           {
             type: "notice",
             kind: "secret",
-            text: token ? `the connector ${answer?.where ?? ""}`.trim() : (answer?.where ?? ""),
+            text: login
+              ? ""
+              : token
+                ? `the connector ${answer?.where ?? ""}`.trim()
+                : (answer?.where ?? ""),
             approved: answer?.saved === true,
             ...(answer?.by ? { by: answer.by } : {}),
-            detail: token
-              ? "its access token"
-              : Array.isArray(answer?.names)
-                ? answer.names.join(", ")
-                : "the secrets",
+            detail: login
+              ? `a login for ${answer?.where ?? "a site"}`
+              : token
+                ? "its access token"
+                : Array.isArray(answer?.names)
+                  ? answer.names.join(", ")
+                  : "the secrets",
           },
         ],
         status: "done",
