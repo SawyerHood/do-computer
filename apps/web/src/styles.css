@@ -6,6 +6,8 @@
 @import "@fontsource-variable/geist-mono";
 @import "./components/landing/landing.css";
 @import "./components/docs/docs.css";
+/* The app's colors, shadows and corners: written out from packages/protocol/src/theme.ts. */
+@import "./theme-tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -45,79 +47,6 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-/*
- * A cool neutral ramp: every surface is the canvas with some ink mixed in, so light and dark stay
- * in step. The one accent is used for the user's own messages and primary actions. It takes its
- * hue from --agent-color, which is teal until an agent is open and that agent's color after: only
- * the hue and how vivid it is are taken, so the accent is as readable for a pale agent as a dark one.
- *
- * There are three levels above the frame the app sits in, and each is a hairline with a shadow
- * under it: raised, for what is chosen in a list; card, for the page; and float, for what is
- * over the page, such as the message box, a menu or a window. In the dark, where a shadow is
- * not seen, each level is a step lighter than the one under it.
- */
-:root {
-  --agent-color: oklch(0.5 0.08 195);
-  --canvas: oklch(0.997 0.001 212);
-  --frame: color-mix(in oklch, var(--ink) 4.5%, var(--canvas));
-  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
-  --shade: oklch(0.27 0.02 212);
-  --elevation-raised: 0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.07);
-  --elevation-card:
-    0 0 0 1px var(--hairline), 0 1px 2px oklch(from var(--shade) l c h / 0.04),
-    0 10px 28px -14px oklch(from var(--shade) l c h / 0.12);
-  --elevation-float:
-    0 0 0 1px var(--hairline), 0 2px 5px oklch(from var(--shade) l c h / 0.05),
-    0 22px 48px -22px oklch(from var(--shade) l c h / 0.26);
-  --ink: oklch(0.27 0.008 212);
-  --background: var(--canvas);
-  --foreground: var(--ink);
-  --card: var(--canvas);
-  --card-foreground: var(--ink);
-  --popover: var(--canvas);
-  --popover-foreground: var(--ink);
-  --primary: oklch(from var(--agent-color) 0.5 c h);
-  --primary-foreground: oklch(from var(--agent-color) 0.985 0.01 h);
-  --secondary: color-mix(in oklch, var(--ink) 7%, var(--canvas));
-  --secondary-foreground: var(--ink);
-  --muted: color-mix(in oklch, var(--ink) 6%, var(--canvas));
-  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
-  --accent: color-mix(in oklch, var(--ink) 8%, var(--canvas));
-  --accent-foreground: var(--ink);
-  --destructive: oklch(0.5 0.19 26);
-  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
-  --input: color-mix(in oklch, var(--ink) 22%, var(--canvas));
-  --ring: var(--primary);
-  --rail: color-mix(in oklch, var(--ink) 3%, var(--canvas));
-  --surface: color-mix(in oklch, var(--ink) 4%, var(--canvas));
-  --radius: 0.5rem;
-}
-
-.dark {
-  --canvas: oklch(0.212 0.004 212);
-  --ink: oklch(0.9 0.006 212);
-  --frame: oklch(0.168 0.004 212);
-  --hairline: color-mix(in oklch, var(--ink) 11%, transparent);
-  --elevation-raised: 0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.04);
-  --elevation-card: 0 0 0 1px var(--hairline);
-  --elevation-float:
-    0 0 0 1px var(--hairline), inset 0 1px 0 oklch(1 0 0 / 0.05),
-    0 22px 48px -22px oklch(0 0 0 / 0.7);
-  --card: color-mix(in oklch, var(--ink) 4%, var(--canvas));
-  --popover: color-mix(in oklch, var(--ink) 5%, var(--canvas));
-  --primary: oklch(from var(--agent-color) 0.52 c h);
-  --primary-foreground: oklch(from var(--agent-color) 0.97 0.012 h);
-  --secondary: color-mix(in oklch, var(--ink) 9%, var(--canvas));
-  --muted: color-mix(in oklch, var(--ink) 8%, var(--canvas));
-  --muted-foreground: color-mix(in oklch, var(--ink) 62%, var(--canvas));
-  --accent: color-mix(in oklch, var(--ink) 11%, var(--canvas));
-  --destructive: oklch(0.7 0.17 24);
-  --border: color-mix(in oklch, var(--ink) 13%, var(--canvas));
-  --input: color-mix(in oklch, var(--ink) 20%, var(--canvas));
-  --rail: color-mix(in oklch, black 22%, var(--canvas));
-  --surface: color-mix(in oklch, var(--ink) 5%, var(--canvas));
 }
 
 @layer base {

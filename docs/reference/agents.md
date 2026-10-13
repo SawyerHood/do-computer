@@ -91,6 +91,14 @@
   link opens for the people in the workspace, signed in, until someone chooses "Anyone with the
   link"; a Dood has to ask before making one public. A link shows the files as they are, so
   it changes when they do. Pages a Dood wrote run apart from the app and from your account.
+- **Write pages that look like the app.** Every HTML page in the Library is given the app's
+  colors, shadows, corners and typefaces as CSS variables when it is shown, and follows light
+  or dark and the Dood's own color while it is open; shared with a link, it follows the
+  reader's device. A Dood is told to write its pages with them and with no colors of its own.
+  A page that starts `<html data-dc-page>` also starts from the app's own page: background,
+  text, tables and fields. One that uses none of this is left as it was written.
+  [`docs/examples/themed-dashboard.html`](../examples/themed-dashboard.html) is a dashboard
+  written this way, and `packages/protocol/src/theme.ts` is the one table of the variables.
 - **Keep something in view.** Anything in the Library can be pinned to a Dood, by the Dood or
   with the pin on a file's card in the chat and on the bar of an open document. What is pinned
   stays beside the Dood's chat, under its face: the first is drawn small as what it is and

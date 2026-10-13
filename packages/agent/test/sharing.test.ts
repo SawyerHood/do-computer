@@ -11,12 +11,14 @@ import {
   isVisual,
   type LibraryFile,
   type LibraryListing,
+  PAGE_THEME_VERSION,
   readSse,
   SITE_LISTING_HEADER,
   type SiteListing,
   reduceChat,
   sharedSite,
   type SiteSummary,
+  THEME_TOKEN_NAMES,
   type ToolPart,
 } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
@@ -33,6 +35,9 @@ import {
   LIBRARY_SITE_HEADER,
   type SiteDirectory,
 } from "../src/index.ts"
+
+const STYLE = '<style id="dc-visual-theme">'
+const count = (text: string, part: string) => text.split(part).length - 1
 
 type World = {
   agents: NodeActorNamespace
@@ -375,7 +380,7 @@ describe("a site's files", () => {
     const folder = await served(world, "sites/plan", "more")
     expect(folder.status).toBe(302)
     expect(folder.headers.get("location")).toBe("more/")
-    expect(await (await served(world, "sites/plan", "more/")).text()).toBe("<p>more</p>")
+    expect(await (await served(world, "sites/plan", "more/")).text()).toMatch(/<p>more<\/p>$/)
 
     for (const outside of ["../other/index.html", "..%2Fother%2Findex.html", "../../secret.html"]) {
       expect((await served(world, "sites/plan", outside)).status).toBe(404)
@@ -391,7 +396,9 @@ describe("a site's files", () => {
     await setup(world)
     await put(world, "visuals/signups.html", PAGE)
     await put(world, "visuals/churn.html", "<p>churn</p>")
-    expect(await (await served(world, "visuals/signups.html", "")).text()).toBe(PAGE)
+    expect(await (await served(world, "visuals/signups.html", "")).text()).toContain(
+      "<title>Signups</title></head><body><svg></svg></body></html>",
+    )
     // What is beside it is not part of the site.
     expect((await served(world, "visuals/signups.html", "churn.html")).status).toBe(404)
     expect((await served(world, "visuals/signups.html", "../visuals/churn.html")).status).toBe(404)
@@ -500,5 +507,164 @@ describe("a site's files", () => {
       }),
     )
     expect(again.status).toBe(304)
+  })
+})
+
+/** What the model is sent at its next request: its instructions and its tools. */
+async function told(world: World, chatId: string): Promise<string> {
+  let sent = ""
+  world.faux.setResponses([
+    (context) => {
+      sent = JSON.stringify(context)
+      return fauxAssistantMessage("ok")
+    },
+  ])
+  await converse(world, chatId, "hi")
+  return sent
+}
+
+/** A page as an agent writes one to the library, asking for the app's own page. */
+const DOCUMENT =
+  '<!doctype html><html lang="en" data-dc-page><head><title>Q3</title>' +
+  "<style>.card{background:var(--card);border:1px solid var(--border)}</style></head>" +
+  "<body><div class=card>Revenue</div></body></html>"
+
+describe("a page of the library", () => {
+  /** A file as the app's viewer asks for it: by the address that stands in for a session. */
+  const viewed = async (world: World, path: string, headers?: Record<string, string>) =>
+    request(world, `/view/${(await call<LibraryListing>(world, "/library")).view}/${path}`, {
+      headers,
+    })
+
+  it("is served in the app's look, though it is kept as it was written", async () => {
+    const world = open()
+    await setup(world)
+    const file = await put(world, "reports/q3.html", DOCUMENT)
+    // What is kept is what was written: the look is put in when the page is served.
+    expect(await (await request(world, `/library/${file.id}`)).text()).toBe(DOCUMENT)
+    const response = await viewed(world, "reports/q3.html")
+    const page = await response.text()
+    expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8")
+    expect(Number(response.headers.get("content-length"))).toBe(
+      new TextEncoder().encode(page).length,
+    )
+    expect(count(page, STYLE)).toBe(1)
+    expect(page.indexOf(STYLE)).toBeLessThan(page.indexOf(".card{"))
+    // Every variable is there, in light and in dark, and what the agent wrote is all still there.
+    for (const name of THEME_TOKEN_NAMES) expect(page).toContain(`${name}:`)
+    expect(page).toContain(':where(:root[data-dc-theme="dark"])')
+    expect(page).toContain('<html lang="en" data-dc-page>')
+    expect(page).toContain("<body><div class=card>Revenue</div></body></html>")
+    // Whoever is sent its link is served the same.
+    expect(count(await (await served(world, "reports/q3.html", "")).text(), STYLE)).toBe(1)
+  })
+
+  it("takes the look with it when it is downloaded, and only when that is asked", async () => {
+    const world = open()
+    await setup(world)
+    const file = await put(world, "reports/q3.html", DOCUMENT)
+    const taken = await request(world, `/library/${file.id}?look`)
+    const page = await taken.text()
+    expect(count(page, STYLE)).toBe(1)
+    expect(page).toContain("@media (prefers-color-scheme:dark)")
+    expect(page.replace(/<style id="dc-visual-theme">.*?<\/script>/s, "")).toBe(DOCUMENT)
+    // It is handed over as a file, never run where the app is.
+    expect(taken.headers.get("content-disposition")).toMatch(/^attachment;/)
+    expect(taken.headers.get("content-type")).toBe("application/octet-stream")
+    expect(taken.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'")
+    // Anything else is what was kept, whatever is asked.
+    const note = await put(world, "notes/plan.md", "# Plan <head></head>")
+    expect(await (await request(world, `/library/${note.id}?look`)).text()).toBe(
+      "# Plan <head></head>",
+    )
+  })
+
+  it("is still apart from the app, and is sent nothing of whoever opens it", async () => {
+    const world = open()
+    await setup(world)
+    await put(world, "reports/q3.html", DOCUMENT)
+    const response = await viewed(world, "reports/q3.html", { cookie: "session=secret" })
+    const policy = response.headers.get("content-security-policy") ?? ""
+    expect(policy).toMatch(/^sandbox /)
+    expect(policy).not.toContain("allow-same-origin")
+    expect(policy).not.toContain("allow-top-navigation")
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer")
+    // A viewed page may not read the files beside it: its address opens the whole library.
+    expect(response.headers.get("access-control-allow-origin")).toBeNull()
+    expect(response.headers.get("set-cookie")).toBeNull()
+    const page = await response.text()
+    // What is put in is the same for everyone: nothing of the session, the agent or the address.
+    expect(page).not.toContain("secret")
+    expect(page).not.toContain("agent-1")
+    expect(page).not.toContain((await call<LibraryListing>(world, "/library")).view)
+    expect(page).toBe(await (await viewed(world, "reports/q3.html")).text())
+  })
+
+  it("is given the look whether or not it asked, and nothing but a page is", async () => {
+    const world = open()
+    await setup(world)
+    await put(world, "plain.html", "<h1>Plain</h1>")
+    await put(world, "data.json", '{"html":"<head></head>"}')
+    await put(world, "style.css", ":root{--background:red}")
+    const plain = await (await viewed(world, "plain.html")).text()
+    expect(count(plain, STYLE)).toBe(1)
+    expect(plain.endsWith("</head><h1>Plain</h1>")).toBe(true)
+    // It did not ask for the app's page, so it is not marked as one that did.
+    expect(plain).not.toContain("<html")
+    expect(await (await viewed(world, "data.json")).text()).toBe('{"html":"<head></head>"}')
+    expect(await (await viewed(world, "style.css")).text()).toBe(":root{--background:red}")
+  })
+
+  it("is asked for again when the look changes, and not while it is the same", async () => {
+    const world = open()
+    await setup(world)
+    const file = await put(world, "reports/q3.html", DOCUMENT)
+    const first = await viewed(world, "reports/q3.html")
+    expect(first.headers.get("etag")).toBe(`"${file.id}.${file.rev}.${PAGE_THEME_VERSION}"`)
+    const again = await viewed(world, "reports/q3.html", {
+      "if-none-match": first.headers.get("etag")!,
+    })
+    expect(again.status).toBe(304)
+    // A browser that kept the page from before the look was what it is now is sent it anew.
+    const stale = await viewed(world, "reports/q3.html", {
+      "if-none-match": `"${file.id}.${file.rev}.older"`,
+    })
+    expect(stale.status).toBe(200)
+  })
+
+  it("has the look as it is now, for a visual kept with it", async () => {
+    const world = open()
+    const chat = await setup(world)
+    const part = await use(world, chat.id, "visual", { title: "Signups", html: PAGE })
+    const file = part.details as unknown as LibraryFile
+    const kept = await (await request(world, `/library/${file.id}`)).text()
+    // The file is whole by itself, and says it is a visual.
+    expect(kept).toContain('<html data-dc-page="visual">')
+    expect(count(kept, STYLE)).toBe(1)
+    const page = await (await viewed(world, "visuals/signups.html")).text()
+    expect(page).toBe(kept)
+  })
+})
+
+describe("what an agent is told about pages", () => {
+  it("is how a page should look, with the variables it is given, for a visual and a document", async () => {
+    const world = open()
+    const chat = await setup(world)
+    const sent = await told(world, chat.id)
+    // Once, for every kind of page.
+    expect(count(sent, "The app gives every page it shows its own design tokens")).toBe(1)
+    for (const name of [
+      "--background",
+      "--muted-foreground",
+      "--primary-foreground",
+      "--chart-6",
+    ]) {
+      expect(sent).toContain(name)
+    }
+    expect(sent).toContain("Width: the page is read at 320px and at 1200px")
+    expect(sent).toContain("load nothing from a CDN")
+    // A document asks for the app's own page; a visual is part of the reply.
+    expect(sent).toContain("data-dc-page")
+    expect(sent).toContain("put no card, frame or heading banner around the whole page")
   })
 })

@@ -5911,6 +5911,73 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       pretended Chrome, and the live suite (`DC_BROWSER_LIVE=1`) goes through it for the Chrome
       with a port. **Not checked:** Google Chrome itself, macOS, the desktop app, a real model,
       and fifteen idle minutes waited out.
+73. **Every page of the library is in the app's look, from one table of its colors**
+    (2026-10-13; `packages/protocol/src/theme.ts` and `visual.ts`,
+    `packages/agent/src/library-store.ts` and `visuals.ts`, `apps/web/src/theme-tokens.css`,
+    `apps/web/src/lib/visual-theme.ts`, `apps/web/src/server/theme-fonts.ts`,
+    `docs/examples/themed-dashboard.html`). The owner asked whether the theme's tokens and a
+    style guide could be put in, "so agents can make attractive HTML documents by default that
+    match the Do Computer app theme", and for the tokens to "actually reach rendered HTML at
+    runtime across iframe/sandbox boundaries". Item 50 had done this for a visual only, by
+    copying the colors into the page when it was drawn, and the copy had already come to
+    differ from the app's stylesheet (another canvas, another typeface).
+    - **One table** (`THEME_TOKENS`) says every color, shadow, corner and typeface, in light
+      and in dark. The app's own stylesheet is written out from it (`theme-tokens.css`, by
+      `pnpm --filter @do-computer/web theme`; a test fails if the file is not what the table
+      says), every page is given it, and what an agent is told names only what is in it.
+    - **Put in when a page is served,** not when it is written (`themePageBytes`, in
+      `LibraryStore`'s `#page`): any HTML file, at `/d/` and `/s/`, has one block put at the
+      start of its head. The file is kept as it was written. A visual is still kept with the
+      block, so the file is whole by itself, and is given the block as it is now each time.
+      A page's `ETag` has the block's version in it. Only the first 64 KB are read as text.
+    - **The block** is the variables in `:where()`, so they do nothing to a page that does
+      not use them and lose to anything a page says itself, and a short script that hears
+      the client's light or dark and the agent's color: from the address's fragment at first,
+      by message after, so a page follows a change without loading again. With nothing said
+      it follows the device. The library's viewer, the panel beside a chat and a pin all tell
+      it now (`useThemedFrame`); before, only a visual was told, and it was loaded again.
+    - **A page asks for more with `data-dc-page` on its root:** the app's background, text,
+      typeface, and the way it sets a table, a field and a focus ring, all beaten by the
+      page's own styles. A visual is `data-dc-page="visual"`, which adds what item 50 gave it:
+      margins and a measure by itself, none in a chat. A page that does not ask is left as it
+      was written, which a browser test checks.
+    - **The typefaces** are served at `/theme/geist.woff2` and `/theme/geist-mono.woff2` with
+      `Access-Control-Allow-Origin: *`, since a page's origin is nobody's and a font is only
+      given across origins by name. They are the files the app's stylesheet loads.
+    - **Isolation is as it was:** the same `sandbox` policy, no `allow-same-origin`. What is
+      put in is the same for everyone and has nothing of the session, the agent or the
+      address in it; the script reads nothing of the page and sends only a height and a link
+      the reader clicked, and only in a page that asked for the app's look.
+    - **What an agent is told:** one `pages` section (`PAGE_STYLE_GUIDE`, `DOCUMENT_GUIDE`) for
+      a visual and for a file: the variables by what they are for, type, space, contrast,
+      charts, widths from 320px, and nothing from a CDN. The `visual` tool keeps only what is
+      about being part of a reply. It no longer suggests loading a library from a CDN.
+    - **Chart colors** are six fixed hues from the app's teal, the same for every agent. They
+      were first made to go round from the agent's color; measured, that left pairs a person
+      who does not see red from green could not tell apart, for most agents' colors. The six
+      kept were searched for and pass, in a browser, on both surfaces: lightness, chroma, side
+      by side at 14 or more, and 3:1 against the page.
+    - **A download takes the look with it** (`?look` on a file's address, from the viewer's
+      menu), so the copy is the same page out of the app. Only the bare file, as on a machine
+      or sent to Slack, has no variables: it is plain black on white, and the agent is told to
+      give a chart's marks a fallback for that.
+    - **The owner's, from the request:** one source for the tokens and the instructions;
+      tokens that reach the page at run time and not only in a prompt; light, dark and a
+      change while a page is open; a visual told from a page kept by itself, which stays
+      readable out of the app; isolation kept; nothing from a CDN by default. **Mine:** how:
+      putting the block in when a page is served; the attribute and its name; that a page
+      which does not ask gets the variables and nothing else; fixed chart colors; serving the
+      fonts; the download taking the look; the app gaining `--success`, `--warning` and
+      `--chart-1` to `-6`, which nothing in it uses yet.
+    - **Checked:** `packages/protocol/test/theme.test.ts` (the table, the block, the script
+      run against a stand-in page, old visuals), `packages/agent/test/sharing.test.ts` (served,
+      downloaded, the `ETag`, what the model is sent), `apps/web/src/server/theme.test.ts`,
+      and `e2e/themed-pages.spec.ts`: every color variable in the frame equal to the app's,
+      in dark and after Light is chosen in Settings without the page loading again, the font
+      loaded, the page unable to read cookies, storage, the app or the session, a tab of its
+      own, 390 and 320 pixels wide. **Not checked:** Workers, Safari, the phone app (a
+      document there follows the device and has the teal accent, not the agent's), a real
+      model writing a page from the guide.
 
 ## 6. What the owner has said they want
 

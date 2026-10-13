@@ -9,6 +9,8 @@
  * https://github.com/modelcontextprotocol/ext-apps
  */
 
+import { INLINE_ATTRIBUTE, PAGE_ATTRIBUTE, PAGE_THEME_CSS, THEME_ATTRIBUTE } from "./theme.ts"
+
 /** The tool an agent draws a visual with. */
 export const VISUAL_TOOL = "visual"
 /** The folder of the library visuals are kept in. */
@@ -24,7 +26,8 @@ export const VISUAL_DEFAULT_HEIGHT = 240
 
 /** What a client tells a visual about where it is shown. */
 export type VisualTheme = {
-  appearance: "light" | "dark"
+  /** Left out, the page follows the light or dark of the device it is on. */
+  appearance?: "light" | "dark"
   /** The color of the agent whose chat it is in, which the accent takes its hue from. */
   color?: string
   /**
@@ -39,76 +42,32 @@ const SIZE_CHANGED = "ui/notifications/size-changed"
 const OPEN_LINK = "ui/open-link"
 const THEME_KEY = "dc-theme"
 const STYLE_ID = "dc-visual-theme"
-
-/**
- * The app's own colors, as the app's stylesheet has them: every surface is the canvas with some
- * ink mixed in, and the one accent takes its hue from the agent's color.
- */
-const SHARED_VARIABLES =
-  "--background:var(--canvas);--foreground:var(--ink);--card:var(--canvas);--card-foreground:var(--ink);" +
-  "--popover-foreground:var(--ink);--secondary-foreground:var(--ink);--accent-foreground:var(--ink);" +
-  "--muted-foreground:color-mix(in oklch,var(--ink) 62%,var(--canvas));" +
-  "--border:color-mix(in oklch,var(--ink) 13%,var(--canvas));--ring:var(--primary);--chart-1:var(--primary);" +
-  "--radius:0.5rem;--font-sans:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;" +
-  "--font-mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"
-const LIGHT_VARIABLES =
-  "color-scheme:light;--canvas:oklch(0.985 0.003 212);--ink:oklch(0.27 0.008 212);--popover:var(--canvas);" +
-  "--primary:oklch(from var(--agent-color) 0.5 c h);--primary-foreground:oklch(from var(--agent-color) 0.985 0.01 h);" +
-  "--secondary:color-mix(in oklch,var(--ink) 7%,var(--canvas));--muted:color-mix(in oklch,var(--ink) 6%,var(--canvas));" +
-  "--accent:color-mix(in oklch,var(--ink) 8%,var(--canvas));--input:color-mix(in oklch,var(--ink) 22%,var(--canvas));" +
-  "--surface:color-mix(in oklch,var(--ink) 4%,var(--canvas));--destructive:oklch(0.5 0.19 26);" +
-  "--success:oklch(0.52 0.13 155);--warning:oklch(0.6 0.13 75);" +
-  "--chart-2:oklch(0.62 0.15 60);--chart-3:oklch(0.52 0.19 300);--chart-4:oklch(0.56 0.2 15);" +
-  "--chart-5:oklch(0.58 0.15 135);--chart-6:oklch(0.55 0.14 245);"
-const DARK_VARIABLES =
-  "color-scheme:dark;--canvas:oklch(0.19 0.004 212);--ink:oklch(0.9 0.006 212);" +
-  "--popover:color-mix(in oklch,var(--ink) 5%,var(--canvas));" +
-  "--primary:oklch(from var(--agent-color) 0.52 c h);--primary-foreground:oklch(from var(--agent-color) 0.97 0.012 h);" +
-  "--secondary:color-mix(in oklch,var(--ink) 9%,var(--canvas));--muted:color-mix(in oklch,var(--ink) 8%,var(--canvas));" +
-  "--accent:color-mix(in oklch,var(--ink) 11%,var(--canvas));--input:color-mix(in oklch,var(--ink) 20%,var(--canvas));" +
-  "--surface:color-mix(in oklch,var(--ink) 5%,var(--canvas));--destructive:oklch(0.7 0.17 24);" +
-  "--success:oklch(0.74 0.14 155);--warning:oklch(0.8 0.13 80);" +
-  "--chart-2:oklch(0.8 0.14 80);--chart-3:oklch(0.74 0.15 300);--chart-4:oklch(0.72 0.16 15);" +
-  "--chart-5:oklch(0.8 0.16 130);--chart-6:oklch(0.74 0.12 240);"
-
-/**
- * The stylesheet a visual starts from. A client says whether it is light or dark by an attribute
- * on the root; a page nobody is showing, such as one opened from a download, follows the system.
- * The page's own styles come after this and win. The scrollbar is hidden because one inside a
- * reply reads as a box within the chat.
- */
-const THEME_CSS =
-  `:root{--agent-color:oklch(0.5 0.08 195);${SHARED_VARIABLES}${LIGHT_VARIABLES}}` +
-  `:root[data-${THEME_KEY}="dark"]{${DARK_VARIABLES}}` +
-  `@media (prefers-color-scheme:dark){:root:not([data-${THEME_KEY}]){${DARK_VARIABLES}}}` +
-  "html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;" +
-  "line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}" +
-  "html::-webkit-scrollbar{display:none}body{margin:0}" +
-  // By itself, in a tab or a viewer, it is a page with margins and a measure. In a chat it has
-  // neither: the answer around it gives it both.
-  ":root:not([data-dc-inline]) body{max-width:720px;margin:0 auto;padding:24px}" +
-  "code,kbd,pre,samp{font-family:var(--font-mono)}" +
-  "a{color:inherit;text-underline-offset:3px}"
+const SCRIPT_ID = "dc-visual-host"
 
 /**
  * Runs in the head, before the page's own styles and body, so the first paint is already in the
  * client's colors. The theme arrives in the address's fragment, which is then dropped so that a
- * page's own use of the fragment never meets it, and again by message whenever it changes. A
- * page in a frame says how tall it is, so the frame can fit it. A link to somewhere else never
- * replaces the page where it is shown: in a chat the client is asked to open it, and anywhere
- * else it opens in a new tab.
+ * page's own use of the fragment never meets it, and again by message whenever it changes. That
+ * is all it does in a page that has not asked for the app's look.
+ *
+ * In one that has, a page in a frame says how tall it is, so the frame can fit it, and a link
+ * to somewhere else never replaces the page where it is shown: in a chat the client is asked to
+ * open it, and anywhere else it opens in a new tab.
+ *
+ * It reads nothing of the page and sends nothing but a height and a link the reader clicked.
  */
 const BOOTSTRAP_SCRIPT =
-  `(function(){var r=document.documentElement,f=window.parent!==window,k=false,n=0,h,o;` +
+  `(function(){var r=document.documentElement,f=window.parent!==window,g=r.hasAttribute("${PAGE_ATTRIBUTE}"),k=false,n=0,h,o;` +
   `function a(t){if(!t||typeof t!=="object")return;` +
-  `if(t.inline===true&&f){k=true;r.setAttribute("data-dc-inline","");}` +
-  `if(t.appearance==="light"||t.appearance==="dark")r.setAttribute("data-${THEME_KEY}",t.appearance);` +
+  `if(t.inline===true&&f&&g){k=true;r.setAttribute("${INLINE_ATTRIBUTE}","");}` +
+  `if(t.appearance==="light"||t.appearance==="dark")r.setAttribute("${THEME_ATTRIBUTE}",t.appearance);` +
   `if(typeof t.color==="string"&&/^[a-z0-9 .,%()#-]{1,80}$/i.test(t.color))r.style.setProperty("--agent-color",t.color);}` +
   `try{var m=/[#&]${THEME_KEY}=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));` +
   `history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}` +
   `window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;` +
   `if(e.source!==window.parent||!d||d.jsonrpc!=="2.0"||d.method!==${JSON.stringify(HOST_CONTEXT_CHANGED)}||!p)return;` +
   `a({appearance:p.theme,color:p.styles&&p.styles.variables&&p.styles.variables["--agent-color"]});});` +
+  `if(!g)return;` +
   `document.addEventListener("click",function(e){var l=e.isTrusted&&e.composedPath?e.composedPath().find(function(t){` +
   `return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;` +
   `try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}` +
@@ -122,6 +81,28 @@ const BOOTSTRAP_SCRIPT =
   `document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});` +
   `window.addEventListener("load",z);}})();`
 
+/** What is put at the start of a page's head: the app's look, and the few lines that hear of it. */
+const THEME_BLOCK =
+  `<style id="${STYLE_ID}">${PAGE_THEME_CSS}</style>` +
+  `<script id="${SCRIPT_ID}">${BOOTSTRAP_SCRIPT}</script>`
+
+/**
+ * The block as it is in a page that was given it before, whichever version of it that was. The
+ * first of them had no name on its script, and was only ever put in a visual.
+ */
+const KEPT_BLOCK = new RegExp(
+  `<style id="${STYLE_ID}">[^<]*</style><script( id="${SCRIPT_ID}")?>[\\s\\S]*?</script>`,
+)
+
+/** Changes with what is put in a page, so that a page kept by a browser is asked for again. */
+export const PAGE_THEME_VERSION = (() => {
+  let hash = 5381
+  for (let at = 0; at < THEME_BLOCK.length; at++) {
+    hash = ((hash << 5) + hash + THEME_BLOCK.charCodeAt(at)) >>> 0
+  }
+  return hash.toString(36)
+})()
+
 /**
  * The same text with everything that is not markup made blank, at the same length: comments,
  * and what is inside the elements whose content is not read as tags. What is found in it is
@@ -134,40 +115,123 @@ function markupOf(html: string): string {
   )
 }
 
+/** How much of a page is looked through for its head, which is at its start. */
+const HEAD_SCAN = 64 * 1024
+
+/** Something to put into a page at `at`, in place of the `remove` characters there. */
+type Splice = { readonly at: number; readonly remove: number; readonly insert: string }
+
 /**
- * A visual's page as it is kept: what the agent wrote, with the app's colors and the few lines
- * that speak to a client put at the start of its head, before anything of the page's own. A page
- * that has them already is left as it is.
+ * What to change at the start of a page for it to have the app's look: the block goes at the
+ * start of its head, before anything of the page's own, and where the page was given one
+ * before, in that one's place. `start` is the page's first characters.
+ *
+ * A visual is also marked as one on its root, and given a doctype, a charset and a viewport
+ * where it has none. Any other page is left as it was written but for the block.
  */
-export function prepareVisual(html: string): string {
-  if (html.includes(`id="${STYLE_ID}"`)) return html
-  const scan = markupOf(html)
-  const head = [
-    /<meta\s[^>]*charset/i.test(scan.slice(0, 4096)) ? "" : '<meta charset="utf-8">',
-    /<meta\s[^>]*name\s*=\s*["']?viewport/i.test(scan)
-      ? ""
-      : '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<style id="${STYLE_ID}">${THEME_CSS}</style>`,
-    `<script>${BOOTSTRAP_SCRIPT}</script>`,
-  ].join("")
+function themeSplices(start: string, asVisual: boolean | undefined): Splice[] {
+  const kept = KEPT_BLOCK.exec(start)
+  // A visual says that it is one on its root. One kept before they did is known by its block.
+  const visual = asVisual ?? (kept !== null && kept[1] === undefined)
+  const scan = markupOf(start)
   const after = (match: RegExpExecArray) => match.index + match[0].length
-  const headOpen = /<head(?:\s[^>]*)?>/i.exec(scan)
-  if (headOpen !== null) {
-    return html.slice(0, after(headOpen)) + head + html.slice(after(headOpen))
-  }
   const htmlOpen = /<html(?:\s[^>]*)?>/i.exec(scan)
+  const splices: Splice[] = []
+  const mark = `${PAGE_ATTRIBUTE}="visual"`
+  if (visual && htmlOpen !== null && !htmlOpen[0].includes(mark)) {
+    const own = new RegExp(`\\s${PAGE_ATTRIBUTE}(?:=(?:"[^"]*"|'[^']*'|[^\\s>]*))?`, "i").exec(
+      htmlOpen[0],
+    )
+    splices.push(
+      own === null
+        ? { at: htmlOpen.index + 5, remove: 0, insert: ` ${mark}` }
+        : { at: htmlOpen.index + own.index, remove: own[0].length, insert: ` ${mark}` },
+    )
+  }
+  if (kept !== null) {
+    splices.push({ at: kept.index, remove: kept[0].length, insert: THEME_BLOCK })
+    return splices
+  }
+  const head =
+    (!visual || /<meta\s[^>]*charset/i.test(scan.slice(0, 4096)) ? "" : '<meta charset="utf-8">') +
+    (!visual || /<meta\s[^>]*name\s*=\s*["']?viewport/i.test(scan)
+      ? ""
+      : '<meta name="viewport" content="width=device-width, initial-scale=1">') +
+    THEME_BLOCK
+  const headOpen = /<head(?:\s[^>]*)?>/i.exec(scan)
+  if (headOpen !== null) return [...splices, { at: after(headOpen), remove: 0, insert: head }]
   if (htmlOpen !== null) {
-    return `${html.slice(0, after(htmlOpen))}<head>${head}</head>${html.slice(after(htmlOpen))}`
+    return [...splices, { at: after(htmlOpen), remove: 0, insert: `<head>${head}</head>` }]
   }
-  const doctype = /^\s*<!doctype[^>]*>/i.exec(html)
+  // A page with no root of its own is given one only to say that it is a visual.
+  const root = visual ? `<html ${mark}>` : ""
+  // The mark some files start with comes before everything, as three bytes or as one character.
+  const doctype = /^(?:﻿|ï»¿)?\s*<!doctype[^>]*>/i.exec(start)
   if (doctype !== null) {
-    return `${doctype[0]}<head>${head}</head>${html.slice(doctype[0].length)}`
+    return [{ at: doctype[0].length, remove: 0, insert: `${root}<head>${head}</head>` }]
   }
-  return `<!doctype html><head>${head}</head>${html}`
+  return [
+    { at: 0, remove: 0, insert: `${visual ? "<!doctype html>" : ""}${root}<head>${head}</head>` },
+  ]
 }
 
 /**
- * A page of the app's own making in the same colors, for showing something by itself that is
+ * A page as it is served: what was written, with the app's look put at the start of its head.
+ * Every page of the library is given it, so the variables are there for any that uses them, and
+ * are the app's as it is now however long ago the page was written. A page that was drawn as a
+ * visual stays one. Giving it to a page twice changes nothing.
+ */
+export function themePage(html: string, options: { visual?: boolean } = {}): string {
+  let page = html
+  // From the end, so that what is put in does not move what is still to be changed.
+  const splices = themeSplices(html.slice(0, HEAD_SCAN), options.visual).sort((a, b) => b.at - a.at)
+  for (const { at, remove, insert } of splices) {
+    page = page.slice(0, at) + insert + page.slice(at + remove)
+  }
+  return page
+}
+
+/**
+ * The same for a page as bytes, which is how the library keeps one. Only its start is read as
+ * text, and what follows is carried over as it is, so a large page costs no more than a small one.
+ */
+export function themePageBytes(bytes: Uint8Array): Uint8Array {
+  // One character to a byte, so that a place in the text is the same place in the bytes.
+  let start = ""
+  const scanned = Math.min(bytes.length, HEAD_SCAN)
+  for (let at = 0; at < scanned; at += 8192) {
+    start += String.fromCharCode(...bytes.subarray(at, Math.min(at + 8192, scanned)))
+  }
+  const splices = themeSplices(start, undefined).sort((a, b) => a.at - b.at)
+  const encoder = new TextEncoder()
+  const parts: Uint8Array[] = []
+  let from = 0
+  for (const { at, remove, insert } of splices) {
+    parts.push(bytes.subarray(from, at), encoder.encode(insert))
+    from = at + remove
+  }
+  parts.push(bytes.subarray(from))
+  const page = new Uint8Array(parts.reduce((length, part) => length + part.length, 0))
+  let offset = 0
+  for (const part of parts) {
+    page.set(part, offset)
+    offset += part.length
+  }
+  return page
+}
+
+/**
+ * A visual's page as it is kept: what the agent wrote, with the app's look and the few lines
+ * that speak to a client put at the start of its head, before anything of the page's own. It is
+ * kept with them so that the file is whole wherever it is opened; the library puts the app's
+ * look as it is now in their place each time it serves the page.
+ */
+export function prepareVisual(html: string): string {
+  return themePage(html, { visual: true })
+}
+
+/**
+ * A page of the app's own making in the same look, for showing something by itself that is
  * not a page: a document, a picture, a list of files. It follows the reader's light or dark,
  * and has the margins and measure a visual has when it is shown by itself. `style` comes after
  * the theme, and `body` is markup that is already safe to put in a page.
@@ -178,9 +242,9 @@ export function themedPage(page: { title: string; style?: string; body: string }
     (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[character]!,
   )
   return (
-    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+    `<!doctype html><html lang="en" ${PAGE_ATTRIBUTE}="visual"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${escaped}</title>` +
-    `<style>${THEME_CSS}${page.style ?? ""}</style></head><body>${page.body}</body></html>`
+    `<style>${PAGE_THEME_CSS}${page.style ?? ""}</style></head><body>${page.body}</body></html>`
   )
 }
 
@@ -251,13 +315,25 @@ export function visualFileName(title: string): string {
   return `${slug === "" ? "visual" : slug}.html`
 }
 
-/** What an agent is told a visual's page is given, in the tool's description. */
+/**
+ * What an agent is told of a page that is drawn into a chat, in the tool's description. How any
+ * page should look is `PAGE_STYLE_GUIDE`, which it is told once for every kind of page.
+ */
 export const VISUAL_GUIDE = [
   "The page is shown with no border on the chat's own background, as wide as your reply (about 720px on a computer, about 340px on a phone), with its left edge where your text begins.",
   "So leave html and body with no background, use a fluid width with no padding on the outermost element, and put no card, frame or heading banner around the whole page: it is part of your reply.",
   "A box that needs a background of its own gets at least 16px of padding and var(--radius) corners.",
   "Let the content set the height: no 100vh, and no height:100% on html or body. Give a chart a fixed height in pixels. The frame grows to fit the page; past 1600px it scrolls.",
-  "The app's colors are set on :root as CSS variables, and follow the person's light or dark mode: --background, --foreground, --muted, --muted-foreground, --card, --surface, --border, --input, --primary, --primary-foreground (the accent), --secondary, --accent (a quiet hover surface), --destructive, --success, --warning, --chart-1 to --chart-6 (a series of colors for charts), --radius, --font-sans, --font-mono.",
-  "Use them for every color, so the page is right in both modes; text is already --foreground in --font-sans at 14px.",
-  "Scripts run, and the page can load a library from a CDN, but it is kept apart from the app: it has no storage and cannot reach the person's session. A link to another site opens in a new tab.",
+  "It starts from the app's own page, in the app's colors and type, and is styled as your instructions on pages say.",
+  "Scripts run, but the page is kept apart from the app: it has no storage and cannot reach the person's session. A link to another site opens in a new tab.",
+].join(" ")
+
+/**
+ * What an agent is told of a page that is a file of the library: one read by itself, in a
+ * window, beside a chat, on a phone, or by whoever is sent its link.
+ */
+export const DOCUMENT_GUIDE = [
+  `An HTML file in the library is a page by itself. Start it with <!doctype html><html lang="en" ${PAGE_ATTRIBUTE}> and a viewport meta: the attribute starts it from the app's own page, with its background, text, typeface and the way it sets a table or a field, all of which your own styles can change.`,
+  "Give it a centered column of its own: max-width about 720px for writing and up to 1120px for a dashboard, with margin: 0 auto. The page already has padding.",
+  "The variables are put in whenever the app serves the page: in the library, beside a chat, pinned, and to whoever opens its link, where it follows their device's light or dark. A copy the person downloads from the app takes them with it. Only the bare file, as it is on a machine, has none: there it is drawn in the browser's plain black on white, and a mark colored only by a variable is not drawn at all. So use the variables in their pairs, never write white on a variable's color, give a chart's marks a fallback as in var(--chart-1, currentColor), and do not add colors of your own to make the bare file look right.",
 ].join(" ")

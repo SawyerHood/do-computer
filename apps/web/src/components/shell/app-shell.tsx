@@ -22,6 +22,7 @@ import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
 import { cn } from "@/lib/utils"
 import { useSwipe } from "@/lib/use-swipe"
+import { accentChanged } from "@/lib/visual-theme"
 import { useFeed, useMarkSeen } from "@/lib/latest"
 import { useListedAgent, usePresence, useWorkspaces } from "@/lib/workspaces"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
@@ -151,12 +152,15 @@ export function AppShell({
     },
   })
 
+  const accent = agent === undefined ? undefined : avatarLook(agent.avatar, agent.id).color
+  // A page of the library that is on screen is in the app's colors, and is told this one.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: said again whenever the color is another
+  useEffect(accentChanged, [accent])
+
   return (
     <div ref={setShell} className="flex h-full min-h-0 bg-frame">
       {/* The accent follows the open agent. Set on the root, so windows and menus have it too. */}
-      {agent === undefined ? null : (
-        <style>{`:root{--agent-color:${avatarLook(agent.avatar, agent.id).color}}`}</style>
-      )}
+      {accent === undefined ? null : <style>{`:root{--agent-color:${accent}}`}</style>}
       {sidebarOpen ? (
         <aside className="relative hidden shrink-0 md:block" style={{ width: sidebarWidth }}>
           <Sidebar

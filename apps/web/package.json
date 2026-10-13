@@ -15,7 +15,8 @@
     "check": "pnpm generate && tsc --noEmit && tsc --noEmit -p tsconfig.cloudflare.json",
     "test": "vitest run",
     "test:e2e": "pnpm build:node && pnpm --filter @do-computer/mobile export:web:test && playwright test",
-    "generate": "pnpm --filter @do-computer/daemon build"
+    "generate": "pnpm --filter @do-computer/daemon build",
+    "theme": "node scripts/theme-tokens.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

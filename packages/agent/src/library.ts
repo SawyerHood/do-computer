@@ -234,7 +234,7 @@ export class Library {
           const folder = `~/${LIBRARY_FOLDER}`
           return [
             `On a machine of your workspace, the folder ${folder} is the user's library. Whatever you put there is kept safe outside the machine and appears in the Library of their app, in the folders you gave it, where they can read it, edit it, and open it while the machine is off. Their edits and the files they add arrive in the same folder, and files they attach in a chat are in ${folder}/${UPLOADS_FOLDER}; read those there, and do not ask them to paste a file.${among}`,
-            "Write anything they should read or keep as a document in that folder: Markdown for writing, HTML for pages, charts and anything laid out. An HTML page is shown as a page, and the styles, scripts and images it links to with relative paths work when they are in the folder beside it. Use folders and plain file names, since those are what the user sees. Hidden files, `node_modules` and files over 25 MB are left out, so keep scratch work in your own folder.",
+            "Write anything they should read or keep as a document in that folder: Markdown for writing, HTML for pages, charts and anything laid out. An HTML page is shown as a page, in the app's look where it is written as your instructions on pages say, and the styles, scripts and images it links to with relative paths work when they are in the folder beside it. Use folders and plain file names, since those are what the user sees. Hidden files, `node_modules` and files over 25 MB are left out, so keep scratch work in your own folder.",
             "After making or changing a document they asked for, show it to them with `send_file`, which puts it in the chat for them to open.",
           ].join("\n")
         }),

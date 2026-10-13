@@ -1,6 +1,8 @@
 import {
+  DOCUMENT_GUIDE,
   MAX_VISUAL_BYTES,
   MAX_VISUAL_TITLE,
+  PAGE_STYLE_GUIDE,
   prepareVisual,
   VISUAL_GUIDE,
   VISUAL_TOOL,
@@ -41,7 +43,7 @@ export function visuals(options: VisualsOptions): Extension {
       const bytes = new TextEncoder().encode(prepareVisual(args.html))
       if (bytes.length > MAX_VISUAL_BYTES) {
         return fail(
-          `That page is ${Math.round(bytes.length / 1024)} KB; a visual can be up to ${MAX_VISUAL_BYTES / 1024} KB. Draw less data, or load a large library from a CDN instead of putting it in the page.`,
+          `That page is ${Math.round(bytes.length / 1024)} KB; a visual can be up to ${MAX_VISUAL_BYTES / 1024} KB. Draw less data.`,
         )
       }
       try {
@@ -80,6 +82,13 @@ export function visuals(options: VisualsOptions): Extension {
           `When a chart, a table of figures, a diagram, a timeline or a mock-up would say more than prose, draw it with the \`${VISUAL_TOOL}\` tool: you write a small HTML page and the person sees it in the chat itself, above your reply. Use it for answers that have a shape, and not for a few sentences or a short list.`,
           "The person sees the page as part of your answer, so do not announce it or restate what is in it.",
         ].join(" "),
+      ),
+      // How a page should look is said once, for a visual and for a page kept in the library.
+      section("pages", () =>
+        [
+          `How a page you write should look, whether it is drawn with \`${VISUAL_TOOL}\` or is an HTML file in the library: a document, a dashboard, a chart. ${PAGE_STYLE_GUIDE}`,
+          DOCUMENT_GUIDE,
+        ].join("\n"),
       ),
     ],
   })

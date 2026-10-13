@@ -4,8 +4,6 @@ import {
   type Pin,
   pinnedFile,
   pinTitle,
-  VISUALS_FOLDER,
-  visualThemeFragment,
 } from "@do-computer/protocol"
 import { FileIcon, PushPinSlashIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
@@ -18,7 +16,7 @@ import { libraryQuery, libraryTextKey } from "@/lib/collections"
 import { formatWhen, kindOf, shownAt } from "@/lib/library"
 import { usePinning, usePins } from "@/lib/pins"
 import { cn } from "@/lib/utils"
-import { useAppColors } from "@/lib/visual-theme"
+import { useThemedFrame } from "@/lib/visual-theme"
 
 /** How long a pin says that it has just changed. */
 const FRESH_MS = 4_000
@@ -59,7 +57,6 @@ function Small({
   const api = client.agent(agentId)
   const kind = kindOf(file)
   const url = api.libraryViewUrl(listing.view, file.path)
-  const colors = useAppColors()
   const { data: text } = useQuery({
     queryKey: libraryTextKey(agentId, file.id, file.rev),
     queryFn: () => api.libraryText(file.id, file.rev),
@@ -85,14 +82,22 @@ function Small({
       </div>
     )
   }
-  // A visual is in the app's colors wherever the app shows it. Any other page is its own.
-  const themed = file.path.startsWith(`${VISUALS_FOLDER}/`)
+  return <SmallPage url={url} title={file.name} loaded={shownAt(listing.files, file)} />
+}
+
+/**
+ * A page drawn small. It is told the app's colors, as a page is wherever the app shows one,
+ * and loaded again when it or anything beside it changes, so it shows what is there.
+ */
+function SmallPage({ url, title, loaded }: { url: string; title: string; loaded: number }) {
+  const { frame, src, onLoad } = useThemedFrame(url, loaded)
   return (
     <iframe
-      // Loaded again when the page or anything beside it changes, so it shows what is there.
-      key={`${shownAt(listing.files, file)}:${themed ? colors.appearance : ""}`}
-      src={themed ? `${url}${visualThemeFragment(colors)}` : url}
-      title={file.name}
+      key={loaded}
+      ref={frame}
+      src={src}
+      onLoad={onLoad}
+      title={title}
       tabIndex={-1}
       // No `allow-same-origin`: the page must not be the app, though the app serves it.
       sandbox="allow-scripts"
