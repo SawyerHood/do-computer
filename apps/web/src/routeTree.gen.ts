@@ -32,6 +32,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as DoodDoodIdRouteImport } from './routes/dood.$doodId'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as ThemeNameRouteImport } from './routes/theme.$name'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as AppWWorkspaceIdRouteImport } from './routes/_app.w.$workspaceId'
 import { Route as ApiAgentsIndexRouteImport } from './routes/api/agents/index'
@@ -209,6 +210,11 @@ const DoodDoodIdRoute = DoodDoodIdRouteImport.update({
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThemeNameRoute = ThemeNameRouteImport.update({
+  id: '/theme/$name',
+  path: '/theme/$name',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppAAgentIdRoute = AppAAgentIdRouteImport.update({
@@ -572,6 +578,7 @@ export interface FileRoutesByFullPath {
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/theme/$name': typeof ThemeNameRoute
   '/docs/': typeof DocsIndexRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
@@ -660,6 +667,7 @@ export interface FileRoutesByTo {
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/theme/$name': typeof ThemeNameRoute
   '/docs': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/computers/$computerId': typeof ApiComputersComputerIdRouteWithChildren
@@ -748,6 +756,7 @@ export interface FileRoutesById {
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/theme/$name': typeof ThemeNameRoute
   '/docs/': typeof DocsIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
   '/_app/w/$workspaceId': typeof AppWWorkspaceIdRouteWithChildren
@@ -838,6 +847,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/theme/$name'
     | '/docs/'
     | '/a/$agentId'
     | '/w/$workspaceId'
@@ -926,6 +936,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/theme/$name'
     | '/docs'
     | '/api/auth/$'
     | '/api/computers/$computerId'
@@ -1013,6 +1024,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/theme/$name'
     | '/docs/'
     | '/_app/a/$agentId'
     | '/_app/w/$workspaceId'
@@ -1102,6 +1114,7 @@ export interface RootRouteChildren {
   DocsSlugRoute: typeof DocsSlugRoute
   DoodDoodIdRoute: typeof DoodDoodIdRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  ThemeNameRoute: typeof ThemeNameRoute
   DocsIndexRoute: typeof DocsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiComputersComputerIdRoute: typeof ApiComputersComputerIdRouteWithChildren
@@ -1312,6 +1325,13 @@ declare module '@tanstack/react-router' {
       path: '/invite/$token'
       fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/theme/$name': {
+      id: '/theme/$name'
+      path: '/theme/$name'
+      fullPath: '/theme/$name'
+      preLoaderRoute: typeof ThemeNameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/a/$agentId': {
@@ -1890,6 +1910,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsSlugRoute: DocsSlugRoute,
   DoodDoodIdRoute: DoodDoodIdRoute,
   InviteTokenRoute: InviteTokenRoute,
+  ThemeNameRoute: ThemeNameRoute,
   DocsIndexRoute: DocsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiComputersComputerIdRoute: ApiComputersComputerIdRouteWithChildren,

@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en" data-dc-page>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signups, third quarter</title>
+    <!--
+      An example of a page written for Do Computer's library. It has no color of its own:
+      every one is a variable the app puts in when it serves the page, so it is light or dark
+      with the app and takes the Dood's own color. `data-dc-page` on the root starts it from
+      the app's page: background, text, typeface, and the way a table is set.
+    -->
+    <style>
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        display: grid;
+        gap: 24px;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      header p,
+      .note {
+        margin: 4px 0 0;
+        color: var(--muted-foreground);
+        font-size: 13px;
+      }
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+      }
+      .charts {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        gap: 16px;
+      }
+      @media (width < 760px) {
+        .charts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .card {
+        min-width: 0;
+        padding: 16px;
+        border-radius: calc(var(--radius) * 1.4);
+        background: var(--card);
+        color: var(--card-foreground);
+        box-shadow: var(--elevation-card);
+      }
+      .card h2 {
+        margin: 0;
+        font-size: 14px;
+      }
+      .label {
+        margin: 0;
+        color: var(--muted-foreground);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .value {
+        margin: 6px 0 2px;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .delta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        color: var(--muted-foreground);
+        font-size: 13px;
+      }
+      .delta b {
+        color: var(--foreground);
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .sign {
+        flex: none;
+        width: 14px;
+        height: 14px;
+      }
+      .good {
+        color: var(--success);
+      }
+      .bad {
+        color: var(--warning);
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        margin: 8px 0 4px;
+        padding: 0;
+        list-style: none;
+        color: var(--muted-foreground);
+        font-size: 13px;
+      }
+      .legend li {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .key {
+        width: 12px;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--series);
+      }
+      .plot {
+        position: relative;
+        height: 240px;
+      }
+      .plot svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      .plot text {
+        fill: var(--muted-foreground);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .plot .end {
+        fill: var(--foreground);
+        font-weight: 500;
+      }
+      .grid line {
+        stroke: var(--border, currentColor);
+      }
+      .tip {
+        position: absolute;
+        top: 8px;
+        z-index: 1;
+        min-width: 132px;
+        padding: 8px 10px;
+        border-radius: var(--radius);
+        background: var(--popover);
+        color: var(--popover-foreground);
+        box-shadow: var(--elevation-float);
+        font-size: 12px;
+        pointer-events: none;
+      }
+      .tip[hidden] {
+        display: none;
+      }
+      .tip p {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 2px 0 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .tip p:first-child {
+        margin: 0 0 4px;
+        color: var(--muted-foreground);
+      }
+      .tip b {
+        margin-left: auto;
+        padding-left: 12px;
+        font-weight: 500;
+      }
+      .bars {
+        display: grid;
+        gap: 12px;
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 13px;
+      }
+      .bars li {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 4px 12px;
+      }
+      .bars b {
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .bars i {
+        grid-column: 1 / -1;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--muted);
+      }
+      .bars i::before {
+        content: "";
+        display: block;
+        width: var(--share);
+        height: 100%;
+        border-radius: 4px;
+        background: var(--primary, currentColor);
+      }
+      .scroll {
+        margin: 12px -16px -8px;
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        min-width: 520px;
+        font-size: 13px;
+      }
+      th {
+        font-size: 12px;
+      }
+      th:first-child,
+      td:first-child {
+        padding-left: 16px;
+      }
+      th:last-child,
+      td:last-child {
+        padding-right: 16px;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      tbody tr:hover {
+        background: var(--accent);
+      }
+      .num {
+        text-align: right;
+      }
+      .name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 500;
+      }
+      .dot {
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--series);
+      }
+      .state {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 8px 2px 6px;
+        border-radius: 999px;
+        background: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Signups, third quarter</h1>
+        <p>1 July to 29 September, by the week · compared with the quarter before</p>
+      </header>
+
+      <section class="tiles" aria-label="The quarter in four figures">
+        <div class="card">
+          <p class="label">Signups</p>
+          <p class="value">4,812</p>
+          <p class="delta">
+            <svg class="sign good" viewBox="0 0 14 14" aria-hidden="true">
+              <path
+                d="M7 11V3M3.5 6.5 7 3l3.5 3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <b>+12.4%</b> up from 4,281
+          </p>
+        </div>
+        <div class="card">
+          <p class="label">Activated in a week</p>
+          <p class="value">61.3%</p>
+          <p class="delta">
+            <svg class="sign good" viewBox="0 0 14 14" aria-hidden="true">
+              <path
+                d="M7 11V3M3.5 6.5 7 3l3.5 3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <b>+2.1 pts</b> better
+          </p>
+        </div>
+        <div class="card">
+          <p class="label">First reply, median</p>
+          <p class="value">42 s</p>
+          <p class="delta">
+            <svg class="sign good" viewBox="0 0 14 14" aria-hidden="true">
+              <path
+                d="M7 3v8M3.5 7.5 7 11l3.5-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <b>−8 s</b> faster
+          </p>
+        </div>
+        <div class="card">
+          <p class="label">Left within 30 days</p>
+          <p class="value">2.4%</p>
+          <p class="delta">
+            <svg class="sign bad" viewBox="0 0 14 14" aria-hidden="true">
+              <path
+                d="M7 11V3M3.5 6.5 7 3l3.5 3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <b>+0.3 pts</b> worse
+          </p>
+        </div>
+      </section>
+
+      <section class="charts">
+        <div class="card">
+          <h2>Signups by week</h2>
+          <ul class="legend" id="legend"></ul>
+          <div class="plot" id="plot">
+            <svg
+              role="img"
+              aria-label="Signups by week for three channels. The table below has the figures."
+            ></svg>
+            <div class="tip" id="tip" hidden></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Where they came from</h2>
+          <p class="note">Share of the quarter's signups</p>
+          <ul class="bars">
+            <li><span>Search</span><b>38%</b><i style="--share: 38%"></i></li>
+            <li><span>A friend's link</span><b>27%</b><i style="--share: 27%"></i></li>
+            <li><span>Posts on X</span><b>19%</b><i style="--share: 19%"></i></li>
+            <li><span>The docs</span><b>11%</b><i style="--share: 11%"></i></li>
+            <li><span>Everything else</span><b>5%</b><i style="--share: 5%"></i></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>By channel</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Channel</th>
+                <th class="num">Signups</th>
+                <th class="num">Activated</th>
+                <th class="num">Rate</th>
+                <th class="num">Change</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const WEEKS = [
+        "1 Jul",
+        "8 Jul",
+        "15 Jul",
+        "22 Jul",
+        "29 Jul",
+        "5 Aug",
+        "12 Aug",
+        "19 Aug",
+        "26 Aug",
+        "2 Sep",
+        "9 Sep",
+        "16 Sep",
+        "23 Sep",
+      ]
+      // A series keeps its color wherever it is drawn: the line, the legend, the table. The
+      // fallback is for a bare copy of the file, which has no variables: its marks are still drawn.
+      const SERIES = [
+        {
+          name: "Organic",
+          color: "var(--chart-1, currentColor)",
+          activated: 1533,
+          change: "+14.0%",
+          good: true,
+          values: [142, 151, 148, 163, 171, 168, 182, 190, 187, 201, 214, 209, 226],
+        },
+        {
+          name: "Referral",
+          color: "var(--chart-2, currentColor)",
+          activated: 948,
+          change: "+21.6%",
+          good: true,
+          values: [71, 78, 84, 81, 95, 102, 108, 104, 119, 127, 131, 138, 149],
+        },
+        {
+          name: "Paid",
+          color: "var(--chart-3, currentColor)",
+          activated: 470,
+          change: "−6.2%",
+          good: false,
+          values: [88, 92, 85, 90, 83, 79, 84, 76, 78, 71, 74, 69, 66],
+        },
+      ]
+      const el = (name, attributes = {}, text) => {
+        const node = document.createElementNS("http://www.w3.org/2000/svg", name)
+        for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value)
+        if (text !== undefined) node.textContent = text
+        return node
+      }
+      const sum = (values) => values.reduce((total, value) => total + value, 0)
+
+      document.getElementById("legend").innerHTML = SERIES.map(
+        (series) =>
+          `<li><span class="key" style="--series:${series.color}"></span>${series.name}</li>`,
+      ).join("")
+      document.getElementById("rows").innerHTML = SERIES.map((series) => {
+        const total = sum(series.values)
+        const sign = series.good
+          ? '<svg class="sign good" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.5 6 10.5l5-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>On track'
+          : '<svg class="sign bad" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2.5 12.5 12h-11zM7 6v3M7 10.6v.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Watch'
+        return `<tr><td><span class="name"><span class="dot" style="--series:${series.color}"></span>${series.name}</span></td>
+          <td class="num">${total.toLocaleString("en")}</td><td class="num">${series.activated.toLocaleString("en")}</td>
+          <td class="num">${((series.activated / total) * 100).toFixed(1)}%</td><td class="num">${series.change}</td>
+          <td><span class="state">${sign}</span></td></tr>`
+      }).join("")
+
+      const plot = document.getElementById("plot")
+      const svg = plot.querySelector("svg")
+      const tip = document.getElementById("tip")
+      const TOP = 240
+      const pad = { top: 12, right: 44, bottom: 24, left: 32 }
+      let x = () => 0
+
+      // Drawn at the width it has, so the type is the same size on a phone as on a desk.
+      function draw() {
+        const width = plot.clientWidth
+        const height = plot.clientHeight
+        const inner = { width: width - pad.left - pad.right, height: height - pad.top - pad.bottom }
+        x = (at) => pad.left + (at / (WEEKS.length - 1)) * inner.width
+        const y = (value) => pad.top + inner.height - (value / TOP) * inner.height
+        svg.replaceChildren()
+        svg.setAttribute("viewBox", `0 0 ${width} ${height}`)
+        const grid = svg.appendChild(el("g", { class: "grid" }))
+        for (const tick of [0, 80, 160, 240]) {
+          grid.append(
+            el("line", { x1: pad.left, x2: width - pad.right, y1: y(tick), y2: y(tick) }),
+            el("text", { x: pad.left - 8, y: y(tick) + 4, "text-anchor": "end" }, tick),
+          )
+        }
+        const every = width < 480 ? 4 : 2
+        WEEKS.forEach((week, at) => {
+          if (at % every === 0)
+            svg.append(el("text", { x: x(at), y: height - 4, "text-anchor": "middle" }, week))
+        })
+        for (const series of SERIES) {
+          const points = series.values.map((value, at) => `${x(at)},${y(value)}`)
+          const last = series.values.length - 1
+          svg.append(
+            el("polyline", {
+              points: points.join(" "),
+              fill: "none",
+              stroke: series.color,
+              "stroke-width": 2,
+              "stroke-linejoin": "round",
+              "stroke-linecap": "round",
+            }),
+            // The end of a line: its dot, ringed in the surface, and what it came to.
+            el("circle", {
+              cx: x(last),
+              cy: y(series.values[last]),
+              r: 4,
+              fill: series.color,
+              stroke: "var(--card, Canvas)",
+              "stroke-width": 2,
+            }),
+            el(
+              "text",
+              { class: "end", x: x(last) + 10, y: y(series.values[last]) + 4 },
+              series.values[last],
+            ),
+          )
+        }
+        svg.append(
+          el("line", {
+            id: "cross",
+            y1: pad.top,
+            y2: pad.top + inner.height,
+            stroke: "var(--input, currentColor)",
+            visibility: "hidden",
+          }),
+        )
+      }
+
+      // Pointing anywhere over the chart shows the week under the pointer, for all three.
+      function point(event) {
+        const box = plot.getBoundingClientRect()
+        const step = (x(WEEKS.length - 1) - x(0)) / (WEEKS.length - 1)
+        const at = Math.max(
+          0,
+          Math.min(WEEKS.length - 1, Math.round((event.clientX - box.left - x(0)) / step)),
+        )
+        const cross = svg.querySelector("#cross")
+        cross.setAttribute("x1", x(at))
+        cross.setAttribute("x2", x(at))
+        cross.setAttribute("visibility", "visible")
+        tip.innerHTML =
+          `<p>Week of ${WEEKS[at]}</p>` +
+          SERIES.map(
+            (series) =>
+              `<p><span class="key" style="--series:${series.color}"></span>${series.name}<b>${series.values[at]}</b></p>`,
+          ).join("")
+        tip.hidden = false
+        const left = x(at) + 12
+        tip.style.left = `${left + tip.offsetWidth > box.width ? x(at) - 12 - tip.offsetWidth : left}px`
+      }
+      plot.addEventListener("pointermove", point)
+      plot.addEventListener("pointerdown", point)
+      plot.addEventListener("pointerleave", () => {
+        tip.hidden = true
+        svg.querySelector("#cross").setAttribute("visibility", "hidden")
+      })
+      new ResizeObserver(draw).observe(plot)
+      draw()
+    </script>
+  </body>
+</html>

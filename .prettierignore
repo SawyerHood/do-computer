@@ -8,3 +8,4 @@ packages/mascot/src/wardrobe.js
 packages/mascot/demo
 prototypes
 release
+apps/web/src/theme-tokens.css

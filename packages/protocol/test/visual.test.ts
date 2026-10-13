@@ -38,15 +38,19 @@ describe("a visual's page", () => {
     expect(page.endsWith("<body><p>x</p></body></html>")).toBe(true)
   })
 
-  it("is given a head where it has none", () => {
+  it("is given a head where it has none, and says on its root that it is a visual", () => {
     expect(prepareVisual("<html><body>x</body></html>")).toMatch(
-      /^<html><head>.*<\/head><body>x<\/body><\/html>$/s,
+      /^<html data-dc-page="visual"><head>.*<\/head><body>x<\/body><\/html>$/s,
     )
     expect(prepareVisual("<!DOCTYPE html>\n<p>x</p>")).toMatch(
-      /^<!DOCTYPE html><head>.*<\/head>\n<p>x<\/p>$/s,
+      /^<!DOCTYPE html><html data-dc-page="visual"><head>.*<\/head>\n<p>x<\/p>$/s,
     )
     expect(prepareVisual("<p>just this</p>")).toMatch(
-      /^<!doctype html><head>.*<\/head><p>just this<\/p>$/s,
+      /^<!doctype html><html data-dc-page="visual"><head>.*<\/head><p>just this<\/p>$/s,
+    )
+    // One that asked for the app's page as a document would is a visual all the same.
+    expect(prepareVisual('<html lang="en" data-dc-page><body>x</body></html>')).toMatch(
+      /^<html lang="en" data-dc-page="visual"><head>/,
     )
   })
 
@@ -54,7 +58,7 @@ describe("a visual's page", () => {
     const page = prepareVisual(
       "<!-- <head> --><script>const s = '<head>'</script><html><head><title>x</title></head></html>",
     )
-    expect(page.indexOf(MARK)).toBeGreaterThan(page.indexOf("<html>"))
+    expect(page.indexOf(MARK)).toBeGreaterThan(page.indexOf("<html"))
     expect(page.match(/dc-visual-theme/g)?.length).toBe(1)
   })
 

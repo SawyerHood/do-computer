@@ -4,9 +4,11 @@ import {
   type LibraryListing,
   type LibraryVersion,
   markdownFiles,
+  PAGE_THEME_VERSION,
   SITE_LISTING_HEADER,
   type SiteEntry,
   type SiteListing,
+  themePageBytes,
 } from "@do-computer/protocol"
 import type { BlobStore } from "@do-computer/runtime"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
@@ -828,14 +830,19 @@ export class LibraryStore implements LibraryBackend {
     const kept =
       rev === (entry.rev ?? 0) || entry.versions?.some((version) => version.rev === rev) === true
     if (!kept) return undefined
-    const etag = `"${id}.${rev}"`
+    // A page that is taken out of the app, as a download, is asked for with the app's look in
+    // it, so that it is the same page wherever it is then opened. It is still only handed over.
+    const look =
+      new URL(request.url).searchParams.has("look") && contentTypeFor(entry.name) === "text/html"
+    const etag = look ? `"${id}.${rev}.${PAGE_THEME_VERSION}"` : `"${id}.${rev}"`
     // An address that names a revision always serves the same bytes; one that does not, the newest.
     const cache = asked === null ? "private, no-cache" : "private, max-age=31536000, immutable"
     if (request.headers.get("if-none-match") === etag) {
       return new Response(null, { status: 304, headers: { etag, "cache-control": cache } })
     }
-    const bytes = await this.bytes({ id, rev })
-    if (bytes === undefined) return undefined
+    const written = await this.bytes({ id, rev })
+    if (written === undefined) return undefined
+    const bytes = look ? themePageBytes(written) : written
     const inline = INLINE_TYPES.has(entry.contentType)
     return new Response(bytes.slice().buffer, {
       headers: {
@@ -1000,6 +1007,7 @@ export class LibraryStore implements LibraryBackend {
     }
     const type = TYPES[file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase()]
     const contentType = type ?? file.contentType
+    const page = contentType.startsWith("text/html")
     const headers: Record<string, string> = {
       "content-type": isText(contentType) ? `${contentType}; charset=utf-8` : contentType,
       "x-content-type-options": "nosniff",
@@ -1007,7 +1015,8 @@ export class LibraryStore implements LibraryBackend {
       // The address is the permission. It must not travel to whatever the page loads or links to.
       "referrer-policy": "no-referrer",
       "cache-control": "private, no-cache",
-      etag: `"${file.id}.${file.rev}"`,
+      // A page is served with the app's look put into it, so it is another page when that changes.
+      etag: page ? `"${file.id}.${file.rev}.${PAGE_THEME_VERSION}"` : `"${file.id}.${file.rev}"`,
     }
     // A page has an origin that is nobody's, so to it the files beside it are another site's:
     // it can show a picture of one, but not read its data, load a module or use a font,
@@ -1034,8 +1043,9 @@ export class LibraryStore implements LibraryBackend {
         },
       )
     }
-    const bytes = await this.bytes(file)
-    if (bytes === undefined) return undefined
+    const kept = await this.bytes(file)
+    if (kept === undefined) return undefined
+    const bytes = page ? themePageBytes(kept) : kept
     return new Response(bytes.slice().buffer, {
       headers: { ...headers, "content-length": String(bytes.length) },
     })

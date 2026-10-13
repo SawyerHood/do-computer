@@ -1,4 +1,4 @@
-import { type LibraryFile, VISUALS_FOLDER, visualThemeFragment } from "@do-computer/protocol"
+import { type LibraryFile, visualThemeFragment } from "@do-computer/protocol"
 import {
   ArrowClockwiseIcon,
   ArrowLeftIcon,
@@ -58,7 +58,7 @@ import { formatBytes, formatFull, formatWhen, kindOf, shownAt } from "@/lib/libr
 import { usePin } from "@/lib/pins"
 import { queryClient } from "@/lib/query"
 import { siteOfFile, useSites } from "@/lib/sites"
-import { useAppColors } from "@/lib/visual-theme"
+import { useThemedFrame } from "@/lib/visual-theme"
 import { cn } from "@/lib/utils"
 import { SharePopover } from "@/components/sites/share"
 import { DocMarkdown } from "./doc-markdown.tsx"
@@ -293,11 +293,11 @@ function PageView({
   onOpen: (path: string) => void
 }) {
   const url = client.agent(agentId).libraryViewUrl(view, file.path)
-  // A visual is in the app's colors wherever the app shows it. Any other page is its own.
-  const colors = useAppColors()
-  const themed = file.path.startsWith(`${VISUALS_FOLDER}/`)
-  const frame = useRef<HTMLIFrameElement>(null)
   const [reloads, setReloads] = useState(0)
+  const loaded = `${stamp}:${reloads}`
+  // Every page is told the app's colors, and told again when they change. One written for
+  // them follows; any other is its own, and does nothing with what it is told.
+  const { frame, src, onLoad, theme } = useThemedFrame(url, loaded)
   useEffect(() => {
     // A link from the page to a document that is not a page asks to be opened here.
     const onMessage = (event: MessageEvent) => {
@@ -336,15 +336,19 @@ function PageView({
           size="icon-sm"
           aria-label="Open in a new tab"
           title="Open in a new tab"
-          render={<a href={url} target="_blank" rel="noreferrer" />}
+          // In a tab of its own it starts as it is here, and not as the device is set.
+          render={
+            <a href={`${url}${visualThemeFragment(theme)}`} target="_blank" rel="noreferrer" />
+          }
         >
           <ArrowSquareOutIcon />
         </Button>
       </div>
       <iframe
-        key={`${stamp}:${reloads}:${themed ? colors.appearance : ""}`}
+        key={loaded}
         ref={frame}
-        src={themed ? `${url}${visualThemeFragment(colors)}` : url}
+        src={src}
+        onLoad={onLoad}
         title={file.name}
         // No `allow-same-origin`: the page must not be the app, though the app serves it.
         sandbox="allow-scripts allow-popups allow-forms allow-modals"
@@ -685,7 +689,13 @@ export function Viewer({
               <PencilSimpleIcon /> Rename or move
             </DropdownMenuItem>
             <DropdownMenuItem
-              render={<a href={api.libraryFileUrl(file.id)} download={file.name} />}
+              render={
+                <a
+                  // A page takes the app's look with it, so it is the same page out of the app.
+                  href={`${api.libraryFileUrl(file.id)}${kindOf(file) === "page" ? "?look" : ""}`}
+                  download={file.name}
+                />
+              }
             >
               <DownloadSimpleIcon /> Download
             </DropdownMenuItem>
