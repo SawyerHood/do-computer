@@ -1967,7 +1967,7 @@ Since then, newest last:
       Appending to a file with `>>` sets its mode back to 644, which the shell inside the
       server did not do; writing it anew does in both.
     - **The `experimental` flag** the package's README asks for was not needed, in
-      vitest-pool-workers or in `vite dev`.
+      Cloudflare's Vitest plugin or in `vite dev`.
     - **Tested:** `packages/sandbox/test/workers` runs both conformance suites, the network
       rules, deletion and the move inside the Workers runtime; `scripts/smoke.sh` passes
       against `vite dev` on Cloudflare with it. The move was also made for real: an agent

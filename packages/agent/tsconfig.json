@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]
+    "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
   },
   "include": ["src", "test"]
 }
