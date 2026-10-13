@@ -6359,9 +6359,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       height are both said once they are known. This was there before this work (a phone
       works the height out from all the room there is, before the picture's own width is
       applied) and was seen in the simulator.
-    - **Not built:** a film player, which needs `expo-video`, a native module, and so a new
-      build of the app. The player does not ask for a fresh address when the library's has
-      grown old. No audio mode is set, so a sound may be silent with the ringer off.
+    - **Not built here:** a film player, a fresh address for a sound whose own has grown
+      old, and an audio mode for the ringer switch. All three are in entry 81.
     - **Mine:** that this was built at all without the owner saying so again (the plan they
       approved has it); 25 rows; the storage key; that the message box is not given the
       caret after `dc.say`; that a sub-agent's report and an agent's message are gated too.
@@ -6376,6 +6375,44 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       words in the message box through the real web view. **Not checked:** a real phone;
       Android; the ringer switch; a host's yes surviving the app being closed (it is kept
       through the app's own store, which was not looked at there).
+
+81. **The phone plays a film where it is** (2026-10-13; `apps/mobile/src/chat/parts/film.tsx`
+    and `played.tsx`, `sound.tsx`, `named.tsx`, `file.tsx`, `logic.ts`,
+    `apps/mobile/src/library/model.ts`, `apps/mobile/app/(app)/a/[agentId]/library/[fileId].tsx`;
+    the last of phase 6 of `PLAN-rich-embeds.md`).
+    - **A film has a player** made with `expo-video`: the phone's own controls, in a 16:9 box
+      the film is fitted inside, so nothing moves when it loads. It is there for a film named
+      in a reply (`![The walkthrough](recordings/demo.mp4)`), over the card of one the agent
+      sends, and on the library's screen for the file, which plays a sound too; before, a
+      film was a chip and the library only offered a download. A film stops when its screen
+      is left.
+    - **An address grown old is asked for again.** A film and a sound keep the address they
+      were first given, since a new one would start them over. When the player says it
+      cannot go on, the library is asked once where its files are now, and what is played
+      goes back to where it was (`usePlayed`). Only when that fails too does a line say it
+      could not be played, with a way to it: the library from a chat, "Open in…" (or
+      Download in a browser) from the library.
+    - **A sound is heard with the ringer off** on an iPhone. The audio mode is said when a
+      sound is played and not when the app starts, since saying it ends a recording;
+      dictation says its own each time it starts.
+    - **`expo-video` is a native module**, so none of this reaches a phone until the app is
+      built again. No build was started. Playing in place needs no config plugin entry, and
+      none was added; picture-in-picture and playing in the background would need one.
+    - **Mine:** that a film a phone cannot play (a WebM on an iPhone) is a line and a way to
+      it, where it could have been tried in a web view; the phone's own controls and no
+      drawn ones; one asking for a fresh address before giving up; no poster picture, so a
+      film is its first frame once that has loaded and black before.
+    - **Checked:** `apps/mobile` unit tests; `e2e/mobile.spec.ts` on the phone app's browser
+      build (a film named in a reply plays and can be moved about in; one that cannot be
+      played says so after the library was asked once; a film and a sound started from an
+      address that no longer works are asked for again and play; a sent film has its player
+      over the card, and the library plays it). And in an iOS 27 simulator on the owner's
+      MacBook Air, with this branch built there: an MP4 named in a reply showed its first
+      frame in the box and played on a tap; the sound played; a WebM gave the line, and its
+      way opened the library's screen for it, which said the same. **Not checked:** a real
+      phone; Android; a film on the library's screen and a sent film in the simulator (the
+      browser build only); an address growing old on a phone; the ringer switch, which a
+      simulator has not got; a long film, or one over a slow connection.
 
 ## 6. What the owner has said they want
 

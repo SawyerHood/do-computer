@@ -344,10 +344,13 @@ third party's HTML, so it wants its own review before it ships.
 Built on 2026-10-13, all but the film: a picture at another site waits for a tap, a library
 picture, sound (`expo-audio`) and CSV named in a reply or sent are shown as what they are, and
 `dc.say` in a visual fills the message box. Controls in a visual came free, since they are in
-the served page. `dc.expand` and `dc.save` do nothing on the phone. Video needs `expo-video`,
-a native module, so it needs a new build of the app, which is not started without the owner
-asking; until then a film is a chip that opens it in the library. It was checked in the
+the served page. `dc.expand` and `dc.save` do nothing on the phone. It was checked in the
 simulator on the Air.
+
+The film came after, the same day: a player made with `expo-video` for a film named in a
+reply, one the agent sends, and one opened in the library, and a film or a sound asks the
+library again when its address has grown old. `expo-video` is a native module, so it reaches
+a phone only with a new build of the app, which is not started without the owner asking.
 
 ### Elsewhere
 
