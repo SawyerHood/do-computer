@@ -14,6 +14,7 @@ import type { Sharing } from "./status.ts"
 
 export type SignInAnswer = { token: string } | { error: string }
 export type ShareAnswer = { code: string } | { connected: true } | { error: string }
+export type HereAnswer = { ok: true } | { error: string }
 export type ScreenAnswer =
   /** Agents may use the screen. On a Mac, `missing` is what macOS has still to allow first. */
   | { allowed: true; missing?: string[] }
@@ -32,6 +33,11 @@ export type PageInfo = {
   welcomed: boolean
   /** Whether agents can use this computer, as things stood when the page loaded. */
   sharing: "off" | "on"
+  /**
+   * Whether the app runs the server itself, on this computer, for its owner alone. They have
+   * no account to sign in to: `signInHere` says who they are.
+   */
+  local: boolean
 }
 
 export type DesktopBridge = PageInfo & {
@@ -64,6 +70,11 @@ export type DesktopBridge = PageInfo & {
    * is quit it is the usual one, which is the only one the app's file has.
    */
   setIcon(picture: string | null): Promise<void>
+  /**
+   * Where the app runs the server: sign this window in as its owner, who is called `name`
+   * from the first time on. Elsewhere it resolves with an error.
+   */
+  signInHere(name: string): Promise<HereAnswer>
 }
 
 /** The names the app and the script its windows are given call each other by. */
@@ -75,6 +86,7 @@ export const CHANNELS = {
   finish: "page-finish",
   screen: "page-screen",
   icon: "page-icon",
+  signInHere: "page-sign-in-here",
 } as const
 
 /**
@@ -148,6 +160,16 @@ export function screenRefusal(now: {
     return "Doods may only read files on this computer. That is changed in the Do Computer app, under This Computer."
   }
   return undefined
+}
+
+/** The longest a name is. It is what the owner's Doods call them. */
+const NAME_MOST = 80
+
+/** What a page said its owner is called, if it said anything that is a name. */
+export function ownerName(asked: unknown): string | undefined {
+  if (typeof asked !== "string") return undefined
+  const name = asked.trim().slice(0, NAME_MOST)
+  return name === "" ? undefined : name
 }
 
 /** The provider a page asked to sign in with, if it is one there is. */

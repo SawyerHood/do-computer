@@ -1,6 +1,7 @@
 import type {
   BrowserRan,
   LiveView,
+  PayWith,
   ScreenActed,
   ScreenWindow,
   SignInWith,
@@ -268,12 +269,18 @@ describe("the windows on the screen of a paired computer", () => {
 describe("a browser on a paired computer", () => {
   const browser = (
     ran: Partial<BrowserRan> = {},
-  ): BrowserIO & { scripts: string[]; logins: SignInWith[] } => {
+  ): BrowserIO & { scripts: string[]; logins: SignInWith[]; paid: unknown[] } => {
     const scripts: string[] = []
     const logins: SignInWith[] = []
+    const paid: unknown[] = []
     return {
       scripts,
       logins,
+      paid,
+      pay: async (_agent, card, { fields, button }) => {
+        paid.push({ card, fields, button })
+        return { outcome: "sent", message: "Paid.", site: "shop.example", typed: true, own: false }
+      },
       run: async (_agent, script) => {
         scripts.push(script)
         return { output: "Example Domain", shots: [], own: false, ...ran }
@@ -425,6 +432,83 @@ describe("a browser on a paired computer", () => {
       }),
     ).rejects.toThrow(/needs an agent and a login/)
     expect(theirs.logins).toEqual([])
+    expect(daemonIO.audits).toEqual([])
+  })
+
+  const card: PayWith = {
+    name: "Team card",
+    holder: "Pip Example",
+    number: "4242424242424242",
+    expMonth: 8,
+    expYear: 2028,
+    code: "737",
+    postalCode: "94107",
+  }
+  const pay = { t: "browser", op: "pay", agent: pip, card, button: "Pay now" } as const
+
+  it("pays with a card, and writes down its name and last four digits and nothing else of it", async () => {
+    const theirs = browser()
+    const daemonIO = io({ browser: theirs })
+    const { link } = wire(daemonIO)
+    const fields = [{ box: "Email", text: "pip@example.com" }]
+    expect(await link.use({ ...pay, fields })).toMatchObject({ outcome: "sent" })
+    expect(theirs.paid).toEqual([{ card, fields, button: "Pay now" }])
+    expect(daemonIO.audits).toEqual([
+      {
+        ts: expect.any(Number),
+        kind: "browser_pay",
+        agent: "Pip",
+        card: "Team card",
+        last4: "4242",
+      },
+    ])
+    // Without anything else to fill in there is none.
+    await link.use(pay)
+    expect(theirs.paid[1]).toEqual({ card, fields: [], button: "Pay now" })
+  })
+
+  it("says nothing of why where paying threw, which could be made of the card", async () => {
+    const theirs = browser()
+    theirs.pay = async (_agent, given) => {
+      throw new Error(`could not type ${given.number} ${given.code}`)
+    }
+    const daemonIO = io({ browser: theirs })
+    const { link } = wire(daemonIO)
+    expect(await link.use(pay)).toEqual({
+      outcome: "failed",
+      message: 'This computer could not pay with the card "Team card".',
+      own: false,
+    })
+    expect(JSON.stringify(daemonIO.audits)).not.toContain(card.number)
+    theirs.pay = async () => {
+      throw new UseRefused("The person at the computer stopped you using the browser.")
+    }
+    await expect(link.use(pay)).rejects.toThrow(/stopped you/)
+  })
+
+  it("does not pay on a computer that may only be read, or with a frame that is not whole", async () => {
+    const theirs = browser()
+    const readOnly = io({ browser: theirs })
+    await expect(wire(readOnly, { readOnly: true }).link.use(pay)).rejects.toThrow(/read-only/)
+    expect(readOnly.audits).toEqual([
+      { ts: expect.any(Number), kind: "refused", what: "use a browser" },
+    ])
+    const daemonIO = io({ browser: theirs })
+    const { link } = wire(daemonIO)
+    for (const broken of [
+      { card: { ...card, expYear: "2028" } },
+      { card: { ...card, code: undefined } },
+      { card: undefined },
+      { button: " " },
+      { button: undefined },
+      { fields: [{ box: "Email" }] },
+      { fields: "Email" },
+      { fields: Array.from({ length: 21 }, () => ({ box: "a", text: "b" })) },
+      { agent: undefined },
+    ]) {
+      await expect(link.use({ ...pay, ...broken } as never)).rejects.toThrow(/pay needs/)
+    }
+    expect(theirs.paid).toEqual([])
     expect(daemonIO.audits).toEqual([])
   })
 })

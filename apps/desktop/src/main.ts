@@ -8,6 +8,9 @@
  *
  * The few pages that are the program's own (choosing the deployment, and how this computer is
  * shared) are files that come with it.
+ *
+ * The deployment can be the program's own as well: Do Computer run by it, on this computer, for
+ * its owner alone. Then it is a third thing, the server, for as long as it runs.
  */
 import { spawn } from "node:child_process"
 import { existsSync, writeFileSync } from "node:fs"
@@ -17,6 +20,7 @@ import { pathToFileURL } from "node:url"
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
@@ -39,10 +43,13 @@ import {
   CONNECTOR_CALLBACK_PATH,
   CONNECTOR_FROM_APP,
 } from "@do-computer/protocol"
-import type { AppState } from "./api.ts"
+import { toQR } from "toqr"
+import type { AppState, DeviceLink } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
 import { browserConnect, browserSignIn } from "./browser-sign-in.ts"
+import { cookieDetails } from "./cookies.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
+import { LocalServer, localAddress, ownerKey, pickPort, serverEnv } from "./local-server.ts"
 import { loginPath } from "./login-path.ts"
 import { createOverlay, type Overlay } from "./overlay.ts"
 import {
@@ -51,6 +58,8 @@ import {
   iconFits,
   iconPicture,
   mayUseBridge,
+  type HereAnswer,
+  ownerName,
   type PageInfo,
   provider,
   type ScreenAnswer,
@@ -62,9 +71,17 @@ import {
 } from "./page-bridge.ts"
 import { ScreenService } from "./screen.ts"
 import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
-import { cameBack, isWebAddress, onServer, serverAddress } from "./server.ts"
+import { atServer, cameBack, isWebAddress, onServer, serverAddress } from "./server.ts"
 import { DEFAULTS, loadSettings, type Settings, saveSettings } from "./settings.ts"
 import { headline, type Sharing } from "./status.ts"
+import {
+  findTailscale,
+  serve,
+  type Tailnet,
+  tailnet as lookAtTailnet,
+  tailnetAddress,
+  unserve,
+} from "./tailscale.ts"
 import {
   afterUpdate,
   mayRestart,
@@ -85,6 +102,8 @@ const SHARE_TIMEOUT_MS = 45_000
 const UPDATE_EVERY_MS = Number(process.env.DC_DESKTOP_UPDATE_MS ?? 4 * 60 * 60_000)
 /** How often an app that has fetched a newer one looks whether it may restart as it. */
 const RESTART_LOOK_MS = 60_000
+/** How often an app whose server was to be served over Tailscale, and is not, looks again. */
+const TAILNET_LOOK_MS = 60_000
 const MAC = process.platform === "darwin"
 const here = (...parts: string[]) => path.join(__dirname, ...parts)
 const page = (name: string) => here("pages", `${name}.html`)
@@ -108,6 +127,16 @@ const remember = (change: Partial<Settings>) => {
 let mainWindow: BrowserWindow | undefined
 let computerWindow: BrowserWindow | undefined
 let welcomeWindow: BrowserWindow | undefined
+let devicesWindow: BrowserWindow | undefined
+/** Do Computer itself, while the app runs it on this computer. */
+let localServer: LocalServer | undefined
+/** How this computer stands with Tailscale, as of the last look. */
+let tailnetNow: Tailnet = { state: "missing" }
+/** The address the app's own server is reached at from its owner's other devices, while it is. */
+let reachedAt: string | undefined
+/** Why it is not reached from them though it was asked to be. */
+let tailnetProblem: string | undefined
+let tailnetBusy = false
 let tray: Tray | undefined
 let runner: DaemonRunner | undefined
 let screenService: ScreenService | undefined
@@ -169,6 +198,17 @@ const FAKE_SCREEN = process.env.DC_DESKTOP_FAKE_SCREEN === "1"
 const driverDir = () =>
   app.isPackaged ? path.join(process.resourcesPath, "driver") : here("driver")
 const screenUnavailable = () => (FAKE_SCREEN ? undefined : driverMissing(driverDir()))
+
+/**
+ * Where Do Computer itself is, for the app to run: one file and the pages beside it. A packed
+ * app keeps them beside its one packed file, as files a program can be run from.
+ */
+const serverDir = () =>
+  app.isPackaged ? path.join(process.resourcesPath, "server") : here("server")
+const serverScript = () => path.join(serverDir(), "server.mjs")
+const canRunLocally = () => existsSync(serverScript())
+/** Where the app's own server keeps everything: accounts, Doods, their files. */
+const serverData = () => path.join(app.getPath("userData"), "server")
 
 /** What macOS has let the app do, of the two things using the screen takes. */
 const permissions = () => ({
@@ -249,6 +289,16 @@ function state(): AppState {
   return {
     ...(settings.server === undefined ? {} : { server: settings.server }),
     suggestedServer: settings.server ?? suggested(),
+    local: settings.local,
+    canRunLocally: canRunLocally(),
+    serving: localServer?.serving ?? { state: "off" },
+    tailnet: {
+      status: tailnetNow,
+      on: settings.tailnet,
+      ...(reachedAt === undefined ? {} : { address: reachedAt }),
+      ...(tailnetProblem === undefined ? {} : { problem: tailnetProblem }),
+      busy: tailnetBusy,
+    },
     welcomed: settings.welcomed,
     sharing,
     headline: headline(sharing),
@@ -268,7 +318,7 @@ function state(): AppState {
 
 function changed(): void {
   const now = state()
-  for (const window of [computerWindow, welcomeWindow, mainWindow]) {
+  for (const window of [computerWindow, welcomeWindow, devicesWindow, mainWindow]) {
     if (alive(window) && window.webContents.getURL().startsWith("file:")) {
       window.webContents.send("state", now)
     }
@@ -314,9 +364,25 @@ function showIcon(asked: unknown): void {
   else if (alive(mainWindow)) mainWindow.setIcon(ownIcon ?? icon()!)
 }
 
-/** Whether an address is somewhere on the web other than the deployment. */
-const elsewhere = (address: string) =>
-  isWebAddress(address) && !(settings.server !== undefined && onServer(address, settings.server))
+/**
+ * A page of the deployment, at the address the window goes to it by: the app's own server is
+ * also the one its owner's other devices reach, and sends people back to that address.
+ */
+const ours = (address: string) =>
+  settings.server === undefined ? undefined : atServer(address, settings.server, reachedAt)
+
+/** A window of the deployment beside the others, as one of its pages opens for itself. */
+function openBeside(address: string): void {
+  const window = new BrowserWindow({
+    title: NAME,
+    backgroundColor: canvas(),
+    autoHideMenuBar: true,
+    ...(MAC ? {} : { icon: ownIcon ?? icon()! }),
+    webPreferences: webPreferences(),
+  })
+  keepToServer(window)
+  void window.loadURL(address)
+}
 
 /**
  * A window of the app shows the deployment and nowhere else: it has no address to read and no
@@ -326,19 +392,25 @@ const elsewhere = (address: string) =>
  */
 function keepToServer(window: BrowserWindow): void {
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (settings.server !== undefined && onServer(url, settings.server)) {
+    const at = ours(url)
+    if (at === url) {
       return { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true } }
     }
-    if (isWebAddress(url)) void shell.openExternal(url)
+    // The deployment by its other address: the same page, where the app is signed in.
+    if (at !== undefined) openBeside(at)
+    else if (isWebAddress(url)) void shell.openExternal(url)
     return { action: "deny" }
   })
   // A window the deployment opened beside this one is kept to it as well.
   window.webContents.on("did-create-window", keepToServer)
   const leaving = (event: Electron.Event, address: string) => {
-    if (!elsewhere(address)) return
+    const at = ours(address)
+    if (at === address || !isWebAddress(address)) return
     event.preventDefault()
+    // The deployment by its other address: the same page, where this window is signed in.
+    if (at !== undefined) void window.loadURL(at)
     // The app's own pages sign nobody in.
-    if (window.webContents.getURL().startsWith("file:")) void shell.openExternal(address)
+    else if (window.webContents.getURL().startsWith("file:")) void shell.openExternal(address)
     else void signInElsewhere(window, address)
   }
   window.webContents.on("will-navigate", (event) => leaving(event, event.url))
@@ -456,12 +528,21 @@ function showElsewhere(asked: BrowserWindow, address: string): void {
   )
   window.webContents.on("did-create-window", nameByAddress)
   const back = (event: Electron.Event, to: string) => {
-    if (!cameBack(to, server)) return
+    const at = ours(to)
+    if (at === undefined) return
+    if (!cameBack(at, server)) {
+      // Where a service answers. By the deployment's other address this window is nobody: it
+      // answers where the one that asked is signed in.
+      if (at === to) return
+      event.preventDefault()
+      void window.loadURL(at)
+      return
+    }
     event.preventDefault()
     // Not while it is still telling of where it was going.
     setImmediate(() => window.destroy())
     if (!alive(asked)) return
-    void asked.loadURL(to)
+    void asked.loadURL(at)
     asked.show()
     asked.focus()
   }
@@ -509,8 +590,12 @@ function showMain(address?: string): void {
     if (isMainFrame && code !== -3) void window.loadFile(page("offline"))
   })
   // Signing in is a change of page, and is what a pairing waits for.
-  window.webContents.on("did-navigate", () => void confirmWhenSignedIn())
-  window.webContents.on("did-navigate-in-page", () => void confirmWhenSignedIn())
+  for (const moved of ["did-navigate", "did-navigate-in-page"] as const) {
+    window.webContents.on(moved as "did-navigate", (_event, address) => {
+      void confirmWhenSignedIn()
+      void backIn(address)
+    })
+  }
   void window.loadURL(address ?? home())
 }
 
@@ -534,8 +619,20 @@ function ownWindow(name: string, options: { width: number; height: number; title
 /** Where the deployment is chosen: on the first run, and when its owner wants another. */
 function showWelcome(): void {
   if (alive(welcomeWindow)) return welcomeWindow.focus()
-  welcomeWindow = ownWindow("welcome", { width: 480, height: 560, title: NAME })
+  // Taller once the first run is over: the form then asks about this computer as well.
+  const height = settings.welcomed ? 760 : 620
+  welcomeWindow = ownWindow("welcome", { width: 480, height, title: NAME })
   welcomeWindow.on("closed", () => (welcomeWindow = undefined))
+}
+
+/** Using the app's own server from its owner's other devices. */
+function showDevices(): void {
+  if (!settings.local) return
+  if (alive(devicesWindow)) return devicesWindow.focus()
+  devicesWindow = ownWindow("devices", { width: 460, height: 800, title: "Other Devices" })
+  devicesWindow.on("closed", () => (devicesWindow = undefined))
+  // Tailscale may have been installed, or signed in to, since the app last looked.
+  void lookForTailnet()
 }
 
 /** How this computer is shared with agents. */
@@ -555,7 +652,7 @@ function daemon(): DaemonRunner {
     script: seedDaemon(here("daemon.cjs"), dir),
     dir,
     node: process.execPath,
-    env: () => ({ ...process.env, ...(commandPath === undefined ? {} : { PATH: commandPath }) }),
+    env: commandEnv,
     onChange: changed,
     abilities,
     onCall: (call) => screenOf().answer(call),
@@ -566,6 +663,12 @@ function daemon(): DaemonRunner {
   })
   return runner
 }
+
+/** What a command of this computer's is run with: its owner's PATH, once that is known. */
+const commandEnv = (): NodeJS.ProcessEnv => ({
+  ...process.env,
+  ...(commandPath === undefined ? {} : { PATH: commandPath }),
+})
 
 /** Whether a deployment answers at an address, and says that it is one. */
 function healthy(server: string): Promise<boolean> {
@@ -641,6 +744,247 @@ function setOpenAtLogin(on: boolean): void {
     linuxAutostart(on)
   } else {
     app.setLoginItemSettings({ openAtLogin: on, args: [HIDDEN_FLAG] })
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The app's own server
+
+function local(): LocalServer {
+  if (localServer !== undefined) return localServer
+  const port = settings.localPort!
+  localServer = new LocalServer({
+    script: serverScript(),
+    node: process.execPath,
+    port,
+    env: () => ({
+      ...process.env,
+      ...serverEnv({ port, dir: serverData(), key: ownerKey(serverData()), reachedAt }),
+    }),
+    onChange: changed,
+  })
+  return localServer
+}
+
+/** Whether the app's window is signed in to the deployment. */
+async function signedIn(): Promise<boolean> {
+  if (settings.server === undefined) return false
+  try {
+    return (await session.defaultSession.fetch(`${settings.server}/api/me`)).ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Sign the app's window in to its own server as its owner, who has no password: the app says
+ * who they are, with the key only it and the server have. With a name, the first time, that is
+ * what they are called from then on. Resolves with what went wrong, in words to show.
+ *
+ * The server is asked from outside any page, and the window is given the cookies it answered
+ * with: a page is never shown the key.
+ */
+async function signInWindow(name?: string): Promise<string | undefined> {
+  const server = settings.server
+  if (!settings.local || server === undefined) {
+    return "This app shows a Do Computer somewhere else. Sign in to it there."
+  }
+  if (name === undefined && (await signedIn())) return undefined
+  let response: Response
+  try {
+    response = await fetch(`${server}/api/auth/local/session`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        key: ownerKey(serverData()),
+        ...(name === undefined ? {} : { name }),
+      }),
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    })
+  } catch {
+    return "Do Computer is not running on this computer yet. Try again in a moment."
+  }
+  // Nobody has said who they are here yet: the first run asks, and then says.
+  if (response.status === 404 && name === undefined) return undefined
+  if (!response.ok) {
+    const said = (await response.json().catch(() => null)) as { message?: string } | null
+    return said?.message ?? "This window could not be signed in. Try again."
+  }
+  for (const header of response.headers.getSetCookie()) {
+    const cookie = cookieDetails(header, server)
+    if (cookie !== undefined) await session.defaultSession.cookies.set(cookie)
+  }
+  return undefined
+}
+
+/**
+ * The window came to the page that asks for a password, which on the app's own server nobody
+ * has: its session ran out, or is one from before the server was reached at another address.
+ * It is signed in again and shown where it was going.
+ */
+async function backIn(address: string): Promise<void> {
+  const server = settings.server
+  if (!settings.local || server === undefined || !onServer(address, server)) return
+  if (new URL(address).pathname !== "/login") return
+  if ((await signedIn()) || (await signInWindow()) !== undefined || !(await signedIn())) return
+  if (alive(mainWindow) && settings.server === server) void mainWindow.loadURL(home())
+}
+
+/** Ask Tailscale how this computer stands with it. */
+async function lookForTailnet(): Promise<void> {
+  tailnetNow = await lookAtTailnet(findTailscale(process.platform, commandEnv()))
+  changed()
+}
+
+/**
+ * Have Tailscale serve the app's own server to its owner's other devices, and say where it is
+ * then reached. Where it cannot, why not is kept to show.
+ */
+async function reach(): Promise<void> {
+  const port = settings.localPort
+  const bin = findTailscale(process.platform, commandEnv())
+  tailnetNow = await lookAtTailnet(bin)
+  reachedAt = undefined
+  tailnetProblem = undefined
+  if (port === undefined) return
+  if (bin === undefined || tailnetNow.state !== "ready") {
+    tailnetProblem =
+      tailnetNow.state === "missing"
+        ? "Tailscale is not installed on this computer."
+        : tailnetNow.state === "stopped"
+          ? "Tailscale is not connected. Open it on this computer and sign in."
+          : "Your Tailscale network does not give its devices certificates yet."
+    return
+  }
+  const wrong = await serve(bin, port)
+  if (wrong !== undefined) tailnetProblem = wrong
+  else reachedAt = tailnetAddress(tailnetNow.name, port)
+}
+
+/** Stop Tailscale serving the app's own server. Whatever else it serves here is left alone. */
+async function unreach(): Promise<void> {
+  const bin = findTailscale(process.platform, commandEnv())
+  if (bin !== undefined && settings.localPort !== undefined) await unserve(bin, settings.localPort)
+  reachedAt = undefined
+  tailnetProblem = undefined
+}
+
+/**
+ * Start the app's own server, served to its owner's other devices where they asked for that,
+ * and sign the window in. Resolves with whether the server answers.
+ */
+async function startLocal(): Promise<boolean> {
+  if (!settings.local || settings.localPort === undefined || !canRunLocally()) return false
+  // Before it starts, so that it starts once: where it is reached is part of what it is told.
+  if (settings.tailnet) await reach()
+  local().start()
+  const answers = await local().ready()
+  if (answers) await signInWindow()
+  return answers
+}
+
+/** The server was told where it is reached as it started. Told otherwise, it starts again. */
+async function reachedElsewhere(): Promise<void> {
+  if (localServer === undefined) return
+  await localServer.restart()
+  if (!(await localServer.ready())) return
+  // What signed the window in goes by the address too.
+  await signInWindow()
+  if (alive(mainWindow) && !mainWindow.webContents.getURL().startsWith("file:")) {
+    mainWindow.webContents.reload()
+  }
+}
+
+/** Serve the app's own server to its owner's other devices, or stop. */
+async function setTailnet(on: boolean): Promise<void> {
+  if (!settings.local || tailnetBusy) return
+  tailnetBusy = true
+  changed()
+  try {
+    const before = reachedAt
+    if (on) await reach()
+    else await unreach()
+    // Asked for and not to be had: the switch goes back, with why beside it.
+    remember({ tailnet: on && reachedAt !== undefined })
+    if (reachedAt !== before) await reachedElsewhere()
+  } finally {
+    tailnetBusy = false
+    changed()
+  }
+}
+
+/**
+ * Tailscale was not ready when the app started, as at sign-in it may not be. Once it is, the
+ * server is served as its owner asked.
+ */
+async function reachWhenReady(): Promise<void> {
+  if (!settings.local || !settings.tailnet || reachedAt !== undefined || tailnetBusy) return
+  if (localServer === undefined || localServer.serving.state !== "running") return
+  tailnetBusy = true
+  try {
+    await reach()
+    if (reachedAt !== undefined) await reachedElsewhere()
+  } finally {
+    tailnetBusy = false
+    changed()
+  }
+}
+
+/** The app is to show a server somewhere else: its own stops, and is no longer served. */
+async function leaveLocal(): Promise<void> {
+  if (settings.tailnet) await unreach()
+  await localServer?.stop()
+  localServer = undefined
+}
+
+/** A link that signs one other device of the owner's in, once, and the code that says it. */
+async function deviceLink(): Promise<DeviceLink | { error: string }> {
+  const server = settings.server
+  if (!settings.local || server === undefined || reachedAt === undefined) {
+    return { error: "Switch on reaching it from your other devices first." }
+  }
+  try {
+    const response = await fetch(`${server}/api/auth/local/token`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: ownerKey(serverData()) }),
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    })
+    const said = (await response.json().catch(() => null)) as {
+      token?: string
+      seconds?: number
+      message?: string
+    } | null
+    if (response.status === 404) {
+      return { error: "Finish setting up Do Computer in its window first." }
+    }
+    if (!response.ok || typeof said?.token !== "string") {
+      return { error: said?.message ?? "A code could not be made. Try again." }
+    }
+    // After the #, which a device keeps to itself: it is not sent as part of an address.
+    const link = `${reachedAt}/local/sign-in#${said.token}`
+    const cells = toQR(link)
+    return {
+      link,
+      cells: Array.from(cells),
+      size: Math.round(Math.sqrt(cells.length)),
+      seconds: said.seconds ?? 600,
+    }
+  } catch {
+    return { error: "Do Computer is not running on this computer just now. Try again." }
+  }
+}
+
+/** Whether any of its owner's Doods is in the middle of something, on the app's own server. */
+async function anyWorking(): Promise<boolean> {
+  if (settings.server === undefined) return false
+  try {
+    const response = await session.defaultSession.fetch(`${settings.server}/api/agents`)
+    if (!response.ok) return false
+    const { agents } = (await response.json()) as { agents?: { working?: boolean }[] }
+    return Array.isArray(agents) && agents.some((agent) => agent.working === true)
+  } catch {
+    return false
   }
 }
 
@@ -723,8 +1067,8 @@ function restartToUpdate(unseen: boolean): void {
 }
 
 /** Restart as the newer app without being asked, once nobody would notice: see `mayRestart`. */
-function restartWhenQuiet(): void {
-  const showing = [mainWindow, computerWindow, welcomeWindow].some(
+async function restartWhenQuiet(): Promise<void> {
+  const showing = [mainWindow, computerWindow, welcomeWindow, devicesWindow].some(
     (window) => alive(window) && window.isVisible(),
   )
   const quiet = {
@@ -733,7 +1077,10 @@ function restartWhenQuiet(): void {
     usingScreen: usingScreen?.active === true,
     quietMs: Date.now() - (runner?.heard ?? 0),
   }
-  if (mayRestart(quiet)) restartToUpdate(true)
+  if (!mayRestart(quiet)) return
+  // The app's own server stops with it, and whatever a Dood is in the middle of there.
+  if (settings.local && (await anyWorking())) return
+  restartToUpdate(true)
 }
 
 function startUpdating(): void {
@@ -769,7 +1116,7 @@ function startUpdating(): void {
   })
   lookForUpdate()
   setInterval(lookForUpdate, UPDATE_EVERY_MS)
-  setInterval(restartWhenQuiet, RESTART_LOOK_MS)
+  setInterval(() => void restartWhenQuiet(), RESTART_LOOK_MS)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -817,6 +1164,7 @@ function pageInfo(): PageInfo {
     canOpenAtLogin: canOpenAtLogin(),
     welcomed: settings.welcomed,
     sharing: sharingNow(runner?.sharing ?? { state: "off" }),
+    local: settings.local,
   }
 }
 
@@ -962,6 +1310,79 @@ function listenToServer(): void {
     }),
   )
   ipcMain.handle(CHANNELS.icon, served(showIcon))
+  ipcMain.handle(
+    CHANNELS.signInHere,
+    served(async (asked: unknown): Promise<HereAnswer> => {
+      const name = ownerName(asked)
+      if (name === undefined) return { error: "Say what you are called." }
+      const wrong = await signInWindow(name)
+      return wrong === undefined ? { ok: true } : { error: wrong }
+    }),
+  )
+}
+
+/**
+ * Use the deployment that was chosen, with what was said about this computer on the same
+ * form. On a first run only the deployment is heeded: its welcome asks the rest, and nothing
+ * is shared before it has.
+ */
+async function settleIn(choice: { share?: unknown; openAtLogin?: unknown }): Promise<void> {
+  makeMenu()
+  if (!settings.welcomed) {
+    remember({ share: false })
+    await runner?.stop()
+    welcomeWindow?.close()
+    showMain(home())
+    return
+  }
+  remember({ share: choice.share === true })
+  setOpenAtLogin(choice.openAtLogin === true)
+  if (!settings.share) await runner?.stop()
+  showConfirm = settings.share
+  welcomeWindow?.close()
+  showMain(settings.server)
+  void startSharing()
+}
+
+/** Run Do Computer on this computer, and show that. Resolves with why it could not be. */
+async function runHere(choice: {
+  tailnet?: unknown
+  share?: unknown
+  openAtLogin?: unknown
+}): Promise<string | undefined> {
+  if (!canRunLocally()) return "This copy of the app does not bring Do Computer with it."
+  const before = settings
+  const port = settings.localPort ?? (await pickPort())
+  const server = localAddress(port)
+  if (settings.server !== undefined && settings.server !== server) {
+    // This computer is paired with the deployment it is leaving, and a daemon has one.
+    await daemon().forget()
+  }
+  remember({ server, local: true, localPort: port, tailnet: choice.tailnet === true })
+  if (!(await startLocal())) {
+    const detail = localServer?.lines.at(-1)
+    await localServer?.stop()
+    localServer = undefined
+    // As it was: the deployment it had, if it had one, is still there to go back to.
+    settings = before
+    saveSettings(settingsFile(), settings)
+    return `Do Computer could not be started on this computer${detail === undefined ? "." : `: ${detail}`}`
+  }
+  // Asked for and not to be had: it is said in the window about other devices, and tried there.
+  if (settings.tailnet && reachedAt === undefined) remember({ tailnet: false })
+  await settleIn(choice)
+  return undefined
+}
+
+/**
+ * The app runs Do Computer itself: that is started first, and then shown, and this computer
+ * shared with it as before. Where it does not start, the window says so and keeps trying.
+ */
+async function openLocal(): Promise<void> {
+  commandPath ??= (await loginPath()) ?? process.env.PATH
+  await startLocal()
+  if (!startedHidden()) showMain()
+  void startSharing()
 }
 
 /**
@@ -983,32 +1404,57 @@ function listen(): void {
   ipcMain.handle("state", own(state))
   ipcMain.handle(
     "connect",
-    own(async (choice: { server?: unknown; share?: unknown; openAtLogin?: unknown }) => {
-      const server = serverAddress(typeof choice?.server === "string" ? choice.server : "")
-      if (server === undefined) return "That is not an address."
-      if (!(await healthy(server))) {
-        return `There is no Do Computer at ${server}, or it cannot be reached.`
-      }
-      if (settings.server !== undefined && settings.server !== server) {
-        // This computer is paired with the deployment it is leaving, and a daemon has one.
-        await daemon().forget()
-      }
-      if (!settings.welcomed) {
-        // A first run: the deployment's welcome asks the rest, and nothing is shared before it has.
-        remember({ server, share: false })
-        await runner?.stop()
-        welcomeWindow?.close()
-        showMain(home())
+    own(
+      async (choice: {
+        local?: unknown
+        server?: unknown
+        tailnet?: unknown
+        share?: unknown
+        openAtLogin?: unknown
+      }) => {
+        if (choice?.local === true) return runHere(choice)
+        const server = serverAddress(typeof choice?.server === "string" ? choice.server : "")
+        if (server === undefined) return "That is not an address."
+        if (settings.local && server === settings.server) {
+          return "That is this app’s own Do Computer. Choose “On this computer” to keep using it."
+        }
+        if (!(await healthy(server))) {
+          return `There is no Do Computer at ${server}, or it cannot be reached.`
+        }
+        if (settings.server !== undefined && settings.server !== server) {
+          // This computer is paired with the deployment it is leaving, and a daemon has one.
+          await daemon().forget()
+        }
+        // What the app's own server kept stays where it is, for coming back to.
+        if (settings.local) await leaveLocal()
+        if (alive(devicesWindow)) devicesWindow.close()
+        remember({ server, local: false, tailnet: false })
+        await settleIn(choice)
         return undefined
+      },
+    ),
+  )
+  ipcMain.handle("devices", own(showDevices))
+  ipcMain.handle("tailnet-look", own(lookForTailnet))
+  ipcMain.handle(
+    "tailnet-set",
+    own((on: unknown) => setTailnet(on === true)),
+  )
+  ipcMain.handle("device-link", own(deviceLink))
+  ipcMain.handle(
+    "copy",
+    own((text: unknown) => {
+      if (typeof text === "string" && text.length < 4_000) clipboard.writeText(text)
+    }),
+  )
+  ipcMain.handle(
+    "open",
+    own((what: unknown) => {
+      // Only ever one of these two, whatever a page asks for.
+      if (what === "tailscale") void shell.openExternal("https://tailscale.com/download")
+      if (what === "tailscale-https") {
+        void shell.openExternal("https://login.tailscale.com/admin/dns")
       }
-      remember({ server, share: choice.share === true })
-      setOpenAtLogin(choice.openAtLogin === true)
-      if (!settings.share) await runner?.stop()
-      showConfirm = settings.share
-      welcomeWindow?.close()
-      showMain(server)
-      void startSharing()
-      return undefined
     }),
   )
   ipcMain.handle(
@@ -1111,6 +1557,7 @@ function drawTray(): void {
     shared,
     settings.openAtLogin,
     settings.server,
+    settings.local,
     newer,
   ])
   if (showing === drawn) return
@@ -1139,6 +1586,7 @@ function drawTray(): void {
         },
       },
       { label: "This Computer…", click: showComputer },
+      ...(settings.local ? [{ label: "Other Devices…", click: showDevices }] : []),
       { type: "separator" },
       {
         label: "Open at sign-in",
@@ -1181,6 +1629,8 @@ function makeMenu(): void {
       label: "File",
       submenu: [
         { label: "This Computer…", accelerator: "CmdOrCtrl+,", click: showComputer },
+        // Where the app runs Do Computer itself: there is nothing to reach on another's server.
+        ...(settings.local ? [{ label: "Other Devices…", click: showDevices }] : []),
         { label: "Change Server…", click: showWelcome },
         { type: "separator" },
         MAC ? { role: "close" } : { role: "quit" },
@@ -1244,6 +1694,7 @@ if (process.env.APPIMAGE_EXIT_AFTER_INSTALL === "true") {
     quitting = true
     // The daemon ends with the program either way; this is so that it ends first.
     void runner?.stop()
+    void localServer?.stop()
     overlay?.dispose()
     void screenDriver?.dispose()
   })
@@ -1256,8 +1707,10 @@ if (process.env.APPIMAGE_EXIT_AFTER_INSTALL === "true") {
     makeMenu()
     makeTray()
     if (settings.server === undefined) void firstRun()
+    else if (settings.local) void openLocal()
     else if (!startedHidden()) showMain()
-    void startSharing()
+    if (!settings.local) void startSharing()
+    setInterval(() => void reachWhenReady(), TAILNET_LOOK_MS)
     void probeDriver()
     startUpdating()
   })

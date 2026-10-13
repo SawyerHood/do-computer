@@ -13,6 +13,7 @@ import {
 } from "@do-computer/protocol"
 import type { ActorHost, ActorStub } from "@do-computer/runtime"
 import { type Caller, CALLER_HEADER, encodeCaller, readCaller } from "./caller.ts"
+import { createCardVault } from "./vault-cards.ts"
 
 /**
  * The logins a workspace keeps for its agents to sign in with, in the database of the actor
@@ -399,16 +400,19 @@ export function createVault(host: ActorHost, options: VaultOptions = {}) {
     }
   }
 
+  const cards = createCardVault(host, sealer, keyId)
+
   const route = async (
     request: Request,
     segments: readonly string[],
   ): Promise<Response | undefined> => {
     const [what, id, action] = segments
-    if (what !== "passwords") return undefined
+    if (what !== "passwords" && what !== "cards") return undefined
     const method = request.method
     const body = async () =>
       ((await request.json().catch(() => ({}))) ?? {}) as Record<string, unknown>
     try {
+      if (what === "cards") return await cards.route(request, id, action)
       if (id === undefined) {
         if (method === "GET") {
           const key = await keyId()
@@ -457,14 +461,15 @@ export class VaultError extends Error {
   }
 }
 
-async function ask<T>(
+/** Ask something of a workspace's vault. `path` is `/passwords` or `/cards` and what follows. */
+export async function ask<T>(
   actor: ActorStub,
   path: string,
   init?: RequestInit & { by?: Caller },
 ): Promise<T> {
   const { by, ...rest } = init ?? {}
   const response = await actor.fetch(
-    new Request(`http://vault/passwords${path}`, {
+    new Request(`http://vault${path}`, {
       ...rest,
       headers: {
         "content-type": "application/json",
@@ -475,7 +480,7 @@ async function ask<T>(
   const answer = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string }
   if (!response.ok) {
     throw new VaultError(
-      answer.error ?? `The saved logins could not be read (${response.status}).`,
+      answer.error ?? `What the workspace keeps could not be read (${response.status}).`,
       answer.code,
     )
   }
@@ -485,10 +490,10 @@ async function ask<T>(
 /** What an agent asks of its workspace's vault. */
 export const vault = {
   list: async (actor: ActorStub): Promise<SavedLogin[]> =>
-    (await ask<SavedLoginsState>(actor, "")).logins,
+    (await ask<SavedLoginsState>(actor, "/passwords")).logins,
   save: async (actor: ActorStub, input: SaveLoginRequest, by: Caller | undefined) =>
     (
-      await ask<{ login: SavedLogin }>(actor, "", {
+      await ask<{ login: SavedLogin }>(actor, "/passwords", {
         method: "POST",
         body: JSON.stringify(input),
         ...(by === undefined ? {} : { by }),
@@ -497,7 +502,7 @@ export const vault = {
   /** The login itself, password and all, for the one sign-in it is about to be used for. */
   use: async (actor: ActorStub, id: string, agent: string): Promise<SignInWith> =>
     (
-      await ask<{ login: SignInWith }>(actor, `/${encodeURIComponent(id)}/use`, {
+      await ask<{ login: SignInWith }>(actor, `/passwords/${encodeURIComponent(id)}/use`, {
         method: "POST",
         body: JSON.stringify({ agent }),
       })

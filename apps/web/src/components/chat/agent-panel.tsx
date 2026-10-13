@@ -36,7 +36,7 @@ import { agentPanelColumn } from "@/lib/columns"
 import { creatureWardrobeAtom } from "@/lib/creature"
 import { formatBytes, isViewable } from "@/lib/library"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
-import { signInOf, signInWords } from "@/lib/passwords"
+import { keptLine } from "@/lib/passwords"
 import { cn } from "@/lib/utils"
 
 import { ThreadRows } from "./agent-threads.tsx"
@@ -93,7 +93,7 @@ const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-d
 function Step({ part }: { part: ToolPart }) {
   const going = part.status === "pending" || part.status === "running"
   const output = part.output?.trim() ?? ""
-  const signIn = signInOf(part)
+  const kept = keptLine(part)
   return (
     <li>
       <Collapsible className="group/step">
@@ -109,12 +109,8 @@ function Step({ part }: { part: ToolPart }) {
           <span className="line-clamp-1 min-w-0 flex-1 break-all group-data-open/step:line-clamp-none">
             {/* A step on a screen says what it did there, not only that it used it. */}
             {useOf(part)?.say ??
-              // A sign-in says how it went, which what it was called with does not.
-              (signIn === undefined
-                ? going
-                  ? toolActivity(part)
-                  : toolSummary(part)
-                : signInWords(signIn, going).words)}
+              // A sign-in or a payment says how it went, which what it was called with does not.
+              (kept === undefined ? (going ? toolActivity(part) : toolSummary(part)) : kept.words)}
           </span>
         </CollapsibleTrigger>
         <CollapsibleContent>

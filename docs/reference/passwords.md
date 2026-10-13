@@ -1,4 +1,4 @@
-# Saved passwords
+# Saved passwords and cards
 
 A workspace can keep logins for its Doods to sign in to websites with: a name, a username, a
 password, and the sites it is for. A Dood uses one without ever being shown the password.
@@ -63,6 +63,45 @@ workspace's settings. Nothing shows a saved password again, to a person or to a 
 - **A code or a puzzle after the password is the person's to do**, in the browser's window.
   One-time codes are not kept yet.
 
+## Paying with a saved card
+
+A workspace can also keep cards, where the deployment names them (`DC_SECRET_KINDS`). A Dood
+pays with one without being shown its number.
+
+1. The Dood gets the page ready with its `browser` tool: everything chosen, the total showing,
+   the card's boxes on the page.
+2. It calls `pay` with the words on the button that pays, what it says the payment is for, and
+   whatever else the page needs filled in beside the card, such as an e-mail address.
+3. A request appears above the message box, every time: the site as the browser has it, the
+   card, the button that will be pressed, and the Dood's own words for what is being bought.
+   Whoever says yes types the card's security code there.
+4. The computer's own program loads the page afresh, fills in the other boxes and the card,
+   presses the button, and takes the card out of the page again if the page is still there.
+
+What is different from a login, and why:
+
+- **The security code is never kept.** It is typed with each yes, held in memory for that one
+  payment, and written nowhere. A copy of everything the server keeps is a card with no code.
+- **A card has no site of its own.** A login is typed only on its sites; a card is meant for
+  shops nobody listed. So a person is the check, every time: there is no "Always allow", and a
+  scheduled run, a sub-agent and Slack cannot pay at all. Read the site in the request.
+- **What it is for is the Dood's word.** The request says so. Nothing checks it against the page.
+- **The card is typed and the button pressed in one step.** A card's boxes are ordinary boxes,
+  and a number left sitting in one could be read by the Dood's next look at the page.
+- **The boxes are usually inside the payment company's own frame** (Stripe and the like). The
+  computer types into those too. This was tried against Stripe's test pages and against pages
+  of our own; other payment companies' pages were not tried.
+- **A page that forgets where it was when loaded afresh cannot be paid on**, since nothing a
+  Dood did to the page before may still be running when the card is typed.
+- **A bank's own check after the button** (a code, an approval in its app) is the person's to
+  do, in the browser's window.
+
+A card made for the purpose with a spending limit is the safer one to save. While saved cards
+are for a deployment's admins alone, a card kept is its admin's own. Before cards are opened to
+anyone else on a deployment that other people use, whoever runs it should either keep cards on
+each person's own computer or learn what the card industry's rules (PCI DSS) ask of it: this
+was built without an answer to that.
+
 ## Who has it
 
 `DC_SECRETS` says, for the whole deployment:
@@ -72,6 +111,9 @@ workspace's settings. Nothing shows a saved password again, to a person or to a 
 | unset, or `admins` | Only the people `DC_ADMIN_EMAILS` names, and only in a workspace where everyone is one of them: their own, usually. |
 | `on`               | Everyone.                                                                                                           |
 | `off`              | Nobody. There is no page, no form, and no `sign_in` tool, and a Dood is told nothing of it.                         |
+
+`DC_SECRET_KINDS` says which kinds are kept: `passwords`, which is all an unset one means, or
+`passwords,cards`. Cards are had by the same workspaces as passwords, once they are named.
 
 - Admins only is what an unset variable means, so that a deployment is closed to everyone else
   without anything having to be set, and stays closed if a setting is lost.

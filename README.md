@@ -125,7 +125,9 @@ Follow https://raw.githubusercontent.com/SawyerHood/do-computer/main/docs/self-h
 - **The web app.** It works on a phone too, can be added to the home screen, and sends
   notifications. See [Notifications](docs/reference/notifications.md).
 - **The desktop app**, for macOS, Windows and Linux. It shows your deployment in a window of
-  its own and lets your Doods work on that computer. Download it from the
+  its own and lets your Doods work on that computer. With no deployment it runs Do Computer
+  itself, on your computer, and can serve it to your other devices over Tailscale. Download it
+  from the
   [latest release](https://github.com/SawyerHood/do-computer/releases/latest), or see
   [Desktop app](docs/reference/desktop.md).
 - **The mobile app**, an Expo app for iOS and Android that you build from source. See

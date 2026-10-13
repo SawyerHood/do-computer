@@ -96,6 +96,7 @@ const pretendBrowser: BrowserIO = {
   close: async () => {},
   front: async () => ({ own: true }),
   signIn: async () => ({ outcome: "failed", message: "Not something this one does.", own: true }),
+  pay: async () => ({ outcome: "failed", message: "Not something this one does.", own: true }),
 }
 
 /** Run a daemon for computer `id`, connected to its link in memory. */

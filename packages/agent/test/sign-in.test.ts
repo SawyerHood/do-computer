@@ -6,7 +6,12 @@ import { nodeDaemonIO } from "@do-computer/computers/node"
 import type {
   ApprovalsState,
   BrowserFront,
+  BrowserPaid,
   BrowserSignedIn,
+  PayDetails,
+  PayField,
+  PayWith,
+  SavedCard,
   ChatState,
   ChatSummary,
   SecretRequest,
@@ -23,7 +28,13 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterAll, describe, expect, it } from "vitest"
-import { computerActorName, createAgentActor, createModelAccessActor, vault } from "../src/index.ts"
+import {
+  cardVault,
+  computerActorName,
+  createAgentActor,
+  createModelAccessActor,
+  vault,
+} from "../src/index.ts"
 
 const PASSWORD = "tr0ub4dor & 3 horses"
 
@@ -48,6 +59,8 @@ const models = createModels()
 models.setProvider(faux.provider)
 /** Which agents' workspaces keep logins, as their host would answer. */
 const having = new Set(["agent-1"])
+/** And which keep cards. */
+const paying = new Set(["agent-4"])
 const agents = new NodeActorNamespace({
   directory: join(directory, "agents"),
   blobs: (name) => fileBlobs(join(directory, "blobs", encodeURIComponent(name))),
@@ -62,6 +75,7 @@ const agents = new NodeActorNamespace({
       sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
       computerLinks: links,
       savedLogins: async (agentId) => (having.has(agentId) ? workspaces.get("team") : undefined),
+      savedCards: async (agentId) => (paying.has(agentId) ? workspaces.get("team") : undefined),
     }),
 })
 afterAll(async () => {
@@ -83,6 +97,9 @@ const browser = {
   outcome: "signed_in" as BrowserSignedIn["outcome"],
   /** Whether it got as far as typing the password. */
   typed: true,
+  /** What it was handed to pay with, and how paying goes. */
+  paid: [] as { card: PayWith; fields: PayField[]; button: string }[],
+  paying: "sent" as BrowserPaid["outcome"],
 }
 const pretendBrowser = {
   run: async () => ({ output: "", shots: [], own: false }),
@@ -102,6 +119,22 @@ const pretendBrowser = {
       typed: browser.typed,
       url: "https://github.com/",
       title: "GitHub",
+      own: false,
+    }
+  },
+  pay: async (
+    _agent: unknown,
+    card: PayWith,
+    options: { fields: PayField[]; button: string },
+  ): Promise<BrowserPaid> => {
+    browser.paid.push({ card, fields: options.fields, button: options.button })
+    return {
+      outcome: browser.paying,
+      message: browser.paying === "sent" ? "" : "There is no box for a card's number on the page.",
+      site: new URL(browser.front.url!).hostname,
+      typed: browser.typed,
+      url: "https://shop.example/thanks",
+      title: "Thank you",
       own: false,
     }
   },
@@ -143,7 +176,7 @@ async function startDaemon(id: string, signIn: boolean) {
     version: "t",
     jobs: true,
     browser: true,
-    ...(signIn ? { signIn: true } : {}),
+    ...(signIn ? { signIn: true, pay: true } : {}),
   }
   listeners.forEach((listener) => listener(JSON.stringify(hello), false))
   daemon.onOpen()
@@ -583,5 +616,243 @@ describe("a computer whose program is from before signing in", () => {
     expect(last.status).toBe("error")
     expect(JSON.stringify(last.output)).toContain("too old")
     expect(browser.handed).toEqual([])
+  })
+})
+
+describe("paying with a saved card", () => {
+  const NUMBER = "4242424242424242"
+  let chat: ChatSummary
+  let audited: Record<string, unknown>[]
+  let card: SavedCard | undefined
+
+  const saveCard = async (body: Record<string, unknown>) =>
+    workspaces.get("team").fetch(
+      new Request("http://vault/cards", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    )
+  /** The model asks to pay, then says a word once it has heard how that went. */
+  const pays = (args: Record<string, unknown> = {}) => [
+    fauxAssistantMessage(
+      [
+        fauxToolCall("pay", {
+          computer: "MacBook",
+          button: "Pay $12.98",
+          purpose: "The domain tidewater.studio for a year, $12.98",
+          fields: [{ box: "Email", text: "sawyer@example.com" }],
+          ...args,
+        }),
+      ],
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("ok"),
+  ]
+  const payOf = (part: ToolPart) => (part.details as unknown as PayDetails | undefined)?.pay
+  const answer = (id: string, body: Record<string, unknown>) =>
+    ask("agent-4", `/approvals/${id}`, "POST", body)
+
+  it("keeps a card without its number being shown, and no security code at all", async () => {
+    ;({ chat, audited } = await setUp("agent-4"))
+    const saved = await saveCard({
+      number: "4242 4242 4242 4242",
+      expMonth: 8,
+      expYear: 2040,
+      holder: "Sawyer Hood",
+      postalCode: "94107",
+      // A code sent anyway is not something there is anywhere to put.
+      code: "123",
+    })
+    expect(saved.status).toBe(201)
+    const text = await saved.text()
+    expect(text).not.toContain(NUMBER)
+    expect(text).not.toContain("4242 4242")
+    ;[card] = await cardVault.list(workspaces.get("team"))
+    expect(card).toMatchObject({
+      name: "Visa ending 4242",
+      brand: "Visa",
+      last4: "4242",
+      expMonth: 8,
+      expYear: 2040,
+      holder: "Sawyer Hood",
+      postalCode: "94107",
+    })
+    expect(JSON.stringify(card)).not.toContain("123")
+    // What is not a card's number, and a card that has run out, are not kept.
+    for (const bad of [
+      { number: "4242424242424241", expMonth: 8, expYear: 2040 },
+      { number: NUMBER, expMonth: 1, expYear: 2020 },
+      { number: NUMBER, expMonth: 13, expYear: 2040 },
+    ]) {
+      expect((await saveCard(bad)).status).toBe(400)
+    }
+    expect(await cardVault.list(workspaces.get("team"))).toHaveLength(1)
+  })
+
+  it("asks every time, saying the site, the button and what the Dood says it is for", async () => {
+    browser.front = { url: "https://shop.example/checkout", title: "Checkout", own: false }
+    faux.setResponses(pays())
+    const [first] = tools(await say("agent-4", chat.id, "buy the domain"))
+    expect(first!.status).toBe("error")
+    expect(browser.paid).toEqual([])
+    const { pending, subjects } = await call<ApprovalsState>("agent-4", "/approvals")
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toMatchObject({
+      title: "Pay on shop.example with Visa ending 4242",
+      onceOnly: true,
+      wants: { label: "Security code" },
+    })
+    expect(pending[0]!.detail).toBe(
+      [
+        "Card: Visa ending 4242",
+        "Page: https://shop.example/checkout",
+        "It will press: “Pay $12.98”",
+        "It says: “The domain tidewater.studio for a year, $12.98”",
+      ].join("\n"),
+    )
+    // There is no rule to set for it: it is asked about whatever anyone said.
+    expect(subjects.map((subject) => subject.id)).not.toContain("tool:pay")
+  })
+
+  it("takes no yes without the card's security code, and none that is not one", async () => {
+    const { pending } = await call<ApprovalsState>("agent-4", "/approvals")
+    for (const body of [
+      { decision: "once" },
+      { decision: "once", typed: "12" },
+      { decision: "always", typed: "abc" },
+    ]) {
+      const refused = await answer(pending[0]!.id, body)
+      expect(refused.status).toBe(400)
+      expect(((await refused.json()) as { error: string }).error).toContain("security code")
+    }
+    expect(browser.paid).toEqual([])
+    expect((await call<ApprovalsState>("agent-4", "/approvals")).pending).toHaveLength(1)
+  })
+
+  it("pays once someone says yes with the code, and keeps nothing of the card in the chat", async () => {
+    const { pending } = await call<ApprovalsState>("agent-4", "/approvals")
+    faux.setResponses(pays())
+    const state = await after("agent-4", chat.id, async () => {
+      expect((await answer(pending[0]!.id, { decision: "once", typed: "987" })).status).toBe(200)
+    })
+    // The computer was handed the card whole, with the code that was typed, to pay with.
+    expect(browser.paid).toEqual([
+      {
+        card: {
+          name: "Visa ending 4242",
+          holder: "Sawyer Hood",
+          number: NUMBER,
+          expMonth: 8,
+          expYear: 2040,
+          code: "987",
+          postalCode: "94107",
+        },
+        fields: [{ box: "Email", text: "sawyer@example.com" }],
+        button: "Pay $12.98",
+      },
+    ])
+    const last = tools(state).at(-1)!
+    expect(last.status).toBe("done")
+    expect(payOf(last)).toEqual({
+      computer: { id: "mac-agent-4", name: "MacBook" },
+      card: "Visa ending 4242",
+      last4: "4242",
+      site: "shop.example",
+      outcome: "sent",
+    })
+    // Nowhere the agent keeps or shows anything is there a card's number or its code.
+    const shown = await everythingShown("agent-4", chat.id)
+    expect(shown).not.toContain(NUMBER)
+    // The code is three digits, which a time or an id may hold by chance: it is looked for in
+    // the words that are kept, not in those.
+    const kept: string[] = []
+    const gather = (value: unknown, key = "") => {
+      if (typeof value === "string" && key !== "id" && key !== "toolCallId") kept.push(value)
+      else if (typeof value === "object" && value !== null) {
+        for (const [name, inner] of Object.entries(value)) gather(inner, name)
+      }
+    }
+    gather(JSON.parse(shown))
+    expect(kept.length).toBeGreaterThan(10)
+    expect(kept.filter((text) => text.includes("987"))).toEqual([])
+    expect(JSON.stringify(audited)).not.toContain(NUMBER)
+    expect((await cardVault.list(workspaces.get("team")))[0]?.usedAt).toBeTypeOf("number")
+  })
+
+  it("asks again the next time, code and all", async () => {
+    browser.paid.length = 0
+    faux.setResponses(pays())
+    await say("agent-4", chat.id, "and buy it again")
+    expect(browser.paid).toEqual([])
+    const { pending } = await call<ApprovalsState>("agent-4", "/approvals")
+    expect(pending).toHaveLength(1)
+    faux.setResponses([fauxAssistantMessage("understood")])
+    await after("agent-4", chat.id, () => answer(pending[0]!.id, { decision: "deny" }))
+    expect(browser.paid).toEqual([])
+  })
+
+  it("keeps the yes and the code where nothing of the card was typed, for the next try", async () => {
+    const here = await call<ChatSummary>("agent-4", "/chats", "POST", {})
+    browser.paid.length = 0
+    faux.setResponses(pays())
+    await say("agent-4", here.id, "buy it")
+    const { pending } = await call<ApprovalsState>("agent-4", "/approvals")
+    // The page had no card boxes yet: the computer typed nothing.
+    browser.paying = "no_form"
+    browser.typed = false
+    faux.setResponses(pays())
+    const state = await after("agent-4", here.id, () =>
+      answer(pending[0]!.id, { decision: "once", typed: "987" }),
+    )
+    expect(payOf(tools(state).at(-1)!)?.outcome).toBe("no_form")
+    browser.paying = "sent"
+    browser.typed = true
+    faux.setResponses(pays())
+    const last = tools(await say("agent-4", here.id, "the boxes are there now")).at(-1)!
+    expect(last.status).toBe("done")
+    expect(browser.paid.at(-1)?.card.code).toBe("987")
+    expect((await call<ApprovalsState>("agent-4", "/approvals")).pending).toEqual([])
+  })
+
+  it("types nothing of a card where the page changed between the asking and the doing", async () => {
+    const here = await call<ChatSummary>("agent-4", "/chats", "POST", {})
+    browser.paid.length = 0
+    faux.setResponses(pays())
+    await say("agent-4", here.id, "buy it")
+    const { pending } = await call<ApprovalsState>("agent-4", "/approvals")
+    const elsewhere = {
+      url: "https://shop.example.evil.test/checkout",
+      title: "Checkout",
+      own: false,
+    }
+    faux.setResponses([
+      () => {
+        browser.next = [browser.front, elsewhere]
+        return pays()[0]!
+      },
+      fauxAssistantMessage("ok"),
+    ])
+    const state = await after("agent-4", here.id, () =>
+      answer(pending[0]!.id, { decision: "once", typed: "987" }),
+    )
+    const last = tools(state).at(-1)!
+    expect(last.status).toBe("error")
+    expect(JSON.stringify(last.output)).toContain("changed while this was being asked about")
+    expect(browser.paid).toEqual([])
+  })
+
+  it("is not something an agent whose workspace keeps no cards is told of", async () => {
+    let told = ""
+    faux.setResponses([
+      (context) => {
+        told = JSON.stringify(context.messages.filter((message) => message.role !== "user"))
+        return fauxAssistantMessage("hello")
+      },
+    ])
+    const other = await call<ChatSummary>("agent-1", "/chats", "POST", {})
+    await say("agent-1", other.id, "hello")
+    expect(told).toContain("`sign_in`")
+    expect(told).not.toContain("`pay`")
   })
 })

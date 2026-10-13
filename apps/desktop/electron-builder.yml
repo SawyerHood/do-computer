@@ -13,6 +13,7 @@ directories:
 files:
   - dist/**
   - "!dist/driver/**"
+  - "!dist/server/**"
   - package.json
 # The driver that uses the screen for agents is programs for one system, which cannot be run
 # from inside the app's one packed file. It goes beside it: Resources/driver/node_modules.
@@ -20,6 +21,11 @@ extraResources:
   # Named whole, because a folder called node_modules is otherwise left behind.
   - from: dist/driver/node_modules
     to: driver/node_modules
+    filter: ["**/*"]
+  # Do Computer itself, which the app runs as a program where its owner has no server: one file
+  # and the pages it serves, as files beside the app's one packed file.
+  - from: dist/server
+    to: server
     filter: ["**/*"]
   # Whose work the driver, the app's fonts and some of its code are, and on what terms.
   - from: ../../THIRD_PARTY_NOTICES.md

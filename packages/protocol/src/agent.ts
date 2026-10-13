@@ -520,6 +520,11 @@ export type ApprovalRequest = {
   createdAt: number
   /** It is asked about every time: "always" is not an answer that can be given. */
   onceOnly?: boolean
+  /**
+   * Something whoever says yes has to type as they do, which is kept nowhere and used for
+   * this once: a card's security code. Absent for a request that wants nothing typed.
+   */
+  wants?: { label: string }
 }
 
 export type ApprovalDecision = "once" | "always" | "deny"

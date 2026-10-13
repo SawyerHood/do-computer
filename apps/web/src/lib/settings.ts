@@ -34,19 +34,19 @@ export type AgentSection = (typeof AGENT_SECTIONS)[number]
 
 /**
  * The sections of one workspace's settings. `people` is only there for a team, and `passwords`
- * only where the workspace keeps logins and the person may see them.
+ * only where the workspace keeps logins or cards and the person may see them.
  */
 export const WORKSPACE_SECTIONS = ["people", "computers", "models", "passwords"] as const
 export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number]
 
 /** The sections one workspace's settings have, in the order they are listed. */
 export function workspaceSections(
-  workspace: Pick<WorkspaceSummary, "kind" | "savedLogins">,
+  workspace: Pick<WorkspaceSummary, "kind" | "savedLogins" | "savedCards">,
 ): WorkspaceSection[] {
   return WORKSPACE_SECTIONS.filter(
     (section) =>
       (section !== "people" || workspace.kind === "team") &&
-      (section !== "passwords" || workspace.savedLogins === true),
+      (section !== "passwords" || workspace.savedLogins === true || workspace.savedCards === true),
   )
 }
 

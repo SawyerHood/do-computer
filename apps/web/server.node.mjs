@@ -67,10 +67,22 @@ server.node.server.on("upgrade", async (incoming, socket, head) => {
 
 console.log(`Do Computer listening on ${server.url}`)
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.once(signal, async () => {
-    for (const client of sockets.clients) client.close(1001, "Server is shutting down")
-    await server.close()
-    process.exit(0)
-  })
+let stopping = false
+async function stop() {
+  if (stopping) return
+  stopping = true
+  for (const client of sockets.clients) client.close(1001, "Server is shutting down")
+  // A connection that is slow to go must not keep the server from stopping.
+  setTimeout(() => process.exit(0), 3_000).unref()
+  await server.close()
+  process.exit(0)
+}
+
+for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, stop)
+
+// The desktop app runs the server as part of itself, and tells it to stop by closing its
+// input. That is also how the server ends if the app is killed, on every system.
+if (process.env.DC_STOP_WITH_INPUT === "1") {
+  process.stdin.on("end", stop).on("close", stop).on("error", stop)
+  process.stdin.resume()
 }

@@ -8,6 +8,9 @@ import {
   type ApprovalRule,
   type ApprovalsState,
   type ChangeLoginRequest,
+  type SavedCard,
+  type SavedCardsState,
+  type SaveCardRequest,
   type SavedLogin,
   type SavedLoginsState,
   type SaveLoginRequest,
@@ -489,6 +492,15 @@ export function createClient(options: ClientOptions) {
           request<{ ok: true }>(`${base}/passwords/${encodeURIComponent(loginId)}`, {
             method: "DELETE",
           }),
+        /** The cards the workspace keeps for its Doods to pay with. No numbers, and no codes. */
+        savedCards: async () => (await request<SavedCardsState>(`${base}/cards`)).cards,
+        /** Save a card. Its number goes to where it is kept, and is never sent back. */
+        saveCard: async (input: SaveCardRequest) =>
+          (await post<{ card: SavedCard }>(`${base}/cards`, input)).card,
+        removeSavedCard: (cardId: string) =>
+          request<{ ok: true }>(`${base}/cards/${encodeURIComponent(cardId)}`, {
+            method: "DELETE",
+          }),
         /** The model providers there are, and which the workspace is signed in to. */
         modelProviders: async () =>
           (await request<ModelProvidersState>(`${base}/model-providers`)).providers,
@@ -874,8 +886,16 @@ export function createClient(options: ClientOptions) {
         setApprovalRules: (rules: Record<string, ApprovalRule>) =>
           patch<ApprovalsState>(`${base}/approvals/rules`, rules),
         /** Answer something the agent asked to do. */
-        answerApproval: (requestId: string, decision: ApprovalDecision) =>
-          post<{ ok: true }>(`${base}/approvals/${requestId}`, { decision }),
+        answerApproval: (
+          requestId: string,
+          decision: ApprovalDecision,
+          /** What the request wanted typed with a yes: a card's security code. Kept nowhere. */
+          typed?: string,
+        ) =>
+          post<{ ok: true }>(`${base}/approvals/${requestId}`, {
+            decision,
+            ...(typed === undefined ? {} : { typed }),
+          }),
         /** What the agent has spent on models so far. */
         usage: () => request<AgentUsage>(`${base}/usage`),
         /** What its creature has been given and has on: its boxes, when the next is due, and its things. */

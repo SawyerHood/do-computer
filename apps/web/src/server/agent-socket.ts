@@ -1,7 +1,6 @@
-import { getPlatform } from "#platform"
 import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
 import { agentFor } from "./agents.ts"
-import { getUser } from "./auth.ts"
+import { fromApp, getUser } from "./auth.ts"
 
 /**
  * Where a browser connects to follow an agent, and to follow the library of the agent's
@@ -32,14 +31,9 @@ export async function admitToAgent(
   request: Request,
   agentId: string,
 ): Promise<{ request: Request; workspaceId: string } | undefined> {
-  const { config } = getPlatform()
   // A browser sends cookies with a WebSocket to any site that asks, so a page elsewhere could
   // open one as the signed-in user. Only the app's own pages may.
-  const origin = request.headers.get("origin")
-  const allowed = new URL(config.baseUrl ?? request.url).origin
-  if (origin !== null && origin !== allowed && origin !== new URL(request.url).origin) {
-    return undefined
-  }
+  if (!fromApp(request)) return undefined
   const user = await getUser(request)
   if (user === undefined) return undefined
   const access = await agentFor(user, agentId)

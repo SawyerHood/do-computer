@@ -31,9 +31,16 @@ vi.mock("#platform", () => ({
   }),
 }))
 
-const { changeSavedLogin, listSavedLogins, removeSavedLogin, saveLogin } =
-  await import("./passwords.ts")
-const { hasSavedLogins, savedLoginsDirectory, withSavedLogins } =
+const {
+  changeSavedLogin,
+  listSavedCards,
+  listSavedLogins,
+  removeSavedCard,
+  removeSavedLogin,
+  saveCard,
+  saveLogin,
+} = await import("./passwords.ts")
+const { hasSaved, hasSavedLogins, savedDirectory, withSavedLogins } =
   await import("./passwords-directory.ts")
 const { createWorkspace, listWorkspaces } = await import("./teams.ts")
 
@@ -232,7 +239,7 @@ describe("where an agent finds its workspace's saved logins", () => {
     await agentIn("a-admins", sawyer, admins)
     await agentIn("a-mixed", sawyer, mixed)
     await agentIn("a-jon", jon, null)
-    const find = savedLoginsDirectory(app, namespace, settings())
+    const find = savedDirectory(app, namespace, settings(), "passwords")
     expect(await find("a-sawyer")).toBeDefined()
     expect(await find("a-admins")).toBeDefined()
     expect(await find("a-mixed")).toBeUndefined()
@@ -248,13 +255,13 @@ describe("where an agent finds its workspace's saved logins", () => {
 
   it("is nowhere for any agent where saved logins are off", async () => {
     await agentIn("a-sawyer", sawyer, null)
-    const find = savedLoginsDirectory(app, namespace, settings({ DC_SECRETS: "off" }))
+    const find = savedDirectory(app, namespace, settings({ DC_SECRETS: "off" }), "passwords")
     expect(await find("a-sawyer")).toBeUndefined()
   })
 
   it("is lost to a team's agents once someone who is not an admin is in it", async () => {
     await agentIn("a-admins", sawyer, admins)
-    const find = savedLoginsDirectory(app, namespace, settings())
+    const find = savedDirectory(app, namespace, settings(), "passwords")
     expect(await find("a-admins")).toBeDefined()
     await join2(admins, jon)
     expect(await find("a-admins")).toBeUndefined()
@@ -345,5 +352,98 @@ describe("the gateway to a workspace's saved logins", () => {
     )
     expect(refused.status).toBe(400)
     expect(((await refused.json()) as { error: string }).error).toContain("is not a site")
+  })
+})
+
+describe("cards", () => {
+  const NUMBER = "4242424242424242"
+  const visa = { number: "4242 4242 4242 4242", expMonth: 8, expYear: 2040, holder: "Sawyer Hood" }
+  const withCards = { DC_ADMIN_EMAILS: ADMINS, DC_SECRET_KINDS: "passwords,cards" }
+
+  it("are a kind a deployment names, and are not kept where it names passwords alone", () => {
+    expect(readConfig({}).secretKinds).toEqual(["passwords"])
+    expect(readConfig({ DC_SECRET_KINDS: "" }).secretKinds).toEqual(["passwords"])
+    expect(readConfig({ DC_SECRET_KINDS: "passwords, Cards" }).secretKinds).toEqual([
+      "passwords",
+      "cards",
+    ])
+    expect(readConfig({ DC_SECRET_KINDS: "cards" }).secretKinds).toEqual(["cards"])
+    expect(() => readConfig({ DC_SECRET_KINDS: "passwords,card" })).toThrow(ConfigError)
+  })
+
+  it("are had by the workspaces that have saved logins, once the deployment names them", async () => {
+    const mine = personalWorkspaceId(sawyer.id)
+    expect(await hasSaved(app, settings(), mine, "cards")).toBe(false)
+    expect(await hasSaved(app, readConfig(withCards), mine, "cards")).toBe(true)
+    expect(await hasSaved(app, readConfig(withCards), admins, "cards")).toBe(true)
+    // Not by someone who is not an admin, nor by a team they are in.
+    expect(await hasSaved(app, readConfig(withCards), personalWorkspaceId(jon.id), "cards")).toBe(
+      false,
+    )
+    expect(await hasSaved(app, readConfig(withCards), mixed, "cards")).toBe(false)
+    // Nor by anyone where all of it is off.
+    expect(
+      await hasSaved(app, readConfig({ ...withCards, DC_SECRETS: "off" }), mine, "cards"),
+    ).toBe(false)
+    // Named alone, they are kept without logins.
+    const only = readConfig({ DC_ADMIN_EMAILS: ADMINS, DC_SECRET_KINDS: "cards" })
+    expect(await hasSaved(app, only, mine, "cards")).toBe(true)
+    expect(await hasSavedLogins(app, only, mine)).toBe(false)
+    const marked = await withSavedLogins(
+      app,
+      readConfig(withCards),
+      await listWorkspaces(app, { ...sawyer, image: null } as never),
+    )
+    expect(marked.map((workspace: WorkspaceSummary) => workspace.savedCards === true)).toEqual([
+      true,
+      true,
+      false,
+    ])
+  })
+
+  it("are found by an agent only where its workspace has them", async () => {
+    await app.run(
+      "INSERT INTO dc_agents (id, owner_id, workspace_id, created_at) VALUES ('a-sawyer', ?, NULL, 0)",
+      sawyer.id,
+    )
+    expect(await savedDirectory(app, namespace, settings(), "cards")("a-sawyer")).toBeUndefined()
+    expect(
+      await savedDirectory(app, namespace, readConfig(withCards), "cards")("a-sawyer"),
+    ).toBeDefined()
+  })
+
+  it("answer as if there were no such thing where the deployment does not name them", async () => {
+    expect((await listSavedCards(sawyer, admins)).status).toBe(404)
+    expect((await saveCard(sawyer, request("POST", visa), admins)).status).toBe(404)
+  })
+
+  it("are saved, listed with the last four digits and no more, and removed", async () => {
+    world.env = withCards
+    const made = await saveCard(sawyer, request("POST", visa), admins)
+    expect(made.status).toBe(201)
+    const listed = await listSavedCards(maya, admins)
+    const text = await listed.text()
+    const { cards } = JSON.parse(text) as { cards: { id: string; name: string; last4: string }[] }
+    expect(cards).toMatchObject([{ name: "Visa ending 4242", last4: "4242" }])
+    for (const answer of [await made.text(), text]) {
+      expect(answer).not.toContain(NUMBER)
+      expect(answer).not.toContain("4242 4242")
+    }
+    // Not for someone outside the workspace.
+    expect((await listSavedCards(jon, admins)).status).toBe(404)
+    expect((await removeSavedCard(jon, admins, cards[0]!.id)).status).toBe(404)
+    expect((await removeSavedCard(sawyer, admins, cards[0]!.id)).status).toBe(200)
+    expect(await (await listSavedCards(sawyer, admins)).json()).toEqual({ cards: [] })
+  })
+
+  it("say what is wrong with a number that is not a card's", async () => {
+    world.env = withCards
+    const refused = await saveCard(
+      sawyer,
+      request("POST", { ...visa, number: "1234 5678 9012 3456" }),
+      admins,
+    )
+    expect(refused.status).toBe(400)
+    expect(((await refused.json()) as { error: string }).error).toContain("not a card number")
   })
 })

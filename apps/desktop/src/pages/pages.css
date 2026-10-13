@@ -294,3 +294,101 @@ main.centered {
   flex-direction: column;
   gap: 8px;
 }
+
+/* A page that may be taller than its window scrolls as a whole. */
+main.scrolls {
+  overflow-y: auto;
+}
+main.scrolls > * {
+  flex: none;
+}
+
+/* Where Do Computer runs: one of two, each with what it means under its name. */
+fieldset.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+fieldset.choices legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 500;
+}
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  cursor: pointer;
+}
+.choice[data-on="true"] {
+  border-color: var(--teal);
+  background: color-mix(in oklch, var(--teal) 7%, var(--canvas));
+}
+.choice > input {
+  flex: none;
+  margin: 3px 0 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--teal);
+}
+.choice > .grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.choice label[for] {
+  cursor: pointer;
+}
+.choice input[type="text"] {
+  margin-top: 6px;
+  background: var(--canvas);
+}
+label.check.inner {
+  margin-top: 8px;
+  cursor: pointer;
+}
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* The app's own server, as its owner's other devices reach it. */
+.address {
+  font:
+    13px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  user-select: text;
+}
+.row.top {
+  align-items: flex-start;
+  gap: 16px;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+svg.qr {
+  flex: none;
+  width: 152px;
+  height: 152px;
+  border-radius: 8px;
+  background: #fff;
+}
+svg.qr[data-spent="true"] {
+  opacity: 0.18;
+}

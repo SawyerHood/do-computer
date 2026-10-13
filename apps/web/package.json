@@ -9,6 +9,7 @@
     "dev:cloudflare": "pnpm generate && DC_TARGET=cloudflare vite dev --port 3000",
     "build": "pnpm generate && vite build && DC_TARGET=cloudflare vite build",
     "build:node": "pnpm generate && vite build",
+    "build:packed": "pnpm generate && node scripts/build-packed.mjs",
     "build:cloudflare": "pnpm generate && DC_TARGET=cloudflare vite build",
     "start": "node server.node.mjs",
     "deploy": "pnpm build:cloudflare && node scripts/deploy-settings.mjs && wrangler deploy",

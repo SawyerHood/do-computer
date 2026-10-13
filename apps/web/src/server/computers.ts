@@ -517,6 +517,30 @@ export async function provideFor(agentId: string, workspaceId: string, by: strin
   await tellMachines(agentId)
 }
 
+/**
+ * Where the desktop app runs the server, a new agent is given the computers its maker has
+ * paired, as far as they can be its: the one the app is on, which is where such a server's
+ * agents are meant to work. Elsewhere a computer is given to the agents its owner chooses.
+ */
+export async function giveOwnComputers(
+  agentId: string,
+  workspaceId: string,
+  by: string,
+): Promise<void> {
+  const { db, config } = getPlatform()
+  if (config.ownerKey === undefined) return
+  const rows = await db.all<ComputerRow>(
+    "SELECT * FROM dc_computers WHERE owner_id = ? AND workspace_id = ? AND kind = ? ORDER BY created_at",
+    by,
+    workspaceId,
+    PAIRED_COMPUTER,
+  )
+  for (const row of rows) {
+    // One that cannot be told of it now can be connected later, from Computers.
+    await connect(row, agentId, by).catch(() => undefined)
+  }
+}
+
 /** Add a machine to a workspace, for its agents to share. Anyone in the workspace can. */
 export async function addComputer(user: SessionUser, request: Request): Promise<Response> {
   const { db } = getPlatform()

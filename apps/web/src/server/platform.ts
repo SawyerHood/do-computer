@@ -1,11 +1,23 @@
 import type { ComputerChoices } from "@do-computer/agent"
-import type { SecretsMode } from "@do-computer/protocol"
+import { SECRET_KINDS, type SecretKind, type SecretsMode } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 
 /** Deployment settings, read from the environment of whichever runtime hosts the app. */
 export type Config = {
   /** Public origin of the app, for example https://agent.example.com. */
   readonly baseUrl: string | undefined
+  /**
+   * Other origins the app is reached at besides `baseUrl`: the same server by another name, as
+   * one on a private network is at home and through its tunnel. Sign-in and the live
+   * connections are accepted from them too. Links the server hands out are still to `baseUrl`.
+   */
+  readonly alsoAt: readonly string[]
+  /**
+   * Set where the Do Computer desktop app runs this server itself, for one person, on their
+   * own computer: a secret only the app has. Whoever sends it is signed in as the owner, with
+   * no password. Undefined everywhere else.
+   */
+  readonly ownerKey: string | undefined
   /** Signs sessions. Required outside development. */
   readonly authSecret: string | undefined
   readonly openrouterApiKey: string | undefined
@@ -82,6 +94,11 @@ export type Config = {
    */
   readonly secrets: SecretsMode
   /**
+   * Which kinds of thing are kept for Doods to use unseen (`DC_SECRET_KINDS`): `passwords`,
+   * which is all an unset one means, and `cards` where a deployment names them.
+   */
+  readonly secretKinds: readonly SecretKind[]
+  /**
    * What saved logins are sealed with before they are kept: `DC_SECRETS_KEY`, or the secret
    * that signs sessions where there is none. Changing it makes what was saved unreadable.
    */
@@ -106,6 +123,19 @@ export type Config = {
     readonly resendApiKey: string | undefined
     /** The address mail is sent from, for example `Do Computer <hello@example.com>`. */
     readonly from: string | undefined
+  }
+}
+
+/** The address the owner's account goes by where the desktop app runs the server: nobody types it. */
+export const LOCAL_OWNER_EMAIL = "you@localhost"
+
+/** An address someone wrote down, as the origin a browser would say it is. Undefined: not one. */
+function originOf(address: string): string | undefined {
+  try {
+    const url = new URL(address)
+    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -158,6 +188,22 @@ function secretsMode(value: string | undefined): SecretsMode {
   throw new ConfigError(`DC_SECRETS is "${value}". It must be one of: admins, on, off.`)
 }
 
+function secretKinds(value: string | undefined): readonly SecretKind[] {
+  const names = (value ?? "passwords")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean)
+  for (const name of names) {
+    // A kind that is misspelt must not be taken for one that was not asked for.
+    if (!(SECRET_KINDS as readonly string[]).includes(name)) {
+      throw new ConfigError(
+        `DC_SECRET_KINDS includes "${name}". It is a list of: ${SECRET_KINDS.join(", ")}.`,
+      )
+    }
+  }
+  return names as SecretKind[]
+}
+
 function sandboxKinds(value: string | undefined): readonly SandboxKind[] | undefined {
   const names = (value ?? "")
     .split(",")
@@ -183,11 +229,17 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       .filter(Boolean)
   return {
     baseUrl: optional("DC_BASE_URL"),
+    alsoAt: listed("DC_ALSO_AT").flatMap((address) => originOf(address) ?? []),
+    ownerKey: optional("DC_OWNER_KEY"),
     authSecret: optional("DC_AUTH_SECRET"),
     openrouterApiKey: optional("OPENROUTER_API_KEY"),
     defaultModel: optional("DC_DEFAULT_MODEL"),
     allowedModels: listed("DC_MODELS").length === 0 ? undefined : listed("DC_MODELS"),
-    adminEmails: listed("DC_ADMIN_EMAILS").map((email) => email.toLowerCase()),
+    adminEmails: [
+      ...listed("DC_ADMIN_EMAILS").map((email) => email.toLowerCase()),
+      // The one person a server run by the desktop app is for signs it in for all their Doods.
+      ...(optional("DC_OWNER_KEY") === undefined ? [] : [LOCAL_OWNER_EMAIL]),
+    ],
     searchModel: optional("DC_SEARCH_MODEL"),
     judgeModel: optional("DC_JUDGE_MODEL"),
     reviewModel: optional("DC_REVIEW_MODEL"),
@@ -228,6 +280,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
       instance: optional("DC_CLOUDFLARE_INSTANCE"),
     },
     secrets: secretsMode(optional("DC_SECRETS")),
+    secretKinds: secretKinds(optional("DC_SECRET_KINDS")),
     secretsKey: optional("DC_SECRETS_KEY") ?? optional("DC_AUTH_SECRET"),
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",

@@ -2,6 +2,8 @@
 
 Run Do Computer on a machine of your own or on your own Cloudflare account. It is the same code either way, MIT licensed, and takes about ten minutes.
 
+If it is only for you, on your own computer, there is nothing to set up: the [desktop app](https://github.com/SawyerHood/do-computer/releases/latest) runs Do Computer itself when you choose **On this computer**, and can serve it to your other devices over Tailscale. The rest of this guide is for a server of your own.
+
 > **If you are an agent** setting this up for someone: ask which of the two ways they want before you start. A step marked **Needs you:** needs the person, so ask and wait. Never ask for a key in the chat, never print one, and never write one into a file that git tracks. Run the check under each step, and stop at the first one that fails.
 
 ## Pick where it runs
