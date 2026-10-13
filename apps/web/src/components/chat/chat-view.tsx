@@ -54,6 +54,7 @@ import {
   useSubagents,
 } from "./subagents.tsx"
 import { Transcript } from "./transcript.tsx"
+import { ThinksWith } from "./thinks-with.tsx"
 
 /** Record that the agent's owner has seen it out of its egg, so it is shown hatched from now on. */
 async function markHatched(agentId: string): Promise<void> {
@@ -626,6 +627,7 @@ export function ChatView({
                 sees={models?.find((model) => model.id === agent.model)?.images === true}
                 agentName={name}
                 onAttach={attach}
+                extras={<ThinksWith agent={agent} models={models} />}
               />
             </>
           )}

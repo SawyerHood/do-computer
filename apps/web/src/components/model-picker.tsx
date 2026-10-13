@@ -1,4 +1,5 @@
 import { filterModels, type ModelOption } from "@do-computer/protocol"
+import { MagnifyingGlassIcon } from "@phosphor-icons/react"
 import { useMemo, useState } from "react"
 import {
   Combobox,
@@ -11,6 +12,7 @@ import {
   ComboboxLabel,
   ComboboxList,
 } from "@/components/ui/combobox"
+import { InputGroupAddon } from "@/components/ui/input-group"
 
 /** How many matches are drawn at once. There are hundreds of models; typing narrows them. */
 const SHOWN = 60
@@ -88,6 +90,77 @@ function oneSource(sources: readonly Source[], shown: readonly ModelOption[]): S
   return [{ value: from?.value ?? "", items: [...shown] }]
 }
 
+/** What is drawn of the models for what has been typed, and how many matches were left out. */
+function useShown(models: readonly ModelOption[], query: string) {
+  const matches = useMemo(() => filterModels(models, query), [models, query])
+  const sources = useMemo(() => bySource(models), [models])
+  // In the order they are drawn, which with sources is source by source.
+  const ordered = useMemo(() => {
+    const grouped = sources === undefined ? undefined : bySource(matches)
+    return grouped === undefined ? matches : grouped.flatMap(flat)
+  }, [sources, matches])
+  const shown = useMemo(() => ordered.slice(0, SHOWN), [ordered])
+  const shownSources = useMemo(
+    () => (sources === undefined ? undefined : (bySource(shown) ?? oneSource(sources, shown))),
+    [sources, shown],
+  )
+  return { sources, shown, shownSources, more: matches.length - shown.length }
+}
+
+/** A model in the list. `brief` leaves its id out, where there is not the room across for both. */
+const row = (brief: boolean) => (model: ModelOption) => (
+  <ComboboxItem key={model.id} value={model} className="items-start font-normal">
+    <span className="min-w-0 flex-1">
+      <span className="flex items-baseline gap-2">
+        <span className="truncate font-medium">{model.name}</span>
+        {model.recommended ? (
+          <span className="shrink-0 text-xs text-muted-foreground">suggested</span>
+        ) : null}
+      </span>
+      <span className="block truncate text-xs text-muted-foreground">
+        {brief
+          ? facts(model)
+          : `${model.id.replace(/^openrouter\//, "")}${facts(model) ? ` · ${facts(model)}` : ""}`}
+      </span>
+    </span>
+  </ComboboxItem>
+)
+
+/** The models that are drawn, under their sources where there are several, and what was left out. */
+function Rows({
+  label,
+  shownSources,
+  more,
+  brief = false,
+  className,
+}: {
+  label: string
+  shownSources: Source[] | undefined
+  more: number
+  brief?: boolean
+  className?: string
+}) {
+  return (
+    <>
+      <ComboboxList aria-label={label} className={className}>
+        {shownSources === undefined
+          ? row(brief)
+          : (source: Source) => (
+              <ComboboxGroup key={source.value} items={source.items}>
+                <ComboboxLabel className="pt-3 pb-1 font-medium">{source.value}</ComboboxLabel>
+                <ComboboxCollection>{row(brief)}</ComboboxCollection>
+              </ComboboxGroup>
+            )}
+      </ComboboxList>
+      {more > 0 ? (
+        <p className="border-t px-4.5 py-2 text-xs text-muted-foreground">
+          {more} more. Type to narrow them down.
+        </p>
+      ) : null}
+    </>
+  )
+}
+
 /**
  * Choose one model out of hundreds: a box that shows the current one, and opens into a list that
  * narrows as you type. Arrow keys move, Enter chooses, Escape puts things back.
@@ -106,35 +179,7 @@ export function ModelPicker({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const current = models.find((model) => model.id === value)
-
-  const matches = useMemo(() => filterModels(models, query), [models, query])
-  const sources = useMemo(() => bySource(models), [models])
-  // In the order they are drawn, which with sources is source by source.
-  const ordered = useMemo(() => {
-    const grouped = sources === undefined ? undefined : bySource(matches)
-    return grouped === undefined ? matches : grouped.flatMap(flat)
-  }, [sources, matches])
-  const shown = useMemo(() => ordered.slice(0, SHOWN), [ordered])
-  const shownSources = useMemo(
-    () => (sources === undefined ? undefined : (bySource(shown) ?? oneSource(sources, shown))),
-    [sources, shown],
-  )
-  const row = (model: ModelOption) => (
-    <ComboboxItem key={model.id} value={model} className="items-start font-normal">
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2">
-          <span className="truncate font-medium">{model.name}</span>
-          {model.recommended ? (
-            <span className="shrink-0 text-xs text-muted-foreground">suggested</span>
-          ) : null}
-        </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {model.id.replace(/^openrouter\//, "")}
-          {facts(model) ? ` · ${facts(model)}` : ""}
-        </span>
-      </span>
-    </ComboboxItem>
-  )
+  const { sources, shown, shownSources, more } = useShown(models, query)
 
   return (
     <div>
@@ -177,21 +222,7 @@ export function ModelPicker({
         />
         <ComboboxContent>
           <ComboboxEmpty>No model matches.</ComboboxEmpty>
-          <ComboboxList aria-label={label} className="max-h-80">
-            {shownSources === undefined
-              ? row
-              : (source: Source) => (
-                  <ComboboxGroup key={source.value} items={source.items}>
-                    <ComboboxLabel className="pt-3 pb-1 font-medium">{source.value}</ComboboxLabel>
-                    <ComboboxCollection>{row}</ComboboxCollection>
-                  </ComboboxGroup>
-                )}
-          </ComboboxList>
-          {matches.length > shown.length ? (
-            <p className="border-t px-4.5 py-2 text-xs text-muted-foreground">
-              {matches.length - shown.length} more. Type to narrow them down.
-            </p>
-          ) : null}
+          <Rows label={label} shownSources={shownSources} more={more} className="max-h-80" />
         </ComboboxContent>
       </Combobox>
       {current && !open ? (
@@ -201,5 +232,67 @@ export function ModelPicker({
         </p>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The same choice with nothing to open: a search, and the list under it, for a menu that is
+ * itself what opens. Choosing does not shut anything; that is left to whatever holds it.
+ */
+export function ModelList({
+  label,
+  models,
+  value,
+  onChange,
+  className,
+}: {
+  label: string
+  models: readonly ModelOption[]
+  value: string
+  onChange: (id: string) => void
+  /** For the list, which is what has a height to be given. */
+  className?: string
+}) {
+  const [query, setQuery] = useState("")
+  const current = models.find((model) => model.id === value)
+  const { sources, shown, shownSources, more } = useShown(models, query)
+  return (
+    <Combobox
+      inline
+      open
+      items={sources ?? models}
+      // Narrowed here and not by the list: it is given only as many as it draws at once.
+      filteredItems={shownSources ?? shown}
+      value={current ?? null}
+      onValueChange={(model) => {
+        if (model !== null) onChange(model.id)
+      }}
+      itemToStringLabel={(model) => model.name}
+      itemToStringValue={(model) => model.id}
+      isItemEqualToValue={(a, b) => a.id === b.id}
+      inputValue={query}
+      onInputValueChange={(next, details) => {
+        // Only what is typed is a search: choosing a model writes its name here too.
+        if (details.reason === "input-change") setQuery(next)
+      }}
+      autoHighlight
+    >
+      <ComboboxInput
+        aria-label={`Search ${label.toLowerCase()}s`}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={`Search ${models.length} models`}
+        showTrigger={false}
+        className="w-full rounded-none border-0 border-b border-border bg-transparent shadow-none has-[[data-slot=input-group-control]:focus-visible]:border-border has-[[data-slot=input-group-control]:focus-visible]:ring-0 dark:bg-transparent"
+      >
+        <InputGroupAddon>
+          <MagnifyingGlassIcon />
+        </InputGroupAddon>
+      </ComboboxInput>
+      {shown.length === 0 ? (
+        <p className="py-3 text-center text-sm text-muted-foreground">No model matches.</p>
+      ) : null}
+      <Rows label={label} shownSources={shownSources} more={more} brief className={className} />
+    </Combobox>
   )
 }
