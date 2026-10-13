@@ -1,7 +1,7 @@
 import { getPlatform } from "#platform"
 import { CALLER_HEADER, encodeCaller } from "@do-computer/agent"
 import { isPersonalWorkspace, personalWorkspaceId } from "@do-computer/protocol"
-import { getUser } from "./auth.ts"
+import { fromApp, getUser } from "./auth.ts"
 import { roleIn } from "./teams.ts"
 
 /** Where a member's browser connects to say where it is and hear where the others are. */
@@ -27,14 +27,10 @@ export async function admitToPresence(
   request: Request,
   workspaceId: string,
 ): Promise<Request | undefined> {
-  const { config, db } = getPlatform()
+  const { db } = getPlatform()
   // A browser sends cookies with a WebSocket to any site that asks, so a page elsewhere could
   // open one as the signed-in user. Only the app's own pages may.
-  const origin = request.headers.get("origin")
-  const allowed = new URL(config.baseUrl ?? request.url).origin
-  if (origin !== null && origin !== allowed && origin !== new URL(request.url).origin) {
-    return undefined
-  }
+  if (!fromApp(request)) return undefined
   const user = await getUser(request)
   if (user === undefined) return undefined
   // A personal workspace has nobody to be present for: its address is its owner's own feed,

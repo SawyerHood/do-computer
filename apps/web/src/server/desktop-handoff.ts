@@ -23,7 +23,7 @@ export const DESKTOP_TOKEN_REFUSED =
  * What a token is kept under. The token itself is never kept: whoever can read the table
  * cannot sign in with what is there.
  */
-async function identifier(token: string): Promise<string> {
+export async function handoffIdentifier(token: string): Promise<string> {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))
   return `desktop-sign-in:${Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("")}`
 }
@@ -60,7 +60,7 @@ export const desktopHandoff = () =>
         async (ctx) => {
           const token = generateRandomString(32)
           await ctx.context.internalAdapter.createVerificationValue({
-            identifier: await identifier(token),
+            identifier: await handoffIdentifier(token),
             value: ctx.context.session.user.id,
             expiresAt: new Date(Date.now() + DESKTOP_TOKEN_SECONDS * 1000),
           })
@@ -78,7 +78,7 @@ export const desktopHandoff = () =>
           // settle: see `auth-guard.ts`.
           const kept = await ctx.context.adapter.consumeOne<{ value: string; expiresAt: Date }>({
             model: "verification",
-            where: [{ field: "identifier", value: await identifier(ctx.body.token) }],
+            where: [{ field: "identifier", value: await handoffIdentifier(ctx.body.token) }],
           })
           if (kept === null || new Date(kept.expiresAt) < new Date()) {
             throw ctx.error("BAD_REQUEST", { message: DESKTOP_TOKEN_REFUSED })

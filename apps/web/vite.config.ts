@@ -8,6 +8,9 @@ import { defineConfig, type Plugin } from "vite"
 // One app, two server builds. DC_TARGET picks the runtime-specific server entry and platform
 // module; everything else is shared.
 const target = process.env.DC_TARGET === "cloudflare" ? "cloudflare" : "node"
+// The Node build with everything it imports packed into it, for the desktop app to bring with
+// it: there is no node_modules beside the app to load anything from.
+const packed = target === "node" && process.env.DC_PACKED === "1"
 const resolve = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 /**
@@ -34,11 +37,17 @@ export default defineConfig({
     tsconfigPaths: true,
     alias: { "#platform": resolve(`./src/server/platform.${target}.ts`) },
   },
-  build: { outDir: target === "cloudflare" ? "dist/cloudflare" : "dist/node" },
+  build: {
+    outDir: target === "cloudflare" ? "dist/cloudflare" : packed ? "dist/packed" : "dist/node",
+  },
   // On Node the sandbox providers' SDKs are loaded from node_modules as they are. Bundled, the
   // Daytona SDK cannot find the modules it loads on demand to move files, and every file read
   // and write fails while commands still work.
-  ...(target === "node" ? { ssr: { external: ["@daytona/sdk", "modal"] } } : {}),
+  // Packed, they are still left outside: such a server has no account with either, and never
+  // asks for them.
+  ...(target === "node"
+    ? { ssr: { external: ["@daytona/sdk", "modal"], ...(packed ? { noExternal: true } : {}) } }
+    : {}),
   plugins: [
     ...(target === "cloudflare"
       ? [cloudflare({ viteEnvironment: { name: "ssr" } })]

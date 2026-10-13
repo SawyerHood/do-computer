@@ -5,7 +5,8 @@ import { getMigrations } from "better-auth/db/migration"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
 import { askTwice, NO_SHARED_SCHEMA_CHECK, seedAuthStores } from "./auth-guard.ts"
 import { desktopHandoff } from "./desktop-handoff.ts"
-import type { Platform } from "./platform.ts"
+import { LOCAL_OWNER_METHOD, localOwner } from "./local-owner.ts"
+import { LOCAL_OWNER_EMAIL, type Platform } from "./platform.ts"
 import { migrateAppDatabase, readMeta, writeMeta } from "./schema.ts"
 import { isInvited } from "./teams.ts"
 import { isWaiting, waitlistSince } from "./waitlist.ts"
@@ -59,16 +60,28 @@ function authOptions(platform: Platform) {
         user: Record<string, unknown>
         source: {
           action: string
+          method?: string
           oauth?: { providerId: string; profile?: Record<string, unknown> }
         }
       }) => {
-        // With a waiting list anyone may make an account. What it lets them do is another matter.
-        if (source.action !== "create-user" || config.signup !== "invite") return
+        if (source.action !== "create-user") return
         const email = typeof user.email === "string" ? user.email.toLowerCase() : ""
+        // The owner of a server the desktop app runs is made by the app, which has the key.
+        // Nobody makes an account by that address any other way, with a password of their own.
+        if (source.method === LOCAL_OWNER_METHOD) return
+        if (email === LOCAL_OWNER_EMAIL) {
+          return {
+            error: "signup_not_allowed",
+            errorDescription: "That address is not one an account can be made with.",
+          }
+        }
+        // With a waiting list anyone may make an account. What it lets them do is another matter.
+        if (config.signup !== "invite") return
         if (config.allowedEmails.includes(email)) return
-        // The first account on a fresh deployment is its owner and needs no invitation.
+        // The first account on a fresh deployment is its owner and needs no invitation. Where
+        // the desktop app runs the server its owner is whoever the app says, and makes none.
         const existing = await platform.db.get<{ id: string }>("SELECT id FROM user LIMIT 1")
-        if (existing === undefined) return
+        if (existing === undefined && config.ownerKey === undefined) return
         // Someone a team has asked to join is invited, by the address or the GitHub account
         // the team named.
         const githubId =
@@ -89,11 +102,12 @@ function authOptions(platform: Platform) {
     },
     // No call waits on another's: see the constant.
     advanced: NO_SHARED_SCHEMA_CHECK,
-    // The mobile app signs in from its own URL scheme and keeps the session cookie itself.
-    trustedOrigins: [`${MOBILE_SCHEME}://`],
+    // The mobile app signs in from its own URL scheme and keeps the session cookie itself. The
+    // same server by its other names is the app as well.
+    trustedOrigins: [`${MOBILE_SCHEME}://`, ...config.alsoAt],
     // tanstackStartCookies must stay last: it turns the Set-Cookie headers of server-side calls
     // into response cookies.
-    plugins: [expo(), desktopHandoff(), tanstackStartCookies()],
+    plugins: [expo(), desktopHandoff(), localOwner(config.ownerKey), tanstackStartCookies()],
   } satisfies BetterAuthOptions
 }
 
@@ -202,7 +216,25 @@ export function authMethods() {
     github: Boolean(config.githubClientId && config.githubClientSecret),
     password: config.passwordSignIn,
     signup: config.signup,
+    // The desktop app runs this server for its owner, who has no password to type.
+    ...(config.ownerKey === undefined ? {} : { local: true as const }),
   }
+}
+
+/**
+ * Whether a request that names where it came from came from the app itself: the address the
+ * server is at, another it is also at, or the one the request was made to. A browser sends its
+ * cookies with a WebSocket to any site that asks, so this is asked of each one.
+ */
+export function fromApp(request: Request): boolean {
+  const origin = request.headers.get("origin")
+  if (origin === null) return true
+  const { config } = getPlatform()
+  return (
+    origin === new URL(config.baseUrl ?? request.url).origin ||
+    origin === new URL(request.url).origin ||
+    config.alsoAt.includes(origin)
+  )
 }
 
 /** Whether anyone has an account here yet. Once someone has, someone always does. */
@@ -227,6 +259,6 @@ export async function frontDoor() {
     ...authMethods(),
     landing: config.landing,
     // With a waiting list a stranger may make an account too, and then waits.
-    open: config.signup !== "invite" || !anyAccount,
+    open: config.signup !== "invite" || (!anyAccount && config.ownerKey === undefined),
   }
 }

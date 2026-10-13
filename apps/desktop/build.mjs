@@ -1,6 +1,7 @@
 // Builds the app into dist/: the main program and the script its windows are given, each as
-// one CommonJS file, the app's own pages, and the daemon it brings with it. Electron is the
-// only thing left outside; it is the program that runs all of this.
+// one CommonJS file, the app's own pages, the daemon it brings with it, and Do Computer itself,
+// for the app to run on its owner's computer. Electron is the only thing left outside; it is
+// the program that runs all of this.
 import { execFileSync } from "node:child_process"
 import {
   cpSync,
@@ -34,13 +35,18 @@ await build({
 })
 await build({
   ...common,
-  entryPoints: ["src/pages/welcome.ts", "src/pages/computer.ts", "src/pages/offline.ts"],
+  entryPoints: [
+    "src/pages/welcome.ts",
+    "src/pages/computer.ts",
+    "src/pages/devices.ts",
+    "src/pages/offline.ts",
+  ],
   outdir: "dist/pages",
   platform: "browser",
   target: "chrome130",
   format: "iife",
 })
-for (const file of ["welcome.html", "computer.html", "offline.html", "pages.css"]) {
+for (const file of ["welcome.html", "computer.html", "devices.html", "offline.html", "pages.css"]) {
   cpSync(`src/pages/${file}`, `dist/pages/${file}`)
 }
 cpSync("assets", "dist/assets", { recursive: true })
@@ -124,6 +130,29 @@ for (const target of targets) {
     if (bring(name, from) === undefined) fetch(name, manifest(from).optionalDependencies[name])
   }
 }
+
+// Do Computer itself, for the app to run where its owner has no server: the web app's Node
+// build with everything it imports packed into it, and what starts it as one file beside it,
+// laid out as that file expects (see apps/web/server.node.mjs). It is run as a program, so
+// like the driver it is kept out of the app's one packed file (see `serverDir` in src/main.ts).
+const packed = "../web/dist/packed"
+if (!existsSync(path.join(packed, "server", "server.node.js"))) {
+  throw new Error("Build the server first: pnpm --filter @do-computer/web build:packed")
+}
+cpSync(packed, "dist/server/dist/node", { recursive: true })
+await build({
+  ...common,
+  entryPoints: ["../web/server.node.mjs"],
+  outfile: "dist/server/server.mjs",
+  platform: "node",
+  format: "esm",
+  // What it serves is beside it, as files. The other two are for speed, and optional.
+  external: ["./dist/*", "bufferutil", "utf-8-validate"],
+  // Some of what is packed into it was written to `require` Node's own modules.
+  banner: {
+    js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+  },
+})
 
 const daemon = "../daemon/dist/daemon.cjs"
 if (!existsSync(daemon)) {

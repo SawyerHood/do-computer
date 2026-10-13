@@ -13,6 +13,11 @@ on:
       - apps/desktop/**
       - apps/daemon/**
       - packages/computers/**
+      # What starts the server the app brings with it. The server's own code is tested by the
+      # main workflow, and is packed into the app as it is when the app is next built.
+      - apps/web/server.node.mjs
+      - apps/web/vite.config.ts
+      - apps/web/scripts/build-packed.mjs
       - .github/workflows/desktop.yml
       - .github/actions/setup/**
       - pnpm-lock.yaml
@@ -21,6 +26,9 @@ on:
       - apps/desktop/**
       - apps/daemon/**
       - packages/computers/**
+      - apps/web/server.node.mjs
+      - apps/web/vite.config.ts
+      - apps/web/scripts/build-packed.mjs
       - .github/workflows/desktop.yml
       - .github/actions/setup/**
       - pnpm-lock.yaml
@@ -71,7 +79,8 @@ jobs:
         env:
           # The deployment the app opens without asking, where the repository has one.
           DC_DESKTOP_SERVER: ${{ vars.DC_BASE_URL }}
-      # The app itself: a first run, pairing, an agent working on this machine, quitting.
+      # The app itself: a first run, pairing, an agent working on this machine, quitting; and
+      # the app with no server anywhere, running the one it brings.
       - name: Run the app
         working-directory: apps/desktop
         run: ${{ runner.os == 'Linux' && 'xvfb-run -a' || '' }} pnpm exec playwright test

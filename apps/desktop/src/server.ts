@@ -28,6 +28,18 @@ export function onServer(address: string, server: string): boolean {
   }
 }
 
+/**
+ * A page of the deployment, at the address the app's window goes to it by. The app's own server
+ * may be reached at a second address, which is the one it hands out and sends people back to;
+ * the window is signed in at the first, and stays there. Undefined for anywhere else.
+ */
+export function atServer(address: string, server: string, also?: string): string | undefined {
+  if (onServer(address, server)) return address
+  if (also === undefined || !onServer(address, also)) return undefined
+  const { pathname, search, hash } = new URL(address)
+  return `${new URL(server).origin}${pathname}${search}${hash}`
+}
+
 /** Whether an address is one a browser can be sent to. */
 export function isWebAddress(address: string): boolean {
   try {

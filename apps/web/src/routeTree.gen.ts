@@ -32,6 +32,7 @@ import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as DoodDoodIdRouteImport } from './routes/dood.$doodId'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as LocalSignInRouteImport } from './routes/local.sign-in'
 import { Route as ThemeNameRouteImport } from './routes/theme.$name'
 import { Route as AppAAgentIdRouteImport } from './routes/_app.a.$agentId'
 import { Route as AppWWorkspaceIdRouteImport } from './routes/_app.w.$workspaceId'
@@ -213,6 +214,11 @@ const DoodDoodIdRoute = DoodDoodIdRouteImport.update({
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalSignInRoute = LocalSignInRouteImport.update({
+  id: '/local/sign-in',
+  path: '/local/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ThemeNameRoute = ThemeNameRouteImport.update({
@@ -598,6 +604,7 @@ export interface FileRoutesByFullPath {
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/local/sign-in': typeof LocalSignInRoute
   '/theme/$name': typeof ThemeNameRoute
   '/docs/': typeof DocsIndexRoute
   '/a/$agentId': typeof AppAAgentIdRouteWithChildren
@@ -690,6 +697,7 @@ export interface FileRoutesByTo {
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/local/sign-in': typeof LocalSignInRoute
   '/theme/$name': typeof ThemeNameRoute
   '/docs': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -782,6 +790,7 @@ export interface FileRoutesById {
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/local/sign-in': typeof LocalSignInRoute
   '/theme/$name': typeof ThemeNameRoute
   '/docs/': typeof DocsIndexRoute
   '/_app/a/$agentId': typeof AppAAgentIdRouteWithChildren
@@ -876,6 +885,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/local/sign-in'
     | '/theme/$name'
     | '/docs/'
     | '/a/$agentId'
@@ -968,6 +978,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/local/sign-in'
     | '/theme/$name'
     | '/docs'
     | '/api/auth/$'
@@ -1059,6 +1070,7 @@ export interface FileRouteTypes {
     | '/docs/$slug'
     | '/dood/$doodId'
     | '/invite/$token'
+    | '/local/sign-in'
     | '/theme/$name'
     | '/docs/'
     | '/_app/a/$agentId'
@@ -1152,6 +1164,7 @@ export interface RootRouteChildren {
   DocsSlugRoute: typeof DocsSlugRoute
   DoodDoodIdRoute: typeof DoodDoodIdRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  LocalSignInRoute: typeof LocalSignInRoute
   ThemeNameRoute: typeof ThemeNameRoute
   DocsIndexRoute: typeof DocsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -1366,6 +1379,13 @@ declare module '@tanstack/react-router' {
       path: '/invite/$token'
       fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/local/sign-in': {
+      id: '/local/sign-in'
+      path: '/local/sign-in'
+      fullPath: '/local/sign-in'
+      preLoaderRoute: typeof LocalSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/theme/$name': {
@@ -1972,6 +1992,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsSlugRoute: DocsSlugRoute,
   DoodDoodIdRoute: DoodDoodIdRoute,
   InviteTokenRoute: InviteTokenRoute,
+  LocalSignInRoute: LocalSignInRoute,
   ThemeNameRoute: ThemeNameRoute,
   DocsIndexRoute: DocsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

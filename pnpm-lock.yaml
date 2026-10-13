@@ -108,6 +108,9 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      toqr:
+        specifier: ^0.1.1
+        version: 0.1.1
       typescript:
         specifier: 'catalog:'
         version: '@typescript/typescript6@6.0.2'

@@ -10,24 +10,54 @@
     <title>Do Computer</title>
   </head>
   <body>
-    <main>
+    <main class="scrolls">
       <img class="blob" src="../assets/mark.svg" alt="" />
       <div>
         <h1>Do Computer</h1>
         <p class="quiet">Your Doods, in a window of their own.</p>
       </div>
       <form id="form" class="contents">
-        <label class="field">
-          Server
-          <input
-            id="server"
-            type="text"
-            placeholder="https://your-do-computer.example"
-            spellcheck="false"
-            autocomplete="off"
-          />
-          <span class="quiet small">The address of the Do Computer you use.</span>
-        </label>
+        <fieldset id="where" class="choices">
+          <legend>Where Do Computer runs</legend>
+          <div class="choice" id="here-row">
+            <input id="here" type="radio" name="where" value="here" aria-describedby="here-words" />
+            <div class="grow">
+              <label for="here"><strong>On this computer</strong></label>
+              <span class="quiet small" id="here-words">
+                Nothing to set up and no account to make. Everything stays here, and your Doods work
+                while this app is open.
+              </span>
+              <label class="check inner" id="tailnet-row" hidden>
+                <input id="tailnet" type="checkbox" />
+                <span>Reach it from my other devices with Tailscale</span>
+                <span class="quiet small" id="tailnet-words"></span>
+              </label>
+            </div>
+          </div>
+          <div class="choice" id="there-row">
+            <input
+              id="there"
+              type="radio"
+              name="where"
+              value="there"
+              aria-describedby="there-words"
+            />
+            <div class="grow">
+              <label for="there"><strong>Somewhere else</strong></label>
+              <span class="quiet small" id="there-words">
+                A Do Computer that you or your team already host.
+              </span>
+              <input
+                id="server"
+                type="text"
+                aria-label="Server"
+                placeholder="https://your-do-computer.example"
+                spellcheck="false"
+                autocomplete="off"
+              />
+            </div>
+          </div>
+        </fieldset>
         <label class="check" id="share-row">
           <input id="share" type="checkbox" checked />
           <span>Let my Doods work on this computer</span>

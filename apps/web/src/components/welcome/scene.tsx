@@ -296,6 +296,8 @@ export default function WelcomeScene() {
   })
   // Where the deployment takes no passwords, a provider says who someone is, new or not.
   const typing = methods?.password !== false
+  /** The app runs the server itself: its owner says only what they are called. */
+  const local = bridge?.local === true && bridge.signInHere !== undefined
   /** Whether this computer is one to ask about: in the app, on its first run, and not shared yet. */
   const here = bridge !== undefined && !bridge.welcomed && bridge.sharing === "off"
 
@@ -588,6 +590,12 @@ export default function WelcomeScene() {
     const email = String(fields.get("email") ?? "")
     const password = String(fields.get("password") ?? "")
     patch({ busy: true, error: undefined })
+    if (local) {
+      const answer = await bridge.signInHere!(name.trim())
+      if (gone.current) return
+      if ("error" in answer) return patch({ busy: false, error: answer.error })
+      return void (await arrived().catch(failed))
+    }
     const result = view.signingIn
       ? await authClient.signIn.email({ email, password })
       : await authClient.signUp.email({
@@ -991,7 +999,18 @@ export default function WelcomeScene() {
                         or
                       </div>
                     ) : null}
-                    {typing ? (
+                    {local ? (
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="welcome-name">Your name</Label>
+                        <Input
+                          id="welcome-name"
+                          name="name"
+                          autoComplete="name"
+                          required
+                          data-first
+                        />
+                      </div>
+                    ) : typing ? (
                       <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
                         {view.signingIn ? null : (
                           <div className="flex flex-col gap-1.5">
@@ -1037,15 +1056,23 @@ export default function WelcomeScene() {
                     <Problem said={view.error} />
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                        {bridge === undefined ? null : <>On {location.host}</>}
-                        {!view.signingIn && methods?.signup === "invite"
+                        {bridge === undefined ? null : local ? (
+                          "Everything stays on this computer."
+                        ) : (
+                          <>On {location.host}</>
+                        )}
+                        {!local && !view.signingIn && methods?.signup === "invite"
                           ? `${bridge === undefined ? "" : " · "}New accounts are by invitation here.`
                           : null}
-                        {!view.signingIn && methods?.signup === "waitlist"
+                        {!local && !view.signingIn && methods?.signup === "waitlist"
                           ? `${bridge === undefined ? "" : " · "}New accounts join a waiting list.`
                           : null}
                       </span>
-                      {typing ? (
+                      {local ? (
+                        <Button type="submit" disabled={view.busy}>
+                          {view.busy ? "One moment…" : "That’s me"}
+                        </Button>
+                      ) : typing ? (
                         <>
                           <Button
                             type="button"
