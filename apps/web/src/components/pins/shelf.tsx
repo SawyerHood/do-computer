@@ -219,11 +219,16 @@ function Pinned({
   return (
     <li
       className={cn(
-        "group/pin relative overflow-hidden rounded-xl bg-card shadow-raised transition-shadow duration-300",
+        "group/pin relative rounded-xl bg-card shadow-raised transition-shadow duration-300",
         fresh && "ring-2 ring-primary/50",
       )}
     >
-      <div inert className="pointer-events-none h-40 overflow-hidden bg-background">
+      {/*
+        The corners are the tile's own and the picture's own. A frame drawn at half size is
+        painted apart from the page, and what lies over it is too: left to the tile to cut to
+        its corners, the name under the picture was at times painted square across them.
+      */}
+      <div inert className="pointer-events-none h-40 overflow-hidden rounded-t-xl bg-background">
         <Small agentId={agentId} file={file} listing={listing} />
       </div>
       {/* Over the whole of it, the picture and the name alike. */}
@@ -234,7 +239,7 @@ function Pinned({
         label={`Open ${title}`}
         className="absolute inset-0 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:ring-inset"
       />
-      <div className="pointer-events-none relative flex items-center gap-2 border-t bg-card py-1.5 pr-1.5 pl-2.5 text-sm">
+      <div className="pointer-events-none relative flex items-center gap-2 border-t py-1.5 pr-1.5 pl-2.5 text-sm">
         <KindIcon file={file} />
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         <Changed fresh={fresh} at={at} />
