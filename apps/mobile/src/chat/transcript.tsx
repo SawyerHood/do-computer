@@ -222,7 +222,8 @@ function Notice({ part }: { part: NoticePart | undefined }) {
       {part?.kind === "compaction"
         ? "Earlier messages were summarized"
         : part?.kind === "branch"
-          ? "Continues from the main chat"
+          ? // The server says how much of the main chat it carries.
+            part.text || "Continues from the main chat"
           : "New context"}
     </Separator>
   )
