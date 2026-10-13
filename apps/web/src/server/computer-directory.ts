@@ -1,4 +1,8 @@
-import { type AddableKind, computerActorName, type ComputerDirectory } from "@do-computer/agent"
+import {
+  type AddableKind,
+  computerActorName,
+  type ComputerDirectory,
+} from "@do-computer/agent"
 import { linkStatus } from "@do-computer/computers"
 import { isPersonalWorkspace } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"

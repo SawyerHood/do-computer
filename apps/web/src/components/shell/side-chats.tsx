@@ -1,5 +1,10 @@
 import type { AgentState } from "@do-computer/client"
-import type { AgentSummary, ChatSummary, Person, WorkspaceSummary } from "@do-computer/protocol"
+import type {
+  AgentSummary,
+  ChatSummary,
+  Person,
+  WorkspaceSummary,
+} from "@do-computer/protocol"
 import { ChatsIcon, PlusIcon } from "@phosphor-icons/react"
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useAtomValue } from "jotai"
