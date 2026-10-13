@@ -4,7 +4,9 @@
 width: your Doods under their workspaces, each with a main chat and side chats, and its own
 page (profile, memory, model and computers, skills, connectors, permissions, usage). There is
 the creature's wardrobe with its treats and boxes, the library with a viewer and sharing by
-link, automations, approval requests, dictation and push notifications. Settings cover teams
+link, automations, approval requests, dictation and push notifications. The message box is one line
+until it is written in, and then has the Dood's model and how hard it thinks under the words.
+A picture that was copied is pasted into it and attached. Settings cover teams
 and their people, computers, and signing in to model providers. You sign in with a password,
 GitHub or Google, and a new account goes through the first run. It talks to do.computer unless
 you name your own deployment at the foot of the sign-in page.
