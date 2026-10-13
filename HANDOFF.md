@@ -6272,7 +6272,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       **Not checked:** Safari, Workers, the phone app (its web view has no chat to speak
       to: `dc` does nothing there), a real model writing a widget.
 
-78. **The agent looks at a page in a browser before it shows it** (2026-10-13;
+79. **The agent looks at a page in a browser before it shows it** (2026-10-13;
     `packages/runtime/src/preview.ts`, `cloudflare/preview.ts`, `node/preview.ts`,
     `packages/protocol/src/visual.ts` (`visualPreviewDocument`), `packages/agent/src/visuals.ts`
     (`visual_preview`), `apps/web/wrangler.jsonc`; phase 4 of `PLAN-rich-embeds.md`). T3 Code
