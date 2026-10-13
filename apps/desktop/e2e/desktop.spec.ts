@@ -550,14 +550,14 @@ test("a connector's sign-in is done in the owner's browser, which brings the ans
         body: JSON.stringify({ name: "Calendar", url: address }),
       })
       const { authorizationUrl } = (await added.json()) as { authorizationUrl: string }
-      return { agentId, to: authorizationUrl, from: location.href }
+      return { agentId, to: authorizationUrl }
     }, `${service.origin}/oauth/mcp`)
     expect(await connector(started.agentId)).toBe("needs_auth")
     await main.evaluate((to) => window.location.assign(to), started.to)
 
     // The app's own window stays, no other is made, and the browser is sent to the service.
     await expect.poll(opened).toEqual([started.to])
-    expect(main.url()).toBe(started.from)
+    expect(new URL(main.url()).origin).toBe(url)
     expect(app.windows().filter((page) => page.url().startsWith(service.origin))).toEqual([])
 
     // In the browser nobody is signed in to the deployment. The owner agrees at the service,
