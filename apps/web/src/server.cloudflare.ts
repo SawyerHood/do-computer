@@ -28,7 +28,7 @@ import { libraryDirectory } from "./server/library-directory.ts"
 import { siteDirectory } from "./server/site-directory.ts"
 import { modelAccessDirectory } from "./server/model-access-directory.ts"
 import { callDirectory } from "./server/calls-directory.ts"
-import { savedDirectory } from "./server/passwords-directory.ts"
+import { everyoneIsAdmin, savedDirectory } from "./server/passwords-directory.ts"
 import {
   addableKinds,
   addMachineFor,
@@ -151,7 +151,14 @@ export const LibraryObject = createDurableActorClass<Env>({
 
 /** One Durable Object per workspace, keeping the model providers it is signed in to. */
 export const ModelAccessObject = createDurableActorClass<Env>({
-  create: (host, env) => createModelAccessActor(host, { vaultKey: readConfig(env).secretsKey }),
+  create: (host, env) => {
+    const config = readConfig(env)
+    return createModelAccessActor(host, {
+      vaultKey: config.secretsKey,
+      extraModels: config.extraModels,
+      showsExtraModels: () => everyoneIsAdmin(d1Database(env.DB), config, host.name),
+    })
+  },
   blobs: (env, name) => r2Blobs(env.BLOBS, `model-access/${encodeURIComponent(name)}/`),
 })
 

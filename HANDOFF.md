@@ -7011,6 +7011,45 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       The route a subscription's call takes is Codex's own and documented for nobody else. It
       stopped for everyone for two days in August 2026. See section 10 of the plan.
 
+92. **A deployment adds models that are not yet in pi's list** (2026-10-14;
+    `packages/agent/src/extra-models.ts`, `model-providers.ts`, `model-access.ts`, `models.ts`,
+    `apps/web/src/server/passwords-directory.ts`). The owner asked whether a model pi does not
+    list could be run on a Claude sign-in, named in the environment and not in the code.
+    - **What it does.** `DC_EXTRA_MODELS` names models to add to their provider's list, each
+      `provider/model`, comma-separated. `[1m]` after one asks for its long context, the way
+      Claude Code writes it: the model is taken to hold a million tokens, and a request to
+      Anthropic for it names `context-1m-2025-08-07` beside the features it names anyway.
+      `=model` after that names the model of the same provider it is treated as, for all that
+      pi knows of a model and cannot know of this one: how it thinks, what a request to it may
+      ask for, what it is priced at. Without one that is the model suggested first for the
+      provider. An entry that cannot be placed is passed over. See `docs/reference/models.md`.
+    - **How.** A provider is wrapped (`withExtraModels`): its list has the added models after
+      its own, each a copy of the model it is treated as under its own id, without the models
+      that may answer in that one's place. pi sends a model's id as it is given, so nothing
+      else is needed to call one. The long context is asked for by the request's `fetch`, which
+      adds to the header it finds: naming a feature in pi's own headers replaces the ones pi
+      works out, and a subscription's request needs those.
+    - **Who is offered one.** A workspace signed in to the model's provider with an account of
+      its own, where everyone in the workspace is named in `DC_ADMIN_EMAILS`
+      (`everyoneIsAdmin`, the rule saved logins have, asked each time). Nobody else is, and
+      neither the deployment's key nor what it is signed in to for everyone offers one,
+      whatever `DC_MODELS` says. A Dood cannot be set to one it is not offered.
+    - **On Cloudflare** the setting is a Worker secret (`wrangler secret put`): it is not
+      among the settings a deploy carries.
+    - **Mine:** the setting's name and its form, `=model` and what stands in without it, that
+      the price is the copied model's, who is offered one, and that a deploy does not carry
+      the setting.
+    - **Checked:** `test/extra-models.test.ts` in the agent package (what a request carries is
+      read from the request itself, with a key and with a subscription's token) and
+      `extra-models.test.ts` in the web app (an admin's workspace, a team of admins, someone
+      else's, a team with someone else in it, the deployment's own sign-in); and the built
+      Node server with Anthropic stood in for: an admin was offered the model, set a Dood to it
+      and was answered, and someone else signed in the same way was not offered it and could
+      not set it.
+    - **Not checked:** a real sign-in, and a model that is in no list. Whether a provider
+      takes a request made as for the model one is treated as is only found by trying it: if
+      it turns one down, name an older model after `=`.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

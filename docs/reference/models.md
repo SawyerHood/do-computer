@@ -56,6 +56,27 @@ until it is signed in again or set to another model.
 Amazon Bedrock and Google Vertex are not offered: they sign in with files and roles of the
 machine the server runs on, which belong to no workspace.
 
+**A model that is not in the list.** The models of a provider are those pi lists for it.
+`DC_EXTRA_MODELS` adds models that are not yet in pi's list to their provider's, by name:
+
+```sh
+DC_EXTRA_MODELS=anthropic/claude-new-1[1m]
+```
+
+Each is `provider/model`, comma-separated. `[1m]` after one asks for its long context, the way
+Claude Code writes it: the model is taken to hold a million tokens, and every request to
+Anthropic for it asks for that. `=model` after that names the model of the same provider it is
+treated as, for how it thinks, what it takes and what it is priced at
+(`anthropic/claude-new-1[1m]=claude-opus-5-5`). Without one that is the model suggested first
+for the provider, which for Anthropic is Claude Sonnet 5.5. An entry that names a provider there
+is not, or a model its provider lists already, is passed over.
+
+A model added this way is offered where a workspace is signed in to its provider with an
+account of its own, and only where everyone in the workspace is named in `DC_ADMIN_EMAILS`: an
+admin's own workspace, or a team of admins alone. The deployment's own key and sign-ins do not
+offer it, whatever `DC_MODELS` says. On Cloudflare it is set as a Worker secret
+(`wrangler secret put DC_EXTRA_MODELS`): the deploy does not carry it.
+
 ## Limits worth knowing
 
 Every call to one of the deployment's models is paid from the one deployment key and there are
