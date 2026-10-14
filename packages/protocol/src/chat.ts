@@ -1,3 +1,4 @@
+import type { CallLine } from "./calls.ts"
 import type { JobStatus } from "./jobs.ts"
 
 /** JSON as it travels between server and clients. */
@@ -29,7 +30,8 @@ export type NoticePart = {
    * agent's asking for secrets; its text is where they were to be saved. `connector` is how a
    * sign-in the agent asked for went; its text is the connector's name. `command` is the end of
    * a command the agent left running in the background; its text is the command. `branch` is
-   * where a side chat's own messages begin, after the ones it carries from the main chat.
+   * where a side chat's own messages begin, after the ones it carries from the main chat. `call`
+   * is a voice call that was held in the chat, once it is over; its text is how long it was.
    */
   kind:
     | "reset"
@@ -43,6 +45,7 @@ export type NoticePart = {
     | "secret"
     | "connector"
     | "command"
+    | "call"
   text: string
   /**
    * For `computer`: whether the agent was let in. For `secret`: whether they were saved. For
@@ -65,6 +68,8 @@ export type NoticePart = {
   detail?: string
   /** For `command`: which one it was, where it ran, how it ended and how long it took. */
   job?: { id: string; computer: string; status: JobStatus; exitCode?: number; ms: number }
+  /** For `call`: how long it was, what came of it in a few lines, and what was said. */
+  call?: { id: string; seconds: number; summary: string[]; lines: CallLine[] }
 }
 
 export type MessagePart = TextPart | ThinkingPart | ToolPart | ImagePart | NoticePart
@@ -85,6 +90,8 @@ export type ChatMessage = {
   agent?: { id: string; name: string }
   /** Who wrote a user message in Slack, by their id and name there. */
   slack?: { id: string; name: string }
+  /** A user message that was said out loud, on a voice call, and handed on to the agent. */
+  spoken?: true
 }
 
 export type QueuedInput = {

@@ -13,6 +13,7 @@ import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { useCalls } from "@/components/call/call"
 import { Loads } from "@/components/loads"
 import { ModelPicker } from "@/components/model-picker"
 import { FormPlaceholder, RowsPlaceholder } from "@/components/placeholders"
@@ -47,6 +48,7 @@ import {
   agentKey,
   agentsCollection,
   agentsKey,
+  callsKey,
   computerKindsKey,
   computersKey,
   unlistAgents,
@@ -380,6 +382,55 @@ function WhenBusy({ agentId, state }: { agentId: string; state: AgentState }) {
   )
 }
 
+/**
+ * The voice the agent speaks in when it is called. Saved as it is chosen. Which voices there
+ * are depends on what places the call, and where nothing can, there is nothing to choose.
+ */
+function Voice({ agentId, name }: { agentId: string; name: string }) {
+  const calls = useCalls(agentId)
+  const save = useMutation({
+    mutationFn: (voice: string) => client.agent(agentId).update({ voice }),
+    onSuccess: async (next) => {
+      queryClient.setQueryData(agentKey(agentId), next)
+      await queryClient.invalidateQueries({ queryKey: callsKey(agentId) })
+    },
+  })
+  if (calls?.available !== true) return null
+  const chosen = save.isPending ? save.variables : calls.voice
+  return (
+    <Section
+      title="Voice"
+      hint={`How ${name} sounds when you call it. It was given one of its own, so that two Doods seldom sound alike. Call it to hear a change.`}
+    >
+      <div role="radiogroup" aria-label="Voice" className="flex flex-wrap gap-1.5">
+        {calls.voices.map((voice) => (
+          <button
+            key={voice}
+            type="button"
+            role="radio"
+            aria-checked={voice === chosen}
+            disabled={save.isPending}
+            onClick={() => save.mutate(voice)}
+            className={cn(
+              "cursor-default rounded-full border px-3 py-1 text-sm capitalize outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
+              voice === chosen
+                ? "border-primary bg-primary/10 font-medium text-primary dark:text-[oklch(from_var(--agent-color)_0.8_c_h)]"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {voice}
+          </button>
+        ))}
+      </div>
+      {save.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {save.error.message}
+        </p>
+      ) : null}
+    </Section>
+  )
+}
+
 /** Where the agent lives, and moving it: to a team, to share it, or back to oneself. */
 function Workspace({ agentId, name }: { agentId: string; name: string }) {
   const workspace = useWorkspaceOfAgent(agentId)
@@ -688,6 +739,9 @@ export function ProfileSettings({
             Roll a new look
           </Button>
         </Section>
+
+        {/* How it sounds is beside how it looks. It is saved as it is chosen, apart from the form. */}
+        <Voice agentId={agentId} name={state.agent.name ?? "your Dood"} />
 
         <Section
           title="Personality"

@@ -30,6 +30,7 @@ import { servedDaemon } from "./daemon-version.ts"
 import { libraryDirectory } from "./library-directory.ts"
 import { siteDirectory } from "./site-directory.ts"
 import { modelAccessDirectory } from "./model-access-directory.ts"
+import { callDirectory } from "./calls-directory.ts"
 import { savedDirectory } from "./passwords-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
@@ -135,6 +136,7 @@ function create(): NodePlatform {
         showsBrowser: browserDirectory(app),
         savedLogins: savedDirectory(app, modelAccess, config, "passwords"),
         savedCards: savedDirectory(app, modelAccess, config, "cards"),
+        calls: callDirectory(app, modelAccess, config),
         // The agents reach each other through the namespace they are all in.
         agentDirectory: agentDirectory(app, () => agents, createAgentBeside),
         appUrl: config.baseUrl,

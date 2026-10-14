@@ -9,6 +9,7 @@ export {
   createAgentActor,
 } from "./actor.ts"
 export { type Caller, CALLER_HEADER, encodeCaller, readCaller, type SlackSender } from "./caller.ts"
+export { type CallAllowance, type CallDirectory, CallError, type CallPass } from "./calls.ts"
 export type { JudgeOptions } from "./keep-going.ts"
 export { APPS_NAME, APPS_URL, ConnectorError, Connectors, connectorToolName } from "./connectors.ts"
 export {

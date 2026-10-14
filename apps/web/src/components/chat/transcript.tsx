@@ -26,11 +26,13 @@ import {
   ClockIcon,
   DesktopIcon,
   KeyIcon,
+  MicrophoneIcon,
   PlugsConnectedIcon,
   SlackLogoIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useContext, useEffect, useMemo, useState } from "react"
+import { CallInChat, CallRecord } from "@/components/call/call"
 import { useAgentsById } from "@/components/computer-requests"
 import { PersonFace } from "@/components/people"
 import { Badge } from "@/components/ui/badge"
@@ -308,6 +310,9 @@ function MessageView({
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
     if (part?.type === "notice" && part.kind === "agent") return <AgentWord part={part} />
     if (part?.type === "notice" && part.kind === "command") return <CommandWord part={part} />
+    if (part?.type === "notice" && part.kind === "call") {
+      return <CallRecord part={part} at={message.createdAt} />
+    }
     if (part?.type === "notice" && part.kind === "computer") {
       // The answer to the agent's asking to use a computer.
       return (
@@ -430,6 +435,13 @@ function MessageView({
               {message.createdAt === undefined ? null : clock.format(message.createdAt)}
             </span>
           )}
+          {message.spoken ? (
+            // Said out loud, on a call, and handed on by the Dood's voice.
+            <span className="-mb-1 flex items-center gap-1 self-end pr-1 text-xs text-muted-foreground">
+              <MicrophoneIcon className="size-3.5" />
+              Said on a call
+            </span>
+          ) : null}
           {message.parts.map((part, index) =>
             part.type === "text" ? (
               <Bubble
@@ -559,6 +571,18 @@ export function Transcript({
   const agentId = useContext(AgentIdContext)
   const draftKey =
     agentId === undefined || chatId === undefined ? undefined : chatKey(agentId, chatId)
+  // The calls the chat already has the record of, so that one just ended is not also waited for.
+  const recorded = useMemo(
+    () =>
+      new Set(
+        state.messages.flatMap((message) =>
+          message.parts.flatMap((part) =>
+            part.type === "notice" && part.call !== undefined ? [part.call.id] : [],
+          ),
+        ),
+      ),
+    [state.messages],
+  )
   return (
     <DraftKeyContext value={draftKey}>
       <UsesContext value={uses}>
@@ -585,6 +609,10 @@ export function Transcript({
                   <Marker role="status" aria-live="polite" className="px-1">
                     <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
                   </Marker>
+                )}
+                {agentId === undefined || chatId === undefined ? null : (
+                  // A call that is on in this chat, or just over, is at the end of it.
+                  <CallInChat agentId={agentId} chatId={chatId} recorded={recorded} />
                 )}
               </MessageScrollerContent>
             </MessageScrollerViewport>

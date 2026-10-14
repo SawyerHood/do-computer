@@ -103,6 +103,21 @@ export type Config = {
    * that signs sessions where there is none. Changing it makes what was saved unreadable.
    */
   readonly secretsKey: string | undefined
+  /**
+   * Who may call a Dood out loud (`DC_CALLS`). `admins`, which is what an unset one means: those
+   * `adminEmails` names. `on`: everyone. `off`: nobody.
+   */
+  readonly calls: SecretsMode
+  /** The longest a call may last, in minutes (`DC_CALL_MINUTES`). Thirty where none is given. */
+  readonly callMinutes: number
+  /**
+   * How many minutes a month each person may be on calls that the server's own sign-in pays for
+   * (`DC_CALL_MONTHLY_MINUTES`). Sixty where none is given; 0 is no limit. A call paid for by a
+   * workspace's own sign-in is not counted.
+   */
+  readonly callMonthlyMinutes: number
+  /** A call has no voice and plays a script instead (`DC_CALLS_SCRIPT=1`). Only a test asks for it. */
+  readonly callScript: boolean
   /** Connectors and skill installs may reach this machine and private networks. */
   readonly allowPrivateHosts: boolean
   /** OpenRouter speech-to-text model used for dictation. */
@@ -179,13 +194,13 @@ function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): Sandb
   return value as SandboxKind
 }
 
-function secretsMode(value: string | undefined): SecretsMode {
+function secretsMode(value: string | undefined, name = "DC_SECRETS"): SecretsMode {
   const said = (value ?? "admins").toLowerCase()
   if (said === "admins") return "admins"
   if (["on", "1", "true", "everyone"].includes(said)) return "on"
   if (["off", "0", "false", "none"].includes(said)) return "off"
-  // A typo here must not quietly open saved passwords to more people than was meant.
-  throw new ConfigError(`DC_SECRETS is "${value}". It must be one of: admins, on, off.`)
+  // A typo here must not quietly open saved passwords, or calls, to more people than was meant.
+  throw new ConfigError(`${name} is "${value}". It must be one of: admins, on, off.`)
 }
 
 function secretKinds(value: string | undefined): readonly SecretKind[] {
@@ -282,6 +297,10 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     secrets: secretsMode(optional("DC_SECRETS")),
     secretKinds: secretKinds(optional("DC_SECRET_KINDS")),
     secretsKey: optional("DC_SECRETS_KEY") ?? optional("DC_AUTH_SECRET"),
+    calls: secretsMode(optional("DC_CALLS"), "DC_CALLS"),
+    callMinutes: Math.max(1, wholeNumber(optional("DC_CALL_MINUTES")) ?? 30),
+    callMonthlyMinutes: wholeNumber(optional("DC_CALL_MONTHLY_MINUTES")) ?? 60,
+    callScript: env.DC_CALLS_SCRIPT === "1",
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
     slackApiUrl: optional("DC_SLACK_API_URL"),

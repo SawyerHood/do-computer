@@ -23,6 +23,7 @@ import {
 import { useAtomValue, useSetAtom } from "jotai"
 import { type ReactNode, useMemo, useRef, useState } from "react"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
+import { CallButton, CallFace } from "@/components/call/call"
 import { CreatureCare } from "@/components/creature/care"
 import { PinnedShelf } from "@/components/pins/shelf"
 import { RowsPlaceholder } from "@/components/placeholders"
@@ -31,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { callAtom } from "@/lib/call"
 import { client } from "@/lib/client"
 import { agentPanelColumn } from "@/lib/columns"
 import { creatureWardrobeAtom } from "@/lib/creature"
@@ -251,6 +253,7 @@ export function AgentPanel({
   threads = [],
   slack = [],
   chatId,
+  callIn,
   presence,
   onOpenFile,
   chatless = false,
@@ -281,6 +284,8 @@ export function AgentPanel({
   slack?: ChatSummary[]
   /** The chat the panel is beside, so that a thread which is open is marked in its list. */
   chatId?: string
+  /** The chat a call with the agent would be held in. Without it there is no calling it from here. */
+  callIn?: string | undefined
   /** In a team: who is in this chat right now. Shown above what the agent did. */
   presence?: React.ReactNode
   /** Opens a file the agent sent beside the chat, by its id. Without it the files are not listed. */
@@ -295,6 +300,9 @@ export function AgentPanel({
   )
   const width = useAtomValue(agentPanelColumn.width)
   const openWardrobe = useSetAtom(creatureWardrobeAtom)
+  // A call with the agent happens here, where its face is. A sub-agent is not who is on it.
+  const onCall = useAtomValue(callAtom)
+  const call = subagent === undefined && onCall?.agentId === agent.id ? onCall : undefined
   // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
   // the substantial ones, however many steps it took.
   const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
@@ -377,12 +385,24 @@ export function AgentPanel({
       ) : null}
       <div ref={scroller} onScroll={follow} className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col items-center gap-1 px-6 pt-10 pb-5 text-center">
+          {call === undefined ? null : (
+            <div ref={nameplate} className="w-full">
+              <CallFace call={call} face={face} />
+            </div>
+          )}
           {/* Its treats and its box are beside the agent's own creature, not a sub-agent's. */}
-          {subagent === undefined ? <CreatureCare agent={agent}>{face}</CreatureCare> : face}
-          {subagent === undefined ? (
+          {call !== undefined ? null : subagent === undefined ? (
+            <CreatureCare agent={agent}>{face}</CreatureCare>
+          ) : (
+            face
+          )}
+          {subagent === undefined && call === undefined ? (
             <SubagentBrood agentId={agent.id} subagents={subagents} />
           ) : null}
-          <div ref={nameplate} className="flex flex-col items-center gap-1">
+          <div
+            ref={call === undefined ? nameplate : undefined}
+            className={cn("flex flex-col items-center gap-1", call !== undefined && "hidden")}
+          >
             <div className="mt-3 flex items-center gap-0.5">
               <h2 className="text-lg font-medium">{name}</h2>
               {subagent !== undefined || !agent.hatched ? null : (
@@ -406,6 +426,9 @@ export function AgentPanel({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">{doing}</p>
+            )}
+            {callIn === undefined || subagent !== undefined || !agent.hatched ? null : (
+              <CallButton agent={agent} chatId={callIn} />
             )}
           </div>
           {subagent === undefined ? null : (

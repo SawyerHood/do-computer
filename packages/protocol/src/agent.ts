@@ -469,6 +469,11 @@ export type SendMessageRequest = {
   timezone?: string
   /** Where it was written, so the agent can tell which computer the sender is at. */
   from?: MessageOrigin
+  /**
+   * The call it was said on, where the agent's voice is handing on something said out loud.
+   * The agent is then told what else was said on the call, and to answer for the ear.
+   */
+  call?: string
 }
 
 export type SendMessageResponse = { submissionId: string }

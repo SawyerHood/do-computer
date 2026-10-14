@@ -1,12 +1,13 @@
-import type {
-  ChatMessage,
-  ChatState,
-  ChatUsage,
-  JobStatus,
-  Json,
-  MessagePart,
-  QueuedInput,
-  ToolPart,
+import {
+  callLength,
+  type ChatMessage,
+  type ChatState,
+  type ChatUsage,
+  type JobStatus,
+  type Json,
+  type MessagePart,
+  type QueuedInput,
+  type ToolPart,
 } from "@do-computer/protocol"
 import type {
   AssistantMessage,
@@ -24,12 +25,21 @@ import type {
   UsageState,
 } from "@earendil-works/pi-durable"
 import type { Carried } from "./branch.ts"
+import { CALL_ENTRY, type CallEntry, callOf } from "./calls.ts"
 import { agentSenderOf, type Caller, senderOf, type SlackSender, slackSenderOf } from "./caller.ts"
 
 type UserContent = UserMessage["content"]
 
 /** A text block the server adds for the model, such as the send time; never shown. */
 const isMeta = (text: string) => text.startsWith("<meta ")
+
+/** Whether a message was said out loud, on a call, from the note that travelled with it. */
+function contentSpoken(content: UserContent): boolean {
+  if (typeof content === "string") return false
+  return content.some(
+    (block) => block.type === "text" && isMeta(block.text) && callOf(block.text) !== undefined,
+  )
+}
 
 /** Who sent a message, from the note that travelled with it. */
 function contentAuthor(content: UserContent): Caller | undefined {
@@ -224,6 +234,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         ...(author === undefined ? {} : { author }),
         ...(agent === undefined ? {} : { agent }),
         ...(slack === undefined ? {} : { slack: { id: slack.id, name: slack.name } }),
+        ...(contentSpoken(first.content) ? { spoken: true as const } : {}),
       }
     }
     case "pi.assistant": {
@@ -248,6 +259,30 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
             ? "Continues from the most recent part of the main chat"
             : "Continues from the main chat",
       )
+    }
+    case CALL_ENTRY: {
+      // A voice call that was held in the chat, once it is over.
+      const call = entry.data as Partial<CallEntry> | undefined
+      const seconds = typeof call?.seconds === "number" ? call.seconds : 0
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "call",
+            text: callLength(seconds),
+            call: {
+              id: typeof call?.id === "string" ? call.id : id,
+              seconds,
+              summary: Array.isArray(call?.summary) ? call.summary : [],
+              lines: Array.isArray(call?.lines) ? call.lines : [],
+            },
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
     }
     case "dc.scheduled": {
       // A scheduled task's report, delivered into the chat the task was created in.
@@ -497,6 +532,18 @@ export function entryText(
         .filter((said) => said !== "")
         .join("\n")
       return { role: "assistant", text, at: first.timestamp }
+    }
+    case CALL_ENTRY: {
+      // What came of a call and what was said on it are found like anything else in the chat.
+      const call = entry.data as Partial<CallEntry> | undefined
+      return {
+        role: "assistant",
+        text: [
+          ...(Array.isArray(call?.summary) ? call.summary : []),
+          ...(Array.isArray(call?.lines) ? call.lines.map((line) => line.text) : []),
+        ].join("\n"),
+        at: first?.role === "user" ? first.timestamp : undefined,
+      }
     }
     case "dc.scheduled": {
       const report = entry.data as { title?: string; text?: string } | undefined

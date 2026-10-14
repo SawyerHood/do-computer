@@ -23,6 +23,8 @@ import {
   type ApiError as ApiErrorBody,
   type Avatar,
   type ChatEvent,
+  type CallLine,
+  type CallsState,
   type ChatState,
   type ChatSummary,
   type ComputerKinds,
@@ -66,6 +68,8 @@ import {
   type ScheduleSummary,
   type SecretRequest,
   type SendMessageRequest,
+  type StartCallRequest,
+  type StartCallResponse,
   type SendMessageResponse,
   sitePath,
   type SiteSummary,
@@ -195,6 +199,8 @@ export type AgentPatch = {
   whenBusy?: "steer" | "queue"
   /** Its owner has watched it hatch. There is no putting it back in its egg. */
   hatched?: true
+  /** The voice it speaks in on a call. Null: the one picked for it by its id. */
+  voice?: string | null
 }
 
 /** A computer waiting to be paired, as shown to the user before they agree. */
@@ -761,6 +767,17 @@ export function createClient(options: ClientOptions) {
         send: (chatId: string, message: SendMessageRequest) =>
           post<SendMessageResponse>(`${base}/chats/${chatId}/messages`, message),
         abort: (chatId: string) => post<{ ok: true }>(`${base}/chats/${chatId}/abort`),
+        /** Whether whoever is signed in can call the agent out loud, and in which voice. */
+        calls: () => request<CallsState>(`${base}/calls`),
+        /** Start a call in a chat: the device's offer goes up, the provider's answer comes back. */
+        startCall: async (input: StartCallRequest) =>
+          (await post<StartCallResponse>(`${base}/calls`, input)).call,
+        /** Tell the server what was said on a call since it was last told. */
+        callSaid: (callId: string, lines: CallLine[]) =>
+          post<{ ok: true }>(`${base}/calls/${encodeURIComponent(callId)}/lines`, { lines }),
+        /** The call is over. Its record turns up in its chat. */
+        endCall: (callId: string, lines: CallLine[] = []) =>
+          post<{ ok: true }>(`${base}/calls/${encodeURIComponent(callId)}/end`, { lines }),
         /** The commands the agent left running in the background, and those lately over. */
         jobs: async () => (await request<{ jobs: JobSummary[] }>(`${base}/jobs`)).jobs,
         /**

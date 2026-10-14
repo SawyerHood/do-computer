@@ -32,6 +32,8 @@ export const savedCardsKey = (workspaceId: string) => ["saved-cards", workspaceI
 export const settingsKey = ["settings"] as const
 export const computerKindsKey = ["computer-kinds"] as const
 export const approvalsKey = (agentId: string) => ["agents", agentId, "approvals"] as const
+/** Whether whoever is signed in can call the agent out loud, and in which voice. */
+export const callsKey = (agentId: string) => ["agents", agentId, "calls"] as const
 export const connectorsKey = (agentId: string) => ["agents", agentId, "connectors"] as const
 export const secretsKey = (agentId: string) => ["agents", agentId, "secrets"] as const
 export const slackKey = (agentId: string) => ["agents", agentId, "slack"] as const
