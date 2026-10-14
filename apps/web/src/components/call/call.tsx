@@ -81,42 +81,23 @@ function LiveDot({ className }: { className?: string }) {
   )
 }
 
-/**
- * Calls a Dood: the button under its name in its panel. Nothing where it cannot be called, and
- * it says so in words where a call could not be started or ended by itself.
- */
+/** Calls a Dood: the button under its name in its panel. Nothing where it cannot be called. */
 export function CallButton({ agent, chatId }: { agent: AgentSummary; chatId: string }) {
   const calls = useCalls(agent.id)
   const call = useAtomValue(callAtom)
-  const [problem, setProblem] = useAtom(callProblemAtom)
   if (calls?.available !== true) return null
-  const mine = problem?.agentId === agent.id ? problem.text : undefined
   return (
-    <div className="mt-2.5 flex flex-col items-center gap-2">
-      <Button
-        variant="secondary"
-        size="sm"
-        // One call at a time: while one is on with another Dood, this one waits.
-        disabled={call !== undefined}
-        onClick={() => void startCall(agent, chatId)}
-        className="rounded-full bg-primary/12 px-4 font-medium text-primary hover:bg-primary/18 dark:text-[oklch(from_var(--agent-color)_0.8_c_h)]"
-      >
-        <PhoneIcon weight="fill" data-icon="inline-start" />
-        Call
-      </Button>
-      {mine === undefined ? null : (
-        <p role="alert" className="max-w-56 text-xs text-muted-foreground">
-          {mine}{" "}
-          <button
-            type="button"
-            className="underline underline-offset-2 outline-none hover:text-foreground focus-visible:text-foreground"
-            onClick={() => setProblem(undefined)}
-          >
-            OK
-          </button>
-        </p>
-      )}
-    </div>
+    <Button
+      variant="secondary"
+      size="sm"
+      // One call at a time: while one is on with another Dood, this one waits.
+      disabled={call !== undefined}
+      onClick={() => void startCall(agent, chatId)}
+      className="mt-2.5 rounded-full bg-primary/12 px-4 font-medium text-primary hover:bg-primary/18 dark:text-[oklch(from_var(--agent-color)_0.8_c_h)]"
+    >
+      <PhoneIcon weight="fill" data-icon="inline-start" />
+      Call
+    </Button>
   )
 }
 
@@ -284,7 +265,30 @@ export function CallCard() {
   const agents = useAgentsById()
   const clock = useCallClock(call?.startedAt)
   const words = useAtomValue(callWordsAtom)
-  if (call === undefined || shown) return null
+  const [problem, setProblem] = useAtom(callProblemAtom)
+  if (call === undefined) {
+    // A call that could not be started, or that ended by itself, says why, wherever the person is.
+    if (problem === undefined) return null
+    return (
+      <section
+        role="alert"
+        aria-label="About the call"
+        className="fixed top-[4.25rem] right-4 z-40 flex w-72 items-start gap-3 rounded-2xl bg-card p-3.5 text-sm shadow-float"
+      >
+        <PhoneDisconnectIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <p className="min-w-0 flex-1 leading-snug wrap-anywhere">{problem.text}</p>
+        <Button
+          variant="outline"
+          size="xs"
+          className="font-normal"
+          onClick={() => setProblem(undefined)}
+        >
+          OK
+        </Button>
+      </section>
+    )
+  }
+  if (shown) return null
   const agent = agents.get(call.agentId)
   const color = agent === undefined ? undefined : avatarLook(agent.avatar, agent.id).color
   const said =
@@ -297,7 +301,8 @@ export function CallCard() {
       data-call={call.phase}
       // Its Dood's color, whichever Dood's page is open.
       style={color === undefined ? undefined : ({ "--agent-color": color } as CSSProperties)}
-      className="fixed right-4 bottom-4 z-40 w-72 rounded-2xl bg-[oklch(from_var(--agent-color)_0.26_0.045_h)] p-3 text-white shadow-float ring-1 ring-white/10"
+      // Under the strip, where it is clear of the box messages are typed in.
+      className="fixed top-[4.25rem] right-4 z-40 w-72 rounded-2xl bg-[oklch(from_var(--agent-color)_0.26_0.045_h)] p-3 text-white shadow-float ring-1 ring-white/10"
     >
       <div className="flex items-center gap-2.5">
         <Link

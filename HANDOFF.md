@@ -6834,6 +6834,85 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       the phone says it is a phone only from its next build. Until then the note has less in
       it and is not wrong.
 
+90. **A Dood can be called out loud** (2026-10-14; `packages/protocol/src/calls.ts`,
+    `packages/agent/src/calls.ts`, `actor.ts`, `project.ts`,
+    `apps/web/src/server/calls-directory.ts`, `apps/web/src/lib/call.ts`, `call-events.ts`,
+    `apps/web/src/components/call/call.tsx`; the plan is `PLAN-voice-calls.md`, the mock-up
+    `prototypes/voice-calls/`, the reference page `docs/reference/calls.md`). The owner asked
+    for what OpenAI's Dots has, "this feature that lets you call your dot and it starts like a
+    real-time voice conversation with them", had it researched, planned and mocked up first,
+    and then: "Yeah, layout A seems right", "I think Codex is fine for now", "lets let it rip".
+    - **Two models, and the Dood is not replaced.** A small fast model talks (OpenAI's
+      `gpt-live-1`), and hands on whatever it cannot answer from what it was given. The Dood
+      keeps its own model, tools, computers, approvals and memory, whatever it thinks with.
+    - **The sound never passes through the server.** The browser holds a WebRTC call with
+      OpenAI. The server starts it (`POST /calls` on the agent, with the browser's offer),
+      giving the voice the Dood's name, character and notes and the end of the chat, and
+      hands back the answer. The sign-in stays on the server.
+    - **The browser carries the call** (`lib/call.ts`). The voice's events come over a data
+      channel, and the browser answers a hand-off over it too, so the server holds no line of
+      its own onto the call. Tried first: a server's line works, and is sent the sound of both
+      sides, which it has no use for.
+    - **Two ways to pay, read as one** (`lib/call-events.ts`). A ChatGPT subscription signed in
+      as OpenAI Codex goes the way OpenAI's open-source Codex client makes its voice calls
+      (`chatgpt.com/backend-api/codex/realtime/calls`); an OpenAI API key goes the public way
+      (`api.openai.com/v1/live/sessions`). They carry the same things under different names,
+      and have different voices. The nearest sign-in pays, the workspace's before the
+      server's, a subscription before a key (`calls-directory.ts`). The newer Sign in with
+      ChatGPT keeps a token under `openai` too, and it cannot place a call: both routes answer
+      it 401.
+    - **A hand-off is a message.** It arrives in the chat as said by the person, marked
+      "Said on a call" (`SendMessageRequest.call`), with a note beside it for the Dood: that
+      it was spoken, to answer for the ear, and what was said on the call since it last
+      heard. The Dood answers as it would a typed message. The browser watches the chat for
+      the answer and gives it to the voice, with a step now and then while the Dood works.
+    - **The chat keeps one record** (`dc.call`): how long, what came of it in up to three
+      lines by the small model that writes the chats' notes, and what was said. The entry
+      carries what the Dood was not shown, so that it remembers. A call nobody ends is
+      written up at its time, by the agent's wake-up.
+    - **Where it shows.** In the Dood's panel, where its face is: the creature's mouth
+      follows how loud its voice is (`feedMascot` now takes an amount), rings say who is
+      talking, the words are under it. Wherever the panel is not, a card in the corner of the
+      window. The chat has a live card while it lasts. A Call button under the name and a
+      phone in the strip. The voice is chosen beside the Dood's look.
+    - **Who can call.** `DC_CALLS` (`admins` unless told otherwise, as the owner asked),
+      `DC_CALL_MINUTES` (30), `DC_CALL_MONTHLY_MINUTES` (60, counted in `dc_call_usage` only
+      where the server's own sign-in pays). `DC_CALLS_SCRIPT=1` has no voice and plays a
+      script, for the browser tests.
+    - **The owner's:** that it be built at all; layout A; that the nearest sign-in pays
+      ("user, then workspaces, then server"); the Codex subscription first where it works,
+      then a key; limits from the environment; admins only for now.
+    - **Mine:** that the browser carries the call and the server holds no line; that a
+      hand-off is an ordinary message and not a turn of its own kind; what the voice is told
+      and how much of the chat it is given (forty messages); the record's form and that a
+      small model writes its lines; the names and defaults of the limits; a voice picked by
+      the Dood's id; that the app names itself to OpenAI as `do-computer` and not as Codex;
+      that what is typed during a call is not told to the voice.
+    - **Checked:** the actor with a stand-in for the provider (`calls.test.ts`); who may call
+      and which sign-in pays (`calls-directory.test.ts`); both kinds of call's events as real
+      calls sent them (`call-events.test.ts`); a whole call in a browser against the built
+      server with the scripted voice (`e2e/calls.spec.ts`). **And for real, twice through the
+      built server on this Linux machine**, with a recorded voice as the microphone and Claude
+      Haiku as the Dood: once on an OpenAI key and once on the Codex client's own sign-in.
+      Each heard a sentence and answered aloud, answered from the chat held before the call,
+      handed a request on that the Dood ran real commands for, said the Dood's answer, and
+      left a record with its summary; the second counted its 53 seconds against the month.
+      The call's routes were also run under the Workers runtime on this machine, with the
+      scripted voice: a call started, was told its lines, handed a message on, ended, and
+      left its record.
+    - **Not checked:** a deployed Worker; a workspace's own Codex sign-in as the app makes
+      one (the test used the Codex client's, put in as the server's); Safari, Firefox, a
+      phone's browser; the desktop app; how it sounds, which nothing here could hear; a real
+      person talking over it; a long call; two people in a team.
+    - **Not built:** calling from the phone app, which shows a call's record and cannot start
+      one; a person's own sign-in, a level the app does not have (the owner agreed it comes
+      after, as its own change); the voice being told how work is going that it did not hand
+      on, or what is typed during a call; the server cutting a call off itself (the browser
+      hangs up at the limit and the server's count stops there); the whole-window layout; the
+      desktop companion carrying a call; a Dood calling its owner.
+      The route a subscription's call takes is Codex's own and documented for nobody else. It
+      stopped for everyone for two days in August 2026. See section 10 of the plan.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
@@ -6938,6 +7017,11 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 
 - **Agents writing to each other:** nothing limits an exchange, by the owner's choice; one is
   ended by stopping the conversation from its chat. Sub-agents and scheduled runs cannot send.
+
+- **Calls:** a person's own sign-in does not exist as a level: the owner wants every key and
+  subscription to be the nearest of "user, then workspaces, then server", and today a sign-in
+  is a workspace's or the server's. A limit on a call's length is kept by the browser; the
+  server stops counting at it and does not cut the sound off. See item 90 for the rest.
   Nothing on the sender's side shows that it is waiting to hear back.
 - **Slack:** a picture attached there is looked at only by a model that takes pictures, and
   only as the smaller copy Slack makes; at most five files of a message are taken in. A Slack

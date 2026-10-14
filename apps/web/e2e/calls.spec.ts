@@ -109,6 +109,22 @@ test("a call goes on where its Dood's panel is not, as a card in the corner", as
   await expect(page.getByRole("button", { name: "Call Juniper" })).toBeEnabled()
 })
 
+test("a page that is left ends its call, and the chat still has the record", async ({ page }) => {
+  await talking(page)
+  await panelOf(page).getByRole("button", { name: "Call" }).click()
+  const live = page.getByRole("region", { name: "The call" })
+  await expect(live).toContainText("What did I say before the call?")
+  // The page is loaded afresh in the middle of the call: the server is told on the way out.
+  await page.reload()
+  const record = page.getByRole("region", { name: "A call" })
+  await expect(record).toContainText("Call with Juniper")
+  await expect(page.getByRole("region", { name: "The call" })).toHaveCount(0)
+  // The Dood can be called again.
+  await expect(panelOf(page).getByRole("button", { name: "Call" })).toBeEnabled()
+  await record.getByRole("button", { name: "Show what was said" }).click()
+  await expect(record).toContainText("What did I say before the call?")
+})
+
 test("its voice is chosen in its settings", async ({ page }) => {
   await talking(page)
   const id = /\/a\/([^/]+)/.exec(page.url())![1]!

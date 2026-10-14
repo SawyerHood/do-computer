@@ -57,7 +57,7 @@ mac:
   # app, which joining the halves takes for a mistake unless it is told to expect it.
   x64ArchFiles: "**/driver/node_modules/**"
   extendInfo:
-    NSMicrophoneUsageDescription: Dictating a message to a Dood uses the microphone.
+    NSMicrophoneUsageDescription: Calling a Dood, or dictating a message to one, uses the microphone.
     NSAppleEventsUsageDescription: A command a Dood runs on this Mac asked another app to do something.
 win:
   icon: assets/icon.png

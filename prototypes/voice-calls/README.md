@@ -6,6 +6,15 @@ its own while it keeps working. It is drawn before any of it was built, to go wi
 Everything in it is pretend: the call is a script, and the page makes no sound and does not
 listen.
 
+Layout A was built on 2026-10-14 (HANDOFF.md, section 5, item 90). Where the app differs: the
+panel's call has no buttons to shrink it to the card or to fill the window, and the card is
+where the call goes by itself when the panel is not on screen, under the strip and not in the
+bottom corner; a hand-off is an ordinary message in the chat, marked "Said on a call", above
+the live card, and the Dood's steps on it are in the chat and not in the card; the record's
+lines are ticked; the voice setting is a row of names beside the Dood's look, with nothing to
+play; there are two lists of voices, one for each way of paying. B and C, the phone's screens
+and a Dood calling its owner were not built.
+
 ```sh
 node prototypes/voice-calls/build.mjs     # writes index.html here; open it from the file system
 ```

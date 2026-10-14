@@ -174,8 +174,13 @@ async function tell(): Promise<void> {
   const lines = mine.unsent.splice(0)
   try {
     await client.agent(mine.agentId).callSaid(mine.id, lines)
-  } catch {
-    if (session === mine) mine.unsent.unshift(...lines)
+  } catch (error) {
+    if (session !== mine) return
+    mine.unsent.unshift(...lines)
+    // The server has it as over: the same person called from somewhere else, or its time is up.
+    if ((error as { status?: number }).status === 404) {
+      void endCall("The call was ended from somewhere else.")
+    }
   }
 }
 

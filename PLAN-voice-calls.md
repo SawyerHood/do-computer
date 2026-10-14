@@ -1,9 +1,11 @@
 # Voice calls: plan
 
-**Status:** written 2026-10-14; the owner said to build it the same day, after one more question
-was answered: whether a ChatGPT (Codex) subscription can pay for the calls. It can, and section
-10 is the spike that showed it. Nothing in here is built yet. Section 8 has the owner's answers
-and the choices still open, and section 9 what was read, what was run and what never was.
+**Status:** written 2026-10-14, and step 1 was built the same day: calls on the web, in the
+Dood's panel, paid for by a ChatGPT (Codex) subscription or an OpenAI API key. Section 11 says
+what was built and where it differs from what is written here. Section 10 is the spike that
+showed a subscription can pay. Section 8 has the owner's answers and the choices still open,
+and section 9 what was read, what was run and what never was. `HANDOFF.md` section 5 item 90
+is the record, and `docs/reference/calls.md` is how it works for whoever runs a deployment.
 
 The owner asked for what OpenAI's Dots has: a button that calls your Dood and starts a real-time
 voice conversation with it. This plan says what Dots does, how it is most likely built, what Do
@@ -230,19 +232,15 @@ the thing Dots' users ask for most.
 
 If the sideband cannot be held from a Durable Object, the fallback is the browser passing
 hand-offs and words to the server over the data channel it already has, as OpenDots does. It is
-simpler and trusts the browser more.
+simpler and trusts the browser more. (That is what was built: section 11.)
 
 ## 5. Steps
 
-0. **The spike.** Done for a Codex sign-in (section 10): a call over WebRTC, the chat given as
-   context, a hand-off answered, the server's own line onto the call. Still to try, as the first
-   thing in step 1: the same with an OpenAI API key on the public route, whose event names
-   differ; the server's line held from a Durable Object; and whether the browser can answer a
-   hand-off over its data channel, which would make the server's line unnecessary.
-1. **Calls on the web and in the desktop app.** Sections 4.1 to 4.5: the routes and the bridge,
-   the entry in the chat, layout A with the card elsewhere, a voice for each Dood, limits and
-   the switch, the guide. Two pull requests: the server with the scripted engine and its tests,
-   then the app.
+0. **The spike.** Done, for both ways of paying (section 10): a call over WebRTC, the chat
+   given as context, a hand-off answered, from the browser alone and with a server's own line.
+1. **Calls on the web and in the desktop app.** Built (section 11). Sections 4.1 to 4.5: the
+   routes and the bridge, the entry in the chat, layout A with the card elsewhere, a voice for
+   each Dood, limits and the switch, the reference page.
 2. **Polish.** An approval asked for during a call (the voice says one is waiting and the card
    shows in the chat; nothing is approved by voice); the desktop companion carrying the call
    when the window is hidden; a key to mute; C as a way to enlarge A.
@@ -286,18 +284,20 @@ Answered on 2026-10-14, in the owner's words where quoted:
 - **Limits**: "maybe the caps are set as like an environment variable or something".
 - **Who may call to begin with**: "we can do admins only for now".
 
-Still open:
+Answered the same day, after the spike: "Yeah, layout A seems right. And then I agree on your
+take on two and then I think Codex is fine for now." So:
 
-1. **Where the call lives on a wide screen**: A, B or C. Recommended: A, with the card elsewhere.
-   The owner said to build without choosing one.
-2. **A person's own sign-in.** The app has no such level today: a sign-in belongs to a workspace
-   or to the server. Adding it changes model sign-ins for everything, not only calls. Do it
-   first, as its own change, or start calls on workspace-then-server and add it after?
-3. **Relying on the Codex sign-in** for calls, knowing what section 10 says about its footing.
-4. **A voice for each Dood**, picked when it hatches: yes or no.
-5. **The words kept in the chat**, folded: yes or no.
-6. **The phone app**: now (a paid build) or after the web.
-7. **A Dood calling its owner**: a later step, or not wanted.
+- **Where the call lives on a wide screen**: A, in the Dood's panel, with the card elsewhere.
+- **A person's own sign-in** is its own change, after calls: calls start on the workspace's
+  sign-in and then the server's.
+- **Relying on the Codex sign-in** is fine for now.
+
+Still open, each built as it was proposed:
+
+1. **A voice for each Dood**, picked by which Dood it is: yes or no.
+2. **The words kept in the chat**, folded: yes or no.
+3. **The phone app**: now (a paid build) or later.
+4. **A Dood calling its owner**: a later step, or not wanted.
 
 ## 9. What was read, and what was never run
 
@@ -312,11 +312,13 @@ limits in sections 2 and 4 come from those summaries and should be checked again
 the spike.
 
 Run, on 2026-10-14: the calls of section 10, from a headless browser on the owner's Linux
-machine with a synthesized voice as the microphone.
+machine with a synthesized voice as the microphone; and, once the app was built, a call through
+the app itself on each way of paying (section 11).
 
-Never run: a call paid for by an OpenAI API key, on the public route; a Durable Object holding
-an outbound socket for a call; a call from the app itself; anything on a phone or in Safari.
-That Dots is built on GPT-Live is an inference.
+Never run: a deployed Worker; a Durable Object holding an outbound socket for a call, which
+what was built does not need; anything on a phone, in Safari or in the desktop app. Nothing
+here could hear a call: what was said is known from what the provider wrote down of it, and
+that sound came back from how loud it was. That Dots is built on GPT-Live is an inference.
 
 ## 10. The spike: a call on a ChatGPT (Codex) subscription
 
@@ -364,7 +366,7 @@ delegation: { type: "client" }, initial_items }`. `initial_items` are earlier me
 | -------------------------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------- |
 | **OpenAI Codex** (Codex's own login; pi marks it legacy)             | yes  | **yes**, as above                                                                                                          |
 | **OpenAI**, signed in with ChatGPT (the official way for other apps) | yes  | no: both call routes answer 401 `no_matching_rule`; the public Realtime route starts a session and then fails every answer |
-| **OpenAI API key**                                                   | yes  | by OpenAI's documentation; not tried                                                                                       |
+| **OpenAI API key**                                                   | yes  | **yes**, on the public route, with other names for the same events (below)                                                 |
 
 **Its footing.** The route is Codex's own and is documented for nobody else. Our calls on it
 stand where pi's Codex sign-in already stands for text: it works because OpenAI lets it. It
@@ -377,3 +379,55 @@ a subscription says so plainly.
 **Not learned**: how a call counts against a plan's limits (the usage event carries the seconds
 and an empty limit); whether a workspace's stored Codex sign-in behaves as the Codex client's
 own did (it is the same kind of token, from the same OAuth client).
+
+**Three more things tried before building**, each with one real call:
+
+- **The browser alone can carry a call.** Over its data channel it was sent every event but the
+  sound, answered a hand-off with `delegation.context.append`, and hung up with `session.close`.
+  No server's line was needed.
+- **An OpenAI API key works on the public route**, and not on Codex's (which answers it
+  "Your account does not have access to Quicksilver v2 sessions"). The public route is
+  `POST https://api.openai.com/v1/live/sessions` with `{ session, transport: { type: "webrtc",
+sdp } }`, answered with `{ session: { id }, transport: { sdp } }`. The session is the same
+  but for `model: "gpt-live-1"` and `input` in place of `initial_items`. Its events are
+  `session.started`, `session.input_transcript.delta` and `session.output_transcript.delta`
+  (words only, with no end of a turn), `session.delegation.created` (an id, and not the
+  request in words), `session.usage.updated`, `session.closed`. A hand-off is answered with
+  `session.commentary.append` (said) or `session.thinking.append` (not said), each with an
+  `event_id`, the `delegation_id` and `content` as a string.
+- **The voices are different.** The public route takes marin, cedar, quartz, ripple, vesper,
+  willow, stone, gleam, meridian, beacon, delta and cinder, and refuses the nine of Codex's
+  route with the same "Voice session access denied".
+- **The route takes a call that names its sender honestly**: `originator: do-computer` and a
+  user agent of the app's own, where the first spike had borrowed pi's.
+
+## 11. What was built, and where it differs
+
+Step 1, on 2026-10-14. The record is `HANDOFF.md` section 5 item 90.
+
+- **The browser carries the call; the server holds no line onto it.** Section 4.1 has the
+  Dood's actor attach to the session. What was built instead: the server starts the call and
+  keeps what the browser tells it was said; the browser hears a hand-off, sends it to the chat
+  as a message, watches the chat for the Dood's answer, and gives that to the voice. It needs
+  nothing new of either runtime, and nothing carries the sound of both sides to the server.
+  What it gives up: the limit on a call's length is kept by the browser. The server's count
+  stops at the limit, and it does not cut the sound off.
+- **A hand-off is an ordinary message** with a note beside it (`<meta kind="call">`), marked
+  "Said on a call" in the chat. The Dood's steer-or-queue setting applies to it as to any.
+- **The voice is not told how work is going that it did not hand on**, nor what is typed
+  during a call (4.1, points 6 and 7). While the Dood works on a hand-off, the voice is told
+  its steps.
+- **No server-side hang-up, no whole-window layout (C), no button to shrink the panel's call
+  to the card.** The card is where the call goes by itself when the panel is not on screen.
+- **A voice is picked by the Dood's id**, not kept from when it hatched, and the two ways of
+  paying have their own lists, so a Dood can sound different after a change of sign-in.
+- **The limits' names**: `DC_CALLS`, `DC_CALL_MINUTES`, `DC_CALL_MONTHLY_MINUTES`.
+- **One pull request**, not two.
+
+**Run for real through the built server**, on the owner's Linux machine, with a recorded voice
+as the microphone and Claude Haiku as the Dood, once on an OpenAI key (a workspace's) and once
+on the Codex client's sign-in (put in as the server's). Each time the voice answered a spoken
+sentence, said "Teal" from the chat held before the call, handed "look in my project folder" to
+the Dood, which ran commands and answered in the chat, and said that answer in its own words.
+The record had the length, two lines of summary and the words. The second call's 53 seconds
+were counted against the month.

@@ -9,6 +9,7 @@ set one up, start with [the self-hosting guide](../self-hosting.md).
 - [Security and trust](security.md): what a Dood can reach, and what limits it
 - [Saved passwords and cards](passwords.md): how a Dood signs in and pays without seeing a password or a card's number, and who has them
 - [What a Dood can do](agents.md)
+- [Calling a Dood](calls.md): talking to one out loud, what pays for it, and what leaves the server
 - [Teams](teams.md)
 - [Slack](slack.md)
 - [Apps](apps.md): how the Composio connector works
