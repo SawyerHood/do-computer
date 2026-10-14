@@ -12,6 +12,7 @@ import { atom, getDefaultStore } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { chatKey, liveChatAtom } from "./atoms.ts"
 import { type Heard, readVoiceEvent, voiceClose, voiceReply } from "./call-events.ts"
+import { addWords, NOTHING_SAID, type Said, takePause, takePauses, turnDone } from "./call-said.ts"
 import { client } from "./client.ts"
 import { messageOrigin } from "./desktop.ts"
 import { callMoodAtom, feedMascot, type MascotMood } from "./mascot.ts"
@@ -75,8 +76,16 @@ export const callShownAtom = atom(false)
 
 const store = getDefaultStore()
 
-/** How long one side may be quiet in the middle of a sentence before what it said counts as said. */
+/**
+ * How long one side may be quiet in the middle of a sentence before what it said counts as
+ * said, on a call that never says when somebody has finished.
+ */
 const SENTENCE_MS = 1_600
+/**
+ * The same, on a call that does say: it says so a couple of seconds after the last word, so
+ * this is only for a turn whose end never comes.
+ */
+const TURN_MS = 8_000
 /** How long a sound keeps a face moving after it stops. */
 const SOUND_MS = 350
 /** How loud counts as talking, of the 0 to 1 a level is given as. */
@@ -122,8 +131,8 @@ type Session = {
   youAt: number
   doodAt: number
   /** When each side last added to what it is in the middle of saying. */
-  youWordsAt: number
-  doodWordsAt: number
+  /** What has been said, as the words arrived. What the page shows of it is a copy. */
+  said: Said
   /** When anything was last said by anyone. */
   activeAt: number
   quietSeconds: number
@@ -157,14 +166,22 @@ function setPhase(phase: CallPhase): void {
 
 // --- What was said.
 
-function finish(who: "you" | "dood", whole?: string): void {
-  const current = view()
-  if (current === undefined || session === undefined) return
-  const said = (whole ?? current[who]).replace(/\s+/g, " ").trim()
-  if (said === "") return
-  const line: CallLine = { who, text: said }
-  store.set(callAtom, { ...current, [who]: "", lines: [...current.lines, line] })
-  session.unsent.push(line)
+/** Whether a call says when somebody has finished speaking. One on an OpenAI key does not. */
+const saysTurns = (mine: Session) => mine.dialect !== "openai"
+
+/** What was said has changed: the page shows it, and the server is owed the new lines. */
+function keep(mine: Session, said: Said, lines: readonly (CallLine | undefined)[] = []): void {
+  mine.said = said
+  for (const line of lines) if (line !== undefined) mine.unsent.push(line)
+  patch({ lines: said.lines, you: said.you, dood: said.dood })
+}
+
+/** Whatever either of the two was in the middle of saying is taken as said: the call is ending. */
+function takeAll(mine: Session): void {
+  for (const who of ["you", "dood"] as const) {
+    const taken = takePause(mine.said, who, false)
+    keep(mine, taken.said, [taken.line])
+  }
 }
 
 /** Tell the server what was said since it was last told. What does not get there goes the next time. */
@@ -199,17 +216,19 @@ function heard(event: Heard): void {
       return
     case "words": {
       mine.activeAt = now
-      if (event.who === "you") mine.youAt = mine.youWordsAt = now
-      else mine.doodAt = mine.doodWordsAt = now
-      store.set(callAtom, { ...current, [event.who]: current[event.who] + event.text })
+      if (event.who === "you") mine.youAt = now
+      else mine.doodAt = now
+      keep(mine, addWords(mine.said, event.who, event.text, now))
       // Its mouth moves with its words where the sound itself cannot be measured.
       if (event.who === "dood" && mine.line?.levels().dood === 0) feedMascot(mine.agentId, "token")
       return
     }
-    case "line":
+    case "line": {
       mine.activeAt = now
-      finish(event.who, event.text)
+      const done = turnDone(mine.said, event.who, event.text)
+      keep(mine, done.said, [done.line])
       return
+    }
     case "handOn":
       void handOn(event.id, event.ask)
       return
@@ -226,12 +245,18 @@ function heard(event: Heard): void {
 async function handOn(id: string, given: string | undefined): Promise<void> {
   const mine = session
   if (mine === undefined || mine.id === undefined) return
-  // What the person was saying is the request, and is said by now.
-  finish("you")
+  // On a call that never says when somebody has finished, what the person was saying is the
+  // request, and is said by now. One that does say gives the request in words, and says that
+  // the person has finished a moment later: it is not taken twice.
+  if (!saysTurns(mine)) {
+    const taken = takePause(mine.said, "you", false)
+    keep(mine, taken.said, [taken.line])
+  }
   const current = view()
   if (current === undefined) return
   const ask =
     given?.trim() ||
+    mine.said.you.replace(/\s+/g, " ").trim() ||
     current.lines.findLast((line) => line.who === "you")?.text ||
     "(Something was asked out loud that was not caught in words.)"
   store.set(callAtom, { ...current, works: [...current.works, { id, ask, done: false }] })
@@ -445,12 +470,16 @@ function playScript(script: readonly CallScriptStep[], onEvent: (event: Heard) =
   let closed = false
   let answered: ((said: string) => void) | undefined
   const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms))
-  const speak = async (who: "you" | "dood", said: string) => {
+  const words = async (who: "you" | "dood", said: string) => {
     for (const word of said.split(" ")) {
       if (closed) return
       onEvent({ type: "words", who, text: ` ${word}` })
       await wait(40)
     }
+  }
+  // As a real call does, it says that somebody has finished a moment after their last word.
+  const finished = async (who: "you" | "dood", said: string) => {
+    await wait(150)
     if (!closed) onEvent({ type: "line", who, text: said })
   }
   void (async () => {
@@ -458,19 +487,38 @@ function playScript(script: readonly CallScriptStep[], onEvent: (event: Heard) =
     if (closed) return
     onEvent({ type: "started" })
     let n = 0
-    for (const step of script) {
+    const handOn = (ask?: string) =>
+      new Promise<string>((done) => {
+        answered = done
+        onEvent({ type: "handOn", id: `scripted-${++n}`, ...(ask === undefined ? {} : { ask }) })
+      })
+    for (let i = 0; i < script.length; i++) {
+      const step = script[i]!
       if (closed) return
       await wait(120)
-      if ("hear" in step) await speak("you", step.hear)
-      else if ("say" in step) await speak("dood", step.say)
-      else {
-        const said = await new Promise<string>((done) => {
-          answered = done
-          onEvent({ type: "handOn", id: `scripted-${++n}` })
-        })
-        answered = undefined
-        await speak("dood", said)
+      if ("say" in step) {
+        await words("dood", step.say)
+        await finished("dood", step.say)
+        continue
       }
+      const next = script[i + 1]
+      let answer: Promise<string>
+      if ("hear" in step) {
+        await words("you", step.hear)
+        if (next === undefined || !("handOn" in next)) {
+          await finished("you", step.hear)
+          continue
+        }
+        // What was heard is handed on before the person is said to have finished, with the
+        // request in words.
+        answer = handOn(step.hear)
+        await finished("you", step.hear)
+        i++
+      } else answer = handOn()
+      const said = await answer
+      answered = undefined
+      await words("dood", said)
+      await finished("dood", said)
     }
   })()
   return {
@@ -524,8 +572,7 @@ export async function startCall(
     handoffs: [],
     youAt: 0,
     doodAt: 0,
-    youWordsAt: 0,
-    doodWordsAt: 0,
+    said: NOTHING_SAID,
     activeAt: Date.now(),
     quietSeconds: 120,
     timers: [],
@@ -628,8 +675,9 @@ export async function startCall(
         if (session !== mine || current === undefined) return
         const now = Date.now()
         // A sentence that was left hanging is taken as said.
-        if (current.you !== "" && now - mine.youWordsAt > SENTENCE_MS) finish("you")
-        if (current.dood !== "" && now - mine.doodWordsAt > SENTENCE_MS) finish("dood")
+        const turns = saysTurns(mine)
+        const paused = takePauses(mine.said, now, turns ? TURN_MS : SENTENCE_MS, turns)
+        if (paused.lines.length > 0) keep(mine, paused.said, paused.lines)
         if (mine.unsent.length > 0) void tell()
         // What the Dood was handed is looked at again, for one that never answers.
         chatChanged(store.get(live).state)
@@ -643,8 +691,7 @@ export async function startCall(
     // A page that is left takes the call with it: the server is told on the way out.
     const leaving = () => {
       if (session !== mine || mine.id === undefined) return
-      finish("you")
-      finish("dood")
+      takeAll(mine)
       void fetch(
         `/api/agents/${encodeURIComponent(mine.agentId)}/calls/${encodeURIComponent(mine.id)}/end`,
         {
@@ -666,8 +713,7 @@ export async function startCall(
 export async function endCall(problem?: string): Promise<void> {
   const mine = session
   if (mine === undefined) return
-  finish("you")
-  finish("dood")
+  takeAll(mine)
   session = undefined
   for (const timer of mine.timers) clearInterval(timer)
   for (const cleanup of mine.cleanups) cleanup()

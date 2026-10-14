@@ -6893,6 +6893,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
 91. **A Dood can be called out loud** (2026-10-14; `packages/protocol/src/calls.ts`,
     `packages/agent/src/calls.ts`, `actor.ts`, `project.ts`,
     `apps/web/src/server/calls-directory.ts`, `apps/web/src/lib/call.ts`, `call-events.ts`,
+    `call-said.ts`,
     `apps/web/src/components/call/call.tsx`; the plan is `PLAN-voice-calls.md`, the mock-up
     `prototypes/voice-calls/`, the reference page `docs/reference/calls.md`). The owner asked
     for what OpenAI's Dots has, "this feature that lets you call your dot and it starts like a
@@ -6956,6 +6957,10 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       The call's routes were also run under the Workers runtime on this machine, with the
       scripted voice: a call started, was told its lines, handed a message on, ended, and
       left its record.
+      The first real call on a subscription kept some lines twice: that route says when a
+      turn ends, about two seconds after its last word, and a pause had already counted the
+      line. What is said is now kept by `lib/call-said.ts`, which is tested against those
+      calls' own timings, and both routes were called again with every line kept once.
     - **Not checked:** a deployed Worker; a workspace's own Codex sign-in as the app makes
       one (the test used the Codex client's, put in as the server's); Safari, Firefox, a
       phone's browser; the desktop app; how it sounds, which nothing here could hear; a real

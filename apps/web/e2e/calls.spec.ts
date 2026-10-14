@@ -69,6 +69,20 @@ test("a Dood is called: its voice hands on what was asked, says the answer, and 
   await expect(record).toContainText("Any time.")
   await page.screenshot({ path: "test-results/call-record.png" })
 
+  // Each thing said is in it once, in the order it was said.
+  const [agentId, chatId] = /\/a\/([^/]+)\/c\/([^/?]+)/.exec(page.url())!.slice(1)
+  const chat = (await (
+    await page.request.get(`/api/agents/${agentId}/chats/${chatId}`)
+  ).json()) as {
+    messages: { parts: { type: string; call?: { lines: { who: string; text: string }[] } }[] }[]
+  }
+  const kept = chat.messages.flatMap((message) => message.parts).find((part) => part.call)!.call!
+  expect(kept.lines.map((line) => line.who)).toEqual(["you", "dood", "you", "dood"])
+  expect(kept.lines[0]!.text).toBe("What did I say before the call?")
+  expect(kept.lines[1]!.text).toMatch(/^You said: What did I say before the call\?/)
+  expect(kept.lines[2]!.text).toBe("Thanks, that is all.")
+  expect(kept.lines[3]!.text).toBe("Any time.")
+
   // It is still there for whoever opens the chat afresh.
   await page.reload()
   await expect(page.getByRole("region", { name: "A call" })).toContainText("Call with Juniper")
