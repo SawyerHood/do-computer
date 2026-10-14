@@ -7,8 +7,9 @@ export type Sharing =
   | { state: "starting" }
   /** Waiting for the owner to confirm, signed in, that this computer is theirs. */
   | { state: "pairing"; code: string; verifyUrl: string }
-  | { state: "connecting"; name: string }
-  | { state: "connected"; name: string; readOnly: boolean }
+  /** `computerId` is what the server knows this computer by, which a message written here says. */
+  | { state: "connecting"; name: string; computerId?: string }
+  | { state: "connected"; name: string; readOnly: boolean; computerId?: string }
   /** The daemon stopped by itself, and is started again shortly unless it said not to be. */
   | { state: "stopped"; why: "superseded" | "failed"; detail?: string }
 
@@ -18,12 +19,21 @@ export function after(sharing: Sharing, event: DaemonEvent): Sharing {
     case "pairing":
       return { state: "pairing", code: event.code, verifyUrl: event.verifyUrl }
     case "paired":
-      return { state: "connecting", name: event.name }
+      return { state: "connecting", name: event.name, computerId: event.computerId }
     case "connected":
-      return { state: "connected", name: event.name, readOnly: event.readOnly }
+      return {
+        state: "connected",
+        name: event.name,
+        readOnly: event.readOnly,
+        computerId: event.computerId,
+      }
     case "disconnected":
       return sharing.state === "connected" || sharing.state === "connecting"
-        ? { state: "connecting", name: sharing.name }
+        ? {
+            state: "connecting",
+            name: sharing.name,
+            ...(sharing.computerId === undefined ? {} : { computerId: sharing.computerId }),
+          }
         : { state: "starting" }
     case "revoked":
       return { state: "off" }

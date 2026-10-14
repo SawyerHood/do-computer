@@ -4,6 +4,7 @@ import {
   iconFits,
   iconPicture,
   mayUseBridge,
+  pairedAs,
   provider,
   screenRefusal,
   shareAnswer,
@@ -64,6 +65,18 @@ describe("what a page is told of sharing", () => {
     expect(sharingNow({ state: "starting" })).toBe("off")
     expect(sharingNow({ state: "off" })).toBe("off")
     expect(sharingNow({ state: "stopped", why: "failed" })).toBe("off")
+  })
+
+  it("is what the server knows this computer by, only while agents can use it", () => {
+    expect(pairedAs({ state: "connected", name: "air", readOnly: false, computerId: "c1" })).toBe(
+      "c1",
+    )
+    // The connection is down for a moment. It is the same computer.
+    expect(pairedAs({ state: "connecting", name: "air", computerId: "c1" })).toBe("c1")
+    expect(pairedAs({ state: "connecting", name: "air" })).toBeNull()
+    expect(pairedAs({ state: "pairing", code: "AB-12", verifyUrl: "https://x" })).toBeNull()
+    expect(pairedAs({ state: "off" })).toBeNull()
+    expect(pairedAs({ state: "stopped", why: "superseded" })).toBeNull()
   })
 
   it("is the code to confirm, or that there is nothing to confirm", () => {

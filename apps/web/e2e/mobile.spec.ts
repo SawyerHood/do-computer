@@ -158,7 +158,16 @@ test("signing in lands on the agents, and an agent's row opens its chat", async 
 
 test("a chat streams the agent's reply and survives leaving and coming back", async ({ page }) => {
   await openChat(page)
+  const sending = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      /\/chats\/[^/]+\/messages$/.test(new URL(request.url()).pathname),
+  )
   await send(page, "hello from the phone")
+  // A message says where it was written. Built for a browser, the app is in one.
+  expect(((await sending).postDataJSON() as { from?: unknown }).from).toMatchObject({
+    app: "browser",
+  })
   await expect(words(page, /You said: hello from the phone/)).toBeVisible()
   // Stop is there only while the agent works, and the hello gives way to the conversation.
   await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)

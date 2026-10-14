@@ -1,3 +1,5 @@
+import { MESSAGE_APPS, MESSAGE_DEVICES, type MessageApp } from "@do-computer/protocol"
+
 /**
  * Who a request is from. The actor trusts its gateway, which has checked the session, so this is
  * only ever what the gateway wrote: a client cannot set it.
@@ -39,17 +41,72 @@ const unescapeAttribute = (value: string) =>
     .replaceAll("&gt;", ">")
     .replaceAll("&amp;", "&")
 
+/** Where a message was written, in the words its note says it in. */
+export type SentFrom = {
+  /** The app it was written in. */
+  via: string
+  /** The kind of device. */
+  device?: string
+  /** The computer it was written on, by the name the agent has for it. */
+  computer?: string
+}
+
+/** What each app a message can be written in is called, to the model. */
+const VIA: Record<MessageApp, string> = {
+  browser: "web browser",
+  desktop: "desktop app",
+  mobile: "mobile app",
+}
+
 /**
- * The note that travels with a sent message, for the model: when it was sent and, where the
- * agent is shared, by whom. The sender's name is theirs to choose, so it is written as an
- * attribute's value and cannot end the tag.
+ * Where a message was written, from what its sender's app said. That is the sender's to choose,
+ * so only words from a list are taken from it. The computer is one of the agent's own, by the
+ * name the agent has for it, and one the agent does not have is left out.
  */
-export function sentMeta(sentAt: string, from: Caller | undefined): string {
+export function sentFrom(
+  said: unknown,
+  computers: readonly { id: string; name: string }[],
+): SentFrom | undefined {
+  if (typeof said !== "object" || said === null) return undefined
+  const { app, device, computerId } = said as Record<string, unknown>
+  if (typeof app !== "string" || !(MESSAGE_APPS as readonly string[]).includes(app)) {
+    return undefined
+  }
+  const computer =
+    typeof computerId === "string" && computerId !== ""
+      ? computers.find((one) => one.id === computerId)?.name
+      : undefined
+  return {
+    via: VIA[app as MessageApp],
+    ...(typeof device === "string" && (MESSAGE_DEVICES as readonly string[]).includes(device)
+      ? { device }
+      : {}),
+    ...(computer === undefined ? {} : { computer }),
+  }
+}
+
+/**
+ * The note that travels with a sent message, for the model: when it was sent, where the agent
+ * is shared, by whom, and where the sender's app said, from where. A person's name and a
+ * computer's are theirs to choose, so each is written as an attribute's value and cannot end
+ * the tag.
+ */
+export function sentMeta(sentAt: string, from: Caller | undefined, where?: SentFrom): string {
   const who =
     from === undefined
       ? ""
       : ` from="${escapeAttribute(from.name.replace(/\s+/g, " ").trim().slice(0, 80))}" from_id="${escapeAttribute(from.id)}"`
-  return `<meta sent_at="${escapeAttribute(sentAt)}"${who}/>`
+  const place =
+    where === undefined
+      ? ""
+      : ` via="${escapeAttribute(where.via)}"${
+          where.device === undefined ? "" : ` device="${escapeAttribute(where.device)}"`
+        }${
+          where.computer === undefined
+            ? ""
+            : ` computer="${escapeAttribute(where.computer.replace(/\s+/g, " ").trim().slice(0, 80))}"`
+        }`
+  return `<meta sent_at="${escapeAttribute(sentAt)}"${who}${place}/>`
 }
 
 /** Who sent a message, read back out of the note that travelled with it. */

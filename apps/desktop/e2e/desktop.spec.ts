@@ -285,7 +285,23 @@ test("an agent works on this computer, and still can with the window closed", as
     .fill(
       `/tool bash {"command":"echo from the agent > proof.txt && env > env.txt","computer":"${name}"}`,
     )
+  const sending = main.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      /\/chats\/[^/]+\/messages$/.test(new URL(request.url()).pathname),
+  )
   await main.keyboard.press("Enter")
+  // A message written here says that it was, so that the agent knows which computer its owner
+  // is at: this one, by what the server knows it by.
+  const { computers } = (await main.evaluate(async () =>
+    (await fetch("/api/computers")).json(),
+  )) as { computers: { id: string; name: string; kind: string }[] }
+  const here = computers.find((computer) => computer.kind === "paired" && computer.name === name)!
+  expect(((await sending).postDataJSON() as { from?: unknown }).from).toEqual({
+    app: "desktop",
+    device: { darwin: "Mac", win32: "Windows" }[process.platform as string] ?? "Linux",
+    computerId: here.id,
+  })
   await expect.poll(() => existsSync(join(home, "proof.txt")), { timeout: 30_000 }).toBe(true)
   expect(readFileSync(join(home, "proof.txt"), "utf8").trim()).toBe("from the agent")
   // What the agent runs is not told that it is inside the app: an Electron app it started

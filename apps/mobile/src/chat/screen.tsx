@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient"
 import { KeyboardStickyView } from "react-native-keyboard-controller"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { messageOrigin } from "@/lib/origin"
 import { sayWhere, useHere } from "@/lib/presence"
 import {
   keys,
@@ -160,6 +161,7 @@ export function ChatScreen({
           ...(images.length > 0 ? { images } : {}),
           requestId: id,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          from: messageOrigin(),
         })
         setNow(Date.now())
         setSending((current) =>

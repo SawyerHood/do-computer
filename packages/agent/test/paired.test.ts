@@ -3,7 +3,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createComputerLinkActor, DaemonCore } from "@do-computer/computers"
 import { nodeDaemonIO } from "@do-computer/computers/node"
-import type { ApprovalsState, ChatState, ChatSummary, ToolPart } from "@do-computer/protocol"
+import type {
+  ApprovalsState,
+  ChatState,
+  ChatSummary,
+  MessageOrigin,
+  ToolPart,
+} from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
 import { justBashSandbox } from "@do-computer/sandbox"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -112,9 +118,14 @@ async function call<T>(path: string, method = "GET", payload?: unknown): Promise
   return result
 }
 
-async function say(chatId: string, text: string): Promise<ChatState> {
+/** Say something in a chat and wait for the answer. `from` is where the sender's app says it is. */
+async function say(chatId: string, text: string, from?: MessageOrigin): Promise<ChatState> {
   const before = (await call<ChatState>(`/chats/${chatId}`)).messages.length
-  await call(`/chats/${chatId}/messages`, "POST", { text, requestId: crypto.randomUUID() })
+  await call(`/chats/${chatId}/messages`, "POST", {
+    text,
+    requestId: crypto.randomUUID(),
+    ...(from === undefined ? {} : { from }),
+  })
   const deadline = Date.now() + 8_000
   for (;;) {
     const state = await call<ChatState>(`/chats/${chatId}`)
@@ -170,6 +181,39 @@ describe("paired computers", () => {
     expect(prompt).toContain("- laptop-2: darwin, home /Users/x, read-only")
     // The tools advertise the argument that selects a computer.
     expect(prompt).toContain("Name of the computer to do this on")
+  })
+
+  it("are named in the note on a message written on one, which says where the person is", async () => {
+    const seen: string[] = []
+    const reply = (context: unknown) => {
+      seen.push(JSON.stringify(context))
+      return fauxAssistantMessage("ok")
+    }
+    faux.setResponses([reply, reply, reply, reply])
+    // Written in the desktop app on the second computer, which is named as the agent calls it.
+    await say(chat.id, "what is on my screen?", {
+      app: "desktop",
+      device: "Mac",
+      computerId: "c2",
+    })
+    expect(seen[0]).toContain('via=\\"desktop app\\" device=\\"Mac\\" computer=\\"laptop-2\\"/>')
+    // What a note that names a computer means is said with the computers.
+    expect(seen[0]).toContain("are sitting at it")
+
+    // A browser cannot say which computer it is on, and a phone is on none.
+    await say(chat.id, "and now?", { app: "browser", device: "Linux" })
+    expect(seen[1]).toContain('via=\\"web browser\\" device=\\"Linux\\"/>')
+    // The earlier message keeps the note it was sent with.
+    expect(seen[1]).toContain('computer=\\"laptop-2\\"')
+
+    // A computer the agent does not have is not named. Neither is a machine of the workspace,
+    // which nobody sits at.
+    await say(chat.id, "and here?", { app: "desktop", device: "Mac", computerId: "c9" })
+    expect(seen[2]).toContain('via=\\"desktop app\\" device=\\"Mac\\"/>')
+    const { computers } = await call<{ computers: { id: string; kind?: string }[] }>("/computers")
+    const machine = computers.find((one) => one.kind !== undefined && one.kind !== "paired")!
+    await say(chat.id, "or here?", { app: "desktop", device: "Linux", computerId: machine.id })
+    expect(seen[3]).toContain('via=\\"desktop app\\" device=\\"Linux\\"/>')
   })
 
   it("run a command there when asked to, and on the agent's own computer otherwise", async () => {

@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, card, owner, signIn } from "./helpers.ts"
+import { asOwner, card, composer, owner, signIn } from "./helpers.ts"
 
 // Someone who has Doods already and signs in to the desktop app on another computer is taken
 // straight to them: no egg comes down, and no Dood is hatched to ask about the computer. That
@@ -10,10 +10,11 @@ asOwner()
 
 /**
  * What the desktop app gives a page of the deployment on its first run, with a note of what it
- * is asked. Sharing this computer is its daemon asking to be paired, which gets a code.
+ * is asked. Sharing this computer is its daemon asking to be paired, which gets a code. With
+ * `pairedAs`, the first run is over and this computer is the one the server knows by that.
  */
-const asDesktopApp = (page: Page) =>
-  page.addInitScript(() => {
+const asDesktopApp = (page: Page, pairedAs: string | null = null) =>
+  page.addInitScript((pairedAs) => {
     const asked: unknown[] = []
     Object.assign(window, {
       asked,
@@ -21,8 +22,9 @@ const asDesktopApp = (page: Page) =>
         platform: "darwin",
         computer: "sawyers-air",
         canOpenAtLogin: true,
-        welcomed: false,
-        sharing: "off",
+        welcomed: pairedAs !== null,
+        sharing: pairedAs === null ? "off" : "on",
+        pairedAs: async () => pairedAs,
         signIn: async () => ({ error: "Not here." }),
         cancelSignIn: async () => {},
         share: async (options: { readOnly: boolean }) => {
@@ -46,11 +48,12 @@ const asDesktopApp = (page: Page) =>
         setIcon: async () => {},
       },
     })
-  })
+  }, pairedAs)
 
 const asked = (page: Page) => page.evaluate(() => (window as unknown as { asked: unknown[] }).asked)
 
 type Listed = {
+  id: string
   name: string
   kind: string
   workspaceId: string
@@ -153,6 +156,48 @@ test("asked for their own workspace, every Dood of theirs is given it, to read",
   const mine = (await paired(page)).find((computer) => computer.workspaceId !== team)
   expect(mine).toMatchObject({ readOnly: true })
   expect([...mine!.agentIds].sort()).toEqual([...own].sort())
+})
+
+/** Send a message in the chat that is open, and resolve with where the page said it was written. */
+async function sentFrom(page: Page, text: string): Promise<unknown> {
+  const sending = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      /\/chats\/[^/]+\/messages$/.test(new URL(request.url()).pathname),
+  )
+  await composer(page).fill(text)
+  await page.keyboard.press("Enter")
+  const { from } = (await sending).postDataJSON() as { from?: unknown }
+  // It was taken, and answered.
+  await expect(page.getByText(`You said: ${text}`)).toBeVisible()
+  return from
+}
+
+test("a message written in the app says which computer it was written on, and one in a browser only what kind", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  await signIn(page)
+  const mine = (await paired(page)).find((computer) => computer.workspaceId !== team)!
+  await asDesktopApp(page, mine.id)
+  await page.goto("/")
+  await page.waitForURL(/\/a\/[^/]+\/c\/\d+/)
+  expect(await sentFrom(page, "what is on my screen")).toMatchObject({
+    app: "desktop",
+    computerId: mine.id,
+  })
+
+  // A browser cannot tell which computer it is on. It says what it calls itself.
+  const context = await browser.newContext({
+    baseURL,
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+  })
+  const elsewhere = await context.newPage()
+  await signIn(elsewhere)
+  expect(await sentFrom(elsewhere, "and from here")).toEqual({ app: "browser", device: "Mac" })
+  await context.close()
 })
 
 test("someone with an account says so before the egg has said hello, and is signed straight in", async ({

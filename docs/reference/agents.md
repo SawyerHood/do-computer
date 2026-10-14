@@ -123,6 +123,12 @@
   given a computer can see that it is there and ask for it. Whoever it belongs to gets a
   notification and a request in the app, and the Dood is told the answer in the chat it asked
   from.
+- **Know which computer you are at.** A Dood is told where each message was written: in a
+  browser, the desktop app or the phone app, and on what kind of device. A message written in
+  the [desktop app](desktop.md) on a computer the Dood has names that computer, so "this
+  computer", "my screen" and "the file I just saved" mean the one you are sitting at. A
+  browser cannot tell which of your computers it is on, so a message from one says only the
+  kind.
 - **Use a browser on your computer.** On a computer you paired, a Dood can run short scripts in
   a browser, with [dev-browser](https://github.com/SawyerHood/dev-browser), which the daemon
   fetches the first time. It uses your own Chrome when that is open and lets itself be used

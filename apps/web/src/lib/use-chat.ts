@@ -8,6 +8,7 @@ import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { chatKey, earlierAtom, sendingAtom } from "./atoms.ts"
 import { client } from "./client.ts"
+import { messageOrigin } from "./desktop.ts"
 import { GIVE_UP_MS, settleSends } from "./sending.ts"
 import { useLiveChat } from "./use-live-chat.ts"
 
@@ -144,6 +145,7 @@ export function useChat(agentId: string, chatId: string) {
           ...(images.length > 0 ? { images } : {}),
           requestId: id,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          from: await messageOrigin(),
         })
         setSending((current) =>
           current.map((entry) =>
