@@ -30,7 +30,7 @@ test("the agent looks at a page before it shows it: its heights, its console, wh
 }) => {
   await signIn(page)
   await newChat(page)
-  await tool(page, "visual_preview", { html: PAGE }, /At 680px wide the page is 90px tall/)
+  await tool(page, "look", { html: PAGE }, /At 680px wide the page is 90px tall/)
   const said = page.getByText(/At 680px wide the page is/).last()
   // Three cards side by side on a computer, and one under another on a phone.
   await expect(said).toContainText("90px tall on a computer")
@@ -56,7 +56,7 @@ test("a page that would not work in the chat is not looked at, and the agent is 
   await composer(page).fill("")
   await tool(
     page,
-    "visual_preview",
+    "look",
     { html: "<style>.app{min-height:100vh}</style><div class=app>x</div>" },
     /takes its height from the window/,
   )

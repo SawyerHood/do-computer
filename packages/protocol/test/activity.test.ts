@@ -40,7 +40,8 @@ describe("toolActivity", () => {
     [tool("sign_in", { login: "GitHub", computer: "MacBook" }), "Signing in on MacBook: GitHub"],
     [tool("send_file", { path: "out/report.pdf" }), "Sending you report.pdf"],
     [tool("look", { file: "~/library/reports/q3.html" }), "Looking at q3.html"],
-    [tool("look", {}), "Looking at a file in your library"],
+    [tool("look", { html: "<h1>Q3</h1>" }), "Looking over a page before showing it"],
+    [tool("look", {}), "Looking at something"],
     [tool("schedule", { action: "create", title: "Stretch" }), "Scheduling: Stretch"],
     [tool("schedule", { action: "list" }), "Checking its schedule"],
     [

@@ -291,7 +291,7 @@ describe("looking at a page before it is shown", () => {
     const { asked, previewer } = browser()
     const world = open(previewer)
     const chat = await setup(world)
-    const part = await use(world, chat.id, "visual_preview", { html: LOUD })
+    const part = await use(world, chat.id, "look", { html: LOUD })
     expect(part.status).toBe("done")
     expect(part.output).toContain("At 680px wide the page is 120px tall.")
     expect(part.output).toContain(
@@ -320,7 +320,7 @@ describe("looking at a page before it is shown", () => {
   it("gives a page drawn as it was looked at the room it was measured to take", async () => {
     const world = open(browser().previewer)
     const chat = await setup(world)
-    await use(world, chat.id, "visual_preview", { html: PAGE })
+    await use(world, chat.id, "look", { html: PAGE })
     const drawn = await use(world, chat.id, "visual", { title: "Signups", html: PAGE })
     expect(isVisual(drawn)).toBe(true)
     expect(readVisualHeights((drawn.details as { heights?: unknown }).heights)).toEqual([
@@ -343,7 +343,7 @@ describe("looking at a page before it is shown", () => {
     const { asked, previewer } = browser()
     const world = open(previewer)
     const chat = await setup(world)
-    const part = await use(world, chat.id, "visual_preview", {
+    const part = await use(world, chat.id, "look", {
       html: "<p>x</p><script>localStorage.setItem('a', '1')</script>",
     })
     expect(part.status).toBe("error")
@@ -354,7 +354,7 @@ describe("looking at a page before it is shown", () => {
   it("tells the agent to draw without looking when the browser cannot be had", async () => {
     const world = open(browser(new PreviewError("No browser could be had just now.")).previewer)
     const chat = await setup(world)
-    const part = await use(world, chat.id, "visual_preview", { html: PAGE })
+    const part = await use(world, chat.id, "look", { html: PAGE })
     expect(part.status).toBe("error")
     expect(part.output).toBe(
       "The page could not be looked at: No browser could be had just now. Draw it without looking.",
@@ -365,9 +365,28 @@ describe("looking at a page before it is shown", () => {
   it("is not offered where the server has no browser", async () => {
     const world = open()
     const chat = await setup(world)
-    const part = await use(world, chat.id, "visual_preview", { html: PAGE })
+    const part = await use(world, chat.id, "look", { html: PAGE })
     expect(part.status).toBe("error")
     expect(part.output).not.toContain("At 680px wide")
+  })
+
+  it("wants a page or a file of the library, and not both", async () => {
+    const { asked, previewer } = browser()
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "reports/q3.html", "<h1>Q3</h1>")
+    const both = await use(world, chat.id, "look", { html: PAGE, file: "reports/q3.html" })
+    expect(both.status).toBe("error")
+    expect(both.output).toContain("Give `html` or `file`, not both")
+    const neither = await use(world, chat.id, "look", { width: 360 })
+    expect(neither.status).toBe("error")
+    expect(neither.output).toContain("There is nothing to look at")
+    expect(asked).toEqual([])
+    // One sent as nothing at all is not one that was meant.
+    const file = await use(world, chat.id, "look", { html: "", file: "reports/q3.html" })
+    expect(file.output).toContain("reports/q3.html, as the app shows the page")
+    const page = await use(world, chat.id, "look", { html: PAGE, file: " " })
+    expect(page.output).toContain("At 680px wide the page is 120px tall.")
   })
 })
 
