@@ -61,6 +61,7 @@ import {
   type HereAnswer,
   ownerName,
   type PageInfo,
+  pairedAs,
   provider,
   type ScreenAnswer,
   screenRefusal,
@@ -1318,6 +1319,10 @@ function listenToServer(): void {
       const wrong = await signInWindow(name)
       return wrong === undefined ? { ok: true } : { error: wrong }
     }),
+  )
+  ipcMain.handle(
+    CHANNELS.pairedAs,
+    served(() => pairedAs(runner?.sharing ?? { state: "off" })),
   )
 }
 

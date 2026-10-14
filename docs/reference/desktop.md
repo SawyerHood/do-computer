@@ -14,6 +14,8 @@ and can be a third:
 - **The daemon for the computer it runs on.** While the app runs, the Doods you connected to
   that computer can work on it. Closing the window leaves the app in the tray with the daemon
   going; **Quit** in the tray menu ends both. It can open when you sign in to the computer.
+  A message you write in the app tells a Dood that has the computer that it was written
+  there, so it knows which of your computers you are at.
 
 Pairing happens inside the app. Say that your Doods may use the computer, on the first screen
 or later under **This Computer…** in the tray menu, and once you are signed in the window shows

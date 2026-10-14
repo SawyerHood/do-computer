@@ -83,7 +83,7 @@ import {
 import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc, SIGN_IN_ABILITY } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
-import { type Caller, readCaller, sentMeta } from "./caller.ts"
+import { type Caller, readCaller, sentFrom, sentMeta } from "./caller.ts"
 import { AppNeedsConsent, ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { Followers } from "./followers.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
@@ -2700,8 +2700,20 @@ export class AgentActor implements Actor {
       await conversation.configure({ thinkingLevel: thinking }, context)
     }
     const zone = timezone ?? identity.timezone
+    // Where it was written, where the sender's app said. A machine of the workspace is nobody's
+    // desk, so the computer is only ever one that somebody paired.
+    const where = sentFrom(
+      input.from,
+      typeof input.from?.computerId === "string"
+        ? (await this.#computers.list(context)).filter(isPaired)
+        : [],
+    )
     // Where a team shares the agent, it is also told who is speaking.
-    const meta = sentMeta(formatTime(this.#host.now(), zone), identity.team ? caller : undefined)
+    const meta = sentMeta(
+      formatTime(this.#host.now(), zone),
+      identity.team ? caller : undefined,
+      where,
+    )
     // Pictures go to the model with the words, where the agent's model can take them.
     const images = this.#images(input.images, identity.model)
     const submission = await conversation.submit(

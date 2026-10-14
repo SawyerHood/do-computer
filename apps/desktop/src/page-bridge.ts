@@ -75,6 +75,12 @@ export type DesktopBridge = PageInfo & {
    * from the first time on. Elsewhere it resolves with an error.
    */
   signInHere(name: string): Promise<HereAnswer>
+  /**
+   * What the server knows this computer by, while agents can use it, and null while they
+   * cannot. A page asks as it sends a message, so that the agent is told which computer the
+   * message was written on.
+   */
+  pairedAs(): Promise<string | null>
 }
 
 /** The names the app and the script its windows are given call each other by. */
@@ -87,6 +93,7 @@ export const CHANNELS = {
   screen: "page-screen",
   icon: "page-icon",
   signInHere: "page-sign-in-here",
+  pairedAs: "page-paired-as",
 } as const
 
 /**
@@ -117,6 +124,12 @@ export function computerName(hostname: string): string {
 /** Whether agents can use this computer, as a page is told it. */
 export const sharingNow = (sharing: Sharing): "off" | "on" =>
   sharing.state === "connected" || sharing.state === "connecting" ? "on" : "off"
+
+/** What the server knows this computer by, as a page is told it: null while agents cannot use it. */
+export const pairedAs = (sharing: Sharing): string | null =>
+  sharing.state === "connected" || sharing.state === "connecting"
+    ? (sharing.computerId ?? null)
+    : null
 
 /**
  * What a page that asked to share this computer is told, once the daemon has got far enough

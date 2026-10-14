@@ -66,6 +66,13 @@ export type AgentComputer = {
 const WINDOWS_NOTE =
   " (Windows: paths there are written like /c/Users/name for C:\\Users\\name, and commands run in Git Bash where it is installed and in PowerShell where it is not)"
 
+/**
+ * What an agent with paired computers is told about the note on a message, which says where it
+ * was written: which of them the person is at, where their app could say.
+ */
+const HERE =
+  'The note after a person\'s message says what they wrote it in. Where it names a `computer`, they wrote it in the Do Computer app on that one of these computers and are sitting at it: it is what they mean by "this computer", "my screen" or a file "here". Where it names none, it does not say which computer they are at, if any: `device` is only the kind of thing they wrote on.'
+
 /** Whether a computer is somebody's own machine, reached through its daemon. */
 export const isPaired = (computer: Pick<AgentComputer, "kind">) =>
   computer.kind === undefined || computer.kind === PAIRED
@@ -402,6 +409,7 @@ export class Computers {
               `- ${computer.name}: ${computer.platform}, home ${computer.home}${computer.platform === "win32" ? WINDOWS_NOTE : ""}${computer.readOnly ? ", read-only (you can read files there but not run commands or change anything)" : ""}`,
           )
           .join("\n")}`,
+        HERE,
       )
     }
     // Said only where there is a way to look: which computers there are is the host's to say.

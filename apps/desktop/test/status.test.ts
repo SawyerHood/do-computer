@@ -37,7 +37,7 @@ describe("how things stand with this computer", () => {
       computerId: "c1",
       readOnly: false,
     })
-    expect(paired).toEqual({ state: "connecting", name: "bee" })
+    expect(paired).toEqual({ state: "connecting", name: "bee", computerId: "c1" })
     const connected = after(paired, {
       event: "connected",
       name: "bee",
@@ -47,12 +47,12 @@ describe("how things stand with this computer", () => {
     expect(headline(connected)).toBe("Connected as “bee”, read-only")
   })
 
-  it("keeps the computer's name while the connection is down", () => {
+  it("keeps the computer's name, and what the server knows it by, while the connection is down", () => {
     const down = from([
       { event: "connected", name: "bee", computerId: "c1", readOnly: false },
       { event: "disconnected", retryMs: 1000 },
     ])
-    expect(down).toEqual({ state: "connecting", name: "bee" })
+    expect(down).toEqual({ state: "connecting", name: "bee", computerId: "c1" })
     // A daemon that never got through has no name to keep.
     expect(from([{ event: "disconnected", retryMs: 1000 }])).toEqual({ state: "starting" })
   })

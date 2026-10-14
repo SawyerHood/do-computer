@@ -1,3 +1,5 @@
+import { deviceOf, type MessageOrigin } from "@do-computer/protocol"
+
 /**
  * What the Do Computer desktop app gives a page of the deployment that is shown in its window.
  * In a browser there is none of this. The app answers only the deployment it is set to, and
@@ -55,6 +57,11 @@ export type DesktopBridge = {
    * null for the app's usual picture. An app older than this has no such thing to ask.
    */
   setIcon?(picture: string | null): Promise<void>
+  /**
+   * What the server knows this computer by, while agents can use it, and null while they
+   * cannot. An app older than this has no such thing to ask.
+   */
+  pairedAs?(): Promise<string | null>
 }
 
 declare global {
@@ -66,6 +73,23 @@ declare global {
 /** The desktop app this page is shown in, if it is in one. */
 export const desktop = (): DesktopBridge | undefined =>
   typeof window === "undefined" ? undefined : window.doComputer
+
+/**
+ * Where a message written in this page is from, for the agent to be told: a browser or the
+ * desktop app, the kind of device, and, in the app on a computer agents can use, which computer.
+ */
+export async function messageOrigin(): Promise<MessageOrigin> {
+  const device = deviceOf(navigator.userAgent, navigator.maxTouchPoints)
+  const bridge = desktop()
+  // Asked as each message is sent: the computer can be shared, or not, long after the page loaded.
+  // A message is sent whether or not the app answers.
+  const computerId = await bridge?.pairedAs?.().catch(() => null)
+  return {
+    app: bridge === undefined ? "browser" : "desktop",
+    ...(device === undefined ? {} : { device }),
+    ...(typeof computerId === "string" && computerId !== "" ? { computerId } : {}),
+  }
+}
 
 /**
  * Sign this window in as whoever is signed in in the owner's browser, or signs in there now.

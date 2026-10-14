@@ -6717,6 +6717,47 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not checked:** the headings of a thread waiting for an OK or being answered, a
       command running, sub-agents and Here now by eye; Safari; a deployed Worker.
 
+88. **A Dood is told which computer a message was written on** (2026-10-14;
+    `packages/protocol/src/origin.ts`, `packages/agent/src/caller.ts`, `actor.ts`,
+    `computers.ts`, `apps/desktop/src/page-bridge.ts`, `apps/web/src/lib/desktop.ts`,
+    `apps/mobile/src/lib/origin.ts`). The owner: "can we make it so that we tell the agent
+    which computer a user message was sent from so that it can use that info". Before this a
+    Dood with two paired computers had no way to know which one "my screen" meant.
+    - **A message says where it was written** (`SendMessageRequest.from`): the app (a
+      browser, the desktop app, the phone app), the kind of device, and from the desktop app
+      the id of the computer it is on.
+    - **Only the desktop app knows a computer.** Its daemon says what the server knows the
+      computer by when it pairs and connects; the app keeps that (`Sharing.computerId`) and a
+      page asks for it as each message is sent (`pairedAs` on the bridge), since a computer
+      can be shared, or not, long after the page loaded. It is null while Doods cannot use
+      the computer. A browser cannot tell which computer it is on and says only what it
+      calls itself (`deviceOf`).
+    - **The Dood reads it in the note each message already carries**, beside when it was
+      sent: `<meta sent_at="…" via="desktop app" device="Mac" computer="sawyers-air"/>`. In
+      the note and not the system prompt, so that the prompt cache holds. The computer is
+      named as the Dood knows it, and only where it is a paired computer the Dood has. Where
+      a Dood has paired computers, what it is told about them now ends by saying that a
+      named computer is the one the person is at, and that a note naming none does not say.
+    - **It is the sender's word.** Nothing is granted on it, the gateway does not check it,
+      and only words from a list reach the model: an app or a device the server does not
+      know is dropped, and so is a computer the Dood does not have.
+    - **Mine:** all of how. That the app and the kind of device are said too, which was not
+      asked for; that nothing guesses which computer a browser is on (the same network
+      address, or asking in each browser, were the other ways); that a computer the Dood is
+      not connected to is not named; that the Dood still works on a machine of its workspace
+      unless the task is about the person's own; that the app shows nothing of where a
+      message was written.
+    - **Checked:** unit tests of the device, the note and the app's side; the actor with two
+      paired computers and a machine (`paired.test.ts`); `e2e/this-computer.spec.ts`, a page
+      in the app and one in a browser; the real app under Xvfb on Linux, whose message names
+      the computer it paired as (`apps/desktop/e2e/desktop.spec.ts`); and by hand a built
+      Node server, from sign-up to the notes it kept.
+    - **Not checked:** a real model making use of it; the app on macOS or Windows; the
+      phone app on a phone or in a simulator, which was type-checked only; a deployed Worker.
+      An installed desktop app says which computer only from the release after this one, and
+      the phone says it is a phone only from its next build. Until then the note has less in
+      it and is not wrong.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

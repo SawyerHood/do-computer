@@ -1,4 +1,5 @@
 import type { ChatUsage } from "./chat.ts"
+import type { MessageOrigin } from "./origin.ts"
 import type { Outfit } from "./wardrobe.ts"
 
 /**
@@ -458,6 +459,8 @@ export type SendMessageRequest = {
   whenBusy?: "steer" | "followUp"
   /** The sender's IANA timezone, so the agent can reason about "tomorrow at 9". */
   timezone?: string
+  /** Where it was written, so the agent can tell which computer the sender is at. */
+  from?: MessageOrigin
 }
 
 export type SendMessageResponse = { submissionId: string }

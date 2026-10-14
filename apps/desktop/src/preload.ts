@@ -43,6 +43,7 @@ if (location.protocol === "file:") {
       askForScreen: () => ipcRenderer.invoke(CHANNELS.screen),
       setIcon: (picture) => ipcRenderer.invoke(CHANNELS.icon, picture),
       signInHere: (name) => ipcRenderer.invoke(CHANNELS.signInHere, name),
+      pairedAs: () => ipcRenderer.invoke(CHANNELS.pairedAs),
     }
     contextBridge.exposeInMainWorld("doComputer", bridge)
   }
