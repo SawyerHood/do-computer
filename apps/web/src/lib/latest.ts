@@ -65,6 +65,23 @@ export function latestFirst<T extends Pick<AgentSummary, "latest" | "createdAt">
   return [...agents].sort((a, b) => at(b) - at(a))
 }
 
+/**
+ * Agents in the order someone put them in by hand: `order` is their ids, the top one first.
+ * One that is not in it came after they were last put in order, and is above the rest, the one
+ * last heard from first. With no order they are all the one last heard from first.
+ */
+export function inOrder<T extends Pick<AgentSummary, "id" | "latest" | "createdAt">>(
+  agents: readonly T[],
+  order: readonly string[] | undefined,
+): T[] {
+  if (order === undefined) return latestFirst(agents)
+  const place = new Map(order.map((id, index) => [id, index]))
+  const placed = agents
+    .filter((agent) => place.has(agent.id))
+    .sort((a, b) => place.get(a.id)! - place.get(b.id)!)
+  return [...latestFirst(agents.filter((agent) => !place.has(agent.id))), ...placed]
+}
+
 const store = getDefaultStore()
 
 /**

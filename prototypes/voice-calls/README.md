@@ -6,7 +6,7 @@ its own while it keeps working. It is drawn before any of it was built, to go wi
 Everything in it is pretend: the call is a script, and the page makes no sound and does not
 listen.
 
-Layout A was built on 2026-10-14 (HANDOFF.md, section 5, item 90). Where the app differs: the
+Layout A was built on 2026-10-14 (HANDOFF.md, section 5, item 91). Where the app differs: the
 panel's call has no buttons to shrink it to the card or to fill the window, and the card is
 where the call goes by itself when the panel is not on screen, under the strip and not in the
 bottom corner; a hand-off is an ordinary message in the chat, marked "Said on a call", above

@@ -1,6 +1,6 @@
 import type { AgentLatest, Person } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
-import { isUnread, latestFirst, latestWords, when } from "./latest.ts"
+import { inOrder, isUnread, latestFirst, latestWords, when } from "./latest.ts"
 
 const at = (day: number, hour: number, minute = 0) => new Date(2026, 9, day, hour, minute).getTime()
 
@@ -82,5 +82,28 @@ describe("latestFirst", () => {
       { id: "new", createdAt: 30 },
     ]
     expect(latestFirst(agents).map((agent) => agent.id)).toEqual(["spoke", "new", "old"])
+  })
+})
+
+describe("inOrder", () => {
+  const agents = [
+    { id: "old", createdAt: 10 },
+    { id: "spoke", createdAt: 5, latest: { kind: "reply" as const, at: 50, text: "" } },
+    { id: "new", createdAt: 30 },
+  ]
+  const ids = (order: readonly string[] | undefined) =>
+    inOrder(agents, order).map((agent) => agent.id)
+
+  it("is the one last heard from first until they are put in an order", () => {
+    expect(ids(undefined)).toEqual(["spoke", "new", "old"])
+  })
+
+  it("keeps the order they were put in, whichever was heard from since", () => {
+    expect(ids(["old", "new", "spoke"])).toEqual(["old", "new", "spoke"])
+  })
+
+  it("has one that came since above the rest, and passes over one that is gone", () => {
+    expect(ids(["old", "gone", "new"])).toEqual(["spoke", "old", "new"])
+    expect(ids(["old"])).toEqual(["spoke", "new", "old"])
   })
 })

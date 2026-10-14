@@ -253,7 +253,7 @@ export const BOX_EVERY_MS = 6 * 60 * 60 * 1000
 export const TREATS_PER_BOX = 4
 
 /** The treats there are. Which one a creature is handed next is only for show. */
-export const TREAT_KINDS = ["cookie", "onigiri", "apple", "donut"] as const
+export const TREAT_KINDS = ["cookie", "riceball", "apple", "donut"] as const
 export type TreatKind = (typeof TREAT_KINDS)[number]
 
 export type CreatureState = {

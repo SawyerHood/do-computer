@@ -1,3 +1,23 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  type UniqueIdentifier,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import type { AgentSummary, Person, WorkspaceSummary } from "@do-computer/protocol"
 import {
   ArrowsLeftRightIcon,
@@ -11,8 +31,8 @@ import {
 } from "@phosphor-icons/react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { useLiveQuery } from "@tanstack/react-db"
-import { useAtom, useAtomValue } from "jotai"
-import { useEffect, useState } from "react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useEffect, useId, useRef, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { useRunningJobs, waitingWords } from "@/components/chat/commands"
 import { FaceStack, names } from "@/components/people"
@@ -26,10 +46,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
-import { foldedWorkspacesAtom } from "@/lib/atoms"
+import { agentOrderAtom, foldedWorkspacesAtom } from "@/lib/atoms"
 import { callAtom } from "@/lib/call"
 import { agentsCollection } from "@/lib/collections"
-import { isUnread, latestFirst, latestWords, useSeenHere, useVisible, when } from "@/lib/latest"
+import { inOrder, isUnread, latestWords, useSeenHere, useVisible, when } from "@/lib/latest"
 import { useNewAgent } from "@/lib/new-agent"
 import { settingsAddress, useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
@@ -73,7 +93,7 @@ export const LEVEL = "py-1 [text-box:trim-both_cap_alphabetic]"
  * opens the agent's main chat. Its side chats are reached from its strip. Each row says what
  * its agent last said or was told, and when. Someone who is in a team has every workspace of
  * theirs here at once, each under a heading that folds; someone who is not has only their
- * own agents, and no headings.
+ * own agents, and no headings. A row is dragged to another place among its workspace's.
  */
 export function AgentList({
   workspace,
@@ -100,6 +120,9 @@ export function AgentList({
   // Until the workspaces are here, only the one on screen is known of.
   const workspaces = useWorkspaces()?.workspaces ?? [workspace]
   const sectioned = workspaces.some((entry) => entry.kind === "team")
+  // What is said of a row as it is moved, for whoever does not see it move.
+  const [told, tell] = useState("")
+  const howToMove = useId()
 
   return (
     <nav
@@ -128,19 +151,61 @@ export function AgentList({
               waiting={waiting}
               me={me}
               now={now}
+              howToMove={howToMove}
+              tell={tell}
               onNavigate={onNavigate}
             />
           ))}
           <MoreWorkspaces me={me} onNavigate={onNavigate} />
         </>
       )}
+      <p id={howToMove} hidden>
+        {HOW_TO_MOVE}
+      </p>
+      {/* Not a status: the page has those for what it has to say of itself, one at a time. */}
+      <p aria-live="assertive" aria-atomic="true" className="sr-only">
+        {told}
+      </p>
     </nav>
   )
 }
 
+/** How to move a row without a pointer, said to someone who reaches one with a screen reader. */
+const HOW_TO_MOVE =
+  "To move this Dood in the list, press Space, then the arrow keys, and Space again to put it down. Escape leaves it where it was."
+
 /**
- * One workspace's agents, the one last heard from first. Under its name where there is more
- * than one workspace to tell apart, which also folds them away; under "Agents" where there is not.
+ * Where dnd-kit's own words for a screen reader are put, which is nowhere. It says them in a
+ * status of its own beside every list, there whether or not anything is being moved. The list
+ * says them itself, once for all its workspaces (`tell`).
+ */
+const NOWHERE = typeof document === "undefined" ? undefined : document.createElement("div")
+
+/**
+ * Keep the click that ends a drag from everything that would take it. A row that is let go
+ * under the pointer has been clicked, as far as the browser knows, and a row is a link: it
+ * would be opened. Called when a drag begins, since the click comes however it ends.
+ */
+function swallowClick() {
+  const swallow = (event: MouseEvent) => {
+    // One made with a key is not the drag's: a pointer's says how many times it was pressed.
+    if (event.detail === 0) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  window.addEventListener("click", swallow, { capture: true, once: true })
+  // Let go anywhere else there is no click. The next press is then a new one, with its own.
+  window.addEventListener(
+    "pointerdown",
+    () => window.removeEventListener("click", swallow, { capture: true }),
+    { capture: true, once: true },
+  )
+}
+
+/**
+ * One workspace's agents: the one last heard from first, until they are put in an order by
+ * hand, which they then keep. Under its name where there is more than one workspace to tell
+ * apart, which also folds them away; under "Doods" where there is not.
  */
 function Section({
   workspace,
@@ -153,6 +218,8 @@ function Section({
   waiting,
   me,
   now,
+  howToMove,
+  tell,
   onNavigate,
 }: {
   workspace: WorkspaceSummary
@@ -168,6 +235,10 @@ function Section({
   waiting: string | undefined
   me: { id: string; name: string; image?: string | null }
   now: number
+  /** The id of what says how a row is moved without a pointer. */
+  howToMove: string
+  /** Say what has become of a row that is being moved. */
+  tell: (words: string) => void
   onNavigate?: (() => void) | undefined
 }) {
   const { open: openSettings } = useSettings()
@@ -183,7 +254,37 @@ function Section({
   const making = newAgent.making && !folded
   const seenHere = useSeenHere()
   const visible = useVisible()
-  const list = latestFirst(agents)
+  const order = useAtomValue(agentOrderAtom)[workspace.id]
+  const putInOrder = useSetAtom(agentOrderAtom)
+  const list = inOrder(agents, order)
+  const sensors = useSensors(
+    // A press that does not move is a click, and opens the agent.
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    // A finger that moves at once is scrolling the list. One held still takes the row up.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
+    // Enter is left to the link, which it opens.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space", "Enter"] },
+    }),
+  )
+  const said = (id: UniqueIdentifier) => list.find((agent) => agent.id === id)?.name ?? "New Dood"
+  const placeOf = (id: UniqueIdentifier) =>
+    `${list.findIndex((agent) => agent.id === id) + 1} of ${list.length}`
+  // As it is taken up it is over its own place, which is not somewhere it was moved to, and
+  // saying so would be said over its having been taken up.
+  const moved = useRef(false)
+  const dropped = ({ active, over }: DragEndEvent) => {
+    tell(`${said(active.id)} was put down at ${placeOf((over ?? active).id)}.`)
+    if (over === null || over.id === active.id) return
+    const from = list.findIndex((agent) => agent.id === active.id)
+    const to = list.findIndex((agent) => agent.id === over.id)
+    // The whole list as it now stands, so that one made since the last time has a place too.
+    putInOrder(
+      workspace.id,
+      arrayMove(list, from, to).map((agent) => agent.id),
+    )
+  }
   // The agent on screen is being looked at, so nothing of its is new.
   const unread = (agent: AgentSummary) =>
     !(agent.id === activeAgentId && visible) && isUnread(agent, me.id, seenHere[agent.id])
@@ -273,25 +374,54 @@ function Section({
       )}
       {/* First, which is where it will be: the one last heard from, and it was only just made. */}
       {making ? <MakingAgentRow /> : null}
-      {folded
-        ? null
-        : list.map((agent) => (
-            <AgentRow
-              key={agent.id}
-              agent={agent}
-              active={agent.id === activeAgentId}
-              unread={unread(agent)}
-              waiting={agent.id === activeAgentId ? waiting : undefined}
-              with_={whoIs(
-                here,
-                (place) => place.agentId === agent.id && place.userId !== me.id,
-              ).flatMap((id) => people.get(id) ?? [])}
-              meId={me.id}
-              people={people}
-              now={now}
-              onNavigate={onNavigate}
-            />
-          ))}
+      {folded || list.length === 0 ? null : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          // Up and down, and no further than its own workspace's rows.
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          {...(NOWHERE === undefined ? {} : { accessibility: { container: NOWHERE } })}
+          onDragStart={({ active, activatorEvent }) => {
+            if (!(activatorEvent instanceof KeyboardEvent)) swallowClick()
+            moved.current = false
+            tell(`Picked up ${said(active.id)}, ${placeOf(active.id)}.`)
+          }}
+          onDragOver={({ active, over }) => {
+            if (over === null || (over.id === active.id && !moved.current)) return
+            moved.current = true
+            tell(`${said(active.id)} is at ${placeOf(over.id)}.`)
+          }}
+          onDragEnd={dropped}
+          onDragCancel={({ active }) => tell(`${said(active.id)} was left where it was.`)}
+        >
+          <SortableContext
+            items={list.map((agent) => agent.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex flex-col gap-0.5">
+              {list.map((agent) => (
+                <AgentRow
+                  key={agent.id}
+                  agent={agent}
+                  active={agent.id === activeAgentId}
+                  unread={unread(agent)}
+                  waiting={agent.id === activeAgentId ? waiting : undefined}
+                  with_={whoIs(
+                    here,
+                    (place) => place.agentId === agent.id && place.userId !== me.id,
+                  ).flatMap((id) => people.get(id) ?? [])}
+                  meId={me.id}
+                  people={people}
+                  now={now}
+                  // One on its own has nowhere to go.
+                  howToMove={list.length > 1 ? howToMove : undefined}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
       {!folded && !making && list.length === 0 ? (
         <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
           {team ? "This team has no Doods yet." : "You have no Doods yet."}
@@ -325,7 +455,7 @@ function MakingAgentRow() {
 /**
  * An agent in the list: its creature, its name, and under that the latest thing it said or was
  * told, with when. The creature carries a mark while it is at work, and another while it has
- * stopped to wait for someone.
+ * stopped to wait for someone. It is taken up by its link, and the whole row goes with it.
  */
 function AgentRow({
   agent,
@@ -336,6 +466,7 @@ function AgentRow({
   meId,
   people,
   now,
+  howToMove,
   onNavigate,
 }: {
   agent: AgentSummary
@@ -348,10 +479,13 @@ function AgentRow({
   meId: string
   people: ReadonlyMap<string, Person>
   now: number
+  /** The id of what says how it is moved. None where there are no others to move it among. */
+  howToMove: string | undefined
   onNavigate?: (() => void) | undefined
 }) {
   const name = agent.name ?? "New Dood"
   const { latest } = agent
+  const sortable = useSortable({ id: agent.id, disabled: howToMove === undefined })
   const working = agent.working === true
   const asking = agent.asking === true
   // Whoever is signed in is on a call with it, in this tab.
@@ -365,20 +499,36 @@ function AgentRow({
         : agent.tagline || undefined
   return (
     <div
+      ref={sortable.setNodeRef}
+      data-dragging={sortable.isDragging ? "" : undefined}
+      // The others make room as it passes them. It is only ever moved, never squeezed.
+      style={{
+        transform: CSS.Translate.toString(sortable.transform),
+        transition: sortable.transition,
+      }}
+      // A link and a picture are things a browser drags off the page by itself.
+      onDragStart={(event) => event.preventDefault()}
       className={cn(
-        "group/agent relative flex shrink-0 items-center rounded-xl",
-        // The one that is open is raised off the frame. The others darken under the pointer.
-        active
+        "group/agent relative flex shrink-0 items-center rounded-xl select-none [-webkit-touch-callout:none]",
+        // The one that is open is raised off the frame, and so is one that is being moved,
+        // over the rest. The others darken under the pointer.
+        active || sortable.isDragging
           ? "bg-card shadow-raised [--face-ring:var(--card)]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
+        sortable.isDragging && "z-10",
       )}
     >
       <Link
+        ref={sortable.setActivatorNodeRef}
+        {...sortable.listeners}
+        // It stays a link to whoever is told what it is, and is told as well how it is moved.
+        aria-describedby={howToMove}
+        draggable={false}
         to="/a/$agentId"
         params={{ agentId: agent.id }}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 outline-none group-data-dragging/agent:cursor-grabbing focus-visible:ring-3 focus-visible:ring-ring/40"
       >
         <span className="relative shrink-0">
           <AgentFace agent={agent} className="size-10" quiet />

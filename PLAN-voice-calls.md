@@ -4,7 +4,7 @@
 Dood's panel, paid for by a ChatGPT (Codex) subscription or an OpenAI API key. Section 11 says
 what was built and where it differs from what is written here. Section 10 is the spike that
 showed a subscription can pay. Section 8 has the owner's answers and the choices still open,
-and section 9 what was read, what was run and what never was. `HANDOFF.md` section 5 item 90
+and section 9 what was read, what was run and what never was. `HANDOFF.md` section 5 item 91
 is the record, and `docs/reference/calls.md` is how it works for whoever runs a deployment.
 
 The owner asked for what OpenAI's Dots has: a button that calls your Dood and starts a real-time
@@ -403,7 +403,7 @@ sdp } }`, answered with `{ session: { id }, transport: { sdp } }`. The session i
 
 ## 11. What was built, and where it differs
 
-Step 1, on 2026-10-14. The record is `HANDOFF.md` section 5 item 90.
+Step 1, on 2026-10-14. The record is `HANDOFF.md` section 5 item 91.
 
 - **The browser carries the call; the server holds no line onto it.** Section 4.1 has the
   Dood's actor attach to the session. What was built instead: the server starts the call and

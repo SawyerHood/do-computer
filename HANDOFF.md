@@ -6834,7 +6834,63 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       the phone says it is a phone only from its next build. Until then the note has less in
       it and is not wrong.
 
-90. **A Dood can be called out loud** (2026-10-14; `packages/protocol/src/calls.ts`,
+90. **A Dood is dragged to another place in the sidebar, and they stay as they were put**
+    (2026-10-14; `apps/web/src/components/shell/agent-list.tsx`, `workspace-menu.tsx`,
+    `apps/web/src/lib/atoms.ts`, `latest.ts`). The owner: "I would love to be able to reorder
+    my agents in the sidebar".
+    - **What it does.** A row is dragged up or down among its workspace's rows. A workspace's
+      Doods are the one last heard from first, as before, until one of them is moved; from
+      then on they keep the order they were put in, whoever speaks, and the marks on a row
+      still say who has something new. One made since, or moved in from another workspace,
+      is above the rest. "Sort by latest" in the workspace's menu gives the order up, and is
+      only there while there is one.
+    - **The order is kept in the browser** (`dc-agent-order` in its storage: for each
+      workspace, its Doods' ids from the top down), as which workspaces are folded is. The
+      owner: "Could these just be local storage sorts like on the client? Do they have to be
+      on the server or not? ... we can kind of do that and then figure that out as we go". So
+      it is each person's own, and also each browser's own: the desktop app and a browser
+      can differ, and the phone app still has the one last heard from first. An id that is
+      no longer a Dood of the workspace is passed over. Two tabs of one browser follow each
+      other.
+    - **How.** dnd-kit, one sortable list for each workspace, held to moving up and down
+      within its own rows. A mouse takes a row up once it has moved six pixels, so a press
+      that does not move is still a click; a finger takes it up after a quarter of a second
+      held still, so one that moves at once still scrolls; Space takes up the row that has
+      the focus, the arrows move it, and Space or Enter puts it down. A row is taken up by
+      its link and stays a link to a screen reader, which is told how it is moved and where
+      it has got to, by name.
+    - **What a screen reader is told is the list's own** (`tell`, one region for the whole
+      list). dnd-kit puts a `role="status"` of its own beside every list, there whether or
+      not anything is moving, and the page keeps that role for what it has to say itself,
+      one at a time: `getByRole("status")` in eight tests found two. dnd-kit's is given a
+      place that is not in the page (`NOWHERE`).
+    - **The click after a drag** (`swallowClick`). A row let go under the pointer has been
+      clicked, as far as the browser knows. dnd-kit keeps that click from the page's own
+      handlers and no more, and a row is a link, so the browser then followed it and loaded
+      the whole page again at that Dood. The click that ends a drag is now taken at the
+      window, before anything else has it.
+    - **The lockfile.** `pnpm add` resolved everything again and gave Better Auth's
+      `better-call` another `zod`, which is nothing to do with this. Only dnd-kit's own
+      entries were put into `pnpm-lock.yaml`, by hand, and `pnpm install --frozen-lockfile`
+      takes it.
+    - **The owner's:** that the order is each person's own, that a Dood is not dragged into
+      another workspace, and that it is kept in the browser for now.
+    - **Mine:** that nothing changes until a row is first moved, that a new Dood is on top,
+      "Sort by latest" and where it is, that the whole row is what is dragged and there is
+      no handle, the keys, dnd-kit, and that there was no mock-up first.
+    - **Checked:** `inOrder` in `latest.test.ts`; `e2e/sidebar.spec.ts`, which drags with a
+      mouse (the page stays where it was and is not loaded again), tries to drag into another
+      workspace, loads the page again, hears from the last Dood, makes a new one, clicks a
+      row, moves one with the keys and gives the order up; the whole of the web app's browser
+      tests; and by hand in the built app, with
+      a finger stood in for over the DevTools protocol (moved at once, held and moved, held
+      and let go) and with the click guard taken away, which loaded the page again.
+    - **Not checked:** a real touch screen, Safari, the desktop app, and anything on macOS.
+    - **Not built:** the order on the server, which is what would make every browser and the
+      phone agree. What is kept is already the shape it would have there. Moving a row from
+      the phone app.
+
+91. **A Dood can be called out loud** (2026-10-14; `packages/protocol/src/calls.ts`,
     `packages/agent/src/calls.ts`, `actor.ts`, `project.ts`,
     `apps/web/src/server/calls-directory.ts`, `apps/web/src/lib/call.ts`, `call-events.ts`,
     `apps/web/src/components/call/call.tsx`; the plan is `PLAN-voice-calls.md`, the mock-up
@@ -7021,7 +7077,7 @@ for big things. Web search still uses Haiku; they were told and have not asked t
 - **Calls:** a person's own sign-in does not exist as a level: the owner wants every key and
   subscription to be the nearest of "user, then workspaces, then server", and today a sign-in
   is a workspace's or the server's. A limit on a call's length is kept by the browser; the
-  server stops counting at it and does not cut the sound off. See item 90 for the rest.
+  server stops counting at it and does not cut the sound off. See item 91 for the rest.
   Nothing on the sender's side shows that it is waiting to hear back.
 - **Slack:** a picture attached there is looked at only by a model that takes pictures, and
   only as the smaller copy Slack makes; at most five files of a message are taken in. A Slack
