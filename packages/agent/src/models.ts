@@ -8,6 +8,7 @@ import {
 import type { CredentialStore } from "@earendil-works/pi-ai"
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import type { ModelRef } from "@earendil-works/pi-durable"
+import { isExtraModel } from "./extra-models.ts"
 import type { ReviewOptions } from "./journal.ts"
 import type { JudgeOptions } from "./keep-going.ts"
 import {
@@ -88,6 +89,12 @@ export type AgentModelsConfig = {
    * signed in to. What a workspace signs in to with an account of its own is not narrowed.
    */
   readonly allowedModels?: readonly string[]
+  /**
+   * Models added to a provider's own list, each `provider/model` (`extra-models.ts`). They can
+   * be called, but the deployment offers none of them on its own account: a workspace signed
+   * in to the provider is what offers one.
+   */
+  readonly extraModels?: readonly string[]
   /** OpenRouter model id that reads web search results. Default: a small, fast model. */
   readonly searchModel?: string
   /** OpenRouter model id that judges whether an agent meant to stop. Default: a small one. */
@@ -265,7 +272,7 @@ export function createAgentModels(
         fileExists: async () => false,
       },
     })
-    for (const provider of modelProviders()) built.setProvider(provider)
+    for (const provider of modelProviders(config.extraModels)) built.setProvider(provider)
     return built
   }
   const own = build(credentialChain(sources.workspace, signedIn), true)
@@ -320,7 +327,12 @@ export function createAgentModels(
   const fromKey = (): ModelOption[] => {
     if (key === undefined) return []
     const provider = own.getProvider("openrouter")!
-    const catalog = new Map(provider.getModels().map((model) => [model.id, model]))
+    const catalog = new Map(
+      provider
+        .getModels()
+        .filter((model) => !isExtraModel(model))
+        .map((model) => [model.id, model]),
+    )
     const offered = [...catalog.keys()].filter((id) => offers(OPENROUTER + id))
     // Every model in the catalog can be chosen: it is the set of OpenRouter models that can call
     // tools, which an agent needs. A few are suggested first, and the rest follow by name. A

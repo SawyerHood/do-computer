@@ -41,6 +41,7 @@ import { xiaomiTokenPlanCnProvider } from "@earendil-works/pi-ai/providers/xiaom
 import { xiaomiTokenPlanSgpProvider } from "@earendil-works/pi-ai/providers/xiaomi-token-plan-sgp"
 import { zaiProvider } from "@earendil-works/pi-ai/providers/zai"
 import { zaiCodingCnProvider } from "@earendil-works/pi-ai/providers/zai-coding-cn"
+import { parseExtraModels, withExtraModels } from "./extra-models.ts"
 
 // pi loads a provider's sign-in by a path it works out when it is needed, which a bundle cannot
 // follow. Told of them here, it finds them in a bundle too.
@@ -53,8 +54,11 @@ registerBunOAuthFlows()
  * Three of pi's are left out. Amazon Bedrock and Google Vertex are signed in to with files and
  * roles of the machine the server runs on, which belong to no workspace. Radius signs in by a
  * page that must reach the server on its own address, which a browser elsewhere cannot.
+ *
+ * `extraModels` are models the deployment's settings add to a provider's own list
+ * (`extra-models.ts`).
  */
-export function modelProviders(): Provider[] {
+export function modelProviders(extraModels: readonly string[] = []): Provider[] {
   const first = [
     anthropicProvider(),
     openaiProvider(),
@@ -98,7 +102,11 @@ export function modelProviders(): Provider[] {
     zaiProvider(),
     zaiCodingCnProvider(),
   ].sort((a, b) => a.name.localeCompare(b.name))
-  return [...first, ...rest]
+  const extra = parseExtraModels(extraModels)
+  if (extra.length === 0) return [...first, ...rest]
+  return [...first, ...rest].map((provider) =>
+    withExtraModels(provider, extra, SUGGESTED[provider.id]),
+  )
 }
 
 /** The providers most asked for, which the app shows ahead of the rest. */

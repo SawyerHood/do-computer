@@ -31,7 +31,7 @@ import { libraryDirectory } from "./library-directory.ts"
 import { siteDirectory } from "./site-directory.ts"
 import { modelAccessDirectory } from "./model-access-directory.ts"
 import { callDirectory } from "./calls-directory.ts"
-import { savedDirectory } from "./passwords-directory.ts"
+import { everyoneIsAdmin, savedDirectory } from "./passwords-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
 import { tellPeopleOfAgent } from "./feed.ts"
@@ -87,7 +87,12 @@ function create(): NodePlatform {
   const modelAccess = new NodeActorNamespace({
     directory: join(directory, "model-access"),
     blobs: () => fileBlobs(join(directory, "blobs", "model-access")),
-    factory: (host) => createModelAccessActor(host, { vaultKey: config.secretsKey }),
+    factory: (host) =>
+      createModelAccessActor(host, {
+        vaultKey: config.secretsKey,
+        extraModels: config.extraModels,
+        showsExtraModels: () => everyoneIsAdmin(app, config, host.name),
+      }),
     onError: (error, name) => console.error(`[model access ${name}]`, error),
   })
   const signIns = modelAccessDirectory(app, modelAccess)

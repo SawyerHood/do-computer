@@ -18,6 +18,7 @@ import type {
 } from "@earendil-works/pi-ai"
 import { createModels, type Provider } from "@earendil-works/pi-ai/models"
 import { type Caller, readCaller } from "./caller.ts"
+import { isExtraModel } from "./extra-models.ts"
 import {
   inOfferedOrder,
   isFeatured,
@@ -215,6 +216,13 @@ function reason(error: unknown): string {
 export type ModelAccessOptions = {
   /** The providers there are to sign in to. Default: every one pi has that a page can sign in to. */
   readonly providers?: () => readonly Provider[]
+  /** Models added to a provider's own list, each `provider/model` (`extra-models.ts`). */
+  readonly extraModels?: readonly string[]
+  /**
+   * Whether the workspace is offered the models that were added: a deployment says whose they
+   * are. Default: any workspace's.
+   */
+  readonly showsExtraModels?: () => Promise<boolean>
   /** What the app is called, where a provider names the app that is signing in. */
   readonly appName?: string
   /**
@@ -245,7 +253,9 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
     credentials,
     authContext: { env: async () => undefined, fileExists: async () => false },
   })
-  for (const provider of (options.providers ?? modelProviders)()) models.setProvider(provider)
+  for (const provider of options.providers?.() ?? modelProviders(options.extraModels)) {
+    models.setProvider(provider)
+  }
   const logins = new Map<string, Running>()
   // The logins the workspace keeps for its agents to sign in to websites with.
   const saved = createVault(host, { key: options.vaultKey })
@@ -259,16 +269,21 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
   /** A provider as it is named to people. pi marks one as older, which is not part of its name. */
   const named = (entry: Provider) => ({ name: entry.name.replace(/\s*\(legacy\)$/i, "") })
 
+  /** Whether the workspace is offered the models its deployment added to a provider's list. */
+  const showsExtra = async () =>
+    (options.extraModels ?? []).length === 0 || (await options.showsExtraModels?.()) !== false
+
   /** The models a provider gives with the credential kept for it. */
-  const offered = (from: Provider, credential: Credential) => {
+  const offered = (from: Provider, credential: Credential, extra: boolean) => {
     const handled = credential.type === "oauth" ? from.auth.oauth : from.auth.apiKey
     if (handled === undefined) return []
-    const all = from.getModels()
+    const all = from.getModels().filter((model) => extra || !isExtraModel(model))
     return from.filterModels?.(all, credential) ?? all
   }
 
   const providers = async (): Promise<ModelProvidersState> => {
     const rows = await credentials.rows()
+    const extra = await showsExtra()
     const list = models.getProviders().flatMap((entry): ModelProvider[] => {
       const methods = loginMethods(entry)
       const row = rows.get(entry.id)
@@ -288,7 +303,7 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
                   by: row.by_name,
                   byId: row.by_id,
                   at: row.at,
-                  models: offered(entry, credential).length,
+                  models: offered(entry, credential, extra).length,
                 },
         },
       ]
@@ -298,6 +313,7 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
 
   const modelOptions = async (): Promise<ModelOption[]> => {
     const rows = await credentials.rows()
+    const extra = await showsExtra()
     return models.getProviders().flatMap((entry) => {
       const row = rows.get(entry.id)
       if (row === undefined) return []
@@ -306,7 +322,7 @@ export function createModelAccessActor(host: ActorHost, options: ModelAccessOpti
         subscription: credential.type === "oauth" && entry.auth.oauth?.isSubscription === true,
         by: row.by_name,
       }
-      return inOfferedOrder(offered(entry, credential)).map((model) => ({
+      return inOfferedOrder(offered(entry, credential, extra)).map((model) => ({
         ...modelOption(model, named(entry), isSuggested(model)),
         signIn,
       }))

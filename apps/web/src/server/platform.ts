@@ -29,6 +29,11 @@ export type Config = {
    */
   readonly allowedModels: readonly string[] | undefined
   /**
+   * Models added to a provider's own list, each `provider/model`: ones not yet in pi's list.
+   * Offered where a workspace of the deployment's admins alone is signed in to the provider.
+   */
+  readonly extraModels: readonly string[]
+  /**
    * The emails of those who may sign the deployment itself in to model providers, for
    * everyone's agents.
    */
@@ -250,6 +255,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     openrouterApiKey: optional("OPENROUTER_API_KEY"),
     defaultModel: optional("DC_DEFAULT_MODEL"),
     allowedModels: listed("DC_MODELS").length === 0 ? undefined : listed("DC_MODELS"),
+    extraModels: listed("DC_EXTRA_MODELS"),
     adminEmails: [
       ...listed("DC_ADMIN_EMAILS").map((email) => email.toLowerCase()),
       // The one person a server run by the desktop app is for signs it in for all their Doods.

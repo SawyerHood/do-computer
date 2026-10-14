@@ -14,7 +14,8 @@ import type { Config } from "./platform.ts"
  * database and the settings instead of finding the platform.
  */
 
-type Settings = Pick<Config, "secrets" | "secretKinds" | "adminEmails" | "signup">
+type Admins = Pick<Config, "adminEmails" | "signup">
+type Settings = Pick<Config, "secrets" | "secretKinds"> & Admins
 
 /**
  * Whether an account is one of the deployment's admins, going by the account as it is kept:
@@ -23,7 +24,7 @@ type Settings = Pick<Config, "secrets" | "secretKinds" | "adminEmails" | "signup
  * counts, or whoever signed up with an admin's address first would be taken for them.
  */
 export const isAdminAccount = (
-  settings: Pick<Config, "adminEmails" | "signup">,
+  settings: Admins,
   account: { email: string | null; emailVerified: unknown },
 ): boolean =>
   account.email !== null &&
@@ -50,6 +51,20 @@ async function accountsOf(
 }
 
 /**
+ * Whether everyone in a workspace is one of the deployment's admins: an admin's own workspace,
+ * or a team of admins alone. Asked each time, of the database, so that it stops being so the
+ * moment someone else joins.
+ */
+export async function everyoneIsAdmin(
+  db: AppDatabase,
+  settings: Admins,
+  workspaceId: string,
+): Promise<boolean> {
+  const accounts = await accountsOf(db, workspaceId)
+  return accounts.length > 0 && accounts.every((account) => isAdminAccount(settings, account))
+}
+
+/**
  * Whether a workspace has one of the kinds of thing that are kept for Doods to use unseen:
  * saved logins, or cards. It has none of a kind the deployment does not name. Where the
  * deployment keeps them for its admins,
@@ -66,8 +81,7 @@ export async function hasSaved(
 ): Promise<boolean> {
   if (settings.secrets === "off" || !settings.secretKinds.includes(kind)) return false
   if (settings.secrets === "on") return true
-  const accounts = await accountsOf(db, workspaceId)
-  return accounts.length > 0 && accounts.every((account) => isAdminAccount(settings, account))
+  return everyoneIsAdmin(db, settings, workspaceId)
 }
 
 /** Whether a workspace has saved logins. */
