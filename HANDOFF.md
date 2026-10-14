@@ -6749,11 +6749,12 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       message was written.
     - **Checked:** unit tests of the device, the note and the app's side; the actor with two
       paired computers and a machine (`paired.test.ts`); `e2e/this-computer.spec.ts`, a page
-      in the app and one in a browser; the real app under Xvfb on Linux, whose message names
-      the computer it paired as (`apps/desktop/e2e/desktop.spec.ts`); and by hand a built
-      Node server, from sign-up to the notes it kept.
-    - **Not checked:** a real model making use of it; the app on macOS or Windows; the
-      phone app on a phone or in a simulator, which was type-checked only; a deployed Worker.
+      in the app and one in a browser; the real app on Linux and on Windows, whose message
+      names the computer it paired as (`apps/desktop/e2e/desktop.spec.ts`); and by hand a
+      built Node server, from sign-up to the notes it kept.
+    - **Not checked:** a real model making use of it; the app on macOS, which a pull
+      request's run leaves out; the phone app on a phone or in a simulator, which was
+      type-checked only; a deployed Worker.
       An installed desktop app says which computer only from the release after this one, and
       the phone says it is a phone only from its next build. Until then the note has less in
       it and is not wrong.
