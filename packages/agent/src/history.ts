@@ -448,7 +448,17 @@ export function historyExtension(harness: () => Harness, index: HistoryIndex): E
                   : part.type === "tool"
                     ? `[used ${part.name}]`
                     : part.type === "notice"
-                      ? `[${part.text}]`
+                      ? part.call === undefined
+                        ? `[${part.text}]`
+                        : // A voice call that was held in the chat: what came of it, and what was said.
+                          [
+                            `[A voice call, ${part.text}${part.call.chatId === undefined ? "" : `, whose work was done in chat ${part.call.chatId}`}]`,
+                            ...part.call.summary,
+                            ...part.call.lines.map(
+                              (line) =>
+                                `${line.who === "you" ? "they" : "your voice"}: ${line.text}`,
+                            ),
+                          ].join("\n")
                       : "",
               )
               .filter(Boolean)

@@ -7,6 +7,7 @@ import {
   type NoticePart,
 } from "@do-computer/protocol"
 import {
+  ChatsIcon,
   CheckIcon,
   ClosedCaptioningIcon,
   MicrophoneIcon,
@@ -34,8 +35,10 @@ import {
   setCallMuted,
   startCall,
 } from "@/lib/call"
+import { isSideChat, mainChatOf, useOpenSideChat } from "@/lib/chats"
 import { client } from "@/lib/client"
-import { callsKey } from "@/lib/collections"
+import { agentQuery, callsKey } from "@/lib/collections"
+import { besideWidthAtom } from "@/lib/columns"
 import { cn } from "@/lib/utils"
 import { AgentIdContext } from "../chat/sent-file.tsx"
 
@@ -266,6 +269,10 @@ export function CallCard() {
   const clock = useCallClock(call?.startedAt)
   const words = useAtomValue(callWordsAtom)
   const [problem, setProblem] = useAtom(callProblemAtom)
+  // A side chat or a document beside the chat has that corner: the card sits to its left, so
+  // that it is not over the top of it.
+  const beside = useAtomValue(besideWidthAtom)
+  const clear: CSSProperties = beside === 0 ? {} : { right: beside + 10 }
   if (call === undefined) {
     // A call that could not be started, or that ended by itself, says why, wherever the person is.
     if (problem === undefined) return null
@@ -273,6 +280,7 @@ export function CallCard() {
       <section
         role="alert"
         aria-label="About the call"
+        style={clear}
         className="fixed top-[4.25rem] right-4 z-40 flex w-72 items-start gap-3 rounded-2xl bg-card p-3.5 text-sm shadow-float"
       >
         <PhoneDisconnectIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -300,7 +308,9 @@ export function CallCard() {
       aria-label={`Call with ${call.agentName}`}
       data-call={call.phase}
       // Its Dood's color, whichever Dood's page is open.
-      style={color === undefined ? undefined : ({ "--agent-color": color } as CSSProperties)}
+      style={
+        { ...clear, ...(color === undefined ? {} : { "--agent-color": color }) } as CSSProperties
+      }
       // Under the strip, where it is clear of the box messages are typed in.
       className="fixed top-[4.25rem] right-4 z-40 w-72 rounded-2xl bg-[oklch(from_var(--agent-color)_0.26_0.045_h)] p-3 text-white shadow-float ring-1 ring-white/10"
     >
@@ -362,6 +372,18 @@ export function CallCard() {
   )
 }
 
+/**
+ * Opens the side chat a call's work is done in, beside the main chat where there is room.
+ * Undefined where there is no such chat to open: it was put away, or is not known of yet.
+ */
+function useCallChat(agentId: string | undefined, chatId: string | undefined) {
+  const { data } = useQuery({ ...agentQuery(agentId ?? ""), enabled: agentId !== undefined })
+  const open = useOpenSideChat(agentId ?? "", mainChatOf(data?.chats)?.id)
+  if (agentId === undefined || chatId === undefined) return undefined
+  const chat = data?.chats.find((one) => one.id === chatId)
+  return isSideChat(chat) && !chat.archived ? () => void open(chatId) : undefined
+}
+
 /** What was said, as rows: who, and their words. */
 function Said({
   lines,
@@ -394,10 +416,16 @@ function Said({
 
 /**
  * A call as its chat shows it while it lasts: what is being said, and what was handed on to the
- * Dood. What the Dood does about it is in the chat like anything else it does.
+ * Dood, with what the Dood is doing about it. The Dood does that in the call's side chat, which
+ * opens from here.
  */
 export function LiveCall({ call }: { call: CallView }) {
   const clock = useCallClock(call.startedAt)
+  // A call held in a side chat works in that one, which is this one: there is nothing to open.
+  const openWork = useCallChat(
+    call.agentId,
+    call.workChatId === call.chatId ? undefined : call.workChatId,
+  )
   const lines: (CallLine & { going?: boolean })[] = [
     ...call.lines.slice(-8),
     ...(call.you.trim() === ""
@@ -436,10 +464,21 @@ export function LiveCall({ call }: { call: CallView }) {
               className="ml-[4.25rem] flex items-center gap-2 self-start rounded-lg bg-primary/10 py-1 pr-3 pl-2 text-[0.8125rem] text-primary dark:text-[oklch(from_var(--agent-color)_0.8_c_h)]"
             >
               <Spinner className="size-3.5" />
-              Handed to {call.agentName}
+              {work.step ?? `Handed to ${call.agentName}`}
             </p>
           ))}
         </div>
+      )}
+      {openWork === undefined ? null : (
+        <footer className="flex items-center gap-3 border-t px-4 py-2 text-[0.8125rem] text-muted-foreground">
+          <ChatsIcon aria-hidden className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1">
+            {call.agentName} does what the call hands on in a side chat of the call’s own.
+          </span>
+          <Button variant="outline" size="xs" className="font-normal" onClick={openWork}>
+            Open it
+          </Button>
+        </footer>
       )}
     </section>
   )
@@ -452,6 +491,7 @@ export function CallRecord({ part, at }: { part: NoticePart; at?: number | undef
   const agents = useAgentsById()
   const name = (agentId === undefined ? undefined : agents.get(agentId)?.name) ?? "Your Dood"
   const call = part.call
+  const openWork = useCallChat(agentId, call?.chatId)
   if (call === undefined) return null
   return (
     <section aria-label="A call" className="overflow-hidden rounded-2xl bg-card shadow-raised">
@@ -479,7 +519,10 @@ export function CallRecord({ part, at }: { part: NoticePart; at?: number | undef
         </div>
       ) : null}
       <footer
-        className={cn("px-3 pb-3", call.summary.length === 0 && !open ? "border-t pt-2.5" : "pt-2")}
+        className={cn(
+          "flex flex-wrap items-center gap-2 px-3 pb-3",
+          call.summary.length === 0 && !open ? "border-t pt-2.5" : "pt-2",
+        )}
       >
         {call.lines.length === 0 ? (
           <p className="px-1 text-[0.8125rem] text-muted-foreground">Nothing was said.</p>
@@ -492,6 +535,13 @@ export function CallRecord({ part, at }: { part: NoticePart; at?: number | undef
             className="font-normal"
           >
             {open ? "Hide what was said" : "Show what was said"}
+          </Button>
+        )}
+        {openWork === undefined ? null : (
+          // What the Dood did for the call is in the call's side chat, step by step.
+          <Button variant="outline" size="xs" onClick={openWork} className="font-normal">
+            <ChatsIcon data-icon="inline-start" />
+            Open its side chat
           </Button>
         )}
       </footer>

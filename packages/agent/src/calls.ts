@@ -19,8 +19,13 @@ import type { ReviewOptions } from "./journal.ts"
  * provider of the voice, which is a small fast model that talks and is not the agent. Here the
  * call is started, with the agent's character and the end of its chat given to the voice; what
  * was said is kept as the device tells it; and when the call is over the chat is given one record
- * of it. Whatever needs the agent, the voice hands on, and that arrives as a message in the chat
- * with what was said on the call beside it.
+ * of it.
+ *
+ * The voice can do nothing but talk. Whatever needs the agent it hands on, and that arrives as a
+ * message in the call's side chat, with what was said on the call beside it: there the agent
+ * does it, with every tool it has. A call held in the main chat is given a side chat of its own
+ * for this, branched off the main chat at the first thing handed on, so that the main chat is
+ * neither held up by the call nor filled with it. A call held in a side chat works in that one.
  */
 
 /** Something about a call that whoever asked is told in words. */
@@ -57,9 +62,16 @@ export type CallDirectory = {
 /** A call that is under way, or over and still to be written into its chat. */
 export type CallRecord = {
   id: string
+  /** The chat it is held in, which is given its record. */
   chatId: string
-  /** The id of whoever is on it, where that is known. */
+  /**
+   * The chat the agent does its work in, once something was handed on: the chat it is held in,
+   * or a side chat of the call's own.
+   */
+  workChatId?: string
+  /** The id of whoever is on it, where that is known, and what they are called. */
   by: string | null
+  byName?: string
   dialect: CallDialect
   paidBy: "workspace" | "server"
   startedAt: number
@@ -85,7 +97,22 @@ export const CallsDoc = defineDoc<CallsDocState>({
 export const CALL_ENTRY = "dc.call"
 
 /** What a call's entry holds. */
-export type CallEntry = { id: string; seconds: number; lines: CallLine[]; summary: string[] }
+export type CallEntry = {
+  id: string
+  seconds: number
+  lines: CallLine[]
+  summary: string[]
+  /** The side chat the agent did the call's work in, where the call had one of its own. */
+  chatId?: string
+  /** What whoever was on it is called, where that is known. */
+  by?: string
+}
+
+/**
+ * The entry a call leaves in the side chat it worked in, where that is not the chat it was held
+ * in: a note to the agent alone that the call is over. Nothing is shown for it.
+ */
+export const CALL_OVER_ENTRY = "dc.call-over"
 
 /** How many lines of a call are kept, and how long one can be. A long call keeps its newest. */
 const MAX_LINES = 1_500
@@ -101,6 +128,8 @@ const MAX_NOTES_CHARS = 2_500
 const GRACE_MS = 15_000
 /** How long the small model is given to say what came of a call. */
 const SUMMARY_TIMEOUT_MS = 15_000
+/** How much of what was said the agent is given in one note: the newest of a very long call. */
+const MAX_NOTE_CHARS = 30_000
 
 const CODEX_CALLS =
   "https://chatgpt.com/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas"
@@ -133,6 +162,19 @@ function spoken(lines: readonly CallLine[], person: string, agent: string): stri
   return lines.map((line) => `${line.who === "you" ? person : agent}: ${line.text}`).join("\n")
 }
 
+/** The same for a note to the agent, which is given the newest of more than it should carry. */
+function noted(lines: readonly CallLine[], agent: string): string {
+  let from = lines.length
+  let size = 0
+  while (from > 0 && size + lines[from - 1]!.text.length <= MAX_NOTE_CHARS) {
+    size += lines[--from]!.text.length
+  }
+  const said = spoken(lines.slice(from), "They", agent)
+  return from === 0
+    ? said
+    : `(The first ${from} lines of it are left out here. They are in the call's record.)\n${said}`
+}
+
 const escapeAttribute = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -144,32 +186,72 @@ const escapeAttribute = (value: string) =>
  * The note that travels with something the voice handed on, for the agent: that it was said out
  * loud, how to answer it, and what was said on the call that the agent has not been shown.
  */
-export function callMeta(callId: string, unheard: readonly CallLine[], agent: string): string {
+export function callMeta(
+  callId: string,
+  request: string,
+  unheard: readonly CallLine[],
+  agent: string,
+): string {
   const said =
     unheard.length === 0
       ? ""
-      : ` What was said on the call since you were last shown it (${agent} is your voice there):\n${spoken(unheard, "They", agent)}\n`
+      : ` What was said on the call since you were last shown it (${agent} is your voice there):\n${noted(unheard, agent)}\n`
   return (
-    `<meta kind="call" call="${escapeAttribute(callId)}">This was said out loud, on a voice call. ` +
-    "A voice speaks for you on the call. It cannot do or look up anything itself, and has handed you this. " +
+    `<meta kind="call" call="${escapeAttribute(callId)}" request="${escapeAttribute(request)}">This was said out loud, on a voice call. ` +
+    "A voice speaks for you on the call. It can only talk: it cannot do, look up or remember anything itself, and has handed you this to do with whatever you would use for it. " +
     "What you answer is read out by it, so answer in a few short sentences as you would say them: no lists, no links, no code. " +
     `Anything longer goes in a file or in what you write here afterwards.${said}</meta>`
   )
 }
 
-/** Which call a message was said on, read back out of the note that travelled with it. */
-export function callOf(meta: string): string | undefined {
-  if (!meta.startsWith('<meta kind="call" call="')) return undefined
-  return /^<meta kind="call" call="([^"]*)"/.exec(meta)?.[1]
+const unescapeAttribute = (value: string) =>
+  value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&")
+
+/**
+ * Which call a message was said on, and the id its device sent it under, read back out of the
+ * note that travelled with it.
+ */
+export function callOf(meta: string): { call: string; request: string } | undefined {
+  const found = /^<meta kind="call" call="([^"]*)"(?: request="([^"]*)")?/.exec(meta)
+  if (found === null) return undefined
+  return { call: unescapeAttribute(found[1]!), request: unescapeAttribute(found[2] ?? "") }
 }
 
-/** What the agent is told of a call once it is over, so that it remembers it. */
-function endedNote(seconds: number, unheard: readonly CallLine[], agent: string): string {
+/**
+ * What the agent is told of a call once it is over, in the chat it was held in, so that it
+ * remembers it. `work` is the side chat the call's work was done in, where it had one of its
+ * own: this chat was then shown nothing of the call, and is given all of it.
+ */
+function endedNote(
+  seconds: number,
+  unheard: readonly CallLine[],
+  agent: string,
+  work?: string,
+): string {
   return (
-    `<meta kind="call-ended">The voice call ended after ${callLength(seconds)}.` +
+    `<meta kind="call-ended">${work === undefined ? "The voice call" : "A voice call was held here, and"} ended after ${callLength(seconds)}.` +
+    (work === undefined
+      ? ""
+      : ` What it handed on to you, you did in side chat ${work}, which branched off this chat for the call: what you did there, step by step, is in that chat, which you can read with the \`history\` tool.`) +
     (unheard.length === 0
       ? ""
-      : ` What was said on it that you were not shown (${agent} is your voice there):\n${spoken(unheard, "They", agent)}\n`) +
+      : ` What was said on it${work === undefined ? " that you were not shown" : ""} (${agent} is your voice there):\n${noted(unheard, agent)}\n`) +
+    "</meta>"
+  )
+}
+
+/** What the agent is told in the side chat a call worked in, once the call is over. */
+function overNote(seconds: number, unheard: readonly CallLine[], agent: string): string {
+  return (
+    `<meta kind="call-ended">The voice call this side chat worked for ended after ${callLength(seconds)}. ` +
+    "Nothing you write here is read out any more: it is read, like anything else you write." +
+    (unheard.length === 0
+      ? ""
+      : ` What was said on the call that you were not shown (${agent} is your voice there):\n${noted(unheard, agent)}\n`) +
     "</meta>"
   )
 }
@@ -198,6 +280,7 @@ export function voiceInstructions(who: {
     `- Speak as ${name} writes: the same character and warmth, in short spoken sentences. No lists, no markdown, and do not read out links or code.`,
     `- The conversation you are given was held in ${name}'s chat before this call. Answer from it where it has the answer.`,
     `- Anything that needs doing or looking up (a file, the web, a computer, a tool, a fact you were not given) you hand on to ${name}: delegate it. Say in a few words that you are on it, and when the answer comes back, say it plainly.`,
+    `- You keep nothing after the call. When they ask for something to be remembered, noted, saved, scheduled or sent, hand that on too, in their words: ${name} is the one who can.`,
     "- Never say that something was done, sent, saved or checked unless what you were handed back says so. What you do not know, say you do not know, or hand on.",
     "- Asked how the work is going, say what you were last told of it.",
   ].join("\n")
@@ -363,8 +446,17 @@ export type CallsOptions = {
   readonly review?: ReviewOptions
   readonly read: () => Promise<CallsDocState>
   readonly change: (apply: (state: CallsDocState) => void) => Promise<void>
-  /** Write a call's record into its chat. Resolves once it is there. */
-  readonly record: (chatId: string, entry: CallEntry, note: string) => Promise<void>
+  /**
+   * Write a call's record into the chat it was held in, with a note of it for the agent there.
+   * `work` is the side chat it worked in, where that is another one, and the note for the agent
+   * there. Resolves once it is written.
+   */
+  readonly record: (
+    chatId: string,
+    entry: CallEntry,
+    note: string,
+    work?: { chatId: string; note: string },
+  ) => Promise<void>
   readonly now: () => number
   readonly fetch?: (url: string, init: RequestInit) => Promise<Response>
   readonly onError: (error: unknown) => void
@@ -452,6 +544,7 @@ export class Calls {
         id,
         chatId: input.chatId,
         by: caller?.id ?? null,
+        ...(caller === undefined ? {} : { byName: caller.name }),
         dialect: pass.dialect,
         paidBy: pass.paidBy,
         startedAt: now,
@@ -502,18 +595,41 @@ export class Calls {
     })
   }
 
+  /** Where a call that is on is held, and where it works once it has been given a chat to. */
+  async where(
+    id: string,
+    caller: Caller | undefined,
+  ): Promise<{ chatId: string; workChatId: string | undefined }> {
+    const call = await this.#live(id, caller)
+    return { chatId: call.chatId, workChatId: call.workChatId }
+  }
+
+  /** The chat a call's work is done in from now on. */
+  async worksIn(id: string, chatId: string): Promise<void> {
+    await this.#options.change((state) => {
+      const call = state.calls[id]
+      if (call !== undefined) call.workChatId = chatId
+    })
+  }
+
   /**
    * The voice hands something on: the note that goes to the agent with it, saying what was said
    * on the call that it has not been shown. What it is shown now it is not shown again.
+   * `request` is the id the device sent it under.
    */
-  async handOn(id: string, caller: Caller | undefined, agentName: string): Promise<string> {
+  async handOn(
+    id: string,
+    request: string,
+    caller: Caller | undefined,
+    agentName: string,
+  ): Promise<string> {
     const call = await this.#live(id, caller)
     const unheard = call.lines.slice(call.heard)
     await this.#options.change((state) => {
       const kept = state.calls[id]
       if (kept !== undefined) kept.heard = kept.lines.length
     })
-    return callMeta(id, unheard, agentName)
+    return callMeta(id, request, unheard, agentName)
   }
 
   /** The call is over: it is written into its chat, with what was said and what came of it. */
@@ -549,10 +665,22 @@ export class Calls {
     const seconds = Math.max(1, Math.round((call.endedAt - call.startedAt) / 1000))
     const name = await this.#options.name()
     const summary = await this.#summary(call.lines, name)
+    // The chat it worked in was shown what was said up to the last thing handed on. Where that
+    // is a side chat of the call's own, the chat it was held in was shown nothing.
+    const apart = call.workChatId !== undefined && call.workChatId !== call.chatId
+    const unheard = call.lines.slice(call.heard)
     await this.#options.record(
       call.chatId,
-      { id, seconds, lines: call.lines, summary },
-      endedNote(seconds, call.lines.slice(call.heard), name),
+      {
+        id,
+        seconds,
+        lines: call.lines,
+        summary,
+        ...(apart ? { chatId: call.workChatId! } : {}),
+        ...(call.byName === undefined ? {} : { by: call.byName }),
+      },
+      endedNote(seconds, apart ? call.lines : unheard, name, apart ? call.workChatId : undefined),
+      apart ? { chatId: call.workChatId!, note: overNote(seconds, unheard, name) } : undefined,
     )
     await this.#options.change((state) => {
       delete state.calls[id]

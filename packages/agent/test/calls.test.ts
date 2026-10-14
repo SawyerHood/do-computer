@@ -8,6 +8,7 @@ import {
   type ChatEvent,
   type ChatState,
   type ChatSummary,
+  type CallWorkResponse,
   EMPTY_CHAT,
   readSse,
   reduceChat,
@@ -35,9 +36,12 @@ type World = {
   /** What the voice's provider was asked, and what it answers. */
   provider: Sent[]
   answer: () => Response
-  /** What the small model was asked, and what it answers. */
+  /** What the small model was asked of a call, and what it answers. */
   summaries: string[]
   summary: string
+  /** What it was asked for a chat's note, and what it answers. */
+  notes: string[]
+  note: string
   allowance: CallAllowance
   spent: { caller: string | null; seconds: number }[]
   /** How far ahead of the real clock the agents' clock is. */
@@ -58,6 +62,8 @@ function open(): World {
     answer: () => new Response(ANSWER, { status: 201 }),
     summaries: [],
     summary: JSON.stringify({ lines: ["You decided to wait until Friday."] }),
+    notes: [],
+    note: JSON.stringify({ note: "", memory: [], user: [] }),
     allowance: {
       pass: {
         dialect: "codex",
@@ -103,8 +109,12 @@ function open(): World {
           apiKey: "small-key",
           model: "small/model",
           fetch: async (_url, init) => {
-            world.summaries.push(String(init.body))
-            return Response.json({ choices: [{ message: { content: world.summary } }] })
+            // The one small model says what came of a call and keeps the chats' notes.
+            const noting = String(init.body).includes("You keep the notes of an AI agent")
+            ;(noting ? world.notes : world.summaries).push(String(init.body))
+            return Response.json({
+              choices: [{ message: { content: noting ? world.note : world.summary } }],
+            })
           },
         },
         onReport: (error) => world.reports.push(error),
@@ -186,6 +196,51 @@ async function converse(
 }
 
 const chatOf = (world: World, chatId: string) => call<ChatState>(world, `/chats/${chatId}`)
+
+async function until(check: () => Promise<boolean>): Promise<void> {
+  for (let tries = 0; tries < 200; tries++) {
+    if (await check()) return
+    await new Promise((done) => setTimeout(done, 25))
+  }
+  throw new Error("It never happened.")
+}
+
+/**
+ * The voice hands something on, and the agent answers it. Gives the chat it went to, as it
+ * stands once it is answered.
+ */
+async function handOn(
+  world: World,
+  callId: string,
+  text: string,
+): Promise<{ chatId: string; request: string; state: ChatState }> {
+  const request = crypto.randomUUID()
+  const sent = await call<CallWorkResponse>(world, `/calls/${callId}/work`, "POST", {
+    text,
+    requestId: request,
+  })
+  let state = EMPTY_CHAT
+  await until(async () => {
+    state = await chatOf(world, sent.chatId)
+    const at = state.messages.findIndex((message) => message.spoken?.request === request)
+    return (
+      at !== -1 &&
+      !state.busy &&
+      state.messages.slice(at + 1).some((message) => message.role === "assistant")
+    )
+  })
+  return { chatId: sent.chatId, request, state }
+}
+
+/** Every text the model was sent as said by the user, oldest first. */
+const everySeen = (context: FauxContext): string[] =>
+  context.messages.flatMap((message) =>
+    message.role !== "user"
+      ? []
+      : typeof message.content === "string"
+        ? [message.content]
+        : message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])),
+  )
 
 /** What the model was last sent, as the text of each block of its last user message. */
 function lastSeen(context: FauxContext): string[] {
@@ -371,21 +426,21 @@ describe("what is said on a call", () => {
         return fauxAssistantMessage("Sign-ups are at 3.9 percent, up from 3.4.")
       },
     ])
-    const state = await converse(world, chat.id, {
-      text: "How did the pricing test do overnight?",
-      call: started.id,
-    })
+    const first = await handOn(world, started.id, "How did the pricing test do overnight?")
+    // The call is held in a side chat, and that is where its work is done.
+    expect(first.chatId).toBe(chat.id)
+    const { state } = first
     // The agent reads the request, and beside it that it was spoken and what else was said.
     expect(seen[0]).toBe("How did the pricing test do overnight?")
     const note = seen.find((text) => callOf(text) !== undefined)!
-    expect(callOf(note)).toBe(started.id)
+    expect(callOf(note)).toEqual({ call: started.id, request: first.request })
     expect(note).toContain("said out loud")
     expect(note).toContain("They: Hey Juniper, how did the pricing test do overnight?")
     expect(note).toContain("Juniper: Morning! One second, I'll pull the numbers.")
     expect(note).not.toContain("not a line")
     // A person sees what they said, marked as spoken, and none of the note.
     const said = state.messages.find((message) => message.role === "user")!
-    expect(said.spoken).toBe(true)
+    expect(said.spoken).toEqual({ call: started.id, request: first.request })
     expect(said.parts).toEqual([{ type: "text", text: "How did the pricing test do overnight?" }])
 
     // What it has been shown once it is not shown again.
@@ -398,10 +453,147 @@ describe("what is said on a call", () => {
         return fauxAssistantMessage("Friday it is.")
       },
     ])
-    await converse(world, chat.id, { text: "Give it till Friday.", call: started.id })
+    expect((await handOn(world, started.id, "Give it till Friday.")).chatId).toBe(chat.id)
     const second = seen.find((text) => callOf(text) !== undefined)!
     expect(second).toContain("They: Give it till Friday.")
     expect(second).not.toContain("pricing test")
+
+    // A message cannot be marked as said on a call by whoever sends it: only the call's own
+    // way in does that.
+    world.faux.setResponses([fauxAssistantMessage("Typed.")])
+    const typed = await converse(world, chat.id, { text: "Typed, not said.", call: started.id })
+    expect(typed.messages.findLast((message) => message.role === "user")!.spoken).toBeUndefined()
+    // Nor is anything handed on to a call that is not whoever asks's.
+    const theirs = await ask(
+      world,
+      `/calls/${started.id}/work`,
+      "POST",
+      { text: "Hello", requestId: "r-1" },
+      JON,
+    )
+    expect(theirs.status).toBe(403)
+  })
+
+  it("is done in a side chat of the call's own, where the call is held in the main chat", async () => {
+    const world = open()
+    await setup(world)
+    const main = await call<ChatSummary>(world, "/chats/main", "POST")
+    world.faux.setResponses([fauxAssistantMessage("The launch is on Friday, noted.")])
+    await converse(world, main.id, { text: "The launch is on Friday." })
+    const { call: started } = await call<StartCallResponse>(world, "/calls", "POST", {
+      chatId: main.id,
+      sdp: OFFER,
+    })
+    await call(world, `/calls/${started.id}/lines`, "POST", {
+      lines: [
+        { who: "you", text: "Can you check which files are in my library?" },
+        { who: "dood", text: "On it." },
+      ],
+    })
+    let seen: string[] = []
+    world.faux.setResponses([
+      (context) => {
+        seen = everySeen(context)
+        return fauxAssistantMessage("There are three files in your library.")
+      },
+    ])
+    const first = await handOn(world, started.id, "Check which files are in my library.")
+    // A chat beside the main one, named for the call and what was asked.
+    expect(first.chatId).not.toBe(main.id)
+    const chats = (await call<{ chats: ChatSummary[] }>(world, "/")).chats
+    expect(chats.find((chat) => chat.id === first.chatId)).toMatchObject({
+      kind: "chat",
+      title: "Call: Check which files are in my library.",
+      archived: false,
+    })
+    expect(chats.find((chat) => chat.id === first.chatId)!.main).not.toBe(true)
+    // It branched off the main chat, so the agent knows there what was said before the call,
+    // that it is in a side chat, and what was said on the call.
+    expect(seen).toContain("The launch is on Friday.")
+    expect(seen.some((text) => text.startsWith('<meta kind="side-chat">'))).toBe(true)
+    const note = seen.find((text) => callOf(text) !== undefined)!
+    expect(note).toContain("They: Can you check which files are in my library?")
+    // The main chat is as it was: nothing was added to it, and it is not held up.
+    const before = await chatOf(world, main.id)
+    expect(before.messages.map((message) => message.role)).toEqual(["user", "assistant"])
+    expect(before.busy).toBe(false)
+
+    // What is handed on next goes to the same chat.
+    await call(world, `/calls/${started.id}/lines`, "POST", {
+      lines: [
+        { who: "dood", text: "There are three files in your library." },
+        { who: "you", text: "Remember that I like the short one best." },
+      ],
+    })
+    world.faux.setResponses([fauxAssistantMessage("Noted.")])
+    const second = await handOn(world, started.id, "Remember that I like the short one best.")
+    expect(second.chatId).toBe(first.chatId)
+    expect(
+      (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) =>
+        chat.title.startsWith("Call:"),
+      ),
+    ).toHaveLength(1)
+
+    world.ahead += 61_000
+    await call(world, `/calls/${started.id}/end`, "POST", {
+      lines: [
+        { who: "dood", text: "Noted." },
+        { who: "you", text: "Thanks, bye." },
+      ],
+    })
+    // The main chat has the call's one record, which says where its work was done and who called.
+    const record = (await chatOf(world, main.id)).messages.at(-1)!
+    expect(record.parts[0]).toMatchObject({
+      kind: "call",
+      call: { id: started.id, chatId: first.chatId, by: "Sawyer" },
+    })
+    // The side chat shows nothing more for the call being over.
+    const worked = await chatOf(world, first.chatId)
+    expect(worked.messages.filter((message) => message.role === "notice")).toHaveLength(1)
+
+    // The agent in the main chat was shown none of the call, and is now told all of it and
+    // where it did the work.
+    world.faux.setResponses([
+      (context) => {
+        seen = everySeen(context)
+        return fauxAssistantMessage("Three.")
+      },
+    ])
+    await converse(world, main.id, { text: "How many files was it?" })
+    const ended = seen.find((text) => text.startsWith('<meta kind="call-ended">'))!
+    expect(ended).toContain("A voice call was held here, and ended after 1 min.")
+    expect(ended).toContain(`side chat ${first.chatId}`)
+    expect(ended).toContain("They: Can you check which files are in my library?")
+    expect(ended).toContain("Juniper: There are three files in your library.")
+    expect(ended).toContain("They: Thanks, bye.")
+    // In the side chat it is told the call is over, and what it had not been shown of it.
+    world.faux.setResponses([
+      (context) => {
+        seen = everySeen(context)
+        return fauxAssistantMessage("The short one.")
+      },
+    ])
+    await converse(world, first.chatId, { text: "Which one did I like?" })
+    const over = seen.find((text) => text.startsWith('<meta kind="call-ended">'))!
+    expect(over).toContain("The voice call this side chat worked for ended after 1 min.")
+    expect(over).toContain("They: Thanks, bye.")
+    expect(over).not.toContain("Can you check which files")
+    expect(world.reports).toEqual([])
+  })
+
+  it("is given a side chat all the same where the main chat has nothing to carry", async () => {
+    const world = open()
+    await setup(world)
+    const main = await call<ChatSummary>(world, "/chats/main", "POST")
+    const { call: started } = await call<StartCallResponse>(world, "/calls", "POST", {
+      chatId: main.id,
+      sdp: OFFER,
+    })
+    world.faux.setResponses([fauxAssistantMessage("Hello to you.")])
+    const first = await handOn(world, started.id, "Say hello.")
+    expect(first.chatId).not.toBe(main.id)
+    expect((await chatOf(world, main.id)).messages).toEqual([])
+    expect(world.reports).toEqual([])
   })
 
   it("is not taken from someone the call is not theirs", async () => {
@@ -461,6 +653,7 @@ describe("the end of a call", () => {
             { who: "dood", text: "Sign-ups are at 3.9 percent." },
             { who: "you", text: "Give it till Friday." },
           ],
+          by: "Sawyer",
         },
       },
     ])
@@ -474,13 +667,7 @@ describe("the end of a call", () => {
     let seen: string[] = []
     world.faux.setResponses([
       (context) => {
-        seen = context.messages.flatMap((message) =>
-          message.role !== "user"
-            ? []
-            : typeof message.content === "string"
-              ? [message.content]
-              : message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])),
-        )
+        seen = everySeen(context)
         return fauxAssistantMessage("Friday.")
       },
     ])
@@ -495,6 +682,52 @@ describe("the end of a call", () => {
       1,
     )
     expect((await ask(world, `/calls/${started.id}/lines`, "POST", { lines: [] })).status).toBe(404)
+    expect(world.reports).toEqual([])
+  })
+
+  it("has what was said out loud taken into the chat's note and into what the agent remembers", async () => {
+    const world = open()
+    const chat = await setup(world)
+    world.note = JSON.stringify({
+      note: "On a call, Sawyer said the move to Portland is done.",
+      memory: ["The office printer is called Gutenberg."],
+      user: [
+        "Sawyer lives in Portland.",
+        "Sawyer has a dog called Biscuit.",
+        "Sawyer drinks oat milk.",
+        "Sawyer is left-handed.",
+      ],
+    })
+    const { call: started } = await call<StartCallResponse>(world, "/calls", "POST", {
+      chatId: chat.id,
+      sdp: OFFER,
+    })
+    // Nothing is handed on: it was only said to the voice.
+    await call(world, `/calls/${started.id}/end`, "POST", {
+      lines: [
+        { who: "you", text: "By the way, I moved to Portland last month, with Biscuit." },
+        { who: "dood", text: "Portland! How is Biscuit taking it?" },
+      ],
+    })
+    await until(async () => (await call<{ memory: string }>(world, "/")).memory !== "")
+    // The small model was shown the call as what was said in the chat, by who said it.
+    expect(world.notes).toHaveLength(1)
+    expect(world.notes[0]).toContain(
+      "Sawyer (out loud, on a call): By the way, I moved to Portland last month, with Biscuit.",
+    )
+    expect(world.notes[0]).toContain("the agent's voice: Portland! How is Biscuit taking it?")
+    expect(world.notes[0]).toContain("At most 3 entries in each.")
+    // What it found worth keeping is remembered, up to three things of a kind from one call.
+    const remembered = await call<{ user: string; memory: string }>(world, "/")
+    expect(remembered.memory).toBe("The office printer is called Gutenberg.")
+    expect(remembered.user).toBe(
+      [
+        "Sawyer likes teal.",
+        "Sawyer lives in Portland.",
+        "Sawyer has a dog called Biscuit.",
+        "Sawyer drinks oat milk.",
+      ].join("\n"),
+    )
     expect(world.reports).toEqual([])
   })
 
@@ -582,9 +815,16 @@ describe("the pieces", () => {
   })
 
   it("writes a note that cannot be ended from inside", () => {
-    const note = callMeta('a"b', [{ who: "you", text: "Hi" }], "Juniper")
-    expect(note.startsWith('<meta kind="call" call="a&quot;b">')).toBe(true)
-    expect(callOf(note)).toBe("a&quot;b")
+    const note = callMeta('a"b', "r<1>&", [{ who: "you", text: "Hi" }], "Juniper")
+    expect(note.startsWith('<meta kind="call" call="a&quot;b" request="r&lt;1&gt;&amp;">')).toBe(
+      true,
+    )
+    expect(callOf(note)).toEqual({ call: 'a"b', request: "r<1>&" })
+    // One written before a request was named in it.
+    expect(callOf('<meta kind="call" call="c-1">Said out loud.</meta>')).toEqual({
+      call: "c-1",
+      request: "",
+    })
     expect(callOf('<meta sent_at="now"/>')).toBeUndefined()
   })
 

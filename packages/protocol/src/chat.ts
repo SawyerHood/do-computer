@@ -69,7 +69,16 @@ export type NoticePart = {
   /** For `command`: which one it was, where it ran, how it ended and how long it took. */
   job?: { id: string; computer: string; status: JobStatus; exitCode?: number; ms: number }
   /** For `call`: how long it was, what came of it in a few lines, and what was said. */
-  call?: { id: string; seconds: number; summary: string[]; lines: CallLine[] }
+  call?: {
+    id: string
+    seconds: number
+    summary: string[]
+    lines: CallLine[]
+    /** The side chat the agent did the call's work in, where the call had one of its own. */
+    chatId?: string
+    /** What whoever was on it is called, where that is known. */
+    by?: string
+  }
 }
 
 export type MessagePart = TextPart | ThinkingPart | ToolPart | ImagePart | NoticePart
@@ -90,8 +99,11 @@ export type ChatMessage = {
   agent?: { id: string; name: string }
   /** Who wrote a user message in Slack, by their id and name there. */
   slack?: { id: string; name: string }
-  /** A user message that was said out loud, on a voice call, and handed on to the agent. */
-  spoken?: true
+  /**
+   * A user message that was said out loud, on a voice call, and handed on to the agent: the
+   * call, and the id the device sent it under, by which the device finds the answer to it.
+   */
+  spoken?: { call: string; request: string }
 }
 
 export type QueuedInput = {

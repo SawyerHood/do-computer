@@ -414,6 +414,17 @@ Step 1, on 2026-10-14. The record is `HANDOFF.md` section 5 item 91.
   stops at the limit, and it does not cut the sound off.
 - **A hand-off is an ordinary message** with a note beside it (`<meta kind="call">`), marked
   "Said on a call" in the chat. The Dood's steer-or-queue setting applies to it as to any.
+- **Each call has a side chat for its work** (the owner's idea, the same day: "Maybe each call
+  has a sidechat that the call can dispatch things to and it can do them"). A call held in the
+  main chat is given one of its own at the first hand-off, branched off the main chat and named
+  "Call: …"; a call held in a side chat works in that one. So the main chat is not held up by
+  a call and holds only its record, and the Dood there is told all that was said when the call
+  ends. The call's card shows what the Dood is doing and opens the side chat; so does the
+  record afterwards.
+- **What is said out loud is remembered as what is typed is** (asked for the same day). At
+  hang-up the small notes model reads the call's words into the chat's note for the Dood's
+  other chats and into what the Dood remembers, up to three lasting things of a kind. The
+  voice is told to hand on anything it is asked to remember, save, schedule or send.
 - **The voice is not told how work is going that it did not hand on**, nor what is typed
   during a call (4.1, points 6 and 7). While the Dood works on a hand-off, the voice is told
   its steps.
@@ -431,3 +442,10 @@ sentence, said "Teal" from the chat held before the call, handed "look in my pro
 the Dood, which ran commands and answered in the chat, and said that answer in its own words.
 The record had the length, two lines of summary and the words. The second call's 53 seconds
 were counted against the month.
+
+After the side chat was added, one more real call on the OpenAI key, held in the main chat:
+"please remember that my dog is called Biscuit" was handed on, a side chat was made for the
+call, the Dood used its memory tool there and the voice said so; "look in my library" went to
+the same side chat. The main chat got the record and nothing else, its note for other chats
+was rewritten from the call's words by the real small model, and the Dood there, asked
+afterwards, said what had been asked and in which side chat it was done.

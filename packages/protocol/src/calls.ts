@@ -1,8 +1,11 @@
+import type { MessageOrigin } from "./origin.ts"
+
 /**
  * A voice call with an agent. The sound goes straight between the person's device and the
  * provider of the voice; the server starts the call, is told what was said, and keeps the record.
  * The voice is a small fast model that talks. It is not the agent: whatever needs the agent it
- * hands on, and the agent answers in its chat as it does a typed message.
+ * hands on, and the agent does it in a side chat that is the call's own, as it does what is
+ * asked of it in a typed message.
  */
 
 /** One thing said on a call. */
@@ -81,7 +84,7 @@ export type CallScriptStep =
   | { handOn: true }
 
 export type StartCallRequest = {
-  /** The chat the call is held in: the agent's main chat. */
+  /** The chat the call is held in: one the person talks to the agent in. */
   chatId: string
   /** The device's WebRTC offer. A `scripted` call has no use for it. */
   sdp: string
@@ -104,6 +107,25 @@ export type StartCallResponse = { call: StartedCall }
 
 /** What was said since the device last told the server. */
 export type CallLinesRequest = { lines: CallLine[] }
+
+/**
+ * Something the voice hands on to the agent: what was asked, in words. It goes to the call's
+ * side chat as a message, where the agent does it with everything it can do.
+ */
+export type CallWorkRequest = {
+  text: string
+  /** Device-chosen id; resending the same one never sends twice. The message is known by it. */
+  requestId: string
+  /** The person's IANA timezone and where they are, as with a message that was typed. */
+  timezone?: string
+  from?: MessageOrigin
+}
+
+export type CallWorkResponse = {
+  /** The chat it went to: the call's own side chat, where the agent answers it. */
+  chatId: string
+  submissionId: string
+}
 
 export type EndCallRequest = {
   /** What was said and not yet told. */

@@ -25,6 +25,8 @@ import {
   type ChatEvent,
   type CallLine,
   type CallsState,
+  type CallWorkRequest,
+  type CallWorkResponse,
   type ChatState,
   type ChatSummary,
   type ComputerKinds,
@@ -775,6 +777,12 @@ export function createClient(options: ClientOptions) {
         /** Tell the server what was said on a call since it was last told. */
         callSaid: (callId: string, lines: CallLine[]) =>
           post<{ ok: true }>(`${base}/calls/${encodeURIComponent(callId)}/lines`, { lines }),
+        /**
+         * The voice of a call hands something on to the agent. It goes to the call's side chat,
+         * which the answer says, and the agent answers it there.
+         */
+        callWork: (callId: string, input: CallWorkRequest) =>
+          post<CallWorkResponse>(`${base}/calls/${encodeURIComponent(callId)}/work`, input),
         /** The call is over. Its record turns up in its chat. */
         endCall: (callId: string, lines: CallLine[] = []) =>
           post<{ ok: true }>(`${base}/calls/${encodeURIComponent(callId)}/end`, { lines }),

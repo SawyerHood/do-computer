@@ -6918,29 +6918,56 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       server's, a subscription before a key (`calls-directory.ts`). The newer Sign in with
       ChatGPT keeps a token under `openai` too, and it cannot place a call: both routes answer
       it 401.
-    - **A hand-off is a message.** It arrives in the chat as said by the person, marked
-      "Said on a call" (`SendMessageRequest.call`), with a note beside it for the Dood: that
-      it was spoken, to answer for the ear, and what was said on the call since it last
-      heard. The Dood answers as it would a typed message. The browser watches the chat for
-      the answer and gives it to the voice, with a step now and then while the Dood works.
+    - **A hand-off is a message, in the call's side chat.** The voice can only talk; what it
+      hands on (`POST /calls/:id/work`) arrives as said by the person, marked "Said on a
+      call", with a note beside it for the Dood: that it was spoken, to answer for the ear,
+      and what was said on the call since it last heard. The Dood does it as it would a typed
+      message, with every tool it has. The browser follows that chat for the answer, known by
+      the id the hand-off was sent under (`ChatMessage.spoken`), and gives it to the voice,
+      with a step now and then while the Dood works.
+      **Which chat:** a call held in the main chat is given a side chat of its own at the
+      first hand-off (`#callWork`), branched off the main chat as any side chat is and named
+      "Call: …"; a call held in a side chat works in that one. The owner asked for this the
+      same day, after asking what a call leaves behind: "it should for sure get a way to call
+      tools. Maybe each call has a sidechat that the call can dispatch things to and it can
+      do them". So the main chat is neither held up by a call nor filled with it. Only the
+      call's own way in marks a message as spoken: `SendMessageRequest.call` is gone.
     - **The chat keeps one record** (`dc.call`): how long, what came of it in up to three
-      lines by the small model that writes the chats' notes, and what was said. The entry
-      carries what the Dood was not shown, so that it remembers. A call nobody ends is
-      written up at its time, by the agent's wake-up.
+      lines by the small model that writes the chats' notes, what was said, and the side chat
+      its work was done in. The entry carries a note for the Dood, so that it remembers: all
+      that was said where the work was done in another chat, else what it was not shown. The
+      call's side chat is told that the call is over (`dc.call-over`, which shows nothing).
+      A call nobody ends is written up at its time, by the agent's wake-up.
+    - **What is said out loud is remembered as what is typed is** (the owner: "Yeah do that
+      small change"). When the record is written the chat is reviewed (`journal.ts`): the
+      small model reads the call's lines as said in the chat, by the caller's name, rewrites
+      the chat's note for the Dood's other chats, and adds lasting things to what the Dood
+      remembers: up to three of a kind from a call, where a typed stretch gives one, since a
+      call is all new at once (and is read up to 30,000 characters of, against 9,000). The
+      voice is told to hand on anything it is asked to remember, save, schedule or send. The
+      `history` tool prints a call's summary and words where it printed only its length.
     - **Where it shows.** In the Dood's panel, where its face is: the creature's mouth
       follows how loud its voice is (`feedMascot` now takes an amount), rings say who is
       talking, the words are under it. Wherever the panel is not, a card in the corner of the
-      window. The chat has a live card while it lasts. A Call button under the name and a
-      phone in the strip. The voice is chosen beside the Dood's look.
+      window. The chat has a live card while it lasts, which names the step the Dood is on
+      and opens the call's side chat; the record opens it afterwards. A Call button under the
+      name and a phone in the strip. The voice is chosen beside the Dood's look. The card
+      keeps clear of a side chat or a document that is beside the chat (`use-beside.ts`): it
+      sat over the top of one before.
     - **Who can call.** `DC_CALLS` (`admins` unless told otherwise, as the owner asked),
       `DC_CALL_MINUTES` (30), `DC_CALL_MONTHLY_MINUTES` (60, counted in `dc_call_usage` only
       where the server's own sign-in pays). `DC_CALLS_SCRIPT=1` has no voice and plays a
       script, for the browser tests.
     - **The owner's:** that it be built at all; layout A; that the nearest sign-in pays
       ("user, then workspaces, then server"); the Codex subscription first where it works,
-      then a key; limits from the environment; admins only for now.
+      then a key; limits from the environment; admins only for now; a side chat for each
+      call's work; that what is said be remembered.
     - **Mine:** that the browser carries the call and the server holds no line; that a
-      hand-off is an ordinary message and not a turn of its own kind; what the voice is told
+      hand-off is an ordinary message and not a turn of its own kind; that only a call held
+      in the main chat gets a new side chat, and one held in a side chat works there; that
+      the side chat is made at the first hand-off and not at the start, is listed with the
+      others and is not put away when the call ends; three lasting things from a call;
+      what the voice is told
       and how much of the chat it is given (forty messages); the record's form and that a
       small model writes its lines; the names and defaults of the limits; a voice picked by
       the Dood's id; that the app names itself to OpenAI as `do-computer` and not as Codex;
@@ -6961,6 +6988,13 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       turn ends, about two seconds after its last word, and a pause had already counted the
       line. What is said is now kept by `lib/call-said.ts`, which is tested against those
       calls' own timings, and both routes were called again with every line kept once.
+      With the side chat, one more real call, on the OpenAI key and held in the main chat:
+      "please remember that my dog is called Biscuit" was handed on, the call was given its
+      side chat, the Dood used its `memory` tool there and the voice said it was saved; a
+      question about the library went to the same side chat. The main chat got the record
+      alone, its note was rewritten from the call's words by the real small model, and the
+      Dood there, asked afterwards, said what had been asked and in which side chat. Not run
+      again on a subscription: how the words are kept did not change.
     - **Not checked:** a deployed Worker; a workspace's own Codex sign-in as the app makes
       one (the test used the Codex client's, put in as the server's); Safari, Firefox, a
       phone's browser; the desktop app; how it sounds, which nothing here could hear; a real
@@ -6970,7 +7004,10 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       after, as its own change); the voice being told how work is going that it did not hand
       on, or what is typed during a call; the server cutting a call off itself (the browser
       hangs up at the limit and the server's count stops there); the whole-window layout; the
-      desktop companion carrying a call; a Dood calling its owner.
+      desktop companion carrying a call; a Dood calling its owner. The call's side chat
+      branches off the main chat where the Dood last came to rest, so work in the middle of
+      which the main chat is when the call asks about it is not in front of the Dood there.
+      Every call that hands something on leaves a side chat in the list until it is put away.
       The route a subscription's call takes is Codex's own and documented for nobody else. It
       stopped for everyone for two days in August 2026. See section 10 of the plan.
 

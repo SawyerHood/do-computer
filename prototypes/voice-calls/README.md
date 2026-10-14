@@ -9,9 +9,9 @@ listen.
 Layout A was built on 2026-10-14 (HANDOFF.md, section 5, item 91). Where the app differs: the
 panel's call has no buttons to shrink it to the card or to fill the window, and the card is
 where the call goes by itself when the panel is not on screen, under the strip and not in the
-bottom corner; a hand-off is an ordinary message in the chat, marked "Said on a call", above
-the live card, and the Dood's steps on it are in the chat and not in the card; the record's
-lines are ticked; the voice setting is a row of names beside the Dood's look, with nothing to
+bottom corner; a hand-off is an ordinary message marked "Said on a call", in a side chat that
+is the call's own where the call is held in the main chat, and the card names the step the Dood
+is on and opens that side chat; the record's lines are ticked; the voice setting is a row of names beside the Dood's look, with nothing to
 play; there are two lists of voices, one for each way of paying. B and C, the phone's screens
 and a Dood calling its owner were not built.
 

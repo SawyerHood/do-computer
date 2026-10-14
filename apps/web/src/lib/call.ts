@@ -4,6 +4,7 @@ import {
   type CallScriptStep,
   type ChatMessage,
   type ChatState,
+  EMPTY_CHAT,
   randomId,
   type StartedCall,
   toolActivity,
@@ -21,8 +22,9 @@ import { holdChat } from "./use-live-chat.ts"
 /**
  * A voice call with a Dood, as this tab holds it. The sound goes straight between the browser
  * and the provider of the voice; the server starts the call and keeps what was said. The voice
- * is not the Dood: what it hands on is sent to the Dood's chat as a message, and the Dood's
- * answer there is handed back for the voice to say.
+ * is not the Dood and can only talk: what it hands on is sent to the call's side chat as a
+ * message, where the Dood does it with everything it can do, and the Dood's answer there is
+ * handed back for the voice to say.
  *
  * The call belongs to the tab and not to a page, so that it goes on while other pages are
  * opened. There is one at a time.
@@ -35,13 +37,19 @@ import { holdChat } from "./use-live-chat.ts"
  */
 export type CallPhase = "starting" | "connecting" | "listening" | "hearing" | "speaking" | "working"
 
-/** Something the voice handed on to the Dood. */
-export type CallWork = { id: string; ask: string; done: boolean }
+/** Something the voice handed on to the Dood, and what the Dood is doing about it right now. */
+export type CallWork = { id: string; ask: string; done: boolean; step?: string }
 
 export type CallView = {
   agentId: string
   agentName: string
+  /** The chat the call is held in, which is given its record. */
   chatId: string
+  /**
+   * The chat the Dood does the call's work in, once something was handed on: a side chat of the
+   * call's own where the call is held in the main chat, else the chat it is held in.
+   */
+  workChatId?: string
   phase: CallPhase
   /** When the voice was ready to talk. Until then nothing is counted. */
   startedAt: number | undefined
@@ -110,8 +118,8 @@ type Line = {
 type Handoff = {
   id: string
   ask: string
-  /** The chat's messages there were when it was sent: the answer is after one that is not among them. */
-  known: Set<string>
+  /** The id it was sent under, by which its message in the chat is known. */
+  request: string
   sentAt: number
   /** The steps that have been passed on, and when the last was. */
   told: Set<string>
@@ -121,6 +129,8 @@ type Handoff = {
 type Session = {
   agentId: string
   chatId: string
+  /** The chat its work is done in, once the server has said which. */
+  workChatId: string | undefined
   dialect: CallDialect | undefined
   id: string | undefined
   line: Line | undefined
@@ -260,11 +270,10 @@ async function handOn(id: string, given: string | undefined): Promise<void> {
     current.lines.findLast((line) => line.who === "you")?.text ||
     "(Something was asked out loud that was not caught in words.)"
   store.set(callAtom, { ...current, works: [...current.works, { id, ask, done: false }] })
-  const chat = store.get(liveChatAtom(chatKey(mine.agentId, mine.chatId))).state
   const handoff: Handoff = {
     id,
     ask,
-    known: new Set(chat.messages.map((message) => message.id)),
+    request: randomId(),
     sentAt: Date.now(),
     told: new Set(),
     toldAt: Date.now(),
@@ -274,13 +283,13 @@ async function handOn(id: string, given: string | undefined): Promise<void> {
   await tell()
   if (session !== mine) return
   try {
-    await client.agent(mine.agentId).send(mine.chatId, {
+    const sent = await client.agent(mine.agentId).callWork(mine.id, {
       text: ask,
-      requestId: randomId(),
-      call: mine.id,
+      requestId: handoff.request,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       from: await messageOrigin(),
     })
+    if (session === mine) follow(mine, sent.chatId)
   } catch (error) {
     answer(
       handoff,
@@ -288,6 +297,30 @@ async function handOn(id: string, given: string | undefined): Promise<void> {
     )
   }
 }
+
+/**
+ * The chat the call's work is done in is followed for as long as the call lasts, wherever the
+ * person goes: what the Dood answers there is what its voice says.
+ */
+function follow(mine: Session, chatId: string): void {
+  if (mine.workChatId === chatId) return
+  mine.workChatId = chatId
+  patch({ workChatId: chatId })
+  const live = liveChatAtom(chatKey(mine.agentId, chatId))
+  mine.cleanups.push(
+    holdChat(mine.agentId, chatId),
+    store.sub(live, () => {
+      if (session === mine && mine.workChatId === chatId) chatChanged(store.get(live).state)
+    }),
+  )
+  chatChanged(store.get(live).state)
+}
+
+/** The chat the call's work is done in, as it stands. Empty until there is one. */
+const workChat = (mine: Session): ChatState =>
+  mine.workChatId === undefined
+    ? EMPTY_CHAT
+    : store.get(liveChatAtom(chatKey(mine.agentId, mine.workChatId))).state
 
 function answer(handoff: Handoff, said: string): void {
   const mine = session
@@ -308,16 +341,33 @@ const wordsOf = (message: ChatMessage) =>
     .join("\n")
     .trim()
 
-/** The Dood's chat changed: what it answers to something handed on goes back to its voice. */
+/** What the Dood is doing about something handed on is shown where the call is. */
+function showStep(id: string, step: string | undefined): void {
+  const current = view()
+  const work = current?.works.find((one) => one.id === id)
+  if (current === undefined || work === undefined || work.step === step) return
+  store.set(callAtom, {
+    ...current,
+    works: current.works.map((one) => {
+      if (one.id !== id) return one
+      const { step: _was, ...rest } = one
+      return step === undefined ? rest : { ...rest, step }
+    }),
+  })
+}
+
+/**
+ * The chat the call works in changed: what the Dood answers there to something handed on goes
+ * back to its voice.
+ */
 function chatChanged(chat: ChatState): void {
   const mine = session
   if (mine === undefined || mine.dialect === undefined) return
   const now = Date.now()
   for (const handoff of [...mine.handoffs]) {
-    // Its own message in the chat: the first spoken one that was not there before.
+    // Its own message in the chat, known by the id it was sent under.
     const at = chat.messages.findIndex(
-      (message) =>
-        message.role === "user" && message.spoken === true && !handoff.known.has(message.id),
+      (message) => message.role === "user" && message.spoken?.request === handoff.request,
     )
     if (at === -1) {
       if (now - handoff.sentAt > ANSWER_MS)
@@ -342,17 +392,19 @@ function chatChanged(chat: ChatState): void {
       answer(handoff, "This is taking me a while. I will have it in the chat when it is done.")
       continue
     }
+    const steps = after.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "tool" && (part.status === "running" || part.status === "pending")
+          ? [part]
+          : [],
+      ),
+    )
+    const doing = steps.at(-1)
+    showStep(handoff.id, doing === undefined ? undefined : toolActivity(doing))
     // While it works, its voice hears what it is doing, a step now and then.
     if (handoff.told.size >= MAX_PROGRESS || now - handoff.toldAt < PROGRESS_MS) continue
-    const step = after
-      .flatMap((message) => message.parts)
-      .findLast(
-        (part) =>
-          part.type === "tool" &&
-          (part.status === "running" || part.status === "pending") &&
-          !handoff.told.has(part.toolCallId),
-      )
-    if (step?.type !== "tool") continue
+    const step = steps.findLast((part) => !handoff.told.has(part.toolCallId))
+    if (step === undefined) continue
     handoff.told.add(step.toolCallId)
     handoff.toldAt = now
     mine.line?.send(voiceReply(mine.dialect, handoff.id, toolActivity(step), "progress"))
@@ -565,6 +617,7 @@ export async function startCall(
   const mine: Session = {
     agentId: agent.id,
     chatId,
+    workChatId: undefined,
     dialect: undefined,
     id: undefined,
     line: undefined,
@@ -639,12 +692,6 @@ export async function startCall(
     mine.quietSeconds = started.quietSeconds
     setPhase(view()?.startedAt === undefined ? "connecting" : "listening")
 
-    // The Dood's chat is followed for as long as the call lasts, wherever the person goes.
-    const release = holdChat(agent.id, chatId)
-    const live = liveChatAtom(chatKey(agent.id, chatId))
-    const unsubscribe = store.sub(live, () => chatChanged(store.get(live).state))
-    mine.cleanups.push(release, unsubscribe)
-
     const deadline = Date.now() + started.maxSeconds * 1000
     mine.timers.push(
       // Who is talking, by the sound of it, and the creature's mouth with its voice.
@@ -680,7 +727,7 @@ export async function startCall(
         if (paused.lines.length > 0) keep(mine, paused.said, paused.lines)
         if (mine.unsent.length > 0) void tell()
         // What the Dood was handed is looked at again, for one that never answers.
-        chatChanged(store.get(live).state)
+        chatChanged(workChat(mine))
         if (now >= deadline) return void endCall("The call reached its longest length.")
         const busy = mine.handoffs.length > 0 || now - Math.max(mine.youAt, mine.doodAt) < 5_000
         if (!busy && now - mine.activeAt > mine.quietSeconds * 1000) {

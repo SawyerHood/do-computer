@@ -18,24 +18,50 @@ with its tools, its computers and its memory, and it is not replaced.
    knows about you, its notes) and is given the end of the chat the call is held in: about the
    last forty messages, without the steps the Dood took.
 2. What the voice can answer from that, it answers.
-3. Anything else, such as a file, the web, a computer or a fact it was not given, it **hands
-   on**. That arrives in the chat as a message from you, marked "Said on a call", with what was
-   said on the call beside it for the Dood to read. The Dood answers it as it would a typed
-   message, using whatever it needs, and asking first where it is set to.
+3. Anything else, it **hands on**: a file, the web, a computer, a fact it was not given, or
+   something to remember, save, schedule or send. The voice can only talk. The Dood does it, with
+   every tool it has, and asking first where it is set to.
 4. While the Dood works, the voice is told which step it is on. When the Dood has answered, the
-   voice says the answer.
+   voice says the answer in its own words, and shortens a long one.
 
-The Dood's answer is in the chat in full. The voice says it in its own words, and shortens a
-long one.
+## The call's side chat
 
-## What the chat keeps
+What is handed on goes to a side chat, as a message from you marked "Said on a call", with what
+was said on the call beside it for the Dood to read.
+
+- **A call held in the main chat is given a side chat of its own**, the first time something
+  is handed on. It branches off the main chat, so the Dood arrives knowing what was being
+  talked about, and it is named for the call ("Call: …"). The main chat is neither held up by
+  the call nor filled with it: the Dood can be in the middle of something there and still do
+  what the call asks. A call on which nothing is handed on leaves no side chat.
+- **A call held in a side chat works in that side chat.**
+
+The side chat is one like any other. It is in the list of side chats, opens beside the main
+chat from the call's card ("Open it") and afterwards from the call's record, can be typed in,
+and can be put away. Work that is not finished when you hang up carries on there, and its
+answer is read there.
+
+## What the chat keeps, and what is remembered
 
 While a call is on, the chat it is held in shows it as one card: what is being said, and what
-was handed on. When it ends, the chat keeps one record of it: how long it was, what came of it
-in up to three lines, and what was said, folded away. The lines are written by the small model
-that also notes where each chat stands (`DC_REVIEW_MODEL`); without one the record has only the
-words. The Dood is told what was said too, so it remembers a call like anything else in the
-chat.
+the Dood is doing about what was handed on. When it ends, the chat keeps one record of it: how
+long it was, what came of it in up to three lines, and what was said, folded away. The lines
+are written by the small model that also notes where each chat stands (`DC_REVIEW_MODEL`);
+without one the record has only the words.
+
+What was said out loud counts as said:
+
+- **The Dood in the chat the call was held in is told all of it** when the call ends, and
+  where it did the call's work, so it remembers a call like anything else in the chat. In the
+  call's side chat it is told that the call is over.
+- **The Dood's other chats** find the call's words with the `history` tool, and the chat's
+  note for them takes the call in: the same small model reads the call when it ends.
+- **Lasting things are remembered.** That small model adds what will still matter months from
+  now to what the Dood remembers about you and its own notes, as it does for what is typed: up
+  to three things of each kind from one call. And asking out loud for something to be
+  remembered is handed on like anything else, so the Dood saves it itself.
+
+Without the small model none of the last two happens by itself; what is handed on still does.
 
 A call belongs to the window, not to the page. Open another Dood or the settings and it carries
 on as a card in the corner. Closing or reloading the page ends it.
@@ -104,4 +130,5 @@ documented way to have calls.
 
 Calling from the phone app. A Dood calling you. Approving something by voice: a request for an
 OK shows above the message box as always, and is answered there. What you type during a call
-goes to the Dood, and its voice is not told of it. Safari and phone browsers have not been tried.
+goes to the Dood, and its voice is not told of it; nor is the voice told how work is going in
+the main chat that it did not hand on. Safari and phone browsers have not been tried.

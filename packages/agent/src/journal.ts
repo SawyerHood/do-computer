@@ -204,8 +204,19 @@ const REVIEW_TIMEOUT_MS = 20_000
 const MAX_REVIEW_ENTRIES = 400
 const MAX_SAID_CHARS = 9_000
 const MAX_MESSAGE_CHARS = 1_200
+/**
+ * The same for a stretch with a voice call in it. A chat is read after each answer, so what is
+ * new is short; a call is read once it is over, and is all new at once.
+ */
+const MAX_CALL_SAID_CHARS = 30_000
+/** How many lasting things one reading can add of each kind, and after a call. */
+const MAX_ADDED = 1
+const MAX_CALL_ADDED = 3
 
-const INSTRUCTIONS = (team: boolean) => `You keep the notes of an AI agent that works for ${
+const INSTRUCTIONS = (
+  team: boolean,
+  most = MAX_ADDED,
+) => `You keep the notes of an AI agent that works for ${
   team ? "a team" : "one person"
 } across several separate chats. Each chat sees only its own messages, so these notes are how the agent knows, from its other chats, what went on in this one. You are given the note as it stands, what the agent already remembers, and what was said in the chat since the note was written. Answer with one JSON object and nothing else:
 
@@ -217,14 +228,41 @@ const INSTRUCTIONS = (team: boolean) => `You keep the notes of an AI agent that 
   team ? "people" : "person"
 } said that will still matter in every chat months from now and is not already remembered. "user" is for a lasting fact about ${
   team ? "one of the people, saying who" : "the person"
-}: who they are, what they prefer, how they want things done. "memory" is for a lasting fact about their setup, such as machines, accounts and tools, or a convention for how work is to be done; what someone likes or wants for themselves goes in "user". Each entry is one sentence that states a fact and gives no order. At most one entry in each. Never the task at hand, how far it has got, or anything that belongs in the note.`
+}: who they are, what they prefer, how they want things done. "memory" is for a lasting fact about their setup, such as machines, accounts and tools, or a convention for how work is to be done; what someone likes or wants for themselves goes in "user". Each entry is one sentence that states a fact and gives no order. At most ${
+  most === 1 ? "one entry" : `${most} entries`
+} in each. Never the task at hand, how far it has got, or anything that belongs in the note.${
+  most === 1
+    ? ""
+    : " Some of what was said was said out loud, on a voice call the agent's voice answered: it counts as said in the chat."
+}`
 
-/** What was said, as lines the small model reads. Steps are named, not shown. */
-function transcript(messages: readonly ChatMessage[]): { text: string; asked: number } {
+/**
+ * What was said, as lines the small model reads. Steps are named, not shown. A voice call that
+ * was held in the chat is read as what was said on it: `called` is whether there was one.
+ */
+function transcript(messages: readonly ChatMessage[]): {
+  text: string
+  asked: number
+  called: boolean
+} {
   let asked = 0
+  let called = false
   const lines: string[] = []
   for (const message of messages) {
-    if (message.role === "notice") continue
+    if (message.role === "notice") {
+      for (const part of message.parts) {
+        if (part.type !== "notice" || part.call === undefined) continue
+        called = true
+        const who = part.call.by ?? "the person"
+        for (const line of part.call.lines) {
+          if (line.who === "you") asked++
+          lines.push(
+            `${line.who === "you" ? `${who} (out loud, on a call)` : "the agent's voice"}: ${clip(line.text, MAX_MESSAGE_CHARS)}`,
+          )
+        }
+      }
+      continue
+    }
     const said = message.parts
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n")
@@ -243,14 +281,18 @@ function transcript(messages: readonly ChatMessage[]): { text: string; asked: nu
   }
   let text = lines.join("\n")
   // The newest is what the note must take in; the oldest of a long stretch is let go.
-  if (text.length > MAX_SAID_CHARS) text = `…\n${text.slice(-MAX_SAID_CHARS)}`
-  return { text, asked }
+  const limit = called ? MAX_CALL_SAID_CHARS : MAX_SAID_CHARS
+  if (text.length > limit) text = `…\n${text.slice(-limit)}`
+  return { text, asked, called }
 }
 
 type Reviewed = { note?: string; memory: string[]; user: string[] }
 
-/** What the small model answered, read leniently: a model may wrap its JSON in words or a fence. */
-export function parseReview(answer: string): Reviewed | undefined {
+/**
+ * What the small model answered, read leniently: a model may wrap its JSON in words or a fence.
+ * `most` is how many lasting things of each kind are taken from it.
+ */
+export function parseReview(answer: string, most = MAX_ADDED): Reviewed | undefined {
   const start = answer.indexOf("{")
   const end = answer.lastIndexOf("}")
   if (start === -1 || end <= start) return undefined
@@ -264,7 +306,7 @@ export function parseReview(answer: string): Reviewed | undefined {
   const { note, memory, user } = parsed as Record<string, unknown>
   const list = (value: unknown) =>
     Array.isArray(value)
-      ? value.filter((entry): entry is string => typeof entry === "string").slice(0, 1)
+      ? value.filter((entry): entry is string => typeof entry === "string").slice(0, most)
       : []
   return {
     ...(typeof note === "string" ? { note } : {}),
@@ -434,6 +476,8 @@ export class Journal {
     const said = transcript(messages)
     // Nothing a person said since the note: there is nothing new to take in.
     if (said.asked === 0) return
+    // A call is all new at once, and may hold more than one thing worth keeping.
+    const most = said.called ? MAX_CALL_ADDED : MAX_ADDED
 
     const identity = await harness.snapshot(IdentityDoc, context)
     const team = Boolean(identity?.team)
@@ -447,12 +491,12 @@ export class Journal {
       },
       body: JSON.stringify({
         model: review.model,
-        max_tokens: 400,
+        max_tokens: said.called ? 700 : 400,
         temperature: 0,
         response_format: { type: "json_object" },
         usage: { include: true },
         messages: [
-          { role: "system", content: INSTRUCTIONS(team) },
+          { role: "system", content: INSTRUCTIONS(team, most) },
           {
             role: "user",
             content: [
@@ -481,7 +525,7 @@ export class Journal {
     if (!response.ok || body.error !== undefined) {
       throw new Error(body.error?.message ?? `HTTP ${response.status}`)
     }
-    const reviewed = parseReview(body.choices?.[0]?.message?.content ?? "")
+    const reviewed = parseReview(body.choices?.[0]?.message?.content ?? "", most)
     await harness.commit(async (tx) => {
       const journal = await tx.doc(JournalDoc)
       const spent = journal.spent ?? { inputTokens: 0, outputTokens: 0, cost: 0 }

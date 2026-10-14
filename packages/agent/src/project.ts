@@ -33,12 +33,18 @@ type UserContent = UserMessage["content"]
 /** A text block the server adds for the model, such as the send time; never shown. */
 const isMeta = (text: string) => text.startsWith("<meta ")
 
-/** Whether a message was said out loud, on a call, from the note that travelled with it. */
-function contentSpoken(content: UserContent): boolean {
-  if (typeof content === "string") return false
-  return content.some(
-    (block) => block.type === "text" && isMeta(block.text) && callOf(block.text) !== undefined,
-  )
+/**
+ * The call a message was said out loud on, and the id its device sent it under, from the note
+ * that travelled with it. Undefined for a message that was not said on a call.
+ */
+function contentSpoken(content: UserContent): { call: string; request: string } | undefined {
+  if (typeof content === "string") return undefined
+  for (const block of content) {
+    if (block.type !== "text" || !isMeta(block.text)) continue
+    const call = callOf(block.text)
+    if (call !== undefined) return call
+  }
+  return undefined
 }
 
 /** Who sent a message, from the note that travelled with it. */
@@ -225,6 +231,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
             ? undefined
             : { id: slack.userId, name: slack.name }
       const agent = contentAgent(first.content)
+      const spoken = contentSpoken(first.content)
       return {
         id,
         role: "user",
@@ -234,7 +241,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         ...(author === undefined ? {} : { author }),
         ...(agent === undefined ? {} : { agent }),
         ...(slack === undefined ? {} : { slack: { id: slack.id, name: slack.name } }),
-        ...(contentSpoken(first.content) ? { spoken: true as const } : {}),
+        ...(spoken === undefined ? {} : { spoken }),
       }
     }
     case "pi.assistant": {
@@ -277,6 +284,8 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
               seconds,
               summary: Array.isArray(call?.summary) ? call.summary : [],
               lines: Array.isArray(call?.lines) ? call.lines : [],
+              ...(typeof call?.chatId === "string" ? { chatId: call.chatId } : {}),
+              ...(typeof call?.by === "string" ? { by: call.by } : {}),
             },
           },
         ],
