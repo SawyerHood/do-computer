@@ -25,7 +25,7 @@ const INK: Record<string, string> = {
 
 /** Each picture as rows of letters: a letter is a square of that color, a dot is nothing. */
 const ART = {
-  onigiri: [
+  riceball: [
     "....kkkk....",
     "...kwwwwk...",
     "..kwwwwwwk..",
@@ -99,7 +99,7 @@ export type PixelArt = keyof typeof ART | TreatKind
 
 /** The color of a treat's crumbs. */
 export const CRUMB: Record<TreatKind, string> = {
-  onigiri: INK.w!,
+  riceball: INK.w!,
   cookie: INK.t!,
   apple: INK.r!,
   donut: INK.p!,
