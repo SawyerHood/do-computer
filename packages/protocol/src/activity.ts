@@ -65,8 +65,17 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return path === undefined ? "Sending you a file" : `Sending you ${fileName(path)}`
     case "visual":
       return withDetail("Drawing", text(args.title))
+    // What `look` was called while a page to be drawn was all it looked at.
     case "visual_preview":
       return "Looking over a page before showing it"
+    case "look": {
+      // A file of the library, or a page it is about to draw.
+      const file = text(args.file)
+      if (file !== undefined) return `Looking at ${fileName(file)}`
+      return text(args.html) === undefined
+        ? "Looking at something"
+        : "Looking over a page before showing it"
+    }
     case "share": {
       const what = text(args.site) ?? text(args.title) ?? text(args.path)
       if (args.action === "publish") return withDetail("Sharing a site", what)
@@ -240,6 +249,7 @@ export function toolKind(name: string): WorkKind {
     case "skill":
     case "visual":
     case "visual_preview":
+    case "look":
     case "share":
     case "pin":
       return "file"

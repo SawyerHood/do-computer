@@ -5,6 +5,7 @@ import {
   BodyTooLarge,
   type ChatSummary,
   declaredTooLarge,
+  LIBRARY_PAGE_PARAM,
   readLimited,
 } from "@do-computer/protocol"
 import {
@@ -18,6 +19,7 @@ import { getAuth, getSignedIn, getUser, type SessionUser } from "./auth.ts"
 import { giveOwnComputers, provideFor } from "./computers.ts"
 import { announce } from "./presence.ts"
 import { defaultModelFor } from "./settings.ts"
+import { shownAs } from "./site-pages.tsx"
 import { type AgentAccess, agentAccess, roleIn, workspaceIdsOf } from "./teams.ts"
 
 /** How many agents one workspace can hold: a person's own, or a team's. */
@@ -365,11 +367,13 @@ export async function viewLibraryFile(request: Request, agentId: string): Promis
     agentId,
   )
   if (known === undefined) return missing()
-  const { pathname } = new URL(request.url)
+  const { pathname, searchParams } = new URL(request.url)
   const rest = pathname.slice(`/d/${encodeURIComponent(agentId)}/`.length)
+  // Asked for as a page whatever it is: the file is had whole, and a page is made of it here.
+  const asPage = searchParams.has(LIBRARY_PAGE_PARAM)
   const headers: Record<string, string> = {}
   // `range` and `if-range` are how a player asks for a part of a film or a sound.
-  for (const name of ["if-none-match", "sec-fetch-dest", "range", "if-range"]) {
+  for (const name of asPage ? [] : ["if-none-match", "sec-fetch-dest", "range", "if-range"]) {
     const value = request.headers.get(name)
     if (value !== null) headers[name] = value
   }
@@ -377,7 +381,20 @@ export async function viewLibraryFile(request: Request, agentId: string): Promis
     .libraries.get(known.workspace_id ?? personalWorkspaceId(known.owner_id))
     .fetch(new Request(`http://library/view/${rest}`, { headers, signal: request.signal }))
   // The library answers in JSON, for the app. This is read by a browser.
-  return response.status === 404 ? missing() : response
+  if (response.status === 404) return missing()
+  if (!asPage) return response
+  let name = ""
+  try {
+    name = decodeURIComponent(rest.split("/").filter(Boolean).at(-1) ?? "")
+  } catch {
+    return missing()
+  }
+  // Whoever asks is taken to be going there, which is what asking for the page says.
+  return shownAs(
+    new Request(request.url, { headers: { "sec-fetch-dest": "document" } }),
+    response,
+    { title: name, name, own: encodeURIComponent(name) },
+  )
 }
 
 export { getAuth }
