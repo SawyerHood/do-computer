@@ -1,6 +1,13 @@
 import type { WorkspaceSummary } from "@do-computer/protocol"
-import { DotsThreeIcon, GearIcon, PlusIcon, UserPlusIcon } from "@phosphor-icons/react"
+import {
+  DotsThreeIcon,
+  GearIcon,
+  PlusIcon,
+  SortAscendingIcon,
+  UserPlusIcon,
+} from "@phosphor-icons/react"
 import { useNavigate } from "@tanstack/react-router"
+import { useAtom } from "jotai"
 import { useState } from "react"
 import { PersonFace, WorkspaceTile } from "@/components/people"
 import { InviteDialog } from "@/components/team/invite"
@@ -13,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { agentOrderAtom } from "@/lib/atoms"
 import { useSettings } from "@/lib/settings"
 import { useWorkspaces } from "@/lib/workspaces"
 
@@ -41,7 +49,8 @@ export function WorkspaceMark({
 
 /**
  * What a workspace has besides its agents, from the heading over them in the sidebar: its
- * settings, and for a team, asking people in.
+ * settings, and for a team, asking people in. Where its agents were put in an order by hand,
+ * that is given up here, for the one last heard from first.
  */
 export function WorkspaceMenu({
   workspace,
@@ -52,6 +61,7 @@ export function WorkspaceMenu({
 }) {
   const { open: openSettings } = useSettings()
   const [inviting, setInviting] = useState(false)
+  const [orders, putInOrder] = useAtom(agentOrderAtom)
   const invites = workspace.kind === "team" && workspace.role !== "member"
   return (
     <>
@@ -77,6 +87,11 @@ export function WorkspaceMenu({
               <UserPlusIcon /> Invite people
             </DropdownMenuItem>
           ) : null}
+          {orders[workspace.id] === undefined ? null : (
+            <DropdownMenuItem onClick={() => putInOrder(workspace.id, undefined)}>
+              <SortAscendingIcon /> Sort by latest
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {invites ? (

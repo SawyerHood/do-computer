@@ -109,6 +109,57 @@ export const foldedWorkspacesAtom = atom(
   },
 )
 
+export const AGENT_ORDER_KEY = "dc-agent-order"
+
+type AgentOrder = Readonly<Record<string, readonly string[]>>
+
+function keptOrder(): AgentOrder {
+  if (typeof window === "undefined") return {}
+  try {
+    const found: unknown = JSON.parse(localStorage.getItem(AGENT_ORDER_KEY) ?? "{}")
+    if (typeof found !== "object" || found === null) return {}
+    return Object.fromEntries(
+      Object.entries(found).filter((entry): entry is [string, string[]] => {
+        return Array.isArray(entry[1]) && entry[1].every((id) => typeof id === "string")
+      }),
+    )
+  } catch {
+    // Storage can be unavailable, or hold something else; then nothing was put in order.
+    return {}
+  }
+}
+
+const agentOrder = atom(keptOrder())
+// Another tab of this browser put them in order: this one follows.
+agentOrder.onMount = (set) => {
+  const changed = (event: StorageEvent) => {
+    if (event.key === AGENT_ORDER_KEY) set(keptOrder())
+  }
+  window.addEventListener("storage", changed)
+  return () => window.removeEventListener("storage", changed)
+}
+
+/**
+ * The order each workspace's agents were put in by hand in the sidebar, by workspace: their
+ * ids, the top one first. A workspace that is not here was never put in order, and has the one
+ * last heard from first. Writing a list keeps it, and writing none forgets it. It is kept in
+ * this browser and nowhere else, so another browser has an order of its own.
+ */
+export const agentOrderAtom = atom(
+  (get) => get(agentOrder),
+  (_get, set, workspaceId: string, ids: readonly string[] | undefined) => {
+    // On top of what is kept now, which another tab may have added to since this one read it.
+    const { [workspaceId]: _was, ...rest } = keptOrder()
+    const next = ids === undefined ? rest : { ...rest, [workspaceId]: ids }
+    set(agentOrder, next)
+    try {
+      localStorage.setItem(AGENT_ORDER_KEY, JSON.stringify(next))
+    } catch {
+      // The order then lasts for this page only.
+    }
+  },
+)
+
 const PANEL_FOLDS_KEY = "dc-panel-folds"
 
 function keptFolds(): Readonly<Record<string, boolean>> {

@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test"
+import type { Locator, Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 import { asOwner, closeSettings, composer, openSettings, signIn } from "./helpers.ts"
 
@@ -34,6 +34,27 @@ async function sayElsewhere(page: Page, agentId: string, text: string) {
 
 const agents = (page: Page) => page.getByRole("navigation", { name: "Doods" })
 const row = (page: Page, name: string) => agents(page).getByRole("link", { name })
+
+/** The names of the agents under one heading, from the top row down. */
+async function namesIn(page: Page, section: Locator): Promise<(string | null)[]> {
+  const names = new Map((await listed(page)).map((agent) => [agent.id, agent.name]))
+  const addresses = await section
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""))
+  return addresses.map((address) => names.get(address.split("/")[2] ?? "") ?? null)
+}
+
+/** Take a row up with the mouse and let it go where another one is. */
+async function drag(page: Page, from: Locator, to: Locator) {
+  const start = (await from.boundingBox())!
+  const end = (await to.boundingBox())!
+  const x = start.x + start.width / 2
+  await page.mouse.move(x, start.y + start.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(x, start.y + start.height / 2 + 12, { steps: 4 })
+  await page.mouse.move(x, end.y + end.height / 2, { steps: 12 })
+  await page.mouse.up()
+}
 
 test("an agent's row says the latest from it, and marks what has not been looked at", async ({
   page,
@@ -203,4 +224,73 @@ test("a person's feed is their own, and what they looked at on one tab is looked
   await row(page, "Bramble").click()
   await expect(row(other, "Bramble").getByRole("img", { name: "Something new" })).toHaveCount(0)
   await other.close()
+})
+
+test("an agent is dragged to another place among its workspace's, and they stay as they were put", async ({
+  page,
+}) => {
+  await signIn(page)
+  await make(page, "Clover")
+  await page.reload()
+  const mine = agents(page).getByRole("region", { name: "Personal" })
+  const team = agents(page).getByRole("region", { name: "Tidewater" })
+  await expect(mine.getByRole("link")).toHaveCount(3)
+  // Never put in order, they are the one last heard from first, and nothing offers to make
+  // them so.
+  const [first, second, third] = (await namesIn(page, mine)) as [string, string, string]
+  expect(first).toBe("Clover")
+  const menu = mine.getByRole("button", { name: "Personal: workspace menu" })
+  await menu.click()
+  await expect(page.getByRole("menuitem", { name: "Workspace settings" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Sort by latest" })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+
+  // The top one is taken to the bottom. It is not the one that is open, and letting it go
+  // does not open it: the page is the one it was, and was not loaded again.
+  const open = page.url()
+  await page.evaluate(() => Object.assign(window, { stayed: true }))
+  await drag(page, row(page, first), row(page, third))
+  await expect.poll(() => namesIn(page, mine)).toEqual([second, third, first])
+  expect(page.url()).toBe(open)
+  expect(await page.evaluate(() => "stayed" in window)).toBe(true)
+  // The other workspace's are not this one's to be put among.
+  const others = await namesIn(page, team)
+  await drag(page, row(page, second), team.getByRole("link").first())
+  await expect.poll(() => namesIn(page, mine)).toEqual([third, first, second])
+  expect(await namesIn(page, team)).toEqual(others)
+
+  // They are as they were put when the page is loaded again, and hearing from the last of
+  // them does not bring it to the top.
+  await page.reload()
+  await expect.poll(() => namesIn(page, mine)).toEqual([third, first, second])
+  const ids = Object.fromEntries((await listed(page)).map((agent) => [agent.name, agent.id]))
+  await sayElsewhere(page, ids[second]!, "Still where I was put")
+  await expect(row(page, second)).toContainText("You said: Still where I was put")
+  expect(await namesIn(page, mine)).toEqual([third, first, second])
+
+  // One made since is above them. A row that is pressed and not moved is opened, as before.
+  await make(page, "Dahlia")
+  await page.reload()
+  await expect.poll(() => namesIn(page, mine)).toEqual(["Dahlia", third, first, second])
+  await row(page, first).click()
+  await page.waitForURL(new RegExp(`/a/${ids[first]}/c/\\d+`))
+
+  // Without a pointer: Space takes a row up, the arrows move it, and Space puts it down.
+  await row(page, "Dahlia").focus()
+  await page.keyboard.press("Space")
+  await expect(page.getByText("Picked up Dahlia, 1 of 4.")).toHaveCount(1)
+  await page.keyboard.press("ArrowDown")
+  await expect(page.getByText("Dahlia is at 2 of 4.")).toHaveCount(1)
+  await page.keyboard.press("Space")
+  await expect.poll(() => namesIn(page, mine)).toEqual([third, "Dahlia", first, second])
+  await expect(row(page, "Dahlia")).toBeFocused()
+
+  // The order is given up from the workspace's menu, and it is the one last heard from first
+  // again: the one made last, then the one at the bottom, which was the last to say anything.
+  await menu.click()
+  await page.getByRole("menuitem", { name: "Sort by latest" }).click()
+  await expect.poll(async () => (await namesIn(page, mine)).slice(0, 2)).toEqual(["Dahlia", second])
+  await menu.click()
+  await expect(page.getByRole("menuitem", { name: "Workspace settings" })).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Sort by latest" })).toHaveCount(0)
 })
