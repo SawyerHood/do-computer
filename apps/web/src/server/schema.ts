@@ -276,6 +276,16 @@ const MIGRATIONS: readonly (readonly string[])[] = [
   ],
   // The port a desktop app waits at for a sign-in it sent to its owner's browser, if one does.
   ["ALTER TABLE dc_oauth_states ADD COLUMN desktop_port INTEGER"],
+  [
+    // How long each person has been on voice calls that the server's own sign-in paid for, by
+    // month, which is what a monthly limit is counted against.
+    `CREATE TABLE dc_call_usage (
+      user_id TEXT NOT NULL,
+      month TEXT NOT NULL,
+      seconds INTEGER NOT NULL,
+      PRIMARY KEY (user_id, month)
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

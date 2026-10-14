@@ -37,6 +37,8 @@ export type IdentityState = {
    * for it to finish. Absent: steer.
    */
   whenBusy?: "steer" | "queue"
+  /** The voice it speaks in on a call, where one was chosen for it. Absent: one picked by its id. */
+  voice?: string
   createdAt: number
   /** The user's IANA timezone, learned from their client. */
   timezone: string | null

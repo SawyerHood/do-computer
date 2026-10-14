@@ -20,6 +20,7 @@ import { useArchiveSideChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { workspaceModelsKey } from "@/lib/collections"
 import { BESIDE_GAP, DOC_PANEL_LEAVES, sideChatColumn } from "@/lib/columns"
+import { useBeside } from "@/lib/use-beside"
 import { useChat } from "@/lib/use-chat"
 import { useWide } from "@/lib/use-wide"
 import { TeamContext, usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
@@ -119,6 +120,7 @@ export function SideChat({
 }) {
   const { live, state, earlier, send, sendError, retry, stop, attach } = useChat(agent.id, chat.id)
   const width = useAtomValue(sideChatColumn.width)
+  const beside = useBeside<HTMLElement>()
   const archive = useArchiveSideChat(agent.id, mainId)
   const name = agent.name ?? "New Dood"
 
@@ -139,6 +141,7 @@ export function SideChat({
 
   return (
     <aside
+      ref={beside}
       aria-label={`Side chat: ${chat.title}`}
       className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
       style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES} - ${BESIDE_GAP})` }}

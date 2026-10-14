@@ -666,6 +666,8 @@ export function ChatView({
           threads={threads}
           slack={slackThreads}
           chatId={chatId}
+          // A call is held in a chat that is the person's to talk in.
+          callIn={own ? chatId : undefined}
           presence={
             team === undefined ? undefined : (
               <PanelSection

@@ -25,6 +25,7 @@ import {
   ClockIcon,
   DotsThreeIcon,
   FolderIcon,
+  PhoneIcon,
   PlusIcon,
   SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
@@ -46,6 +47,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { agentOrderAtom, foldedWorkspacesAtom } from "@/lib/atoms"
+import { callAtom } from "@/lib/call"
 import { agentsCollection } from "@/lib/collections"
 import { inOrder, isUnread, latestWords, useSeenHere, useVisible, when } from "@/lib/latest"
 import { useNewAgent } from "@/lib/new-agent"
@@ -486,8 +488,11 @@ function AgentRow({
   const sortable = useSortable({ id: agent.id, disabled: howToMove === undefined })
   const working = agent.working === true
   const asking = agent.asking === true
-  const line =
-    waiting !== undefined && !working
+  // Whoever is signed in is on a call with it, in this tab.
+  const calling = useAtomValue(callAtom)?.agentId === agent.id
+  const line = calling
+    ? "On a call"
+    : waiting !== undefined && !working
       ? waiting
       : latest !== undefined
         ? latestWords(latest, meId, people)
@@ -572,7 +577,13 @@ function AgentRow({
           </span>
           {line !== undefined || with_.length > 0 || unread ? (
             <span className="mt-px flex items-center gap-1.5 text-xs text-muted-foreground">
-              {waiting !== undefined && !working ? (
+              {calling ? (
+                <PhoneIcon
+                  aria-hidden
+                  weight="fill"
+                  className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                />
+              ) : waiting !== undefined && !working ? (
                 <ClockIcon aria-hidden className="size-3 shrink-0" />
               ) : latest?.kind === "scheduled" ? (
                 <ClockIcon aria-hidden className="size-3 shrink-0" />
@@ -581,7 +592,11 @@ function AgentRow({
               ) : null}
               <span
                 data-latest=""
-                className={cn("min-w-0 flex-1 truncate", unread && "text-foreground")}
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  unread && "text-foreground",
+                  calling && "font-medium text-emerald-700 dark:text-emerald-400",
+                )}
               >
                 {line}
               </span>

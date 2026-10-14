@@ -57,7 +57,9 @@ import {
   type ChatScope,
   ChatScopeContext,
   type ChatUses,
+  Fold,
   NoticeLine,
+  Pre,
   useChatScope,
   UsesContext,
 } from "./parts/shared"
@@ -181,6 +183,33 @@ function Notice({ part }: { part: NoticePart | undefined }) {
   if (part?.kind === "subagent") return <SubagentWord part={part} />
   if (part?.kind === "agent") return <AgentWord part={part} />
   if (part?.kind === "command") return <CommandWord part={part} />
+  if (part?.kind === "call") {
+    // A voice call that was held in the chat, from a browser or the desktop app: how long it
+    // was, what came of it, and what was said. A call cannot be started from the phone yet.
+    const call = part.call
+    return (
+      <NoticeLine icon="mic">
+        <Text variant="subhead" tone="ink2">
+          A call of {part.text}
+        </Text>
+        {call?.summary.map((line, index) => (
+          <Text key={index} variant="subhead" tone="ink2">
+            {line}
+          </Text>
+        ))}
+        {call === undefined || call.lines.length === 0 ? null : (
+          <Fold label="What was said">
+            <Pre
+              text={call.lines
+                .map((line) => `${line.who === "you" ? "You" : "Dood"}: ${line.text}`)
+                .join("\n")}
+              maxHeight={320}
+            />
+          </Fold>
+        )}
+      </NoticeLine>
+    )
+  }
   if (part?.kind === "computer") {
     // The answer to the agent's asking to use a computer.
     return (
@@ -451,6 +480,12 @@ const MessageRow = memo(function MessageRow({ message, failures, onRetry, team, 
     }
     return (
       <View style={{ alignItems: "flex-end", gap: 6, paddingLeft: "14%" }}>
+        {message.spoken ? (
+          // Said out loud, on a call, and handed on by the Dood's voice.
+          <Text variant="caption" tone="ink3">
+            Said on a call
+          </Text>
+        ) : null}
         <SentParts message={message} own />
       </View>
     )

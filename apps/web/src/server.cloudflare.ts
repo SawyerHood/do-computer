@@ -27,6 +27,7 @@ import { servedDaemon } from "./server/daemon-version.ts"
 import { libraryDirectory } from "./server/library-directory.ts"
 import { siteDirectory } from "./server/site-directory.ts"
 import { modelAccessDirectory } from "./server/model-access-directory.ts"
+import { callDirectory } from "./server/calls-directory.ts"
 import { savedDirectory } from "./server/passwords-directory.ts"
 import {
   addableKinds,
@@ -106,6 +107,7 @@ export const AgentObject = createDurableActorClass<Env>({
         config,
         "cards",
       ),
+      calls: callDirectory(d1Database(env.DB), durableObjectNamespace(env.MODEL_ACCESS), config),
       agentDirectory: agentDirectory(
         d1Database(env.DB),
         () => durableObjectNamespace(env.AGENT),

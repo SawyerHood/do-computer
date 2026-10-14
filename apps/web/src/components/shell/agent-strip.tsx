@@ -13,6 +13,7 @@ import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { useAtom, useSetAtom } from "jotai"
 import { useEffect } from "react"
 import { AgentFace } from "@/components/agent-avatar"
+import { CallStripButton } from "@/components/call/call"
 import { FaceStack } from "@/components/people"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { agentPanelOpenAtom } from "@/lib/atoms"
+import { mainChatOf } from "@/lib/chats"
 import { Skeleton } from "@/components/ui/skeleton"
 import { agentQuery, agentsCollection } from "@/lib/collections"
 import { creatureWardrobeAtom, useCreature } from "@/lib/creature"
@@ -242,6 +244,10 @@ export function AgentStrip({
           (id) => people.get(id) ?? [],
         )
   const name = agent?.name ?? "New Dood"
+  // A call is held in the chat on screen where that is one the person talks in, and otherwise
+  // in the Dood's main chat.
+  const onScreen = state?.chats.find((chat) => chat.id === chatId)
+  const callIn = (onScreen?.kind === "chat" ? onScreen : mainChatOf(state?.chats))?.id
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-x-1.5 px-2.5 md:h-13 md:px-3">
@@ -345,6 +351,9 @@ export function AgentStrip({
         {agent === undefined ? null : (
           <>
             <SideChats agent={agent} workspace={workspace} state={state} />
+            {callIn === undefined || !agent.hatched ? null : (
+              <CallStripButton agent={agent} chatId={callIn} />
+            )}
             <Button
               variant="ghost"
               size="icon-sm"

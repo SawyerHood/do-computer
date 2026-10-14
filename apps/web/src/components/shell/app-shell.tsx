@@ -9,6 +9,7 @@ import { useLocation, useParams, useRouteContext } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { type PrimitiveAtom, useAtom, useAtomValue } from "jotai"
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { CallCard } from "@/components/call/call"
 import { Settings } from "@/components/settings/settings"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -238,6 +239,9 @@ export function AppShell({
           />
         </SheetContent>
       </Sheet>
+
+      {/* A call goes on whichever page is open, and is here when its Dood is not on screen. */}
+      <CallCard />
 
       <Settings
         workspace={workspace}

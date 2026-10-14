@@ -14,13 +14,39 @@ export type MascotMood = { state: MascotState; variant?: MascotVariant }
 
 export const IDLE: MascotMood = { state: "idle" }
 
-const moods = new Map<string, ReturnType<typeof atom<MascotMood>>>()
+const callMoods = new Map<string, ReturnType<typeof atom<MascotMood | undefined>>>()
 
-/** The mood of one agent's creature, set by the chat on screen and read wherever it is drawn. */
+/**
+ * What an agent's creature is doing on a voice call, while it is on one: listening, talking,
+ * working on what its voice handed it. It is shown in place of what the chat says of it.
+ */
+export function callMoodAtom(agentId: string) {
+  let existing = callMoods.get(agentId)
+  if (existing === undefined) {
+    existing = atom<MascotMood | undefined>(undefined)
+    callMoods.set(agentId, existing)
+  }
+  return existing
+}
+
+function moodAtom(agentId: string) {
+  const fromChat = atom<MascotMood>(IDLE)
+  return atom(
+    (get) => get(callMoodAtom(agentId)) ?? get(fromChat),
+    (_get, set, mood: MascotMood) => set(fromChat, mood),
+  )
+}
+
+const moods = new Map<string, ReturnType<typeof moodAtom>>()
+
+/**
+ * The mood of one agent's creature, set by the chat on screen and read wherever it is drawn.
+ * On a voice call it is what the call says, whatever the chat does.
+ */
 export function mascotMoodAtom(agentId: string) {
   let existing = moods.get(agentId)
   if (existing === undefined) {
-    existing = atom<MascotMood>(IDLE)
+    existing = moodAtom(agentId)
     moods.set(agentId, existing)
   }
   return existing
@@ -167,10 +193,13 @@ export function showing(agentId: string, orb: Orb): () => void {
   }
 }
 
-/** A word of the agent's answer arrived, or its user pressed a key: its creature moves with it. */
-export function feedMascot(agentId: string, kind: "token" | "key"): void {
+/**
+ * A word of the agent's answer arrived, or its user pressed a key: its creature moves with it.
+ * `amount` is how wide its mouth opens for a word, 0 to 1: on a call, how loud its voice is.
+ */
+export function feedMascot(agentId: string, kind: "token" | "key", amount?: number): void {
   for (const orb of shown.get(agentId) ?? []) {
-    if (kind === "token") orb.feed("token")
+    if (kind === "token") orb.feed("token", amount)
     else orb.feed("key")
   }
 }

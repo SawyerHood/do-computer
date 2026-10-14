@@ -8,6 +8,10 @@ import {
   type AgentSummary,
   type AgentUsage,
   type ApprovalDecision,
+  type CallLinesRequest,
+  type CallWorkRequest,
+  type CallWorkResponse,
+  type ChatMessage,
   type ChatState,
   type ChatSummary,
   type ChatUsage,
@@ -17,6 +21,7 @@ import {
   diffChat,
   DEFAULT_THINKING,
   encodeSse,
+  type EndCallRequest,
   CONNECTOR_CALLBACK_PATH,
   hasEverything,
   isThinkingLevel,
@@ -31,6 +36,9 @@ import {
   parseOutfit,
   rollItem,
   type SendMessageRequest,
+  type SendMessageResponse,
+  type StartCallRequest,
+  type StartCallResponse,
   SSE_HEADERS,
   SSE_HEARTBEAT,
   SSE_HEARTBEAT_MS,
@@ -84,6 +92,15 @@ import { createEditTool, createReadTool, createWriteTool } from "@earendil-works
 import { ApprovalError, Approvals, ApprovalsDoc, SIGN_IN_ABILITY } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentFrom, sentMeta } from "./caller.ts"
+import {
+  CALL_ENTRY,
+  CALL_OVER_ENTRY,
+  type CallDirectory,
+  type CallEntry,
+  CallError,
+  Calls,
+  CallsDoc,
+} from "./calls.ts"
 import { AppNeedsConsent, ConnectorError, Connectors, ConnectorsDoc } from "./connectors.ts"
 import { Followers } from "./followers.ts"
 import { guardedFetch } from "./guarded-fetch.ts"
@@ -323,6 +340,14 @@ export type AgentActorOptions = {
    * is not set, the address its gateway was last reached at stands in.
    */
   readonly appUrl?: string
+  /**
+   * Who may call an agent out loud, and which sign-in places the call: the deployment's switch
+   * and limits, and what the agent's workspace and the deployment are signed in to. Without it,
+   * nobody can call an agent here.
+   */
+  readonly calls?: CallDirectory
+  /** Used to ask a provider of voices for a call. Default: the global `fetch`. */
+  readonly callFetch?: (url: string, init: RequestInit) => Promise<Response>
 }
 
 export type ComputerChoices = {
@@ -512,6 +537,9 @@ export class AgentActor implements Actor {
   readonly #computers: Computers
   readonly #library: Library
   readonly #pins: Pins
+  readonly #calls: Calls
+  /** The side chats being made for calls, so that a call is given one. */
+  readonly #callChats = new Map<string, Promise<string>>()
   /** The library the agent keeps for itself, where its workspace has none for it to share. */
   readonly #ownLibrary: LibraryStore
   /** The harness, once it is open, for what is built before it and needs it later. */
@@ -604,6 +632,21 @@ export class AgentActor implements Actor {
         await (await this.#open()).commit(async (tx) => apply(await tx.doc(PinsDoc)), context)
       },
       now: () => host.now(),
+    })
+    this.#calls = new Calls({
+      agentId: host.name,
+      name: async () =>
+        (await (await this.#open()).snapshot(IdentityDoc, context))?.name ?? "the assistant",
+      ...(options.calls === undefined ? {} : { directory: options.calls }),
+      ...(options.review === undefined ? {} : { review: options.review }),
+      read: async () => (await (await this.#open()).snapshot(CallsDoc, context)) ?? { calls: {} },
+      change: async (apply) => {
+        await (await this.#open()).commit(async (tx) => apply(await tx.doc(CallsDoc)), context)
+      },
+      record: (chatId, entry, note, work) => this.#recordCall(chatId, entry, note, work),
+      now: () => host.now(),
+      ...(options.callFetch === undefined ? {} : { fetch: options.callFetch }),
+      onError: (error) => options.onReport?.(error),
     })
     const skillFetch = guardedFetch(
       (input, init) => (options.fetch ?? fetch)(String(input), init),
@@ -1335,7 +1378,9 @@ export class AgentActor implements Actor {
         ? this.#wake
         : now + (this.#options.keepAliveMs ?? KEEPALIVE_MS)
     this.#wake = keepAlive ?? undefined
-    const scheduled = await this.#scheduler.nextWake(context)
+    const tasks = await this.#scheduler.nextWake(context)
+    const calls = await this.#calls.nextWake()
+    const scheduled = tasks === null ? calls : calls === null ? tasks : Math.min(tasks, calls)
     const wake =
       keepAlive === null
         ? scheduled
@@ -1393,6 +1438,7 @@ export class AgentActor implements Actor {
   async alarm(): Promise<void> {
     await this.#keepRunnable(await this.#open())
     await this.#scheduler.tick(context)
+    await this.#calls.tick()
     await this.#subagents.tick()
     await this.#jobs.tick()
     await this.#peers?.tick()
@@ -1495,7 +1541,7 @@ export class AgentActor implements Actor {
     try {
       return await this.#route(request)
     } catch (error) {
-      if (error instanceof HttpError) {
+      if (error instanceof HttpError || error instanceof CallError) {
         return json({ error: error.message, code: error.code }, error.status)
       }
       if (
@@ -1956,6 +2002,53 @@ export class AgentActor implements Actor {
       }
       if (jobId !== undefined && segments[2] === "stop" && method === "POST") {
         await this.#jobs.stop(jobId, "user", context)
+        return json({ ok: true })
+      }
+    }
+    if (segments[0] === "calls") {
+      const callId = segments[1]
+      if (callId === undefined && method === "GET") {
+        return json(await this.#calls.state(caller, identity.voice))
+      }
+      if (callId === undefined && method === "POST") {
+        const input = await body<StartCallRequest>(request)
+        if (typeof input.chatId !== "string") throw new HttpError(400, "chatId is required")
+        // A call is held where a person talks to the agent, and its record is left there.
+        const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, input.chatId)?.kind
+        if (kind !== "chat") throw new HttpError(409, "A call is held in a chat you talk in.")
+        const view = await (await this.#chat(harness, input.chatId)).viewState(context)
+        let messages: ChatMessage[]
+        try {
+          messages = projectChat(view.value).messages
+        } finally {
+          view.dispose()
+        }
+        const call = await this.#calls.start(
+          { chatId: input.chatId, sdp: input.sdp },
+          caller,
+          {
+            name: identity.name ?? "your Dood",
+            soul: identity.soul,
+            user: identity.user,
+            memory: identity.memory,
+            voice: identity.voice,
+          },
+          messages,
+        )
+        // A call nobody ends is over at its time: the agent is woken then to write it up.
+        await this.#rearm()
+        return json({ call } satisfies StartCallResponse, 201)
+      }
+      if (callId !== undefined && segments[2] === "lines" && method === "POST") {
+        await this.#calls.said(callId, (await body<CallLinesRequest>(request)).lines, caller)
+        return json({ ok: true })
+      }
+      if (callId !== undefined && segments[2] === "work" && method === "POST") {
+        const input = await body<CallWorkRequest>(request)
+        return this.#callWork(harness, identity, callId, input, caller)
+      }
+      if (callId !== undefined && segments[2] === "end" && method === "POST") {
+        await this.#calls.end(callId, (await body<EndCallRequest>(request)).lines, caller)
         return json({ ok: true })
       }
     }
@@ -2435,6 +2528,58 @@ export class AgentActor implements Actor {
   }
 
   /** Change what can be changed about the agent, each thing checked. Rejects with why not. */
+  /**
+   * A call is over: its record goes into the chat it was held in, for people and for the agent.
+   * `work` is the side chat it worked in, where that is another one: the agent is told there
+   * that the call is over, and nothing is shown for it.
+   */
+  async #recordCall(
+    chatId: string,
+    entry: CallEntry,
+    note: string,
+    work?: { chatId: string; note: string },
+  ): Promise<void> {
+    const harness = await this.#open()
+    const now = this.#host.now()
+    if (work !== undefined) {
+      const worked = await harness.conversation(Number(work.chatId) as ConversationId, context)
+      await worked?.submit(
+        {
+          type: "write",
+          requestId: `call-over:${entry.id}`,
+          entry: {
+            kind: CALL_OVER_ENTRY,
+            model: [{ role: "user", content: work.note, timestamp: now }],
+            data: { id: entry.id },
+          },
+        },
+        context,
+      )
+    }
+    const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
+    // The chat was deleted while the call went on: there is nowhere to leave it.
+    if (conversation === undefined) return
+    await conversation.submit(
+      {
+        type: "write",
+        requestId: `call:${entry.id}`,
+        entry: {
+          kind: CALL_ENTRY,
+          model: [{ role: "user", content: note, timestamp: now }],
+          data: entry,
+        },
+      },
+      context,
+    )
+    await harness.commit(async (tx) => {
+      const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
+      if (chat !== undefined) chat.updatedAt = now
+    }, context)
+    // What was said out loud is taken into the chat's note for the agent's other chats, and
+    // into what the agent remembers, as what is typed is. Nothing waits for it.
+    void this.#journal.review(chatId)
+  }
+
   async #apply(harness: Harness, input: Record<string, unknown>): Promise<void> {
     const text = (key: string, limit: number): string | undefined => {
       const value = input[key]
@@ -2465,6 +2610,12 @@ export class AgentActor implements Actor {
     if (whenBusy !== undefined && whenBusy !== "steer" && whenBusy !== "queue") {
       throw new HttpError(400, "whenBusy must be steer or queue")
     }
+    // The voice it has on a call. Which voices there are depends on what places the call, so
+    // any short name is kept, and one that call cannot speak in is passed over when it is made.
+    const voice = input.voice === null ? null : text("voice", 40)?.trim().toLowerCase()
+    if (typeof voice === "string" && !/^[a-z]{2,40}$/.test(voice)) {
+      throw new HttpError(400, "voice must be the name of a voice")
+    }
     const now = this.#host.now()
     let avatar: IdentityState["avatar"] | undefined
     if (input.avatar !== undefined) {
@@ -2489,6 +2640,8 @@ export class AgentActor implements Actor {
       if (input.hatched === true) identity.hatchedAt ??= now
       if (timezone !== undefined) identity.timezone = timezone
       if (whenBusy !== undefined) identity.whenBusy = whenBusy
+      if (voice === null) delete identity.voice
+      else if (voice !== undefined) identity.voice = voice
       // Chats pick this up on their next message.
       if (thinking !== undefined) identity.thinking = thinking
     }, context)
@@ -2685,6 +2838,64 @@ export class AgentActor implements Actor {
     input: SendMessageRequest,
     caller: Caller | undefined,
   ): Promise<Response> {
+    return json(await this.#say(harness, conversation, input, caller), 202)
+  }
+
+  /**
+   * Something the voice of a call hands on to the agent. It goes to the call's side chat as a
+   * message, marked as said out loud, and the agent does it there with every tool it has. A
+   * call held in the main chat is given a side chat of its own the first time, so that the main
+   * chat is neither held up by the call nor filled with it; one held in a side chat works there.
+   */
+  async #callWork(
+    harness: Harness,
+    identity: Readonly<IdentityState>,
+    callId: string,
+    input: CallWorkRequest,
+    caller: Caller | undefined,
+  ): Promise<Response> {
+    if (typeof input.text !== "string" || input.text.trim() === "") {
+      throw new HttpError(400, "text is required")
+    }
+    const where = await this.#calls.where(callId, caller)
+    let chatId = where.workChatId
+    if (chatId === undefined) {
+      // Two things handed on at once are given the one chat.
+      let making = this.#callChats.get(callId)
+      if (making === undefined) {
+        making = (async () => {
+          const main = (await harness.snapshot(ChatsDoc, context))?.main
+          let made = where.chatId
+          if (where.chatId === main) {
+            const title = titleFrom(`Call: ${input.text}`)
+            const branched = await this.#branchChat(harness, identity, title, caller).catch(
+              (error) => {
+                // Not being able to branch must not cost the call its work.
+                this.#options.onReport?.(error)
+                return undefined
+              },
+            )
+            made = (branched ?? (await this.#newChat(harness, identity, title, caller, false))).id
+          }
+          await this.#calls.worksIn(callId, made)
+          return made
+        })().finally(() => this.#callChats.delete(callId))
+        this.#callChats.set(callId, making)
+      }
+      chatId = await making
+    }
+    const sent = await this.#say(harness, await this.#chat(harness, chatId), input, caller, callId)
+    return json({ chatId, ...sent } satisfies CallWorkResponse, 202)
+  }
+
+  /** Give a chat something a person said. `callId` is the call it was said on, out loud. */
+  async #say(
+    harness: Harness,
+    conversation: Conversation,
+    input: SendMessageRequest,
+    caller: Caller | undefined,
+    callId?: string,
+  ): Promise<SendMessageResponse> {
     if (typeof input.text !== "string" || input.text.trim() === "") {
       throw new HttpError(400, "text is required")
     }
@@ -2725,6 +2936,11 @@ export class AgentActor implements Actor {
     )
     // Pictures go to the model with the words, where the agent's model can take them.
     const images = this.#images(input.images, identity.model)
+    // Said out loud, on a call: the agent is told so, and what was said there since it last heard.
+    const spoken =
+      callId === undefined
+        ? undefined
+        : await this.#calls.handOn(callId, input.requestId, caller, identity.name ?? "your voice")
     const submission = await conversation.submit(
       {
         type: "input",
@@ -2732,6 +2948,7 @@ export class AgentActor implements Actor {
           { type: "text", text: input.text },
           ...images.map((image) => ({ type: "image" as const, ...image })),
           { type: "text", text: meta },
+          ...(spoken === undefined ? [] : [{ type: "text" as const, text: spoken }]),
         ],
         requestId: input.requestId,
         // What the sender asked for, else what the agent is set to do with a message that
@@ -2765,7 +2982,7 @@ export class AgentActor implements Actor {
         ;(await tx.doc(IdentityDoc)).timezone = timezone
       }
     }, context)
-    return json({ submissionId: String(submission.id) }, 202)
+    return { submissionId: String(submission.id) }
   }
 
   /**

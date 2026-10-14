@@ -22,8 +22,8 @@ type Settings = Pick<Config, "secrets" | "secretKinds" | "adminEmails" | "signup
  * by invitation it is; where anyone can make one, only an address a social sign-in vouched for
  * counts, or whoever signed up with an admin's address first would be taken for them.
  */
-const isAdminAccount = (
-  settings: Settings,
+export const isAdminAccount = (
+  settings: Pick<Config, "adminEmails" | "signup">,
   account: { email: string | null; emailVerified: unknown },
 ): boolean =>
   account.email !== null &&

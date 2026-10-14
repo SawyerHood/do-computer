@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { client } from "@/lib/client"
 import { libraryKey } from "@/lib/collections"
 import { BESIDE_GAP, DOC_PANEL_LEAVES, docPanelColumn } from "@/lib/columns"
+import { useBeside } from "@/lib/use-beside"
 import { type ViewMode, Viewer } from "./viewer.tsx"
 
 /**
@@ -35,6 +36,7 @@ export function DocPanel({
   })
   const [mode, setMode] = useState<ViewMode>("read")
   const width = useAtomValue(docPanelColumn.width)
+  const beside = useBeside<HTMLElement>()
   const file = listing?.files.find((entry) => entry.id === fileId)
   const close = (
     <Button variant="ghost" size="icon-sm" aria-label="Close the document" onClick={onClose}>
@@ -43,6 +45,7 @@ export function DocPanel({
   )
   return (
     <aside
+      ref={beside}
       aria-label="Document"
       className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border hidden shrink-0 bg-background xl:block"
       style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES} - ${BESIDE_GAP})` }}
