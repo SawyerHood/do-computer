@@ -1,6 +1,7 @@
 /**
- * A page as a browser draws it, for an agent to look at before the person does: a picture of
- * it, how tall it is at the widths it will be read at, and what it wrote to its console.
+ * A page as a browser draws it, for an agent to look at: a picture of it, how tall it is at
+ * the widths it will be read at, and what it wrote to its console. The page is one the agent
+ * is about to show, given whole, or one that is already served somewhere, given by its address.
  *
  * Where the browser is depends on where the server runs: Cloudflare's own on a Worker, a Chrome
  * on the machine under Node. Both are driven through Puppeteer, so what is done with a page is
@@ -18,22 +19,35 @@ export type PagePreview = {
   readonly width: number
   /** How much of the page's height is in the picture. */
   readonly pictured: number
+  /** How far down the page the picture starts, where that is not its top. */
+  readonly top?: number
   /** How tall the page is at each width that was asked, narrowest first. */
   readonly heights: readonly (readonly [width: number, height: number])[]
   /** What the page wrote to its console, and what failed in it, in order. */
   readonly console: readonly PreviewLine[]
 }
 
-export type PreviewRequest = {
-  /**
-   * The document to draw, whole. It may say when it is ready to be looked at by keeping a
-   * promise in `window.dcReady`; one that keeps none is looked at once it has loaded.
-   */
-  readonly html: string
+/**
+ * What to draw: a document given whole, or the address of one that is served somewhere. Either
+ * may say when it is ready to be looked at by keeping a promise in `window.dcReady`; one that
+ * keeps none is looked at once it has loaded.
+ */
+type Drawn =
+  | { readonly html: string; readonly url?: undefined }
+  /** Gone to as a reader would go to it, in a window, so it is as tall as its window at least. */
+  | { readonly url: string; readonly html?: undefined }
+
+export type PreviewRequest = Drawn & {
   /** The width the picture is taken at. */
   readonly width: number
   /** The widths its height is measured at. */
   readonly widths: readonly number[]
+  /** How far down the page the picture starts. Its top, unless this says. */
+  readonly top?: number
+  /** The most of the page's height to picture, where that is less than is ever pictured. */
+  readonly most?: number
+  /** Whether the reader's device is light or dark, for a page that follows it. */
+  readonly appearance?: "light" | "dark"
 }
 
 export interface PagePreviewer {
@@ -45,6 +59,8 @@ export class PreviewError extends Error {}
 
 /** The most of a page's height that is pictured. */
 export const MAX_PICTURED_HEIGHT = 2000
+/** How tall the window is that a page is drawn in. */
+export const PREVIEW_WINDOW_HEIGHT = 800
 /** How long a page has to load. */
 const LOAD_MS = 8_000
 const MAX_LINES = 30
@@ -60,6 +76,11 @@ export type PreviewPage = {
   // biome-ignore lint/suspicious/noExplicitAny: what is heard differs by what is listened for
   on(event: "console" | "pageerror", listener: (heard: any) => void): unknown
   setContent(html: string, options: { waitUntil: "load"; timeout: number }): Promise<unknown>
+  goto(
+    url: string,
+    options: { waitUntil: "load"; timeout: number },
+  ): Promise<{ status(): number } | null>
+  emulateMediaFeatures(features: { name: string; value: string }[]): Promise<unknown>
   evaluate(script: string): Promise<unknown>
   screenshot(options: {
     type: "png"
@@ -88,6 +109,18 @@ const SETTLED =
   "done(Math.ceil(document.body.getBoundingClientRect().height))},120)})})})})"
 
 /**
+ * The same for a page gone to at its address, which nobody wrote to be looked at here: its
+ * typefaces are waited for a while, and what its scripts draw once it has loaded is given a
+ * moment. Answers how far the page scrolls, which is its window's height where it all fits.
+ */
+const SETTLED_IN_WINDOW =
+  "Promise.resolve(window.dcReady).catch(function(){}).then(function(){return Promise.race([" +
+  "document.fonts?document.fonts.ready:0,new Promise(function(late){setTimeout(late,1500)})])})" +
+  ".catch(function(){}).then(function(){return new Promise(function(done){" +
+  "requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(function(){" +
+  "done(Math.ceil(document.documentElement.scrollHeight))},350)})})})})"
+
+/**
  * Draw `request` in `page`, which is a new one that nothing has been loaded in. The page is
  * loaded once, and then made each width in turn, as a reader's window would be.
  */
@@ -104,28 +137,64 @@ export async function previewIn(page: PreviewPage, request: PreviewRequest): Pro
     note("error", error instanceof Error ? error.message : String(error)),
   )
   const widths = [...new Set([...request.widths, request.width])].sort((a, b) => a - b)
-  await page.setViewport({ width: request.width, height: 800, deviceScaleFactor: 1 })
-  try {
-    await page.setContent(request.html, { waitUntil: "load", timeout: LOAD_MS })
-  } catch (error) {
-    throw new PreviewError(
-      `The page did not finish loading in ${LOAD_MS / 1000} seconds: ${error instanceof Error ? error.message : String(error)}`,
-    )
+  const window = (width: number) =>
+    page.setViewport({ width, height: PREVIEW_WINDOW_HEIGHT, deviceScaleFactor: 1 })
+  if (request.appearance !== undefined) {
+    await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: request.appearance }])
   }
+  await window(request.width)
+  if (request.url === undefined) {
+    try {
+      await page.setContent(request.html, { waitUntil: "load", timeout: LOAD_MS })
+    } catch (error) {
+      throw new PreviewError(
+        `The page did not finish loading in ${LOAD_MS / 1000} seconds: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  } else {
+    let answer: { status(): number } | null
+    try {
+      answer = await page.goto(request.url, { waitUntil: "load", timeout: LOAD_MS })
+    } catch (error) {
+      // Its address is the permission to read it, and is not said again in what is told of it.
+      const why = (error instanceof Error ? error.message : String(error))
+        .split("\n")[0]!
+        .replace(/ at https?:\/\/\S+/, "")
+      throw new PreviewError(
+        /timeout/i.test(why)
+          ? `The page did not finish loading in ${LOAD_MS / 1000} seconds.`
+          : `The browser could not open it where the app serves it: ${why}`,
+      )
+    }
+    const status = answer?.status() ?? 0
+    if (status >= 400) {
+      throw new PreviewError(`Where the app serves it, the browser was answered with ${status}.`)
+    }
+  }
+  const settled = request.url === undefined ? SETTLED : SETTLED_IN_WINDOW
   const heights: [number, number][] = []
   for (const width of widths) {
-    await page.setViewport({ width, height: 800, deviceScaleFactor: 1 })
-    heights.push([width, Number(await page.evaluate(SETTLED)) || 0])
+    await window(width)
+    heights.push([width, Number(await page.evaluate(settled)) || 0])
   }
   // The picture is taken last, at the width it was asked for, of the page as it then is.
-  await page.setViewport({ width: request.width, height: 800, deviceScaleFactor: 1 })
-  const tall = Number(await page.evaluate(SETTLED)) || 0
-  const pictured = Math.max(1, Math.min(tall, MAX_PICTURED_HEIGHT))
+  await window(request.width)
+  const tall = Number(await page.evaluate(settled)) || 0
+  const top = Math.max(0, Math.min(Math.round(request.top ?? 0), tall - 1))
+  const most = Math.min(MAX_PICTURED_HEIGHT, Math.max(1, Math.round(request.most ?? Infinity)))
+  const pictured = Math.max(1, Math.min(tall - top, most))
   const png = await page.screenshot({
     type: "png",
     encoding: "base64",
-    clip: { x: 0, y: 0, width: request.width, height: pictured },
+    clip: { x: 0, y: top, width: request.width, height: pictured },
   })
   if (typeof png !== "string") throw new PreviewError("The browser gave no picture of the page.")
-  return { png, width: request.width, pictured, heights, console: lines }
+  return {
+    png,
+    width: request.width,
+    pictured,
+    ...(top === 0 ? {} : { top }),
+    heights,
+    console: lines,
+  }
 }

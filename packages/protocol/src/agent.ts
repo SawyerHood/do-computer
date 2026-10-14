@@ -376,6 +376,14 @@ export type LibraryListing = {
 }
 
 /**
+ * What is put after the address a library file is viewed at to have it as a page whatever it
+ * is: a Markdown document laid out to read, a CSV as its table, text as text. The app shows
+ * these in viewers of its own, which nothing but the app can open; this is what a browser that
+ * is sent to the file is given in their place.
+ */
+export const LIBRARY_PAGE_PARAM = "page"
+
+/**
  * A command a schedule runs at each of its times, before anything else and with no model in it.
  * It decides whether the agent is started at all.
  */

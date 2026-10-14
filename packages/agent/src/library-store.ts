@@ -329,6 +329,8 @@ export interface LibraryBackend {
   ): Promise<LibraryFile>
   move(id: string, to: string, options?: { exact?: boolean; pass?: string }): Promise<LibraryFile>
   remove(id: string, by: Who, options?: { pass?: string }): Promise<boolean>
+  /** What stands in for a session in the address a file is viewed at as a page, for a few hours. */
+  viewToken(): Promise<string>
   /** Start a pass over a computer's folder, or undefined while another is under way. */
   beginPass(computer: string): Promise<LibraryPass | undefined>
   /** A pass that takes long says that it is still going. */

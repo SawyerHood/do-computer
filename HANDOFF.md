@@ -6717,6 +6717,70 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not checked:** the headings of a thread waiting for an OK or being answered, a
       command running, sub-agents and Here now by eye; Safari; a deployed Worker.
 
+88. **A Dood looks at a file of its library** (2026-10-14; `packages/agent/src/visuals.ts`
+    (`look`), `packages/runtime/src/preview.ts`, `apps/web/src/server/agents.ts`
+    (`viewLibraryFile`), `LibraryBackend.viewToken`). The owner asked: "Can we give the agent
+    the ability to look at its own files visually that are in the library?" Before this a Dood
+    could look at a page only before it drew it into a chat (item 79), from the HTML it was
+    about to send. A page it had written into the library, with a stylesheet or a picture
+    beside it, it could not see at all, and a Dood with no computer could not see a picture
+    someone gave it.
+    - **The tool.** `look({ file, width?, top?, appearance? })` answers a picture of the file
+      and what is to be said of it. `file` is a path in the library (as it is there, or as it
+      is on a machine under `~/library`), a name or an id; a folder is its `index.html`.
+      Nothing is shown to the person and nothing is changed. It is offered where the server
+      has a browser, the one item 79 uses, and counts against the same sixty looks an hour.
+    - **A page is gone to where the app serves it.** The browser is sent to
+      `/d/<agent>/<view>/<path>`, the address a person's own browser is given (item 13), so it
+      gets the same bytes under the same headers: the app's look put in, the sandbox, the
+      files beside it. It is told its colors on the address's fragment, as the app tells a
+      page it frames, with the Dood's own color, and the browser is told the device is dark or
+      light for a page that follows that. The agent is told how tall the page is, how much of
+      it is in the picture, and its console. This is unlike item 79, where the browser need
+      not reach the deployment: here it must, at `DC_BASE_URL`.
+    - **What is not a page is asked for as one.** `?page` on that address
+      (`LIBRARY_PAGE_PARAM`) has the gateway make the page a shared link shows for the file
+      (`shownAs`, item 51): a Markdown document laid out to read, a CSV as its table, text as
+      text. That is not the app's own viewer: a `mermaid` block stays code and code is not
+      colored there, and the tool says so.
+    - **A picture is drawn by itself**, on the app's background, no wider than the window and
+      never larger than it is, and the agent is told how large it is. An SVG is drawn the
+      same way.
+    - **A PDF, a film, a sound, and text over 1 MB** are refused with the reason, before a
+      browser is asked.
+    - **How much is pictured.** 1120px wide unless said (240 to 1600; 360 is a phone), in a
+      window 800px tall, so a short page is 800px. A picture holds about 1.5 million pixels,
+      which is 1339px down at 1120 wide and the 2000px most at 360: past that a model is
+      given the picture smaller and cannot read it. `top` starts the picture further down,
+      and the agent is told where to look next.
+    - **The address is never said to the agent.** Whoever has it can read the library for
+      some hours, so it is taken out of console lines and of what the browser says when it
+      fails, and `previewIn` leaves it out of its own errors.
+    - **What the agent is told:** to look at a page or a document it wrote or changed in the
+      library before it sends it, as a phone shows it too, and that this is how it sees a
+      picture it was given. The person sees "Looking at q3.html".
+    - **Mine, all of it but the wish:** a tool of its own, and not an action of `library` or
+      a second way of using `visual_preview`; that the browser goes to the app's own address
+      and is not handed the files; the shared page for what is not a page; what is refused;
+      the widths, the pixels and `top`; dark unless said; that it shares the hour's looks.
+    - **Checked:** `sharing.test.ts` (the tool through an agent with a stand-in browser: the
+      address and that the library answers at it, the colors, `?page` for a document, a
+      table and text, a picture and one that would not draw, a tall page a part at a time, a
+      folder, what is refused, the address left unsaid, no tool without a browser),
+      `activity.test.ts`, and `e2e/preview.spec.ts` against the built server with a real
+      Chromium: a page that is only tall once the stylesheet beside it loads, at a computer's
+      width in the dark and a phone's in the light, a Markdown document, a PNG. The pictures
+      themselves were looked at for the example dashboard, a document with a table, a note,
+      code and a picture beside it, a CSV and a PNG. Under the local Workers runtime
+      (`DC_TARGET=cloudflare vite dev`, the browser the Vite plugin downloads) the tool
+      answered the same heights as under Node for a page, a document and a picture.
+    - **Not checked:** a deployed Worker, where Browser Run has to reach the deployment at its
+      public address, which nothing here has asked of it before; a real model using the tool
+      or being given the picture; the desktop app serving itself (item 85), where the address
+      the Chrome is sent to is the one Tailscale serves; a server whose own address is not one
+      its Chrome can reach, such as one behind a port mapping, where the tool will say the
+      browser could not open the file.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

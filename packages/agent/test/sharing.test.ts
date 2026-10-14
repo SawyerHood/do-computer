@@ -23,7 +23,12 @@ import {
   THEME_TOKEN_NAMES,
   type ToolPart,
 } from "@do-computer/protocol"
-import { type PagePreviewer, PreviewError, type PreviewRequest } from "@do-computer/runtime"
+import {
+  type PagePreviewer,
+  PreviewError,
+  type PreviewLine,
+  type PreviewRequest,
+} from "@do-computer/runtime"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
@@ -171,7 +176,7 @@ async function use(
   world: World,
   chatId: string,
   name: string,
-  args: Record<string, string>,
+  args: Record<string, string | number>,
 ): Promise<ToolPart> {
   world.faux.setResponses([
     fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
@@ -202,6 +207,36 @@ const served = (world: World, root: string | undefined, rest: string) =>
 
 const PAGE =
   "<!doctype html><html><head><title>Signups</title></head><body><svg></svg></body></html>"
+
+/**
+ * A browser that draws nothing, and notes what it was asked to. What it says of a page is what
+ * a real one would of one that is `tall` at the width asked, and wrote `said` to its console.
+ */
+function browser(answer?: Error, page: { tall?: number; said?: PreviewLine[] } = {}) {
+  const asked: PreviewRequest[] = []
+  const previewer: PagePreviewer = {
+    async preview(request) {
+      asked.push(request)
+      if (answer !== undefined) throw answer
+      const tall = (width: number) => page.tall ?? (width < 500 ? 300 : 120)
+      const top = Math.min(request.top ?? 0, tall(request.width) - 1)
+      return {
+        png: "aGVsbG8=",
+        width: request.width,
+        pictured: Math.min(tall(request.width) - top, request.most ?? 2000, 2000),
+        ...(top === 0 ? {} : { top }),
+        heights: [...new Set([...request.widths, request.width])]
+          .sort((a, b) => a - b)
+          .map((width) => [width, tall(width)] as const),
+        console: page.said ?? [
+          { level: "log", text: "drew 3 cards" },
+          { level: "error", text: "notThere is not defined" },
+        ],
+      }
+    },
+  }
+  return { asked, previewer }
+}
 
 describe("a visual", () => {
   it("is kept in the library as a page in the app's colors, and is what the chat shows", async () => {
@@ -250,27 +285,6 @@ describe("a visual", () => {
 })
 
 describe("looking at a page before it is shown", () => {
-  /** A browser that draws nothing, and notes what it was asked to. */
-  function browser(answer?: Error) {
-    const asked: PreviewRequest[] = []
-    const previewer: PagePreviewer = {
-      async preview(request) {
-        asked.push(request)
-        if (answer !== undefined) throw answer
-        return {
-          png: "aGVsbG8=",
-          width: request.width,
-          pictured: 120,
-          heights: request.widths.map((width) => [width, width < 500 ? 300 : 120] as const),
-          console: [
-            { level: "log", text: "drew 3 cards" },
-            { level: "error", text: "notThere is not defined" },
-          ],
-        }
-      },
-    }
-    return { asked, previewer }
-  }
   const LOUD = PAGE.replace("<body>", "<body><style>p{color:#ff0000}</style>")
 
   it("gives the agent how tall the page is, what it wrote and what failed, and keeps nothing", async () => {
@@ -354,6 +368,194 @@ describe("looking at a page before it is shown", () => {
     const part = await use(world, chat.id, "visual_preview", { html: PAGE })
     expect(part.status).toBe("error")
     expect(part.output).not.toContain("At 680px wide")
+  })
+})
+
+describe("looking at a file of the library", () => {
+  /** The model these agents think with takes no pictures, and is told what it is not given. */
+  const NO_PICTURE = "\nYour model does not take pictures, so the picture of it is left out."
+  /** Where the app serves `path` of the one library there is, without what follows the path. */
+  const servedAt = (path: string) =>
+    new RegExp(`^https://app\\.example/d/agent-1/[^/]+/${path.replaceAll(".", "\\.")}`)
+
+  it("sends the browser to a page where the app serves it, in the app's colors", async () => {
+    const { asked, previewer } = browser()
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "reports/q3.html", '<link rel="stylesheet" href="q3.css"><h1>Q3</h1>')
+    await put(world, "reports/q3.css", "h1{color:var(--primary)}")
+    // Named as it is on a machine, where the library is a folder.
+    const part = await use(world, chat.id, "look", { file: "~/library/reports/q3.html" })
+    expect(part.status).toBe("done")
+    expect(part.output).toContain(
+      "reports/q3.html, as the app shows the page, in a window 1120px wide and 800px tall: it is 120px tall, and all of it is in the picture.",
+    )
+    expect(part.output).toContain("[log] drew 3 cards\n[error] notThere is not defined")
+    expect(asked).toHaveLength(1)
+    const [sent] = asked
+    expect(sent!.html).toBeUndefined()
+    expect(sent!.url).toMatch(servedAt("reports/q3.html"))
+    // Told its colors on its address, as the app tells a page it shows: dark, and the agent's own.
+    const theme = JSON.parse(decodeURIComponent(sent!.url!.split("#dc-theme=")[1]!)) as {
+      appearance: string
+      color: string
+    }
+    expect(theme.appearance).toBe("dark")
+    expect(theme.color).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(sent).toMatchObject({ width: 1120, widths: [], appearance: "dark", most: 1339 })
+    // The address is one the library answers at, with the page in the app's look and the
+    // file beside it: what the browser is sent to is what a person's is.
+    const at = new URL(sent!.url!).pathname.replace("/d/agent-1/", "/view/")
+    const page = await request(world, at)
+    expect(page.status).toBe(200)
+    expect(await page.text()).toContain(STYLE)
+    expect(await (await request(world, at.replace("q3.html", "q3.css"))).text()).toBe(
+      "h1{color:var(--primary)}",
+    )
+    // Nothing was shown to the person, and nothing was changed.
+    expect(isShownPart(part)).toBe(false)
+    expect((await call<LibraryListing>(world, "/library")).files).toHaveLength(2)
+    expect(world.reports).toEqual([])
+  })
+
+  it("asks for a document, a table and text as the page the app makes of each", async () => {
+    const { asked, previewer } = browser(undefined, { said: [] })
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "notes/plan.md", "# Plan")
+    await put(world, "data/signups.csv", "week,signups\n1,40")
+    await put(world, "notes/todo.txt", "ship it")
+    const document = await use(world, chat.id, "look", { file: "notes/plan.md" })
+    // A page's console is not said of a page the app made.
+    expect(document.output).toBe(
+      "notes/plan.md, laid out as a document to read, in a window 1120px wide and 800px tall: it is 120px tall, and all of it is in the picture." +
+        NO_PICTURE,
+    )
+    const table = await use(world, chat.id, "look", { file: "signups.csv", appearance: "light" })
+    expect(table.output).toContain("data/signups.csv, as its table,")
+    const text = await use(world, chat.id, "look", { file: "notes/todo.txt" })
+    expect(text.output).toContain("notes/todo.txt, as its text,")
+    expect(
+      asked.map((request) => request.url!.split("/d/agent-1/")[1]!.replace(/^[^/]+/, "")),
+    ).toEqual(["/notes/plan.md?page", "/data/signups.csv?page", "/notes/todo.txt?page"])
+    // These follow the reader's device, which the browser is told is as the agent asked.
+    expect(asked.map((request) => request.appearance)).toEqual(["dark", "light", "dark"])
+  })
+
+  it("draws a picture by itself, and says how large it is", async () => {
+    const { asked, previewer } = browser(undefined, {
+      tall: 480,
+      said: [{ level: "info", text: "dc-picture:640x480" }],
+    })
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "uploads/photo & more.png", "not really a picture")
+    const part = await use(world, chat.id, "look", { file: "photo & more.png" })
+    expect(part.status).toBe("done")
+    expect(part.output).toBe(
+      "uploads/photo & more.png is a picture of 640 by 480 pixels. In a window 1120px wide it is 480px tall, and all of it is in the picture." +
+        NO_PICTURE,
+    )
+    expect(asked[0]!.url).toBeUndefined()
+    const src = /<img id="picture" alt="" src="([^"]+)">/.exec(asked[0]!.html!)?.[1]
+    expect(src).toMatch(servedAt("uploads/photo%20%26%20more.png$"))
+  })
+
+  it("says so when the browser could not draw a picture", async () => {
+    const { previewer } = browser(undefined, {
+      said: [
+        { level: "error", text: "Failed to load resource: net::ERR_FAILED" },
+        { level: "info", text: "dc-picture:none" },
+      ],
+    })
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "uploads/broken.png", "not a picture")
+    const part = await use(world, chat.id, "look", { file: "uploads/broken.png" })
+    expect(part.status).toBe("error")
+    expect(part.output).toContain("uploads/broken.png could not be drawn as a picture")
+  })
+
+  it("pictures what is too tall a part at a time, and narrower when asked", async () => {
+    const { asked, previewer } = browser(undefined, { tall: 3000, said: [] })
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "sites/plan/index.html", "<h1>Plan</h1>")
+    // A folder is its front page.
+    const first = await use(world, chat.id, "look", { file: "sites/plan" })
+    expect(first.output).toContain(
+      "it is 3000px tall, and the picture is of 0px to 1339px down. Look again with `top` at 1339 for what is below.",
+    )
+    expect(asked[0]!.url).toMatch(servedAt("sites/plan/index.html#"))
+    const next = await use(world, chat.id, "look", { file: "sites/plan", top: 1339, width: 360 })
+    // A narrow picture holds more of the page's height than a wide one.
+    expect(asked[1]).toMatchObject({ width: 360, top: 1339, most: 4167 })
+    expect(next.output).toContain("in a window 360px wide")
+    expect(next.output).toContain("the picture is of 1339px to 3000px down.")
+    expect(next.output).not.toContain("Look again")
+  })
+
+  it("says what cannot be looked at, and asks nothing of the browser for it", async () => {
+    const { asked, previewer } = browser()
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "papers/terms.pdf", "%PDF-1.7")
+    await put(world, "clips/demo.mp4", "film")
+    await put(world, "logs/big.txt", "x".repeat(1024 * 1024 + 1))
+    const pdf = await use(world, chat.id, "look", { file: "papers/terms.pdf" })
+    expect(pdf.status).toBe("error")
+    expect(pdf.output).toContain("papers/terms.pdf is a PDF, which cannot be looked at this way")
+    const film = await use(world, chat.id, "look", { file: "clips/demo.mp4" })
+    expect(film.output).toContain("clips/demo.mp4 is a film")
+    const big = await use(world, chat.id, "look", { file: "logs/big.txt" })
+    expect(big.status).toBe("error")
+    expect(big.output).toContain("the app lays out up to 1024 KB as a page")
+    const missing = await use(world, chat.id, "look", { file: "reports/q4.html" })
+    expect(missing.status).toBe("error")
+    expect(missing.output).toContain('There is no "reports/q4.html" in the library.')
+    expect(asked).toEqual([])
+  })
+
+  it("says why when the browser could not show the file", async () => {
+    const world = open(
+      browser(new PreviewError("Where the app serves it, the browser was answered with 502."))
+        .previewer,
+    )
+    const chat = await setup(world)
+    await put(world, "reports/q3.html", "<h1>Q3</h1>")
+    const part = await use(world, chat.id, "look", { file: "reports/q3.html" })
+    expect(part.status).toBe("error")
+    expect(part.output).toBe(
+      "reports/q3.html could not be looked at: Where the app serves it, the browser was answered with 502.",
+    )
+    expect(world.reports).toEqual([])
+  })
+
+  it("never repeats where the library is served, which is the permission to read it", async () => {
+    // A page that says its own address, and a browser that names it when it fails.
+    const said: PreviewLine[] = []
+    const { asked, previewer } = browser(undefined, { said })
+    const world = open(previewer)
+    const chat = await setup(world)
+    await put(world, "reports/q3.html", "<h1>Q3</h1>")
+    const { view } = await call<LibraryListing>(world, "/library")
+    said.push({
+      level: "error",
+      text: `Could not load https://app.example/d/agent-1/${view}/reports/q3.css`,
+    })
+    const part = await use(world, chat.id, "look", { file: "reports/q3.html" })
+    expect(asked[0]!.url).toContain(view)
+    expect(part.output).toContain("[error] Could not load reports/q3.css")
+    expect(part.output).not.toContain(view)
+  })
+
+  it("is not offered where the server has no browser", async () => {
+    const world = open()
+    const chat = await setup(world)
+    await put(world, "reports/q3.html", "<h1>Q3</h1>")
+    const part = await use(world, chat.id, "look", { file: "reports/q3.html" })
+    expect(part.status).toBe("error")
+    expect(part.output).not.toContain("as the app shows the page")
   })
 })
 

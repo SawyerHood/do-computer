@@ -17,6 +17,7 @@ export {
   MAX_PICTURED_HEIGHT,
   type PagePreview,
   type PagePreviewer,
+  PREVIEW_WINDOW_HEIGHT,
   PreviewError,
   type PreviewLine,
   type PreviewRequest,

@@ -1111,6 +1111,15 @@ export class AgentActor implements Actor {
             return model === ECHO_MODEL || this.#sees(model)
           },
           appUrl: () => this.#appUrl(),
+          // Where a person's browser is sent for a file of the library, and so the server's.
+          viewRoot: async () => {
+            const app = this.#appUrl()
+            if (app === undefined) return undefined
+            const view = await (await backend()).viewToken()
+            return `${app}/d/${encodeURIComponent(this.#host.name)}/${view}/`
+          },
+          color: async () =>
+            avatarLook((await this.#identity(await this.#open())).avatar, this.#host.name).color,
         }),
       )
       if (this.#options.sites !== undefined) {
