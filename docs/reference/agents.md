@@ -99,6 +99,15 @@
   text, tables and fields. One that uses none of this is left as it was written.
   [`docs/examples/themed-dashboard.html`](../examples/themed-dashboard.html) is a dashboard
   written this way, and `packages/protocol/src/theme.ts` is the one table of the variables.
+- **Look at what is in the Library.** A Dood can see a file of the Library as you see it, as a
+  picture: a page drawn in a browser the way the app serves it, in the app's look and with the
+  styles, scripts and pictures beside it, at a computer's width or a phone's, light or dark,
+  with what the page wrote to its console; a Markdown document laid out as its shared link
+  shows it; a CSV as its table; a picture as it is. A Dood is told to look at a page or a
+  document it made before it sends it, and this is how one with no computer sees a picture you
+  gave it. A PDF, a film and a sound cannot be looked at. It needs the server to have a
+  browser (`DC_CHROME_PATH` under Node, the `browser` binding on Cloudflare) that can reach
+  the app at its own address (`DC_BASE_URL`).
 - **Keep something in view.** Anything in the Library can be pinned to a Dood, by the Dood or
   with the pin on a file's card in the chat and on the bar of an open document. What is pinned
   stays beside the Dood's chat, under its face: the first is drawn small as what it is and

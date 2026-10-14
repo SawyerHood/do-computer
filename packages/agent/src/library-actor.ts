@@ -228,6 +228,7 @@ export function createLibraryActor(host: ActorHost): Actor {
       if (what === "rev") return json({ rev: await store.rev() })
       if (what === "list") return json({ files: await store.list() })
       if (what === "stored") return json({ stored: [...(await store.stored())] })
+      if (what === "view") return json({ view: await store.viewToken() })
       if (what === "bytes" && first !== undefined && second !== undefined) {
         const bytes = await store.bytes({ id: first, rev: Number(second) })
         if (bytes === undefined) return json({ error: "Not found" }, 404)

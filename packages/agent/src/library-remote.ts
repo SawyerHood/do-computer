@@ -87,6 +87,7 @@ export function remoteLibrary(stub: ActorStub): RemoteLibrary {
     move: (id, to, options = {}) => post<LibraryFile>(`move/${part(id)}`, { to, ...options }),
     remove: async (id, by, options = {}) =>
       (await post<{ removed: boolean }>(`remove/${part(id)}`, { by, ...options })).removed,
+    viewToken: async () => (await get<{ view: string }>("view")).view,
     async beginPass(computer) {
       const answer = await post<LibraryPass | { busy: true }>(`pass/${part(computer)}`)
       return "busy" in answer ? undefined : answer

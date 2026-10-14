@@ -39,6 +39,9 @@ describe("toolActivity", () => {
     ],
     [tool("sign_in", { login: "GitHub", computer: "MacBook" }), "Signing in on MacBook: GitHub"],
     [tool("send_file", { path: "out/report.pdf" }), "Sending you report.pdf"],
+    [tool("look", { file: "~/library/reports/q3.html" }), "Looking at q3.html"],
+    [tool("look", { html: "<h1>Q3</h1>" }), "Looking over a page before showing it"],
+    [tool("look", {}), "Looking at something"],
     [tool("schedule", { action: "create", title: "Stretch" }), "Scheduling: Stretch"],
     [tool("schedule", { action: "list" }), "Checking its schedule"],
     [
@@ -77,6 +80,7 @@ describe("toolSummary", () => {
     [tool("sign_in", { login: "GitHub" }), "Asked to sign in: GitHub"],
     [tool("pay", {}), "Asked to pay"],
     [tool("send_file", { path: "out/report.pdf" }), "Sent you report.pdf"],
+    [tool("look", { file: "reports/q3.html" }), "Looked at q3.html"],
     [tool("memory", { action: "add" }), "Updated its memory"],
     [tool("log", { title: "Fix the build" }), "Noted what it did"],
     [tool("schedule", { action: "list" }), "Checked its schedule"],
