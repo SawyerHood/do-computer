@@ -6,6 +6,15 @@ import { card, owner } from "./helpers.ts"
 // what the first run asks and does is in welcome.spec.ts, without the drawing.
 test.use({ creature: true })
 
+test("welcome opens over plain http without randomUUID", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { value: undefined })
+  })
+  await page.emulateMedia({ reducedMotion: "reduce" })
+  await page.goto("/welcome")
+  await expect(page.getByRole("button", { name: "Hello!" })).toBeVisible()
+})
+
 test("the egg is not seen until it is known where it starts", async ({ page }) => {
   // The answer to who is here is held back. The egg can be drawn before that answer comes, and
   // was seen standing in an empty night until it did.
