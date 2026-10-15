@@ -302,6 +302,11 @@ main.scrolls {
 main.scrolls > * {
   flex: none;
 }
+/* A log in such a page fills what room is left, and keeps some for itself where there is none:
+   it scrolls by itself, and the page past it. */
+main.scrolls > ol.log {
+  flex: 1 0 160px;
+}
 
 /* Where Do Computer runs: one of two, each with what it means under its name. */
 fieldset.choices {
