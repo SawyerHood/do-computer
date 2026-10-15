@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test"
+import type { FrameLocator, Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 
 // A Dood, hatched with no account on the page X plays inside a post, and met on its own page.
@@ -12,6 +12,11 @@ test.describe.configure({ timeout: 120_000 })
 /** Hatch one from the egg to the last panel. Answers with its id. */
 async function hatch(page: Page, name: string): Promise<string> {
   await page.goto("/hatch")
+  return hatchIn(page, name)
+}
+
+/** The same, in a page that is already open, or in a frame of one. */
+async function hatchIn(page: Page | FrameLocator, name: string): Promise<string> {
   const card = page.locator("[data-dood-card]")
   const says = page.getByRole("status")
   await expect(says).toContainText("An egg is on its way down")
@@ -65,6 +70,23 @@ test("a Dood is hatched, named, given one thing out of its present, and has a pa
   await expect(page.getByText("0 pats · 0 treats")).toBeVisible()
   // Whoever hatched it is offered it here too, for as long as nobody has claimed it.
   await expect(page.getByRole("link", { name: "Claim Pebble" })).toBeVisible()
+})
+
+// X plays the page in a frame that may run scripts and may not send forms. A browser drops a
+// form sent there without a word, so nothing in the card may wait for one.
+test("a Dood is hatched in a frame that may not send forms, as in a post on X", async ({
+  page,
+  baseURL,
+}) => {
+  await page.route("**/a-post-on-x", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><body style="margin:0"><iframe src="${baseURL}/hatch" sandbox="allow-scripts allow-same-origin allow-popups" style="display:block;width:480px;height:480px;border:0"></iframe>`,
+    }),
+  )
+  await page.goto("/a-post-on-x")
+  const id = await hatchIn(page.frameLocator("iframe"), "Acorn")
+  expect(id).not.toBe("")
 })
 
 test("a treat counts once a day from one visitor", async ({ page }) => {
