@@ -13,14 +13,7 @@ import {
   TREATS_PER_BOX,
   type WearItem,
 } from "@do-computer/protocol"
-import {
-  type ComponentProps,
-  type FormEvent,
-  type PointerEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react"
+import { type ComponentProps, type PointerEvent, useEffect, useRef, useState } from "react"
 import { Stage } from "@/components/welcome/stage"
 import { client } from "@/lib/client"
 import { dressMascot, loadMascot, loadSky, mascotWardrobe, prefersCalm } from "@/lib/mascot"
@@ -260,8 +253,10 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
     setStep("out")
   }
 
-  function hatch(event: FormEvent) {
-    event.preventDefault()
+  // Neither panel is a form. X plays the page in a frame that is not allowed to send one, and
+  // there a browser drops the sending before anything hears of it. So the buttons and the Enter
+  // key are heard themselves.
+  function hatch() {
     const parsed = parseDoodName(typed)
     if (parsed === undefined) return setError({ line: "Try a name of letters and numbers." })
     setError(null)
@@ -331,9 +326,8 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
     drawing.sky.glow(0.6)
   }
 
-  async function keepIt(event: FormEvent) {
-    event.preventDefault()
-    if (picked === null) return
+  async function keepIt() {
+    if (picked === null || busy) return
     const parsed = parseDoodName(typed)
     if (parsed === undefined)
       return setError({ line: "Try a name of letters and numbers.", name: true })
@@ -497,11 +491,12 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
         onPointerMove={(event) => event.stopPropagation()}
       >
         {step === "name" && (
-          <form onSubmit={hatch}>
+          <div>
             <Line>What will you call it?</Line>
             <div className="mt-3 flex gap-2">
               <NameInput
                 value={typed}
+                onEnter={hatch}
                 onChange={(event) => {
                   setTyped(event.target.value)
                   setError(null)
@@ -509,7 +504,7 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
                     stage.current?.orb.pet(typed.length % 12 < 6 ? 1 : -1)
                 }}
               />
-              <Pill dark type="submit" className="flex-none" disabled={typed.trim() === ""}>
+              <Pill dark className="flex-none" disabled={typed.trim() === ""} onClick={hatch}>
                 Hatch
               </Pill>
             </div>
@@ -533,7 +528,7 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
               ))}
             </div>
             <Wrong error={error} />
-          </form>
+          </div>
         )}
         {step === "out" && (
           <>
@@ -561,7 +556,7 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
           </>
         )}
         {step === "choose" && (
-          <form onSubmit={keepIt}>
+          <div>
             <Line className="[@media(max-height:400px)]:hidden">Which one is {name}'s?</Line>
             <div className="mt-2.5 grid grid-cols-3 gap-2 [@media(max-height:400px)]:mt-0 [@media(max-height:560px)]:gap-1.5">
               {three.map((item) => (
@@ -577,16 +572,20 @@ export function DoodCard({ origin, dood }: { origin: string; dood?: Dood }) {
             </div>
             {error?.name && (
               <div className="mt-2 flex">
-                <NameInput value={typed} onChange={(event) => setTyped(event.target.value)} />
+                <NameInput
+                  value={typed}
+                  onEnter={keepIt}
+                  onChange={(event) => setTyped(event.target.value)}
+                />
               </div>
             )}
             <Wrong error={error} />
             <div className="mt-3 flex [@media(max-height:560px)]:mt-2">
-              <Pill dark type="submit" disabled={picked === null || busy}>
+              <Pill dark disabled={picked === null || busy} onClick={keepIt}>
                 {picked === null ? "Pick one" : `Keep the ${picked.name.toLowerCase()}`}
               </Pill>
             </div>
-          </form>
+          </div>
         )}
         {step === "ready" && made !== null && (
           <>
@@ -681,8 +680,10 @@ const Wrong = ({ error }: { error: { line: string } | null }) =>
     </p>
   )
 
-const NameInput = (props: ComponentProps<"input">) => (
+const NameInput = ({ onEnter, ...props }: ComponentProps<"input"> & { onEnter: () => void }) => (
   <input
+    // Not while a name is still being put together out of other keys, as in Japanese.
+    onKeyDown={(event) => event.key === "Enter" && !event.nativeEvent.isComposing && onEnter()}
     aria-label="Its name"
     placeholder="Name your Dood"
     maxLength={DOOD_NAME_MAX}
@@ -703,7 +704,7 @@ function Pill({
   dark?: boolean
   as?: "button" | "a"
   onClick?: (event: { preventDefault(): void }) => void
-} & Pick<ComponentProps<"button">, "disabled" | "type"> &
+} & Pick<ComponentProps<"button">, "disabled"> &
   Omit<ComponentProps<"a">, "onClick" | "type">) {
   return (
     <Tag
