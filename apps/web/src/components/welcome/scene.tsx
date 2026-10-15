@@ -5,6 +5,7 @@ import {
   type AvatarColorId,
   avatarSvg,
   type Dood,
+  randomId,
 } from "@do-computer/protocol"
 import {
   CheckCircleIcon,
@@ -253,7 +254,7 @@ export default function WelcomeScene() {
     })(),
   )
   /** What the egg of a new agent grows from. Its agent is given the same, so it hatches as itself. */
-  const seed = useRef(crypto.randomUUID().slice(0, 8))
+  const seed = useRef(randomId().slice(0, 8))
   const gone = useRef(false)
   /** They said they have an account before the egg said hello: it is not said after all. */
   const known = useRef(false)
