@@ -1,4 +1,4 @@
-import { ApiError } from "@do-computer/client"
+import { ApiError, type Me } from "@do-computer/client"
 import {
   type AgentSummary,
   AVATAR_COLORS,
@@ -41,7 +41,7 @@ import { Stage } from "./stage.ts"
 import { Thinking } from "./thinking.tsx"
 
 /** What the card under the egg is asking. */
-type Step = "hello" | "you" | "name" | "model" | "computer" | "out" | "wait"
+type Step = "hello" | "you" | "name" | "model" | "computer" | "wake" | "out" | "wait"
 /** What was said to "may I work on this computer?". */
 type Share = "yes" | "read" | "no"
 type Methods = {
@@ -93,6 +93,11 @@ const NIGHT = "#05071a"
 const CARD_MS = 230
 /** How long the creature takes from the island to its place in the chat. */
 const FLIGHT_MS = 950
+/**
+ * How long a Dood may take to become an agent before it says that it is. Sooner than this and
+ * its card would only come and go again.
+ */
+const WAKE_PATIENCE_MS = 400
 /** As many letters as any line has: all of it has been said. */
 const ALL = Number.MAX_SAFE_INTEGER
 
@@ -117,6 +122,8 @@ function lineOf(view: View, here: boolean): string {
       return `${name}. I like that. What should I think with?`
     case "computer":
       return "That will do nicely. One more thing before I come out: may I work on this computer?"
+    case "wake":
+      return `I’m ${name}, and I’m yours now, ${first}! Give me a moment to wake up.`
     case "wait":
       return `You’re on the list, ${first}. I’ll be right here, and we’ll get started the moment it’s your turn.`
     case "out":
@@ -370,68 +377,100 @@ export default function WelcomeScene() {
     [patch],
   )
 
-  /** Someone is signed in here now. What comes next depends on whether they have an agent. */
-  const arrived = useCallback(async () => {
-    queryClient.removeQueries({ queryKey: meKey })
-    const [me, agents] = await Promise.all([
-      client.me(),
+  /**
+   * Someone is signed in here now. What comes next depends on whether they have an agent.
+   * `known` is who they are, where that was just asked.
+   */
+  const arrived = useCallback(
+    async (known?: Me) => {
+      if (known === undefined) queryClient.removeQueries({ queryKey: meKey })
+      // A Dood they hatched in a post is made theirs before anything is asked. Nothing else
+      // waits for that, or is waited for by it: each is a trip to the server, and the island
+      // has nobody on it until the Dood can be shown.
+      const asked = claim.current
+      claim.current = undefined
+      const claiming =
+        asked === undefined
+          ? undefined
+          : client.doods.claim(asked.id, asked.key).then(
+              (dood) => ({ dood }),
+              (error: unknown) => ({
+                problem: error instanceof Error ? error.message : undefined,
+              }),
+            )
       // Someone on the waiting list has no agents to list, and is told so.
-      client.listAgents().catch((error: unknown) => {
+      const listing = client.listAgents().catch((error: unknown) => {
         if (error instanceof ApiError && error.code === "waitlisted") return []
         throw error
-      }),
-    ])
-    const first = firstName(me.user.name)
-    const drawing = stage.current
-    // A Dood they hatched in a post is made theirs before anything is asked.
-    let dood = me.dood
-    let problem: string | undefined
-    const asked = claim.current
-    if (asked !== undefined) {
-      claim.current = undefined
-      try {
-        dood = await client.doods.claim(asked.id, asked.key)
-      } catch (error) {
-        problem = error instanceof Error ? error.message : undefined
+      })
+      // Whoever has a Dood is never asked what agents they have.
+      listing.catch(() => {})
+      const me = known ?? (await client.me())
+      const first = firstName(me.user.name)
+      const drawing = stage.current
+      let dood = me.dood
+      let problem: string | undefined
+      if (claiming !== undefined) {
+        const claimed = await claiming
+        if ("dood" in claimed) dood = claimed.dood
+        else problem = claimed.problem
       }
-    }
-    // What is kept says they have it, until it is their agent.
-    const { dood: _was, ...rest } = me
-    queryClient.setQueryData(meKey, dood === undefined ? rest : { ...rest, dood })
-    const settled = { first, signingIn: false, waiting: false, error: problem }
-    if (me.waiting) {
+      // What is kept says they have it, until it is their agent.
+      const { dood: _was, ...rest } = me
+      queryClient.setQueryData(meKey, dood === undefined ? rest : { ...rest, dood })
+      const settled = { first, signingIn: false, waiting: false, error: problem }
       if (dood !== undefined) {
+        // It is on the island from the moment it is known to be theirs, and not only once it
+        // has become their agent, which takes a good while longer.
         show(dood)
-        return say("wait", { ...settled, listed: true })
+        setPlaced(true)
       }
-      // Someone new, who will wait: what they hatch now is theirs, and waits with them.
-      drawing?.orb.crack(0.34)
-      drawing?.sky.chips(hexOf(seen.current.color))
-      drawing?.sky.dawn(1)
-      return say("name", { ...settled, listed: true })
-    }
-    if (dood !== undefined) {
-      // It is theirs, and the app is theirs to use: it becomes their agent as it is.
-      show(dood)
-      const agentId = await client.doods.wake(dood.id)
-      queryClient.setQueryData(meKey, rest)
-      const state = await client.agent(agentId).state()
-      queryClient.setQueryData(agentKey(agentId), state)
-      agent.current = state.agent
-      return say("out", settled)
-    }
-    if (agents.length === 0) {
-      // Someone new. Knowing who they are is the first crack.
-      drawing?.orb.crack(0.34)
-      drawing?.sky.chips(hexOf(seen.current.color))
-      drawing?.sky.dawn(1)
-      return say("name", settled)
-    }
-    // They have been here before, and the scene is not for them: on to where they left off, or
-    // to the page that sent them. In the desktop app that is where this computer is asked about.
-    await navigate({ href: next ?? "/" })
-    setOpen(false)
-  }, [navigate, next, say, setOpen, show])
+      if (me.waiting) {
+        if (dood !== undefined) return say("wait", { ...settled, listed: true })
+        // Someone new, who will wait: what they hatch now is theirs, and waits with them.
+        drawing?.orb.crack(0.34)
+        drawing?.sky.chips(hexOf(seen.current.color))
+        drawing?.sky.dawn(1)
+        return say("name", { ...settled, listed: true })
+      }
+      if (dood !== undefined) {
+        // It is theirs, and the app is theirs to use: it becomes their agent as it is. Where
+        // that takes a while it says so, and is not left standing there with nothing to say.
+        let woken = false
+        later(() => {
+          if (woken) return
+          patch({ on: false })
+          later(() => {
+            if (!woken) patch({ ...settled, step: "wake", on: true, busy: false })
+          }, CARD_MS)
+        }, WAKE_PATIENCE_MS)
+        try {
+          const agentId = await client.doods.wake(dood.id)
+          queryClient.setQueryData(meKey, rest)
+          const state = await client.agent(agentId).state()
+          queryClient.setQueryData(agentKey(agentId), state)
+          agent.current = state.agent
+        } finally {
+          woken = true
+        }
+        return say("out", settled)
+      }
+      const agents = await listing
+      if (agents.length === 0) {
+        // Someone new. Knowing who they are is the first crack.
+        drawing?.orb.crack(0.34)
+        drawing?.sky.chips(hexOf(seen.current.color))
+        drawing?.sky.dawn(1)
+        return say("name", settled)
+      }
+      // They have been here before, and the scene is not for them: on to where they left off,
+      // or to the page that sent them. In the desktop app that is where this computer is asked
+      // about.
+      await navigate({ href: next ?? "/" })
+      setOpen(false)
+    },
+    [navigate, next, say, setOpen, show, later, patch],
+  )
 
   // The scene is set up once: what can be drawn, who is signed in, and so where it starts.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, as it opens
@@ -463,18 +502,20 @@ export default function WelcomeScene() {
       stage.current = drawing
       if (drawing !== null) drawing.card = card.current
       setDrawn(drawing !== null)
-      const signedIn = await client.me().then(
-        () => true,
-        (error: unknown) => {
-          if (error instanceof ApiError && error.status === 401) return false
-          throw error
-        },
-      )
+      // A Dood that was hatched in a post is asked for along with who is here, and not after.
+      const posting =
+        claim.current === undefined
+          ? undefined
+          : client.doods.get(claim.current.id).catch(() => undefined)
+      const me = await client.me().catch((error: unknown) => {
+        if (error instanceof ApiError && error.status === 401) return undefined
+        throw error
+      })
       if (gone.current) return
-      if (signedIn) {
+      if (me !== undefined) {
         // Whoever has a Dood already is sent on, and sees no egg on the way.
         try {
-          return await arrived()
+          return await arrived(me)
         } finally {
           setPlaced(true)
         }
@@ -482,10 +523,7 @@ export default function WelcomeScene() {
       // A sign-in elsewhere that came back with nobody signed in says why in the address.
       const failed = new URLSearchParams(location.search).get("error")
       // A Dood that was hatched in a post is out already, and is the one asking.
-      const posted =
-        claim.current === undefined
-          ? undefined
-          : await client.doods.get(claim.current.id).catch(() => undefined)
+      const posted = await posting
       if (gone.current) return
       if (posted !== undefined) {
         show(posted)
@@ -1166,6 +1204,11 @@ export default function WelcomeScene() {
                     </div>
                   </div>
                 )
+              ) : view.step === "wake" ? (
+                <div className="mt-3 flex items-center gap-2.5 text-sm">
+                  <Spinner className="text-muted-foreground" />
+                  <span>Waking up…</span>
+                </div>
               ) : view.step === "wait" ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
