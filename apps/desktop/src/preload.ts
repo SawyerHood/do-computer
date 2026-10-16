@@ -45,6 +45,7 @@ if (location.protocol === "file:") {
       finish: (options) => ipcRenderer.invoke(CHANNELS.finish, options),
       askForScreen: () => ipcRenderer.invoke(CHANNELS.screen),
       setIcon: (picture) => ipcRenderer.invoke(CHANNELS.icon, picture),
+      setTray: (pictures) => ipcRenderer.invoke(CHANNELS.tray, pictures),
       signInHere: (name) => ipcRenderer.invoke(CHANNELS.signInHere, name),
       pairedAs: () => ipcRenderer.invoke(CHANNELS.pairedAs),
     }

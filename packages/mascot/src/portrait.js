@@ -31,7 +31,27 @@ function AgentOrbPortrait(core, sky) {
     return canvas;
   }
 
+  // A creature's color made deep: most of the way to a dark that is nearly black.
+  var DARK = [20, 18, 26], DEEP = 0.68;
+
+  function backdrop(opts) {
+    var grid = opts.grid, zoom = opts.zoom || 1;
+    var picture = canvasOf(grid), to = picture.getContext('2d');
+    var deep = [1, 3, 5].map(function (at, part) {
+      var own = parseInt(opts.color.slice(at, at + 2), 16);
+      return Math.round(own + (DARK[part] - own) * DEEP);
+    });
+    to.fillStyle = 'rgb(' + deep.join(',') + ')';
+    to.fillRect(0, 0, grid, grid);
+    // A smaller creature stands nearer the middle, so that it is still in the middle.
+    return {
+      grid: grid, picture: picture, body: Math.round(grid * BODY * zoom),
+      ground: { x: Math.round(grid / 2), y: Math.round(grid * (0.5 + (GROUND - 0.5) * zoom)) }
+    };
+  }
+
   function island(opts) {
+    if (!sky) return null;
     var grid = opts.grid, zoom = opts.zoom || 1;
     var tall = Math.round(grid * TALL * zoom);
     var drawn = document.createElement('canvas');
@@ -113,6 +133,87 @@ function AgentOrbPortrait(core, sky) {
     }
   }
 
+  /* What is solid in a creature's picture, without its shadow and the specks that drift about
+     it, and the box around what is left: its body, and the ball over its head if that is wanted. */
+  function alone(image, ball) {
+    var width = image.width, height = image.height, data = image.data;
+    var group = new Int32Array(width * height).fill(-1), sizes = [];
+    function solid(index) { return data[index * 4 + 3] >= 128; }
+    for (var start = 0; start < width * height; start++) {
+      if (!solid(start) || group[start] !== -1) continue;
+      var stack = [start], size = 0;
+      group[start] = sizes.length;
+      while (stack.length > 0) {
+        var at = stack.pop(), x = at % width, y = Math.floor(at / width);
+        size++;
+        for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+          var nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          var next = ny * width + nx;
+          if (!solid(next) || group[next] !== -1) continue;
+          group[next] = sizes.length;
+          stack.push(next);
+        }
+      }
+      sizes.push(size);
+    }
+    // The ball is a hundredth of its body and more. Its shadow is faint, and a tile draws its own.
+    var least = Math.max.apply(null, sizes) * (ball ? 0.006 : 1);
+    var left = width, top = height, right = -1, bottom = -1;
+    for (at = 0; at < width * height; at++) {
+      if (group[at] !== -1 && sizes[group[at]] >= least) {
+        data[at * 4 + 3] = 255;
+        x = at % width; y = Math.floor(at / width);
+        if (x < left) left = x;
+        if (x > right) right = x;
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+      } else {
+        data[at * 4 + 3] = 0;
+      }
+    }
+    return { image: image, left: left, top: top, width: right - left + 1, height: bottom - top + 1 };
+  }
+
+  function sprite(opts) {
+    var wide = opts.wide, tall = opts.tall;
+    var drawn = document.createElement('canvas');
+    var orb = new core.Orb(drawn, { seed: opts.seed, color: opts.color, size: 96, pixelRatio: 1, dark: true, reduced: true, notice: false });
+    try {
+      if (opts.dress) opts.dress(orb);
+      if (opts.state) orb.setState(opts.state);
+      // It is let live for a while, to take up its pose.
+      for (var step = 0; step < 90; step++) orb.update(1 / 30);
+      // It keeps room around itself for hops and rings, and how much depends on its size: the
+      // largest drawing of it that still fits is found by trying.
+      var best = null;
+      for (var side = Math.max(8, Math.min(wide, tall)); side <= tall * 2.5; side++) {
+        // The drawing code picks how many pixels it draws from the size it is shown at, so the
+        // size that gives this many is looked for.
+        var found = false;
+        for (var css = side; css <= side * 5 && !found; css++) { orb.resize(css); found = orb.px === side; }
+        if (!found) continue;
+        // The motes that drift around it are left out: on a picture this small they are specks.
+        orb.showPoints = false;
+        orb.update(1 / 30);
+        orb.render();
+        var cut = alone(drawn.getContext('2d').getImageData(0, 0, side, side), opts.ball);
+        if (cut.width > wide || cut.height > tall) {
+          if (best !== null) break;
+          continue;
+        }
+        best = cut;
+      }
+      if (best === null) return null;
+      var out = document.createElement('canvas');
+      out.width = best.width; out.height = best.height;
+      out.getContext('2d').putImageData(best.image, -best.left, -best.top);
+      return out;
+    } finally {
+      orb.dispose();
+    }
+  }
+
   function framed(small, opts) {
     var scale = opts.scale || 1, inset = opts.inset || 0, side = small.width * scale;
     var out = canvasOf(side + inset * 2), to = out.getContext('2d');
@@ -126,7 +227,7 @@ function AgentOrbPortrait(core, sky) {
     return out;
   }
 
-  return { island: island, tile: tile, framed: framed, HOURS: HOURS };
+  return { backdrop: backdrop, island: island, tile: tile, sprite: sprite, framed: framed, HOURS: HOURS };
 }
 
 // scripts/icons.mjs drops this line: there this is one plain script on an empty page.

@@ -80,7 +80,7 @@ pnpm dev                        # Node target on http://localhost:3000
 pnpm dev:cloudflare             # the same on the local Workers runtime
 scripts/smoke.sh <base-url>     # end-to-end check of a running deployment (fresh, open sign-up)
 pnpm --filter @do-computer/mascot demo    # the creature's playground page
-node scripts/icons.mjs          # draws the app's icons again: its creature on the first run's island
+node scripts/icons.mjs          # draws the app's icons again: its creature on the first run's island, or on its own color
 ```
 
 Without `OPENROUTER_API_KEY` the app answers with a built-in echo model. A message of the form
@@ -3004,7 +3004,7 @@ pnpm dev                        # Node target on http://localhost:3000
 pnpm dev:cloudflare             # the same on the local Workers runtime
 scripts/smoke.sh <base-url>     # end-to-end check of a running deployment (fresh, open sign-up)
 pnpm --filter @do-computer/mascot demo    # the creature's playground page
-node scripts/icons.mjs          # draws the app's icons again: its creature on the first run's island
+node scripts/icons.mjs          # draws the app's icons again: its creature on the first run's island, or on its own color
 ```
 
 Without `OPENROUTER_API_KEY` the app answers with a built-in echo model. A message of the form
@@ -7082,6 +7082,28 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       server of 202 tools is added and one of its tools is found and used.
     - **Not checked:** a real model deciding to search, and how well BM25 over names and
       descriptions finds the right tool on a real server with hundreds.
+
+94. **The desktop app's picture is a creature on its own color, and the tray is its owner's
+    too** (2026-10-16; `packages/mascot/src/portrait.js`, `scripts/icons.mjs`,
+    `apps/web/src/lib/app-icon.ts`, `apps/desktop/src/page-bridge.ts` and `main.ts`). The
+    owner found the island of item 49 "a little too maximalist" in the Dock ("I really think
+    the bg is too intense"), picked the deep tint out of eight mock-ups
+    (`prototypes/app-icon-minimal`), and asked that the tray follow the agent as well.
+    - **The desktop's picture** is the creature, or its egg, on a plain square of its own
+      color taken 68% of the way to a near black (`portrait.backdrop`), with the same shadow
+      under it. The app's two built-in desktop icons are that of the teal mochi. The phone's
+      and the browser's icons are still the island: nobody asked for those to change.
+    - **The tray follows the agent.** `app-icon.ts` draws the agent alone at 36 pixels with
+      `portrait.sprite`, which is the code `scripts/icons.mjs` drew the usual tray with,
+      moved into `portrait.js`: awake in its color for a computer that is shared, grey and
+      asleep for one that is not. The pair goes to the app through `setTray` on the page
+      bridge; the app shows it at 18 and 36 pixels (the large one alone on Linux). Null is
+      the usual pair. It accepts only a pair of PNGs' addresses of exactly 36 pixels a side.
+    - **No sky is loaded for it any more**, so the page no longer makes a graphics context
+      for the island. An app older than this has no `setTray` and keeps its usual tray.
+    - **Checked:** `scripts/icons.mjs` writes the same tray, tab and phone pictures as
+      before, byte for byte; `apps/web/e2e/app-icon.spec.ts`. **Not checked:** the tray in a
+      running app on a Mac, which is where its owner will see it.
 
 ## 6. What the owner has said they want
 
