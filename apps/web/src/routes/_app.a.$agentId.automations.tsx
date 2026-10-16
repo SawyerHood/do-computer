@@ -210,8 +210,9 @@ function AutomationsPage() {
 
   return (
     <div className="flex h-full min-h-0">
+      {/* The page runs under the Dood's name, and starts clear of it. */}
       <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-8 pb-24 md:pt-10">
+        <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-19 pb-24">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Automations</h1>
             <p className="text-sm text-muted-foreground">

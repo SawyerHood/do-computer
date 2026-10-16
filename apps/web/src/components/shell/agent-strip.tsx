@@ -26,13 +26,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { agentPanelOpenAtom, stripEndAtom, stripStartAtom } from "@/lib/atoms"
 import { agentPanelColumn, BESIDE_GAP, besideWidthAtom } from "@/lib/columns"
-import { mainChatOf } from "@/lib/chats"
+import { isSideChat, mainChatOf } from "@/lib/chats"
 import { Skeleton } from "@/components/ui/skeleton"
 import { agentQuery } from "@/lib/collections"
 import { creatureWardrobeAtom, useCreature } from "@/lib/creature"
 import { useSettings } from "@/lib/settings"
 import { useWide } from "@/lib/use-wide"
-import { cn } from "@/lib/utils"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 import { DoodsButton } from "./agent-list.tsx"
 import { SideChats } from "./side-chats.tsx"
@@ -73,8 +72,7 @@ function useOpenTab(agentId: string, back: string | undefined) {
  * The agent's name, afloat over the top of its pages, and all there is above them. Its face is
  * the way to its panel (to its wardrobe, on a narrow screen). Its name opens what else there is
  * of it: its pages, its side chats, a call, its panel and its settings. Beside the name is which page is open, where the page does
- * not say so itself, and who else is here. In the library it is not afloat: it is in the bar
- * the library has there, drawn as part of it.
+ * not say so itself, which side chat it is, and who else is here.
  */
 function AgentPill({
   agent,
@@ -127,10 +125,17 @@ function AgentPill({
     }
   }
 
+  // A side chat that has the middle, or a thread from Slack, is named beside the Dood's name:
+  // nothing else over the chat says which it is.
+  const onScreen = page === "chat" ? state?.chats.find((chat) => chat.id === chatId) : undefined
+  const titled =
+    onScreen?.kind === "slack" || (isSideChat(onScreen) && mainChatOf(state?.chats) !== undefined)
+      ? onScreen.title
+      : undefined
+
   const team = workspace.kind === "team"
   const here = useHere(team ? workspace.id : undefined)
   const people = usePeople(team ? workspace : undefined)
-  const flat = page === "library"
   const present =
     chatId === undefined
       ? []
@@ -140,12 +145,8 @@ function AgentPill({
 
   return (
     <div
-      className={cn(
-        "flex max-w-full min-w-0 items-center rounded-full p-0.5",
-        // Over a chat it floats, as a thing of its own. In the library it is in a bar with the
-        // rest of what is there, and is drawn as part of that.
-        flat ? "[--pill:var(--background)]" : "bg-popover shadow-raised [--pill:var(--popover)]",
-      )}
+      // It floats over every page, as a thing of its own.
+      className="flex max-w-full min-w-0 items-center rounded-full bg-popover p-0.5 shadow-raised [--pill:var(--popover)]"
     >
       <DropdownMenu open={shown} onOpenChange={setShown}>
         {/* Its picture is the way to its panel, where it is looked after. A narrow screen has no
@@ -188,6 +189,12 @@ function AgentPill({
         >
           <span className="flex min-w-0 text-[0.875rem]">
             <span className="truncate font-medium">{name}</span>
+            {titled === undefined ? null : (
+              <span className="max-w-24 truncate whitespace-pre text-muted-foreground sm:max-w-56">
+                {" · "}
+                {titled}
+              </span>
+            )}
             {/* A long name gives way to the page, which is said nowhere else. */}
             {/* The library says that it is the library, in its own words beside the name. */}
             {page === "chat" || page === "library" ? null : (
@@ -251,10 +258,11 @@ function AgentPill({
 }
 
 /**
- * What is above an agent's pages: its name, in the middle, where it is on every page, so that
- * changing page changes only what is around it. A page with a bar of its own puts it in this
- * row, either side of the name, where there is room: where it is at the start, and what is done
- * to it at the end. The chat is where the
+ * What is over the top of an agent's pages: its name, in the middle, where it is on every page,
+ * so that changing page changes only what is under it. It floats: the page runs under it to the
+ * top of the window, and so does what is beside the page. What a page has to float there too
+ * goes in this row, either side of the name: the way back from it at the start, and what is
+ * done to it at the end. The chat is where the
  * agent's other pages are gone to from, so on those a narrow screen has the way back to it at
  * the start of the row; and where the sidebar is out of sight, the way to it is there.
  */
@@ -306,11 +314,11 @@ export function AgentStrip({
       // it starts past the window's buttons.
       data-title-drag=""
       data-agent-strip=""
-      // A line under it only while a page's bar is in it: the name alone floats over the page.
-      className="relative z-20 grid h-13 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-hairline pl-2.5 inset:max-md:pl-20 data-bar:border-b has-[[data-strip-slot]:not(:empty)]:border-b"
-      // The library's row is a bar, whether or not a file is open to fill it.
-      data-bar={page === "library" ? "" : undefined}
-      style={{ paddingRight: `calc(0.5rem + ${taken})` }}
+      // It floats over the top of the page, which runs under it. What a page floats beside the
+      // name is in the row too, so that the two keep clear of each other. It stops short of
+      // what is beside the page, which goes to the top of the window.
+      className="absolute left-0 top-0 z-20 grid h-13 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pr-2 pl-2.5 inset:max-md:pl-20"
+      style={{ right: taken }}
     >
       <div className="flex min-w-0 items-center gap-0.5">
         {onShowSidebar === undefined ? null : (
@@ -330,7 +338,7 @@ export function AgentStrip({
         <div
           ref={setStart}
           data-strip-slot=""
-          className="@container/viewer hidden min-w-0 flex-1 items-center gap-1 pl-0.5 lg:flex"
+          className="flex min-w-0 flex-1 items-center gap-1 pl-0.5"
         />
       </div>
       {agent === undefined ? (
@@ -355,7 +363,7 @@ export function AgentStrip({
       <div
         ref={setEnd}
         data-strip-slot=""
-        className="@container/viewer hidden min-w-0 items-center justify-end gap-1 lg:flex"
+        className="flex min-w-0 items-center justify-end gap-1"
       />
     </header>
   )

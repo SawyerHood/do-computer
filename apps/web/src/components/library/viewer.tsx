@@ -20,19 +20,10 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { DocPlaceholder } from "@/components/placeholders"
 import { Badge } from "@/components/ui/badge"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -60,7 +51,6 @@ import { formatBytes, formatFull, formatWhen, kindOf, shownAt } from "@/lib/libr
 import { usePin } from "@/lib/pins"
 import { queryClient } from "@/lib/query"
 import { siteOfFile, useSites } from "@/lib/sites"
-import type { StripBar } from "@/lib/use-strip-bar"
 import { useThemedFrame } from "@/lib/visual-theme"
 import { cn } from "@/lib/utils"
 import { SharePopover } from "@/components/sites/share"
@@ -81,11 +71,14 @@ function Segmented<T extends string>({
   options,
   onChange,
   label,
+  wordless = false,
 }: {
   value: T
   options: readonly (readonly [value: T, label: string, icon: ReactNode])[]
   onChange: (value: T) => void
   label: string
+  /** Only the pictures, however much room there is: where it floats, and is kept small. */
+  wordless?: boolean
 }) {
   return (
     <ToggleGroup
@@ -104,10 +97,13 @@ function Segmented<T extends string>({
           // Where the bar is narrow only the picture is shown, so the word is its name too.
           aria-label={text}
           title={text}
-          className="h-7 min-w-0 gap-1.5 rounded-md px-2 text-xs font-normal text-muted-foreground hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:hover:bg-background @xl/viewer:px-2.5"
+          className={cn(
+            "h-7 min-w-0 gap-1.5 rounded-md px-2 text-xs font-normal text-muted-foreground hover:bg-transparent aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm aria-pressed:hover:bg-background",
+            !wordless && "@xl/viewer:px-2.5",
+          )}
         >
           {icon}
-          <span className="hidden @xl/viewer:inline">{text}</span>
+          {wordless ? null : <span className="hidden @xl/viewer:inline">{text}</span>}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
@@ -291,6 +287,7 @@ function PageView({
   view,
   stamp,
   onOpen,
+  className,
 }: {
   agentId: string
   file: LibraryFile
@@ -298,6 +295,7 @@ function PageView({
   /** Changes when the page or anything beside it does, so that what is shown is what is there. */
   stamp: number
   onOpen: (path: string) => void
+  className?: string | undefined
 }) {
   const url = client.agent(agentId).libraryViewUrl(view, file.path)
   const [reloads, setReloads] = useState(0)
@@ -316,7 +314,7 @@ function PageView({
     return () => window.removeEventListener("message", onMessage)
   }, [onOpen])
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className={cn("flex h-full min-h-0 flex-col", className)}>
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-1.5">
         <Button
           variant="ghost"
@@ -375,6 +373,7 @@ function TextBody({
   mode,
   stamp,
   inPlace,
+  floating,
   onOpen,
   onState,
 }: {
@@ -387,6 +386,8 @@ function TextBody({
   stamp: number
   /** Links to other files open here, where this is shown, and not in the library. */
   inPlace: boolean
+  /** The Dood's name and the file's buttons float over the top of this, and it keeps clear. */
+  floating: boolean
   onOpen: (path: string) => void
   onState: (state: SaveState) => void
 }) {
@@ -395,8 +396,20 @@ function TextBody({
   const { state } = document
   useEffect(() => onState(state), [state, onState])
 
+  // A document that is read runs under what floats over it, and is scrolled out from under.
+  // Anything with a bar of its own, or that cannot be scrolled so, starts below.
+  const below = floating ? "pt-13" : undefined
   if (kind === "page" && mode === "read") {
-    return <PageView agentId={agentId} file={file} view={view} stamp={stamp} onOpen={onOpen} />
+    return (
+      <PageView
+        agentId={agentId}
+        file={file}
+        view={view}
+        stamp={stamp}
+        onOpen={onOpen}
+        className={below}
+      />
+    )
   }
   if (document.failed) {
     return (
@@ -407,7 +420,9 @@ function TextBody({
       </Empty>
     )
   }
-  if (document.text === undefined) return <DocPlaceholder />
+  if (document.text === undefined) {
+    return <DocPlaceholder className={floating ? "pt-19" : undefined} />
+  }
   const { text } = document
 
   const rendered = (
@@ -418,7 +433,11 @@ function TextBody({
       view={view}
       paths={paths}
       onOpen={inPlace ? onOpen : undefined}
-      className="mx-auto max-w-3xl px-6 pt-10 pb-24 md:px-9"
+      className={cn(
+        "mx-auto max-w-3xl px-6 pb-24 md:px-9",
+        // Under what floats over it, it starts clear of that.
+        floating && mode === "read" && state !== "conflict" ? "pt-19" : "pt-10",
+      )}
     />
   )
   const editor = (
@@ -429,8 +448,14 @@ function TextBody({
       label={`Edit ${file.name}`}
     />
   )
+  const reading = kind === "markdown" && mode === "read"
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col",
+        reading && state !== "conflict" ? undefined : below,
+      )}
+    >
       {state === "conflict" ? (
         <div
           role="alert"
@@ -447,8 +472,14 @@ function TextBody({
           </Button>
         </div>
       ) : null}
-      {kind === "markdown" && mode === "read" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">{rendered}</div>
+      {reading ? (
+        <div className="relative min-h-0 flex-1">
+          {/* What is read goes out of sight at the top, behind what floats there. */}
+          {floating ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-linear-to-b from-background to-transparent" />
+          ) : null}
+          <div className="h-full overflow-y-auto">{rendered}</div>
+        </div>
       ) : kind === "markdown" && mode === "split" ? (
         <div className="grid min-h-0 flex-1 grid-cols-2">
           {editor}
@@ -475,8 +506,9 @@ export function Viewer({
   onMode,
   onOpen,
   compact = false,
+  floating = false,
+  slot,
   actions,
-  bar,
 }: {
   agentId: string
   agentName: string
@@ -489,10 +521,15 @@ export function Viewer({
   onOpen: (path?: string) => void
   /** Shown in a narrow place, such as beside a chat: only the file's name, not where it is. */
   compact?: boolean
+  /**
+   * The file has the page to its top, under the Dood's name, and what is done to it floats over
+   * its corner. Otherwise it has a bar of its own, with its name in it.
+   */
+  floating?: boolean
+  /** Where what floats is put: the end of the row the Dood's name is in, which it keeps clear of. */
+  slot?: HTMLElement | null
   /** Buttons for wherever this is shown, after its own. */
   actions?: ReactNode
-  /** The row above the page, where its bar goes in place of one of its own. */
-  bar?: StripBar | undefined
 }) {
   const api = client.agent(agentId)
   const kind = kindOf(file)
@@ -523,103 +560,70 @@ export function Viewer({
     },
   })
 
-  const parts = file.path.split("/")
-  // Where the file is, and how its saving stands: the start of its bar.
+  // What it is being renamed to, while it is: in place of its name, or of its buttons.
+  const rename =
+    renaming === undefined ? null : (
+      <form
+        className={cn("flex items-center gap-2", floating ? "min-w-0" : "min-w-40 flex-1")}
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (renaming.trim() === file.path) setRenaming(undefined)
+          else move.mutate(renaming)
+        }}
+      >
+        <Input
+          autoFocus
+          aria-label="Folder and name"
+          value={renaming}
+          onChange={(event) => setRenaming(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setRenaming(undefined)
+          }}
+          className={cn("h-8 text-sm", floating ? "w-64 min-w-0 shrink" : "max-w-md")}
+        />
+        <Button type="submit" size="sm" disabled={move.isPending}>
+          {move.isPending ? "Saving…" : "Save"}
+        </Button>
+      </form>
+    )
+  // How its saving stands, and what went wrong with moving or deleting it.
+  const words = remove.isPending
+    ? "Deleting…"
+    : ((move.error ?? remove.error)?.message ?? SAVE_WORDS[saveState])
+  const failed = saveState === "error" || saveState === "conflict" || move.isError || remove.isError
+  // Which file it is, and how its saving stands: the start of its bar.
   const where = (
-    <>
-      {/* Which file it is has the room the buttons leave, and its name is what gives way. */}
-      <div className="flex min-w-0 flex-1 items-center gap-[inherit]">
-        {renaming === undefined ? (
-          <Breadcrumb aria-label="Where this file is" className="min-w-0">
-            {/* On a narrow screen, and beside a chat, only the file's own name is shown. */}
-            <BreadcrumbList className="flex-nowrap gap-1 sm:gap-1">
-              <BreadcrumbItem className={cn("hidden", !compact && "md:inline-flex")}>
-                <BreadcrumbLink
-                  render={<Link to="/a/$agentId/library" params={{ agentId }} search={{}} />}
-                >
-                  Library
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              {parts.map((part, index) => {
-                const last = index === parts.length - 1
-                return (
-                  <Fragment key={`${index}:${part}`}>
-                    <BreadcrumbSeparator
-                      className={cn("hidden [&>svg]:size-3", !compact && "md:block")}
-                    />
-                    <BreadcrumbItem
-                      className={cn(
-                        "min-w-0",
-                        !last && (compact ? "hidden" : "hidden md:inline-flex"),
-                      )}
-                    >
-                      {last ? (
-                        // Not a heading: a document brings its own, and this is only its file name.
-                        <BreadcrumbPage className="truncate font-medium">{part}</BreadcrumbPage>
-                      ) : (
-                        <span className="truncate">{part}</span>
-                      )}
-                    </BreadcrumbItem>
-                  </Fragment>
-                )
-              })}
-            </BreadcrumbList>
-          </Breadcrumb>
-        ) : (
-          <form
-            className="flex min-w-40 flex-1 items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (renaming.trim() === file.path) setRenaming(undefined)
-              else move.mutate(renaming)
-            }}
-          >
-            <Input
-              autoFocus
-              aria-label="Folder and name"
-              value={renaming}
-              onChange={(event) => setRenaming(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") setRenaming(undefined)
-              }}
-              className="h-8 max-w-md text-sm"
-            />
-            <Button type="submit" size="sm" disabled={move.isPending}>
-              {move.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
+    // Which file it is has the room the buttons leave, and its name is what gives way.
+    <div className="flex min-w-0 flex-1 items-center gap-[inherit]">
+      {/* Not a heading: a document brings its own, and this is only its file name. */}
+      {rename ?? <p className="min-w-0 truncate pl-1 text-sm font-medium">{file.name}</p>}
+      <p
+        aria-live="polite"
+        className={cn(
+          "truncate text-xs text-muted-foreground",
+          // Beside the name it is whole, up to all the room there is. Beside a name being typed
+          // it is cut short first.
+          renaming === undefined ? "max-w-[calc(100%-0.5rem)] shrink-0" : "min-w-0",
+          failed && "text-destructive",
         )}
-        {renaming === undefined && !compact ? (
-          <p className="hidden shrink-0 pl-1 text-xs text-muted-foreground @3xl/viewer:block">
-            {who(file.updatedBy, agentName)} · {formatWhen(file.updatedAt)} ·{" "}
-            {formatBytes(file.size)}
-          </p>
-        ) : null}
-        <p
-          aria-live="polite"
-          className={cn(
-            "truncate text-xs text-muted-foreground",
-            // Beside the name it is whole, up to all the room there is. Beside a name being typed
-            // it is cut short first.
-            renaming === undefined ? "max-w-[calc(100%-0.5rem)] shrink-0" : "min-w-0",
-            (saveState === "error" || saveState === "conflict" || move.isError || remove.isError) &&
-              "text-destructive",
-          )}
-        >
-          {remove.isPending
-            ? "Deleting…"
-            : ((move.error ?? remove.error)?.message ?? SAVE_WORDS[saveState])}
-        </p>
-      </div>
-    </>
+      >
+        {words}
+      </p>
+    </div>
   )
-  // What is done to it: the end of its bar.
+  // What is done to it: the end of its bar, or all of what floats over its corner.
   const tools = (
     <>
       {/* While a name is typed in a narrow bar, these give it their room. */}
-      <div className={cn("contents", renaming !== undefined && "hidden @3xl/viewer:contents")}>
+      <div
+        className={cn(
+          "contents",
+          renaming !== undefined && (floating ? "hidden" : "hidden @3xl/viewer:contents"),
+        )}
+      >
         {kind === "markdown" ? (
           <Segmented
+            wordless={floating}
             label="How to show it"
             value={mode === "source" ? "read" : mode}
             onChange={onMode}
@@ -631,6 +635,7 @@ export function Viewer({
           />
         ) : kind === "page" ? (
           <Segmented
+            wordless={floating}
             label="How to show it"
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
@@ -641,6 +646,7 @@ export function Viewer({
           />
         ) : kind === "table" ? (
           <Segmented
+            wordless={floating}
             label="How to show it"
             value={mode === "read" ? "read" : "source"}
             onChange={onMode}
@@ -670,12 +676,12 @@ export function Viewer({
         <SharePopover agentId={agentId} site={site} path={file.path}>
           <Button
             variant="outline"
-            size={compact ? "icon-sm" : "sm"}
+            size={compact || floating ? "icon-sm" : "sm"}
             aria-label={site === undefined ? "Share" : "Shared with a link"}
             title={site === undefined ? "Share with a link" : "Shared with a link"}
           >
             {site === undefined ? <ShareNetworkIcon /> : site.public ? <GlobeIcon /> : <LockIcon />}
-            <span className={cn("hidden", !compact && "@xl/viewer:inline")}>
+            <span className={cn("hidden", !compact && !floating && "@xl/viewer:inline")}>
               {site === undefined ? "Share" : "Shared"}
             </span>
           </Button>
@@ -688,7 +694,18 @@ export function Viewer({
         >
           <DotsThreeIcon weight="bold" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuContent align="end" className="w-60">
+          {/* Where it is and who last changed it, which nothing else here says. */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="font-normal">
+              <span className="block break-all text-foreground">{file.path}</span>
+              <span className="block text-xs text-muted-foreground">
+                {who(file.updatedBy, agentName)} · {formatWhen(file.updatedAt)} ·{" "}
+                {formatBytes(file.size)}
+              </span>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setRenaming(file.path)}>
             <PencilSimpleIcon /> Rename or move
           </DropdownMenuItem>
@@ -717,8 +734,37 @@ export function Viewer({
   )
   return (
     // The bar is laid out by how wide this is, not the window: beside a chat it can be a third of it.
-    <div className="@container/viewer flex h-full min-h-0 flex-col">
-      {bar === undefined ? (
+    <div className="@container/viewer relative flex h-full min-h-0 flex-col">
+      {floating ? (
+        // Over the corner of the page, in the row the Dood's name floats in: the name has the
+        // middle, and this has what is left after it.
+        slot == null ? null : (
+          createPortal(
+            <div
+              role="toolbar"
+              aria-label={file.name}
+              data-floats=""
+              data-no-drag=""
+              className="flex max-w-full min-w-0 items-center gap-1 rounded-xl bg-popover p-1 shadow-raised"
+            >
+              {rename}
+              {words === "" ? null : (
+                <p
+                  aria-live="polite"
+                  className={cn(
+                    "min-w-0 truncate px-1.5 text-xs text-muted-foreground",
+                    failed && "text-destructive",
+                  )}
+                >
+                  {words}
+                </p>
+              )}
+              {tools}
+            </div>,
+            slot,
+          )
+        )
+      ) : (
         <header className="flex h-13 shrink-0 items-center gap-1 border-b pr-2 pl-3 @md/viewer:gap-2">
           {compact ? null : (
             <Button
@@ -735,16 +781,15 @@ export function Viewer({
           {tools}
           {actions}
         </header>
-      ) : (
-        // In the row above the page, either side of the agent's name, so that there is one row.
-        <>
-          {createPortal(where, bar.start)}
-          {createPortal(tools, bar.end)}
-        </>
       )}
       <div className="min-h-0 flex-1">
         {kind === "image" ? (
-          <div className="grid h-full place-items-center overflow-auto bg-[repeating-conic-gradient(var(--surface)_0_25%,transparent_0_50%)] bg-size-[22px_22px] p-8">
+          <div
+            className={cn(
+              "grid h-full place-items-center overflow-auto bg-[repeating-conic-gradient(var(--surface)_0_25%,transparent_0_50%)] bg-size-[22px_22px] p-8",
+              floating && "pt-16",
+            )}
+          >
             <img
               // The revision is only there so that a changed picture is fetched again.
               src={`${api.libraryViewUrl(view, file.path)}?v=${file.rev}`}
@@ -753,20 +798,24 @@ export function Viewer({
             />
           </div>
         ) : kind === "video" || kind === "audio" ? (
-          <div className="grid h-full place-items-center overflow-auto p-8">
+          <div
+            className={cn("grid h-full place-items-center overflow-auto p-8", floating && "pt-16")}
+          >
             <LibraryEmbed agentId={agentId} file={file} view={view} />
           </div>
         ) : kind === "pdf" ? (
           // The browser's own reader, which will not run in a frame that is kept apart. A PDF
           // runs nothing of its own, and the library serves it as a PDF whatever is in it.
-          <iframe
-            key={`${file.id}:${file.rev}`}
-            src={`${api.libraryViewUrl(view, file.path)}?v=${file.rev}#toolbar=0&view=FitH`}
-            title={file.name}
-            className="size-full border-0 bg-white"
-          />
+          <div className={cn("size-full", floating && "pt-13")}>
+            <iframe
+              key={`${file.id}:${file.rev}`}
+              src={`${api.libraryViewUrl(view, file.path)}?v=${file.rev}#toolbar=0&view=FitH`}
+              title={file.name}
+              className="size-full border-0 bg-white"
+            />
+          </div>
         ) : kind === "table" && mode === "read" ? (
-          <div className="h-full overflow-auto p-4 md:p-6">
+          <div className={cn("h-full overflow-auto p-4 md:p-6", floating && "pt-16 md:pt-16")}>
             <LibraryTable agentId={agentId} file={file} view={view} />
           </div>
         ) : kind === "other" || (kind === "table" && file.size > MAX_EDITED_BYTES) ? (
@@ -804,6 +853,7 @@ export function Viewer({
             mode={mode}
             stamp={stamp}
             inPlace={compact}
+            floating={floating}
             onOpen={onOpen}
             onState={setSaveState}
           />

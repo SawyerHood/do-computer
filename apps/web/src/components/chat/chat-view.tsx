@@ -308,8 +308,6 @@ export function ChatView({
   const notes = !beside && (live.status === "reconnecting" || atWork.length > 0)
   // Whether anything is over the top of the transcript.
   const floats = sub !== undefined || thread?.peer !== undefined || notes
-  // Whether a bar of the chat's own is over it, under the name.
-  const barred = (aside !== undefined && main !== undefined) || slack !== undefined
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -319,24 +317,21 @@ export function ChatView({
         {slack === undefined ? null : (
           <SlackBar agent={agent} chat={slack} main={main} onStop={stop} />
         )}
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* How far down the name floats over the chat, which runs under it. */}
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col [--lift:3.25rem]">
           <div
             className={cn(
               "pointer-events-none absolute inset-x-0 z-10 bg-linear-to-b from-background to-transparent",
-              barred ? "top-0" : "-top-[var(--under-strip,0px)]",
+              "top-0",
               // What is said goes out of sight at the top of the page, behind the name that
               // floats there, and under more of the page where something of the chat's own is
               // over the transcript as well.
-              floats
-                ? barred
-                  ? "h-20 via-background/80"
-                  : "h-[calc(5rem+var(--under-strip,0px))] via-background/80"
-                : "h-8",
+              floats ? "h-33 via-background/80" : "h-8",
             )}
           />
           {sub !== undefined ? (
             // A sub-agent's chat always says whose it is, and leads back to where it was started.
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+            <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--lift)+0.75rem)] z-10 flex justify-center px-3">
               <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl bg-background/85 py-1 pr-2 pl-1.5 shadow-raised backdrop-blur">
                 <Link
                   to="/a/$agentId/c/$chatId"
@@ -376,7 +371,7 @@ export function ChatView({
             </div>
           ) : thread?.peer !== undefined ? (
             // A conversation with another agent says who it is with, and leads to where they wrote from.
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+            <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--lift)+0.75rem)] z-10 flex justify-center px-3">
               <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-xl bg-background/85 py-1 pr-2 pl-1.5 shadow-raised backdrop-blur">
                 <Link
                   to="/a/$agentId/c/$chatId"
@@ -413,7 +408,7 @@ export function ChatView({
           ) : !notes ? null : (
             // The strip above says whose chat this is, and the panel beside it says the rest. With
             // the panel away, what is left to say here is what neither does, when there is any.
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
+            <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--lift)+0.75rem)] z-10 flex justify-center">
               <div className="pointer-events-auto relative flex items-center gap-1 rounded-full bg-background/85 px-1.5 py-1 shadow-raised backdrop-blur">
                 {live.status === "reconnecting" ? (
                   <span className="px-1.5 text-xs text-muted-foreground">reconnecting…</span>
@@ -453,10 +448,6 @@ export function ChatView({
               floats
                 ? "[--chat-top:calc(var(--lift)+4.5rem)]"
                 : "[--chat-top:calc(var(--lift)+1.5rem)]",
-              // A bar of the chat's own is between it and the name, and it stays under that.
-              barred
-                ? "[--lift:0px]"
-                : "-mt-[var(--under-strip,0px)] [--lift:var(--under-strip,0px)]",
             )}
           >
             <AgentIdContext value={agent.id}>

@@ -47,7 +47,7 @@ export function DocPanel({
     <aside
       ref={beside}
       aria-label="Document"
-      className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border hidden shrink-0 bg-background xl:block"
+      className="relative my-2.5 mr-2.5 overflow-hidden rounded-2xl border hidden shrink-0 bg-background xl:block"
       style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES} - ${BESIDE_GAP})` }}
     >
       <ResizeHandle column={docPanelColumn} edge="left" label="Resize the document" />

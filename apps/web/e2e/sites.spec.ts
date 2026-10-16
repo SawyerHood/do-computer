@@ -306,11 +306,8 @@ test("a file is shared from its card, from the library, and a folder from its ro
     files.getByRole("button", { name: "The folder exports is shared with a link" }),
   ).toBeVisible()
   await page.screenshot({ path: "test-results/library-tree-shared.png" })
-  // Back to the library's front page, by the way a file says where it is.
-  await page
-    .getByRole("navigation", { name: "Where this file is" })
-    .getByRole("link", { name: "Library" })
-    .click()
+  // Back to the library's front page, by the name over the list of files.
+  await page.getByRole("heading", { name: "Library", exact: true }).getByRole("link").click()
   const shared = page.getByRole("region", { name: "Shared with a link" })
   await expect(shared.getByRole("link", { name: "Exports", exact: true })).toBeVisible()
   await expect(shared.getByRole("link", { name: "data.csv", exact: true })).toBeVisible()

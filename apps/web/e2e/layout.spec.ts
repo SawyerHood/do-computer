@@ -429,12 +429,13 @@ test("the layout works at phone width", async ({ page }) => {
   )
   await page.getByRole("menuitem", { name: "Library" }).click()
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
-  // The library says what it is itself, and the name is part of its bar with nothing added.
+  // The library says what it is itself, and the name has nothing added.
   await expect(name).not.toContainText("·")
   // And the row starts with the way back to the chat.
   await page.getByRole("button", { name: "Back to the chat" }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
-  await expect(name).not.toContainText("·")
+  // Over a side chat the name says which one it is, and no longer which page.
+  await expect(name).toContainText("Juniper · Something aside")
   await expect(page.getByRole("button", { name: "Back to the chat" })).toHaveCount(0)
   // The menu leads back as well.
   await name.click()

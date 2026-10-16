@@ -127,15 +127,12 @@ export async function closeSettings(page: Page) {
 
 /**
  * Open a file of the library from the list of all its files, which is on the library's front
- * page. From a file that is open, the way back there is in the row over it.
+ * page. From a file that is open, the way back there is the name over the list beside it.
  */
 export async function openFile(page: Page, name: string | RegExp) {
   const files = page.getByRole("navigation", { name: "Files" })
   if ((await files.count()) === 0) {
-    await page
-      .getByRole("navigation", { name: "Where this file is" })
-      .getByRole("link", { name: "Library" })
-      .click()
+    await page.getByRole("heading", { name: "Library", exact: true }).getByRole("link").click()
   }
   await files.getByRole("link", { name }).click()
 }

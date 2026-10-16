@@ -2,7 +2,16 @@ import type { LibraryFile } from "@do-computer/protocol"
 import { NotePencilIcon, UploadSimpleIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useAtomValue } from "jotai"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import { AgentAside } from "@/components/chat/agent-aside"
 import { DocMarkdown } from "@/components/library/doc-markdown"
 import { KindIcon, LibraryTree } from "@/components/library/tree"
@@ -14,11 +23,11 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { client } from "@/lib/client"
+import { stripEndAtom } from "@/lib/atoms"
 import { agentQuery, libraryKey, libraryQuery, libraryTextKey } from "@/lib/collections"
 import { dirOf, formatWhen, kindOf } from "@/lib/library"
 import { queryClient } from "@/lib/query"
 import { sitesQuery } from "@/lib/sites"
-import { useStripBar } from "@/lib/use-strip-bar"
 import { cn } from "@/lib/utils"
 import { useListedAgent } from "@/lib/workspaces"
 
@@ -133,6 +142,29 @@ function useDesktop(): boolean {
   )
 }
 
+/**
+ * How wide the library has to be, in pixels, for the Dood's name to float over it: narrower,
+ * the name would be over the list of files and their buttons, and the page starts under it.
+ */
+const ROOMY = 768
+
+/** Whether the library, without what is beside it, has that room. Gives the ref to measure by. */
+function useRoomy() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [roomy, setRoomy] = useState(false)
+  // Before it is drawn, so that it is not drawn one way and then the other.
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (element === null) return
+    const measure = () => setRoomy(element.clientWidth >= ROOMY)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  return [ref, roomy] as const
+}
+
 /** What the library is, at the top of its front page. */
 function LibraryHeading() {
   return (
@@ -151,7 +183,7 @@ function LibraryHeading() {
  * The library's place until its list of files is here: the list where the list goes, and beside
  * it the file that was asked for, or the front page with nothing on it yet.
  */
-function LibraryPlaceholder({ opening }: { opening: boolean }) {
+function LibraryPlaceholder({ opening, roomy }: { opening: boolean; roomy: boolean }) {
   const desktop = useDesktop()
   return (
     <>
@@ -162,9 +194,14 @@ function LibraryPlaceholder({ opening }: { opening: boolean }) {
       )}
       <section className={cn("min-w-0 flex-1", !desktop && !opening && "hidden")}>
         {opening ? (
-          <DocPlaceholder />
+          <DocPlaceholder className={roomy ? "pt-19" : undefined} />
         ) : (
-          <div className="mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-10 pb-24">
+          <div
+            className={cn(
+              "mx-auto flex max-w-4xl flex-col gap-6 px-8 pb-24",
+              roomy ? "pt-19" : "pt-10",
+            )}
+          >
             <LibraryHeading />
             <Placeholder className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3.5">
               {[0, 1, 2].map((card) => (
@@ -185,27 +222,44 @@ function LibraryPage() {
   const { data: state } = useQuery(agentQuery(agentId))
   const listed = useListedAgent(agentId)
   const agent = state?.agent ?? listed
+  const [library, roomy] = useRoomy()
   return (
     <div className="flex h-full min-h-0">
-      <Loads
-        key={agentId}
-        className="p-8"
-        fallback={
-          <LibraryPlaceholder opening={search.path !== undefined || search.file !== undefined} />
-        }
-      >
-        <Library agentId={agentId} agentName={agent?.name ?? "Your Dood"} />
-      </Loads>
+      {/* The Dood's name floats over the library where there is room for both. Where there is
+          not, the library starts under the row the name is in. */}
+      <div ref={library} className={cn("flex min-w-0 flex-1", !roomy && "pt-13")}>
+        <Loads
+          key={agentId}
+          className="p-8"
+          fallback={
+            <LibraryPlaceholder
+              opening={search.path !== undefined || search.file !== undefined}
+              roomy={roomy}
+            />
+          }
+        >
+          <Library agentId={agentId} agentName={agent?.name ?? "Your Dood"} roomy={roomy} />
+        </Loads>
+      </div>
       {agent === undefined ? null : <AgentAside agent={agent} />}
     </div>
   )
 }
 
 /** The list of files and whichever one is open. It waits for the list. */
-function Library({ agentId, agentName }: { agentId: string; agentName: string }) {
+function Library({
+  agentId,
+  agentName,
+  roomy,
+}: {
+  agentId: string
+  agentName: string
+  /** The Dood's name floats over the library, and what is in it starts clear of the name. */
+  roomy: boolean
+}) {
   const desktop = useDesktop()
-  // An open file's bar is in the row above the page, beside the agent's name, where there is room.
-  const bar = useStripBar()
+  // What is done to an open file floats in the row the name is in, at its end.
+  const slot = useAtomValue(stripEndAtom)
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const api = client.agent(agentId)
@@ -314,11 +368,18 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
               })
             }
             onOpen={(path) => void open(path)}
-            bar={bar}
+            // With room, it has the page to its top, and its buttons float beside the name.
+            floating={roomy}
+            slot={slot}
           />
         ) : (
           <div className="h-full overflow-y-auto">
-            <div className="mx-auto flex max-w-4xl flex-col gap-6 px-8 pt-10 pb-24">
+            <div
+              className={cn(
+                "mx-auto flex max-w-4xl flex-col gap-6 px-8 pb-24",
+                roomy ? "pt-19" : "pt-10",
+              )}
+            >
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <LibraryHeading />
                 <Button

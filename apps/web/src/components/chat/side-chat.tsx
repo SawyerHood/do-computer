@@ -16,15 +16,15 @@ import { AgentFace } from "@/components/agent-avatar"
 import { TranscriptPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
-import { chatKey } from "@/lib/atoms"
+import { chatKey, stripEndAtom, stripStartAtom } from "@/lib/atoms"
 import { useArchiveSideChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { workspaceModelsKey } from "@/lib/collections"
 import { BESIDE_GAP, DOC_PANEL_LEAVES, sideChatColumn } from "@/lib/columns"
 import { useBeside } from "@/lib/use-beside"
-import { useStripBar } from "@/lib/use-strip-bar"
 import { useChat } from "@/lib/use-chat"
 import { useWide } from "@/lib/use-wide"
+import { cn } from "@/lib/utils"
 import { TeamContext, usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
 import { Composer } from "./composer.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
@@ -53,10 +53,31 @@ export function SideChatWelcome({ agent, carried }: { agent: AgentSummary; carri
   )
 }
 
+/** What floats in the row the Dood's name is in, drawn as the name is: a thing of its own. */
+export const FLOATS = "bg-popover shadow-raised"
+
+/** The way back to the main chat, afloat at the start of that row, from a chat that has the middle. */
+export function MainChatLink({ agentId, mainId }: { agentId: string; mainId: string }) {
+  return (
+    <Link
+      to="/a/$agentId/c/$chatId"
+      params={{ agentId, chatId: mainId }}
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-1 rounded-full pr-3 pl-2 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 max-sm:px-2",
+        FLOATS,
+      )}
+    >
+      <CaretLeftIcon className="size-3.5" />
+      {/* On a narrow screen the arrow alone is shown, and the words are still its name. */}
+      <span className="max-sm:sr-only">Main chat</span>
+    </Link>
+  )
+}
+
 /**
- * What says, while a side chat has the middle, that this is a side chat and which one, and
- * leads back to the main chat. It is in the row above the page, either side of the agent's
- * name, where there is room there, and otherwise a line of its own under that row.
+ * What a side chat that has the middle floats in the row the agent's name is in: the way back
+ * to the main chat at the start, and what is done to the side chat at the end. Which side chat
+ * it is, the name itself says.
  */
 export function SideChatBar({
   agent,
@@ -69,63 +90,46 @@ export function SideChatBar({
 }) {
   const wide = useWide()
   const archive = useArchiveSideChat(agent.id, main.id)
-  const bar = useStripBar()
-  const where = (
-    <>
-      <Link
-        to="/a/$agentId/c/$chatId"
-        params={{ agentId: agent.id, chatId: main.id }}
-        className="flex h-7 shrink-0 items-center gap-1 rounded-lg pr-2.5 pl-1.5 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
-      >
-        <CaretLeftIcon className="size-3.5" />
-        Main chat
-      </Link>
-      <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">Side chat</span>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{chat.title}</span>
-    </>
-  )
-  const tools = (
-    <>
-      {wide ? (
-        <Link
-          to="/a/$agentId/c/$chatId"
-          params={{ agentId: agent.id, chatId: main.id }}
-          search={{ side: Number(chat.id) }}
-          aria-label="Put it beside the main chat"
-          title="Put it beside the main chat"
-          className={iconLink}
-        >
-          <SidebarSimpleIcon className="-scale-x-100" />
-        </Link>
-      ) : null}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Archive ${chat.title}`}
-        title="Archive this side chat"
-        className="text-muted-foreground"
-        onClick={() => void archive(chat.id)}
-      >
-        <ArchiveIcon />
-      </Button>
-    </>
-  )
-  if (bar !== undefined) {
-    return (
-      <>
-        {createPortal(
-          <div className="flex min-w-0 flex-1 items-center gap-2">{where}</div>,
-          bar.start,
-        )}
-        {createPortal(tools, bar.end)}
-      </>
-    )
-  }
+  const start = useAtomValue(stripStartAtom)
+  const end = useAtomValue(stripEndAtom)
+  if (start === null || end === null) return null
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 text-sm">
-      {where}
-      {tools}
-    </div>
+    <>
+      {createPortal(<MainChatLink agentId={agent.id} mainId={main.id} />, start)}
+      {createPortal(
+        <div
+          role="toolbar"
+          aria-label={chat.title}
+          data-floats=""
+          data-no-drag=""
+          className={cn("flex items-center rounded-xl p-1", FLOATS)}
+        >
+          {wide ? (
+            <Link
+              to="/a/$agentId/c/$chatId"
+              params={{ agentId: agent.id, chatId: main.id }}
+              search={{ side: Number(chat.id) }}
+              aria-label="Put it beside the main chat"
+              title="Put it beside the main chat"
+              className={iconLink}
+            >
+              <SidebarSimpleIcon className="-scale-x-100" />
+            </Link>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Archive ${chat.title}`}
+            title="Archive this side chat"
+            className="text-muted-foreground"
+            onClick={() => void archive(chat.id)}
+          >
+            <ArchiveIcon />
+          </Button>
+        </div>,
+        end,
+      )}
+    </>
   )
 }
 
@@ -171,7 +175,7 @@ export function SideChat({
     <aside
       ref={beside}
       aria-label={`Side chat: ${chat.title}`}
-      className="relative mr-2.5 mb-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
+      className="relative my-2.5 mr-2.5 overflow-hidden rounded-2xl border flex shrink-0 flex-col bg-rail/50"
       style={{ width, maxWidth: `calc(100% - ${DOC_PANEL_LEAVES} - ${BESIDE_GAP})` }}
     >
       <ResizeHandle column={sideChatColumn} edge="left" label="Resize the side chat" />
