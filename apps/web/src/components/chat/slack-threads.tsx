@@ -1,14 +1,18 @@
 import type { AgentState } from "@do-computer/client"
 import type { AgentSummary, ChatSummary } from "@do-computer/protocol"
-import { ArrowSquareOutIcon, CaretLeftIcon, SlackLogoIcon, StopIcon } from "@phosphor-icons/react"
+import { ArrowSquareOutIcon, SlackLogoIcon, StopIcon } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+import { useAtomValue } from "jotai"
 import { useMemo } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
+import { stripEndAtom, stripStartAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentKey } from "@/lib/collections"
 import { cn } from "@/lib/utils"
 import { StatusMark, threadWords } from "./agent-threads.tsx"
+import { FLOATS, MainChatLink } from "./side-chat.tsx"
 import { isAtWork } from "./subagents.tsx"
 
 /** Where in Slack a thread is, in a word or two. */
@@ -35,7 +39,7 @@ export function SlackMark({ className }: { className?: string }) {
 }
 
 /** The way to a thread in Slack itself, where its address is known. */
-function OpenInSlack({ chat }: { chat: ChatSummary }) {
+function OpenInSlack({ chat, short = false }: { chat: ChatSummary; short?: boolean }) {
   const url = chat.slack?.url
   if (!url) return null
   return (
@@ -43,9 +47,12 @@ function OpenInSlack({ chat }: { chat: ChatSummary }) {
       href={url}
       target="_blank"
       rel="noreferrer"
+      // Where it floats with little room, the arrow alone is shown, and the words are its name.
+      aria-label="Open in Slack"
+      title="Open in Slack"
       className="flex shrink-0 items-center gap-1 rounded-sm text-[0.8125rem] font-medium text-primary outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40 dark:text-[oklch(0.78_0.09_195)]"
     >
-      Open in Slack
+      <span className={cn(short && "max-md:hidden")}>Open in Slack</span>
       <ArrowSquareOutIcon className="size-3.5" />
     </a>
   )
@@ -111,8 +118,9 @@ export function SlackRows({
 }
 
 /**
- * The line under the agent's strip while a thread from Slack has the middle: where the thread
- * is, how it is getting on, and the ways back to the main chat and out to Slack.
+ * What a thread from Slack that has the middle floats in the row the agent's name is in: the
+ * way back to the main chat at the start, and at the end where the thread is, how it is getting
+ * on, and the way out to Slack. Which thread it is, the name itself says.
  */
 export function SlackBar({
   agent,
@@ -125,44 +133,51 @@ export function SlackBar({
   main: ChatSummary | undefined
   onStop: () => void
 }) {
+  const start = useAtomValue(stripStartAtom)
+  const end = useAtomValue(stripEndAtom)
+  if (start === null || end === null) return null
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-3 pl-1.5 text-sm">
-      {main === undefined ? null : (
-        <Link
-          to="/a/$agentId/c/$chatId"
-          params={{ agentId: agent.id, chatId: main.id }}
-          className="flex h-7 shrink-0 items-center gap-1 rounded-lg pr-2.5 pl-1.5 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+    <>
+      {main === undefined
+        ? null
+        : createPortal(<MainChatLink agentId={agent.id} mainId={main.id} />, start)}
+      {createPortal(
+        <div
+          data-floats=""
+          data-no-drag=""
+          className={cn(
+            "flex h-8 min-w-0 items-center gap-2 rounded-full pr-3 pl-2.5 text-sm",
+            FLOATS,
+          )}
         >
-          <CaretLeftIcon className="size-3.5" />
-          Main chat
-        </Link>
+          <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+            <SlackLogoIcon className="size-3.5 shrink-0" />
+            <span className="truncate max-lg:hidden">{slackPlace(chat)}</span>
+          </span>
+          <span
+            className={cn(
+              "shrink-0 text-xs text-muted-foreground max-sm:hidden",
+              chat.status === "waiting" && "text-foreground",
+            )}
+          >
+            {threadWords(chat.status)}
+          </span>
+          {isAtWork(chat.status) ? (
+            <Button
+              variant="outline"
+              size="xs"
+              className="font-normal text-muted-foreground hover:text-destructive"
+              onClick={onStop}
+            >
+              <StopIcon />
+              Stop
+            </Button>
+          ) : null}
+          <OpenInSlack chat={chat} short />
+        </div>,
+        end,
       )}
-      <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
-        <SlackLogoIcon className="size-3.5" />
-        <span className="max-sm:hidden">{slackPlace(chat)}</span>
-      </span>
-      <span className="min-w-0 flex-1 truncate font-medium">{chat.title}</span>
-      <span
-        className={cn(
-          "shrink-0 text-xs text-muted-foreground max-sm:hidden",
-          chat.status === "waiting" && "text-foreground",
-        )}
-      >
-        {threadWords(chat.status)}
-      </span>
-      {isAtWork(chat.status) ? (
-        <Button
-          variant="outline"
-          size="xs"
-          className="font-normal text-muted-foreground hover:text-destructive"
-          onClick={onStop}
-        >
-          <StopIcon />
-          Stop
-        </Button>
-      ) : null}
-      <OpenInSlack chat={chat} />
-    </div>
+    </>
   )
 }
 

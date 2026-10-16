@@ -14,19 +14,15 @@
 @custom-variant inset (&:is([data-title-bar="inset"] *));
 
 /*
- * A Dood's name floats over its chat, which runs under it to the top of the page: the chat is
- * told how far that is, and what is under the name can still be scrolled and pressed. Not so
- * while the name is in a bar, with a page's own things beside it.
+ * A Dood's name floats over its pages, which run under it to the top of the window: what is
+ * under the row it is in can still be scrolled and pressed. What a page floats beside the name
+ * (`data-floats`) is as much over the page as the name is.
  */
-[data-agent-strip]:not([data-bar]):not(:has([data-strip-slot]:not(:empty))) {
+[data-agent-strip] {
   pointer-events: none;
 }
-[data-agent-strip]:not([data-bar]):not(:has([data-strip-slot]:not(:empty)))
-  :is(a, button, [role="button"]) {
+[data-agent-strip] :is(a, button, [role="button"], [data-floats]) {
   pointer-events: auto;
-}
-[data-agent-strip]:not([data-bar]):not(:has([data-strip-slot]:not(:empty))) + * {
-  --under-strip: 3.25rem;
 }
 
 /*
