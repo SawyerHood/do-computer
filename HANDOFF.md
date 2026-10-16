@@ -6847,14 +6847,13 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       still say who has something new. One made since, or moved in from another workspace,
       is above the rest. "Sort by latest" in the workspace's menu gives the order up, and is
       only there while there is one.
-    - **The order is kept in the browser** (`dc-agent-order` in its storage: for each
+    - **The order was kept in the browser** (`dc-agent-order` in its storage: for each
       workspace, its Doods' ids from the top down), as which workspaces are folded is. The
       owner: "Could these just be local storage sorts like on the client? Do they have to be
       on the server or not? ... we can kind of do that and then figure that out as we go". So
-      it is each person's own, and also each browser's own: the desktop app and a browser
-      can differ, and the phone app still has the one last heard from first. An id that is
-      no longer a Dood of the workspace is passed over. Two tabs of one browser follow each
-      other.
+      it was each person's own, and also each browser's own. An id that is no longer a Dood
+      of the workspace is passed over. Item 95 moved it to the server, in the same shape, and
+      a browser's own is carried up there once.
     - **How.** dnd-kit, one sortable list for each workspace, held to moving up and down
       within its own rows. A mouse takes a row up once it has moved six pixels, so a press
       that does not move is still a click; a finger takes it up after a quarter of a second
@@ -6889,9 +6888,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       a finger stood in for over the DevTools protocol (moved at once, held and moved, held
       and let go) and with the click guard taken away, which loaded the page again.
     - **Not checked:** a real touch screen, Safari, the desktop app, and anything on macOS.
-    - **Not built:** the order on the server, which is what would make every browser and the
-      phone agree. What is kept is already the shape it would have there. Moving a row from
-      the phone app.
+    - **Not built here:** the order on the server, and moving a row from the phone app. Both
+      are item 95.
 
 91. **A Dood can be called out loud** (2026-10-14; `packages/protocol/src/calls.ts`,
     `packages/agent/src/calls.ts`, `actor.ts`, `project.ts`,
@@ -7280,6 +7278,81 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       phone.
     - **Not built:** a form for a new card in a chat, which the web does not have either;
       changing a card, which the web does not allow.
+95. **The order a person put their Doods in is kept on the server, and a Dood is moved on the
+    phone too** (2026-10-16; `apps/web/src/server/agent-order.ts`, `schema.ts`,
+    `apps/web/src/lib/agent-order.ts`, `packages/protocol/src/order.ts`,
+    `apps/mobile/src/ui/sortable.tsx`, `apps/mobile/src/lib/order.ts`,
+    `apps/mobile/app/(app)/index.tsx`). Item 90 kept the order in each browser and left the
+    server and the phone for later; the owner had said "we can kind of do that and then figure
+    that out as we go". This is the later.
+    - **What it does.** The order is the person's own and the same everywhere they are signed
+      in: every browser, the desktop app and the phone. A move in one is made in the others
+      while they are open, with nothing asked for again. The rules are item 90's, now in one
+      place for both apps (`inOrder` in `packages/protocol`): a workspace's Doods are the one
+      last heard from first until one is moved; an id that is no longer one of its Doods is
+      passed over; one made since, or moved in from another workspace, is above the rest. It
+      is still each person's own in a team: one member's order leaves the others' as it was.
+    - **Where it is kept.** `dc_agent_order`, one row for each person and workspace with the
+      Doods' ids from the top down as JSON, in the app database, made by the schema's next
+      migration on Node and on D1 alike. No row is a workspace never put in order. Only the
+      workspace's own Doods are kept of what is sent, each once and at most 500. A workspace
+      the person has left is not given back to them.
+    - **The API.** `GET /api/agent-order` is the person's whole order, by workspace (`{ order
+      }`). `PUT /api/workspaces/<id>/agent-order` with `{ ids }` keeps a workspace's, and
+      `DELETE` gives it up (Sort by latest); both answer with what is kept now, and someone not
+      in the workspace is answered 404. In `packages/client`: `agentOrder()` and
+      `workspace(id).putAgentOrder(ids | null)`.
+    - **How the others hear.** On the person's own feed (item 63), the socket that already
+      carries a row's latest: a new event, `{ type: "order", workspaceId, ids }`, with `ids`
+      null where it was given up. Only that person's tabs and devices are told. When the feed
+      comes back after a break the order is asked for again with the list, since what was said
+      while it was down was said to nobody. An app older than this passes the new event over.
+    - **Moving at once.** The web app and the phone change the list first and tell the server
+      after, one write after another for each workspace, so the last one made is the one kept.
+      While a write of theirs is on its way, what the feed says of that workspace is their own
+      word coming back, perhaps an older one, so it is passed over and the answer to the last
+      write is taken. A write that fails puts the list back to what the server has.
+    - **What a browser kept is carried up once.** On its first load since this, a browser
+      that has `dc-agent-order` sends each workspace's as `carried`, which stands only where the
+      person has no order there yet, so that a second browser carrying its own does not undo
+      the first; the answer is what is kept, and the key is let go once every workspace was
+      taken or refused. A failure for another reason leaves it to be tried on the next load.
+    - **On the phone** the list has Edit in its bar, as Mail's and Reminders' lists do, which
+      is its edit mode: each row has a handle at its end (`line.3.horizontal`), a finger on
+      the handle takes the row up at once, lighter and a little larger, the rows it passes
+      make room as it goes, with a tap of haptics for each, and letting go puts it there. In
+      edit mode a row is not opened and has no menu, the page does not scroll while a row is
+      in the hand, and a workspace that was put in order has Sort by latest in place of its
+      heading's buttons (over the rows, for someone in no team). Done, where Edit was, leaves
+      it. VoiceOver has Move up and Move down on each handle. It is the kit's `Sortable`, on
+      the gesture handler and Reanimated the app already has: no new native code, so no new
+      build is needed for it beyond the next one. In edit mode the rows are placed by hand
+      from their measured heights, so a move does not lay the list out again until it is let
+      go, and going into edit mode and out of it does not draw the creatures again.
+    - **Mine, not the owner's:** the server's table and API; the feed event; that a carried
+      order does not undo one already kept; that the phone has an edit mode with handles and
+      not a long press and drag (a hold on a row is already its sheet of actions, item 65);
+      Sort by latest's place on the phone; and that what is sent is trimmed to the
+      workspace's own Doods.
+    - **Checked:** `src/server/agent-order.test.ts` (each person's own, told to their own
+      feed only, trimmed, refused outside the workspace, given up, a left team, carried and
+      not undoing), `packages/protocol/test/order.test.ts`, `apps/mobile/test/sortable.test.ts`
+      (where a held row goes), and the browser tests: `e2e/sidebar.spec.ts` (item 90's, as
+      before; an order made in one browser is there in a second, fresh one, and a move there
+      is made in the first with nothing asked for again; an order kept in a browser's storage
+      is carried up, let go there, and is every browser's) and `e2e/mobile.spec.ts` (the phone
+      build follows an order put in elsewhere, as it is said; a row dragged by its handle with
+      a mouse; the server has it; Done; the order kept when the app is opened again; Sort by
+      latest). Looked at in pictures of the web sidebar after a move and the phone build at
+      390 by 844 before, during and after one.
+    - **Not checked:** anything on an iPhone or in a simulator, so not a finger on the handle,
+      the haptics, VoiceOver's actions, or whether the page's own scrolling ever takes a drag
+      that starts on a handle before the page is told to stop (the browser build is driven
+      with a mouse); Android; the desktop app; Safari; Workers and D1, where the migration
+      and the API have not been run (the table is plain SQLite, as the others are, and the
+      tests run on Node's). The browser loads the order with the list and not before it, so a
+      page shows its Doods latest-first for as long as the order takes to come, which is one
+      read of the database and is usually there before the list.
 
 ## 6. What the owner has said they want
 

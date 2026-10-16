@@ -26,7 +26,8 @@ export function Menu({ items, children, longPress = false, title, style, testID 
         testID={testID}
         style={style}
         onPress={longPress ? undefined : show}
-        onLongPress={longPress ? show : undefined}
+        // With nothing in it, a hold is nothing, as on iOS.
+        onLongPress={longPress && items.length > 0 ? show : undefined}
       >
         {children}
       </Pressable>

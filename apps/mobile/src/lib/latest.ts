@@ -55,10 +55,5 @@ export function isUnread(
   return seen > 0 && latest.at > seen
 }
 
-/** Agents with the one that was last spoken to or heard from first. One that never was counts from when it was made. */
-export function latestFirst<T extends Pick<AgentSummary, "latest" | "createdAt">>(
-  agents: readonly T[],
-): T[] {
-  const at = (agent: T) => agent.latest?.at ?? agent.createdAt
-  return [...agents].sort((a, b) => at(b) - at(a))
-}
+// The order of a workspace's agents is the web app's too, from the same code.
+export { inOrder, latestFirst } from "@do-computer/protocol"

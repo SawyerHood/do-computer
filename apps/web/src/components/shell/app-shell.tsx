@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { usePull } from "@/lib/use-swipe"
 import { useMedia } from "@/lib/use-wide"
 import { accentChanged } from "@/lib/visual-theme"
+import { useAgentOrder } from "@/lib/agent-order"
 import { useFeed, useMarkSeen } from "@/lib/latest"
 import { useListedAgent, usePresence, useWorkspaces } from "@/lib/workspaces"
 import { DoodsButton } from "./agent-list.tsx"
@@ -190,6 +191,8 @@ export function AppShell({
   })
   // What every agent is up to arrives as it happens, for the sidebar's rows.
   useFeed(me.user.id)
+  // The order the person put each workspace's Doods in, which is the same on every device.
+  useAgentOrder(me.user.id)
   // The agent on screen is being looked at. When that was last said is in the list of agents.
   const listed = useListedAgent(agentId)
   useMarkSeen(

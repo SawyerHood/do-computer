@@ -294,3 +294,86 @@ test("an agent is dragged to another place among its workspace's, and they stay 
   await expect(page.getByRole("menuitem", { name: "Workspace settings" })).toBeVisible()
   await expect(page.getByRole("menuitem", { name: "Sort by latest" })).toHaveCount(0)
 })
+
+/** The ids of the agents under one heading, from the top row down. */
+const idsIn = (section: Locator) =>
+  section
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")?.split("/")[2] ?? ""))
+
+test("the order they were put in is the person's own on every browser, and a move in one is made in the other", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  await signIn(page)
+  const mine = agents(page).getByRole("region", { name: "Personal" })
+  await expect(mine.getByRole("link")).toHaveCount(4)
+  const [first, second, , fourth] = (await namesIn(page, mine)) as string[]
+  await drag(page, row(page, first!), row(page, fourth!))
+  const put = await namesIn(page, mine)
+  expect(put.at(-1)).toBe(first)
+  await page.screenshot({ path: "test-results/dood-order-sidebar.png" })
+  // It is the server's to keep, as soon as it has let go.
+  await expect
+    .poll(async () => {
+      const kept = (await (await page.request.get("/api/agent-order")).json()) as {
+        order: Record<string, string[]>
+      }
+      return Object.values(kept.order).some((ids) => ids.length === 4)
+    })
+    .toBe(true)
+
+  // A browser that has never been used, signed in as the same person, has them as they were put.
+  const context = await browser.newContext({ baseURL })
+  const other = await context.newPage()
+  await signIn(other)
+  const theirs = agents(other).getByRole("region", { name: "Personal" })
+  await expect.poll(() => namesIn(other, theirs)).toEqual(put)
+
+  // Moved there, they are moved here too, without this page asking for anything again.
+  await drag(other, row(other, second!), row(other, first!))
+  const after = await namesIn(other, theirs)
+  expect(after.at(-1)).toBe(second)
+  await expect.poll(() => namesIn(page, mine)).toEqual(after)
+  await page.screenshot({ path: "test-results/dood-order-sidebar-followed.png" })
+  await context.close()
+})
+
+test("an order a browser kept before the server did is carried up to it once", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  await signIn(page)
+  const team = agents(page).getByRole("region", { name: "Tidewater" })
+  await expect(team.getByRole("link")).toHaveCount(2)
+  const before = await idsIn(team)
+  const workspaceId = (
+    (await (await page.request.get("/api/workspaces")).json()) as {
+      workspaces: { id: string; name: string }[]
+    }
+  ).workspaces.find((workspace) => workspace.name === "Tidewater")!.id
+  const kept = [...before].reverse()
+
+  // A browser from before, with the order it was put in kept in its own storage.
+  const context = await browser.newContext({ baseURL })
+  await context.addInitScript(
+    ({ workspaceId, kept }) => {
+      if (sessionStorage.getItem("planted") !== null) return
+      sessionStorage.setItem("planted", "yes")
+      localStorage.setItem("dc-agent-order", JSON.stringify({ [workspaceId]: kept }))
+    },
+    { workspaceId, kept },
+  )
+  const old = await context.newPage()
+  await signIn(old)
+  const theirs = agents(old).getByRole("region", { name: "Tidewater" })
+  await expect.poll(() => idsIn(theirs)).toEqual(kept)
+  // Carried up, it is let go there, and every other browser has it now.
+  await expect.poll(() => old.evaluate(() => localStorage.getItem("dc-agent-order"))).toBeNull()
+  await expect.poll(() => idsIn(team)).toEqual(kept)
+  await old.reload()
+  await expect.poll(() => idsIn(theirs)).toEqual(kept)
+  await context.close()
+})

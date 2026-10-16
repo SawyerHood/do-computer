@@ -4,6 +4,11 @@ Everyone has a personal workspace, which only they can see. A team is a workspac
 share: start one with New team, at the foot of the sidebar's list of Doods. Once you are in one,
 the sidebar lists every workspace's Doods under its name.
 
+A workspace's Doods are the one last heard from first until you drag one to another place among
+them; from then on they stay as you put them, and Sort by latest in the workspace's menu gives
+that up. The order is yours and is kept by the deployment, so it is the same in every browser,
+the desktop app and the phone app. Everyone in a team has an order of their own.
+
 - **Inviting.** Ask people by email address or GitHub username. Each gets a link that works once,
   for seven days. An email address is written to where the deployment can send mail; otherwise
   the link is shown to whoever sent it, to pass on. An invitation to a GitHub username is waiting

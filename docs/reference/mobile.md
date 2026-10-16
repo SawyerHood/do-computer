@@ -8,7 +8,8 @@ link, automations, approval requests, dictation and push notifications. A reply 
 the web: code in its colors, tables that copy, notes, sections that fold, diagrams, pages the
 Dood drew and a connector's own page for a tool. The message box is one line
 until it is written in, and then has the Dood's model and how hard it thinks under the words.
-A picture that was copied is pasted into it and attached. Settings cover teams
+A picture that was copied is pasted into it and attached. Edit, over the list of Doods, puts a
+handle on each row to drag it to another place, in the same order as the web app's. Settings cover teams
 and their people, computers, signing in to model providers, and a workspace's saved logins and
 cards where it keeps them (see [Saved passwords and cards](passwords.md)). When a Dood asks for a
 login or for a card's security code, the form for it is above the message box, as on the web, and

@@ -155,11 +155,13 @@ export type PresenceUpdate = { agentId: string | null; chatId: string | null; ty
 /**
  * What a person's open tabs are told about the agents they can use, as it happens, over a socket
  * of the person's own. `agent` is what one of them is up to now. `seen` is that the person
- * looked at one, here or on another device.
+ * looked at one, here or on another device. `order` is that they put a workspace's Doods in an
+ * order by hand somewhere, or gave it up (`ids` null).
  */
 export type FeedEvent =
   | ({ type: "agent"; agentId: string } & AgentActivity)
   | { type: "seen"; agentId: string; seenAt: number }
+  | { type: "order"; workspaceId: string; ids: string[] | null }
 
 export type PresenceEvent =
   /** Everyone who is here, one entry for each place a person has open. */

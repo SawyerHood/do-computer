@@ -1405,3 +1405,112 @@ test("a second agent hatches and names itself, settings show who and what there 
   await open(page)
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
 })
+
+/** The Doods in the list as they are seen, from the top down, by name. */
+async function shownInOrder(page: Page): Promise<string[]> {
+  const names = new Map(
+    (
+      (await (await page.request.get("/api/agents")).json()) as {
+        agents: { id: string; name: string | null }[]
+      }
+    ).agents.map((each) => [each.id, each.name ?? ""]),
+  )
+  const ids = await page.locator('[data-testid^="agent-"]').evaluateAll((rows) =>
+    rows
+      .map((row) => ({
+        id: row.getAttribute("data-testid")!.slice(6),
+        box: row.getBoundingClientRect(),
+      }))
+      .filter((row) => row.box.height > 0)
+      .sort((a, b) => a.box.top - b.box.top)
+      .map((row) => row.id),
+  )
+  return ids.map((id) => names.get(id) ?? id)
+}
+
+test("the Doods are in the order they were put in elsewhere, and are moved on the phone too", async ({
+  page,
+}) => {
+  // As wide and as tall as a phone of the day, for its pictures.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await signIn(page)
+  const me = ((await (await page.request.get("/api/me")).json()) as { user: { id: string } }).user
+  const order = `/api/workspaces/${encodeURIComponent(`personal:${me.id}`)}/agent-order`
+  const made = (await (await page.request.post("/api/agents")).json()) as { agent: { id: string } }
+  await page.request.patch(`/api/agents/${made.agent.id}`, {
+    data: { name: "Fern", hatched: true },
+  })
+  await page.reload()
+  await expect(agent(page, "Fern")).toBeVisible()
+  const ids = Object.fromEntries(
+    (
+      (await (await page.request.get("/api/agents")).json()) as {
+        agents: { id: string; name: string }[]
+      }
+    ).agents.map((each) => [each.name, each.id]),
+  )
+
+  // Put in order in a browser, they are in that order here, as it is said and with nothing
+  // asked for again.
+  await page.request.put(order, { data: { ids: [ids.Pip, ids.Fern, ids.Dot] } })
+  await expect.poll(() => shownInOrder(page)).toEqual(["Pip", "Fern", "Dot"])
+
+  // Edit is the list's edit mode: each row has a handle, and a row is no longer opened.
+  await page.getByRole("button", { name: "Edit", exact: true }).click()
+  const handle = (name: string) => page.getByRole("button", { name: `Move ${name}` })
+  await expect(handle("Pip")).toBeVisible()
+  await page.screenshot({ path: "test-results/dood-order-phone-before.png" })
+
+  // The top one is dragged by its handle to the foot of the list. The rows it passes make room.
+  const from = (await handle("Pip").boundingBox())!
+  const to = (await handle("Dot").boundingBox())!
+  const x = from.x + from.width / 2
+  await page.mouse.move(x, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(x, from.y + from.height / 2 + 10, { steps: 3 })
+  await page.mouse.move(x, to.y + to.height / 2 + 6, { steps: 14 })
+  await expect.poll(() => shownInOrder(page)).toEqual(["Fern", "Dot", "Pip"])
+  await page.screenshot({ path: "test-results/dood-order-phone-during.png" })
+  await page.mouse.up()
+  await expect.poll(() => shownInOrder(page)).toEqual(["Fern", "Dot", "Pip"])
+  // The server has it, so every browser has it too.
+  await expect
+    .poll(
+      async () =>
+        (
+          (await (await page.request.get("/api/agent-order")).json()) as {
+            order: Record<string, string[]>
+          }
+        ).order[`personal:${me.id}`],
+    )
+    .toEqual([ids.Fern, ids.Dot, ids.Pip])
+  await page.screenshot({ path: "test-results/dood-order-phone-after.png" })
+
+  // Put in another order elsewhere while it is in edit mode, it follows that too.
+  await page.request.put(order, { data: { ids: [ids.Dot, ids.Pip, ids.Fern] } })
+  await expect.poll(() => shownInOrder(page)).toEqual(["Dot", "Pip", "Fern"])
+
+  // Done leaves edit mode, and the order is kept when the app is opened again.
+  await page.getByRole("button", { name: "Done", exact: true }).click()
+  await expect(handle("Pip")).toHaveCount(0)
+  await open(page)
+  await expect.poll(() => shownInOrder(page)).toEqual(["Dot", "Pip", "Fern"])
+
+  // Sort by latest, in edit mode, gives the order up for the one last heard from first.
+  await page.getByRole("button", { name: "Edit", exact: true }).click()
+  await page.getByRole("button", { name: "Personal: sort by latest" }).click()
+  await expect
+    .poll(
+      async () =>
+        (
+          (await (await page.request.get("/api/agent-order")).json()) as {
+            order: Record<string, string[]>
+          }
+        ).order,
+    )
+    .toEqual({})
+  await expect(page.getByRole("button", { name: "Personal: sort by latest" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Done", exact: true }).click()
+  await agent(page, "Pip").click()
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
+})
