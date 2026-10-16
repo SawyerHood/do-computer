@@ -7050,6 +7050,39 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       takes a request made as for the model one is treated as is only found by trying it: if
       it turns one down, name an older model after `=`.
 
+93. **A Dood searches for a connector's tools, and neither connectors nor their tools are
+    counted** (2026-10-16; `packages/agent/src/connectors.ts`, `actor.ts`, `models.ts`,
+    `packages/protocol/src/activity.ts`, `apps/web/src/components/settings/connectors.tsx`).
+    The owner asked whether tool search was on, and on hearing it was not: "remove the caps for
+    the number of connectors and tools and enable tool search".
+    - **What it does.** pi-durable's `tool_search` (`@earendil-works/pi-durable/tool-search`,
+      there since 1.2.0) is installed for every Dood. A connector's tools are registered
+      `deferred`: none is in a request until the Dood has searched for it, and one it found
+      stays offered in that conversation, also after a compaction. The limits of 20 connectors
+      and 60 tools a connector are gone, since a tool that is not used no longer costs prompt
+      space each turn. The `connectors` section of the prompt says to look with `tool_search`,
+      where there is a connected connector to look in.
+    - **Apps is left as it was.** Its handful of tools are offered outright: it is itself a
+      search over the tools of the services behind it, and a search to find its search would
+      be one step more for nothing.
+    - **Each conversation finds its own.** A sub-agent, an automation's run and a thread in
+      Slack start with none of a connector's tools and search for what they need. A
+      conversation that was using a connector's tools before this has them taken away once,
+      and searches.
+    - **The echo model** looks for a tool it is asked to use and is not offered, then uses it,
+      so `/tool <connector>__<tool> {…}` works as before.
+    - **In the app** a connector's card names its first twelve tools and counts the rest, and
+      a search reads "Looking for a tool: …".
+    - **Mine:** that Apps is not deferred, that every other connector's tools are however few
+      it has, and the twelve names on the card.
+    - **Checked:** the agent package's tests (a server of 303 tools is taken whole, a search
+      loads its eight best matches and they stay offered in the next turn, 25 connectors are
+      added; approvals ask about the call and not the search), the same in a Durable Object
+      under workerd, and browser tests against the built Node server, one of them new: a
+      server of 202 tools is added and one of its tools is found and used.
+    - **Not checked:** a real model deciding to search, and how well BM25 over names and
+      descriptions finds the right tool on a real server with hundreds.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

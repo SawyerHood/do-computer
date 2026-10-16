@@ -70,7 +70,9 @@
   with no network, and its cost shows up under Usage with everything else.
 - **Use your services.** Under Connectors, add a remote [MCP](https://modelcontextprotocol.io)
   server by its address, with an access token or by signing in to the service. Its tools become
-  the Dood's. Tokens stay on the server; the Dood never sees them. [Apps](apps.md) is one
+  the Dood's, however many it has, and there is no limit on connectors: the Dood searches for
+  the tools a task needs, so the ones it does not use cost nothing. Tokens stay on the server;
+  the Dood never sees them. [Apps](apps.md) is one
   that needs no address: one button, a sign-in at Composio, and the Dood reaches your own
   accounts on Gmail, Google Calendar, Slack, Notion, GitHub and hundreds of other services.
 - **Write you documents.** A workspace has one Library, which all its Doods share. On each of

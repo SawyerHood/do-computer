@@ -32,6 +32,7 @@ describe("toolActivity", () => {
     [tool("write", { path: "/workspace/plan.md", content: "x" }), "Writing plan.md"],
     [tool("edit", { path: "plan.md", computer: "studio" }), "Editing plan.md on studio"],
     [tool("web_search", { query: "latest Node LTS" }), "Searching the web: latest Node LTS"],
+    [tool("tool_search", { query: "calendar events" }), "Looking for a tool: calendar events"],
     [tool("sign_in", {}), "Signing in"],
     [
       tool("pay", { purpose: "A domain, $12.98", computer: "MacBook" }),

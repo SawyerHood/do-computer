@@ -139,6 +139,14 @@ const ASKS = {
 } as const
 
 const useTool = (name: string, args: ToolArguments, then = "Done.") => [
+  // A connector's tool, named `<connector>__<tool>`, is not offered until it has been looked for.
+  ...(name.includes("__")
+    ? [
+        fauxAssistantMessage([fauxToolCall("tool_search", { query: name })], {
+          stopReason: "toolUse",
+        }),
+      ]
+    : []),
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
   fauxAssistantMessage(then),
 ]
@@ -293,7 +301,10 @@ describe("approval rules", () => {
     await call(world, "/approvals/rules", "PATCH", { [subject]: "ask" })
     world.faux.setResponses(useTool("calculator__add", { a: 1, b: 2 }, "May I?"))
     const asked = await say(world, chat.id, "add")
-    expect(tools(asked)[0]!.output).toContain("(Use Calculator)")
+    // Looking for its tools is not using them: only the call is asked about.
+    expect(tools(asked).map((tool) => tool.name)).toEqual(["tool_search", "calculator__add"])
+    expect(tools(asked)[0]!.status).toBe("done")
+    expect(tools(asked)[1]!.output).toContain("(Use Calculator)")
     expect(world.mcp.calls).toEqual([])
     // Tools that are not the connector's are untouched.
     world.faux.setResponses(useTool("bash", { command: "echo free" }))

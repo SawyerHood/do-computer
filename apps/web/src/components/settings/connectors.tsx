@@ -41,6 +41,18 @@ const STATUS = {
   error: { label: "Not connected", tone: "bg-destructive/15 text-destructive" },
 } as const
 
+/** How many of a connector's tools are named on its card: a server may have hundreds. */
+const TOOLS_NAMED = 12
+
+/** A connector's tools by name, the first few of them where there are many. */
+function toolNames(tools: ConnectorSummary["tools"]): string {
+  const named = tools
+    .slice(0, TOOLS_NAMED)
+    .map((tool) => tool.name)
+    .join(", ")
+  return tools.length > TOOLS_NAMED ? `${named} and ${tools.length - TOOLS_NAMED} more` : named
+}
+
 /** The way to the guide about Apps, which opens beside the app and leaves these settings open. */
 function AppsGuide({ children }: { children: string }) {
   return (
@@ -130,7 +142,7 @@ function ConnectorCard({ agentId, connector }: { agentId: string; connector: Con
             <p className="text-muted-foreground">
               {connector.tools.length === 0
                 ? "It offers no tools."
-                : `${connector.tools.length} tools: ${connector.tools.map((tool) => tool.name).join(", ")}`}
+                : `${connector.tools.length} tools: ${toolNames(connector.tools)}`}
             </p>
           ) : connector.status === "needs_auth" ? (
             <p className="text-muted-foreground">Sign in to the service to let your Dood use it.</p>

@@ -12,6 +12,7 @@ import {
   type ToolPart,
 } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
+import type { Context } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -98,9 +99,24 @@ async function say(world: World, chatId: string, text: string): Promise<ChatStat
   }
 }
 
+/** The names of the tools a request offers the model, as its system messages give and take them. */
+function toolsOffered(context: Context): string[] {
+  const names = new Set<string>()
+  for (const message of context.messages) {
+    if (message.role !== "system") continue
+    for (const tool of message.toolsRemoved ?? []) names.delete(tool.name)
+    for (const tool of message.toolsAdded ?? []) names.add(tool.name)
+  }
+  return [...names]
+}
+
 const lastTool = (state: ChatState) =>
   state.messages.flatMap((m) => m.parts).findLast((part): part is ToolPart => part.type === "tool")!
+/** Look for a connector's tool: none is offered until it has been found. */
+const find = (query: string) =>
+  fauxAssistantMessage([fauxToolCall("tool_search", { query })], { stopReason: "toolUse" })
 const useTool = (name: string, args: Record<string, number | string>) => [
+  find(name),
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
   fauxAssistantMessage("done"),
 ]
@@ -135,20 +151,78 @@ describe("connectors", () => {
     })
     expect(connector.tools.map((tool) => tool.name)).toEqual(["add", "whoami", "always.fails"])
 
-    let prompt = ""
+    // Its tools are not offered until they are looked for, so that a server with hundreds of
+    // them costs nothing in a turn that needs none.
+    const offered: string[][] = []
+    const names = (context: Context) => {
+      offered.push(toolsOffered(context))
+    }
     world.faux.setResponses([
       (context) => {
-        prompt = JSON.stringify(context)
+        names(context)
+        return find("add numbers")
+      },
+      (context) => {
+        names(context)
         return fauxAssistantMessage([fauxToolCall("calculator__add", { a: 2, b: 40 })], {
           stopReason: "toolUse",
         })
       },
       fauxAssistantMessage("42."),
     ])
-    const tool = lastTool(await say(world, chat.id, "what is 2 + 40?"))
-    expect(prompt).toContain("[Calculator] Add two numbers")
+    const state = await say(world, chat.id, "what is 2 + 40?")
+    const tool = lastTool(state)
+    expect(offered[0]).toContain("tool_search")
+    expect(offered[0]!.filter((name) => name.startsWith("calculator__"))).toEqual([])
+    expect(offered[1]).toContain("calculator__add")
+    const search = state.messages
+      .flatMap((m) => m.parts)
+      .find((part): part is ToolPart => part.type === "tool" && part.name === "tool_search")!
+    expect(search.output).toContain("- calculator__add: [Calculator] Add two numbers")
     expect(tool).toMatchObject({ name: "calculator__add", status: "done", output: "42" })
     expect(world.mcp.calls).toEqual([{ tool: "add", args: { a: 2, b: 40 }, authorization: null }])
+  })
+
+  it("take every tool of a server however many, and offer the agent only the ones it finds", async () => {
+    const { world, chat } = await setup({ many: 300 })
+    const { connector } = await add(world, { name: "Books", url: world.mcp.url })
+    expect(connector.tools).toHaveLength(303)
+
+    const offered: string[][] = []
+    world.faux.setResponses([
+      (context) => {
+        offered.push(toolsOffered(context))
+        return find("ledger page 271")
+      },
+      (context) => {
+        offered.push(toolsOffered(context))
+        return fauxAssistantMessage("found")
+      },
+      // Found once, a tool stays offered in that conversation.
+      (context) => {
+        offered.push(toolsOffered(context))
+        return fauxAssistantMessage("still there")
+      },
+    ])
+    const state = await say(world, chat.id, "page 271 of the ledger")
+    await say(world, chat.id, "and again")
+    const ofBooks = (names: string[]) => names.filter((name) => name.startsWith("books__"))
+    expect(ofBooks(offered[0]!)).toEqual([])
+    // The best match first, and no more of the rest than a search loads.
+    const loaded = (lastTool(state).details as { loaded: string[] }).loaded
+    expect(loaded[0]).toBe("books__ledger_271")
+    expect(loaded).toHaveLength(8)
+    expect(ofBooks(offered[1]!).sort()).toEqual([...loaded].sort())
+    expect(ofBooks(offered[2]!).sort()).toEqual([...loaded].sort())
+  })
+
+  it("have no limit on how many there are", async () => {
+    const { world } = await setup()
+    for (let index = 0; index < 25; index++) {
+      const { connector } = await add(world, { name: `Service ${index}`, url: world.mcp.url })
+      expect(connector.status).toBe("connected")
+    }
+    expect(await connectors(world)).toHaveLength(25)
   })
 
   it("pass a tool's own failure to the agent as a failure", async () => {
@@ -177,6 +251,7 @@ describe("connectors", () => {
     expect(connector.status).toBe("connected")
     let prompt = ""
     world.faux.setResponses([
+      find("private__whoami"),
       (context) => {
         prompt = JSON.stringify(context)
         return fauxAssistantMessage([fauxToolCall("private__whoami", {})], {
@@ -305,16 +380,17 @@ describe("connectors", () => {
     const mcp = fakeMcp({ oauth: true })
     const reopened = open(directory, mcp)
     const chat = await call<ChatSummary>(reopened, "/chats", "POST", {})
-    let prompt = ""
+    let offered: string[] = []
     reopened.faux.setResponses([
+      find("add numbers"),
       (context) => {
-        prompt = JSON.stringify(context)
+        offered = toolsOffered(context)
         return fauxAssistantMessage("hello")
       },
     ])
     await say(reopened, chat.id, "hi")
-    // The tools are offered from what was remembered; the service has not been contacted.
-    expect(prompt).toContain("[Notes] Add two numbers")
+    // The tools are found in what was remembered; the service has not been contacted.
+    expect(offered).toContain("notes__add")
     expect(mcp.requests).toEqual([])
 
     reopened.faux.setResponses(useTool("notes__add", { a: 1, b: 2 }))

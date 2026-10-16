@@ -57,6 +57,8 @@ export function toolActivity(part: Pick<ToolPart, "name" | "args">): string {
       return path === undefined ? `Editing a file${on}` : `Editing ${fileName(path)}${on}`
     case "web_search":
       return withDetail("Searching the web", text(args.query))
+    case "tool_search":
+      return withDetail("Looking for a tool", text(args.query))
     case "sign_in":
       return withDetail(`Signing in${on}`, text(args.login))
     case "pay":
@@ -254,6 +256,7 @@ export function toolKind(name: string): WorkKind {
     case "pin":
       return "file"
     case "web_search":
+    case "tool_search":
     case "history":
       return "search"
     case "memory":

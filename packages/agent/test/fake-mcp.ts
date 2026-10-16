@@ -24,6 +24,8 @@ export type FakeMcpOptions = {
    * `page` is what it gives when the page is read: left out, a small page of its own.
    */
   apps?: boolean | { page: Record<string, unknown> }
+  /** This many more tools, `ledger_0` and up, for a server with more than anyone would be shown. */
+  many?: number
 }
 
 /** The address of the page the server has for its `forecast` tool. */
@@ -183,7 +185,17 @@ export function fakeMcp(options: FakeMcpOptions = {}) {
       case "ping":
         return result({})
       case "tools/list":
-        return result({ tools: options.apps ? [...TOOLS, ...APP_TOOLS] : TOOLS })
+        return result({
+          tools: [
+            ...TOOLS,
+            ...(options.apps ? APP_TOOLS : []),
+            ...Array.from({ length: options.many ?? 0 }, (_, index) => ({
+              name: `ledger_${index}`,
+              description: `Read page ${index} of the ledger`,
+              inputSchema: { type: "object", properties: {} },
+            })),
+          ],
+        })
       case "resources/read": {
         if (!options.apps || message.params?.uri !== APP_URI) {
           return json({

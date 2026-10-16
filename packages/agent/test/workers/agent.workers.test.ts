@@ -273,6 +273,10 @@ describe("connectors in a Durable Object", () => {
 
     const chat = await scriptedCall<ChatSummary>("/chats", "POST", {})
     scripted.setResponses([
+      // A connector's tool is not offered until it has been looked for.
+      fauxAssistantMessage([fauxToolCall("tool_search", { query: "sums add" })], {
+        stopReason: "toolUse",
+      }),
       fauxAssistantMessage([fauxToolCall("sums__add", { a: 20, b: 22 })], {
         stopReason: "toolUse",
       }),
