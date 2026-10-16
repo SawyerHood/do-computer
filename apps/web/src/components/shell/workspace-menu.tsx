@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { agentOrderAtom } from "@/lib/atoms"
+import { agentOrderAtom } from "@/lib/agent-order"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { useWorkspaces } from "@/lib/workspaces"

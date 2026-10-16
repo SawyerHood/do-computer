@@ -1,9 +1,15 @@
-import type { AgentSummary, Person, WorkspaceSummary } from "@do-computer/protocol"
+import {
+  type AgentSummary,
+  type Person,
+  personalWorkspaceId,
+  type WorkspaceSummary,
+} from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useRouter } from "expo-router"
-import { useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from "react-native"
-import { isUnread, latestFirst, latestWords, when } from "@/lib/latest"
+import { inOrder, isUnread, latestWords, when } from "@/lib/latest"
+import { useDoodOrder } from "@/lib/order"
 import { useHere } from "@/lib/presence"
 import { keys, useAgents, useMe, useSeenHere, useWorkspaces } from "@/lib/queries"
 import { storage } from "@/lib/storage"
@@ -21,6 +27,7 @@ import {
   Menu,
   type MenuItem,
   Screen,
+  Sortable,
   tell,
   Text,
   Tile,
@@ -63,6 +70,11 @@ function useNow(): number {
  * The agents, under the workspace each lives in: what the web app keeps in its sidebar. Choosing
  * one opens its main chat. Everything else of an agent is behind a hold on its row, and
  * everything of the person's own is behind their face.
+ *
+ * A workspace's agents are in the order the person put them in, which is the web app's too and
+ * kept on the server, or latest-first until they are first moved. Edit, in the bar, is the list's
+ * edit mode, as Mail's and Reminders' are: each row has a handle to drag it by, and a workspace
+ * that was put in order can be given back to latest-first.
  */
 export default function Agents() {
   const theme = useTheme()
@@ -79,6 +91,10 @@ export default function Agents() {
   const [search, setSearch] = useState("")
   const [refreshing, setRefreshing] = useState(false)
   const [making, setMaking] = useState<string>()
+  const { order, put } = useDoodOrder()
+  const [editing, setEditing] = useState(false)
+  // While a row is in the hand, the page under it must not scroll away with the finger.
+  const [holding, setHolding] = useState(false)
   const requests = useQuery({
     queryKey: keys.computerRequests,
     queryFn: () => client.computerRequests(),
@@ -94,13 +110,30 @@ export default function Agents() {
   }, [all])
 
   const wanted = search.trim().toLowerCase()
-  const listed = latestFirst(agents.data ?? []).filter(
-    (agent) =>
-      wanted === "" ||
-      `${agent.name ?? ""} ${agent.tagline ?? ""} ${agent.latest?.text ?? ""}`
-        .toLowerCase()
-        .includes(wanted),
-  )
+  const matches = (agent: AgentSummary) =>
+    wanted === "" ||
+    `${agent.name ?? ""} ${agent.tagline ?? ""} ${agent.latest?.text ?? ""}`
+      .toLowerCase()
+      .includes(wanted)
+  const own = personalWorkspaceId(meId)
+  const workspaceOf = (agent: AgentSummary) => agent.workspaceId ?? all[0]?.id ?? own
+  /** A workspace's agents, in the order they were put in, that the search leaves. */
+  const agentsIn = (workspaceId: string) =>
+    inOrder(
+      (agents.data ?? []).filter((agent) => workspaceOf(agent) === workspaceId),
+      order?.[workspaceId],
+    ).filter(matches)
+  const listed = (agents.data ?? []).filter(matches)
+  // A search shows what it found, and nothing is moved among that.
+  const arranging = editing && wanted === ""
+  const canArrange =
+    wanted === "" &&
+    (teams ? all.map((workspace) => workspace.id) : [own]).some(
+      (workspaceId) => agentsIn(workspaceId).length > 1,
+    )
+  useEffect(() => {
+    if (!canArrange && editing) setEditing(false)
+  }, [canArrange, editing])
 
   const newAgent = async (workspace?: WorkspaceSummary) => {
     if (making !== undefined) return
@@ -145,10 +178,11 @@ export default function Agents() {
     },
   ]
 
-  const row = (agent: AgentSummary) => (
+  const row = (agent: AgentSummary, handle: ReactNode = null) => (
     <AgentRow
       key={agent.id}
       agent={agent}
+      handle={handle}
       meId={meId}
       people={people}
       now={now}
@@ -159,12 +193,32 @@ export default function Agents() {
     />
   )
 
+  /** The rows of one workspace, which can be dragged into another order in edit mode. */
+  const rows = (workspaceId: string, mine: AgentSummary[]) => {
+    const byId = new Map(mine.map((agent) => [agent.id, agent]))
+    return (
+      <Sortable
+        ids={mine.map((agent) => agent.id)}
+        editing={arranging}
+        onMove={(ids) => put(workspaceId, ids)}
+        onHolding={setHolding}
+        name={(id) => byId.get(id)?.name ?? "New Dood"}
+      >
+        {(id, handle) => {
+          const agent = byId.get(id)
+          return agent === undefined ? null : row(agent, handle)
+        }}
+      </Sortable>
+    )
+  }
+
   const empty = agents.data !== undefined && agents.data.length === 0
   return (
     <Screen
       page
       onRefresh={refresh}
       refreshing={refreshing}
+      scrollEnabled={!holding}
       contentContainerStyle={{ paddingTop: 0 }}
     >
       <Stack.Screen
@@ -196,7 +250,24 @@ export default function Agents() {
           onCancelButtonPress={() => setSearch("")}
         />
       ) : null}
-      <HeaderItems items={[{ icon: "compose", label: "New", menu: create }]} />
+      <HeaderItems
+        items={
+          arranging
+            ? [{ label: "Done", text: "Done", prominent: true, onPress: () => setEditing(false) }]
+            : [
+                {
+                  label: "Edit",
+                  text: "Edit",
+                  hidden: !canArrange,
+                  onPress: () => {
+                    haptic.tap()
+                    setEditing(true)
+                  },
+                },
+                { icon: "compose", label: "New", menu: create },
+              ]
+        }
+      />
 
       {agents.data === undefined ? (
         agents.error ? (
@@ -220,10 +291,24 @@ export default function Agents() {
           />
         </View>
       ) : !teams ? (
-        listed.map(row)
+        <>
+          {arranging && order?.[own] !== undefined ? (
+            // With no workspaces' headings, it has a line of its own over the rows.
+            <View style={[styles.header, { justifyContent: "flex-end", marginTop: 0 }]}>
+              <SortByLatest
+                name="Personal"
+                onPress={() => {
+                  haptic.tap()
+                  put(own, null)
+                }}
+              />
+            </View>
+          ) : null}
+          {rows(own, agentsIn(own))}
+        </>
       ) : (
         all.map((workspace) => {
-          const mine = listed.filter((agent) => (agent.workspaceId ?? all[0]?.id) === workspace.id)
+          const mine = agentsIn(workspace.id)
           if (wanted !== "" && mine.length === 0) return null
           const shut = folded.includes(workspace.id) && wanted === ""
           const present = (here[workspace.id] ?? [])
@@ -245,6 +330,15 @@ export default function Agents() {
                 faces={shut ? mine.slice(0, 3) : []}
                 onNew={() => void newAgent(workspace)}
                 making={making === workspace.id}
+                editing={arranging}
+                onLatest={
+                  order?.[workspace.id] === undefined
+                    ? undefined
+                    : () => {
+                        haptic.tap()
+                        put(workspace.id, null)
+                      }
+                }
               />
               {shut ? null : mine.length === 0 ? (
                 <Text
@@ -257,7 +351,7 @@ export default function Agents() {
                     : "You have no Doods of your own yet."}
                 </Text>
               ) : (
-                mine.map(row)
+                rows(workspace.id, mine)
               )}
             </View>
           )
@@ -323,6 +417,8 @@ function WorkspaceHeader({
   faces,
   onNew,
   making,
+  editing,
+  onLatest,
 }: {
   workspace: WorkspaceSummary
   /** Whose the personal workspace is: it is marked with their face. */
@@ -334,6 +430,10 @@ function WorkspaceHeader({
   faces: AgentSummary[]
   onNew: () => void
   making: boolean
+  /** The list is in edit mode: what the heading offers is what can be done to its order. */
+  editing: boolean
+  /** Give up the order the workspace's Doods were put in, where they were. */
+  onLatest: (() => void) | undefined
 }) {
   const theme = useTheme()
   const router = useRouter()
@@ -395,36 +495,67 @@ function WorkspaceHeader({
           <Faces people={present} ring={theme.page} />
         </Pressable>
       )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${name}: workspace settings`}
-        hitSlop={8}
-        onPress={() => router.push(`/settings/w/${encodeURIComponent(workspace.id)}`)}
-        onLongPress={
-          canInvite ? () => router.push(`/w/${encodeURIComponent(workspace.id)}/invite`) : undefined
-        }
-      >
-        <Icon name="more" size={20} color={theme.ink2} weight="medium" />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={team ? `New Dood in ${name}` : "New Dood"}
-        hitSlop={8}
-        onPress={onNew}
-        disabled={making}
-      >
-        {making ? (
-          <ActivityIndicator />
-        ) : (
-          <Icon name="plus" size={20} color={theme.ink2} weight="medium" />
-        )}
-      </Pressable>
+      {editing ? (
+        <SortByLatest onPress={onLatest} name={name} />
+      ) : (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${name}: workspace settings`}
+            hitSlop={8}
+            onPress={() => router.push(`/settings/w/${encodeURIComponent(workspace.id)}`)}
+            onLongPress={
+              canInvite
+                ? () => router.push(`/w/${encodeURIComponent(workspace.id)}/invite`)
+                : undefined
+            }
+          >
+            <Icon name="more" size={20} color={theme.ink2} weight="medium" />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={team ? `New Dood in ${name}` : "New Dood"}
+            hitSlop={8}
+            onPress={onNew}
+            disabled={making}
+          >
+            {making ? (
+              <ActivityIndicator />
+            ) : (
+              <Icon name="plus" size={20} color={theme.ink2} weight="medium" />
+            )}
+          </Pressable>
+        </>
+      )}
     </View>
+  )
+}
+
+/**
+ * In edit mode, what gives a workspace's order up for the one last heard from first. It is only
+ * there for a workspace whose Doods were put in an order.
+ */
+function SortByLatest({ onPress, name }: { onPress: (() => void) | undefined; name: string }) {
+  if (onPress === undefined) return null
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${name}: sort by latest`}
+      hitSlop={8}
+      onPress={onPress}
+    >
+      {({ pressed }) => (
+        <Text variant="subhead" tone="tint" style={{ opacity: pressed ? 0.5 : 1 }}>
+          Sort by latest
+        </Text>
+      )}
+    </Pressable>
   )
 }
 
 function AgentRow({
   agent,
+  handle,
   meId,
   people,
   now,
@@ -432,6 +563,8 @@ function AgentRow({
   with: together,
 }: {
   agent: AgentSummary
+  /** In edit mode, what the row is dragged by. A row in edit mode is not opened. */
+  handle: ReactNode
   meId: string
   people: ReadonlyMap<string, Person>
   now: number
@@ -470,6 +603,9 @@ function AgentRow({
       accessibilityRole="button"
       accessibilityLabel={said}
       testID={`agent-${agent.id}`}
+      // In edit mode the row is only what its handle moves, and its handle is what is read out.
+      accessible={handle === null}
+      disabled={handle !== null}
       onPress={() => router.push(base)}
       style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.fill } : null]}
     >
@@ -579,9 +715,15 @@ function AgentRow({
     },
   ]
   return (
-    <Menu longPress items={items} title={name}>
-      {content}
-    </Menu>
+    // The handle is beside the row and not in it, so that a finger on it is never a press of
+    // the row. The row is laid out the same way in and out of edit mode, so that going into it
+    // does not draw the creature again.
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <Menu longPress items={handle === null ? items : []} title={name} style={{ flex: 1 }}>
+        {content}
+      </Menu>
+      {handle === null ? null : <View style={{ marginRight: EDGE - INSET - 4 }}>{handle}</View>}
+    </View>
   )
 }
 

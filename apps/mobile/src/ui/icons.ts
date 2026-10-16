@@ -22,6 +22,7 @@ export const ICONS = {
     '<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/>',
   ],
   more: ["ellipsis", '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="2.8"/>'],
+  reorder: ["line.3.horizontal", '<path d="M4 7.500h16M4 12h16M4 16.500h16"/>'],
   chats: [
     "bubble.left.and.bubble.right",
     '<path d="M14 9.500A5.5 5.5 0 0 0 8.5 4h-1A5.5 5.5 0 0 0 4 13.700V17l3-1.600h1.5"/><path d="M11 13.500a4.5 4.5 0 0 1 4.5-4.500h1a4.5 4.5 0 0 1 3 7.900V20l-2.8-1.500h-1.200a4.5 4.5 0 0 1-4.5-4.500z"/>',

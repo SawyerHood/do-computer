@@ -19,6 +19,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AppPairRouteImport } from './routes/_app.pair'
+import { Route as ApiAgentOrderRouteImport } from './routes/api/agent-order'
 import { Route as ApiAuthMethodsRouteImport } from './routes/api/auth-methods'
 import { Route as ApiComputerKindsRouteImport } from './routes/api/computer-kinds'
 import { Route as ApiDaemonVersionRouteImport } from './routes/api/daemon-version'
@@ -85,6 +86,7 @@ import { Route as ApiInvitationsKeyIndexRouteImport } from './routes/api/invitat
 import { Route as ApiInvitationsKeyAcceptRouteImport } from './routes/api/invitations/$key.accept'
 import { Route as ApiSlackEventsAgentIdRouteImport } from './routes/api/slack/events.$agentId'
 import { Route as ApiWorkspacesWorkspaceIdIndexRouteImport } from './routes/api/workspaces/$workspaceId.index'
+import { Route as ApiWorkspacesWorkspaceIdAgentOrderRouteImport } from './routes/api/workspaces/$workspaceId.agent-order'
 import { Route as ApiWorkspacesWorkspaceIdSettingsRouteImport } from './routes/api/workspaces/$workspaceId.settings'
 import { Route as AppAAgentIdCChatIdRouteImport } from './routes/_app.a.$agentId.c.$chatId'
 import { Route as ApiAgentsAgentIdSitesSiteIdRouteImport } from './routes/api/agents/$agentId.sites.$siteId'
@@ -152,6 +154,11 @@ const AppPairRoute = AppPairRouteImport.update({
   id: '/pair',
   path: '/pair',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiAgentOrderRoute = ApiAgentOrderRouteImport.update({
+  id: '/api/agent-order',
+  path: '/api/agent-order',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthMethodsRoute = ApiAuthMethodsRouteImport.update({
   id: '/api/auth-methods',
@@ -488,6 +495,12 @@ const ApiWorkspacesWorkspaceIdIndexRoute =
     path: '/api/workspaces/$workspaceId/',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdAgentOrderRoute =
+  ApiWorkspacesWorkspaceIdAgentOrderRouteImport.update({
+    id: '/api/workspaces/$workspaceId/agent-order',
+    path: '/api/workspaces/$workspaceId/agent-order',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorkspacesWorkspaceIdSettingsRoute =
   ApiWorkspacesWorkspaceIdSettingsRouteImport.update({
     id: '/api/workspaces/$workspaceId/settings',
@@ -606,6 +619,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/welcome': typeof WelcomeRoute
   '/pair': typeof AppPairRoute
+  '/api/agent-order': typeof ApiAgentOrderRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/computer-kinds': typeof ApiComputerKindsRoute
   '/api/daemon-version': typeof ApiDaemonVersionRoute
@@ -666,6 +680,7 @@ export interface FileRoutesByFullPath {
   '/api/doods/$doodId/treat': typeof ApiDoodsDoodIdTreatRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
+  '/api/workspaces/$workspaceId/agent-order': typeof ApiWorkspacesWorkspaceIdAgentOrderRoute
   '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
@@ -701,6 +716,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/welcome': typeof WelcomeRoute
   '/pair': typeof AppPairRoute
+  '/api/agent-order': typeof ApiAgentOrderRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/computer-kinds': typeof ApiComputerKindsRoute
   '/api/daemon-version': typeof ApiDaemonVersionRoute
@@ -759,6 +775,7 @@ export interface FileRoutesByTo {
   '/api/doods/$doodId/treat': typeof ApiDoodsDoodIdTreatRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
+  '/api/workspaces/$workspaceId/agent-order': typeof ApiWorkspacesWorkspaceIdAgentOrderRoute
   '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/a/$agentId': typeof AppAAgentIdIndexRoute
   '/w/$workspaceId': typeof AppWWorkspaceIdIndexRoute
@@ -796,6 +813,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/welcome': typeof WelcomeRoute
   '/_app/pair': typeof AppPairRoute
+  '/api/agent-order': typeof ApiAgentOrderRoute
   '/api/auth-methods': typeof ApiAuthMethodsRoute
   '/api/computer-kinds': typeof ApiComputerKindsRoute
   '/api/daemon-version': typeof ApiDaemonVersionRoute
@@ -856,6 +874,7 @@ export interface FileRoutesById {
   '/api/doods/$doodId/treat': typeof ApiDoodsDoodIdTreatRoute
   '/api/invitations/$key/accept': typeof ApiInvitationsKeyAcceptRoute
   '/api/slack/events/$agentId': typeof ApiSlackEventsAgentIdRoute
+  '/api/workspaces/$workspaceId/agent-order': typeof ApiWorkspacesWorkspaceIdAgentOrderRoute
   '/api/workspaces/$workspaceId/settings': typeof ApiWorkspacesWorkspaceIdSettingsRoute
   '/_app/a/$agentId/': typeof AppAAgentIdIndexRoute
   '/_app/w/$workspaceId/': typeof AppWWorkspaceIdIndexRoute
@@ -893,6 +912,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/welcome'
     | '/pair'
+    | '/api/agent-order'
     | '/api/auth-methods'
     | '/api/computer-kinds'
     | '/api/daemon-version'
@@ -953,6 +973,7 @@ export interface FileRouteTypes {
     | '/api/doods/$doodId/treat'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
+    | '/api/workspaces/$workspaceId/agent-order'
     | '/api/workspaces/$workspaceId/settings'
     | '/a/$agentId/'
     | '/w/$workspaceId/'
@@ -988,6 +1009,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/welcome'
     | '/pair'
+    | '/api/agent-order'
     | '/api/auth-methods'
     | '/api/computer-kinds'
     | '/api/daemon-version'
@@ -1046,6 +1068,7 @@ export interface FileRouteTypes {
     | '/api/doods/$doodId/treat'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
+    | '/api/workspaces/$workspaceId/agent-order'
     | '/api/workspaces/$workspaceId/settings'
     | '/a/$agentId'
     | '/w/$workspaceId'
@@ -1082,6 +1105,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/welcome'
     | '/_app/pair'
+    | '/api/agent-order'
     | '/api/auth-methods'
     | '/api/computer-kinds'
     | '/api/daemon-version'
@@ -1142,6 +1166,7 @@ export interface FileRouteTypes {
     | '/api/doods/$doodId/treat'
     | '/api/invitations/$key/accept'
     | '/api/slack/events/$agentId'
+    | '/api/workspaces/$workspaceId/agent-order'
     | '/api/workspaces/$workspaceId/settings'
     | '/_app/a/$agentId/'
     | '/_app/w/$workspaceId/'
@@ -1178,6 +1203,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   WelcomeRoute: typeof WelcomeRoute
+  ApiAgentOrderRoute: typeof ApiAgentOrderRoute
   ApiAuthMethodsRoute: typeof ApiAuthMethodsRoute
   ApiComputerKindsRoute: typeof ApiComputerKindsRoute
   ApiDaemonVersionRoute: typeof ApiDaemonVersionRoute
@@ -1226,6 +1252,7 @@ export interface RootRouteChildren {
   ApiDoodsDoodIdTreatRoute: typeof ApiDoodsDoodIdTreatRoute
   ApiInvitationsKeyAcceptRoute: typeof ApiInvitationsKeyAcceptRoute
   ApiSlackEventsAgentIdRoute: typeof ApiSlackEventsAgentIdRoute
+  ApiWorkspacesWorkspaceIdAgentOrderRoute: typeof ApiWorkspacesWorkspaceIdAgentOrderRoute
   ApiWorkspacesWorkspaceIdSettingsRoute: typeof ApiWorkspacesWorkspaceIdSettingsRoute
   ApiComputersRequestsIndexRoute: typeof ApiComputersRequestsIndexRoute
   ApiDoodsDoodIdIndexRoute: typeof ApiDoodsDoodIdIndexRoute
@@ -1317,6 +1344,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/pair'
       preLoaderRoute: typeof AppPairRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/agent-order': {
+      id: '/api/agent-order'
+      path: '/api/agent-order'
+      fullPath: '/api/agent-order'
+      preLoaderRoute: typeof ApiAgentOrderRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth-methods': {
       id: '/api/auth-methods'
@@ -1780,6 +1814,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/agent-order': {
+      id: '/api/workspaces/$workspaceId/agent-order'
+      path: '/api/workspaces/$workspaceId/agent-order'
+      fullPath: '/api/workspaces/$workspaceId/agent-order'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdAgentOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspaces/$workspaceId/settings': {
       id: '/api/workspaces/$workspaceId/settings'
       path: '/api/workspaces/$workspaceId/settings'
@@ -2022,6 +2063,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   WelcomeRoute: WelcomeRoute,
+  ApiAgentOrderRoute: ApiAgentOrderRoute,
   ApiAuthMethodsRoute: ApiAuthMethodsRoute,
   ApiComputerKindsRoute: ApiComputerKindsRoute,
   ApiDaemonVersionRoute: ApiDaemonVersionRoute,
@@ -2070,6 +2112,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDoodsDoodIdTreatRoute: ApiDoodsDoodIdTreatRoute,
   ApiInvitationsKeyAcceptRoute: ApiInvitationsKeyAcceptRoute,
   ApiSlackEventsAgentIdRoute: ApiSlackEventsAgentIdRoute,
+  ApiWorkspacesWorkspaceIdAgentOrderRoute:
+    ApiWorkspacesWorkspaceIdAgentOrderRoute,
   ApiWorkspacesWorkspaceIdSettingsRoute: ApiWorkspacesWorkspaceIdSettingsRoute,
   ApiComputersRequestsIndexRoute: ApiComputersRequestsIndexRoute,
   ApiDoodsDoodIdIndexRoute: ApiDoodsDoodIdIndexRoute,

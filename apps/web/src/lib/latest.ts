@@ -1,6 +1,7 @@
 import type { AgentLatest, AgentSummary, FeedEvent, Person } from "@do-computer/protocol"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { useEffect, useState } from "react"
+import { loadAgentOrder, takeAgentOrder } from "./agent-order.ts"
 import { client } from "./client.ts"
 import { agentsCollection, agentsKey } from "./collections.ts"
 import { queryClient } from "./query.ts"
@@ -57,30 +58,8 @@ export function isUnread(
   return seen > 0 && latest.at > seen
 }
 
-/** Agents with the one that was last spoken to or heard from first. One that never was counts from when it was made. */
-export function latestFirst<T extends Pick<AgentSummary, "latest" | "createdAt">>(
-  agents: readonly T[],
-): T[] {
-  const at = (agent: T) => agent.latest?.at ?? agent.createdAt
-  return [...agents].sort((a, b) => at(b) - at(a))
-}
-
-/**
- * Agents in the order someone put them in by hand: `order` is their ids, the top one first.
- * One that is not in it came after they were last put in order, and is above the rest, the one
- * last heard from first. With no order they are all the one last heard from first.
- */
-export function inOrder<T extends Pick<AgentSummary, "id" | "latest" | "createdAt">>(
-  agents: readonly T[],
-  order: readonly string[] | undefined,
-): T[] {
-  if (order === undefined) return latestFirst(agents)
-  const place = new Map(order.map((id, index) => [id, index]))
-  const placed = agents
-    .filter((agent) => place.has(agent.id))
-    .sort((a, b) => place.get(a.id)! - place.get(b.id)!)
-  return [...latestFirst(agents.filter((agent) => !place.has(agent.id))), ...placed]
-}
+// The rules for the order of a workspace's agents are the phone's too, so they are shared.
+export { inOrder, latestFirst } from "@do-computer/protocol"
 
 const store = getDefaultStore()
 
@@ -144,6 +123,7 @@ const askAgain = () => void agentsCollection.utils.refetch().catch(() => {})
  * Into the list as it was fetched, under its own key and no other: the collection follows that.
  */
 function take(event: FeedEvent): void {
+  if (event.type === "order") return takeAgentOrder(event.workspaceId, event.ids)
   const listed = queryClient.getQueryData<AgentSummary[]>(agentsKey)
   // An agent the list does not have yet, made a moment ago by someone else or by another
   // agent: the list is asked for, which has it whole.
@@ -180,6 +160,8 @@ export function useFeed(userId: string): void {
         const fresh =
           list?.fetchStatus === "fetching" || Date.now() - (list?.dataUpdatedAt ?? 0) < FRESH_MS
         if (again || !fresh) askAgain()
+        // What was put in order elsewhere while it was down was said to nobody too.
+        if (again) void loadAgentOrder()
       },
     })
     return () => feed.close()

@@ -33,6 +33,7 @@ import {
   type ComputerRequest,
   type ComputerSummary,
   type Dood,
+  type DoodOrder,
   type MadeDood,
   type NewDood,
   type ConfirmPairingRequest,
@@ -414,6 +415,13 @@ export function createClient(options: ClientOptions) {
     listAgents: async (init?: { signal?: AbortSignal }) =>
       (await request<{ agents: AgentSummary[] }>("/api/agents", init)).agents,
     /**
+     * The order the user put each workspace's Doods in by hand, by workspace: their ids from the
+     * top down. A workspace that is not in it has its Doods latest-first. It is the user's own,
+     * the same on every device, and their other devices hear of a change on the feed.
+     */
+    agentOrder: async (init?: { signal?: AbortSignal }) =>
+      (await request<{ order: DoodOrder }>("/api/agent-order", init)).order,
+    /**
      * The models to choose from, suggested ones first. For a workspace, those an agent there
      * can be set to: the deployment's and those of the providers the workspace is signed in to.
      * For none, every model the user could choose somewhere.
@@ -463,6 +471,20 @@ export function createClient(options: ClientOptions) {
       const base = `/api/workspaces/${encodeURIComponent(workspaceId)}`
       return {
         update: (change: UpdateWorkspaceRequest) => patch<{ ok: true }>(base, change),
+        /**
+         * Keep the order the user put the workspace's Doods in, the top one first, or give it
+         * up with null. `carried` is an order kept before the server kept them, which stands
+         * only where there is none yet. Answers with what is kept now.
+         */
+        putAgentOrder: async (ids: readonly string[] | null, options: { carried?: boolean } = {}) =>
+          (
+            await request<{ ids: string[] | null }>(`${base}/agent-order`, {
+              method: ids === null ? "DELETE" : "PUT",
+              ...(ids === null
+                ? {}
+                : { body: JSON.stringify({ ids, ...(options.carried ? { carried: true } : {}) }) }),
+            })
+          ).ids,
         /** What the workspace has chosen for all its agents. */
         options: () => request<WorkspaceOptions>(`${base}/settings`),
         setOptions: (change: { showBrowser?: boolean }) =>
@@ -616,7 +638,8 @@ export function createClient(options: ClientOptions) {
     },
     /**
      * Hear what the user's agents are up to as it happens: the latest from each, whether it is
-     * at work or waiting on someone, and that the user looked at one from somewhere else.
+     * at work or waiting on someone, that the user looked at one from somewhere else, and that
+     * they put a workspace's Doods in another order somewhere else.
      * `connected` is called each time the socket is up, with `again` after a break: what was
      * said while it was down was said to nobody, so that is when to ask for the list of agents
      * again. Reconnects with backoff. Needs a platform with WebSockets that carry the session:
@@ -648,7 +671,9 @@ export function createClient(options: ClientOptions) {
         current.onmessage = (message) => {
           try {
             const event = JSON.parse(String(message.data)) as FeedEvent
-            if (event.type === "agent" || event.type === "seen") on.event(event)
+            if (event.type === "agent" || event.type === "seen" || event.type === "order") {
+              on.event(event)
+            }
           } catch {
             // Not for us.
           }
