@@ -48,6 +48,7 @@ import { toQR } from "toqr"
 import type { AppState, DeviceLink } from "./api.ts"
 import { HIDDEN_FLAG, setLinuxAutostart } from "./autostart.ts"
 import { browserConnect, browserSignIn } from "./browser-sign-in.ts"
+import { withContextMenu } from "./context-menu.ts"
 import { cookieDetails } from "./cookies.ts"
 import { DaemonRunner, seedDaemon } from "./daemon.ts"
 import { LocalServer, localAddress, ownerKey, pickPort, serverEnv } from "./local-server.ts"
@@ -1788,6 +1789,13 @@ if (process.env.APPIMAGE_EXIT_AFTER_INSTALL === "true") {
   })
   // The tray is what ends the program, not its last window closing.
   app.on("window-all-closed", () => {})
+  // Every page gets a right-click menu: spelling corrections, cut, copy and paste.
+  app.on("web-contents-created", (_event, contents) => {
+    withContextMenu(contents, (items) => {
+      const window = BrowserWindow.fromWebContents(contents) ?? undefined
+      Menu.buildFromTemplate(items).popup({ window })
+    })
+  })
   app.on("before-quit", () => {
     quitting = true
     // The daemon ends with the program either way; this is so that it ends first.
