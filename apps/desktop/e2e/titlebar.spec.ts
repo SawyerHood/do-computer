@@ -171,7 +171,7 @@ test("with no title bar the page makes room for the window's buttons and is what
     await shot(main, "workspaces")
   }
   const column = main.locator("aside").first()
-  await expect.poll(async () => (await column.boundingBox())?.width).toBe(76)
+  await expect.poll(async () => (await column.boundingBox())?.width).toBe(80)
   expect(await top()).toBeGreaterThanOrEqual(40)
   // The page under its name is where it was: nothing is pushed down by a bar of the page's own.
   expect((await main.locator("main > header").boundingBox())!.y).toBe(0)
