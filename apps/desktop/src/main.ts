@@ -70,6 +70,9 @@ import {
   shareAnswer,
   sharingNow,
   type SignInAnswer,
+  TRAY_SIDE,
+  trayFits,
+  trayPictures,
 } from "./page-bridge.ts"
 import { ScreenService } from "./screen.ts"
 import { cuaDriver, driverMissing, fakeDriver, type ScreenDriver } from "./screen-driver.ts"
@@ -1399,6 +1402,7 @@ function listenToServer(): void {
     }),
   )
   ipcMain.handle(CHANNELS.icon, served(showIcon))
+  ipcMain.handle(CHANNELS.tray, served(showTray))
   ipcMain.handle(
     CHANNELS.signInHere,
     served(async (asked: unknown): Promise<HereAnswer> => {
@@ -1635,7 +1639,42 @@ function listen(): void {
 // ---------------------------------------------------------------------------------------------
 // The tray and the menus
 
+/** The pair of pictures a page of the deployment last asked the tray to show, if it asked. */
+let ownTray: { on: Electron.NativeImage; off: Electron.NativeImage } | undefined
+
+/** A picture a page drew for the tray, at twice a tray's size, as the tray wants it. */
+function trayPicture(address: string): Electron.NativeImage | undefined {
+  const large = nativeImage.createFromDataURL(address)
+  if (large.isEmpty() || !trayFits(large.getSize())) return undefined
+  // Linux draws the picture at whatever size its panel is, so it is given the large one.
+  if (process.platform === "linux") return large
+  // Elsewhere it is one picture at both sizes, for a screen of either kind.
+  const image = nativeImage.createEmpty()
+  const small = large.resize({ width: TRAY_SIDE, height: TRAY_SIDE, quality: "best" })
+  image.addRepresentation({ scaleFactor: 1, dataURL: small.toDataURL() })
+  image.addRepresentation({ scaleFactor: 2, dataURL: address })
+  return image
+}
+
+/**
+ * Show a page's pictures in the tray, its owner's own agent, or the usual ones again. They
+ * last as long as the app runs, as the picture the app itself is shown by does.
+ */
+function showTray(asked: unknown): void {
+  const pictures = trayPictures(asked)
+  if (pictures === undefined) return
+  if (pictures === null) ownTray = undefined
+  else {
+    const [on, off] = [trayPicture(pictures.on), trayPicture(pictures.off)]
+    if (on === undefined || off === undefined) return
+    ownTray = { on, off }
+  }
+  drawn = ""
+  drawTray()
+}
+
 function trayImage(on: boolean) {
+  if (ownTray !== undefined) return on ? ownTray.on : ownTray.off
   // Linux draws the picture at whatever size its panel is, so it is given the large one.
   const file = `tray${on ? "" : "-off"}${process.platform === "linux" ? "@2x" : ""}.png`
   return nativeImage.createFromPath(here("assets", file))

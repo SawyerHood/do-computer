@@ -79,6 +79,12 @@ export type DesktopBridge = PageInfo & {
    */
   setIcon(picture: string | null): Promise<void>
   /**
+   * The pictures the app's tray shows while it runs: the same agent alone, `on` while agents
+   * can use this computer and `off` while they cannot. Each is a PNG's address, twice the size
+   * a tray's picture is. Null is the app's usual pair again.
+   */
+  setTray(pictures: { on: string; off: string } | null): Promise<void>
+  /**
    * Where the app runs the server: sign this window in as its owner, who is called `name`
    * from the first time on. Elsewhere it resolves with an error.
    */
@@ -100,6 +106,7 @@ export const CHANNELS = {
   finish: "page-finish",
   screen: "page-screen",
   icon: "page-icon",
+  tray: "page-tray",
   signInHere: "page-sign-in-here",
   pairedAs: "page-paired-as",
   titleBar: "page-title-bar",
@@ -214,6 +221,26 @@ export function iconPicture(asked: unknown): string | null | undefined {
   }
   return asked
 }
+
+/**
+ * The pair of pictures a page asked the tray to show, or null for the usual pair. Undefined is
+ * anything else, which is left unanswered.
+ */
+export function trayPictures(asked: unknown): { on: string; off: string } | null | undefined {
+  if (asked === null) return null
+  if (typeof asked !== "object" || asked === undefined) return undefined
+  const { on, off } = asked as { on?: unknown; off?: unknown }
+  const [shown, resting] = [iconPicture(on), iconPicture(off)]
+  if (typeof shown !== "string" || typeof resting !== "string") return undefined
+  return { on: shown, off: resting }
+}
+
+/** The side of a tray's picture, which a page draws at twice that. */
+export const TRAY_SIDE = 18
+
+/** Whether a picture of this size can be the tray's: its usual one, at twice its size. */
+export const trayFits = (size: { width: number; height: number }): boolean =>
+  size.width === TRAY_SIDE * 2 && size.height === TRAY_SIDE * 2
 
 /** Whether a picture of this size can be what the app is shown by: square, and of a size icons are. */
 export const iconFits = (size: { width: number; height: number }): boolean =>

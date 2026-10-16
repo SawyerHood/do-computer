@@ -58,6 +58,12 @@ export type DesktopBridge = {
    */
   setIcon?(picture: string | null): Promise<void>
   /**
+   * The pictures the app's tray shows while it runs: `on` while agents can use this computer
+   * and `off` while they cannot. Each a PNG's address, 36 pixels a side, or null for the app's
+   * usual pair. An app older than this has no such thing to ask.
+   */
+  setTray?(pictures: { on: string; off: string } | null): Promise<void>
+  /**
    * What the server knows this computer by, while agents can use it, and null while they
    * cannot. An app older than this has no such thing to ask.
    */

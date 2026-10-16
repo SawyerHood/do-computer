@@ -1,8 +1,9 @@
 // Draws the app's own pictures from its mascot: the tab's icon, the icons a phone and a
 // desktop show for the app, the tray's, and the mark on the desktop app's own pages. The
 // creature is one grown from a seed, in the app's teal, drawn by the same code that draws every
-// agent's; where there is room it stands on the island of the first run at sunrise, as an
-// agent's own does in the desktop app's icon (see packages/mascot/src/portrait.js).
+// agent's; where there is room it stands on the island of the first run at sunrise, and in the
+// desktop app's icon on its own color made deep, as an agent's own does there (see
+// packages/mascot/src/portrait.js).
 // `node scripts/icons.mjs` writes them all where they are used; it needs a Chromium that
 // Playwright can start (PLAYWRIGHT_CHROMIUM_PATH names one that is already here).
 //
@@ -28,7 +29,7 @@ const LOOK = {
 }
 
 /**
- * Every picture. A tile is the creature on its island: `grid` is how many of the creature's
+ * Every picture. A tile is the creature on its island, or with `plain` on its own color: `grid` is how many of the creature's
  * pixels the square is across, `scale` how large each is drawn, `zoom` how near it is stood
  * to, `round` how much of it the corners are rounded by, and `inset` the clear room left
  * around it. A sprite is the creature alone, without the ball that floats over its head, in a
@@ -43,11 +44,15 @@ const PICTURES = [
   { file: "apps/web/public/apple-touch-icon.png", tile: { grid: 90, scale: 2, zoom: 0.92 } },
   // The phone app's own, which iOS also cuts to its shape: 1024 across, as the App Store asks.
   { file: "apps/mobile/assets/icon.png", tile: { grid: 128, scale: 8, zoom: 0.92 } },
-  { file: "apps/desktop/assets/icon.png", tile: { grid: 128, scale: 8, round: 0.225 } },
+  // A desktop's are quieter: the creature on its own color, made deep.
+  {
+    file: "apps/desktop/assets/icon.png",
+    tile: { grid: 128, scale: 8, round: 0.225, plain: true },
+  },
   // A Mac's icons are a square of 824 in a picture of 1024, which is how its own are drawn.
   {
     file: "apps/desktop/assets/icon-mac.png",
-    tile: { grid: 103, scale: 8, round: 0.225, inset: 100 },
+    tile: { grid: 103, scale: 8, round: 0.225, inset: 100, plain: true },
   },
   { file: "apps/desktop/assets/tray.png", sprite: { size: 18, half: true } },
   { file: "apps/desktop/assets/tray@2x.png", sprite: { size: 36 } },
@@ -74,114 +79,22 @@ async function draw({ look, pictures }) {
     return canvas
   }
 
-  /**
-   * The creature's picture without its shadow, and the box around what is left: its body, and
-   * the ball over its head if that is wanted.
-   */
-  function alone(image, ball) {
-    const { width, height, data } = image
-    const solid = (index) => data[index * 4 + 3] >= 128
-    const group = new Int32Array(width * height).fill(-1)
-    const sizes = []
-    for (let start = 0; start < width * height; start++) {
-      if (!solid(start) || group[start] !== -1) continue
-      const stack = [start]
-      group[start] = sizes.length
-      let size = 0
-      while (stack.length > 0) {
-        const at = stack.pop()
-        size++
-        const [x, y] = [at % width, Math.floor(at / width)]
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const [nx, ny] = [x + dx, y + dy]
-            if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-            const next = ny * width + nx
-            if (!solid(next) || group[next] !== -1) continue
-            group[next] = sizes.length
-            stack.push(next)
-          }
-        }
-      }
-      sizes.push(size)
-    }
-    // The ball is a hundredth of its body and more. Its shadow is faint, and a tile draws
-    // its own.
-    const least = Math.max(...sizes) * (ball ? 0.006 : 1)
-    let [left, top, right, bottom] = [width, height, -1, -1]
-    for (let at = 0; at < width * height; at++) {
-      if (group[at] !== -1 && sizes[group[at]] >= least) {
-        data[at * 4 + 3] = 255
-        const [x, y] = [at % width, Math.floor(at / width)]
-        left = Math.min(left, x)
-        right = Math.max(right, x)
-        top = Math.min(top, y)
-        bottom = Math.max(bottom, y)
-      } else {
-        data[at * 4 + 3] = 0
-      }
-    }
-    return { image, left, top, width: right - left + 1, height: bottom - top + 1 }
-  }
-
-  /**
-   * The creature alone, on a canvas that it fills: as large as fits a box `wide` by `tall`
-   * pixels, each of them one of the pixels it is drawn with.
-   */
-  function creature(wide, tall, { off = false, ball = false } = {}) {
-    const canvas = canvasOf(8)
-    const orb = new AgentOrb.Orb(canvas, {
+  /** The creature alone, as large as fits a box `wide` by `tall` pixels, on a canvas it fills. */
+  const creature = (wide, tall, { off = false, ball = false } = {}) =>
+    portrait.sprite({
       seed: look.seed,
       color: off ? look.off.color : look.color,
-      size: 96,
-      pixelRatio: 1,
-      dark: true,
-      reduced: true,
-      notice: false,
+      state: off ? look.off.state : tall < look.small.under ? look.small.state : look.state,
+      wide,
+      tall,
+      ball,
     })
-    orb.setState(off ? look.off.state : tall < look.small.under ? look.small.state : look.state)
-    // It is let live for a while, to take up its pose.
-    for (let step = 0; step < 90; step++) orb.update(1 / 30)
-    const cache = new Map()
-    const at = (side) => {
-      if (cache.has(side)) return cache.get(side)
-      // The drawing code picks how many pixels it draws from the size it is shown at, so the
-      // size that gives this many is looked for.
-      let found = false
-      for (let css = side; css <= side * 5 && !found; css++) {
-        orb.resize(css)
-        found = orb.px === side
-      }
-      if (!found) return null
-      // The motes that drift around it are left out: on a picture this small they are specks.
-      orb.showPoints = false
-      orb.update(1 / 30)
-      orb.render()
-      const cut = alone(canvas.getContext("2d").getImageData(0, 0, side, side), ball)
-      cache.set(side, cut)
-      return cut
-    }
-    // It keeps room around itself for hops and rings, and how much depends on its size: the
-    // largest drawing of it that still fits is found by trying.
-    let best = null
-    for (let side = Math.max(8, Math.min(wide, tall)); side <= tall * 2.5; side++) {
-      const cut = at(side)
-      if (cut === null) continue
-      if (cut.width > wide || cut.height > tall) {
-        if (best !== null) break
-        continue
-      }
-      best = cut
-    }
-    orb.dispose()
-    const out = canvasOf(best.width, best.height)
-    out.getContext("2d").putImageData(best.image, -best.left, -best.top)
-    return out
-  }
 
-  function tile({ grid, scale, zoom = 1, round = 0, inset = 0 }) {
-    const island = portrait.island({ grid, zoom, hour: portrait.HOURS.sunrise })
-    const small = portrait.tile(island, { seed: look.seed, color: look.color })
+  function tile({ grid, scale, zoom = 1, round = 0, inset = 0, plain = false }) {
+    const where = plain
+      ? portrait.backdrop({ grid, zoom, color: look.color })
+      : portrait.island({ grid, zoom, hour: portrait.HOURS.sunrise })
+    const small = portrait.tile(where, { seed: look.seed, color: look.color })
     return portrait.framed(small, { scale, round, inset })
   }
 

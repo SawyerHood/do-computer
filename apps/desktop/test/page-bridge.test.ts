@@ -9,6 +9,8 @@ import {
   screenRefusal,
   shareAnswer,
   sharingNow,
+  trayFits,
+  trayPictures,
 } from "../src/page-bridge.ts"
 
 describe("who the app answers", () => {
@@ -132,6 +134,23 @@ describe("the picture a page asks the app to be shown by", () => {
     expect(iconPicture("data:image/svg+xml;base64,PHN2Zy8+")).toBeUndefined()
     expect(iconPicture("data:image/png;base64,<script>")).toBeUndefined()
     expect(iconPicture(`data:image/png;base64,${"A".repeat(2_000_000)}`)).toBeUndefined()
+  })
+
+  it("is a pair of them for the tray, or nothing for the usual pair", () => {
+    expect(trayPictures({ on: png, off: png })).toEqual({ on: png, off: png })
+    expect(trayPictures(null)).toBeNull()
+    expect(trayPictures(undefined)).toBeUndefined()
+    expect(trayPictures(png)).toBeUndefined()
+    expect(trayPictures({ on: png })).toBeUndefined()
+    expect(trayPictures({ on: png, off: null })).toBeUndefined()
+    expect(trayPictures({ on: png, off: "file:///etc/passwd" })).toBeUndefined()
+  })
+
+  it("is for the tray at twice a tray's size, and no other", () => {
+    expect(trayFits({ width: 36, height: 36 })).toBe(true)
+    expect(trayFits({ width: 18, height: 18 })).toBe(false)
+    expect(trayFits({ width: 36, height: 18 })).toBe(false)
+    expect(trayFits({ width: 1024, height: 1024 })).toBe(false)
   })
 
   it("is square, and neither a speck nor a poster", () => {
