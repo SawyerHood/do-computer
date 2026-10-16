@@ -4,15 +4,14 @@ import {
   personalWorkspaceId,
   type WorkspaceSummary,
 } from "@do-computer/protocol"
-import { ListIcon, SidebarSimpleIcon } from "@phosphor-icons/react"
+import { SidebarSimpleIcon } from "@phosphor-icons/react"
 import { useLocation, useParams, useRouteContext } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { type PrimitiveAtom, useAtom, useAtomValue } from "jotai"
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CallCard } from "@/components/call/call"
 import { Settings } from "@/components/settings/settings"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import {
   AGENT_PANEL_OPEN_KEY,
   agentPanelOpenAtom,
@@ -22,7 +21,8 @@ import {
 import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
 import { cn } from "@/lib/utils"
-import { useSwipe } from "@/lib/use-swipe"
+import { usePull } from "@/lib/use-swipe"
+import { useMedia } from "@/lib/use-wide"
 import { accentChanged } from "@/lib/visual-theme"
 import { useFeed, useMarkSeen } from "@/lib/latest"
 import { useListedAgent, usePresence, useWorkspaces } from "@/lib/workspaces"
@@ -30,8 +30,67 @@ import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
 import { ResizeHandle } from "./resize-handle.tsx"
 import { Sidebar } from "./sidebar.tsx"
 
-/** The width from which the sidebar is beside the page. Narrower, it is a sheet over it. */
+/**
+ * The width from which the sidebar is beside the page at its own width, and can be hidden.
+ * Narrower, it is always there: a column of faces beside the page, which is pulled open over it.
+ */
 const SIDEBAR_BESIDE = "(min-width: 48rem)"
+
+/** How wide the column of faces is, in pixels. `w-14` and the `3.5rem` below are this. */
+const RAIL = 56
+/** How long the sidebar takes to open or shut on a narrow screen, in milliseconds. */
+const PULL_MS = 200
+/** How far a finger has to pull the sidebar for it to go the rest of the way, in pixels. */
+const PULL_FAR = 40
+
+/**
+ * The sidebar of a narrow screen, which a finger pulls open and pushes shut. Shut, it is a
+ * column of faces; open, it is the whole list, and the page has slid aside to make room. While
+ * it is being pulled it follows the finger: its width is said on the shell itself, as `--pull`,
+ * and not through React, which would draw the whole app again for every pixel.
+ */
+function usePulledSidebar(shell: HTMLElement | null) {
+  const [open, setOpen] = useState(false)
+  // Whether it is drawn as the whole list. It is while it is open, and while it is on its way.
+  const [whole, setWhole] = useState(false)
+  const shutting = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const settle = useCallback((next: boolean) => {
+    clearTimeout(shutting.current)
+    setOpen(next)
+    if (next) setWhole(true)
+    // It is faces only once it is as narrow as they are.
+    else shutting.current = setTimeout(() => setWhole(false), PULL_MS)
+  }, [])
+  useEffect(() => () => clearTimeout(shutting.current), [])
+
+  const from = useRef(RAIL)
+  usePull(shell, {
+    start: () => {
+      if (shell === null || matchMedia(SIDEBAR_BESIDE).matches) return
+      const aside = shell.querySelector<HTMLElement>("[data-pulled-sidebar]")
+      from.current = aside?.getBoundingClientRect().width ?? RAIL
+      clearTimeout(shutting.current)
+      setWhole(true)
+      shell.dataset.pulling = ""
+    },
+    move: (across) => {
+      if (shell === null || shell.dataset.pulling === undefined) return
+      const most = Math.min(320, shell.clientWidth - 48)
+      const width = Math.min(most, Math.max(RAIL, from.current + across))
+      shell.style.setProperty("--pull", `${width}px`)
+      shell.style.setProperty("--pull-dim", String((width - RAIL) / (most - RAIL)))
+    },
+    end: (across) => {
+      if (shell === null || shell.dataset.pulling === undefined) return
+      delete shell.dataset.pulling
+      shell.style.removeProperty("--pull")
+      shell.style.removeProperty("--pull-dim")
+      const was = from.current > RAIL + 1
+      settle(Math.abs(across) < PULL_FAR ? was : across > 0)
+    },
+  })
+  return { open, whole, settle }
+}
 
 /**
  * Something that is open or shut and stays the way it was left. Its atom starts as it was kept,
@@ -138,14 +197,9 @@ export function AppShell({
   const sidebarWidth = useAtomValue(sidebarColumn.width)
   // The panel's switch is in the strip, so what it was left as is kept from here.
   useRemembered(agentPanelOpenAtom, AGENT_PANEL_OPEN_KEY)
-  const [sheetOpen, setSheetOpen] = useState(false)
-  // On a narrow screen a finger also draws the sidebar out from the left, and pushes it back.
+  const beside = useMedia(SIDEBAR_BESIDE)
   const [shell, setShell] = useState<HTMLElement | null>(null)
-  const [sheet, setSheet] = useState<HTMLElement | null>(null)
-  useSwipe(shell, "right", () => {
-    if (!matchMedia(SIDEBAR_BESIDE).matches) setSheetOpen(true)
-  })
-  useSwipe(sheet, "left", () => setSheetOpen(false))
+  const pulled = usePulledSidebar(shell)
   const page = useLocation({
     select: (location): AgentTab => {
       const last = location.pathname.split("/").at(-1)
@@ -159,11 +213,31 @@ export function AppShell({
   useEffect(accentChanged, [accent])
 
   return (
-    <div ref={setShell} className="flex h-full min-h-0 bg-frame">
+    <div ref={setShell} className="group/shell flex h-full min-h-0 overflow-x-clip bg-frame">
       {/* The accent follows the open agent. Set on the root, so windows and menus have it too. */}
       {accent === undefined ? null : <style>{`:root{--agent-color:${accent}}`}</style>}
-      {sidebarOpen ? (
-        <aside className="relative hidden shrink-0 md:block" style={{ width: sidebarWidth }}>
+      {!beside ? (
+        // The whole list is laid out at its full width from the first of a pull, and what
+        // is past the edge is cut off, so that nothing in it moves as the edge does.
+        <aside
+          data-pulled-sidebar=""
+          data-open={pulled.open ? "" : undefined}
+          className="w-[var(--pull,3.5rem)] shrink-0 overflow-hidden transition-[width] duration-200 ease-out group-data-pulling/shell:transition-none data-open:w-[var(--pull,min(20rem,100%-3rem))] motion-reduce:transition-none"
+        >
+          <Sidebar
+            workspace={workspace}
+            settled={settled}
+            me={me.user}
+            agentId={agentId}
+            agent={agent}
+            narrow={pulled.whole ? "open" : "rail"}
+            onPull={() => pulled.settle(!pulled.open)}
+            onNavigate={() => pulled.settle(false)}
+            className={pulled.whole ? "w-[min(20rem,100vw-3rem)]" : "w-14"}
+          />
+        </aside>
+      ) : sidebarOpen ? (
+        <aside className="relative shrink-0" style={{ width: sidebarWidth }}>
           <Sidebar
             workspace={workspace}
             settled={settled}
@@ -180,22 +254,14 @@ export function AppShell({
       {/* The page is a sheet on the frame, where there is room for a frame around it. */}
       <main
         className={cn(
-          "flex min-w-0 flex-1 flex-col bg-background md:my-2 md:mr-2 md:overflow-hidden md:rounded-2xl md:shadow-card",
+          // Beside the faces it keeps its width whatever theirs, and slides out of the way.
+          "relative flex w-[calc(100%-3.5rem)] shrink-0 flex-col overflow-hidden rounded-l-2xl bg-background shadow-card md:my-2 md:mr-2 md:w-auto md:min-w-0 md:flex-1 md:shrink md:rounded-2xl",
           !sidebarOpen && "md:ml-2",
         )}
       >
         {agentId === undefined ? (
           // A workspace with no agent open has nothing for a strip to say but its name.
           <header className="flex h-13 shrink-0 items-center gap-1.5 px-2.5 md:px-3">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Doods"
-              className="text-muted-foreground md:hidden"
-              onClick={() => setSheetOpen(true)}
-            >
-              <ListIcon />
-            </Button>
             {sidebarOpen ? null : (
               <Button
                 variant="ghost"
@@ -220,25 +286,22 @@ export function AppShell({
             page={page}
             sidebarOpen={sidebarOpen}
             onShowSidebar={toggleSidebar}
-            onOpenSheet={() => setSheetOpen(true)}
           />
         )}
         <div className="relative min-h-0 flex-1">{children}</div>
-      </main>
-
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent ref={setSheet} side="left" className="w-80 p-0" showCloseButton={false}>
-          <SheetTitle className="sr-only">Doods</SheetTitle>
-          <Sidebar
-            workspace={workspace}
-            settled={settled}
-            me={me.user}
-            agentId={agentId}
-            agent={agent}
-            onNavigate={() => setSheetOpen(false)}
+        {/*
+          Under the open sidebar the page is set back, and a touch on it shuts the sidebar. The
+          mark at the top of the sidebar does the same, for whoever is not touching.
+        */}
+        {beside || !pulled.whole ? null : (
+          <div
+            aria-hidden
+            data-open={pulled.open ? "" : undefined}
+            onClick={() => pulled.settle(false)}
+            className="pointer-events-none absolute inset-0 z-40 bg-frame opacity-[var(--pull-dim,0)] transition-opacity duration-200 group-data-pulling/shell:transition-none data-open:pointer-events-auto data-open:opacity-[var(--pull-dim,0.6)] motion-reduce:transition-none"
           />
-        </SheetContent>
-      </Sheet>
+        )}
+      </main>
 
       {/* A call goes on whichever page is open, and is here when its Dood is not on screen. */}
       <CallCard />

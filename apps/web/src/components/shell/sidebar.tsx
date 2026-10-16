@@ -34,10 +34,25 @@ import { AgentList, LEVEL } from "./agent-list.tsx"
 type Me = { id: string; name: string; email: string; image?: string | null }
 
 /**
+ * How the sidebar of a narrow screen is drawn: as a column of faces, or opened out into the
+ * whole list. Either way the faces are in the one place, so that opening it moves none of them.
+ */
+export type Narrow = "rail" | "open"
+
+/**
  * The user's own menu, at the foot of the sidebar: the way into the settings, asking people in
  * to a team, and signing out.
  */
-function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me }) {
+function AccountMenu({
+  workspace,
+  me,
+  narrow,
+}: {
+  workspace: WorkspaceSummary
+  me: Me
+  narrow: Narrow | undefined
+}) {
+  const rail = narrow === "rail"
   const { open: openSettings } = useSettings()
   const [inviting, setInviting] = useState(false)
   const team = workspace.kind === "team"
@@ -61,7 +76,8 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
   }
 
   return (
-    <div className="p-2">
+    // On a narrow screen the face is under the Doods' own, whether or not its name is beside it.
+    <div className={narrow === undefined ? "p-2" : "p-1.5"}>
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${me.name}: settings and signing out`}
@@ -69,20 +85,32 @@ function AccountMenu({ workspace, me }: { workspace: WorkspaceSummary; me: Me })
           aria-busy={leaving}
           className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-foreground/6"
         >
-          <PersonFace person={person} title="" className="size-7" />
-          <span className="min-w-0 flex-1 truncate text-sm">
-            {leaving ? "Signing out…" : me.name}
+          <span className="relative shrink-0">
+            <PersonFace person={person} title="" className="size-7" />
+            {rail && asking > 0 ? (
+              <span
+                title="A Dood is asking to use a computer"
+                className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-primary ring-2 ring-frame"
+              />
+            ) : null}
           </span>
-          {leaving ? (
-            <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : asking > 0 ? (
-            <span
-              title="A Dood is asking to use a computer"
-              className="size-2 shrink-0 rounded-full bg-primary"
-            />
-          ) : null}
-          {leaving ? null : (
-            <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          {rail ? null : (
+            <>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {leaving ? "Signing out…" : me.name}
+              </span>
+              {leaving ? (
+                <Spinner className="size-3.5 shrink-0 text-muted-foreground" />
+              ) : asking > 0 ? (
+                <span
+                  title="A Dood is asking to use a computer"
+                  className="size-2 shrink-0 rounded-full bg-primary"
+                />
+              ) : null}
+              {leaving ? null : (
+                <CaretUpDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+              )}
+            </>
           )}
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start" className="w-68">
@@ -141,6 +169,8 @@ export function Sidebar({
   agentId,
   agent,
   library = false,
+  narrow,
+  onPull,
   onNavigate,
   onCollapse,
   className,
@@ -154,6 +184,10 @@ export function Sidebar({
   agent: AgentSummary | undefined
   /** The Library tab is showing, and this is the sidebar its list of files goes in. */
   library?: boolean
+  /** This is the sidebar of a narrow screen, drawn this way. */
+  narrow?: Narrow
+  /** Opens the faces out into the list, or shuts the list to faces, without a finger's pull. */
+  onPull?: () => void
   onNavigate?: () => void
   /** Hides the sidebar, where it can be hidden. */
   onCollapse?: () => void
@@ -163,11 +197,32 @@ export function Sidebar({
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)}>
       {/* Flush with the list under it: its ends are where the chosen agent's row has its own. */}
-      <div className="flex items-center gap-2 px-2 pt-2.5 pb-0.5">
-        <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
-        <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold", LEVEL)}>
-          Do Computer
-        </span>
+      <div
+        className={cn(
+          "flex items-center gap-2 pt-2.5 pb-0.5",
+          // Over the faces, on a narrow screen.
+          narrow === undefined ? "px-2" : "px-3",
+        )}
+      >
+        {onPull === undefined ? (
+          <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
+        ) : (
+          // Where there is no finger to pull with, the mark at the top does it.
+          <button
+            type="button"
+            aria-label={narrow === "rail" ? "Show Doods by name" : "Show Doods as faces"}
+            aria-expanded={narrow !== "rail"}
+            onClick={onPull}
+            className="shrink-0 rounded-lg p-1 outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40"
+          >
+            <img src="/icon-192.png" alt="" className="size-6 rounded-md" />
+          </button>
+        )}
+        {narrow === "rail" ? null : (
+          <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold", LEVEL)}>
+            Do Computer
+          </span>
+        )}
         {onCollapse === undefined ? null : (
           <Button
             variant="ghost"
@@ -201,11 +256,12 @@ export function Sidebar({
             pending={!settled}
             activeAgentId={agentId}
             me={me}
+            narrow={narrow}
             onNavigate={onNavigate}
           />
         )}
       </div>
-      <AccountMenu workspace={workspace} me={me} />
+      <AccountMenu workspace={workspace} me={me} narrow={narrow} />
     </div>
   )
 }
