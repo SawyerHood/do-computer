@@ -1,5 +1,5 @@
 import type { AgentState } from "@do-computer/client"
-import type { ChatSummary } from "@do-computer/protocol"
+import { type ChatSummary, randomId } from "@do-computer/protocol"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useCallback, useRef, useState } from "react"
 import { client } from "./client.ts"
@@ -109,7 +109,7 @@ export function useNewSideChat(agentId: string, mainId: string | undefined) {
     setCreating(true)
     setError(undefined)
     try {
-      request.current ??= crypto.randomUUID()
+      request.current ??= randomId()
       const chat = await client.agent(agentId).createChat({ requestId: request.current })
       request.current = undefined
       keepChat(agentId, chat)

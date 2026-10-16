@@ -1,4 +1,4 @@
-import type { ChatSummary } from "@do-computer/protocol"
+import { type ChatSummary, randomId } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useRef, useState } from "react"
@@ -76,7 +76,7 @@ export default function SideChats() {
     setCreating(true)
     setError(undefined)
     try {
-      request.current ??= crypto.randomUUID()
+      request.current ??= randomId()
       const chat = await client.agent(agentId).createChat({ requestId: request.current })
       request.current = undefined
       await queryClient.invalidateQueries({ queryKey: keys.agent(agentId) })
