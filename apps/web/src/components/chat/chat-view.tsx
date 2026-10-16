@@ -216,7 +216,10 @@ export function ChatView({
   /** A side chat to have open beside this one, where there is room. */
   sideId?: string | undefined
 }) {
-  const { live, state, earlier, send, sendError, retry, stop, attach } = useChat(agent.id, chatId)
+  const { live, state, undelivered, earlier, send, sendError, retry, stop, attach } = useChat(
+    agent.id,
+    chatId,
+  )
 
   // What kind of chat this is. A sub-agent's is read here and not written in.
   const { data: agentState } = useQuery(agentQuery(agent.id))
@@ -434,6 +437,7 @@ export function ChatView({
                 <TeamContext value={teamContext}>
                   <Transcript
                     state={state}
+                    undelivered={undelivered}
                     chatId={chatId}
                     onRetry={own ? retry : undefined}
                     asker={sub === undefined ? undefined : name}
@@ -561,7 +565,6 @@ export function ChatView({
                       : "Say hello"
                 }
                 busy={live.state.busy}
-                queued={state.queued}
                 onSend={send}
                 error={sendError}
                 onStop={stop}

@@ -32,10 +32,7 @@ export type IdentityState = {
   ownerId: string
   /** The name of the team that shares it. Null or absent: it is one person's. */
   team?: string | null
-  /**
-   * What a message does that arrives while it is working: `steer` joins the work, `queue` waits
-   * for it to finish. Absent: steer.
-   */
+  /** Left from when a message could be made to wait for the work to finish. Not read. */
   whenBusy?: "steer" | "queue"
   /** The voice it speaks in on a call, where one was chosen for it. Absent: one picked by its id. */
   voice?: string

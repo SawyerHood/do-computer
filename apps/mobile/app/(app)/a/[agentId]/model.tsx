@@ -28,10 +28,7 @@ export default function AgentModel() {
     staleTime: Number.POSITIVE_INFINITY,
   })
   // Shown at once while the change is on its way, and put back if it does not take.
-  const [pending, setPending] = useState<{
-    thinking?: ThinkingLevel
-    whenBusy?: "steer" | "queue"
-  }>({})
+  const [pending, setPending] = useState<{ thinking?: ThinkingLevel }>({})
   const [refreshing, setRefreshing] = useState(false)
 
   if (state === undefined) {
@@ -50,10 +47,9 @@ export default function AgentModel() {
   const chosen = models.data?.find((model) => model.id === state.agent.model)
   const levels = chosen?.thinking ?? []
   const thinking = nearestThinking(levels, pending.thinking ?? state.agent.thinking)
-  const whenBusy = pending.whenBusy ?? state.whenBusy ?? "steer"
   const usable = (computers.data ?? []).filter((computer) => computer.agentIds.includes(agentId))
 
-  const change = async (patch: { thinking?: ThinkingLevel; whenBusy?: "steer" | "queue" }) => {
+  const change = async (patch: { thinking?: ThinkingLevel }) => {
     setPending(patch)
     await save(patch)
     setPending({})
@@ -111,20 +107,6 @@ export default function AgentModel() {
           />
         </Section>
       )}
-
-      <Section
-        title="While it works"
-        footer="It takes the new message into what it is doing, as a correction would be. It can be made to finish first instead."
-      >
-        <Row
-          title="Wait until it has finished"
-          toggle={{
-            value: whenBusy === "queue",
-            disabled: saving,
-            onChange: (next) => void change({ whenBusy: next ? "queue" : "steer" }),
-          }}
-        />
-      </Section>
 
       <Section
         title="Computers it can use"

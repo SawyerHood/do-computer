@@ -143,6 +143,12 @@ export function ChatScreen({
     return () => clearTimeout(timer)
   }, [accepted])
   const state = shown.state
+  // Which of the messages on screen the agent has not been given yet.
+  const waitingIds = shown.undelivered.join("\n")
+  const undelivered = useMemo<ReadonlySet<string>>(
+    () => new Set(waitingIds === "" ? [] : waitingIds.split("\n")),
+    [waitingIds],
+  )
 
   const [sendError, setSendError] = useState<string>()
   const latest = useRef(live.state)
@@ -565,6 +571,7 @@ export function ChatScreen({
         agentId={agentId}
         chatId={chatId}
         state={state}
+        undelivered={undelivered}
         earlier={earlier}
         agent={agent}
         accent={accent}
@@ -688,8 +695,6 @@ export function ChatScreen({
                       : "Say hello"
                 }
                 busy={live.state.busy}
-                queued={state.queued}
-                waits={agentState?.whenBusy === "queue"}
                 onSend={send}
                 error={sendError}
                 onStop={stop}

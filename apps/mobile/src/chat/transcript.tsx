@@ -74,6 +74,11 @@ export type TranscriptProps = {
   chatId: string
   /** The chat as `useLiveChat` holds it. */
   state: ChatState
+  /**
+   * The messages in it that were sent and have not reached the agent, by id. They are marked
+   * as on their way, and the last one it has been given is marked as delivered.
+   */
+  undelivered?: ReadonlySet<string>
   /** What `useEarlierMessages(agentId, chatId, state)` returned. */
   earlier: ReturnType<typeof useEarlierMessages>
   /** The agent as the list has it; undefined until that is in. */
@@ -401,13 +406,40 @@ type RowProps = {
   team: Team | undefined
   /** In a sub-agent's chat: the agent that gave it its task, by name. */
   asker: string | undefined
+  /** For a message of the reader's: whether the agent has it. Undefined where that is not said. */
+  delivery: "sent" | "delivered" | undefined
+}
+
+/**
+ * Whether a message of one's own has reached the agent, said the way a message app says it: a
+ * ring while it is on its way, and a check once the agent has it.
+ */
+function Delivery({ delivered }: { delivered: boolean }) {
+  const theme = useTheme()
+  return (
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={delivered ? "Delivered" : "Not delivered yet"}
+      style={{ marginTop: -2, marginRight: 2 }}
+    >
+      <Icon name={delivered ? "checkCircle" : "circle"} size={13} color={theme.ink3} />
+    </View>
+  )
 }
 
 /**
  * One message. It is drawn again only when the message itself changes, so an answer being
  * written costs the ones above it nothing.
  */
-const MessageRow = memo(function MessageRow({ message, failures, onRetry, team, asker }: RowProps) {
+const MessageRow = memo(function MessageRow({
+  message,
+  failures,
+  onRetry,
+  team,
+  asker,
+  delivery,
+}: RowProps) {
   if (message.role === "notice") {
     const part = message.parts[0]
     return <Notice part={part?.type === "notice" ? part : undefined} />
@@ -487,6 +519,7 @@ const MessageRow = memo(function MessageRow({ message, failures, onRetry, team, 
           </Text>
         ) : null}
         <SentParts message={message} own />
+        {delivery === undefined ? null : <Delivery delivered={delivery === "delivered"} />}
       </View>
     )
   }
@@ -561,6 +594,7 @@ export function Transcript({
   empty,
   bottomInset,
   onRetry,
+  undelivered,
 }: TranscriptProps): ReactNode {
   const theme = useTheme()
   const scope = useMemo(
@@ -665,15 +699,26 @@ export function Transcript({
     list.current?.scrollTo({ y: Math.max(0, height - viewport + inset), animated: false })
   }, [])
   // The end comes into view when the reader sends something, wherever they had scrolled to.
-  const lastSent = state.messages.findLast((message) => message.role === "user")?.id
-  const sentBefore = useRef(lastSent)
+  // It does not come again when the agent takes the message up: by then the reader may be
+  // looking at something else.
+  const onTheirWay = undelivered?.size ?? 0
+  const wereOnTheirWay = useRef(onTheirWay)
   useEffect(() => {
-    if (lastSent === sentBefore.current) return
-    // A chat that has just arrived is at its end already, and is not scrolled there for show.
-    const arriving = sentBefore.current === undefined && atEnd.current
-    sentBefore.current = lastSent
-    if (lastSent !== undefined && !arriving) toEnd(true)
-  }, [lastSent, toEnd])
+    const more = onTheirWay > wereOnTheirWay.current
+    wereOnTheirWay.current = onTheirWay
+    if (more) toEnd(true)
+  }, [onTheirWay, toEnd])
+  // The newest message a person wrote here that the agent has.
+  const lastDelivered =
+    undelivered === undefined || asker !== undefined
+      ? undefined
+      : state.messages.findLast(
+          (message) =>
+            message.role === "user" &&
+            message.agent === undefined &&
+            message.slack === undefined &&
+            !undelivered.has(message.id),
+        )?.id
   // The box at the foot is measured after the page is first laid out, and grows with what is
   // typed in it: a reader at the end stays there.
   useEffect(() => {
@@ -754,6 +799,13 @@ export function Transcript({
                 }
                 team={team}
                 asker={asker}
+                delivery={
+                  undelivered?.has(message.id) === true
+                    ? "sent"
+                    : message.id === lastDelivered
+                      ? "delivered"
+                      : undefined
+                }
               />
             ))}
             {activity === null || stepping ? null : <StatusLine activity={activity} />}

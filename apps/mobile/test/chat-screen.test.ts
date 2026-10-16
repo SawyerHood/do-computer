@@ -117,9 +117,23 @@ describe("a message on its way", () => {
     expect(shown.left).toEqual([])
   })
 
-  it("is over once it is waiting in the chat's queue", () => {
+  it("is over once it is waiting in the chat's queue, and is still in the chat", () => {
     const live = state([], { busy: true, queued: [{ id: "q1", mode: "steer", text: "hello" }] })
-    expect(withSending(live, [sending("hello")], 20).left).toEqual([])
+    const shown = withSending(live, [sending("hello")], 20)
+    expect(shown.left).toEqual([])
+    // Where a message app shows what it has not delivered: after the chat's own, and marked.
+    expect(shown.state.messages.map((message) => message.id)).toEqual(["queued:q1"])
+    expect(shown.undelivered).toEqual(["queued:q1"])
+  })
+
+  it("is marked as not delivered until the chat has it", () => {
+    const sends = [sending("hello")]
+    expect(withSending(state([said("m1", "hello")]), sends, 20).undelivered).toEqual(["s-hello"])
+    const live = state([said("m1", "hello"), said("m2", "hello")])
+    expect(withSending(live, sends, 20).undelivered).toEqual([])
+    // What the server has lined up for the agent's next turn is nobody's message.
+    const lined = state([], { queued: [{ id: "q2", mode: "followUp", text: "a command ended" }] })
+    expect(withSending(lined, [], 20).state).toBe(lined)
   })
 
   it("is not taken for an answer that says the same, or for two sends at once", () => {
