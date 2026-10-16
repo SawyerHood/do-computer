@@ -6443,7 +6443,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       **Not checked:** a real site (the page was a form of our own); macOS and Windows; an
       owner's own Chrome with its real Allow prompt; the desktop app, which needs a release
       before its daemon can do this at all; Cloudflare beyond the store's tests in workerd;
-      the phone, where the form for a login was built and never run.
+      the phone's form for a login on a phone: since item 95 it has its sites as the web's
+      has, and has been run in the phone app's browser build, not in a simulator or on a phone.
 82. **A connector's own page for a tool is shown in the chat (MCP Apps)** (2026-10-13;
     `packages/protocol/src/mcp-app.ts`, `packages/agent/src/connectors.ts` and `actor.ts`,
     `apps/web/src/lib/mcp-app-host.ts`, `components/chat/mcp-app.tsx`; phase 5 of
@@ -6668,8 +6669,9 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Mine:** that the daemon presses the button itself, so that the number is never left in
       a page the Dood can look at; that there is no "Never" for paying, only not saving a
       card; that the number is in the server's store for now; `DC_SECRET_KINDS` and its
-      default; the phone getting the code box and nothing else; no mock-up of its own, the
-      screens being a second part of the page that was mocked up for logins.
+      default; no mock-up of its own, the screens being a second part of the page that was
+      mocked up for logins. The phone first had the code box and nothing else; item 95 gave it
+      the Passwords section, where a card is added, listed and removed.
     - **Checked:** unit tests of the store, the tool and who has cards; the daemon's typing
       against a real Chromium with pages of our own (boxes in the page, in one frame of another
       site, in a frame each, lists for the month and year, a button that waits for the card,
@@ -6680,7 +6682,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       card; a bank's own check after the button (3-D Secure); Braintree, Adyen, Shopify and
       PayPal pages; a checkout that keeps its boxes inside shadow DOM, which are not found;
       macOS, Windows, an owner's own Chrome with its real prompt; the desktop app, which needs
-      a release for its daemon to pay; the phone's code box, which was type-checked only.
+      a release for its daemon to pay; the phone's code box on a phone (item 95 ran it in the
+      phone app's browser build only).
 
 87. **The sections of a Dood's panel fold, and the panel scrolls as one** (2026-10-13;
     `apps/web/src/components/chat/panel-section.tsx`, `agent-panel.tsx`). The owner, of a
@@ -7104,6 +7107,71 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Checked:** `scripts/icons.mjs` writes the same tray, tab and phone pictures as
       before, byte for byte; `apps/web/e2e/app-icon.spec.ts`. **Not checked:** the tray in a
       running app on a Mac, which is where its owner will see it.
+
+95. **The phone keeps a workspace's saved logins and cards, and a card is added there**
+    (2026-10-16; `apps/mobile/app/(app)/settings/w/[workspaceId]/passwords.tsx` and
+    `passwords/`, `apps/mobile/src/passwords`, `apps/mobile/src/chat/asks.tsx`,
+    `packages/protocol/src/passwords-typed.ts`). The owner asked for the web's management of
+    saved logins and cards to be on the phone, and for a new card to be entered there.
+    - **Where.** A workspace's settings on the phone have a Passwords row under Computers and
+      Models, under the web's condition and no other: the workspace keeps logins or cards and
+      this person may see them (`keepsSecrets`, which the web's `workspaceSections` now uses
+      too). It opens one grouped list with a section for each kind the workspace keeps.
+    - **Logins.** A row each, with its first letter, its username and sites, and when and by
+      which Dood it was last used, or in red that its password can no longer be read. A tap
+      opens it to change its name, username and sites, with Replace the password and Remove
+      under them; one whose password cannot be read opens on giving it again. A swipe gives
+      the password and Remove too. Adding asks for the name, the username, the password and the
+      sites, a row each, with a row to type the next site in. The words and the checks are the
+      web's: everything a person types is checked by the same functions, which moved from the
+      web app into `packages/protocol` (`loginToSend`, `withSite`, `cardToSend`, `usedWords`
+      and the rest) and are tested there.
+    - **Cards.** A row each, with its kind, the end of its number, when it runs out and the
+      name on it, and Remove, which the web has and nothing more. Adding asks for the number
+      (grouped in fours as it is typed), the month and year (the slash put in by
+      `groupedExpiry`, since a number pad has none), the postal code, the name on the card and
+      a name. There is no box for a security code.
+    - **The phone's own autofill.** The boxes are named to the system for what they are
+      (`textContentType` and `autoComplete`: username, password, card number, expiry, the name
+      on a card, postal code), with the number pad for digits, so that iOS can offer the
+      passwords and cards the phone keeps. The web turns its browser's offers off, so that a
+      browser does not take a website's password for this app's; the app has no associated
+      domain, so iOS has nowhere to offer to save one. The security code's box is named
+      nothing, as on the web: it is typed fresh for each payment.
+    - **In a chat.** The form for a login a Dood asks for now has the web's "Used only on",
+      the site that asked fixed among the sites and others added, and is sent through
+      `loginAnswer` as on the web; it shows only where the workspace keeps logins for this
+      person, as on the web. The box for a card's security code has the number pad and takes
+      four digits at most. There is no form for a new card in a chat, on the web or the phone:
+      `pay` names a saved card and asks only for its code, and with none saved it tells the
+      Dood to have someone add one under Passwords. A card is entered under Passwords.
+    - **Nothing secret is kept.** What is typed lives in the screen's state and goes with it;
+      it is sent from the screen with the client and not through a React Query mutation, whose
+      cache keeps what it was given for minutes. The lists are cached as the web caches them,
+      and have no password or number in them.
+    - **Mine:** one screen for adding, changing and replacing a login's password, a tap on a
+      login opening the change and not a menu, a swipe for the password and for removing, the
+      Remove word on a card's row, the separate add screens pushed in the settings sheet and
+      not sheets of their own, the autofill names, the green key, and the slash in the expiry.
+      `Field` in the kit no longer lets its label be squeezed, which a phone never did but the
+      browser build did.
+    - **Checked:** `pnpm check`; the protocol's tests (`passwords-typed.test.ts`, with the
+      web's tests of the moved functions and new ones for the expiry, a card's trouble,
+      Passwords being shown and `usedWords` without `Intl.RelativeTimeFormat`); the web's and
+      the mobile app's unit tests; and three new tests in `e2e/mobile.spec.ts` through the
+      browser build, run with the rest of that file and `passwords.spec.ts`: a login added,
+      refused for a site that is not one, changed, given a new password and removed, with the
+      password in neither the page nor what the server answers; a card refused for a number
+      that does not add up, added, listed by its last four digits and removed, with no box for
+      a code; and in a chat, a payment's code typed with the yes and a login given with its
+      sites, the server's answers stood in for, since asking needs a computer with a browser.
+      Pictures of the screens were taken at a phone's width.
+    - **Not checked:** an iOS simulator or a phone, since this was built where there is no
+      Mac; so not the system's own bars and menus, the swipes, the number pad, or what iOS's
+      AutoFill actually offers for each box. Android. A real `sign_in` or `pay` reaching the
+      phone.
+    - **Not built:** a form for a new card in a chat, which the web does not have either;
+      changing a card, which the web does not allow.
 
 ## 6. What the owner has said they want
 

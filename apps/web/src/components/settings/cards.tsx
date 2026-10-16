@@ -1,4 +1,5 @@
 import {
+  cardTrouble,
   MAX_CARD_HOLDER_CHARS,
   MAX_LOGIN_NAME_CHARS,
   MAX_POSTAL_CODE_CHARS,
@@ -25,7 +26,6 @@ import { Label } from "@/components/ui/label"
 import { client } from "@/lib/client"
 import { savedCardsKey } from "@/lib/collections"
 import {
-  cardExpired,
   cardNameFor,
   cardToSend,
   cardWords,
@@ -180,11 +180,7 @@ function CardRow({
   onRemove: () => void
 }) {
   // What is wrong with it, which only removing it and adding it again puts right.
-  const wrong = card.unreadable
-    ? "Its number can no longer be read: remove it and add it again"
-    : cardExpired(card)
-      ? "It has expired: remove it and add the new one"
-      : undefined
+  const wrong = cardTrouble(card)
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3.5">
       <span

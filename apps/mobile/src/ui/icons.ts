@@ -161,6 +161,10 @@ export const ICONS = {
     "key",
     '<circle cx="8" cy="15" r="3.5"/><path d="m10.5 12.5 8-8M15.5 7.500l2.5 2.500M13 10l2 2"/>',
   ],
+  card: [
+    "creditcard",
+    '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h3"/>',
+  ],
   slider: [
     "slider.horizontal.3",
     '<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>',

@@ -24,8 +24,9 @@ above the message box, with the site filled in. What is typed there is saved for
 and never passes through the chat. Whoever typed it is not then asked a second time whether it
 may be used there.
 
-A login can also be added, given a new password, or removed under **Passwords** in a
-workspace's settings. Nothing shows a saved password again, to a person or to a Dood.
+A login can also be added, given a new password, changed or removed under **Passwords** in a
+workspace's settings, in the web app or in the phone app. Nothing shows a saved password again,
+to a person or to a Dood.
 
 ## What it protects
 
