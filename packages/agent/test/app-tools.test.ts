@@ -235,6 +235,14 @@ async function setup(world: World): Promise<ChatSummary> {
 
 type ToolArguments = Parameters<typeof fauxToolCall>[1]
 const useTool = (name: string, args: ToolArguments, then = "Done.") => [
+  // A connector's tool, named `<connector>__<tool>`, is not offered until it has been looked for.
+  ...(name.includes("__")
+    ? [
+        fauxAssistantMessage([fauxToolCall("tool_search", { query: name })], {
+          stopReason: "toolUse",
+        }),
+      ]
+    : []),
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
   fauxAssistantMessage(then),
 ]

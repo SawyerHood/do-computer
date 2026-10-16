@@ -8,6 +8,7 @@ import {
 import type { CredentialStore } from "@earendil-works/pi-ai"
 import { createModels, type Models } from "@earendil-works/pi-ai/models"
 import type { ModelRef } from "@earendil-works/pi-durable"
+import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search"
 import { isExtraModel } from "./extra-models.ts"
 import type { ReviewOptions } from "./journal.ts"
 import type { JudgeOptions } from "./keep-going.ts"
@@ -114,7 +115,16 @@ export function formatModel(ref: ModelRef): string {
   return `${ref.provider}/${ref.modelId}`
 }
 
-type EchoContext = { messages: readonly { role: string; content: unknown }[] }
+type EchoContext = {
+  messages: readonly {
+    role: string
+    content: unknown
+    toolName?: string
+    toolsAdded?: readonly { name: string }[]
+    toolsRemoved?: readonly { name: string }[]
+  }[]
+  tools?: readonly { name: string }[]
+}
 
 const blockText = (content: unknown): string => {
   if (typeof content === "string") return content
@@ -126,45 +136,70 @@ const blockText = (content: unknown): string => {
     .join("")
 }
 
+/** The names of the tools a request offers, as its system messages give and take them. */
+function offered(context: EchoContext): Set<string> {
+  const names = new Set((context.tools ?? []).map((tool) => tool.name))
+  for (const message of context.messages) {
+    if (message.role !== "system") continue
+    for (const tool of message.toolsRemoved ?? []) names.delete(tool.name)
+    for (const tool of message.toolsAdded ?? []) names.add(tool.name)
+  }
+  return names
+}
+
+/** The tools a message asks for: one `/tool` with its arguments, or several, one to a line. */
+function asked(text: string): { name: string; args: string }[] | undefined {
+  const lines = text.split("\n").map((line) => /^\/tool\s+(\w+)\s+(\{.*\})\s*$/.exec(line))
+  if (lines.length > 1 && lines.every((line) => line !== null)) {
+    return lines.map((line) => ({ name: line![1]!, args: line![2]! }))
+  }
+  const command = /^\/tool\s+(\w+)\s+(\{[\s\S]*\})\s*$/.exec(text)
+  return command ? [{ name: command[1]!, args: command[2]! }] : undefined
+}
+
 /**
  * What the echo model answers. It repeats the last user message, with two affordances for trying
  * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
  * that tool and then report the result (several such lines make it call them all in one round),
  * and `/fail <error>` makes the reply fail with that error, the way a model provider's would.
+ * A tool it is not offered yet, as a connector's is not, it looks for first, as a model would.
  */
 function echoAnswer(context: EchoContext) {
   // Prompt changes are recorded as system entries, which can follow a tool result.
   const last = context.messages.findLast((message) => message.role !== "system")
-  if (last?.role === "toolResult") {
-    return fauxAssistantMessage(`The tool returned:\n\n${blockText(last.content)}`)
-  }
   // The newest thing said to it. A note for the model alone, such as word that a sub-agent has
   // reported, says nothing to repeat: what it follows is repeated instead.
   const user = context.messages.findLast(
     (message) => message.role === "user" && blockText(message.content) !== "",
   )
   const text = blockText(user?.content)
+  const calls = asked(text)
+  // It looked for what it was asked to use, and uses it now, found or not.
+  const looked =
+    last?.role === "toolResult" &&
+    last.toolName === TOOL_SEARCH_TOOL_NAME &&
+    calls !== undefined &&
+    calls.every((call) => call.name !== TOOL_SEARCH_TOOL_NAME)
+  if (last?.role === "toolResult" && !looked) {
+    return fauxAssistantMessage(`The tool returned:\n\n${blockText(last.content)}`)
+  }
   const failure = /^\/fail\s+([\s\S]+)$/.exec(text)
   if (failure) {
     return fauxAssistantMessage([], { stopReason: "error", errorMessage: failure[1]!.trim() })
   }
-  // Several of them, one to a line, are called in one round, as a model calls several at once.
-  const lines = text.split("\n").map((line) => /^\/tool\s+(\w+)\s+(\{.*\})\s*$/.exec(line))
-  if (lines.length > 1 && lines.every((line) => line !== null)) {
+  if (calls !== undefined) {
     try {
-      return fauxAssistantMessage(
-        lines.map((line) => fauxToolCall(line![1]!, JSON.parse(line![2]!))),
-        { stopReason: "toolUse" },
-      )
-    } catch {
-      return fauxAssistantMessage("Those tool arguments are not valid JSON.")
-    }
-  }
-  const command = /^\/tool\s+(\w+)\s+(\{[\s\S]*\})\s*$/.exec(text)
-  if (command) {
-    try {
-      const args = JSON.parse(command[2]!)
-      return fauxAssistantMessage([fauxToolCall(command[1]!, args)], { stopReason: "toolUse" })
+      // Several of them are called in one round, as a model calls several at once.
+      const use = calls.map((call) => fauxToolCall(call.name, JSON.parse(call.args)))
+      const has = offered(context)
+      const missing = calls.filter((call) => !has.has(call.name))
+      if (!looked && missing.length > 0 && has.has(TOOL_SEARCH_TOOL_NAME)) {
+        return fauxAssistantMessage(
+          missing.map((call) => fauxToolCall(TOOL_SEARCH_TOOL_NAME, { query: call.name })),
+          { stopReason: "toolUse" },
+        )
+      }
+      return fauxAssistantMessage(use, { stopReason: "toolUse" })
     } catch {
       return fauxAssistantMessage("Those tool arguments are not valid JSON.")
     }

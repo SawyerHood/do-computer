@@ -43,13 +43,11 @@ import {
   section,
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
+import { TOOL_SEARCH_TOOL_NAME } from "@earendil-works/pi-durable/tool-search"
 import type { Caller } from "./caller.ts"
 import { ChatsDoc } from "./docs.ts"
 import { own } from "./own.ts"
 
-export const MAX_CONNECTORS = 20
-/** Tools past this many per connector are not offered: every tool costs prompt space each turn. */
-const MAX_TOOLS_PER_CONNECTOR = 60
 const EXTENSION_NAME = "dc.connectors"
 /** Where, among an agent's blobs, the pages servers give for their tools are kept. */
 const APP_PREFIX = "apps/"
@@ -293,7 +291,14 @@ export class Connectors {
                 : ""
           }`
           if (connectors.length === 0) return `${how} You have none yet.`
-          return `${how}\n${connectors
+          // Said only where there is something to find: Apps' few tools are offered as they are.
+          const find = connectors.some(
+            (connector) =>
+              connector.kind !== "apps" && connector.enabled && connector.status === "connected",
+          )
+            ? ` A connector's tools are not in front of you until you look for them: \`${TOOL_SEARCH_TOOL_NAME}\` finds the ones a task needs, and they are yours in this conversation from then on.`
+            : ""
+          return `${how}${find}\n${connectors
             .map((connector) => `- ${connector.name}: ${stateOf({ id: "", ...connector })}`)
             .join("\n")}`
         }),
@@ -477,11 +482,6 @@ export class Connectors {
     const apps = url.toString() === new URL(appsUrl).toString()
     await this.#require().commit(async (tx) => {
       const { connectors } = await tx.doc(ConnectorsDoc)
-      if (Object.keys(connectors).length >= MAX_CONNECTORS) {
-        throw new ConnectorError(
-          `There are already ${MAX_CONNECTORS} connectors. Remove one first.`,
-        )
-      }
       if (Object.values(connectors).some((other) => slug(other.name) === slug(name))) {
         throw new ConnectorError(`There is already a connector called "${name}".`)
       }
@@ -538,7 +538,7 @@ export class Connectors {
         (url) => void (authorizationUrl = url.toString()),
       )
       try {
-        tools = (await client.listTools()).slice(0, MAX_TOOLS_PER_CONNECTOR)
+        tools = await client.listTools()
       } finally {
         await client.close().catch(() => {})
       }
@@ -1055,6 +1055,10 @@ export class Connectors {
     return {
       name: connectorToolName(connector.name, tool.name),
       description: `[${connector.name}] ${tool.description ?? tool.title ?? tool.name}`,
+      // A server may have hundreds of tools, and each one offered costs prompt space every turn:
+      // the agent searches for the ones a task needs. Apps is itself a search over the tools of
+      // the services behind it, and has only a handful of its own, so those are offered outright.
+      ...(connector.kind === "apps" ? {} : { deferred: true as const }),
       // Providers need an object schema, and some reject one without `properties`.
       parameters: Type.Unsafe({
         ...tool.inputSchema,

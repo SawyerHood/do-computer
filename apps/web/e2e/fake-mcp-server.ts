@@ -18,6 +18,16 @@ const TOOLS = [
   { name: "today", description: "What is on today", inputSchema: { type: "object" } },
 ]
 
+/** Tools of a server with more of them than anyone would be shown, at `/many/mcp`. */
+const MANY_TOOLS = [
+  ...TOOLS,
+  ...Array.from({ length: 200 }, (_, index) => ({
+    name: `ledger_${index}`,
+    description: `Read page ${index} of the ledger`,
+    inputSchema: { type: "object", properties: {} },
+  })),
+]
+
 /** The address of the page the server has for its `forecast` tool. */
 const APP_URI = "ui://weather/forecast"
 
@@ -194,7 +204,7 @@ export async function startFakeMcp(port = 0) {
       })
     }
 
-    if (path !== "/token/mcp" && path !== "/oauth/mcp" && path !== "/apps/mcp") {
+    if (!["/token/mcp", "/oauth/mcp", "/apps/mcp", "/many/mcp"].includes(path)) {
       return send(response, 404, { error: "not_found" })
     }
     const apps = path === "/apps/mcp"
@@ -246,7 +256,7 @@ export async function startFakeMcp(port = 0) {
       case "ping":
         return result({})
       case "tools/list":
-        return result({ tools: apps ? APP_TOOLS : TOOLS })
+        return result({ tools: apps ? APP_TOOLS : path === "/many/mcp" ? MANY_TOOLS : TOOLS })
       case "resources/read":
         return apps && message.params?.uri === APP_URI
           ? result({
@@ -260,6 +270,10 @@ export async function startFakeMcp(port = 0) {
         if (name === "today") return result({ content: [{ type: "text", text: "Dentist at 3pm" }] })
         if (apps && name === "forecast") {
           return result({ content: [{ type: "text", text: "Sunny, 21 degrees" }] })
+        }
+        const page = path === "/many/mcp" ? /^ledger_(\d+)$/.exec(name ?? "")?.[1] : undefined
+        if (page !== undefined) {
+          return result({ content: [{ type: "text", text: `Page ${page} of the ledger` }] })
         }
         if (apps && (name === "refresh" || name === "book")) {
           return result({ content: [{ type: "text", text: `${name} done` }] })

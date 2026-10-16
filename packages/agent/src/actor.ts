@@ -89,6 +89,7 @@ import {
   LatestDoc,
   SchedulesDoc,
 } from "./docs.ts"
+import { createToolSearchExtension } from "@earendil-works/pi-durable/tool-search"
 import { createEditTool, createReadTool, createWriteTool } from "@earendil-works/pi-durable/tools"
 import { ApprovalError, Approvals, ApprovalsDoc, SIGN_IN_ABILITY } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
@@ -1243,6 +1244,8 @@ export class AgentActor implements Actor {
           return opened
         }, this.#history),
       )
+      // Finds the tools that are not offered until asked for, which a connector's are.
+      registry.install(createToolSearchExtension())
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
       const harness = await Harness.open(
         await SqliteStorage.open(keptOpen(this.#host.sql)),

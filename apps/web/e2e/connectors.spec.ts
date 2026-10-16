@@ -49,6 +49,33 @@ test.describe("connectors", () => {
     await expect(page.getByRole("main").getByText("sum is 42").first()).toBeVisible()
   })
 
+  test("a server with hundreds of tools is taken whole, and the agent finds the one it needs", async ({
+    page,
+  }) => {
+    await openConnectors(page)
+    await page.locator("#connector-name").fill("Books")
+    await page.getByLabel("Server address").fill(`${mcp.origin}/many/mcp`)
+    await page.getByRole("button", { name: "Add connector" }).click()
+
+    const card = page.getByRole("listitem").filter({ hasText: "Books" })
+    await expect(card.getByText("Connected", { exact: true })).toBeVisible()
+    // Every tool is counted, and the card names the first few.
+    await expect(
+      card.getByText(
+        "202 tools: add, today, ledger_0, ledger_1, ledger_2, ledger_3, ledger_4, ledger_5, ledger_6, ledger_7, ledger_8, ledger_9 and 190 more",
+      ),
+    ).toBeVisible()
+
+    // None of them is offered until it is looked for: the agent searches, then uses what it found.
+    await newChat(page)
+    await composer(page).fill("/tool books__ledger_150 {}")
+    await composer(page).press("Enter")
+    await expect(page.getByRole("main").getByText("Page 150 of the ledger").first()).toBeVisible()
+    await openSettings(page, "Connectors")
+    await card.getByRole("button", { name: "Remove Books" }).click()
+    await expect(card).toHaveCount(0)
+  })
+
   test("a wrong token is reported, and the connector can be removed", async ({ page }) => {
     await openConnectors(page)
     await page.locator("#connector-name").fill("Locked")

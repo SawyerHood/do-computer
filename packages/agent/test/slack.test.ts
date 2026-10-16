@@ -653,6 +653,9 @@ describe("an agent in Slack", () => {
     // connector is used for them without asking.
     let shown = ""
     world.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("tool_search", { query: "calculator add" })], {
+        stopReason: "toolUse",
+      }),
       (context) => {
         shown = JSON.stringify(context.messages)
         return add()
