@@ -139,6 +139,8 @@ export type BrowserRan = {
   title?: string
   /** True when the browser is the owner's own Chrome, with everything they are signed in to. */
   own: boolean
+  /** Something the agent should know about the browser it was given, where there is anything. */
+  note?: string
 }
 
 /**

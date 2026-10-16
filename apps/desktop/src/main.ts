@@ -37,6 +37,7 @@ import {
   Tray,
 } from "electron"
 import { autoUpdater } from "electron-updater"
+import { ownBrowserAccess } from "@do-computer/computers/chrome"
 import { UseState } from "@do-computer/computers/use"
 import {
   CONNECTOR_BROWSER_PATH,
@@ -217,6 +218,16 @@ const permissions = () => ({
   screenRecording: systemPreferences.getMediaAccessStatus("screen") === "granted",
 })
 
+/**
+ * Whether macOS lets the app look for its owner's own Chrome, where they have one and agents
+ * may use a browser. The daemon is the app's, so what the app may read is what it may.
+ */
+function ownBrowser(): "allowed" | "blocked" | undefined {
+  if (!MAC || !settings.browser) return undefined
+  const access = ownBrowserAccess()
+  return access === "none" ? undefined : access
+}
+
 /** What agents may use here now. One that may only read files may use neither. */
 const abilities = () => ({
   screen: settings.screen && !settings.readOnly && screenUnavailable() === undefined,
@@ -287,6 +298,7 @@ function screenOf(): ScreenService {
 function state(): AppState {
   const sharing = runner?.sharing ?? { state: "off" }
   const unavailable = screenUnavailable()
+  const own = ownBrowser()
   return {
     ...(settings.server === undefined ? {} : { server: settings.server }),
     suggestedServer: settings.server ?? suggested(),
@@ -308,6 +320,7 @@ function state(): AppState {
     ...(unavailable === undefined ? {} : { screenUnavailable: unavailable }),
     ...(MAC ? { permissions: permissions() } : {}),
     browser: settings.browser,
+    ...(own === undefined ? {} : { ownBrowser: own }),
     openAtLogin: settings.openAtLogin,
     canOpenAtLogin: canOpenAtLogin(),
     log: runner?.lines ?? [],
@@ -1506,6 +1519,11 @@ function listen(): void {
       else if (what === "screenRecording") {
         await shell.openExternal(
           "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+        )
+      } else if (what === "fullDiskAccess") {
+        // Nor is there a question for this one. macOS offers to open the app again once it is given.
+        await shell.openExternal(
+          "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
         )
       }
       changed()

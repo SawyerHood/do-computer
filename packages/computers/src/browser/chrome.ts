@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { accessSync, constants, readdirSync } from "node:fs"
+import { accessSync, constants, opendirSync, readdirSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { connect } from "node:net"
 import { homedir } from "node:os"
@@ -113,6 +113,36 @@ export async function findOwnBrowser(
   }
   const answers = await Promise.all(ports.map(askVersion))
   return answers.find((answer) => answer !== null) ?? null
+}
+
+/**
+ * Whether this program may look where the owner's browsers keep their things: `blocked` where
+ * the system refuses it at any of them, `none` where no such browser has been used here.
+ *
+ * macOS refuses it to a program without Full Disk Access, and the owner's own Chrome cannot
+ * then be found however open it is: where it listens is written in a file there.
+ */
+export type OwnAccess = "allowed" | "blocked" | "none"
+
+export function ownBrowserAccess(
+  dirs = ownDataDirs(process.platform, homedir(), process.env),
+): OwnAccess {
+  let found = false
+  for (const dir of dirs) {
+    try {
+      const folder = opendirSync(dir)
+      try {
+        folder.readSync()
+      } finally {
+        folder.closeSync()
+      }
+      found = true
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === "EPERM" || code === "EACCES") return "blocked"
+    }
+  }
+  return found ? "allowed" : "none"
 }
 
 function runnable(path: string): boolean {

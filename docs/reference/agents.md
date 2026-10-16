@@ -135,7 +135,10 @@
   (tick "Allow remote debugging for this browser instance" at `chrome://inspect/#remote-debugging`,
   or start Chrome with a debugging port), and is then signed in wherever you are. Chrome asks
   you once whether to allow it, the first time a Dood uses it, and not again until Chrome or
-  the daemon is started again. Otherwise it
+  the daemon is started again. On a Mac, finding your Chrome takes Full Disk Access for the
+  desktop app (or the terminal the daemon runs in), since macOS keeps apps out of each other's
+  folders: the app says so under This Computer, with a button to where it is given, and a
+  Dood that was given the other browser for want of it is told why. Otherwise it
   keeps a browser of its own, with its own sign-ins, which nobody sees but in the chat. Start
   the daemon with `--no-browser` to allow neither.
 - **Use your screen.** In the [desktop app](desktop.md), under This Computer, you can let

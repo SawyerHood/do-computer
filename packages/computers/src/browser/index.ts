@@ -26,6 +26,7 @@ import {
   hasDisplay,
   keptChromeArgs,
   listening,
+  ownBrowserAccess,
   readDevToolsActivePort,
   supervise,
   type Supervised,
@@ -60,6 +61,15 @@ const MAX_SHOT_BYTES = 4_000_000
 /** The most dev-browser may print before it is taken to have run away. */
 const MAX_PRINTED = 8_000_000
 
+/**
+ * What an agent is told when the system keeps this program from where the owner's Chrome says
+ * how it is reached. The browser kept for agents is used meanwhile, so nothing has failed.
+ */
+const BLOCKED =
+  process.platform === "darwin"
+    ? "macOS does not let Do Computer look where their Chrome keeps its things, so their own Chrome cannot be used, even where it is open and allows it. This is the browser kept for agents instead, which is signed in to nothing of theirs. If they wanted their own, tell them to give Do Computer Full Disk Access: the Do Computer app on that computer has a button for it under This Computer (it is System Settings > Privacy & Security > Full Disk Access; for a daemon run from a terminal it is the terminal that needs it). You cannot do this for them."
+    : "This computer does not let Do Computer read where their Chrome keeps its things, so their own Chrome cannot be used, even where it is open and allows it. This is the browser kept for agents instead, which is signed in to nothing of theirs."
+
 type Session = {
   /** What dev-browser is told to connect to. */
   connect: string
@@ -72,6 +82,8 @@ type Session = {
   /** Whether this one was started to have a window, whether or not it then could open one. */
   windowed?: boolean
   preview: Preview
+  /** Something to tell the agent whose script runs next, once. */
+  note?: string
 }
 
 const said = (error: unknown) => (error instanceof Error ? error.message : String(error))
@@ -105,6 +117,8 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
   let released = false
   /** True once it has been said that the browser cannot be shown here. */
   let saidUnseen = false
+  /** True while it has been said that the owner's own browser cannot be looked for. */
+  let saidBlocked = false
 
   state.onChange(() => session?.preview.bump())
 
@@ -311,6 +325,19 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         }
       }
     }
+    // The owner's own could not be looked for: that is said once, and is no reason to fail.
+    let note: string | undefined
+    if (ownAllowed && !session?.own && ownBrowserAccess() === "blocked") {
+      if (!saidBlocked) {
+        saidBlocked = true
+        note = BLOCKED
+        log(
+          process.platform === "darwin"
+            ? "browser: macOS does not let Do Computer look for the owner's own Chrome; it needs Full Disk Access for that"
+            : "browser: the owner's own Chrome cannot be looked for: its folder cannot be read",
+        )
+      }
+    } else saidBlocked = false
     if (session?.relay) {
       const answer = await session.relay.answer(ASK_WAIT_MS)
       if (answer === "asking") {
@@ -341,6 +368,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       await dropSession()
     }
     session ??= await launchKept(binary, windowed)
+    if (note !== undefined) session.note = note
     return session
   }
 
@@ -429,6 +457,8 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
       }
       const shots = await readShots(frames.images)
       const front = (await current.preview.front()) ?? (await frontPage(current.port))
+      const { note } = current
+      delete current.note
       // Where the browser can be reached is not something for an agent to be told, or to tell.
       const hide = (text: string) =>
         text
@@ -444,6 +474,7 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         shots,
         ...front,
         own: current.own,
+        ...(note === undefined ? {} : { note }),
       }
     } catch (error) {
       return {

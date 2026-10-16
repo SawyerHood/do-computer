@@ -45,6 +45,11 @@ export type AppState = {
   permissions?: { accessibility: boolean; screenRecording: boolean }
   /** Whether agents may use a browser here. */
   browser: boolean
+  /**
+   * On a Mac where its owner has a Chrome: whether macOS lets the app look where that keeps
+   * its things, which finding their own Chrome takes. It does once the app has Full Disk Access.
+   */
+  ownBrowser?: "allowed" | "blocked"
   openAtLogin: boolean
   /** Whether this run of the app can be started at sign-in. One run from its source cannot. */
   canOpenAtLogin: boolean
@@ -84,8 +89,8 @@ export type DesktopApi = {
   confirm(): Promise<void>
   /** Let agents use the screen or a browser here, or stop letting them. */
   allow(what: "screen" | "browser", on: boolean): Promise<void>
-  /** Ask macOS for one of the things using the screen takes, or show where it is given. */
-  permit(what: "accessibility" | "screenRecording"): Promise<void>
+  /** Ask macOS for one of the things using the screen or the owner's Chrome takes, or show where it is given. */
+  permit(what: "accessibility" | "screenRecording" | "fullDiskAccess"): Promise<void>
   setOpenAtLogin(on: boolean): Promise<void>
   /** Show the page where the deployment is chosen. */
   changeServer(): Promise<void>

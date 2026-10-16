@@ -10,7 +10,8 @@
     "./daemon": "./src/daemon-core.ts",
     "./use": "./src/use.ts",
     "./fake-screen": "./src/fake-screen.ts",
-    "./browser": "./src/browser/index.ts"
+    "./browser": "./src/browser/index.ts",
+    "./chrome": "./src/browser/chrome.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",

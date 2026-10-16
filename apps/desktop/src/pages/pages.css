@@ -289,10 +289,34 @@ main.centered {
   outline: 2px solid var(--teal);
   outline-offset: 2px;
 }
+/* What the system must allow for the switch above: set apart from it, and from the next one.
+   Each thing is said on a line of its own, with what to do about it under it. */
 .perms {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.perms .row {
+  align-items: flex-start;
+}
+.perms .row > .grow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.perms .dot {
+  margin: 5px 3px 0;
+}
+.perms button {
+  margin-top: 2px;
+  padding: 5px 10px;
+  font-size: inherit;
 }
 
 /* A page that may be taller than its window scrolls as a whole. */
