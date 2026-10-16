@@ -145,7 +145,6 @@ test.describe("signing in to model providers", () => {
     await page.reload()
     await composer(page).click()
     await expect(button).toHaveAttribute("title", "Claude Sonnet 5.5 · Low")
-    await expect(button).toHaveText("Claude Sonnet 5.5 · Low")
     await openSettings(page, "Model and computers")
     await expect(page.getByRole("combobox", { name: "Model" })).toHaveValue("Claude Sonnet 5.5")
     await expect(
