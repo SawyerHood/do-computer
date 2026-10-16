@@ -1,7 +1,13 @@
 /** The parts of a Daytona sandbox the lifecycle needs. The SDK's `Sandbox` satisfies it. */
 export interface DaytonaMachineLike {
   state?: string
+  /** Why Daytona put it in `error` or `build_failed`, in Daytona's words. */
+  errorReason?: string
+  /** Whether Daytona says the error is one `recover()` can undo. */
+  recoverable?: boolean
   waitUntilStarted?(timeout?: number): Promise<void>
+  /** Bring it back from a recoverable error, and wait until it has started. */
+  recover?(timeout?: number): Promise<void>
 }
 
 /** The parts of the Daytona client the lifecycle needs. */
@@ -57,7 +63,7 @@ const ARRIVING = new Set([
 ])
 /** On the way down. A start is rejected here and nothing would start it afterwards; let it settle. */
 const LEAVING = new Set(["stopping", "archiving", "pausing"])
-/** Nothing will start these. */
+/** Nothing will start these. Only `error` can be come back from, and only when Daytona says so. */
 const BROKEN = new Set(["error", "build_failed", "destroyed", "destroying"])
 
 /** A bound on state changes, so a machine that keeps flapping cannot hold a turn forever. */
@@ -139,13 +145,33 @@ export async function ensureStarted<S extends DaytonaMachineLike>(
   sleep: (ms: number) => Promise<void> = defaultSleep,
 ): Promise<S> {
   let current = sandbox
+  // One recovery for each attempt to use the machine: one that fails again is not asked twice.
+  let recovered = false
   for (let attempt = 0; attempt < MAX_TRANSITIONS; attempt++) {
     const state = current.state ?? "unknown"
     if (state === "started") return current
     if (BROKEN.has(state)) {
-      throw new SandboxUnavailableError(
-        `Sandbox "${name}" is in state "${state}" and cannot be started.`,
-      )
+      const reason = current.errorReason?.trim()
+      const because = reason ? ` Daytona's reason: ${reason}` : ""
+      const recover = current.recover?.bind(current)
+      if (state !== "error" || current.recoverable !== true || !recover || recovered) {
+        throw new SandboxUnavailableError(
+          `Sandbox "${name}" is in state "${state}" and cannot be started` +
+            `${recovered ? ", after one recovery" : ""}.${because}`,
+        )
+      }
+      recovered = true
+      try {
+        await recover()
+      } catch (error) {
+        throw new SandboxUnavailableError(
+          `Sandbox "${name}" is in state "error" and Daytona could not recover it: ` +
+            `${describe(error)}.${because}`,
+          { cause: error },
+        )
+      }
+      current = await reread(client, name, "after a recovery")
+      continue
     }
     if (ARRIVING.has(state)) {
       try {

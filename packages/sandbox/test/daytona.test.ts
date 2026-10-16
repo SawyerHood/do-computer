@@ -42,6 +42,7 @@ function fakeDaytona() {
     get: undefined as Error | undefined,
     create: undefined as Error | undefined,
     start: undefined as Error | undefined,
+    recover: undefined as Error | undefined,
     /** States a sandbox passes through, one per lookup, before settling. */
     script: [] as string[],
   }
@@ -57,6 +58,11 @@ function fakeDaytona() {
       refreshData: async () => {},
       waitUntilStarted: async () => {
         log.push("wait")
+      },
+      recover: async () => {
+        log.push("recover")
+        if (faults.recover) throw faults.recover
+        machine.state = "started"
       },
       process: {
         executeCommand: (command, cwd, env) =>
@@ -223,6 +229,56 @@ describe("daytona: finding and starting the machine", () => {
     machines.set(name, make(name, {}))
     faults.script = ["error"]
     await expect(sandbox.exec("true")).rejects.toThrow(/is in state "error"/)
+  })
+
+  it("gives Daytona's reason when the machine is broken and cannot be recovered", async () => {
+    const { sandbox, log, machines, make, name } = open()
+    const machine = make(name, {})
+    Object.assign(machine, {
+      state: "error",
+      errorReason: "disk quota exceeded",
+      recoverable: false,
+    })
+    machines.set(name, machine)
+    await expect(sandbox.exec("true")).rejects.toThrow(
+      /is in state "error" and cannot be started\. Daytona's reason: disk quota exceeded/,
+    )
+    expect(log).not.toContain("recover")
+  })
+
+  it("recovers a machine whose error Daytona says is recoverable", async () => {
+    const { sandbox, log, machines, make, name } = open()
+    const machine = make(name, {})
+    Object.assign(machine, { state: "error", errorReason: "runner lost", recoverable: true })
+    machines.set(name, machine)
+    expect((await sandbox.exec("echo back")).output).toBe("back\n")
+    expect(log).toEqual([`get ${name}`, "recover", `get ${name}`])
+  })
+
+  it("recovers once, and says so when the machine is broken again afterwards", async () => {
+    const { sandbox, log, machines, make, name, faults } = open()
+    const machine = make(name, {})
+    Object.assign(machine, { state: "error", errorReason: "runner lost", recoverable: true })
+    machines.set(name, machine)
+    // The recovery is accepted, and the next look finds it in error again.
+    faults.script = ["error", "error"]
+    await expect(sandbox.exec("true")).rejects.toThrow(
+      /cannot be started, after one recovery\. Daytona's reason: runner lost/,
+    )
+    expect(log.filter((entry) => entry === "recover")).toHaveLength(1)
+  })
+
+  it("says why when Daytona fails to recover the machine", async () => {
+    const { sandbox, machines, make, name, faults } = open()
+    const machine = make(name, {})
+    Object.assign(machine, { state: "error", errorReason: "runner lost", recoverable: true })
+    machines.set(name, machine)
+    faults.recover = new ApiError(500, "recovery timed out")
+    const failure = sandbox.exec("true")
+    await expect(failure).rejects.toBeInstanceOf(SandboxUnavailableError)
+    await expect(failure).rejects.toThrow(
+      /Daytona could not recover it: recovery timed out\. Daytona's reason: runner lost/,
+    )
   })
 
   it("starts the machine again after Daytona stopped it for being idle", async () => {
