@@ -28,16 +28,19 @@ test("a message sent while the agent works is in the chat at once, and is marked
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("and then say hello", { exact: true })).toBeVisible()
   // It has not reached the agent, which is in the middle of a step, and says so.
-  await expect(transcript.getByRole("img", { name: "Not delivered yet" })).toHaveCount(1)
+  await expect(transcript.getByRole("img", { name: "Sending" })).toHaveCount(1)
   if (process.env.DC_SHOTS) await page.screenshot({ path: `${process.env.DC_SHOTS}/1-sent.png` })
 
-  // The step over, the agent has it: the mark is a check, on the last message it was given.
+  // The step over, the agent has it: the mark says so, with a check.
   await expect(transcript.getByRole("img", { name: "Delivered" })).toHaveCount(1)
-  await expect(transcript.getByRole("img", { name: "Not delivered yet" })).toHaveCount(0)
+  await expect(transcript.getByRole("img", { name: "Sending" })).toHaveCount(0)
   await expect(transcript.getByText("and then say hello", { exact: true })).toHaveCount(1)
   await expect(page.getByRole("status")).toHaveCount(0)
   if (process.env.DC_SHOTS)
     await page.screenshot({ path: `${process.env.DC_SHOTS}/2-delivered.png` })
+  // Having said so, the mark leaves.
+  await expect(transcript.getByRole("img", { name: "Delivered" })).toHaveCount(0)
+  if (process.env.DC_SHOTS) await page.screenshot({ path: `${process.env.DC_SHOTS}/3-gone.png` })
 })
 
 test("the agent uses its computer: one line says what it is doing, and only its answer stays", async ({

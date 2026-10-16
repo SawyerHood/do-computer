@@ -23,8 +23,6 @@ import {
   ArrowClockwiseIcon,
   ArrowsClockwiseIcon,
   CaretRightIcon,
-  CheckCircleIcon,
-  CircleDashedIcon,
   ClockIcon,
   DesktopIcon,
   KeyIcon,
@@ -296,22 +294,72 @@ function FromSlack({
   )
 }
 
+/** How long the word that a message was delivered stays before it leaves. */
+const DELIVERED_STAYS_MS = 3000
+
+/** How long after a message stopped being on its way the chat's copy of it is still taken for it. */
+const JUST_SENT_MS = 3000
+
 /**
- * Whether a message of one's own has reached the agent, said the way a message app says it: a
- * ring while it is on its way, and a check once the agent has it.
+ * Whether a message of one's own has reached the agent, said the way a message app says it:
+ * "Sending" with a turning ring while it is on its way, which becomes "Delivered" with a check
+ * once the agent has it, and leaves a few seconds later. It is in the space under the message
+ * and takes none of its own, so nothing moves when it comes or goes.
+ *
+ * The chat's copy of a message is a new message here, so the one that is delivered is not the
+ * one that was sending: it starts as that one looked, and changes from there.
  */
 function Delivery({ delivered }: { delivered: boolean }) {
-  const words = delivered ? "Delivered" : "Not delivered yet"
-  const Icon = delivered ? CheckCircleIcon : CircleDashedIcon
+  const [phase, setPhase] = useState<"sending" | "delivered" | "leaving" | "gone">("sending")
+  useEffect(() => {
+    if (!delivered) return setPhase("sending")
+    const arrive = setTimeout(() => setPhase("delivered"), 30)
+    const leave = setTimeout(() => setPhase("leaving"), DELIVERED_STAYS_MS)
+    const go = setTimeout(() => setPhase("gone"), DELIVERED_STAYS_MS + 400)
+    return () => {
+      clearTimeout(arrive)
+      clearTimeout(leave)
+      clearTimeout(go)
+    }
+  }, [delivered])
+  if (phase === "gone") return null
   return (
     <span
       role="img"
-      aria-label={words}
-      title={delivered ? words : "Sent. It is read after the step under way."}
+      aria-label={delivered ? "Delivered" : "Sending"}
+      title={delivered ? undefined : "Sent. It is read after the step under way."}
       data-delivery={delivered ? "delivered" : "sent"}
-      className="-mt-1 flex items-center self-end pr-1 text-muted-foreground"
+      data-phase={phase}
+      className="delivery absolute top-full right-1 flex h-7 items-center gap-1.5 text-xs leading-none text-muted-foreground"
     >
-      <Icon weight={delivered ? "fill" : "regular"} className="size-3.5" />
+      <span className="delivery-words grid justify-items-end">
+        <span className="delivery-sending">Sending</span>
+        <span className="delivery-delivered">Delivered</span>
+      </span>
+      <span className="relative size-3.5 shrink-0">
+        <svg className="delivery-ring absolute inset-0 size-3.5" viewBox="0 0 14 14" fill="none">
+          <circle
+            cx="7"
+            cy="7"
+            r="5.5"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeDasharray="2.6 2.2"
+            strokeLinecap="round"
+          />
+        </svg>
+        <svg className="delivery-check absolute inset-0 size-3.5" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6.5" fill="currentColor" />
+          <path
+            className="delivery-tick"
+            d="M4.2 7.2 6.2 9.1 9.9 5.2"
+            stroke="var(--background)"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
     </span>
   )
 }
@@ -452,9 +500,10 @@ function MessageView({
         ? (team.people.get(message.author.id) ?? { ...message.author, image: null })
         : undefined
     return (
-      <Message align="end">
+      // A message of one's own has a little more under it, where it says how it is getting on.
+      <Message align="end" className={other === undefined ? "pb-1" : undefined}>
         {other === undefined ? null : <PersonFace person={other} className="size-7 self-end" />}
-        <MessageContent>
+        <MessageContent className="relative">
           {other === undefined ? null : (
             <span className="-mb-1 flex gap-1.5 self-end pr-1 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">{other.name}</span>
@@ -552,7 +601,7 @@ export function Transcript({
   state: ChatState
   /**
    * The messages in it that have been sent and not yet given to the agent, by id. They are
-   * marked as on their way, and the last one it has been given is marked as delivered.
+   * marked as on their way, and one that is seen to reach it is marked as delivered for a moment.
    */
   undelivered?: ReadonlySet<string> | undefined
   /** The chat's id, for stopping the agent from the window of a screen it is using. */
@@ -573,7 +622,7 @@ export function Transcript({
     (message) => message.role === "user" && undelivered?.has(message.id) === true,
   )?.id
   // The newest message a person wrote here that the agent has.
-  const lastDelivered =
+  const newestDelivered =
     undelivered === undefined || asker !== undefined
       ? undefined
       : state.messages.findLast(
@@ -583,6 +632,33 @@ export function Transcript({
             message.slack === undefined &&
             !undelivered.has(message.id),
         )?.id
+  // It is said to be delivered only if it was seen on its way here: a chat that is opened says
+  // nothing of the messages it already had. A message that waited for the agent is gone from
+  // what is being sent a moment before the chat has its own copy, so having just seen one on
+  // its way counts too.
+  const onTheirWay = undelivered?.size ?? 0
+  const [seen, setSeen] = useState<{
+    newest: string | undefined
+    onTheirWay: number
+    /** When the last of them stopped being on its way. */
+    since: number | undefined
+    arrived: string | undefined
+  }>({ newest: newestDelivered, onTheirWay, since: undefined, arrived: undefined })
+  if (seen.newest !== newestDelivered || seen.onTheirWay !== onTheirWay) {
+    const now = Date.now()
+    const watched =
+      seen.onTheirWay > 0 || (seen.since !== undefined && now - seen.since < JUST_SENT_MS)
+    setSeen({
+      newest: newestDelivered,
+      onTheirWay,
+      since: seen.onTheirWay > 0 && onTheirWay === 0 ? now : seen.since,
+      arrived:
+        newestDelivered !== undefined && newestDelivered !== seen.newest && watched
+          ? newestDelivered
+          : seen.arrived,
+    })
+  }
+  const lastDelivered = seen.arrived === newestDelivered ? newestDelivered : undefined
   // A side chat that continues the main one opens with the mark of where its own messages
   // begin. Until something is said in it, it is as empty as any new chat, and greets like one.
   const untouched = state.messages.length === (continuesMain(state.messages) ? 1 : 0)
