@@ -2,8 +2,8 @@
 
 A Dood can be called: press **Call** under its name in its panel, or the phone in the strip above
 the chat, and talk. It answers out loud, in a voice of its own, and goes on working while you
-talk. It works in a browser on a computer and in the desktop app. The phone app shows a call that
-was held but cannot start one yet.
+talk. It works in a browser on a computer, in the desktop app, and in the phone app: see
+[on the phone](#on-the-phone).
 
 It is new, and closed to everyone but a deployment's admins unless the deployment says
 otherwise: see [who can call](#who-can-call-and-what-it-costs).
@@ -65,6 +65,19 @@ Without the small model none of the last two happens by itself; what is handed o
 
 A call belongs to the window, not to the page. Open another Dood or the settings and it carries
 on as a card in the corner. Closing or reloading the page ends it.
+
+## On the phone
+
+In the phone app the phone in a chat's bar calls the Dood, wherever the web app would offer a
+call. The call fills the screen: the Dood's creature, what is being said, what was handed on
+and what the Dood is doing about it, and Mute, End and Chat. Swipe it down, or press Chat, and
+the call goes on: a bar over every chat leads back to it. The screen is kept on while a call
+is, because a phone that locks stops the call's sound. The record lands in the chat as it does
+from a browser.
+
+The sound is carried by the phone's own web view, which has WebRTC, so the app needs no new
+parts built into it for calls. It goes straight from the phone to OpenAI and back, as it does
+from a browser.
 
 ## Who can call, and what it costs
 
@@ -128,7 +141,8 @@ documented way to have calls.
 
 ## What is not there yet
 
-Calling from the phone app. A Dood calling you. Approving something by voice: a request for an
-OK shows above the message box as always, and is answered there. What you type during a call
-goes to the Dood, and its voice is not told of it; nor is the voice told how work is going in
-the main chat that it did not hand on. Safari and phone browsers have not been tried.
+A Dood calling you. A call on the phone going on with the phone locked or the app in the
+background. Approving something by voice: a request for an OK shows above the message box as
+always, and is answered there. What you type during a call goes to the Dood, and its voice is
+not told of it; nor is the voice told how work is going in the main chat that it did not hand
+on. Safari, phone browsers and a call from the phone app on a real phone have not been tried.

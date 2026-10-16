@@ -113,6 +113,10 @@ import { createFollowing, type SocketConstructor } from "./follow.ts"
 
 export type { Attention, StreamStatus, Subscription } from "./attention.ts"
 export type { SocketConstructor, SocketLike } from "./follow.ts"
+export * from "./call.ts"
+export { type Heard, pieces, readVoiceEvent, voiceClose, voiceReply } from "./call-events.ts"
+export { playCallScript } from "./call-script.ts"
+export { addWords, NOTHING_SAID, type Said, takePause, takePauses, turnDone } from "./call-said.ts"
 
 export type ClientOptions = {
   /** Origin of the deployment, or "" for same-origin requests from the web app. */

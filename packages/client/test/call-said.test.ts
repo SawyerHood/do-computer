@@ -1,6 +1,13 @@
 import type { CallLine } from "@do-computer/protocol"
 import { describe, expect, it } from "vitest"
-import { addWords, NOTHING_SAID, type Said, takePause, takePauses, turnDone } from "./call-said.ts"
+import {
+  addWords,
+  NOTHING_SAID,
+  type Said,
+  takePause,
+  takePauses,
+  turnDone,
+} from "../src/call-said.ts"
 
 /** A call as it goes: the lines the page shows, and the ones the server is told. */
 function call() {

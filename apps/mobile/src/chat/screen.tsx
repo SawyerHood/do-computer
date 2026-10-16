@@ -14,6 +14,8 @@ import {
 import { LinearGradient } from "expo-linear-gradient"
 import { KeyboardStickyView } from "react-native-keyboard-controller"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { CallBar, useCallBarShown } from "@/call/call-bar"
+import { caller, callMood, useCaller, useCalls } from "@/call/caller"
 import { messageOrigin } from "@/lib/origin"
 import { sayWhere, useHere } from "@/lib/presence"
 import {
@@ -236,7 +238,12 @@ export function ChatScreen({
   /* ---------- the creature, and what the model can take ---------- */
 
   const [typed, setTyped] = useState(0)
-  const mood = useMood(agentId, state, typed)
+  const chatMood = useMood(agentId, state, typed)
+  // On a call, the creature talks and listens with it.
+  const { call } = useCaller()
+  const onCall = call?.agentId === agentId ? call : undefined
+  const mood = onCall === undefined ? chatMood : callMood(onCall.phase)
+  const calls = useCalls(agentId)
   const { data: models } = useQuery({
     queryKey: keys.models(agent?.workspaceId),
     queryFn: () => client.models(agent?.workspaceId),
@@ -261,11 +268,13 @@ export function ChatScreen({
   const reconnecting = live.status === "reconnecting"
   const status = reconnecting
     ? "reconnecting…"
-    : mood.state === "waiting"
+    : chatMood.state === "waiting"
       ? "Waiting for you"
-      : state.busy
-        ? "Working"
-        : undefined
+      : onCall !== undefined
+        ? "On a call"
+        : state.busy
+          ? "Working"
+          : undefined
 
   // What is in the bar is made again only when what it shows changes: the bar is told of every
   // new one. The chats it reads are named piece by piece, as the objects are new at every fetch.
@@ -472,6 +481,21 @@ export function ChatScreen({
       void queryClient.invalidateQueries({ queryKey: keys.agent(agentId) })
     },
   }
+  // A call is started where the web app has it: in a chat that is the reader's to write in,
+  // with a Dood that has hatched, where the server says this person may call it.
+  const callItem: HeaderItem = {
+    icon: "phone",
+    label: onCall === undefined ? `Call ${name}` : `On a call with ${name}`,
+    hidden: calls?.available !== true || agent?.hatched !== true,
+    // One call at a time: while one is on with another Dood, this one waits.
+    disabled: call !== undefined && onCall === undefined,
+    onPress: () => {
+      if (agent === undefined) return
+      haptic.medium()
+      if (call === undefined) void caller.start(agent, chatId)
+      router.push(`/a/${agentId}/call`)
+    },
+  }
   const slackUrl = slack?.slack?.url
   const items: HeaderItem[] =
     sub !== undefined || thread !== undefined
@@ -498,6 +522,7 @@ export function ChatScreen({
           ]
         : !isMain
           ? [
+              callItem,
               {
                 icon: "more",
                 label: "More",
@@ -514,6 +539,7 @@ export function ChatScreen({
               },
             ]
           : [
+              callItem,
               {
                 icon: "chats",
                 label:
@@ -542,6 +568,7 @@ export function ChatScreen({
   /* ---------- the page ---------- */
 
   const [foot, setFoot] = useState(0)
+  const callShown = useCallBarShown(agentId, chatId)
   const empty = refused ? (
     <Text
       tone="ink2"
@@ -579,7 +606,7 @@ export function ChatScreen({
         bottomInset={foot}
         onRetry={own ? retry : undefined}
       />
-      {atWork.length === 0 ? null : (
+      {atWork.length === 0 && !callShown ? null : (
         <View
           pointerEvents="box-none"
           style={{
@@ -588,29 +615,34 @@ export function ChatScreen({
             right: 0,
             top: (Platform.OS === "ios" ? insets.top + 44 : 0) + 8,
             alignItems: "center",
+            gap: 8,
+            paddingHorizontal: 16,
           }}
         >
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push(`/a/${agentId}/subagents?chatId=${chatId}`)}
-          >
-            <Glass
-              interactive
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                borderRadius: radius.pill,
-                paddingHorizontal: 14,
-                height: 36,
-              }}
+          {callShown ? <CallBar agentId={agentId} chatId={chatId} state={live.state} /> : null}
+          {atWork.length === 0 ? null : (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push(`/a/${agentId}/subagents?chatId=${chatId}`)}
             >
-              <ActivityIndicator size="small" color={theme.ink2} />
-              <Text variant="footnote" weight="600">
-                {atWork.length} {atWork.length === 1 ? "sub-agent" : "sub-agents"} at work
-              </Text>
-            </Glass>
-          </Pressable>
+              <Glass
+                interactive
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  borderRadius: radius.pill,
+                  paddingHorizontal: 14,
+                  height: 36,
+                }}
+              >
+                <ActivityIndicator size="small" color={theme.ink2} />
+                <Text variant="footnote" weight="600">
+                  {atWork.length} {atWork.length === 1 ? "sub-agent" : "sub-agents"} at work
+                </Text>
+              </Glass>
+            </Pressable>
+          )}
         </View>
       )}
       <KeyboardStickyView

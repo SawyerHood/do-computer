@@ -189,11 +189,11 @@ function Notice({ part }: { part: NoticePart | undefined }) {
   if (part?.kind === "agent") return <AgentWord part={part} />
   if (part?.kind === "command") return <CommandWord part={part} />
   if (part?.kind === "call") {
-    // A voice call that was held in the chat, from a browser or the desktop app: how long it
-    // was, what came of it, and what was said. A call cannot be started from the phone yet.
+    // A voice call that was held in the chat, from this phone, a browser or the desktop app:
+    // how long it was, what came of it, and what was said.
     const call = part.call
     return (
-      <NoticeLine icon="mic">
+      <NoticeLine icon="phone">
         <Text variant="subhead" tone="ink2">
           A call of {part.text}
         </Text>

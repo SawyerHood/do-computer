@@ -19,6 +19,10 @@ const dist = fileURLToPath(new URL("../../mobile/dist-web-test/", import.meta.ur
 test.skip(!existsSync(join(dist, "index.html")), "the mobile web build has not been exported")
 // The app draws the agent's creature with expo-gl, which on the web needs WebGL to be there.
 test.use({ viewport: { width: 400, height: 860 }, creature: true })
+// Calls are open to everyone on this server, and have no voice: the server hands the app a
+// script to play, in which the voice hears a question, hands it on to the Dood, says what the
+// Dood answers, and then says goodbye (see calls.spec.ts, which does the same in the web app).
+test.use({ settings: { DC_CALLS: "on", DC_CALLS_SCRIPT: "1" } })
 test.describe.configure({ mode: "serial" })
 
 async function open(page: Page, path = "/__mobile/") {
@@ -773,6 +777,190 @@ test("a page the agent drew puts words in the message box when the reader presse
   // More goes after what is there, on a line of its own.
   await pick.click()
   await expect(composer(page)).toHaveValue("Go with plan B\nGo with plan B")
+})
+
+/** Where the pictures of a call on the phone are put, for whoever reads the change. */
+const callShots = "test-results/mobile-call"
+
+test("a Dood is called from the phone: it talks, hands on what was asked, and the chat keeps the call", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openChat(page)
+  // The call is placed a moment late and the hand-off is taken a moment late, so that what the
+  // screen shows meanwhile can be seen.
+  const hold = async (route: import("@playwright/test").Route, ms: number) => {
+    await new Promise((done) => setTimeout(done, ms))
+    await route.continue()
+  }
+  await page.route(/\/api\/agents\/[^/]+\/calls$/, (route) =>
+    route.request().method() === "POST" ? hold(route, 1_500) : route.continue(),
+  )
+  await page.route(/\/api\/agents\/[^/]+\/calls\/[^/]+\/work$/, (route) => hold(route, 2_500))
+
+  await page.getByRole("button", { name: "Call Pip" }).click()
+  // The call is a screen of its own: the Dood, what is going on, and the buttons of a call.
+  await expect(words(page, "Calling Pip…")).toBeVisible()
+  await expect(page.getByRole("button", { name: "End" })).toBeVisible()
+  await page.screenshot({ path: `${callShots}/1-calling.png` })
+
+  // The voice hears the question and hands it on: the Dood is working on it.
+  await expect(words(page, "On a call")).toBeVisible()
+  await expect(words(page, "What did I say before the call?").first()).toBeVisible()
+  await expect(words(page, "Handed to Pip")).toBeVisible()
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText(
+    "Working on it",
+  )
+  await page.screenshot({ path: `${callShots}/2-handed-on.png` })
+
+  // The Dood's answer is said by its voice, and the call goes on to its goodbye.
+  await expect(words(page, "Any time.")).toBeVisible({ timeout: 15_000 })
+  await expect(words(page, "Handed to Pip")).toHaveCount(0)
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText("Listening")
+  // Muting is said plainly, and taken back.
+  await page.getByRole("button", { name: "Mute" }).click()
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText("You’re muted")
+  await page.screenshot({ path: `${callShots}/3-muted.png` })
+  await page.getByRole("button", { name: "Unmute" }).click()
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText("Listening")
+
+  // Back in the chat the call goes on, and the bar over the chat leads back to it.
+  await page.getByRole("button", { name: "Chat", exact: true }).click()
+  const bar = page.getByRole("button", { name: /^On a call with Pip, / })
+  await expect(bar).toBeVisible()
+  await expect(page.getByRole("button", { name: "On a call with Pip", exact: true })).toBeVisible()
+  await page.screenshot({ path: `${callShots}/4-in-the-chat.png` })
+  await bar.click()
+  await page.getByRole("button", { name: "End" }).click()
+
+  // The chat has one record of the call, with what was said folded inside it.
+  await expect(composer(page)).toBeVisible()
+  await expect(words(page, /^A call of /)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole("button", { name: /^On a call with Pip/ })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Call Pip" })).toBeEnabled()
+  await page.getByRole("button", { name: "What was said" }).last().click()
+  await expect(words(page, /You: What did I say before the call\?/)).toBeVisible()
+  await expect(words(page, /Dood: Any time\./)).toBeVisible()
+  await page.screenshot({ path: `${callShots}/5-record.png` })
+
+  // The server kept each thing said once, in order, and the work went to a side chat of the call's own.
+  const id = await agentId(page)
+  const state = (await (await page.request.get(`/api/agents/${id}`)).json()) as {
+    chats: { id: string; main?: boolean }[]
+  }
+  const main = state.chats.find((chat) => chat.main)!.id
+  const chat = (await (await page.request.get(`/api/agents/${id}/chats/${main}`)).json()) as {
+    messages: {
+      spoken?: unknown
+      parts: { call?: { chatId?: string; lines: { who: string; text: string }[] } }[]
+    }[]
+  }
+  const kept = chat.messages.flatMap((message) => message.parts).find((part) => part.call)!.call!
+  expect(kept.lines.map((line) => line.who)).toEqual(["you", "dood", "you", "dood"])
+  expect(kept.lines[0]!.text).toBe("What did I say before the call?")
+  expect(kept.lines[3]!.text).toBe("Any time.")
+  expect(kept.chatId).toMatch(/^\d+$/)
+  expect(chat.messages.some((message) => message.spoken !== undefined)).toBe(false)
+})
+
+test("a Dood is not offered a call where the server does not offer one", async ({ page }) => {
+  await page.route(/\/api\/agents\/[^/]+\/calls$/, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({
+          json: { available: false, reason: "admins", voices: [], voice: null },
+        })
+      : route.continue(),
+  )
+  await openChat(page)
+  await expect(page.getByRole("button", { name: "Pip's side chats" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Call Pip" })).toHaveCount(0)
+})
+
+test("the page that carries a call's sound on the phone makes an offer, carries events both ways, and mutes", async ({
+  page,
+}) => {
+  // The page is run as the browser build runs it, in a frame of the app's own origin, and the
+  // test is the app around it and the voice at the other end, which here is a second
+  // connection in the test's own page. Only the voice's provider is stood in for.
+  await open(page)
+  await page
+    .context()
+    .grantPermissions(["local-network-access", "microphone"])
+    .catch(() => page.context().grantPermissions(["microphone"]))
+  const { LINE_PAGE } = await import("../../mobile/src/call/line-page.ts")
+  const heard = await page.evaluate(async (html) => {
+    const frame = document.createElement("iframe")
+    frame.setAttribute("allow", "microphone; autoplay")
+    const said: { type: string; [key: string]: unknown }[] = []
+    const waitFor = (type: string) =>
+      new Promise<{ type: string; [key: string]: unknown }>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`no ${type}`)), 10_000)
+        const look = () => {
+          const found = said.find((message) => message.type === type)
+          if (found === undefined) return void setTimeout(look, 20)
+          clearTimeout(timer)
+          resolve(found)
+        }
+        look()
+      })
+    window.addEventListener("message", (event) => {
+      if (event.source !== frame.contentWindow || typeof event.data !== "string") return
+      said.push(JSON.parse(event.data))
+    })
+    const tell = (message: unknown) =>
+      frame.contentWindow!.postMessage(JSON.stringify(message), "*")
+    frame.srcdoc = html
+    document.body.appendChild(frame)
+    await waitFor("ready")
+    tell({ type: "open" })
+    const offer = (await waitFor("offer")) as { sdp: string }
+
+    // The voice: it answers the offer, and talks on the channel the page opened.
+    const voice = new RTCPeerConnection()
+    const toPage = new Promise<string>((resolve) => {
+      voice.ondatachannel = (event) => {
+        const channel = event.channel
+        channel.onmessage = (message) => resolve(String(message.data))
+        channel.onopen = () => channel.send(JSON.stringify({ type: "session.started" }))
+      }
+    })
+    const microphone = new Promise<MediaStreamTrack>((resolve) => {
+      voice.ontrack = (event) => resolve(event.track)
+    })
+    await voice.setRemoteDescription({ type: "offer", sdp: offer.sdp })
+    await voice.setLocalDescription(await voice.createAnswer())
+    await new Promise<void>((resolve) => {
+      if (voice.iceGatheringState === "complete") return resolve()
+      voice.onicegatheringstatechange = () => {
+        if (voice.iceGatheringState === "complete") resolve()
+      }
+      setTimeout(resolve, 2_500)
+    })
+    tell({ type: "answer", sdp: voice.localDescription!.sdp })
+    await waitFor("answered")
+    const event = (await waitFor("event")) as { data: string }
+    tell({ type: "send", events: [JSON.stringify({ type: "session.close" })] })
+    const sentToVoice = await toPage
+    const track = await microphone
+    await waitFor("levels")
+    tell({ type: "mute", muted: true })
+    tell({ type: "close" })
+    voice.close()
+    return {
+      offerHasAudio: /m=audio/.test(offer.sdp),
+      offerHasChannel: /m=application/.test(offer.sdp),
+      event: event.data,
+      sentToVoice,
+      microphone: track.kind,
+    }
+  }, LINE_PAGE)
+  expect(heard).toEqual({
+    offerHasAudio: true,
+    offerHasChannel: true,
+    event: JSON.stringify({ type: "session.started" }),
+    sentToVoice: JSON.stringify({ type: "session.close" }),
+    microphone: "audio",
+  })
 })
 
 test("a second agent hatches and names itself, settings show who and what there is, and signing out ends the session", async ({
