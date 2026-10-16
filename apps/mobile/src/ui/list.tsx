@@ -325,7 +325,9 @@ export function Field({ label, style, ...props }: TextInputProps & { label?: str
     >
       {label === undefined ? null : (
         <Text
-          style={{ minWidth: 96 }}
+          // Never squeezed by what is typed beside it: a phone does not squeeze it anyway, and
+          // the browser build would cut "Card number" short.
+          style={{ minWidth: 96, flexShrink: 0 }}
           numberOfLines={1}
           accessible={false}
           importantForAccessibility="no"

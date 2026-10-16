@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from "@do-computer/protocol"
+import { keepsSecrets, type WorkspaceSummary } from "@do-computer/protocol"
 import { useNavigate } from "@tanstack/react-router"
 import { useCallback } from "react"
 
@@ -46,7 +46,7 @@ export function workspaceSections(
   return WORKSPACE_SECTIONS.filter(
     (section) =>
       (section !== "people" || workspace.kind === "team") &&
-      (section !== "passwords" || workspace.savedLogins === true || workspace.savedCards === true),
+      (section !== "passwords" || keepsSecrets(workspace)),
   )
 }
 

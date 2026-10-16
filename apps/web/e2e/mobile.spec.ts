@@ -20,6 +20,11 @@ const dist = fileURLToPath(new URL("../../mobile/dist-web-test/", import.meta.ur
 test.skip(!existsSync(join(dist, "index.html")), "the mobile web build has not been exported")
 // The app draws the agent's creature with expo-gl, which on the web needs WebGL to be there.
 test.use({ viewport: { width: 400, height: 860 }, creature: true })
+// Saved logins are for the deployment's admins unless it says otherwise, and cards are kept only
+// where it names them: the phone's user is an admin here, and it does, as in passwords.spec.ts.
+test.use({
+  settings: { DC_ADMIN_EMAILS: "mobile@example.com", DC_SECRET_KINDS: "passwords,cards" },
+})
 test.describe.configure({ mode: "serial" })
 
 async function open(page: Page, path = "/__mobile/") {
@@ -1115,6 +1120,245 @@ test("a connector's own page for a tool is shown in the chat, told what the tool
   } finally {
     await mcp.close()
   }
+/** A box to type in on the screen in front, by what it is called. */
+const box = (page: Page, name: string) =>
+  page.getByLabel(name, { exact: true }).filter({ visible: true })
+const save = (page: Page) =>
+  page.getByRole("button", { name: "Save", exact: true }).filter({ visible: true })
+/** A row that is a button and says nothing more than its name. */
+const plainRow = (page: Page, name: string) =>
+  page.getByRole("button", { name, exact: true }).filter({ visible: true })
+
+async function openPasswords(page: Page) {
+  await page.getByRole("button", { name: "Phone user: settings and signing out" }).click()
+  await page.getByRole("button", { name: "Personal: workspace settings" }).click()
+  await row(page, "Passwords").click()
+  await expect(page.getByRole("heading", { name: "Passwords" })).toBeVisible()
+}
+
+test("a workspace's saved logins are added, changed, given a new password and removed on the phone, and never shown again", async ({
+  page,
+}) => {
+  const PASSWORD = "nobody-is-shown-this-again"
+  await signIn(page)
+  await openPasswords(page)
+  const logins = page.getByRole("list", { name: "Saved logins" })
+  await expect(logins).toContainText("No logins yet")
+  await expect(page.getByRole("list", { name: "Saved cards" })).toContainText("No cards yet")
+
+  await plainRow(page, "Add a login").click()
+  await expect(page.getByRole("heading", { name: "Add a login" })).toBeVisible()
+  await box(page, "Name").fill("Example")
+  // Each box is named to the system, so that the phone's own saved passwords can fill it in.
+  await expect(box(page, "Username or email")).toHaveAttribute("autocomplete", "username")
+  await expect(box(page, "Password")).toHaveAttribute("autocomplete", "current-password")
+  await expect(box(page, "Password")).toHaveAttribute("type", "password")
+  await box(page, "Username or email").fill("test.user@example.com")
+  await box(page, "Password").fill(PASSWORD)
+  // What is not a site is said before anything is sent.
+  await box(page, "A site to add").fill("not a site")
+  await save(page).click()
+  await expect(page.getByRole("alert").filter({ visible: true })).toContainText("not a site")
+  // An address is taken for its site.
+  await box(page, "A site to add").fill("https://Example.com/login")
+  await box(page, "A site to add").press("Enter")
+  await expect(
+    page.getByRole("list", { name: "Used only on" }).filter({ visible: true }),
+  ).toContainText("example.com")
+  await save(page).click()
+
+  await expect(logins).toContainText("Example")
+  await expect(logins).toContainText("test.user@example.com · example.com")
+  await expect(logins).toContainText("Not used yet")
+  // Neither the page nor what the server answers with has the password in it.
+  expect(await page.content()).not.toContain(PASSWORD)
+  const workspaces = (await (await page.request.get("/api/workspaces")).json()) as {
+    workspaces: { id: string; savedLogins?: boolean }[]
+  }
+  const mine = workspaces.workspaces[0]!
+  expect(mine.savedLogins).toBe(true)
+  const listed = await (await page.request.get(`/api/workspaces/${mine.id}/passwords`)).text()
+  expect(listed).toContain("test.user@example.com")
+  expect(listed).not.toContain(PASSWORD)
+
+  // Its name and its sites are changed, and its password is not there to change.
+  await row(page, "Example").click()
+  await expect(page.getByRole("heading", { name: "Example" })).toBeVisible()
+  await expect(box(page, "Password")).toHaveCount(0)
+  await expect(words(page, "Its password stays as it is.")).toBeVisible()
+  await box(page, "Name").fill("Example at work")
+  await box(page, "A site to add").fill("app.example.org")
+  await save(page).click()
+  await expect(logins).toContainText("Example at work")
+  await expect(logins).toContainText("example.com, app.example.org")
+
+  // A new password is given without the old one being shown.
+  await row(page, "Example at work").click()
+  await plainRow(page, "Replace the password").click()
+  await expect(page.getByRole("heading", { name: "Replace the password" })).toBeVisible()
+  await expect(box(page, "New password")).toHaveValue("")
+  await box(page, "New password").fill("another-one-entirely")
+  await save(page).click()
+  await expect(page.getByRole("heading", { name: "Example at work" })).toBeVisible()
+  expect(await page.content()).not.toContain("another-one-entirely")
+
+  // Removing asks first.
+  const asked = agree(page)
+  await plainRow(page, "Remove").click()
+  expect(await asked).toContain("Remove Example at work?")
+  await expect(logins).toContainText("No logins yet")
+})
+
+test("a card is added on the phone without a security code, shown by its last four digits, and removed", async ({
+  page,
+}) => {
+  await signIn(page)
+  await openPasswords(page)
+  const cards = page.getByRole("list", { name: "Saved cards" })
+  await plainRow(page, "Add a card").click()
+  await expect(page.getByRole("heading", { name: "Add a card" })).toBeVisible()
+  // There is nowhere to type a security code: it is not kept.
+  await expect(page.getByLabel(/security code|CVC|CVV/i).filter({ visible: true })).toHaveCount(0)
+  // Each box has the keypad it needs and is named to the system for what it is.
+  await expect(box(page, "Card number")).toHaveAttribute("autocomplete", "cc-number")
+  await expect(box(page, "Card number")).toHaveAttribute("inputmode", "numeric")
+  await expect(box(page, "Expires")).toHaveAttribute("autocomplete", "cc-exp")
+  await expect(box(page, "Name on the card")).toHaveAttribute("autocomplete", "cc-name")
+
+  // A number that is not a card's is said before anything is sent.
+  await box(page, "Card number").fill("4242424242424241")
+  await box(page, "Expires").fill("0840")
+  await expect(box(page, "Expires")).toHaveValue("08/40")
+  await save(page).click()
+  await expect(page.getByRole("alert").filter({ visible: true })).toContainText("not a card number")
+  await box(page, "Card number").fill("4242424242424242")
+  await expect(box(page, "Card number")).toHaveValue("4242 4242 4242 4242")
+  await expect(box(page, "Name")).toHaveAttribute("placeholder", "Visa ending 4242")
+  await box(page, "Name on the card").fill("Test Person")
+  await save(page).click()
+
+  await expect(cards).toContainText("Visa ending 4242")
+  await expect(cards).toContainText("expires 08/40 · Test Person")
+  await expect(cards).toContainText("Not used yet")
+  // Neither the page nor what the server answers with has the number in it.
+  expect(await page.content()).not.toContain("4242 4242")
+  const workspaces = (await (await page.request.get("/api/workspaces")).json()) as {
+    workspaces: { id: string }[]
+  }
+  const listed = await (
+    await page.request.get(`/api/workspaces/${workspaces.workspaces[0]!.id}/cards`)
+  ).text()
+  expect(listed).toContain('"last4":"4242"')
+  expect(listed).not.toContain("4242424242424242")
+
+  const asked = agree(page)
+  await page.getByRole("button", { name: "Remove Visa ending 4242" }).click()
+  expect(await asked).toContain("Remove Visa ending 4242?")
+  await expect(cards).toContainText("No cards yet")
+})
+
+test("a payment a Dood asks about takes the card's security code with the yes, and a login it asks for is given with its sites", async ({
+  page,
+}) => {
+  // Asking needs a computer with a browser on a shop's page (sign-in.spec.ts goes through it
+  // all): here the server's answers are stood in for, so that what the phone shows and sends
+  // can be looked at.
+  const now = Date.now()
+  let pending = true
+  let answered: unknown
+  await page.route(/\/api\/agents\/[^/]+\/approvals$/, async (route) => {
+    const response = await route.fetch()
+    const state = (await response.json()) as { pending: unknown[] }
+    await route.fulfill({
+      response,
+      json: {
+        ...state,
+        pending: pending
+          ? [
+              {
+                id: "pay-1",
+                chatId: "1",
+                chatTitle: "Main",
+                chatKind: "chat",
+                title: "Pay on shop.example.com with Visa ending 4242",
+                detail:
+                  "Card: Visa ending 4242\nPage: https://shop.example.com/checkout\nIt will press: “Pay $12.98”\nIt says: “Two mugs”",
+                createdAt: now,
+                onceOnly: true,
+                wants: { label: "Security code" },
+              },
+            ]
+          : [],
+      },
+    })
+  })
+  await page.route(/\/api\/agents\/[^/]+\/approvals\/pay-1$/, async (route) => {
+    answered = route.request().postDataJSON()
+    pending = false
+    await route.fulfill({ json: { ok: true } })
+  })
+  let asking = true
+  let given: unknown
+  await page.route(/\/api\/agents\/[^/]+\/secrets$/, (route) =>
+    route.fulfill({
+      json: {
+        requests: asking
+          ? [
+              {
+                id: "login-1",
+                chatId: "1",
+                purpose: "To check the order",
+                fields: [
+                  { name: "username", description: "The username or email you sign in with" },
+                  { name: "password", description: null },
+                ],
+                destination: { kind: "login", site: "shop.example.com" },
+                createdAt: now,
+              },
+            ]
+          : [],
+      },
+    }),
+  )
+  await page.route(/\/api\/agents\/[^/]+\/secrets\/login-1$/, async (route) => {
+    given = route.request().postDataJSON()
+    asking = false
+    await route.fulfill({ json: { ok: true } })
+  })
+  await openChat(page)
+
+  // The payment: no "always", and no yes until a code of three or four digits is typed.
+  await expect(words(page, "Pay on shop.example.com with Visa ending 4242")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Always allow" }).filter({ visible: true }),
+  ).toHaveCount(0)
+  const code = box(page, "Security code")
+  await expect(code).toHaveAttribute("type", "password")
+  await expect(code).toHaveAttribute("inputmode", "numeric")
+  await expect(code).toHaveAttribute("maxlength", "4")
+  await expect(code).toHaveAttribute("autocomplete", "off")
+  const allow = page.getByRole("button", { name: "Allow once" }).filter({ visible: true })
+  await code.fill("12")
+  await expect(allow).toBeDisabled()
+  await code.fill("123")
+  await allow.click()
+  await expect(words(page, "Pay on shop.example.com with Visa ending 4242")).toHaveCount(0)
+  expect(answered).toEqual({ decision: "once", typed: "123" })
+
+  // The login: the site that asked is always among its sites, and another can be added.
+  await expect(words(page, "Pip needs a login for shop.example.com")).toBeVisible()
+  await expect(box(page, "Username or email")).toHaveAttribute("autocomplete", "username")
+  await expect(box(page, "Password")).toHaveAttribute("autocomplete", "current-password")
+  await expect(page.getByRole("button", { name: "Remove shop.example.com" })).toHaveCount(0)
+  await box(page, "Username or email").fill("test.user@example.com")
+  await box(page, "Password").fill("not-a-real-password")
+  await box(page, "A site to add").fill("accounts.example.com")
+  await page.getByRole("button", { name: "Save", exact: true }).filter({ visible: true }).click()
+  await expect(words(page, "Pip needs a login for shop.example.com")).toHaveCount(0)
+  expect(given).toEqual({
+    values: { username: "test.user@example.com", password: "not-a-real-password" },
+    sites: ["shop.example.com", "accounts.example.com"],
+  })
 })
 
 test("a second agent hatches and names itself, settings show who and what there is, and signing out ends the session", async ({

@@ -9,7 +9,10 @@ the web: code in its colors, tables that copy, notes, sections that fold, diagra
 Dood drew and a connector's own page for a tool. The message box is one line
 until it is written in, and then has the Dood's model and how hard it thinks under the words.
 A picture that was copied is pasted into it and attached. Settings cover teams
-and their people, computers, and signing in to model providers. You sign in with a password,
+and their people, computers, signing in to model providers, and a workspace's saved logins and
+cards where it keeps them (see [Saved passwords and cards](passwords.md)). When a Dood asks for a
+login or for a card's security code, the form for it is above the message box, as on the web, and
+the phone's own saved passwords and cards can fill in its boxes. You sign in with a password,
 GitHub or Google, and a new account goes through the first run. It talks to do.computer unless
 you name your own deployment at the foot of the sign-in page.
 
