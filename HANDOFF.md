@@ -7165,7 +7165,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not built:** inline HTML other than `<details>` (`kbd`, `sub`, `sup`), a link to a
       heading in the same reply, a connector's page shown large, and a Markdown document of
       the library in its Dood's color (its links are still the app's teal).
-95. **The phone app shows a Dood's pins, and pins and unpins as the web does** (2026-10-16;
+96. **The phone app shows a Dood's pins, and pins and unpins as the web does** (2026-10-16;
     `apps/mobile/src/pins`, `apps/mobile/src/chat/parts/pin.tsx`, the library's list and
     viewer in `apps/mobile/app/(app)/a/[agentId]/library`, `packages/protocol/src/pins.ts`).
     Until now the native app had nothing of item 71: no pins, and nothing in a chat where the
@@ -7214,7 +7214,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       build. **Not checked:** anything on iOS itself (no Mac was at hand, so no simulator):
       the system's menus, the swipe, the web view drawing the first pin, SF Symbols `pin`,
       `pin.fill` and `pin.slash`; Android; a real model deciding to pin.
-95. **The phone keeps a workspace's saved logins and cards, and a card is added there**
+97. **The phone keeps a workspace's saved logins and cards, and a card is added there**
     (2026-10-16; `apps/mobile/app/(app)/settings/w/[workspaceId]/passwords.tsx` and
     `passwords/`, `apps/mobile/src/passwords`, `apps/mobile/src/chat/asks.tsx`,
     `packages/protocol/src/passwords-typed.ts`). The owner asked for the web's management of
@@ -7278,7 +7278,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       phone.
     - **Not built:** a form for a new card in a chat, which the web does not have either;
       changing a card, which the web does not allow.
-95. **The order a person put their Doods in is kept on the server, and a Dood is moved on the
+98. **The order a person put their Doods in is kept on the server, and a Dood is moved on the
     phone too** (2026-10-16; `apps/web/src/server/agent-order.ts`, `schema.ts`,
     `apps/web/src/lib/agent-order.ts`, `packages/protocol/src/order.ts`,
     `apps/mobile/src/ui/sortable.tsx`, `apps/mobile/src/lib/order.ts`,
@@ -7353,7 +7353,7 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       tests run on Node's). The browser loads the order with the list and not before it, so a
       page shows its Doods latest-first for as long as the order takes to come, which is one
       read of the database and is usually there before the list.
-95. **A Dood can be called from the phone app** (2026-10-16; `packages/client/src/call.ts`,
+99. **A Dood can be called from the phone app** (2026-10-16; `packages/client/src/call.ts`,
     `call-events.ts`, `call-said.ts`, `call-script.ts`, `apps/web/src/lib/call.ts`,
     `apps/mobile/src/call/`, `apps/mobile/app/(app)/a/[agentId]/call.tsx`,
     `apps/mobile/src/chat/screen.tsx`, `apps/web/e2e/mobile.spec.ts`). The owner asked for the

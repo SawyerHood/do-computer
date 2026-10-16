@@ -1128,6 +1128,8 @@ test("a connector's own page for a tool is shown in the chat, told what the tool
   } finally {
     await mcp.close()
   }
+})
+
 /** A box to type in on the screen in front, by what it is called. */
 const box = (page: Page, name: string) =>
   page.getByLabel(name, { exact: true }).filter({ visible: true })
@@ -1366,6 +1368,9 @@ test("a payment a Dood asks about takes the card's security code with the yes, a
   expect(given).toEqual({
     values: { username: "test.user@example.com", password: "not-a-real-password" },
     sites: ["shop.example.com", "accounts.example.com"],
+  })
+})
+
 /** Where the pictures of a call on the phone are put, for whoever reads the change. */
 const callShots = "test-results/mobile-call"
 
