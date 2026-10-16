@@ -54,13 +54,17 @@
         <div id="permissions" class="perms" hidden>
           <div class="row small">
             <span id="accessibility-dot" class="dot"></span>
-            <span id="accessibility-words" class="grow"></span>
-            <button id="accessibility" type="button">Allow…</button>
+            <span class="grow">
+              <span id="accessibility-words"></span>
+              <button id="accessibility" type="button">Allow…</button>
+            </span>
           </div>
           <div class="row small">
             <span id="recording-dot" class="dot"></span>
-            <span id="recording-words" class="grow"></span>
-            <button id="recording" type="button">Open System Settings</button>
+            <span class="grow">
+              <span id="recording-words"></span>
+              <button id="recording" type="button">Open System Settings</button>
+            </span>
           </div>
         </div>
         <label class="switch-row">
@@ -74,6 +78,19 @@
           </span>
           <input id="browser" class="switch" type="checkbox" role="switch" />
         </label>
+        <div id="own-browser" class="perms" hidden>
+          <div class="row small">
+            <span id="disk-dot" class="dot"></span>
+            <span class="grow">
+              <span id="disk-words"></span>
+              <span id="disk-how" class="quiet">
+                Turn on Full Disk Access for Do Computer, and let macOS reopen it. Until then Doods
+                use a browser of their own.
+              </span>
+              <button id="disk" type="button">Open System Settings</button>
+            </span>
+          </div>
+        </div>
       </section>
       <p class="quiet small">A Dood cannot change these. They are kept on this computer.</p>
       <label class="check" id="login-row">

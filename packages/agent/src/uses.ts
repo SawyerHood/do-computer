@@ -559,6 +559,7 @@ export class Uses {
           ran.output.trim(),
           ran.error === undefined ? "" : `The script failed: ${ran.error}`,
           ran.url === undefined ? "" : `[page] ${ran.url}${ran.title ? ` “${ran.title}”` : ""}`,
+          ran.note === undefined ? "" : `[note] ${ran.note}`,
           ran.shots.length > 0 && !sees
             ? "(It took a picture, which the model you are running on cannot see. Use page.snapshot() instead.)"
             : "",

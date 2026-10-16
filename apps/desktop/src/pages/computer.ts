@@ -61,6 +61,18 @@ function show(state: AppState): void {
     permission("accessibility", allowed.accessibility, "control this Mac")
     permission("recording", allowed.screenRecording, "record the screen")
   }
+  // Nor is what their own Chrome takes, until a browser is wanted and they have a Chrome.
+  const own = state.ownBrowser
+  at("own-browser").hidden = own === undefined || !browser.checked
+  if (own !== undefined) {
+    const found = own === "allowed"
+    at("disk-dot").dataset.tone = found ? "on" : "busy"
+    at("disk-words").textContent = found
+      ? "macOS lets Do Computer find your Chrome"
+      : "macOS has not let Do Computer find your Chrome"
+    at("disk").hidden = found
+    at("disk-how").hidden = found
+  }
   at("login-row").hidden = !state.canOpenAtLogin
   login.checked = state.openAtLogin
   at("server").textContent = state.local ? "This computer" : (state.server ?? "None chosen yet")
@@ -100,6 +112,7 @@ browser.addEventListener("change", () => void window.desktop.allow("browser", br
 readOnly.addEventListener("change", () => now !== undefined && show(now))
 at("accessibility").addEventListener("click", () => void window.desktop.permit("accessibility"))
 at("recording").addEventListener("click", () => void window.desktop.permit("screenRecording"))
+at("disk").addEventListener("click", () => void window.desktop.permit("fullDiskAccess"))
 // macOS does not say when its owner allowed something in System Settings. They come back here.
 window.addEventListener("focus", () => void window.desktop.state().then(show))
 

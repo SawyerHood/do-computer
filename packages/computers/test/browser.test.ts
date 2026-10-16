@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync } from "node:fs"
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises"
 import { connect } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -8,6 +9,7 @@ import { DEV_BROWSER, assetName, assetUrl } from "../src/browser/binary.ts"
 import {
   hasDisplay,
   keptChromeArgs,
+  ownBrowserAccess,
   ownDataDirs,
   readDevToolsActivePort,
 } from "../src/browser/chrome.ts"
@@ -125,6 +127,25 @@ describe("the owner's own Chrome", () => {
     expect(ownDataDirs("win32", "C:\\Users\\ada", {})).toContain(
       "C:\\Users\\ada\\AppData\\Local\\BraveSoftware\\Brave-Browser\\User Data",
     )
+  })
+
+  it("is said to be kept from this program where its folder may not be read", async () => {
+    const root = await mkdtemp(join(tmpdir(), "dc-own-"))
+    const open = join(root, "chrome")
+    const shut = join(root, "brave")
+    await mkdir(open)
+    await mkdir(shut)
+    try {
+      expect(ownBrowserAccess([join(root, "none")])).toBe("none")
+      expect(ownBrowserAccess([join(root, "none"), open])).toBe("allowed")
+      await chmod(shut, 0o000)
+      // Whoever may read everything is refused nothing, and Windows has no such switch.
+      const refused = process.platform !== "win32" && process.getuid?.() !== 0
+      expect(ownBrowserAccess([open, shut])).toBe(refused ? "blocked" : "allowed")
+    } finally {
+      await chmod(shut, 0o700)
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
 
