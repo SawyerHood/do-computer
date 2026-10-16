@@ -177,8 +177,6 @@ export type AgentState = {
   timezone: string | null
   /** The team that shares it, by name. Null: it is one person's. */
   team?: string | null
-  /** What a message does that arrives while it is working: join the work, or wait for it. */
-  whenBusy?: "steer" | "queue"
   soul: string
   user: string
   memory: string
@@ -197,8 +195,6 @@ export type AgentPatch = {
   /** How hard it thinks before it answers. Applies from its next reply. */
   thinking?: ThinkingLevel
   timezone?: string
-  /** What a message does that arrives while it is working. */
-  whenBusy?: "steer" | "queue"
   /** Its owner has watched it hatch. There is no putting it back in its egg. */
   hatched?: true
   /** The voice it speaks in on a call. Null: the one picked for it by its id. */

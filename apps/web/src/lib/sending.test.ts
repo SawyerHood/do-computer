@@ -80,33 +80,53 @@ describe("settleSends", () => {
     const sending = [send("a", "hello", { submissionId: "7", acceptedAt: 1_000 })]
     const queued = [{ id: "7", mode: "steer" as const, text: "hello" }]
     const settled = settleSends(sending, chat([], { queued }), 1_000, true)
-    // Shown once, as the message, and not also as waiting.
-    expect(settled.messages).toHaveLength(1)
-    expect(settled.queued).toEqual([])
+    // Shown once, as the message it was sent as.
+    expect(settled.messages.map((message) => message.id)).toEqual(["sending:a"])
     expect(settled.sending[0]!.queued).toBe(true)
     // Taken up: still shown until the chat's copy is here, so it is never gone in between.
     const taken = settleSends(settled.sending, chat([]), 1_000, true)
     expect(taken.messages).toHaveLength(1)
   })
 
-  it("sent while the agent is at work, it waits with what else is waiting", () => {
+  it("sent while the agent is at work, it is in the transcript, marked as not delivered", () => {
     const sending = [send("a", "also this", { waiting: true })]
-    const mine = { id: "sending:a", mode: "steer" as const, text: "also this" }
     const first = settleSends(sending, chat([], { busy: true }), 1_000, true)
-    expect(first.messages).toEqual([])
-    expect(first.queued).toEqual([mine])
+    expect(first.messages.map((message) => message.id)).toEqual(["sending:a"])
+    expect(first.undelivered).toEqual(["sending:a"])
 
-    // The chat's own waiting input takes its place, matched by its words before the server
-    // has said what it calls it.
+    // The chat's own waiting input is the same message, matched by its words before the
+    // server has said what it calls it. It stays where it is.
     const queued = [{ id: "7", mode: "steer" as const, text: "also this" }]
     const second = settleSends(sending, chat([], { busy: true, queued }), 1_000, true)
-    expect(second.queued).toEqual(queued)
+    expect(second.messages.map((message) => message.id)).toEqual(["sending:a"])
+    expect(second.undelivered).toEqual(["sending:a"])
     expect(second.sending[0]!.queued).toBe(true)
 
     // Gone from the queue: it is the chat's to show from here, as a message or not at all.
     const third = settleSends(second.sending, chat([], { busy: true }), 1_000, true)
     expect(third.sending).toEqual([])
-    expect(third.queued).toEqual([])
+    expect(third.messages).toEqual([])
+
+    // Delivered, it is the chat's own message and is not marked.
+    const fourth = settleSends(sending, chat([said("2", "also this")], { busy: true }), 1_000, true)
+    expect(fourth.undelivered).toEqual([])
+    expect(fourth.arrived).toEqual(["2"])
+  })
+
+  it("shows what else waits for the agent as messages too, before what is being sent", () => {
+    // Sent from another window, or before this page was opened.
+    const queued = [
+      { id: "7", mode: "steer" as const, text: "from my phone" },
+      // What the server has lined up for the agent's next turn was written by nobody.
+      { id: "8", mode: "followUp" as const, text: "a command ended" },
+    ]
+    const alone = settleSends([], chat([], { busy: true, queued }), 1_000, true)
+    expect(alone.messages.map((message) => message.id)).toEqual(["queued:7"])
+    expect(alone.undelivered).toEqual(["queued:7"])
+
+    const sending = [send("a", "and this", { waiting: true })]
+    const both = settleSends(sending, chat([], { busy: true, queued }), 1_000, true)
+    expect(both.messages.map((message) => message.id)).toEqual(["queued:7", "sending:a"])
   })
 
   it("gives up on a message the server took and the chat never showed", () => {
@@ -118,10 +138,5 @@ describe("settleSends", () => {
     // And not one whose request is still on its way.
     const unsent = [send("a", "hello")]
     expect(settleSends(unsent, chat([]), late, true).sending).toBe(unsent)
-  })
-
-  it("leaves the chat's queue as it is when nothing is being sent", () => {
-    const state = chat([], { queued: [{ id: "7", mode: "steer", text: "x" }] })
-    expect(settleSends([], state, 1_000, true).queued).toBe(state.queued)
   })
 })

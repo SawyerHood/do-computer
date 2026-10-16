@@ -1,9 +1,4 @@
-import {
-  type ChatMessage,
-  continuesMain,
-  type MessageImage,
-  randomId,
-} from "@do-computer/protocol"
+import { type ChatMessage, continuesMain, type MessageImage, randomId } from "@do-computer/protocol"
 import { useAtom } from "jotai"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { chatKey, earlierAtom, sendingAtom } from "./atoms.ts"
@@ -102,22 +97,22 @@ export function useChat(agentId: string, chatId: string) {
 
   const state = useMemo(() => {
     const ahead = settled.messages
-    if (
-      earlier.messages.length === 0 &&
-      ahead.length === 0 &&
-      settled.queued === live.state.queued &&
-      !expecting
-    )
-      return live.state
+    if (earlier.messages.length === 0 && ahead.length === 0 && !expecting) return live.state
     return {
       ...live.state,
       messages: [...earlier.messages, ...live.state.messages, ...ahead],
-      queued: settled.queued,
       // What was just said is about to be answered. The agent is shown at it from now, and not
       // from when the server says it has begun.
       busy: live.state.busy || expecting,
     }
   }, [earlier.messages, live.state, settled, expecting])
+
+  // Which of the messages on screen the agent has not been given yet.
+  const waiting = settled.undelivered.join("\n")
+  const undelivered = useMemo<ReadonlySet<string>>(
+    () => new Set(waiting === "" ? [] : waiting.split("\n")),
+    [waiting],
+  )
 
   const [sendError, setSendError] = useState<string>()
   useEffect(() => setSendError(undefined), [chatId])
@@ -181,6 +176,8 @@ export function useChat(agentId: string, chatId: string) {
     live,
     /** The live transcript with what was loaded from before it, and what is being sent after it. */
     state,
+    /** The messages in it that are still on their way to the agent, by id. */
+    undelivered,
     earlier: { has: hasEarlier, loading: earlier.loading, load: loadEarlier },
     startFresh,
     send,

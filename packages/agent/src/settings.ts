@@ -19,14 +19,12 @@ export class SettingsError extends Error {}
 export type SettingsState = {
   model: string
   thinking: ThinkingLevel
-  whenBusy: "steer" | "queue"
   timezone: string | null
 }
 
 export type SettingsChange = {
   model?: string
   thinking?: string
-  whenBusy?: string
   timezone?: string
 }
 
@@ -49,8 +47,8 @@ const describeModel = (model: ModelOption) =>
   })`
 
 /**
- * The agent's way to its own settings: the model it runs on, how hard it thinks, what a message
- * does that arrives while it is working, its timezone, and what it has cost so far.
+ * The agent's way to its own settings: the model it runs on, how hard it thinks, its timezone,
+ * and what it has cost so far.
  */
 export function settingsExtension(options: SettingsOptions): Extension {
   const reply = (text: string) => ({ output: [{ type: "text" as const, text }] })
@@ -59,8 +57,8 @@ export function settingsExtension(options: SettingsOptions): Extension {
     name: TOOL,
     description:
       "See and change your own settings. " +
-      'action "get" shows the model you run on, how hard you think before answering, what a message does that arrives while you are working, your timezone, what you have cost so far, and the models you could be set to; pass `find` to search the models by name. ' +
-      '"set" changes `model` (an id from "get"), `thinking`, `when_busy` ("steer": a new message joins what you are doing; "queue": it waits its turn) or `timezone` (IANA, such as Europe/Paris). Pass only what is changing. A new model or thinking level applies from your next reply. Change these when the person asks, not on your own.',
+      'action "get" shows the model you run on, how hard you think before answering, your timezone, what you have cost so far, and the models you could be set to; pass `find` to search the models by name. ' +
+      '"set" changes `model` (an id from "get"), `thinking` or `timezone` (IANA, such as Europe/Paris). Pass only what is changing. A new model or thinking level applies from your next reply. Change these when the person asks, not on your own.',
     parameters: Type.Object({
       action: Type.Union([Type.Literal("get"), Type.Literal("set")]),
       find: Type.Optional(Type.String({ description: "For get: words to search the models by" })),
@@ -68,7 +66,6 @@ export function settingsExtension(options: SettingsOptions): Extension {
       thinking: Type.Optional(
         Type.String({ description: `For set: one of ${THINKING_LEVELS.join(", ")}` }),
       ),
-      when_busy: Type.Optional(Type.String({ description: 'For set: "steer" or "queue"' })),
       timezone: Type.Optional(Type.String({ description: "For set: an IANA timezone" })),
     }),
     execute: async (args, _api, context) => {
@@ -89,11 +86,6 @@ export function settingsExtension(options: SettingsOptions): Extension {
         const lines = [
           `Model: ${current === undefined ? state.model : describeModel(current)}`,
           `Thinking: ${state.thinking}`,
-          `When a message arrives while you are working: ${
-            state.whenBusy === "steer"
-              ? "it joins what you are doing (steer)"
-              : "it waits its turn (queue)"
-          }`,
           `Timezone: ${state.timezone ?? "not known yet"}`,
           `Cost so far: ${dollars(usage.total.cost)} over ${usage.chats} chat${usage.chats === 1 ? "" : "s"} and runs${
             usage.scheduled.cost > 0
@@ -129,12 +121,11 @@ export function settingsExtension(options: SettingsOptions): Extension {
       const change: SettingsChange = {
         model: text(args.model),
         thinking: text(args.thinking)?.toLowerCase(),
-        whenBusy: text(args.when_busy)?.toLowerCase(),
         timezone: text(args.timezone),
       }
       const changing = Object.entries(change).filter(([, value]) => value !== undefined)
       if (changing.length === 0) {
-        return fail('"set" needs at least one of model, thinking, when_busy, timezone.')
+        return fail('"set" needs at least one of model, thinking, timezone.')
       }
       try {
         await options.update(change, context)
@@ -144,7 +135,7 @@ export function settingsExtension(options: SettingsOptions): Extension {
       }
       const state = await options.state(context)
       return reply(
-        `Saved. Model: ${state.model}. Thinking: ${state.thinking}. When busy: ${state.whenBusy}. Timezone: ${state.timezone ?? "not known yet"}.${
+        `Saved. Model: ${state.model}. Thinking: ${state.thinking}. Timezone: ${state.timezone ?? "not known yet"}.${
           change.model !== undefined || change.thinking !== undefined
             ? " The model and thinking level apply from your next reply."
             : ""

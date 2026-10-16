@@ -23,6 +23,8 @@ import {
   ArrowClockwiseIcon,
   ArrowsClockwiseIcon,
   CaretRightIcon,
+  CheckCircleIcon,
+  CircleDashedIcon,
   ClockIcon,
   DesktopIcon,
   KeyIcon,
@@ -293,16 +295,39 @@ function FromSlack({
   )
 }
 
+/**
+ * Whether a message of one's own has reached the agent, said the way a message app says it: a
+ * ring while it is on its way, and a check once the agent has it.
+ */
+function Delivery({ delivered }: { delivered: boolean }) {
+  const words = delivered ? "Delivered" : "Not delivered yet"
+  const Icon = delivered ? CheckCircleIcon : CircleDashedIcon
+  return (
+    <span
+      role="img"
+      aria-label={words}
+      title={delivered ? words : "Sent. It is read after the step under way."}
+      data-delivery={delivered ? "delivered" : "sent"}
+      className="-mt-1 flex items-center self-end pr-1 text-muted-foreground"
+    >
+      <Icon weight={delivered ? "fill" : "regular"} className="size-3.5" />
+    </span>
+  )
+}
+
 function MessageView({
   message,
   failures,
   onRetry,
   asker,
+  delivery,
 }: {
   message: ChatMessage
   failures: number
   onRetry?: (() => void) | undefined
   asker?: string | undefined
+  /** For a message of the user's: whether the agent has it. Left out where that is not said. */
+  delivery?: "sent" | "delivered" | undefined
 }) {
   const team = useContext(TeamContext)
   if (message.role === "notice") {
@@ -462,6 +487,9 @@ function MessageView({
               />
             ) : null,
           )}
+          {other !== undefined || delivery === undefined ? null : (
+            <Delivery delivered={delivery === "delivered"} />
+          )}
         </MessageContent>
       </Message>
     )
@@ -522,8 +550,14 @@ export function Transcript({
   onRetry,
   asker,
   chatId,
+  undelivered,
 }: {
   state: ChatState
+  /**
+   * The messages in it that have been sent and not yet given to the agent, by id. They are
+   * marked as on their way, and the last one it has been given is marked as delivered.
+   */
+  undelivered?: ReadonlySet<string> | undefined
   /** The chat's id, for stopping the agent from the window of a screen it is using. */
   chatId?: string | undefined
   empty: React.ReactNode
@@ -536,7 +570,22 @@ export function Transcript({
 }) {
   // What the agent is doing, when its answer is not already being written on screen.
   const activity = chatActivity(state)
-  const lastSent = state.messages.findLast((message) => message.role === "user")?.id
+  // The end is brought into view by what has just been sent, and not again when the agent takes
+  // it up: by then the reader may be looking at something else.
+  const lastSent = state.messages.findLast(
+    (message) => message.role === "user" && undelivered?.has(message.id) === true,
+  )?.id
+  // The newest message a person wrote here that the agent has.
+  const lastDelivered =
+    undelivered === undefined || asker !== undefined
+      ? undefined
+      : state.messages.findLast(
+          (message) =>
+            message.role === "user" &&
+            message.agent === undefined &&
+            message.slack === undefined &&
+            !undelivered.has(message.id),
+        )?.id
   // A side chat that continues the main one opens with the mark of where its own messages
   // begin. Until something is said in it, it is as empty as any new chat, and greets like one.
   const untouched = state.messages.length === (continuesMain(state.messages) ? 1 : 0)
@@ -601,6 +650,13 @@ export function Transcript({
                       failures={failures}
                       onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
                       asker={asker}
+                      delivery={
+                        undelivered?.has(message.id) === true
+                          ? "sent"
+                          : message.id === lastDelivered
+                            ? "delivered"
+                            : undefined
+                      }
                     />
                   </MessageScrollerItem>
                 ))}

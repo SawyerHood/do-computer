@@ -116,7 +116,7 @@ const send = (world: World, chatId: string, text: string, caller?: Caller) =>
     caller,
   )
 
-type AgentView = { team: string | null; whenBusy: string; chats: ChatSummary[] }
+type AgentView = { team: string | null; chats: ChatSummary[] }
 
 describe("who a request is from", () => {
   it("travels in a header and back out of the note on a message", () => {
@@ -217,7 +217,7 @@ describe("an agent that is one person's", () => {
     expect(seen[0]).toContain("You belong to one person")
     expect(seen[0]).not.toContain("from_id")
     const agent = await call<AgentView>(world, "/")
-    expect(agent).toMatchObject({ team: null, whenBusy: "steer" })
+    expect(agent).toMatchObject({ team: null })
     // Who started a chat is kept all the same.
     expect(agent.chats[0]).toMatchObject({ createdBy: "user-maya" })
   })
@@ -256,7 +256,7 @@ describe("an agent a team shares", () => {
     expect(seen[1]).toContain("Maya &quot;M&quot; Okafor")
 
     const agent = await call<AgentView>(world, "/")
-    expect(agent).toMatchObject({ team: "Tidewater", whenBusy: "steer" })
+    expect(agent).toMatchObject({ team: "Tidewater" })
     expect(agent.chats[0]).toMatchObject({ createdBy: "user-maya" })
     // An answer nobody was there to read is for the one it answered.
     world.faux.setResponses([fauxAssistantMessage("You are welcome.")])
@@ -266,7 +266,7 @@ describe("an agent a team shares", () => {
       .toContain("user-jon")
   })
 
-  it("takes a teammate's message at once, unless it is set to have it wait its turn", async () => {
+  it("takes a teammate's message at once, into what it is doing", async () => {
     const world = open(150)
     await call(world, "/init", "POST", { ownerId: "user-maya", team: "Tidewater" })
     const chat = await call<ChatSummary>(world, "/chats", "POST", {}, maya)
@@ -285,16 +285,15 @@ describe("an agent a team shares", () => {
     expect(joining.queued).toMatchObject([{ mode: "steer", text: "second" }])
     await follow(world, chat.id, answered(2))
 
-    expect(await call<AgentView>(world, "/", "PATCH", { whenBusy: "queue" })).toMatchObject({
-      whenBusy: "queue",
-    })
+    // An app from when a message could be made to wait still asks for that. It is not refused,
+    // and it changes nothing: the message joins the work all the same.
+    await call(world, "/", "PATCH", { whenBusy: "queue" })
     await send(world, chat.id, "third", maya)
     await follow(world, chat.id, streaming)
     await send(world, chat.id, "fourth", jon)
-    const waiting = await follow(world, chat.id, (state) => state.queued.length > 0)
-    expect(waiting.queued).toMatchObject([{ mode: "followUp", text: "fourth" }])
+    const still = await follow(world, chat.id, (state) => state.queued.length > 0)
+    expect(still.queued).toMatchObject([{ mode: "steer", text: "fourth" }])
     await follow(world, chat.id, answered(4))
-    await expect(call(world, "/", "PATCH", { whenBusy: "never" })).rejects.toThrow("400")
   })
 
   it("is told when it joins a team, changes teams or goes back to one person", async () => {
@@ -303,6 +302,6 @@ describe("an agent a team shares", () => {
     await call(world, "/team", "PUT", { team: "Tidewater" })
     expect(await call<AgentView>(world, "/")).toMatchObject({ team: "Tidewater" })
     await call(world, "/team", "PUT", { team: null })
-    expect(await call<AgentView>(world, "/")).toMatchObject({ team: null, whenBusy: "steer" })
+    expect(await call<AgentView>(world, "/")).toMatchObject({ team: null })
   })
 })
