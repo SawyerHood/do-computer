@@ -19,7 +19,6 @@ export function AgentAside({ agent }: { agent: AgentSummary }) {
       state={EMPTY_CHAT}
       face={<AgentFace agent={agent} className="size-52" pettable />}
       reconnecting={false}
-      startFresh={undefined}
       subagents={[]}
       chatless
     />

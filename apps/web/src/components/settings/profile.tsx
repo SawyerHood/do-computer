@@ -10,10 +10,11 @@ import {
   type ThinkingLevel,
 } from "@do-computer/protocol"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useParams } from "@tanstack/react-router"
 import { useEffect, useId, useState } from "react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { useCalls } from "@/components/call/call"
+import { useConfirm } from "@/components/confirm"
 import { Loads } from "@/components/loads"
 import { ModelPicker } from "@/components/model-picker"
 import { FormPlaceholder, RowsPlaceholder } from "@/components/placeholders"
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { mainChatOf } from "@/lib/chats"
 import { client } from "@/lib/client"
 import {
   agentKey,
@@ -588,6 +590,58 @@ function Computers({ agentId }: { agentId: string }) {
 }
 
 /** The parts of an agent's settings that are kept on the agent itself. */
+/**
+ * Starting a chat's context over. Rarely wanted, so it is here and not on the chat. It is done to
+ * the chat on screen where that is one the person talks in, and otherwise to the main chat.
+ */
+function StartFresh({ agentId, state }: { agentId: string; state: AgentState }) {
+  const { chatId } = useParams({ strict: false })
+  const [confirm, confirming] = useConfirm()
+  const onScreen = state.chats.find((chat) => chat.id === chatId)
+  const chat = onScreen?.kind === "chat" ? onScreen : mainChatOf(state.chats)
+  const reset = useMutation({
+    mutationFn: (id: string) => client.agent(agentId).resetChat(id),
+  })
+  if (chat === undefined) return null
+  const where = chat.main === true ? "the main chat" : `“${chat.title}”`
+  return (
+    <Section
+      title="Start fresh"
+      hint={`The Dood stops carrying the earlier messages of ${where}. Its memory is kept, and you can still read them.`}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={reset.isPending}
+          onClick={async () => {
+            const agreed = await confirm({
+              title: "Start fresh?",
+              description: `From here on the Dood answers in ${where} without what was said in it before. Its memory is kept, and the earlier messages can still be read.`,
+              action: "Start fresh",
+            })
+            if (agreed) reset.mutate(chat.id)
+          }}
+        >
+          Start fresh
+        </Button>
+        {reset.isSuccess && !reset.isPending ? (
+          <span role="status" className="text-sm text-muted-foreground">
+            Started fresh
+          </span>
+        ) : null}
+      </div>
+      {reset.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {reset.error.message}
+        </p>
+      ) : null}
+      {confirming}
+    </Section>
+  )
+}
+
 export type ProfileSection = "profile" | "memory" | "model" | "usage"
 
 /**
@@ -796,6 +850,7 @@ export function ProfileSettings({
             onChange={(value) => set("user", value)}
           />
         </Section>
+        <StartFresh agentId={agentId} state={state} />
       </div>
       <div hidden={section !== "model"} className="flex flex-col gap-6">
         <div>

@@ -34,7 +34,6 @@ export function ChatPlaceholder({ agent }: { agent: AgentSummary | undefined }) 
           loading
           face={<AgentFace agent={agent} className="size-52" />}
           reconnecting={false}
-          startFresh={undefined}
           subagents={[]}
         />
       )}

@@ -1,6 +1,7 @@
 import { expect, test } from "./fixtures.ts"
 import {
   asOwner,
+  closeSettings,
   composer,
   newChat,
   openSettings,
@@ -22,12 +23,9 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await page.keyboard.press("Enter")
   // While it works, a single line says what it is doing, with the command it is running.
   await expect(page.getByRole("status")).toContainText("Running: sleep 1; echo from the shell")
-  // Its creature, above the chat, is at work. It is the only one of it that moves: the ones in
-  // the sidebar and in the strip are pictures, and there is none beside the line.
-  await expect(
-    page.getByRole("button", { name: "Show Juniper beside the chat" }).locator("[data-mood]"),
-  ).toHaveAttribute("data-mood", "working")
-  await expect(page.locator("[data-mood]")).toHaveCount(3)
+  // With its panel away none of it moves: the ones in the sidebar and in the strip are pictures,
+  // there is none beside the line, and none is over the chat.
+  await expect(page.locator("[data-mood]")).toHaveCount(2)
 
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("The tool returned:")).toBeVisible()
@@ -38,13 +36,11 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
   await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
 
-  // The panel about the agent opens from the header above the chat and takes its place. It
-  // lists what the agent wrote up, which it does only for big things: this was not one.
+  // The panel about the agent opens from the strip. It lists what the agent wrote up, which it
+  // does only for big things: this was not one.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
-  const header = page.getByRole("button", { name: "Show Juniper beside the chat" })
   await expect(panel).toHaveCount(0)
-  await header.click()
-  await expect(header).toHaveCount(0)
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
   await expect(panel.getByRole("img", { name: "Dood avatar" })).toHaveAttribute(
     "data-mood",
     /idle|done/,
@@ -68,10 +64,10 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(page.getByRole("status")).toHaveCount(0)
   // Beside its name it says what it is doing in a word or two, not the whole command.
   await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
-  // Put away, from the end of the strip, the header is back.
+  // Put away, from the end of the strip, it can be brought back from there.
   await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
   await expect(panel).toHaveCount(0)
-  await expect(header).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show Juniper's panel" })).toBeVisible()
   await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
 })
 
@@ -251,7 +247,14 @@ test("starting fresh keeps the earlier messages within reach", async ({ page }) 
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("You said: The first thing I said")).toBeVisible()
 
-  await page.getByRole("button", { name: "Start fresh" }).click()
+  // Rarely wanted, so it is in the Dood's settings, under its memory, and asks first.
+  await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(0)
+  await openSettings(page, "Memory")
+  const settings = page.getByRole("dialog")
+  await settings.getByRole("button", { name: "Start fresh" }).click()
+  await page.getByRole("alertdialog").getByRole("button", { name: "Start fresh" }).click()
+  await expect(settings.getByText("Started fresh")).toBeVisible()
+  await closeSettings(page)
   await expect(transcript.getByText("New context")).toBeVisible()
   await expect(transcript.getByText("The first thing I said")).toHaveCount(0)
   await composer(page).fill("The second thing")
