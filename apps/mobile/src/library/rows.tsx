@@ -22,12 +22,22 @@ export function SharedMark({ site }: { site: Pick<SiteSummary, "public"> | undef
   )
 }
 
+/** The mark on a file that is pinned to the Dood whose library this is. */
+export function PinnedMark({ name }: { name: string }) {
+  const theme = useTheme()
+  return (
+    <View accessibilityRole="image" accessibilityLabel={`Pinned to ${name}`}>
+      <Icon name="pin" size={15} color={theme.amber} weight="medium" />
+    </View>
+  )
+}
+
 /**
  * A row with everything that can be done to it: aside under a swipe, and in a menu. On iOS the
  * menu is the system's, under a hold. Elsewhere a hold is not something a row can be given
  * without losing its tap, so the same menu is behind three dots at the row's end.
  */
-function Acted({
+export function Acted({
   name,
   menu,
   swipe,
@@ -104,6 +114,7 @@ export function FileRow({
   title,
   by,
   site,
+  pinnedTo,
   menu = [],
   swipe = [],
   onPress,
@@ -114,6 +125,8 @@ export function FileRow({
   /** Who last changed it. */
   by?: string
   site?: SiteSummary | undefined
+  /** The name of the Dood it is pinned to, when it is. */
+  pinnedTo?: string | undefined
   menu?: MenuItem[]
   swipe?: SwipeAction[]
   onPress: () => void
@@ -129,9 +142,10 @@ export function FileRow({
           }
           title={title ?? file.name}
           subtitle={line}
-          accessibilityLabel={`${title ?? file.name}, ${line}`}
+          accessibilityLabel={`${title ?? file.name}${pinnedTo === undefined ? "" : ", pinned"}, ${line}`}
           tail={
             <>
+              {pinnedTo === undefined ? null : <PinnedMark name={pinnedTo} />}
               <SharedMark site={site} />
               {more}
             </>

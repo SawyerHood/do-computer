@@ -21,6 +21,7 @@ import { useHere } from "@/lib/presence"
 import { keys, useMe } from "@/lib/queries"
 import type { Accent } from "@/lib/theme"
 import { useLiveChat } from "@/lib/use-live-chat"
+import { PinnedSection } from "@/pins/shelf"
 import { useSession } from "@/lib/use-session"
 import {
   confirm,
@@ -175,6 +176,9 @@ export default function AgentInfo() {
               onPress={() => router.push(`${base}/automations`)}
             />
           </View>
+
+          {/* Under the face, as the web has them: what is worth a glance, before the rest. */}
+          <PinnedSection agentId={agentId} name={name} />
 
           {main === undefined ? null : (
             <MainChat agentId={agentId} name={name} chat={main} chats={state?.chats ?? []} />

@@ -5870,10 +5870,10 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       shares it; that the agent need not ask; eight at most; that only the first is drawn; the
       title; that a pin whose file is deleted stays, saying so, until it is taken off.
     - **Not built, though the mock-up drew them:** a window of its own over other windows; the
-      chips under an agent's name on a phone (on a narrow screen there is no panel, so pins
-      are not shown there, and the card's Open leads to the Library); a mark for "changed since
-      you last looked"; ticking a step on a page (a page still cannot write to its file). The
-      phone app shows nothing for the tool's part.
+      chips under an agent's name on a phone (the web app on a narrow screen has no panel, so
+      pins are not shown there, and the card's Open leads to the Library); a mark for "changed
+      since you last looked"; ticking a step on a page (a page still cannot write to its file).
+      The native phone app shows pins and the tool's card since item 95.
     - **Checked:** `packages/agent/test/pins.test.ts` and three browser tests
       (`pins.spec.ts`): the agent pinning and the tile following a rewrite of the file, a
       person pinning from a card and from the Library, a deleted file. Looked at in both
@@ -7164,6 +7164,55 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Not built:** inline HTML other than `<details>` (`kbd`, `sub`, `sup`), a link to a
       heading in the same reply, a connector's page shown large, and a Markdown document of
       the library in its Dood's color (its links are still the app's teal).
+95. **The phone app shows a Dood's pins, and pins and unpins as the web does** (2026-10-16;
+    `apps/mobile/src/pins`, `apps/mobile/src/chat/parts/pin.tsx`, the library's list and
+    viewer in `apps/mobile/app/(app)/a/[agentId]/library`, `packages/protocol/src/pins.ts`).
+    Until now the native app had nothing of item 71: no pins, and nothing in a chat where the
+    Dood pinned something.
+    - **In a chat** the Dood's pinning is the web's card, drawn natively (`PinCard`): "Pip
+      pinned Launch board", the file's place, Open (the library's viewer) and Unpin. It says how
+      the pin stands now; taken off, it offers "Pin it again" under the Dood's title.
+    - **Under the face, on the Dood's page** (`info.tsx`, `PinnedSection`): a Pinned group
+      between the three buttons and At work now, where the web has its Pinned section under
+      the face in the panel. The first pin, when it is a page, a document or a picture, is
+      drawn at the page's width over its row (a web view, the Markdown, the picture), and a
+      page is loaded again when anything in its top folder changes. Every pin is a row that
+      opens the file, says when it last changed or "Just changed" for a few seconds, and is
+      taken off with a swipe, or from its menu (a hold on iOS, three dots elsewhere). A pin
+      whose file was deleted stays, saying "No longer in the library", with Unpin beside it.
+      With nothing pinned there is no group.
+    - **From the chat**, the main chat's More has a Pinned menu listing them, so a pin opens
+      in two taps, which is the nearest a phone comes to the web's "beside the chat".
+    - **A person pins** from a file's menu in the library ("Pin to Pip", also a swipe), and
+      with a pin on the bar of the open file, filled while it is pinned ("Unpin from Pip").
+      A pinned file's row has a pin mark. The library is the workspace's, so a file is pinned
+      to the Dood the library was opened from, as on the web.
+    - **The web's rules hold** because they are the server's: eight at most (the phone says so
+      before asking, in the server's words), anyone who can open the Dood may pin, and the
+      Dood's `changed: "pins"` now asks for the pins again (`CHANGED` in `lib/queries.ts`), so
+      a pin the Dood makes appears at once on every screen of it.
+    - **Shared, not copied:** `pinnedEntries`, `pinsFull` and `pinStanding` in
+      `packages/protocol/src/pins.ts`, and `pageShownAt` in `library-links.ts`. The web's
+      shelf and card use them too. The phone's own choices (the words of a menu item, the
+      menu of pins) are pure functions in `apps/mobile/src/pins/model.ts`.
+    - **Mine, not the owner's:** the Dood's page and the chat's More as the places for pins
+      (the phone's chat has no panel, and its header has no room for chips); drawing the
+      first pin at full width rather than at half size; the pin in the viewer's bar rather
+      than in its menu, so that it shows how the file stands; orange for the swipe, as
+      Messages pins; refusing a ninth pin on the phone before the server does.
+    - **Not built:** reordering, which the web does not have either; the pin on a file's card
+      in a chat, which the web has (the card has a download and a share already, and the file
+      is a tap from its viewer's pin); a mark for "changed since you last looked".
+    - **Checked:** unit tests for the shared functions (`packages/protocol/test/pins.test.ts`,
+      `library-links.test.ts`) and the phone's (`apps/mobile/test/pins.test.ts`); two browser
+      tests through the phone's web build (`mobile.spec.ts`): the Dood pinning, the card's
+      Unpin and Pin it again, Open, the chat's Pinned menu, the group on the Dood's page with
+      the first pin drawn, a pin made elsewhere appearing without a reload, unpinning from a
+      pin's menu; pinning from the library's menu and the viewer's bar, the ninth refused, a
+      deleted file's pin saying so and taken off. Looked at at phone width in the browser
+      build. **Not checked:** anything on iOS itself (no Mac was at hand, so no simulator):
+      the system's menus, the swipe, the web view drawing the first pin, SF Symbols `pin`,
+      `pin.fill` and `pin.slash`; Android; a real model deciding to pin.
 
 ## 6. What the owner has said they want
 

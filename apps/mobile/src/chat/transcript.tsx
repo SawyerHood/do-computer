@@ -7,6 +7,7 @@ import {
   isAgentMessage,
   isMcpApp,
   isJobStart,
+  isPinning,
   isSentFile,
   isSiteShare,
   isSubagentStart,
@@ -55,6 +56,7 @@ import { clockOf, isAtEnd, isUntouched, shownMessages, shownParts, textOf } from
 import { drawNamed } from "./parts/named"
 import { drawDiagram } from "./parts/diagram"
 import { type Picture, SentPictures } from "./parts/pictures"
+import { PinCard } from "./parts/pin"
 import {
   type ChatScope,
   ChatScopeContext,
@@ -121,6 +123,7 @@ const AssistantPart = memo(function AssistantPart({
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
   if (isSiteShare(part)) return <SiteCard part={part} />
+  if (isPinning(part)) return <PinCard part={part} />
   if (isSubagentStart(part)) return <SubagentChip part={part} />
   if (isJobStart(part)) return <CommandChip part={part} />
   if (isUse(part)) return <UseView part={part} />

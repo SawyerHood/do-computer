@@ -1,4 +1,4 @@
-import { pinned, pinOf, pinTitle, type ToolPart } from "@do-computer/protocol"
+import { pinned, pinStanding, pinTitle, type ToolPart } from "@do-computer/protocol"
 import { PushPinIcon } from "@phosphor-icons/react"
 import { Link } from "@tanstack/react-router"
 import { useContext } from "react"
@@ -22,8 +22,7 @@ function CardOf({ agentId, part }: { agentId: string; part: ToolPart }) {
   const name = useListedAgent(agentId)?.name ?? "Your Dood"
   const pins = usePins(agentId)
   const { pin, unpin, pending, error } = usePinning(agentId)
-  // Until what is pinned is known, it is shown as the agent left it.
-  const now = pins === undefined ? then.pin : pinOf(pins, then.file)
+  const now = pinStanding(then, pins)
   const title = pinTitle(now ?? then.pin, then.file)
   return (
     <div

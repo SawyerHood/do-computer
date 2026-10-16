@@ -92,6 +92,15 @@ export const ICONS = {
     "link",
     '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.700l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.700l1-1"/>',
   ],
+  pin: ["pin", '<path d="M9 3.5h6M10 3.500v6l-3 3.500h10l-3-3.500v-6M12 13v7.5"/>'],
+  pinFill: [
+    "pin.fill",
+    '<path d="M10 3.500h4v6l3 3.500H7l3-3.500z" fill="currentColor"/><path d="M9 3.5h6M12 13v7.5"/>',
+  ],
+  pinSlash: [
+    "pin.slash",
+    '<path d="M9 3.5h6M10 3.500v6l-3 3.500h10l-3-3.500v-6M12 13v7.5M4 4l16 16"/>',
+  ],
   globe: [
     "globe",
     '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.500c3 3 3 14 0 17M12 3.500c-3 3-3 14 0 17"/>',

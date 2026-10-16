@@ -31,6 +31,7 @@ export const keys = {
   secrets: (agentId: string) => ["agents", agentId, "secrets"] as const,
   creature: (agentId: string) => ["agents", agentId, "creature"] as const,
   jobs: (agentId: string) => ["agents", agentId, "jobs"] as const,
+  pins: (agentId: string) => ["agents", agentId, "pins"] as const,
   usage: (agentId: string) => ["agents", agentId, "usage"] as const,
   slack: (agentId: string) => ["agents", agentId, "slack"] as const,
 }
@@ -83,6 +84,8 @@ const CHANGED: Record<string, (agentId: string) => readonly unknown[]> = {
   secrets: keys.secrets,
   creature: keys.creature,
   jobs: keys.jobs,
+  // A Dood that pins something says so, and everyone looking at it sees it at once.
+  pins: keys.pins,
 }
 
 type Watch = { count: number; close: () => void }

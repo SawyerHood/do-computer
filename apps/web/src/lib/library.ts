@@ -3,6 +3,7 @@ import {
   type EmbedKind,
   embedKind,
   type LibraryFile,
+  pageShownAt,
   resolveLink,
 } from "@do-computer/protocol"
 
@@ -33,12 +34,7 @@ export { dirOf, resolveLink }
  * newest file in its top folder; anything else is as new as itself.
  */
 export function shownAt(files: readonly LibraryFile[], file: LibraryFile): number {
-  if (kindOf(file) !== "page") return file.updatedAt
-  const top = file.path.includes("/") ? `${file.path.split("/")[0]}/` : ""
-  return Math.max(
-    file.updatedAt,
-    ...files.filter((entry) => entry.path.startsWith(top)).map((entry) => entry.updatedAt),
-  )
+  return kindOf(file) === "page" ? pageShownAt(files, file) : file.updatedAt
 }
 
 export type Folder = {
