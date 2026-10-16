@@ -1,7 +1,7 @@
 import type { AgentState } from "@do-computer/client"
 import type { ChatSummary } from "@do-computer/protocol"
 import { useNavigate, useParams } from "@tanstack/react-router"
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { client } from "./client.ts"
 import { agentKey, chatsCollection } from "./collections.ts"
 import { queryClient } from "./query.ts"
@@ -102,11 +102,16 @@ export function useNewSideChat(agentId: string, mainId: string | undefined) {
   const open = useOpenSideChat(agentId, mainId)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string>()
+  // One id for a chat until it is known to be made. A press after one that failed asks for the
+  // same chat, so that a chat whose answer never arrived is opened and no second one is made.
+  const request = useRef<string>(undefined)
   const create = useCallback(async (): Promise<boolean> => {
     setCreating(true)
     setError(undefined)
     try {
-      const chat = await client.agent(agentId).createChat()
+      request.current ??= crypto.randomUUID()
+      const chat = await client.agent(agentId).createChat({ requestId: request.current })
+      request.current = undefined
       keepChat(agentId, chat)
       // The agent says its chats changed, which asks for them again. Nothing waits for that,
       // nor for the chat's page, which says for itself what it waits on.

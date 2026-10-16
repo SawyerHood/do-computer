@@ -1,7 +1,7 @@
 import type { ChatSummary } from "@do-computer/protocol"
 import { useQueryClient } from "@tanstack/react-query"
 import { useLocalSearchParams, useRouter } from "expo-router"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ActivityIndicator, View } from "react-native"
 import { ago, isAtWork, mainChatOf, names, sideChatsOf, whoIs } from "@/chat/chats"
 import { useHere } from "@/lib/presence"
@@ -69,11 +69,16 @@ export default function SideChats() {
     router.back()
     router.push(`/a/${agentId}/c/${chatId}`)
   }
+  // One id for a chat until it is known to be made. A press after one that failed asks for the
+  // same chat, so that a chat whose answer never arrived is opened and no second one is made.
+  const request = useRef<string | undefined>(undefined)
   const create = async () => {
     setCreating(true)
     setError(undefined)
     try {
-      const chat = await client.agent(agentId).createChat()
+      request.current ??= crypto.randomUUID()
+      const chat = await client.agent(agentId).createChat({ requestId: request.current })
+      request.current = undefined
       await queryClient.invalidateQueries({ queryKey: keys.agent(agentId) })
       open(chat.id)
     } catch (caught) {

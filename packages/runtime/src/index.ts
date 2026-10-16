@@ -22,7 +22,6 @@ export {
   type PreviewLine,
   type PreviewRequest,
 } from "./preview.ts"
-export { SerialQueue } from "./serial-queue.ts"
 
 export type BlobMetadata = {
   readonly contentType?: string

@@ -11,12 +11,15 @@ import {
   type SocketAutoResponse,
   type SqlValue,
 } from "../index.ts"
+import { DurableObjectSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/cloudflare"
 import { R2BlobStore } from "./blobs.ts"
-import { DurableObjectSqliteDatabase } from "./sqlite.ts"
 
 export { R2BlobStore } from "./blobs.ts"
 export { browserRunPreviewer } from "./preview.ts"
-export { DurableObjectSqliteDatabase } from "./sqlite.ts"
+// `SqliteDatabase` over a Durable Object's SQLite storage is pi-durable's own. A transaction is
+// `storage.transaction()`, since Durable Object SQL refuses `BEGIN`, and statements that are not
+// part of it wait behind it.
+export { DurableObjectSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlite/cloudflare"
 
 const NAME_KEY = "dc:actor-name"
 

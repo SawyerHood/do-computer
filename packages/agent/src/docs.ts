@@ -199,6 +199,11 @@ export type ChatRecord = {
    * not shown as its own.
    */
   fork?: { chatId: string; at: number }
+  /**
+   * The id of the request that made it, where it was made by one that gave an id. The same
+   * request sent again is answered with this chat, and makes no other.
+   */
+  request?: string
 }
 
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */

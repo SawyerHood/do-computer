@@ -18,14 +18,17 @@ type World = {
   faux: ReturnType<typeof fauxProvider>
   sent: Sent[]
   answer: { status: number; body: unknown }
+  /** Whether a search is left unanswered, as one whose process is about to be lost. */
+  hang: boolean
 }
 const worlds: World[] = []
 afterEach(async () => {
   for (const world of worlds.splice(0)) await world.namespace.close().catch(() => {})
 })
 
-function open(search = true): World {
-  const directory = mkdtempSync(join(tmpdir(), "dc-search-"))
+const temporary = () => mkdtempSync(join(tmpdir(), "dc-search-"))
+
+function open(search = true, directory = temporary()): World {
   const faux = fauxProvider({
     provider: "test",
     models: [{ id: "model" }],
@@ -38,6 +41,7 @@ function open(search = true): World {
     faux,
     sent: [],
     answer: { status: 200, body: {} },
+    hang: false,
   }
   world.namespace = new NodeActorNamespace({
     directory: join(directory, "actors"),
@@ -60,6 +64,12 @@ function open(search = true): World {
                   headers: Object.fromEntries(new Headers(init.headers)),
                   body: JSON.parse(String(init.body)),
                 })
+                if (world.hang) {
+                  const signal = init.signal
+                  await new Promise((_resolve, reject) => {
+                    signal?.addEventListener("abort", () => reject(signal.reason))
+                  })
+                }
                 return Response.json(world.answer.body, { status: world.answer.status })
               },
             }
@@ -220,6 +230,42 @@ describe("the models on offer", () => {
     })
     expect(defaultModel).toBe("openrouter/google/gemini-3.8-flash")
     expect(options[0]).toMatchObject({ id: defaultModel, recommended: true })
+  })
+
+  it("searches again after a restart that cut a search off", async () => {
+    const directory = temporary()
+    const before = open(true, directory)
+    before.hang = true
+    await call(before, "/init", "POST", { ownerId: "user-1" })
+    const chat = await call<ChatSummary>(before, "/chats", "POST", {})
+    before.faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("web_search", { query: "When is high tide?" })], {
+        stopReason: "toolUse",
+      }),
+    ])
+    await call(before, `/chats/${chat.id}/messages`, "POST", { text: "look it up", requestId: "r" })
+    for (let attempt = 0; before.sent.length === 0 && attempt < 400; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(before.sent).toHaveLength(1)
+    await before.namespace.close()
+
+    // A new process, woken by the agent's alarm: the search is made again, and answered.
+    const after = open(true, directory)
+    after.answer.body = { choices: [{ message: { content: "At 14:05." } }] }
+    after.faux.setResponses([fauxAssistantMessage("High tide is at 14:05.")])
+    let state: ChatState | undefined
+    for (let attempt = 0; attempt < 100; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      state = await call<ChatState>(after, `/chats/${chat.id}`)
+      if (!state.busy) break
+    }
+    expect(after.sent).toHaveLength(1)
+    const parts = state?.messages.flatMap((message) => message.parts) ?? []
+    const tool = parts.find((part) => part.type === "tool") as ToolPart
+    expect(tool.status).toBe("done")
+    expect(tool.output).toContain("At 14:05.")
+    expect(parts.at(-1)).toEqual({ type: "text", text: "High tide is at 14:05." })
   })
 
   it("is the one echo model when there is no key", () => {

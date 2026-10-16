@@ -2,7 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pi 1.2.0 was published on 2026-10-12; let it through the release-age gate.
+# pi 1.3.0 was published on 2026-10-16; let it through the release-age gate.
 minimumReleaseAgeExclude:
   - "@earendil-works/*"
 
@@ -25,6 +25,6 @@ catalog:
   "@typescript/native": npm:typescript@^7.0.2
   vitest: ^5.0.3
   "@types/node": ^24
-  "@earendil-works/pi-durable": 1.2.0
-  "@earendil-works/pi-ai": 1.2.0
-  "@earendil-works/chord": 1.2.0
+  "@earendil-works/pi-durable": 1.3.0
+  "@earendil-works/pi-ai": 1.3.0
+  "@earendil-works/chord": 1.3.0
