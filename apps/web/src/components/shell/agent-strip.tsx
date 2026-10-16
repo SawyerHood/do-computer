@@ -71,8 +71,8 @@ function useOpenTab(agentId: string, back: string | undefined) {
 
 /**
  * The agent's name, afloat over the top of its pages, and all there is above them. Its face is
- * the way to its wardrobe. Its name opens what else there is of it: its pages, its side chats, a
- * call, its panel and its settings. Beside the name is which page is open, where the page does
+ * the way to its panel (to its wardrobe, on a narrow screen). Its name opens what else there is
+ * of it: its pages, its side chats, a call, its panel and its settings. Beside the name is which page is open, where the page does
  * not say so itself, and who else is here. In the library it is not afloat: it is in the bar
  * the library has there, drawn as part of it.
  */
@@ -119,6 +119,13 @@ function AgentPill({
   const [wanted, setPanel] = useAtom(agentPanelOpenAtom)
   // A side chat beside the main chat is where the panel would be.
   const panel = wanted && side === undefined
+  const togglePanel = () => {
+    setPanel(!panel)
+    // The side chat makes way for the panel.
+    if (side !== undefined && chatId !== undefined) {
+      void navigate({ to: "/a/$agentId/c/$chatId", params: { agentId: agent.id, chatId } })
+    }
+  }
 
   const team = workspace.kind === "team"
   const here = useHere(team ? workspace.id : undefined)
@@ -141,13 +148,25 @@ function AgentPill({
       )}
     >
       <DropdownMenu open={shown} onOpenChange={setShown}>
-        {/* Its picture is the way to its wardrobe, which on a narrow screen is also where it is looked after. */}
+        {/* Its picture is the way to its panel, where it is looked after. A narrow screen has no
+            room for the panel, so there it is the way to its wardrobe instead. */}
         {agent.hatched ? (
           <button
             type="button"
-            aria-label={waiting ? `${name}'s wardrobe: a box is waiting` : `${name}'s wardrobe`}
-            title={waiting ? `${name} found a box` : `${name}'s wardrobe`}
-            onClick={() => openWardrobe(true)}
+            aria-label={
+              wide
+                ? `${panel ? "Hide" : "Show"} ${name}'s panel${waiting ? ": a box is waiting" : ""}`
+                : `${name}'s wardrobe${waiting ? ": a box is waiting" : ""}`
+            }
+            title={
+              waiting
+                ? `${name} found a box`
+                : wide
+                  ? `${panel ? "Hide" : "Show"} ${name}'s panel`
+                  : `${name}'s wardrobe`
+            }
+            aria-pressed={wide ? panel : undefined}
+            onClick={() => (wide ? togglePanel() : openWardrobe(true))}
             className="relative shrink-0 rounded-full p-0.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
           >
             <AgentFace agent={agent} className="size-7" still />
@@ -211,18 +230,7 @@ function AgentPill({
           )}
           <DropdownMenuSeparator />
           {wide ? (
-            <DropdownMenuItem
-              onClick={() => {
-                setPanel(!panel)
-                // The side chat makes way for the panel.
-                if (side !== undefined && chatId !== undefined) {
-                  void navigate({
-                    to: "/a/$agentId/c/$chatId",
-                    params: { agentId: agent.id, chatId },
-                  })
-                }
-              }}
-            >
+            <DropdownMenuItem onClick={togglePanel}>
               <SidebarSimpleIcon className="-scale-x-100" />
               {panel ? `Hide ${name}'s panel` : `Show ${name}'s panel`}
             </DropdownMenuItem>
