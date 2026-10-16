@@ -107,6 +107,17 @@ const RESTART_LOOK_MS = 60_000
 /** How often an app whose server was to be served over Tailscale, and is not, looks again. */
 const TAILNET_LOOK_MS = 60_000
 const MAC = process.platform === "darwin"
+/**
+ * Whether the deployment's window is made with no title bar: on a Mac, where the page runs to
+ * the top of the window and the window's three buttons lie over its corner. Said of another
+ * desktop only by the tests.
+ */
+const NO_TITLE_BAR = MAC || process.env.DC_DESKTOP_TITLE_BAR === "inset"
+/** Where the window's three buttons are, over a column of faces made wide enough for them. */
+const TRAFFIC_LIGHTS = { x: 12, y: 20 }
+/** As tall as a title bar: where a page that made no room for one is dragged by. */
+const DRAG_STRIP =
+  "html::before{content:'';position:fixed;top:0;left:0;right:0;height:28px;z-index:2147483647;-webkit-app-region:drag}"
 const here = (...parts: string[]) => path.join(__dirname, ...parts)
 const page = (name: string) => here("pages", `${name}.html`)
 
@@ -567,6 +578,49 @@ function showElsewhere(asked: BrowserWindow, address: string): void {
   void window.loadURL(address)
 }
 
+/**
+ * Whether the deployment's window is to have no title bar. Its pages have to make room for the
+ * window's buttons and say what it is dragged by, and a deployment older than that does
+ * neither: the window is given its title bar back for as long as the app is set to that one.
+ */
+const insetWanted = () => NO_TITLE_BAR && settings.titleBarFor !== settings.server
+/** The windows that were made with no title bar. */
+const inset = new WeakSet<BrowserWindow>()
+/** Whether the main window has no title bar to be seen: in full screen it has no buttons either. */
+const mainInset = () => alive(mainWindow) && inset.has(mainWindow) && !mainWindow.isFullScreen()
+
+/**
+ * What a page that has finished loading does about the title bar. A page of the app says so
+ * where it can be shown without one. If that is not how the window was made, the window is
+ * made again the other way, and it is remembered. Any other page has made no room, so it
+ * is given a strip along its top to be dragged by.
+ */
+async function fitTitleBar(window: BrowserWindow): Promise<void> {
+  if (!NO_TITLE_BAR || !alive(window)) return
+  const address = window.webContents.getURL()
+  let fits: boolean | undefined
+  if (ours(address) !== undefined) {
+    // Only the app's own pages are asked: a file or a site an agent made is neither answer.
+    const said = (await window.webContents
+      .executeJavaScript(
+        `document.querySelector('meta[name="application-name"][content="Do Computer"]') === null ? null : document.querySelector('meta[name="do-computer-title-bar"][content="inset"]') !== null`,
+      )
+      .catch(() => null)) as boolean | null
+    if (said !== null) fits = said
+  }
+  if (!alive(window) || window !== mainWindow || window.webContents.getURL() !== address) return
+  if (fits === undefined || fits === inset.has(window)) {
+    if (fits !== true && inset.has(window)) void window.webContents.insertCSS(DRAG_STRIP)
+    return
+  }
+  remember({ titleBarFor: fits ? undefined : settings.server })
+  const bounds = window.getBounds()
+  const shown = window.isVisible()
+  mainWindow = undefined
+  window.destroy()
+  makeMain(address, { bounds, shown })
+}
+
 /** Show the deployment's window, making it if need be, on a page of the deployment if given. */
 function showMain(address?: string): void {
   if (settings.server === undefined) return showWelcome()
@@ -577,17 +631,30 @@ function showMain(address?: string): void {
     mainWindow.focus()
     return
   }
+  makeMain(address ?? home())
+}
+
+/** Make the deployment's window, where the one before it was if there was one. */
+function makeMain(
+  address: string,
+  as: { bounds?: Electron.Rectangle; shown?: boolean } = {},
+): void {
+  const bare = insetWanted()
   const window = new BrowserWindow({
     width: 1280,
     height: 860,
+    ...as.bounds,
+    show: as.shown !== false,
     minWidth: 380,
     minHeight: 480,
     title: NAME,
     backgroundColor: canvas(),
     autoHideMenuBar: true,
+    ...(bare ? { titleBarStyle: "hidden" as const, trafficLightPosition: TRAFFIC_LIGHTS } : {}),
     ...(MAC ? {} : { icon: ownIcon ?? icon()! }),
     webPreferences: webPreferences(),
   })
+  if (bare) inset.add(window)
   mainWindow = window
   keepToServer(window)
   // Closing the window leaves the program running, with the daemon in it, until it is quit.
@@ -603,6 +670,13 @@ function showMain(address?: string): void {
     // -3 is a load that was replaced by another, which is no failure.
     if (isMainFrame && code !== -3) void window.loadFile(page("offline"))
   })
+  window.webContents.on("did-finish-load", () => void fitTitleBar(window))
+  // In full screen the window's buttons are gone, and the page takes back the room it made.
+  for (const turned of ["enter-full-screen", "leave-full-screen"] as const) {
+    window.on(turned as "enter-full-screen", () => {
+      window.webContents.send(CHANNELS.titleBar, mainInset() ? "inset" : null)
+    })
+  }
   // Signing in is a change of page, and is what a pairing waits for.
   for (const moved of ["did-navigate", "did-navigate-in-page"] as const) {
     window.webContents.on(moved as "did-navigate", (_event, address) => {
@@ -610,7 +684,7 @@ function showMain(address?: string): void {
       void backIn(address)
     })
   }
-  void window.loadURL(address ?? home())
+  void window.loadURL(address)
 }
 
 function ownWindow(name: string, options: { width: number; height: number; title: string }) {
@@ -1179,6 +1253,7 @@ function pageInfo(): PageInfo {
     welcomed: settings.welcomed,
     sharing: sharingNow(runner?.sharing ?? { state: "off" }),
     local: settings.local,
+    ...(mainInset() ? { titleBar: "inset" as const } : {}),
   }
 }
 

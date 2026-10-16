@@ -177,9 +177,19 @@ export function Sidebar({
   className?: string
 }) {
   return (
-    <div className={cn("flex h-full min-h-0 flex-col overflow-hidden", className)}>
-      {/* Over the faces: its mark is where theirs are. */}
-      <div className="flex items-center gap-2 px-3 pt-2.5 pb-0.5">
+    // With no title bar the column is wider, for the window's buttons, and everything in it
+    // is as far in from the left whether or not it is opened out.
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col overflow-hidden inset:pl-2.5",
+        drawn === "rail" && "inset:pr-2.5",
+        className,
+      )}
+    >
+      {/* Under the window's buttons, which are all there is at the top of it there. */}
+      <div aria-hidden className="hidden h-10 shrink-0 inset:block" />
+      {/* Over the faces: its mark is where theirs are. With no title bar its edge opens it. */}
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-0.5 inset:hidden">
         <button
           type="button"
           aria-label={drawn === "rail" ? "Show Doods by name" : "Show Doods as faces"}

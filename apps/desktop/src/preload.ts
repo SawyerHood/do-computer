@@ -36,6 +36,9 @@ if (location.protocol === "file:") {
   if (info !== null) {
     const bridge: DesktopBridge = {
       ...info,
+      onTitleBar: (listener) => {
+        ipcRenderer.on(CHANNELS.titleBar, (_event, titleBar: "inset" | null) => listener(titleBar))
+      },
       signIn: (provider) => ipcRenderer.invoke(CHANNELS.signIn, provider),
       cancelSignIn: () => ipcRenderer.invoke(CHANNELS.cancelSignIn),
       share: (options) => ipcRenderer.invoke(CHANNELS.share, options),

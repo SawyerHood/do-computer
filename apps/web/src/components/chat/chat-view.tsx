@@ -308,6 +308,8 @@ export function ChatView({
   const notes = !beside && (live.status === "reconnecting" || atWork.length > 0)
   // Whether anything is over the top of the transcript.
   const floats = sub !== undefined || thread?.peer !== undefined || notes
+  // Whether a bar of the chat's own is over it, under the name.
+  const barred = (aside !== undefined && main !== undefined) || slack !== undefined
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -320,10 +322,16 @@ export function ChatView({
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-10 bg-linear-to-b from-background to-transparent",
-              // What is said goes out of sight under the name above it, and under more of the
-              // page where something of the chat's own is over the transcript as well.
-              floats ? "h-20 via-background/80" : "h-8",
+              "pointer-events-none absolute inset-x-0 z-10 bg-linear-to-b from-background to-transparent",
+              barred ? "top-0" : "-top-[var(--under-strip,0px)]",
+              // What is said goes out of sight at the top of the page, behind the name that
+              // floats there, and under more of the page where something of the chat's own is
+              // over the transcript as well.
+              floats
+                ? barred
+                  ? "h-20 via-background/80"
+                  : "h-[calc(5rem+var(--under-strip,0px))] via-background/80"
+                : "h-8",
             )}
           />
           {sub !== undefined ? (
@@ -435,7 +443,22 @@ export function ChatView({
               </div>
             </div>
           )}
-          <div className="min-h-0 flex-1">
+          {/*
+            The chat runs under the Dood's name, where that floats: see styles.css. What is
+            said first starts clear of it, and of anything of the chat's own that is over it.
+          */}
+          <div
+            className={cn(
+              "min-h-0 flex-1",
+              floats
+                ? "[--chat-top:calc(var(--lift)+4.5rem)]"
+                : "[--chat-top:calc(var(--lift)+1.5rem)]",
+              // A bar of the chat's own is between it and the name, and it stays under that.
+              barred
+                ? "[--lift:0px]"
+                : "-mt-[var(--under-strip,0px)] [--lift:var(--under-strip,0px)]",
+            )}
+          >
             <AgentIdContext value={agent.id}>
               <OpenFileContext value={wide ? setOpenDoc : undefined}>
                 <TeamContext value={teamContext}>

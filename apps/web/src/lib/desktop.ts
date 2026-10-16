@@ -62,7 +62,21 @@ export type DesktopBridge = {
    * cannot. An app older than this has no such thing to ask.
    */
   pairedAs?(): Promise<string | null>
+  /**
+   * `inset` where the app's window has no title bar: the page runs to the top of the window,
+   * with the window's three buttons over its top left corner, and the window is dragged by what
+   * the page says. Absent where the window has a title bar, in full screen, and in an older app.
+   */
+  titleBar?: "inset"
+  /** Told whenever that changes: going into full screen and coming out of it. */
+  onTitleBar?(listener: (titleBar: "inset" | null) => void): void
 }
+
+/**
+ * Runs before first paint. It says on the document whether the app's window has no title bar,
+ * for the styles that make room for the window's buttons: see `inset` in styles.css.
+ */
+export const TITLE_BAR_INIT_SCRIPT = `try{var b=window.doComputer,e=document.documentElement;if(b&&b.titleBar){e.dataset.titleBar=b.titleBar;if(b.onTitleBar)b.onTitleBar(function(t){e.dataset.titleBar=t||""})}}catch(e){}`
 
 declare global {
   interface Window {

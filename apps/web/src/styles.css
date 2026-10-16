@@ -10,6 +10,55 @@
 @import "./theme-tokens.css";
 
 @custom-variant dark (&:is(.dark *));
+/* In the desktop app's window with no title bar: see TITLE_BAR_INIT_SCRIPT in lib/desktop.ts. */
+@custom-variant inset (&:is([data-title-bar="inset"] *));
+
+/*
+ * A Dood's name floats over its chat, which runs under it to the top of the page: the chat is
+ * told how far that is, and what is under the name can still be scrolled and pressed. Not so
+ * while the name is in a bar, with a page's own things beside it.
+ */
+[data-agent-strip]:not([data-bar]):not(:has([data-strip-slot]:not(:empty))) {
+  pointer-events: none;
+}
+[data-agent-strip]:not([data-bar]):not(:has([data-strip-slot]:not(:empty)))
+  :is(a, button, [role="button"]) {
+  pointer-events: auto;
+}
+[data-agent-strip]:not([data-bar]):not(:has([data-strip-slot]:not(:empty))) + * {
+  --under-strip: 3.25rem;
+}
+
+/*
+ * A window with no title bar is dragged by the top of the page: a strip as tall as a title bar
+ * on every page, and whatever else says so. Nothing that can be pressed is part of it, nor is
+ * anything laid over the page.
+ */
+[data-title-bar="inset"] [data-title-drag] {
+  -webkit-app-region: drag;
+}
+[data-title-bar="inset"]
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    summary,
+    [tabindex],
+    [role="button"],
+    [role="separator"],
+    [role="dialog"],
+    [role="alertdialog"],
+    [role="menu"],
+    [role="listbox"],
+    [role="tooltip"],
+    [data-radix-popper-content-wrapper],
+    [data-no-drag]
+  ) {
+  -webkit-app-region: no-drag;
+}
 
 @theme inline {
   --font-sans: "Geist Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;

@@ -21,7 +21,7 @@ export function ChatPlaceholder({ agent }: { agent: AgentSummary | undefined }) 
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden">
-          <TranscriptPlaceholder className="mx-auto w-full max-w-3xl px-4 pb-6" />
+          <TranscriptPlaceholder className="mx-auto w-full max-w-[45rem] px-4 pb-6" />
         </div>
         <ComposerPlaceholder />
       </div>

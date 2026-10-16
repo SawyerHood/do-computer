@@ -37,6 +37,11 @@ export type Settings = {
    * starts a moment after that shows none either.
    */
   restarted?: number
+  /**
+   * The deployment whose pages were found to make no room for a window with no title bar, if
+   * the one the app is set to is such a one. Its window keeps its title bar.
+   */
+  titleBarFor?: string
 }
 
 // The screen is everything its owner can see and do, so it is asked for. A browser is what a
@@ -80,6 +85,7 @@ export function loadSettings(file: string): Settings {
       // that has a server was set up then, and its owner is not asked it all again.
       welcomed: parsed.welcomed === undefined ? server !== undefined : parsed.welcomed === true,
       ...(typeof parsed.restarted === "number" ? { restarted: parsed.restarted } : {}),
+      ...(typeof parsed.titleBarFor === "string" ? { titleBarFor: parsed.titleBarFor } : {}),
     }
   } catch {
     // Missing or unreadable: a first run.
