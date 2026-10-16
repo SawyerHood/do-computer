@@ -5,7 +5,14 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, closeSettings, composer, openWorkspaceSettings, signIn } from "./helpers.ts"
+import {
+  asOwner,
+  closeSettings,
+  composer,
+  openWorkspaceSettings,
+  signIn,
+  panelSwitch,
+} from "./helpers.ts"
 
 asOwner()
 
@@ -57,7 +64,7 @@ test.describe("an agent using a computer's screen", () => {
 
     // In the agent's main chat, where its panel is beside it.
     await page.goto("/")
-    await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+    await panelSwitch(page, "Show")
     await ask(page, { action: "click", x: 200, y: 120, note: "Clicking the button" })
 
     // The screen stays the agent's for a while after its step, and is shown for as long.

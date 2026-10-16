@@ -98,6 +98,8 @@ test("a side chat opens beside the main chat, is separate from it, and can be pu
   await expect(beside.getByText("You said: second chat here")).toBeVisible()
   await sideChats(page).click()
   await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toBeVisible()
+  // Once for the side chats, and once for the menu on the name that they are in.
+  await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
 
   // Given the whole chat, a line under the strip says what it is and leads back.

@@ -219,6 +219,7 @@ export function LibraryTree({
   busy,
   doing,
   restoring,
+  title = "Library",
 }: {
   agentId: string
   files: readonly LibraryFile[]
@@ -236,6 +237,8 @@ export function LibraryTree({
   doing?: "new" | "upload" | undefined
   /** The deleted file that is being put back, by id. */
   restoring?: string | undefined
+  /** What the list is called, over it. */
+  title?: string
 }) {
   const input = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
@@ -264,7 +267,7 @@ export function LibraryTree({
       <div className="flex items-center gap-0.5 pt-3 pr-2 pb-2 pl-4">
         <h2 className="flex-1 text-sm font-medium">
           <Link to="/a/$agentId/library" params={{ agentId }} search={{}}>
-            Library
+            {title}
           </Link>
         </h2>
         <Button

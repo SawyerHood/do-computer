@@ -5,6 +5,7 @@ import { ArrowLeftIcon, StopIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
+import { CallComposerButton, useCallButton } from "@/components/call/call"
 import { FaceStack, names, PersonFace } from "@/components/people"
 import { TranscriptPlaceholder } from "@/components/placeholders"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -245,6 +246,8 @@ export function ChatView({
   const slackThreads = useSlackThreads(agent.id)
   // Whether this chat is the user's to write in.
   const own = sub === undefined && thread === undefined && slack === undefined
+  // Where there is nothing to send yet, the end of the message box is the way to talk instead.
+  const calls = useCallButton(agent)
 
   // In a team: who else has this chat open, and who is writing in it.
   const { me } = useRouteContext({ from: "/_app" })
@@ -317,9 +320,10 @@ export function ChatView({
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent",
-              // With nothing over the transcript there is nothing to fade it under.
-              !floats && "hidden",
+              "pointer-events-none absolute inset-x-0 top-0 z-10 bg-linear-to-b from-background to-transparent",
+              // What is said goes out of sight under the name above it, and under more of the
+              // page where something of the chat's own is over the transcript as well.
+              floats ? "h-20 via-background/80" : "h-8",
             )}
           />
           {sub !== undefined ? (
@@ -572,6 +576,11 @@ export function ChatView({
                 agentName={name}
                 onAttach={attach}
                 extras={<ThinksWith agent={agent} models={models} />}
+                call={
+                  calls.available && agent.hatched ? (
+                    <CallComposerButton agent={agent} chatId={chatId} />
+                  ) : undefined
+                }
               />
             </>
           )}

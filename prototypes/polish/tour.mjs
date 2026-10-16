@@ -159,7 +159,8 @@ const pictures = {
   },
   "menu-side-chats": async (page) => {
     await pictures.chat(page)
-    await page.getByRole("button", { name: /'s side chats$/ }).click()
+    await page.getByRole("button", { name: /: pages, side chats and settings$/ }).click()
+    await page.getByRole("menuitem", { name: /'s side chats$/ }).click()
   },
   wardrobe: async (page) => {
     await pictures.chat(page)

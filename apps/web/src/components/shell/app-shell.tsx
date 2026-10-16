@@ -4,14 +4,12 @@ import {
   personalWorkspaceId,
   type WorkspaceSummary,
 } from "@do-computer/protocol"
-import { SidebarSimpleIcon } from "@phosphor-icons/react"
 import { useLocation, useParams, useRouteContext } from "@tanstack/react-router"
 import { eq, useLiveQuery } from "@tanstack/react-db"
 import { type PrimitiveAtom, useAtom, useAtomValue } from "jotai"
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CallCard } from "@/components/call/call"
 import { Settings } from "@/components/settings/settings"
-import { Button } from "@/components/ui/button"
 import {
   AGENT_PANEL_OPEN_KEY,
   agentPanelOpenAtom,
@@ -20,45 +18,48 @@ import {
 } from "@/lib/atoms"
 import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
-import { cn } from "@/lib/utils"
 import { usePull } from "@/lib/use-swipe"
 import { useMedia } from "@/lib/use-wide"
 import { accentChanged } from "@/lib/visual-theme"
 import { useFeed, useMarkSeen } from "@/lib/latest"
 import { useListedAgent, usePresence, useWorkspaces } from "@/lib/workspaces"
+import { DoodsButton } from "./agent-list.tsx"
 import { AgentStrip, type AgentTab } from "./agent-strip.tsx"
 import { ResizeHandle } from "./resize-handle.tsx"
 import { Sidebar } from "./sidebar.tsx"
 
 /**
- * The width from which the sidebar is beside the page at its own width, and can be hidden.
- * Narrower, it is always there: a column of faces beside the page, which is pulled open over it.
+ * The width from which the sidebar is beside the page: a column of faces, which its edge is
+ * dragged out from into the whole list, and back. Narrower, there is no room to give it, and it
+ * is out of sight until a finger pulls it across the page.
  */
 const SIDEBAR_BESIDE = "(min-width: 48rem)"
 
-/** How wide the column of faces is, in pixels. `w-14` and the `3.5rem` below are this. */
-const RAIL = 56
+/** How wide the column of faces is, in pixels. */
+const FACES = 56
+/** How wide the sidebar of a narrow screen is while it is shut: it is not there. */
+const RAIL = 0
 /** How long the sidebar takes to open or shut on a narrow screen, in milliseconds. */
 const PULL_MS = 200
 /** How far a finger has to pull the sidebar for it to go the rest of the way, in pixels. */
 const PULL_FAR = 40
 
 /**
- * The sidebar of a narrow screen, which a finger pulls open and pushes shut. Shut, it is a
- * column of faces; open, it is the whole list, and the page has slid aside to make room. While
+ * The sidebar of a narrow screen, which a finger pulls open and pushes shut. Shut, it is out of
+ * sight; open, it is the whole list, and the page has slid aside to make room. While
  * it is being pulled it follows the finger: its width is said on the shell itself, as `--pull`,
  * and not through React, which would draw the whole app again for every pixel.
  */
 function usePulledSidebar(shell: HTMLElement | null) {
   const [open, setOpen] = useState(false)
-  // Whether it is drawn as the whole list. It is while it is open, and while it is on its way.
+  // Whether it is drawn at all. It is while it is open, and while it is on its way.
   const [whole, setWhole] = useState(false)
   const shutting = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const settle = useCallback((next: boolean) => {
     clearTimeout(shutting.current)
     setOpen(next)
     if (next) setWhole(true)
-    // It is faces only once it is as narrow as they are.
+    // It is gone only once it has shut.
     else shutting.current = setTimeout(() => setWhole(false), PULL_MS)
   }, [])
   useEffect(() => () => clearTimeout(shutting.current), [])
@@ -96,7 +97,10 @@ function usePulledSidebar(shell: HTMLElement | null) {
  * Something that is open or shut and stays the way it was left. Its atom starts as it was kept,
  * and it is written back when it changes.
  */
-function useRemembered(atom: PrimitiveAtom<boolean>, key: string): [boolean, () => void] {
+function useRemembered(
+  atom: PrimitiveAtom<boolean>,
+  key: string,
+): [boolean, (open: boolean) => void] {
   const [open, setOpen] = useAtom(atom)
   const first = useRef(true)
   useEffect(() => {
@@ -111,7 +115,7 @@ function useRemembered(atom: PrimitiveAtom<boolean>, key: string): [boolean, () 
       // The choice then lasts for this page only.
     }
   }, [key, open])
-  return [open, () => setOpen(!open)]
+  return [open, setOpen]
 }
 
 /** The workspace a page is in: the one named, else the agent's, else the user's own. */
@@ -157,10 +161,10 @@ function useCurrentWorkspace(
 }
 
 /**
- * The frame around everything behind sign-in. One sidebar holds the user's agents; choosing
- * one opens its main chat. An agent's own pages are tabs in a strip above them, and
- * the settings are a window over whichever page is showing. Changing tab changes what is under
- * the strip and nothing else.
+ * The frame around everything behind sign-in. One sidebar holds the user's agents, as a column
+ * of faces until it is opened out; choosing one opens its main chat. An agent's own pages are
+ * reached from its name above them, and the settings are a window over whichever page is
+ * showing. Changing page changes what is under the name and nothing else.
  */
 export function AppShell({
   agentId,
@@ -193,9 +197,9 @@ export function AppShell({
     listed?.seenAt,
   )
 
-  const [sidebarOpen, toggleSidebar] = useRemembered(sidebarOpenAtom, SIDEBAR_OPEN_KEY)
+  const [sidebarOpen, setSidebarOpen] = useRemembered(sidebarOpenAtom, SIDEBAR_OPEN_KEY)
   const sidebarWidth = useAtomValue(sidebarColumn.width)
-  // The panel's switch is in the strip, so what it was left as is kept from here.
+  // The panel's switch is in the menu on the agent's name, so what it was left as is kept from here.
   useRemembered(agentPanelOpenAtom, AGENT_PANEL_OPEN_KEY)
   const beside = useMedia(SIDEBAR_BESIDE)
   const [shell, setShell] = useState<HTMLElement | null>(null)
@@ -222,58 +226,48 @@ export function AppShell({
         <aside
           data-pulled-sidebar=""
           data-open={pulled.open ? "" : undefined}
-          className="w-[var(--pull,3.5rem)] shrink-0 overflow-hidden transition-[width] duration-200 ease-out group-data-pulling/shell:transition-none data-open:w-[var(--pull,min(20rem,100%-3rem))] motion-reduce:transition-none"
+          className="w-[var(--pull,0px)] shrink-0 overflow-hidden transition-[width] duration-200 ease-out group-data-pulling/shell:transition-none data-open:w-[var(--pull,min(20rem,100%-3rem))] motion-reduce:transition-none"
         >
+          {pulled.whole ? (
+            <Sidebar
+              workspace={workspace}
+              settled={settled}
+              me={me.user}
+              agentId={agentId}
+              drawn="open"
+              onPull={() => pulled.settle(false)}
+              onNavigate={() => pulled.settle(false)}
+              className="w-[min(20rem,100vw-3rem)]"
+            />
+          ) : null}
+        </aside>
+      ) : (
+        <aside className="relative shrink-0" style={{ width: sidebarOpen ? sidebarWidth : FACES }}>
           <Sidebar
             workspace={workspace}
             settled={settled}
             me={me.user}
             agentId={agentId}
-            agent={agent}
-            narrow={pulled.whole ? "open" : "rail"}
-            onPull={() => pulled.settle(!pulled.open)}
-            onNavigate={() => pulled.settle(false)}
-            className={pulled.whole ? "w-[min(20rem,100vw-3rem)]" : "w-14"}
+            drawn={sidebarOpen ? "open" : "rail"}
+            onPull={() => setSidebarOpen(!sidebarOpen)}
+          />
+          {/* Its edge is the way to open it and to shut it, and says so only by the pointer. */}
+          <ResizeHandle
+            column={sidebarColumn}
+            edge="right"
+            label="Resize the sidebar"
+            shut={{ is: !sidebarOpen, width: FACES, set: (shut) => setSidebarOpen(!shut) }}
+            quiet
           />
         </aside>
-      ) : sidebarOpen ? (
-        <aside className="relative shrink-0" style={{ width: sidebarWidth }}>
-          <Sidebar
-            workspace={workspace}
-            settled={settled}
-            me={me.user}
-            agentId={agentId}
-            agent={agent}
-            library={agentId !== undefined && page === "library"}
-            onCollapse={toggleSidebar}
-          />
-          <ResizeHandle column={sidebarColumn} edge="right" label="Resize the sidebar" />
-        </aside>
-      ) : null}
+      )}
 
-      {/* The page is a sheet on the frame, where there is room for a frame around it. */}
-      <main
-        className={cn(
-          // Beside the faces it keeps its width whatever theirs, and slides out of the way.
-          "relative flex w-[calc(100%-3.5rem)] shrink-0 flex-col overflow-hidden rounded-l-2xl bg-background shadow-card md:my-2 md:mr-2 md:w-auto md:min-w-0 md:flex-1 md:shrink md:rounded-2xl",
-          !sidebarOpen && "md:ml-2",
-        )}
-      >
+      {/* The page is flat against the sidebar, with a hairline between the two. */}
+      <main className="relative flex w-full shrink-0 flex-col overflow-hidden bg-background md:w-auto md:min-w-0 md:flex-1 md:shrink md:border-l md:border-hairline">
         {agentId === undefined ? (
-          // A workspace with no agent open has nothing for a strip to say but its name.
+          // A workspace with no agent open has nothing to say above its page but its name.
           <header className="flex h-13 shrink-0 items-center gap-1.5 px-2.5 md:px-3">
-            {sidebarOpen ? null : (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Show the sidebar"
-                title="Show the sidebar"
-                className="hidden text-muted-foreground md:inline-flex"
-                onClick={toggleSidebar}
-              >
-                <SidebarSimpleIcon />
-              </Button>
-            )}
+            {beside ? null : <DoodsButton meId={me.user.id} onClick={() => pulled.settle(true)} />}
             <span className="truncate px-1 text-[0.9375rem] font-semibold">
               {settled ? workspace.name : null}
             </span>
@@ -284,8 +278,8 @@ export function AppShell({
             agent={agent}
             workspace={workspace}
             page={page}
-            sidebarOpen={sidebarOpen}
-            onShowSidebar={toggleSidebar}
+            meId={me.user.id}
+            onShowSidebar={beside ? undefined : () => pulled.settle(true)}
           />
         )}
         <div className="relative min-h-0 flex-1">{children}</div>

@@ -49,7 +49,8 @@ await say("One", "You said: One")
 await say("Two", "You said: Two")
 
 // A side chat, given the whole page so that there is one box to write in.
-await page.getByRole("button", { name: /'s side chats$/ }).click()
+await page.getByRole("button", { name: /: pages, side chats and settings$/ }).click()
+await page.getByRole("menuitem", { name: /'s side chats$/ }).click()
 await page.getByRole("menuitem", { name: "New side chat" }).click()
 await page.waitForURL((url) => url.searchParams.has("side"))
 await page.waitForTimeout(1500)

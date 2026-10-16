@@ -74,7 +74,7 @@ export async function unfold(page: Page, section: string) {
 }
 
 /**
- * Open a section of the open agent's settings, from the end of the strip above its pages. They
+ * Open a section of the open agent's settings, from the menu on its name above its pages. They
  * are one part of the settings window, which is over whichever page is showing. Slack is set
  * up from the agent's connectors.
  */
@@ -87,7 +87,7 @@ export async function openSettings(page: Page, section: string) {
   ) {
     await closeSettings(page)
   }
-  if ((await dialog.count()) === 0) await page.getByRole("button", { name: /'s settings$/ }).click()
+  if ((await dialog.count()) === 0) await fromNameMenu(page, /'s settings$/)
   await dialog
     .getByRole("button", { name: section === "Slack" ? "Connectors" : section, exact: true })
     .click()
@@ -125,12 +125,49 @@ export async function closeSettings(page: Page) {
   await expect(page.getByRole("dialog")).toHaveCount(0)
 }
 
-/** One of the agent's tabs, in the strip above its pages. */
-export const tab = (page: Page, name: "Chat" | "Library" | "Automations") =>
-  page.getByRole("link", { name, exact: true })
+/**
+ * Open a file of the library from the list of all its files, which is on the library's front
+ * page. From a file that is open, the way back there is in the row over it.
+ */
+export async function openFile(page: Page, name: string | RegExp) {
+  const files = page.getByRole("navigation", { name: "Files" })
+  if ((await files.count()) === 0) {
+    await page
+      .getByRole("navigation", { name: "Where this file is" })
+      .getByRole("link", { name: "Library" })
+      .click()
+  }
+  await files.getByRole("link", { name }).click()
+}
 
-/** The way to the agent's side chats, at the end of its strip. */
-export const sideChats = (page: Page) => page.getByRole("button", { name: /'s side chats$/ })
+/** The agent's name above its pages, which opens the menu of everything else of the agent's. */
+export const nameMenu = (page: Page) =>
+  page.getByRole("button", { name: /: pages, side chats and settings$/ })
+
+/** Choose something from the menu on the agent's name, opening the menu if it is shut. */
+export async function fromNameMenu(page: Page, name: string | RegExp) {
+  // A menu that has just been chosen from is still on the page for a moment, on its way out.
+  const menu = nameMenu(page)
+  if ((await menu.getAttribute("aria-expanded")) !== "true") await menu.click()
+  await page.getByRole("menuitem", { name, exact: true }).click()
+}
+
+/** One of the agent's pages, in the menu on its name. Pressing it opens the menu first. */
+export const tab = (page: Page, name: "Chat" | "Library" | "Automations") => ({
+  click: () => fromNameMenu(page, name),
+})
+
+/**
+ * The way to the agent's side chats: a row of the menu on its name, which opens into them.
+ * Pressing it opens the menu first.
+ */
+export const sideChats = (page: Page) => ({
+  click: () => fromNameMenu(page, /'s side chats$/),
+})
+
+/** Show the agent's panel beside its pages, or put it away, from the menu on its name. */
+export const panelSwitch = (page: Page, to: "Show" | "Hide", name = "Juniper") =>
+  fromNameMenu(page, `${to} ${name}'s panel`)
 
 /**
  * Start a side chat and give it the middle of the page, so that it is the only chat on screen
@@ -192,9 +229,9 @@ export async function tool(
 /**
  * How a file of the web app's tests begins. Its tests run in order, on a server of their own.
  *
- * On a wide screen the sidebar starts closed and the panel about the agent starts open. Most of
- * these tests work in the sidebar's list and read the transcript, so they have the sidebar open
- * and the panel put away, the way someone might have left them. The tests of those two say so.
+ * On a wide screen the sidebar starts as a column of faces and the panel about the agent starts
+ * put away. Most of these tests work in the sidebar's list and read the transcript, so they have
+ * the sidebar open, the way someone might have left it. The tests of those two say so.
  */
 export function inOrder() {
   test.describe.configure({ mode: "serial" })

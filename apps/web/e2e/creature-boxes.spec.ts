@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, signIn } from "./helpers.ts"
+import { asOwner, signIn, panelSwitch } from "./helpers.ts"
 
 // The next box turns up six hours after the last is opened. Here it is a few seconds, to see it.
 test.use({ settings: { DC_BOX_EVERY_MS: "3000" }, viewport: { width: 1440, height: 900 } })
@@ -10,7 +10,7 @@ test("the next box turns up by itself once the last is opened, and no other whil
   page,
 }) => {
   await signIn(page)
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const box = panel.getByRole("button", { name: "Open Juniper's box" })
   const agentId = page.url().match(/\/a\/([^/]+)/)![1]!

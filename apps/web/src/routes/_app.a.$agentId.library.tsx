@@ -3,8 +3,6 @@ import { NotePencilIcon, UploadSimpleIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
-import { createPortal } from "react-dom"
-import { useAtomValue } from "jotai"
 import { AgentAside } from "@/components/chat/agent-aside"
 import { DocMarkdown } from "@/components/library/doc-markdown"
 import { KindIcon, LibraryTree } from "@/components/library/tree"
@@ -15,12 +13,12 @@ import { SharedSites } from "@/components/sites/shared-sites"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
-import { sidebarSlotAtom } from "@/lib/atoms"
 import { client } from "@/lib/client"
 import { agentQuery, libraryKey, libraryQuery, libraryTextKey } from "@/lib/collections"
 import { dirOf, formatWhen, kindOf } from "@/lib/library"
 import { queryClient } from "@/lib/query"
 import { sitesQuery } from "@/lib/sites"
+import { useStripBar } from "@/lib/use-strip-bar"
 import { cn } from "@/lib/utils"
 import { useListedAgent } from "@/lib/workspaces"
 
@@ -116,11 +114,13 @@ function RecentCard({
 
 /**
  * The library of the agent's workspace, which its agents share: documents and files they have
- * made, and ones people have given them, as a tree of folders beside whichever one is open.
+ * made, and ones people have given them. Its front page has the latest of them and, under
+ * those, all of them as a tree of folders. With a file open the tree is a column beside it, in
+ * the page itself: the sidebar is the Doods' whichever page is showing.
  */
 const DESKTOP = "(min-width: 48rem)"
 
-/** Whether the screen is wide enough for the sidebar to be beside the page. */
+/** Whether the screen is wide enough for the front page: narrower, the list of files is the page. */
 function useDesktop(): boolean {
   return useSyncExternalStore(
     (changed) => {
@@ -153,14 +153,9 @@ function LibraryHeading() {
  */
 function LibraryPlaceholder({ opening }: { opening: boolean }) {
   const desktop = useDesktop()
-  const slot = useAtomValue(sidebarSlotAtom)
   return (
     <>
-      {desktop ? (
-        slot === null ? null : (
-          createPortal(<TreePlaceholder />, slot)
-        )
-      ) : opening ? null : (
+      {desktop || opening ? null : (
         <aside className="w-full shrink-0">
           <TreePlaceholder />
         </aside>
@@ -209,7 +204,8 @@ function LibraryPage() {
 /** The list of files and whichever one is open. It waits for the list. */
 function Library({ agentId, agentName }: { agentId: string; agentName: string }) {
   const desktop = useDesktop()
-  const slot = useAtomValue(sidebarSlotAtom)
+  // An open file's bar is in the row above the page, beside the agent's name, where there is room.
+  const bar = useStripBar()
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const api = client.agent(agentId)
@@ -283,17 +279,17 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
       busy={upload.isPending || create.isPending}
       doing={create.isPending ? "new" : upload.isPending ? "upload" : undefined}
       restoring={restore.isPending ? restore.variables : undefined}
+      title={desktop && selected === undefined ? "All files" : "Library"}
     />
   )
 
   return (
     <>
-      {/* On a wide screen the list is in the sidebar, in place of the agents and their chats,
-          and with the sidebar hidden it is hidden too. On a narrow one it is here, until a file
-          is opened. */}
+      {/* On a wide screen the list is on the front page, under the latest files, and beside a
+          file that is open. On a narrow one it is the page, until a file is opened. */}
       {desktop ? (
-        slot === null ? null : (
-          createPortal(tree, slot)
+        selected === undefined ? null : (
+          <aside className="w-64 shrink-0 border-r border-hairline">{tree}</aside>
         )
       ) : (
         <aside className={cn("shrink-0", selected === undefined ? "w-full" : "hidden")}>
@@ -318,6 +314,7 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
               })
             }
             onOpen={(path) => void open(path)}
+            bar={bar}
           />
         ) : (
           <div className="h-full overflow-y-auto">
@@ -367,6 +364,9 @@ function Library({ agentId, agentName }: { agentId: string; agentName: string })
                   </div>
                 </section>
               )}
+              {desktop && selected === undefined ? (
+                <div className="overflow-hidden rounded-2xl bg-card shadow-raised">{tree}</div>
+              ) : null}
             </div>
           </div>
         )}

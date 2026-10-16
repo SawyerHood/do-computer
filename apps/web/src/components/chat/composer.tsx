@@ -4,7 +4,7 @@ import {
   type MessageImage,
   randomId,
 } from "@do-computer/protocol"
-import { ArrowUpIcon, MicrophoneIcon, PaperclipIcon, StopIcon, XIcon } from "@phosphor-icons/react"
+import { ArrowUpIcon, MicrophoneIcon, PlusIcon, StopIcon, XIcon } from "@phosphor-icons/react"
 import { useAtom } from "jotai"
 import { type ReactNode, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -32,9 +32,12 @@ function pasted(file: File): File {
 }
 
 /**
- * The message box: what is written across its whole width, and its buttons in a row underneath.
- * Enter sends, Shift+Enter adds a line. While the agent is working, sending steers the run and
- * the stop button aborts it. What was sent is in the transcript from then on.
+ * The message box. At rest it is one line, with its buttons at either end of it. Once it is
+ * being written in it opens out: what is written across its whole width, and its buttons in a
+ * row underneath, with the chat's own among them. It stays open while there is anything in it,
+ * and shuts when it is left empty. Enter sends, Shift+Enter adds a line. While the agent is
+ * working, sending steers the run and the stop button aborts it. What was sent is in the
+ * transcript from then on.
  */
 export function Composer({
   draftKey,
@@ -48,6 +51,7 @@ export function Composer({
   agentName,
   onTyping,
   extras,
+  call,
 }: {
   draftKey: string
   placeholder: string
@@ -64,12 +68,25 @@ export function Composer({
   onAttach: (file: File) => Promise<LibraryFile>
   /** Told as the user writes and when they stop, where others in the chat are shown it. */
   onTyping?: ((typing: boolean) => void) | undefined
-  /** Buttons of the chat's own for the row under the message, drawn beside the paperclip. */
+  /** Buttons of the chat's own for the row under the message, there while the box is open. */
   extras?: ReactNode
+  /** What is where sending is while there is nothing to send: the way to talk instead. */
+  call?: ReactNode
 }) {
   const [draft, setDraft] = useAtom(draftAtom(draftKey))
   const input = useRef<HTMLTextAreaElement>(null)
+  const box = useRef<HTMLFormElement>(null)
   const picker = useRef<HTMLInputElement>(null)
+  // Whether someone has gone to the box to write in it. Being given the cursor when the chat
+  // opens is not that: the box is ready to be typed in, and still one line until it is.
+  const [entered, setEntered] = useState(false)
+  const given = useRef(false)
+  const giveCursor = () => {
+    given.current = true
+    input.current?.focus()
+    // Nothing is heard of it where the cursor was already there.
+    given.current = false
+  }
   const [attached, setAttached] = useState<AttachedFile[]>([])
   const [uploading, setUploading] = useState(0)
   const [attachError, setAttachError] = useState<string>()
@@ -121,17 +138,57 @@ export function Composer({
     input.current?.focus()
   }
 
+  const open = entered || draft !== "" || attached.length > 0 || uploading > 0 || dictating
+
   // The box is out of sight while dictating, and has no height to measure until it is back.
   useEffect(() => {
     const element = input.current
     if (element === null || dictating) return
     element.style.height = "auto"
     element.style.height = `${Math.min(element.scrollHeight, MAX_HEIGHT_PX)}px`
-  }, [draft, dictating])
+  }, [draft, dictating, open])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the cursor is given again for another chat
   useEffect(() => {
-    if (!dictating) input.current?.focus()
+    if (!dictating) giveCursor()
   }, [draftKey, dictating])
+
+  // Left for somewhere else on the page, an empty box shuts. A menu one of its buttons opened
+  // is drawn elsewhere on the page and is still the box's: it stays open under it.
+  // It shuts once the press that left it is over, and not as it begins: what is above the box
+  // moves down as it shuts, and would move out from under the press.
+  useEffect(() => {
+    if (!entered) return
+    const left = (event: Event) => {
+      const form = box.current
+      if (form === null || !(event.target instanceof Node) || form.contains(event.target)) return
+      if (form.querySelector('[aria-expanded="true"]') !== null) return
+      setEntered(false)
+    }
+    // The cursor moves at the start of a press, so where it goes is only heeded from the keys.
+    let pressing = false
+    const down = () => {
+      pressing = true
+    }
+    const up = () => {
+      pressing = false
+    }
+    const moved = (event: Event) => {
+      if (!pressing) left(event)
+    }
+    document.addEventListener("pointerdown", down, true)
+    document.addEventListener("pointerup", up, true)
+    document.addEventListener("pointercancel", up, true)
+    document.addEventListener("click", left, true)
+    document.addEventListener("focusin", moved)
+    return () => {
+      document.removeEventListener("pointerdown", down, true)
+      document.removeEventListener("pointerup", up, true)
+      document.removeEventListener("pointercancel", up, true)
+      document.removeEventListener("click", left, true)
+      document.removeEventListener("focusin", moved)
+    }
+  }, [entered])
 
   // Words put in the box from elsewhere, by a page in the chat say, are there to be read over
   // and sent: the caret goes to their end.
@@ -187,100 +244,110 @@ export function Composer({
         }
         onRemove={(id) => setAttached((current) => current.filter((file) => file.id !== id))}
       />
-      {/* The box grows into room that was kept for it, so that nothing above it moves. */}
-      <div className="flex min-h-[6.875rem] flex-col justify-end">
-        <form
-          // Room for a line over the buttons, and for two while it is being written in.
-          className="flex min-h-[5.375rem] cursor-text flex-col rounded-[1.25rem] border border-transparent bg-popover shadow-float transition-[min-height] duration-150 ease-out focus-within:min-h-[6.875rem] motion-reduce:transition-none"
-          onSubmit={(event) => {
-            event.preventDefault()
-            send()
+      <form
+        ref={box}
+        data-open={open ? "" : undefined}
+        className="message-box group/box cursor-text rounded-[1.5rem] bg-popover p-1.5 shadow-raised"
+        onSubmit={(event) => {
+          event.preventDefault()
+          send()
+        }}
+        // Pressing a button, or the room around what is written, does not take the cursor out
+        // of the message: the box would shut under the press.
+        // A menu one of its buttons opened is drawn elsewhere on the page, and what is pressed
+        // there still arrives here: it is left alone, or nothing in the menu could be typed in.
+        onMouseDown={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return
+          setEntered(true)
+          if (event.target !== input.current) event.preventDefault()
+        }}
+        onClick={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return
+          // Anywhere in the box that is not a button is a place to write.
+          if (!(event.target as Element).closest("button, textarea")) input.current?.focus()
+        }}
+      >
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          aria-label="Choose files to attach"
+          onChange={(event) => {
+            // Copied out first: emptying the picker empties its list too, and all but the
+            // first file would be gone by the time they were reached.
+            void attach([...(event.target.files ?? [])])
+            event.target.value = ""
           }}
-          // Pressing a button, or the room around what is written, does not take the cursor out
-          // of the message: the box would shrink under the press.
-          // A menu one of its buttons opened is drawn elsewhere on the page, and what is pressed
-          // there still arrives here: it is left alone, or nothing in the menu could be typed in.
-          onMouseDown={(event) => {
-            if (!event.currentTarget.contains(event.target as Node)) return
-            if (event.target !== input.current) event.preventDefault()
-          }}
-          onClick={(event) => {
-            if (!event.currentTarget.contains(event.target as Node)) return
-            // Anywhere in the box that is not a button is a place to write.
-            if (!(event.target as Element).closest("button, textarea")) input.current?.focus()
-          }}
-        >
-          <input
-            ref={picker}
-            type="file"
-            multiple
-            hidden
-            aria-label="Choose files to attach"
-            onChange={(event) => {
-              // Copied out first: emptying the picker empties its list too, and all but the
-              // first file would be gone by the time they were reached.
-              void attach([...(event.target.files ?? [])])
-              event.target.value = ""
-            }}
-          />
-          {dictating ? (
+        />
+        {dictating ? (
+          <div className="col-span-full">
             <Dictating
               state={dictation.state}
               stream={dictation.stream}
               onCancel={dictation.cancel}
               onStop={dictation.stop}
             />
-          ) : null}
-          {/* Kept while dictating, out of sight, so that what was typed and where is not lost. */}
-          <textarea
-            ref={input}
-            rows={1}
-            value={draft}
-            placeholder={placeholder}
-            aria-label="Message"
-            className={cn(
-              "max-h-[200px] w-full shrink-0 resize-none bg-transparent px-4 pt-3 pb-1.5 text-base leading-6 outline-none placeholder:text-muted-foreground",
-              dictating && "hidden",
-            )}
-            onChange={(event) => {
-              setDraft(event.target.value)
-              onTyping?.(event.target.value.trim() !== "")
-            }}
-            onPaste={(event) => {
-              // A picture or a file on the clipboard is attached, as if it had been chosen. Text
-              // that came with it is still pasted as text.
-              const files = [...event.clipboardData.files]
-              if (files.length === 0) return
-              if (!event.clipboardData.types.includes("text/plain")) event.preventDefault()
-              void attach(files.map(pasted))
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault()
-                send()
-              }
-            }}
-          />
-          {dictating ? null : (
-            <div className="mt-auto flex items-center gap-1 px-1.5 pb-1.5">
+          </div>
+        ) : null}
+        {/* Kept while dictating, out of sight, so that what was typed and where is not lost. */}
+        <textarea
+          ref={input}
+          rows={1}
+          value={draft}
+          placeholder={placeholder}
+          aria-label="Message"
+          className={cn(
+            "max-h-[200px] w-full resize-none bg-transparent px-2 py-1.5 text-base leading-6 outline-none [grid-area:text] placeholder:text-muted-foreground group-data-open/box:min-h-15 group-data-open/box:px-2.5 group-data-open/box:pt-2",
+            dictating && "hidden",
+          )}
+          // Come to with the keys, it is being written in as much as when it is pressed.
+          onFocus={() => {
+            if (!given.current) setEntered(true)
+          }}
+          onChange={(event) => {
+            // Written in, it has been gone to, and stays open for the next thing to say.
+            setEntered(true)
+            setDraft(event.target.value)
+            onTyping?.(event.target.value.trim() !== "")
+          }}
+          onPaste={(event) => {
+            // A picture or a file on the clipboard is attached, as if it had been chosen. Text
+            // that came with it is still pasted as text.
+            const files = [...event.clipboardData.files]
+            if (files.length === 0) return
+            if (!event.clipboardData.types.includes("text/plain")) event.preventDefault()
+            void attach(files.map(pasted))
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              send()
+            }
+          }}
+        />
+        {dictating ? null : (
+          <>
+            <div className="flex items-center gap-1 self-end [grid-area:start]">
               <Button
                 type="button"
                 size="icon"
-                variant="ghost"
-                className="text-muted-foreground"
+                variant="secondary"
+                className="rounded-full bg-foreground/8 text-foreground hover:bg-foreground/12"
                 onClick={() => picker.current?.click()}
                 aria-label="Attach a file"
               >
-                <PaperclipIcon className="size-5" />
+                <PlusIcon className="size-[1.125rem]" />
               </Button>
-              {extras}
-              <span className="flex-1" />
+              {open ? extras : null}
+            </div>
+            <div className="flex items-center gap-1 self-end [grid-area:end]">
               {dictation.supported ? (
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="text-muted-foreground"
+                  className="rounded-full text-muted-foreground"
                   onClick={dictation.start}
                   aria-label="Dictate"
                 >
@@ -298,6 +365,8 @@ export function Composer({
                 >
                   <StopIcon weight="fill" />
                 </Button>
+              ) : !ready && uploading === 0 && call ? (
+                call
               ) : (
                 <Button
                   type="submit"
@@ -310,9 +379,9 @@ export function Composer({
                 </Button>
               )}
             </div>
-          )}
-        </form>
-      </div>
+          </>
+        )}
+      </form>
       {(error ?? dictation.error ?? attachError) ? (
         <p role="alert" className="px-5 text-xs text-destructive">
           {error ?? dictation.error ?? attachError}

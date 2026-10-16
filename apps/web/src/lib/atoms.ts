@@ -62,17 +62,18 @@ export const SIDEBAR_OPEN_KEY = "dc-chat-list"
 export const AGENT_PANEL_OPEN_KEY = "dc-agent-panel"
 
 /**
- * Whether the sidebar is shown on wide screens: the workspace and its agents.
- * Closed until asked for, so the chat and the agent have the room; the choice is remembered by
- * the shell.
+ * Whether the sidebar is opened out on wide screens, into its agents by name under their
+ * workspaces. A column of faces until asked for, so the chat has the room; the choice is
+ * remembered by the shell.
  */
 export const sidebarOpenAtom = atom(kept(SIDEBAR_OPEN_KEY, false))
 
 /**
  * Whether the agent's panel is wanted beside its pages, where there is room for it. One choice
- * for every tab, so that changing tab does not move anything. Remembered by the shell.
+ * for every page, so that changing page does not move anything. Away until asked for, from the
+ * menu on the agent's name, so the chat has the room; the choice is remembered by the shell.
  */
-export const agentPanelOpenAtom = atom(kept(AGENT_PANEL_OPEN_KEY, true))
+export const agentPanelOpenAtom = atom(kept(AGENT_PANEL_OPEN_KEY, false))
 
 const FOLDED_WORKSPACES_KEY = "dc-folded-workspaces"
 
@@ -199,9 +200,11 @@ export const panelFoldsAtom = atom(
 )
 
 /**
- * The place in the sidebar where the library puts its list of files while the Library tab is
- * showing, in place of the agents. Null when the sidebar is not on screen.
+ * The room either side of the agent's name, above its pages: where a page that has a bar of its
+ * own puts it, so that there is one row above the page and not two. What says where it is goes
+ * at the start, and what is done to it at the end. Null where the row has no such room.
  */
-export const sidebarSlotAtom = atom<HTMLElement | null>(null)
+export const stripStartAtom = atom<HTMLElement | null>(null)
+export const stripEndAtom = atom<HTMLElement | null>(null)
 
 export const chatKey = (agentId: string, chatId: string) => `${agentId}/${chatId}`

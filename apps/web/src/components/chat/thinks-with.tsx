@@ -4,7 +4,7 @@ import {
   nearestThinking,
   type ThinkingLevel,
 } from "@do-computer/protocol"
-import { BrainIcon } from "@phosphor-icons/react"
+import { CaretDownIcon } from "@phosphor-icons/react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useRef } from "react"
 import { ModelList } from "@/components/model-picker"
@@ -16,8 +16,8 @@ import { agentQuery, agentKey, agentsKey } from "@/lib/collections"
 import { queryClient } from "@/lib/query"
 
 /**
- * What the agent thinks with, from the message box: one quiet button that opens the models and,
- * under them, how hard the chosen one thinks. It is the agent's own setting, the one in its
+ * What the agent thinks with, from the message box: its model's name and how hard it thinks,
+ * as one quiet button that opens the models and, under them, the levels of the chosen one. It is the agent's own setting, the one in its
  * settings, so it holds for every chat with it and not only this one. Each choice is saved as it
  * is made, and the menu stays open for the next: a model, and then its level.
  *
@@ -55,16 +55,19 @@ export function ThinksWith({
         render={
           <Button
             type="button"
-            size="icon"
+            size="sm"
             variant="ghost"
-            className="text-muted-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
+            className="min-w-0 gap-1 rounded-full px-2.5 text-[0.8125rem] font-normal text-muted-foreground aria-expanded:bg-accent aria-expanded:text-foreground"
           />
         }
         aria-label="Model and thinking"
-        // The button says nothing of what is chosen until it is pointed at.
         title={level === undefined ? name : `${name} · ${THINKING_LABELS[level]}`}
       >
-        <BrainIcon className="size-5" />
+        <span className="max-w-40 truncate">
+          {name}
+          {level === undefined ? null : ` · ${THINKING_LABELS[level]}`}
+        </span>
+        <CaretDownIcon aria-hidden className="size-3 shrink-0" />
       </PopoverTrigger>
       <PopoverContent
         side="top"

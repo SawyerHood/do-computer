@@ -119,8 +119,9 @@ test.describe("signing in to model providers", () => {
 
   test("the message box changes the agent's model and how hard it thinks", async ({ page }) => {
     await signIn(page)
-    // One quiet button, which says what is chosen only when it is pointed at.
+    // One quiet button under what is written, there once the message box is gone to.
     const button = page.getByRole("button", { name: "Model and thinking" })
+    await composer(page).click()
     await expect(button).toHaveAttribute("title", /^Claude Haiku 5\.5/)
     await button.click()
     const menu = page.getByRole("dialog", { name: "Model and thinking" })
@@ -142,7 +143,9 @@ test.describe("signing in to model providers", () => {
 
     // It is the agent's own setting: the page loaded again has it, and so do its settings.
     await page.reload()
+    await composer(page).click()
     await expect(button).toHaveAttribute("title", "Claude Sonnet 5.5 · Low")
+    await expect(button).toHaveText("Claude Sonnet 5.5 · Low")
     await openSettings(page, "Model and computers")
     await expect(page.getByRole("combobox", { name: "Model" })).toHaveValue("Claude Sonnet 5.5")
     await expect(

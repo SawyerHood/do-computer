@@ -103,6 +103,26 @@
   }
 }
 
+/*
+ * The message box. One line at rest, with its buttons at either end of what is written; opened,
+ * what is written has the whole width and the buttons are a row under it.
+ */
+@layer components {
+  .message-box {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "start text end";
+    align-items: center;
+    column-gap: 0.25rem;
+  }
+  .message-box[data-open] {
+    grid-template-areas:
+      "text text text"
+      "start . end";
+    row-gap: 0.25rem;
+  }
+}
+
 /* Assistant prose: Markdown inside a bubble. */
 @layer components {
   .prose-chat {
