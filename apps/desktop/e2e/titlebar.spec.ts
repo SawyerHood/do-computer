@@ -159,7 +159,7 @@ test("with no title bar the page makes room for the window's buttons and is what
   const edge = main.getByRole("separator", { name: "Resize the sidebar" })
   const top = async () => (await main.locator("aside a").first().boundingBox())!.y
   await edge.focus()
-  if ((await edge.getAttribute("aria-valuenow")) !== "56") await edge.press("Home")
+  if ((await edge.getAttribute("aria-valuenow")) !== "60") await edge.press("Home")
   if (process.env.DC_SHOTS) {
     for (const name of ["Bakery", "Atlas"]) {
       const made = await main.request.post(`${url}/api/workspaces`, { data: { name } })
@@ -220,7 +220,7 @@ test("with no title bar the page makes room for the window's buttons and is what
   }
 
   await edge.press("ArrowRight")
-  await expect(edge).not.toHaveAttribute("aria-valuenow", "56")
+  await expect(edge).not.toHaveAttribute("aria-valuenow", "60")
   expect(await top()).toBeGreaterThanOrEqual(40)
   await shot(main, "open")
 
