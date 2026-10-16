@@ -59,7 +59,7 @@ export function AgentPanelPlaceholder({
 /** The user's own face and name at the foot of the sidebar, or the face alone. */
 function AccountPlaceholder({ named = false }: { named?: boolean }) {
   return (
-    <div className="p-1.5">
+    <div className="px-2 py-1.5">
       <div className="flex items-center gap-2.5 px-2 py-1.5">
         <Skeleton className="size-7 shrink-0 rounded-full" />
         {named ? <Skeleton className="h-3 w-16 rounded-full" /> : null}
@@ -101,7 +101,7 @@ export function AppSkeleton() {
         <AccountPlaceholder named />
       </aside>
       {/* As a column of faces, which is how it starts. On a narrow screen it is out of sight. */}
-      <aside className="hidden w-14 shrink-0 flex-col inset:w-19 inset:px-2.5 md:flex md:[[data-sidebar=open]_&]:hidden">
+      <aside className="hidden w-15 shrink-0 flex-col inset:w-20 inset:px-2.5 md:flex md:[[data-sidebar=open]_&]:hidden">
         <div className="hidden h-10 shrink-0 inset:block" />
         <div className="h-2 shrink-0 inset:hidden" />
         <div className="h-9" />

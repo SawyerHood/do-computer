@@ -70,7 +70,7 @@ function AccountMenu({
 
   return (
     // The face is under the Doods' own, whether or not its name is beside it.
-    <div className="p-1.5">
+    <div className="px-2 py-1.5">
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${me.name}: settings and signing out`}

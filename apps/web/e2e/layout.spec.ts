@@ -93,14 +93,14 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await expect.poll(() => width(sidebar)).toBe(208)
   // Pulled in past that it shuts, to a column of faces, and it is pulled open from there.
   await drag(edge, -120)
-  await expect.poll(() => width(sidebar)).toBe(56)
+  await expect.poll(() => width(sidebar)).toBe(60)
   await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
-  await expect(edge).toHaveAttribute("aria-valuenow", "56")
-  await drag(edge, 200)
+  await expect(edge).toHaveAttribute("aria-valuenow", "60")
+  await drag(edge, 196)
   await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
   await expect.poll(() => width(sidebar)).toBe(256)
   await drag(edge, -600)
-  await expect.poll(() => width(sidebar)).toBe(56)
+  await expect.poll(() => width(sidebar)).toBe(60)
   // The arrow keys move it too: out of being shut to the width it had, and on from there.
   await edge.focus()
   await page.keyboard.press("ArrowRight")
@@ -110,7 +110,7 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await page.keyboard.press("ArrowLeft")
   await expect.poll(() => width(sidebar)).toBe(208)
   await page.keyboard.press("ArrowLeft")
-  await expect.poll(() => width(sidebar)).toBe(56)
+  await expect.poll(() => width(sidebar)).toBe(60)
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
@@ -462,7 +462,7 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(agents.locator("[data-latest]")).toBeVisible()
   expect(await pageWidth()).toBe(400)
   const face = async () => (await juniper.locator("> span").first().boundingBox())!
-  expect(await face()).toMatchObject({ x: 8, width: 40 })
+  expect(await face()).toMatchObject({ x: 10, width: 40 })
   await page.screenshot({ path: "test-results/phone-doods.png" })
   // Choosing the agent there is talking to it: its main chat. The list is gone again.
   await juniper.click()

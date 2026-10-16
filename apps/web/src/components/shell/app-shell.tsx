@@ -37,7 +37,7 @@ import { Sidebar } from "./sidebar.tsx"
 const SIDEBAR_BESIDE = "(min-width: 48rem)"
 
 /** How wide the column of faces is, in pixels. */
-const FACES = 56
+const FACES = 60
 /** How wide the sidebar of a narrow screen is while it is shut: it is not there. */
 const RAIL = 0
 /** How long the sidebar takes to open or shut on a narrow screen, in milliseconds. */
@@ -244,7 +244,7 @@ export function AppShell({
       ) : (
         <aside
           // As faces it is wider under a window with no title bar, whose buttons lie over it.
-          className={cn("relative shrink-0", !sidebarOpen && "w-14 inset:w-19")}
+          className={cn("relative shrink-0", !sidebarOpen && "w-15 inset:w-20")}
           style={sidebarOpen ? { width: sidebarWidth } : undefined}
         >
           <Sidebar

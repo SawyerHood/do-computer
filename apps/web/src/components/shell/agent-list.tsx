@@ -144,7 +144,7 @@ export function AgentList({
               <h2
                 className={cn(
                   "text-[0.8125rem] font-medium text-muted-foreground",
-                  narrow === "open" && "pl-1",
+                  narrow === "open" && "pl-1.5",
                 )}
               >
                 Doods
@@ -368,7 +368,7 @@ function Section({
           className={cn(
             "flex h-9 items-center gap-0.5 [--face-ring:var(--frame)]",
             // The row under it starts nearer the edge on a narrow screen, and the heading with it.
-            narrow === "open" && "px-1.5",
+            narrow === "open" && "px-2",
           )}
         >
           {named ? (
@@ -509,10 +509,11 @@ function Section({
 }
 
 /**
- * The room around what is in a row. On a narrow screen a face is four pixels in from the row's
- * edge whether its words are beside it or not, so the row of a face alone is a square around it.
+ * The room around what is in a row. On a narrow screen a face is six pixels in from the row's
+ * edge whether its words are beside it or not, and as far from its top, so the row of a face alone
+ * is a square around it.
  */
-const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-1", rail: "px-1 py-1.5" }
+const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-1.5", rail: "p-1.5" }
 
 /**
  * An agent that is being made, in the list from the moment it is asked for: the row it will have,
@@ -624,7 +625,8 @@ function AgentRow({
           ROW[narrow ?? "wide"],
         )}
       >
-        <span className="relative shrink-0">
+        {/* Alone, it is all the row is as tall as: no line of words is kept room for under it. */}
+        <span className={cn("relative shrink-0", rail && "flex")}>
           <AgentFace agent={agent} className="size-10" quiet />
           {asking ? (
             <span
