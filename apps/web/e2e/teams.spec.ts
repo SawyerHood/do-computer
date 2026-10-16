@@ -8,7 +8,11 @@ const maya = { name: "Maya Okafor", email: "maya@example.com", password: "correc
 
 async function open(browser: Browser, baseURL: string | undefined) {
   const context = await browser.newContext({ baseURL, colorScheme: "dark" })
-  await context.addInitScript(() => localStorage.setItem("dc-chat-list", "open"))
+  // The sidebar opened out and the agent's panel beside the chat, as someone might have left them.
+  await context.addInitScript(() => {
+    localStorage.setItem("dc-chat-list", "open")
+    localStorage.setItem("dc-agent-panel", "open")
+  })
   return context.newPage()
 }
 

@@ -8,6 +8,7 @@ import {
   openWorkspaceSettings,
   signIn,
   tool,
+  panelSwitch,
 } from "./helpers.ts"
 
 asOwner()
@@ -67,7 +68,7 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   // does only for big things: this was not one.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   await expect(panel).toHaveCount(0)
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect(panel.getByRole("img", { name: "Dood avatar" })).toHaveAttribute(
     "data-mood",
     /idle|done/,
@@ -92,9 +93,8 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   // Beside its name it says what it is doing in a word or two, not the whole command.
   await expect(panel.getByText("Ready", { exact: true })).toBeVisible()
   // Put away, from the end of the strip, it can be brought back from there.
-  await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
+  await panelSwitch(page, "Hide")
   await expect(panel).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Show Juniper's panel" })).toBeVisible()
   await expect(transcript.getByText("Thought for a moment")).toHaveCount(0)
 })
 

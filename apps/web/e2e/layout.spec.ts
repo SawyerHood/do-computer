@@ -11,11 +11,12 @@ import {
   tab,
   tool,
   unfold,
+  panelSwitch,
 } from "./helpers.ts"
 
 asOwner()
 
-test("the sidebar is put away until it is asked for, and stays how it was left", async ({
+test("the sidebar is a column of faces until it is opened out, and stays how it was left", async ({
   browser,
   baseURL,
 }) => {
@@ -23,31 +24,36 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   const context = await browser.newContext({ baseURL, colorScheme: "dark" })
   const page = await context.newPage()
   await signIn(page)
+  // The Doods are beside the chat as faces, each of which still says whose it is.
   await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
-  // The agent has the room instead: its panel is open beside the chat, and stays shut once hidden.
+  await expect(
+    page.getByRole("navigation", { name: "Doods" }).getByRole("link"),
+  ).toHaveAccessibleName("Juniper")
+  // The chat has the room: the agent's panel is away until it is asked for, from the menu on
+  // its name, and stays the way it was left.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
-  await expect(panel.getByRole("img", { name: "Dood avatar" })).toBeVisible()
-  await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
-  await page.reload()
   await expect(composer(page)).toBeVisible()
   await expect(panel).toHaveCount(0)
-  // Nothing is over the chat in its place: the strip says whose chat this is, and brings it back.
-  await expect(page.getByRole("button", { name: "Show Juniper beside the chat" })).toHaveCount(0)
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect(panel.getByRole("img", { name: "Dood avatar" })).toBeVisible()
+  await page.reload()
+  await expect(panel.getByRole("img", { name: "Dood avatar" })).toBeVisible()
+  await panelSwitch(page, "Hide")
+  await expect(panel).toHaveCount(0)
 
-  // The agent's side chats are reached without it.
+  // The agent's side chats are in the same menu.
   await sideChats(page).click()
   await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
   await page.keyboard.press("Escape")
+  await page.keyboard.press("Escape")
 
-  // Asked for, it is beside the chat, and still there after a reload.
-  await page.getByRole("button", { name: "Show the sidebar" }).click()
+  // Opened out from the mark at its top, the sidebar is the list by name, and still is after a
+  // reload.
+  await page.getByRole("button", { name: "Show Doods by name" }).click()
   await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Show the sidebar" })).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
-  await page.getByRole("button", { name: "Hide the sidebar" }).click()
+  await page.getByRole("button", { name: "Show Doods as faces" }).click()
   await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
   await context.close()
 })
@@ -58,7 +64,7 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await signIn(page)
   const sidebar = page
     .locator("aside")
-    .filter({ has: page.getByRole("heading", { name: "Doods" }) })
+    .filter({ has: page.getByRole("navigation", { name: "Doods" }) })
   const edge = page.getByRole("separator", { name: "Resize the sidebar" })
   // Measured in one step, and looked at until it settles: the panel is put up anew when the tab
   // changes, so for a moment the one that is found is on its way out.
@@ -80,19 +86,38 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await drag(edge, 72)
   await expect.poll(() => width(sidebar)).toBe(360)
   await expect(edge).toHaveAttribute("aria-valuenow", "360")
-  // It goes no further than its bounds, either way.
+  // It goes no wider than its bound, and stops at its narrowest on the way in.
   await drag(edge, 600)
   await expect.poll(() => width(sidebar)).toBe(448)
-  await drag(edge, -600)
+  await drag(edge, -260)
   await expect.poll(() => width(sidebar)).toBe(208)
-  // The arrow keys move it too.
+  // Pulled in past that it shuts, to a column of faces, and it is pulled open from there.
+  await drag(edge, -120)
+  await expect.poll(() => width(sidebar)).toBe(56)
+  await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
+  await expect(edge).toHaveAttribute("aria-valuenow", "56")
+  await drag(edge, 200)
+  await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
+  await expect.poll(() => width(sidebar)).toBe(256)
+  await drag(edge, -600)
+  await expect.poll(() => width(sidebar)).toBe(56)
+  // The arrow keys move it too: out of being shut to the width it had, and on from there.
   await edge.focus()
+  await page.keyboard.press("ArrowRight")
+  await expect.poll(() => width(sidebar)).toBe(256)
+  await page.keyboard.press("ArrowLeft")
+  await page.keyboard.press("ArrowLeft")
+  await page.keyboard.press("ArrowLeft")
+  await expect.poll(() => width(sidebar)).toBe(208)
+  await page.keyboard.press("ArrowLeft")
+  await expect.poll(() => width(sidebar)).toBe(56)
+  await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
   await expect.poll(() => width(sidebar)).toBe(240)
 
   // The agent's panel is dragged by its other edge: to the left is wider.
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const panelEdge = page.getByRole("separator", { name: "Resize Juniper's panel" })
   await expect.poll(() => width(panel)).toBe(320)
@@ -104,7 +129,7 @@ test("the sidebar and the agent's panel are dragged by their edges, and stay as 
   await expect(composer(page)).toBeVisible()
   await expect.poll(() => width(sidebar)).toBe(240)
   // These tests put the panel away on every load, so it is asked for again.
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect.poll(() => width(panel)).toBe(400)
   await tab(page, "Automations").click()
   await page.waitForURL(/\/automations$/)
@@ -133,7 +158,7 @@ test("a section of the panel folds under its heading, and the face gives way to 
   await composer(page).fill('/tool send_file {"path":"library/folds/notes.md"}')
   await page.keyboard.press("Enter")
   await expect(page.getByRole("link", { name: "Download notes.md" })).toBeVisible()
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const did = panel.getByRole("region", { name: "What it did here" })
   for (const title of ["One", "Two", "Three", "Four", "Five", "Six", "Seven"]) {
@@ -163,7 +188,7 @@ test("a section of the panel folds under its heading, and the face gives way to 
   // Both are as they were left after a reload.
   await page.reload()
   await expect(composer(page)).toBeVisible()
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect(didHeading).toHaveAttribute("aria-expanded", "false")
   await expect(shared.getByRole("listitem")).toHaveText([/notes\.md/])
   await didHeading.click()
@@ -208,7 +233,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   }
 
   // The panel lists both, the newest first, under who is here and above what it did.
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const shared = panel.getByRole("region", { name: "Shared here" })
   // Folded until it is asked for, it says how many there are.
@@ -243,9 +268,9 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
     await page.mouse.up()
   }
   expect(await width()).toBe(640)
-  // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288. The page
-  // is a sheet with 8 of the frame showing at its edge, and the document a card 10 in from that.
-  const most = 1280 - 288 - 8 - 320 - 10
+  // Dragged as far as it goes it leaves the chat 20rem, here beside a sidebar of 288 and the
+  // hairline between that and the page. The document is a card 10 in from the page's edge.
+  const most = 1280 - 288 - 1 - 320 - 10
   await drag(-600)
   expect(await width()).toBe(most)
   // It comes back from where it is, with the pointer over the page it shows.
@@ -299,7 +324,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
   await expect(beside.getByRole("button", { name: "Split" })).toBeVisible()
 })
 
-test("the message box has its buttons under what is written, and grows where room was kept", async ({
+test("the message box is one line at rest, and opens out once it is written in", async ({
   page,
 }) => {
   await signIn(page)
@@ -322,35 +347,47 @@ test("the message box has its buttons under what is written, and grows where roo
   const settled = async (height: number) =>
     expect.poll(async () => (await place(around)).height).toBe(height)
 
-  // With the cursor in it there is room for two lines, as wide as the border around them.
+  // Sent from, it is still being written in: what is written has the whole width of the box.
   await expect(box).toBeFocused()
-  await settled(110)
-  const [text, open, clip, arrow, above] = await Promise.all([
+  await settled(112)
+  const [text, open, clip, arrow] = await Promise.all([
     place(box),
     place(around),
     place(page.getByRole("button", { name: "Attach a file" })),
     place(page.getByRole("button", { name: "Send" })),
-    place(said),
   ])
-  expect(text.width).toBe(open.width - 2)
+  expect(text.width).toBe(open.width - 12)
   // Its buttons are in a row under that: attaching at one end, sending at the other.
-  expect(clip.y).toBe(text.y + 66)
+  expect(clip.y).toBeGreaterThanOrEqual(text.y + text.height)
   expect(arrow.y).toBe(clip.y)
   expect(clip.x - open.x).toBeLessThan(12)
   expect(open.x + open.width - (arrow.x + arrow.width)).toBeLessThan(12)
 
-  // Left alone it has room for one. Its foot stays where it was, and so does what was said above.
-  await box.blur()
-  await settled(86)
+  // Left alone and empty it is one line, with its buttons at either end of it. Its foot stays
+  // where it was, and what was said above is still next to it.
+  await said.click()
+  await settled(48)
   const shut = await place(around)
   expect(shut.y + shut.height).toBe(open.y + open.height)
-  expect((await place(said)).y).toBe(above.y)
+  const [line, plus, send] = await Promise.all([
+    place(box),
+    place(page.getByRole("button", { name: "Attach a file" })),
+    place(page.getByRole("button", { name: "Send" })),
+  ])
+  expect(plus.y).toBe(send.y)
+  expect(plus.x).toBeLessThan(line.x)
+  expect(send.x).toBeGreaterThan(line.x + line.width - 60)
+  await expect(said).toBeInViewport()
 
-  // Pressing anywhere in the box that is not a button puts the cursor in it.
-  await page.mouse.click(shut.x + shut.width / 2, shut.y + shut.height - 20)
+  // Given the cursor by the page, as when a chat is opened, it is still one line: it opens
+  // once it is gone to. Pressing anywhere in the box that is not a button goes to it.
+  await page.reload()
   await expect(box).toBeFocused()
-  await settled(110)
-  // And pressing there again, or a button, leaves it in: the box does not move under the press.
+  await settled(48)
+  await page.mouse.click(shut.x + shut.width / 2, shut.y + shut.height / 2)
+  await expect(box).toBeFocused()
+  await settled(112)
+  // And pressing there again, or a button, leaves the cursor in: the box does not move under the press.
   await page.mouse.click(open.x + open.width / 2, open.y + 55)
   await expect(box).toBeFocused()
   await box.fill("And again")
@@ -358,11 +395,16 @@ test("the message box has its buttons under what is written, and grows where roo
   await expect(page.getByRole("log").getByText("You said: And again")).toBeVisible()
   await expect(box).toBeFocused()
   await expect(box).toHaveValue("")
-  await settled(110)
+  await settled(112)
 
+  // Typed in without being gone to, it opens for what is typed, and stays open while that is there.
+  await said.click()
+  await settled(48)
+  await box.fill("one")
+  await settled(112)
   // More than two lines and it grows with them.
   await box.fill("one\ntwo\nthree\nfour")
-  await settled(158)
+  await settled(162)
   await box.fill("")
 })
 
@@ -377,16 +419,18 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await page.setViewportSize({ width: 400, height: 800 })
   await page.reload()
-  // The strip is one row, with no tabs in it: the agent's pages are in the menu on its name.
-  await expect(page.getByRole("navigation", { name: "Juniper's pages" })).toBeHidden()
-  const name = page.getByRole("button", { name: "Juniper: pages and other Doods" })
-  expect((await page.locator("header").filter({ has: name }).boundingBox())!.height).toBe(48)
+  // Above the page is one row with the agent's name in it: its pages are in the menu on that.
+  const name = page.getByRole("button", { name: "Juniper: pages, side chats and settings" })
+  expect((await page.locator("header").filter({ has: name }).boundingBox())!.height).toBe(52)
   await name.click()
-  await expect(page.getByRole("menuitem", { name: "Chat" })).toHaveAttribute("aria-current", "page")
+  await expect(page.getByRole("menuitem", { name: "Chat", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  )
   await page.getByRole("menuitem", { name: "Library" }).click()
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
-  // Off the chat, the name says which page this is.
-  await expect(name).toContainText("Juniper · Library")
+  // The library says what it is itself, and the name is part of its bar with nothing added.
+  await expect(name).not.toContainText("·")
   // And the row starts with the way back to the chat.
   await page.getByRole("button", { name: "Back to the chat" }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
@@ -396,38 +440,36 @@ test("the layout works at phone width", async ({ page }) => {
   await name.click()
   await page.getByRole("menuitem", { name: "Automations" }).click()
   await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible()
+  // Off the chat and the library, the name says which page this is.
+  await expect(name).toContainText("Juniper · Automations")
   await name.click()
-  await page.getByRole("menuitem", { name: "Chat" }).click()
+  await page.getByRole("menuitem", { name: "Chat", exact: true }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
-  // The sidebar is a column of faces beside the page, with no button for it in the strip.
+  // The sidebar is out of sight, and the page has the whole width. The way to it is at the
+  // start of the row.
   const agents = page.getByRole("navigation", { name: "Doods" })
   const juniper = agents.getByRole("link", { name: /Juniper/ })
   const sidebar = () =>
     page.locator("[data-pulled-sidebar]").evaluate((el) => el.getBoundingClientRect().width)
-  await expect(juniper).toBeVisible()
-  expect(await sidebar()).toBe(56)
-  expect((await juniper.boundingBox())!.width).toBe(48)
-  const face = async () => (await juniper.locator("> span").first().boundingBox())!
-  expect(await face()).toMatchObject({ x: 8, width: 40 })
-  await expect(agents.locator("[data-latest]")).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Doods", exact: true })).toHaveCount(0)
-  await page.screenshot({ path: "test-results/phone-faces.png" })
-  // The mark at its top opens it out into the list, and the page slides aside as wide as it was.
+  await expect(agents).toHaveCount(0)
+  expect(await sidebar()).toBe(0)
   const pageWidth = async () => (await page.getByRole("main").boundingBox())!.width
-  expect(await pageWidth()).toBe(344)
-  await page.getByRole("button", { name: "Show Doods by name" }).click()
+  expect(await pageWidth()).toBe(400)
+  await page.screenshot({ path: "test-results/phone-chat.png" })
+  // Asked for, it is the list, and the page slides aside as wide as it was.
+  await page.getByRole("button", { name: "Show your Doods" }).click()
   await expect.poll(sidebar).toBe(320)
   await expect(agents.locator("[data-latest]")).toBeVisible()
-  expect(await pageWidth()).toBe(344)
-  // The face is where it was.
+  expect(await pageWidth()).toBe(400)
+  const face = async () => (await juniper.locator("> span").first().boundingBox())!
   expect(await face()).toMatchObject({ x: 8, width: 40 })
   await page.screenshot({ path: "test-results/phone-doods.png" })
-  // Choosing the agent there is talking to it: its main chat. The list is faces again.
+  // Choosing the agent there is talking to it: its main chat. The list is gone again.
   await juniper.click()
-  await expect.poll(sidebar).toBe(56)
-  await expect(agents.locator("[data-latest]")).toHaveCount(0)
+  await expect.poll(sidebar).toBe(0)
+  await expect(agents).toHaveCount(0)
   await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
-  // The strip says whose chat this is, so nothing is over the transcript saying it again.
+  // The name above says whose chat this is, so nothing is over the transcript saying it again.
   await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(0)
   // With no room for two chats, a side chat takes the place of the main one, and leads back.
   await sideChats(page).click()
@@ -492,7 +534,7 @@ test("under a finger every field is written in at a size a phone does not zoom i
   await context.close()
 })
 
-test("at phone width a finger pulls the faces open into the sidebar, and pushes it shut", async ({
+test("at phone width a finger pulls the sidebar out across the page, and pushes it shut", async ({
   browser,
   baseURL,
 }) => {
@@ -528,7 +570,7 @@ test("at phone width a finger pulls the faces open into the sidebar, and pushes 
   // Nor is a finger going the other way.
   await swipe({ x: 300, y: 400 }, { x: 60, y: 410 })
   await expect(names).toHaveCount(0)
-  expect(await sidebar()).toBe(56)
+  expect(await sidebar()).toBe(0)
 
   // On something that scrolls sideways, a finger across it is scrolling that.
   await composer(page).fill(`Here:\n\n\`\`\`\n${"wide ".repeat(60)}\n\`\`\`\n`)
@@ -546,11 +588,11 @@ test("at phone width a finger pulls the faces open into the sidebar, and pushes 
   await expect.poll(() => code.evaluate((pre) => pre.scrollLeft)).toBeLessThan(150)
   await expect(names).toHaveCount(0)
 
-  // A finger that has not gone far lets the faces go back to where they were.
+  // A finger that has not gone far lets it go back out of sight.
   await swipe({ x: 24, y: 400 }, { x: 54, y: 402 })
-  await expect.poll(sidebar).toBe(56)
+  await expect.poll(sidebar).toBe(0)
   await expect(names).toHaveCount(0)
-  // Across the page, and the faces have their names beside them. It follows the finger there.
+  // Across the page, and the Doods are there by name. It follows the finger there.
   await finger.send("Input.dispatchTouchEvent", {
     type: "touchStart",
     touchPoints: [{ x: 24, y: 400 }],
@@ -561,21 +603,21 @@ test("at phone width a finger pulls the faces open into the sidebar, and pushes 
       touchPoints: [{ x, y: 402 }],
     })
   }
-  await expect.poll(sidebar).toBe(156)
+  await expect.poll(sidebar).toBe(100)
   await finger.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
   await expect.poll(sidebar).toBe(320)
   await expect(names).toBeVisible()
-  // Scrolling its list leaves it open, and a finger back across it shuts it to faces.
+  // Scrolling its list leaves it open, and a finger back across it shuts it.
   await swipe({ x: 160, y: 300 }, { x: 150, y: 500 })
   expect(await sidebar()).toBe(320)
   await swipe({ x: 260, y: 400 }, { x: 60, y: 390 })
-  await expect.poll(sidebar).toBe(56)
+  await expect.poll(sidebar).toBe(0)
   await expect(names).toHaveCount(0)
   // Open again, a touch on the page beside it shuts it too.
   await swipe({ x: 80, y: 400 }, { x: 280, y: 410 })
   await expect.poll(sidebar).toBe(320)
   await page.touchscreen.tap(370, 400)
-  await expect.poll(sidebar).toBe(56)
+  await expect.poll(sidebar).toBe(0)
 
   // Where the sidebar is beside the page at its own width there is nothing to pull.
   await page.setViewportSize({ width: 1280, height: 800 })

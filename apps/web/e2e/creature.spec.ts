@@ -1,6 +1,6 @@
 import { RARITIES } from "@do-computer/protocol"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, signIn } from "./helpers.ts"
+import { asOwner, signIn, panelSwitch } from "./helpers.ts"
 import type { Page } from "@playwright/test"
 
 // Wide enough for the agent's panel to be beside the chat, where its creature is looked after.
@@ -15,7 +15,7 @@ const waitingBox = (page: Page) => panel(page).getByRole("button", { name: "Open
 /** Sign in, and open the agent's panel: its creature is looked after there. */
 async function open(page: Page) {
   await signIn(page)
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect(panel(page)).toBeVisible()
 }
 

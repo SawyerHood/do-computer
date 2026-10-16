@@ -1,6 +1,15 @@
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, composer, newChat, signIn, tab } from "./helpers.ts"
+import {
+  asOwner,
+  nameMenu,
+  composer,
+  newChat,
+  signIn,
+  tab,
+  panelSwitch,
+  fromNameMenu,
+} from "./helpers.ts"
 
 asOwner()
 
@@ -105,11 +114,13 @@ test("a call goes on where its Dood's panel is not, as a card in the corner", as
   await expect(card).toHaveCount(0)
 
   // With the panel shut the call is still on, and is a card in the corner of the window.
-  await page.getByRole("button", { name: "Hide Juniper's panel" }).click()
+  await panelSwitch(page, "Hide")
   await expect(card).toBeVisible()
   await expect(card.getByRole("status")).toContainText(/Listening|Talking|Working/)
-  // The phone in the strip says so too.
-  await expect(page.getByRole("button", { name: "On a call with Juniper" })).toBeVisible()
+  // The menu on the Dood's name says so too.
+  await nameMenu(page).click()
+  await expect(page.getByRole("menuitem", { name: "On a call with Juniper" })).toBeVisible()
+  await page.keyboard.press("Escape")
   await page.screenshot({ path: "test-results/call-card.png" })
 
   // It leads back to the chat the call is held in, where the Dood's row in the sidebar says it
@@ -152,7 +163,7 @@ test("its voice is chosen in its settings", async ({ page }) => {
     voices: string[]
   }
   expect(before).toMatchObject({ available: true, dialect: "scripted", voices: ["plain"] })
-  await page.getByRole("button", { name: "Juniper's settings" }).click()
+  await fromNameMenu(page, "Juniper's settings")
   const voices = page.getByRole("radiogroup", { name: "Voice" })
   await expect(voices.getByRole("radio", { name: "plain" })).toBeChecked()
 })

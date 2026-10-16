@@ -9,6 +9,7 @@ import {
   signIn,
   tab,
   tool,
+  panelSwitch,
 } from "./helpers.ts"
 
 asOwner()
@@ -172,7 +173,7 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   await transcript.getByText("What it reported").click()
   await expect(transcript.getByText("You said: Find flights to Lisbon").first()).toBeVisible()
   // It has ended, so it is in the transcript only: not beside the creature, not in a list.
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect(panel(page)).toBeVisible()
   await expect(panel(page).getByRole("link", { name: /Flights/ })).toHaveCount(0)
   await expect(panel(page).getByText("Sub-agents at work")).toHaveCount(0)
@@ -215,7 +216,7 @@ test("a sub-agent at work can be stopped from its chat, and the agent is told", 
   const chip = transcript.getByRole("link", { name: /Slow job working/ })
   await expect(chip).toBeVisible()
   // While it is at work it stands beside the agent's creature and is listed under it.
-  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
+  await panelSwitch(page, "Show")
   await expect(panel(page).getByText("Sub-agents at work")).toBeVisible()
   await expect(panel(page).getByRole("link", { name: "Open Slow job" })).toBeVisible()
   const mine = page.url()

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom"
 import { type AgentSummary, type ChatSummary, continuesMain } from "@do-computer/protocol"
 import {
   ArchiveIcon,
@@ -21,6 +22,7 @@ import { client } from "@/lib/client"
 import { workspaceModelsKey } from "@/lib/collections"
 import { BESIDE_GAP, DOC_PANEL_LEAVES, sideChatColumn } from "@/lib/columns"
 import { useBeside } from "@/lib/use-beside"
+import { useStripBar } from "@/lib/use-strip-bar"
 import { useChat } from "@/lib/use-chat"
 import { useWide } from "@/lib/use-wide"
 import { TeamContext, usePeople, useWorkspaceOfAgent } from "@/lib/workspaces"
@@ -52,8 +54,9 @@ export function SideChatWelcome({ agent, carried }: { agent: AgentSummary; carri
 }
 
 /**
- * The line under the agent's strip while a side chat has the middle: it says that this is a
- * side chat, which one, and leads back to the main chat.
+ * What says, while a side chat has the middle, that this is a side chat and which one, and
+ * leads back to the main chat. It is in the row above the page, either side of the agent's
+ * name, where there is room there, and otherwise a line of its own under that row.
  */
 export function SideChatBar({
   agent,
@@ -66,8 +69,9 @@ export function SideChatBar({
 }) {
   const wide = useWide()
   const archive = useArchiveSideChat(agent.id, main.id)
-  return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 text-sm">
+  const bar = useStripBar()
+  const where = (
+    <>
       <Link
         to="/a/$agentId/c/$chatId"
         params={{ agentId: agent.id, chatId: main.id }}
@@ -76,8 +80,12 @@ export function SideChatBar({
         <CaretLeftIcon className="size-3.5" />
         Main chat
       </Link>
-      <span className="hidden shrink-0 text-muted-foreground sm:inline">Side chat</span>
-      <span className="min-w-0 flex-1 truncate font-medium">{chat.title}</span>
+      <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">Side chat</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{chat.title}</span>
+    </>
+  )
+  const tools = (
+    <>
       {wide ? (
         <Link
           to="/a/$agentId/c/$chatId"
@@ -100,6 +108,23 @@ export function SideChatBar({
       >
         <ArchiveIcon />
       </Button>
+    </>
+  )
+  if (bar !== undefined) {
+    return (
+      <>
+        {createPortal(
+          <div className="flex min-w-0 flex-1 items-center gap-2">{where}</div>,
+          bar.start,
+        )}
+        {createPortal(tools, bar.end)}
+      </>
+    )
+  }
+  return (
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 text-sm">
+      {where}
+      {tools}
     </div>
   )
 }

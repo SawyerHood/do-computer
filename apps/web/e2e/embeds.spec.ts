@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, composer, newChat, signIn, tab, tool } from "./helpers.ts"
+import { asOwner, composer, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -125,7 +125,7 @@ test("the library shows a film, a table and a PDF as what they are", async ({ pa
     ])
   const files = page.getByRole("navigation", { name: "Files" })
 
-  await files.getByRole("link", { name: "clip.webm" }).click()
+  await openFile(page, "clip.webm")
   const film = page.locator("video")
   await expect(film).toHaveAttribute("aria-label", "clip.webm")
   await expect
@@ -133,13 +133,13 @@ test("the library shows a film, a table and a PDF as what they are", async ({ pa
     .toBeCloseTo(4, 0)
 
   // A table is read as a table, and still written as the text it is.
-  await files.getByRole("link", { name: "signups.csv" }).click()
+  await openFile(page, "signups.csv")
   await expect(page.getByRole("table", { name: "signups.csv" })).toBeVisible()
   await page.getByRole("button", { name: "Source" }).click()
   await expect(page.getByRole("textbox", { name: "Edit signups.csv" })).toHaveValue(ROWS)
 
   // A PDF is given to the browser's own reader, which the library serves it to as a PDF.
-  await files.getByRole("link", { name: "paper.pdf" }).click()
+  await openFile(page, "paper.pdf")
   const reader = page.locator('iframe[title="paper.pdf"]')
   await expect(reader).toHaveAttribute("src", /\/paper\.pdf\?v=\d+#toolbar=0/)
   const served = await page.request.get((await reader.getAttribute("src"))!.split("#")[0]!)

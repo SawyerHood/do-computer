@@ -1,5 +1,12 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, closeSettings, openOwnSettings, signIn, workspaceMenu } from "./helpers.ts"
+import {
+  asOwner,
+  closeSettings,
+  openOwnSettings,
+  signIn,
+  workspaceMenu,
+  fromNameMenu,
+} from "./helpers.ts"
 
 asOwner()
 
@@ -36,8 +43,8 @@ test("the settings open on what is one's own and on two lists, each gone inside 
 test("the ways in from the rest of the app go straight inside", async ({ page }) => {
   await signIn(page)
   const dialog = page.getByRole("dialog")
-  // The agent's strip leads to that agent.
-  await page.getByRole("button", { name: "Juniper's settings" }).click()
+  // The menu on the agent's name leads to that agent.
+  await fromNameMenu(page, "Juniper's settings")
   await expect(dialog.getByRole("button", { name: "Back to Doods" })).toBeVisible()
   await expect(dialog.getByRole("heading", { name: "Profile", exact: true })).toBeVisible()
   // From what it thinks with to what its workspace is signed in to, in the same window.
@@ -103,7 +110,7 @@ test("on a phone the settings show a list, and then what was chosen from it", as
   const phone = await context.newPage()
   await phone.goto(page.url())
   const dialog = phone.getByRole("dialog")
-  await phone.getByRole("button", { name: /'s settings$/ }).click()
+  await fromNameMenu(phone, /'s settings$/)
   // The agent's sections, and nothing of any one of them.
   const profile = dialog.getByRole("button", { name: "Profile", exact: true })
   await expect(profile).toBeVisible()

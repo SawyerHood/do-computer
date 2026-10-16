@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, newChat, signIn, tab, tool } from "./helpers.ts"
+import { asOwner, composer, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -52,14 +52,14 @@ test("a document the agent writes opens from the chat, to be read and edited", a
   await expect(page).toHaveURL(/\/library\?path=notes%2Fmore\.md/)
   const files = page.getByRole("navigation", { name: "Files" })
   await expect(files.getByRole("button", { name: "notes", exact: true })).toBeVisible()
-  await files.getByRole("link", { name: "plan.md" }).click()
+  await openFile(page, "plan.md")
   await expect(files.getByRole("link", { name: "plan.md" })).toHaveAttribute("aria-current", "page")
   await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
 
   // A link to the document beside it opens that one.
   await page.getByRole("link", { name: "more", exact: true }).click()
   await expect(page.getByRole("heading", { name: "More", level: 1 })).toBeVisible()
-  await files.getByRole("link", { name: "plan.md" }).click()
+  await openFile(page, "plan.md")
 
   // What the user types is saved, and is what the agent then reads.
   await page.getByRole("button", { name: "Split" }).click()
@@ -80,10 +80,7 @@ test("a document the agent writes opens from the chat, to be read and edited", a
     "Successfully wrote to library/notes/plan.md",
   )
   await tab(page, "Library").click()
-  await page
-    .getByRole("navigation", { name: "Files" })
-    .getByRole("link", { name: "plan.md" })
-    .click()
+  await openFile(page, "plan.md")
   await expect(page.getByText("Shipped.")).toBeVisible()
   await page.getByRole("button", { name: "History" }).click()
   await expect(page.getByRole("menuitem", { name: /Put back this version/ })).toHaveCount(2)
@@ -116,10 +113,7 @@ test("a page the agent writes is shown as a page, apart from the app", async ({ 
   const asked = page.waitForRequest(
     (request) => request.url().endsWith("/api/me") && request.frame() !== page.mainFrame(),
   )
-  await page
-    .getByRole("navigation", { name: "Files" })
-    .getByRole("link", { name: "index.html" })
-    .click()
+  await openFile(page, "index.html")
   // The browser sends that without the session: to it, the page is another site.
   expect((await (await asked).allHeaders()).cookie).toBeUndefined()
 
@@ -139,10 +133,7 @@ test("a page the agent writes is shown as a page, apart from the app", async ({ 
   await expect(page.getByRole("heading", { name: "The plan", level: 1 })).toBeVisible()
 
   // The address of a page works without the session, and only with its own key.
-  await page
-    .getByRole("navigation", { name: "Files" })
-    .getByRole("link", { name: "index.html" })
-    .click()
+  await openFile(page, "index.html")
   const address = await page.locator('iframe[title="index.html"]').getAttribute("src")
   const anonymous = await page.request.fetch(address!, { headers: { cookie: "" } })
   expect(anonymous.status()).toBe(200)
@@ -166,7 +157,7 @@ test("the user can add, rename and delete files, and bring one back", async ({ p
     buffer: Buffer.from("remember the milk"),
   })
   await files.getByRole("button", { name: "notes", exact: true }).click()
-  await files.getByRole("link", { name: "notes from me.txt" }).click()
+  await openFile(page, "notes from me.txt")
   await expect(page).toHaveURL(
     /path=notes%2Fnotes\+from\+me\.txt|path=notes%2Fnotes%20from%20me\.txt/,
   )

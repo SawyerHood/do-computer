@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, sideChats, signIn, tab } from "./helpers.ts"
+import { asOwner, composer, sideChats, signIn, tab, nameMenu } from "./helpers.ts"
 
 asOwner()
 
@@ -81,7 +81,9 @@ test("choosing an agent moves the page before the server has answered", async ({
   // The address, the row, the strip and the message box are Juniper's at once.
   await page.waitForURL(juniper)
   await expect(agentRow(page, /Juniper/)).toHaveAttribute("aria-current", "page")
-  await expect(page.getByRole("button", { name: "Juniper: another Dood" })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Juniper: pages, side chats and settings" }),
+  ).toBeVisible()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
   // What was said is on its way, and its place is held. It is not an empty chat.
   await expect(page.locator("main [data-loading]").first()).toBeVisible()
@@ -124,11 +126,12 @@ test("a tab's page is there at once, and its list when it arrives", async ({ pag
 test("a session that has ended is found out by the next thing asked for", async ({ page }) => {
   await signIn(page)
   await expect(composer(page)).toBeVisible()
-  const automations = (await tab(page, "Automations").boundingBox())!
+  await nameMenu(page).click()
+  const automations = (await page.getByRole("menuitem", { name: "Automations" }).boundingBox())!
   await page.context().clearCookies()
   // Who is signed in is not asked again on the way to a page. Whatever the page asks for next
   // is refused, and that sends the visitor to sign in. Pointing at a tab asks for what its page
-  // shows, if nothing else has asked first.
+  // shows, in the menu on the agent's name, if nothing else has asked first.
   await page.mouse.move(automations.x + automations.width / 2, automations.y + 8)
   await page.waitForURL(/\/login$/)
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible()
@@ -322,5 +325,6 @@ test("a side chat says it is being started, and opens without asking the agent a
   await page.waitForURL((url) => url.searchParams.has("side"))
   await expect(page.getByRole("complementary", { name: "Side chat: New chat" })).toBeVisible()
   await expect(page.getByRole("menu")).toHaveCount(0)
-  await expect(sideChats(page)).toContainText("1")
+  await nameMenu(page).click()
+  await expect(page.getByRole("menuitem", { name: /'s side chats$/ })).toContainText("1")
 })

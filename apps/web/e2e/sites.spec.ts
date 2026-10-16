@@ -1,7 +1,7 @@
 import type { SiteSummary } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, owner, signIn, tab, tool } from "./helpers.ts"
+import { asOwner, newChat, owner, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -290,7 +290,7 @@ test("a file is shared from its card, from the library, and a folder from its ro
   await tab(page, "Library").click()
   const files = page.getByRole("navigation", { name: "Files" })
   await expect(files.getByRole("link", { name: "plan.md Shared with a link" })).toBeVisible()
-  await files.getByRole("link", { name: /data\.csv/ }).click()
+  await openFile(page, /data\.csv/)
   await page.getByRole("button", { name: "Share", exact: true }).click()
   await popover.getByRole("button", { name: "Share", exact: true }).click()
   await expect(popover.getByText("Shared with a link")).toBeVisible()

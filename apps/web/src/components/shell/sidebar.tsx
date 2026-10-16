@@ -1,21 +1,15 @@
-import type { AgentSummary, WorkspaceSummary } from "@do-computer/protocol"
+import type { WorkspaceSummary } from "@do-computer/protocol"
 import {
-  CaretLeftIcon,
   CaretUpDownIcon,
   DesktopIcon,
   GearIcon,
-  SidebarSimpleIcon,
   SignOutIcon,
   UserPlusIcon,
 } from "@phosphor-icons/react"
-import { Link } from "@tanstack/react-router"
-import { useSetAtom } from "jotai"
 import { useState } from "react"
-import { AgentFace } from "@/components/agent-avatar"
 import { useComputerRequests } from "@/components/computer-requests"
 import { PersonFace } from "@/components/people"
 import { InviteDialog } from "@/components/team/invite"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Spinner } from "@/components/ui/spinner"
-import { sidebarSlotAtom } from "@/lib/atoms"
 import { authClient } from "@/lib/auth-client"
 import { forgetNotifications } from "@/lib/notifications"
 import { useSettings } from "@/lib/settings"
@@ -34,10 +27,10 @@ import { AgentList, LEVEL } from "./agent-list.tsx"
 type Me = { id: string; name: string; email: string; image?: string | null }
 
 /**
- * How the sidebar of a narrow screen is drawn: as a column of faces, or opened out into the
- * whole list. Either way the faces are in the one place, so that opening it moves none of them.
+ * How the sidebar is drawn: as a column of faces, or opened out into the whole list. Either way
+ * the faces are in the one place, so that opening it moves none of them.
  */
-export type Narrow = "rail" | "open"
+export type Drawn = "rail" | "open"
 
 /**
  * The user's own menu, at the foot of the sidebar: the way into the settings, asking people in
@@ -50,7 +43,7 @@ function AccountMenu({
 }: {
   workspace: WorkspaceSummary
   me: Me
-  narrow: Narrow | undefined
+  narrow: Drawn
 }) {
   const rail = narrow === "rail"
   const { open: openSettings } = useSettings()
@@ -76,8 +69,8 @@ function AccountMenu({
   }
 
   return (
-    // On a narrow screen the face is under the Doods' own, whether or not its name is beside it.
-    <div className={narrow === undefined ? "p-2" : "p-1.5"}>
+    // The face is under the Doods' own, whether or not its name is beside it.
+    <div className="p-1.5">
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${me.name}: settings and signing out`}
@@ -158,21 +151,17 @@ function AccountMenu({
 
 /**
  * The one column of navigation: the user's agents, under their workspaces where they have more
- * than their own, and the user's own menu at its foot. While the Library tab is showing, the
- * list in the middle is that agent's files, which the library page puts there; everything
- * around it stays.
+ * than their own, and the user's own menu at its foot. The mark at its top opens it out from
+ * faces into the whole list and shuts it again, for whoever is not dragging its edge.
  */
 export function Sidebar({
   workspace,
   settled = true,
   me,
   agentId,
-  agent,
-  library = false,
-  narrow,
+  drawn,
   onPull,
   onNavigate,
-  onCollapse,
   className,
 }: {
   workspace: WorkspaceSummary
@@ -181,87 +170,42 @@ export function Sidebar({
   me: Me
   /** The agent whose page is open, which the address says before the agent itself is here. */
   agentId: string | undefined
-  agent: AgentSummary | undefined
-  /** The Library tab is showing, and this is the sidebar its list of files goes in. */
-  library?: boolean
-  /** This is the sidebar of a narrow screen, drawn this way. */
-  narrow?: Narrow
-  /** Opens the faces out into the list, or shuts the list to faces, without a finger's pull. */
-  onPull?: () => void
+  drawn: Drawn
+  /** Opens the faces out into the list, or shuts the list. */
+  onPull: () => void
   onNavigate?: () => void
-  /** Hides the sidebar, where it can be hidden. */
-  onCollapse?: () => void
   className?: string
 }) {
-  const setSlot = useSetAtom(sidebarSlotAtom)
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", className)}>
-      {/* Flush with the list under it: its ends are where the chosen agent's row has its own. */}
-      <div
-        className={cn(
-          "flex items-center gap-2 pt-2.5 pb-0.5",
-          // Over the faces, on a narrow screen.
-          narrow === undefined ? "px-2" : "px-3",
-        )}
-      >
-        {onPull === undefined ? (
-          <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
-        ) : (
-          // Where there is no finger to pull with, the mark at the top does it.
-          <button
-            type="button"
-            aria-label={narrow === "rail" ? "Show Doods by name" : "Show Doods as faces"}
-            aria-expanded={narrow !== "rail"}
-            onClick={onPull}
-            className="shrink-0 rounded-lg p-1 outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40"
-          >
-            <img src="/icon-192.png" alt="" className="size-6 rounded-md" />
-          </button>
-        )}
-        {narrow === "rail" ? null : (
+    <div className={cn("flex h-full min-h-0 flex-col overflow-hidden", className)}>
+      {/* Over the faces: its mark is where theirs are. */}
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-0.5">
+        <button
+          type="button"
+          aria-label={drawn === "rail" ? "Show Doods by name" : "Show Doods as faces"}
+          aria-expanded={drawn !== "rail"}
+          onClick={onPull}
+          className="shrink-0 rounded-lg p-1 outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40"
+        >
+          <img src="/icon-192.png" alt="" className="size-6 rounded-md" />
+        </button>
+        {drawn === "rail" ? null : (
           <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold", LEVEL)}>
             Do Computer
           </span>
         )}
-        {onCollapse === undefined ? null : (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Hide the sidebar"
-            title="Hide the sidebar"
-            className="-mr-1.5 shrink-0 text-muted-foreground"
-            onClick={onCollapse}
-          >
-            <SidebarSimpleIcon />
-          </Button>
-        )}
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
-        {library && agentId !== undefined ? (
-          <>
-            <Link
-              to="/a/$agentId"
-              params={{ agentId }}
-              className="mx-2 mt-1 flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-sm text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
-            >
-              <CaretLeftIcon className="size-3.5 shrink-0" />
-              {agent === undefined ? null : <AgentFace agent={agent} className="size-5" quiet />}
-              <span className="min-w-0 truncate">Doods</span>
-            </Link>
-            <div ref={setSlot} className="min-h-0 flex-1" />
-          </>
-        ) : (
-          <AgentList
-            workspace={workspace}
-            pending={!settled}
-            activeAgentId={agentId}
-            me={me}
-            narrow={narrow}
-            onNavigate={onNavigate}
-          />
-        )}
+        <AgentList
+          workspace={workspace}
+          pending={!settled}
+          activeAgentId={agentId}
+          me={me}
+          narrow={drawn}
+          onNavigate={onNavigate}
+        />
       </div>
-      <AccountMenu workspace={workspace} me={me} narrow={narrow} />
+      <AccountMenu workspace={workspace} me={me} narrow={drawn} />
     </div>
   )
 }

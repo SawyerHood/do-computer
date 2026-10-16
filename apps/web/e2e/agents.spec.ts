@@ -1,6 +1,14 @@
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, closeSettings, composer, openSettings, signIn, tab } from "./helpers.ts"
+import {
+  asOwner,
+  closeSettings,
+  composer,
+  openSettings,
+  signIn,
+  tab,
+  fromNameMenu,
+} from "./helpers.ts"
 
 // These are about the creature, so here it is drawn live. The first of them names the agent.
 asOwner({ agent: null })
@@ -77,7 +85,7 @@ test("a new agent is met as an egg, and hatches once", async ({ page }) => {
 
 test("the creature in the agent's panel can be petted", async ({ page }) => {
   await signIn(page)
-  await page.getByRole("button", { name: /^Show .+'s panel$/ }).click()
+  await fromNameMenu(page, /^Show .+'s panel$/)
   // One that is still hatching is busy with that.
   await expect(page.getByRole("button", { name: "Skip the hatching" })).toHaveCount(0, {
     timeout: 15_000,
@@ -263,13 +271,12 @@ test("going from one agent to another draws their creatures with the context tha
   await page.reload()
   await expect(composer(page)).toBeVisible()
   const agents = page.getByRole("navigation", { name: "Doods" })
-  if (!(await agents.isVisible())) {
-    await page.getByRole("button", { name: "Show the sidebar" }).click()
-  }
   await agents.locator(`a[href="/a/${second}"]`).click()
   await expect(page).toHaveURL(new RegExp(`/a/${second}/c/\\d+`))
-  // With the sidebar shut, no creature stays on the page from one agent to the next.
-  await page.getByRole("button", { name: "Hide the sidebar" }).click()
+  // On a narrow screen the sidebar is out of sight, and no creature stays on the page from one
+  // agent to the next.
+  await page.setViewportSize({ width: 400, height: 800 })
+  await expect(agents).toHaveCount(0)
   await expect.poll(() => drawn(page)).not.toContain(0)
   expect(await made()).toBe(1)
 

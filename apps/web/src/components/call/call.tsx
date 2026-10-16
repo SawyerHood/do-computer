@@ -14,6 +14,7 @@ import {
   MicrophoneSlashIcon,
   PhoneDisconnectIcon,
   PhoneIcon,
+  WaveformIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
@@ -104,27 +105,48 @@ export function CallButton({ agent, chatId }: { agent: AgentSummary; chatId: str
   )
 }
 
-/** The same, as a small button in the strip above the chat, for when the panel is shut. */
-export function CallStripButton({ agent, chatId }: { agent: AgentSummary; chatId: string }) {
+/**
+ * What a way to call a Dood needs to know, wherever it is drawn: whether it can be called at
+ * all, whether a call with it is on, and whether one is on with anyone, which is one at a time.
+ */
+export function useCallButton(agent: AgentSummary): {
+  available: boolean
+  on: boolean
+  busy: boolean
+  start: (chatId: string) => void
+} {
   const calls = useCalls(agent.id)
   const call = useAtomValue(callAtom)
-  if (calls?.available !== true) return null
-  const on = call?.agentId === agent.id
+  return {
+    available: calls?.available === true,
+    on: call?.agentId === agent.id,
+    busy: call !== undefined,
+    start: (chatId) => void startCall(agent, chatId),
+  }
+}
+
+/**
+ * The same, as the round button at the end of the message box, where sending is once there is
+ * something to send. Nothing where the Dood cannot be called.
+ */
+export function CallComposerButton({ agent, chatId }: { agent: AgentSummary; chatId: string }) {
+  const call = useCallButton(agent)
+  if (!call.available || !agent.hatched) return null
   const name = agent.name ?? "your Dood"
   return (
     <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={on ? `On a call with ${name}` : `Call ${name}`}
-      title={on ? "On a call" : `Call ${name}`}
-      disabled={call !== undefined}
-      onClick={() => void startCall(agent, chatId)}
+      type="button"
+      size="icon"
+      aria-label={call.on ? `On a call with ${name}` : `Call ${name}`}
+      title={call.on ? "On a call" : `Call ${name}`}
+      disabled={call.busy}
+      onClick={() => call.start(chatId)}
       className={cn(
-        "text-muted-foreground",
-        on && "bg-emerald-500/15 text-emerald-700 disabled:opacity-100 dark:text-emerald-300",
+        "rounded-full",
+        call.on && "bg-emerald-500/15 text-emerald-700 disabled:opacity-100 dark:text-emerald-300",
       )}
     >
-      <PhoneIcon weight={on ? "fill" : "regular"} />
+      <WaveformIcon weight="bold" className="size-[1.125rem]" />
     </Button>
   )
 }

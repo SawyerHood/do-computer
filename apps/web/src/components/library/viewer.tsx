@@ -22,6 +22,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { DocPlaceholder } from "@/components/placeholders"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -59,6 +60,7 @@ import { formatBytes, formatFull, formatWhen, kindOf, shownAt } from "@/lib/libr
 import { usePin } from "@/lib/pins"
 import { queryClient } from "@/lib/query"
 import { siteOfFile, useSites } from "@/lib/sites"
+import type { StripBar } from "@/lib/use-strip-bar"
 import { useThemedFrame } from "@/lib/visual-theme"
 import { cn } from "@/lib/utils"
 import { SharePopover } from "@/components/sites/share"
@@ -474,6 +476,7 @@ export function Viewer({
   onOpen,
   compact = false,
   actions,
+  bar,
 }: {
   agentId: string
   agentName: string
@@ -488,6 +491,8 @@ export function Viewer({
   compact?: boolean
   /** Buttons for wherever this is shown, after its own. */
   actions?: ReactNode
+  /** The row above the page, where its bar goes in place of one of its own. */
+  bar?: StripBar | undefined
 }) {
   const api = client.agent(agentId)
   const kind = kindOf(file)
@@ -519,213 +524,224 @@ export function Viewer({
   })
 
   const parts = file.path.split("/")
+  // Where the file is, and how its saving stands: the start of its bar.
+  const where = (
+    <>
+      {/* Which file it is has the room the buttons leave, and its name is what gives way. */}
+      <div className="flex min-w-0 flex-1 items-center gap-[inherit]">
+        {renaming === undefined ? (
+          <Breadcrumb aria-label="Where this file is" className="min-w-0">
+            {/* On a narrow screen, and beside a chat, only the file's own name is shown. */}
+            <BreadcrumbList className="flex-nowrap gap-1 sm:gap-1">
+              <BreadcrumbItem className={cn("hidden", !compact && "md:inline-flex")}>
+                <BreadcrumbLink
+                  render={<Link to="/a/$agentId/library" params={{ agentId }} search={{}} />}
+                >
+                  Library
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              {parts.map((part, index) => {
+                const last = index === parts.length - 1
+                return (
+                  <Fragment key={`${index}:${part}`}>
+                    <BreadcrumbSeparator
+                      className={cn("hidden [&>svg]:size-3", !compact && "md:block")}
+                    />
+                    <BreadcrumbItem
+                      className={cn(
+                        "min-w-0",
+                        !last && (compact ? "hidden" : "hidden md:inline-flex"),
+                      )}
+                    >
+                      {last ? (
+                        // Not a heading: a document brings its own, and this is only its file name.
+                        <BreadcrumbPage className="truncate font-medium">{part}</BreadcrumbPage>
+                      ) : (
+                        <span className="truncate">{part}</span>
+                      )}
+                    </BreadcrumbItem>
+                  </Fragment>
+                )
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
+        ) : (
+          <form
+            className="flex min-w-40 flex-1 items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (renaming.trim() === file.path) setRenaming(undefined)
+              else move.mutate(renaming)
+            }}
+          >
+            <Input
+              autoFocus
+              aria-label="Folder and name"
+              value={renaming}
+              onChange={(event) => setRenaming(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setRenaming(undefined)
+              }}
+              className="h-8 max-w-md text-sm"
+            />
+            <Button type="submit" size="sm" disabled={move.isPending}>
+              {move.isPending ? "Saving…" : "Save"}
+            </Button>
+          </form>
+        )}
+        {renaming === undefined && !compact ? (
+          <p className="hidden shrink-0 pl-1 text-xs text-muted-foreground @3xl/viewer:block">
+            {who(file.updatedBy, agentName)} · {formatWhen(file.updatedAt)} ·{" "}
+            {formatBytes(file.size)}
+          </p>
+        ) : null}
+        <p
+          aria-live="polite"
+          className={cn(
+            "truncate text-xs text-muted-foreground",
+            // Beside the name it is whole, up to all the room there is. Beside a name being typed
+            // it is cut short first.
+            renaming === undefined ? "max-w-[calc(100%-0.5rem)] shrink-0" : "min-w-0",
+            (saveState === "error" || saveState === "conflict" || move.isError || remove.isError) &&
+              "text-destructive",
+          )}
+        >
+          {remove.isPending
+            ? "Deleting…"
+            : ((move.error ?? remove.error)?.message ?? SAVE_WORDS[saveState])}
+        </p>
+      </div>
+    </>
+  )
+  // What is done to it: the end of its bar.
+  const tools = (
+    <>
+      {/* While a name is typed in a narrow bar, these give it their room. */}
+      <div className={cn("contents", renaming !== undefined && "hidden @3xl/viewer:contents")}>
+        {kind === "markdown" ? (
+          <Segmented
+            label="How to show it"
+            value={mode === "source" ? "read" : mode}
+            onChange={onMode}
+            options={[
+              ["read", "Read", <EyeIcon key="i" className="size-3.5" />],
+              ["edit", "Edit", <PencilSimpleIcon key="i" className="size-3.5" />],
+              ["split", "Split", <ColumnsIcon key="i" className="size-3.5" />],
+            ]}
+          />
+        ) : kind === "page" ? (
+          <Segmented
+            label="How to show it"
+            value={mode === "read" ? "read" : "source"}
+            onChange={onMode}
+            options={[
+              ["read", "Page", <GlobeIcon key="i" className="size-3.5" />],
+              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+            ]}
+          />
+        ) : kind === "table" ? (
+          <Segmented
+            label="How to show it"
+            value={mode === "read" ? "read" : "source"}
+            onChange={onMode}
+            options={[
+              ["read", "Table", <TableIcon key="i" className="size-3.5" />],
+              ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
+            ]}
+          />
+        ) : null}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-pressed={pin.pinned}
+          aria-label={pin.pinned ? `Unpin from ${agentName}` : `Pin to ${agentName}`}
+          title={
+            pin.pinned
+              ? `Pinned to ${agentName}. Press to unpin`
+              : `Pin to ${agentName}: it stays beside the chat`
+          }
+          disabled={pin.pending}
+          onClick={pin.toggle}
+          className={cn(pin.pinned && "bg-primary/12 text-primary hover:bg-primary/18")}
+        >
+          <PushPinIcon weight={pin.pinned ? "fill" : "regular"} />
+        </Button>
+        {/* Anything can be shared: a page as the page, and the rest as what each is. */}
+        <SharePopover agentId={agentId} site={site} path={file.path}>
+          <Button
+            variant="outline"
+            size={compact ? "icon-sm" : "sm"}
+            aria-label={site === undefined ? "Share" : "Shared with a link"}
+            title={site === undefined ? "Share with a link" : "Shared with a link"}
+          >
+            {site === undefined ? <ShareNetworkIcon /> : site.public ? <GlobeIcon /> : <LockIcon />}
+            <span className={cn("hidden", !compact && "@xl/viewer:inline")}>
+              {site === undefined ? "Share" : "Shared"}
+            </span>
+          </Button>
+        </SharePopover>
+        <History agentId={agentId} agentName={agentName} file={file} />
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon-sm" aria-label="More" title="More" />}
+        >
+          <DotsThreeIcon weight="bold" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem onClick={() => setRenaming(file.path)}>
+            <PencilSimpleIcon /> Rename or move
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            render={
+              <a
+                // A page takes the app's look with it, so it is the same page out of the app.
+                href={`${api.libraryFileUrl(file.id)}${kindOf(file) === "page" ? "?look" : ""}`}
+                download={file.name}
+              />
+            }
+          >
+            <DownloadSimpleIcon /> Download
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={remove.isPending}
+            onClick={() => remove.mutate()}
+          >
+            <TrashIcon /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
   return (
     // The bar is laid out by how wide this is, not the window: beside a chat it can be a third of it.
     <div className="@container/viewer flex h-full min-h-0 flex-col">
-      <header className="flex h-13 shrink-0 items-center gap-1 border-b pr-2 pl-3 @md/viewer:gap-2">
-        {compact ? null : (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="md:hidden"
-            aria-label="Back to the library"
-            onClick={() => onOpen()}
-          >
-            <ArrowLeftIcon />
-          </Button>
-        )}
-        {/* Which file it is has the room the buttons leave, and its name is what gives way. */}
-        <div className="flex min-w-0 flex-1 items-center gap-[inherit]">
-          {renaming === undefined ? (
-            <Breadcrumb aria-label="Where this file is" className="min-w-0">
-              {/* On a narrow screen, and beside a chat, only the file's own name is shown. */}
-              <BreadcrumbList className="flex-nowrap gap-1 sm:gap-1">
-                <BreadcrumbItem className={cn("hidden", !compact && "md:inline-flex")}>
-                  <BreadcrumbLink
-                    render={<Link to="/a/$agentId/library" params={{ agentId }} search={{}} />}
-                  >
-                    Library
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                {parts.map((part, index) => {
-                  const last = index === parts.length - 1
-                  return (
-                    <Fragment key={`${index}:${part}`}>
-                      <BreadcrumbSeparator
-                        className={cn("hidden [&>svg]:size-3", !compact && "md:block")}
-                      />
-                      <BreadcrumbItem
-                        className={cn(
-                          "min-w-0",
-                          !last && (compact ? "hidden" : "hidden md:inline-flex"),
-                        )}
-                      >
-                        {last ? (
-                          // Not a heading: a document brings its own, and this is only its file name.
-                          <BreadcrumbPage className="truncate font-medium">{part}</BreadcrumbPage>
-                        ) : (
-                          <span className="truncate">{part}</span>
-                        )}
-                      </BreadcrumbItem>
-                    </Fragment>
-                  )
-                })}
-              </BreadcrumbList>
-            </Breadcrumb>
-          ) : (
-            <form
-              className="flex min-w-40 flex-1 items-center gap-2"
-              onSubmit={(event) => {
-                event.preventDefault()
-                if (renaming.trim() === file.path) setRenaming(undefined)
-                else move.mutate(renaming)
-              }}
-            >
-              <Input
-                autoFocus
-                aria-label="Folder and name"
-                value={renaming}
-                onChange={(event) => setRenaming(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") setRenaming(undefined)
-                }}
-                className="h-8 max-w-md text-sm"
-              />
-              <Button type="submit" size="sm" disabled={move.isPending}>
-                {move.isPending ? "Saving…" : "Save"}
-              </Button>
-            </form>
-          )}
-          {renaming === undefined && !compact ? (
-            <p className="hidden shrink-0 pl-1 text-xs text-muted-foreground @3xl/viewer:block">
-              {who(file.updatedBy, agentName)} · {formatWhen(file.updatedAt)} ·{" "}
-              {formatBytes(file.size)}
-            </p>
-          ) : null}
-          <p
-            aria-live="polite"
-            className={cn(
-              "truncate text-xs text-muted-foreground",
-              // Beside the name it is whole, up to all the room there is. Beside a name being typed
-              // it is cut short first.
-              renaming === undefined ? "max-w-[calc(100%-0.5rem)] shrink-0" : "min-w-0",
-              (saveState === "error" ||
-                saveState === "conflict" ||
-                move.isError ||
-                remove.isError) &&
-                "text-destructive",
-            )}
-          >
-            {remove.isPending
-              ? "Deleting…"
-              : ((move.error ?? remove.error)?.message ?? SAVE_WORDS[saveState])}
-          </p>
-        </div>
-        {/* While a name is typed in a narrow bar, these give it their room. */}
-        <div className={cn("contents", renaming !== undefined && "hidden @3xl/viewer:contents")}>
-          {kind === "markdown" ? (
-            <Segmented
-              label="How to show it"
-              value={mode === "source" ? "read" : mode}
-              onChange={onMode}
-              options={[
-                ["read", "Read", <EyeIcon key="i" className="size-3.5" />],
-                ["edit", "Edit", <PencilSimpleIcon key="i" className="size-3.5" />],
-                ["split", "Split", <ColumnsIcon key="i" className="size-3.5" />],
-              ]}
-            />
-          ) : kind === "page" ? (
-            <Segmented
-              label="How to show it"
-              value={mode === "read" ? "read" : "source"}
-              onChange={onMode}
-              options={[
-                ["read", "Page", <GlobeIcon key="i" className="size-3.5" />],
-                ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
-              ]}
-            />
-          ) : kind === "table" ? (
-            <Segmented
-              label="How to show it"
-              value={mode === "read" ? "read" : "source"}
-              onChange={onMode}
-              options={[
-                ["read", "Table", <TableIcon key="i" className="size-3.5" />],
-                ["source", "Source", <CodeIcon key="i" className="size-3.5" />],
-              ]}
-            />
-          ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-pressed={pin.pinned}
-            aria-label={pin.pinned ? `Unpin from ${agentName}` : `Pin to ${agentName}`}
-            title={
-              pin.pinned
-                ? `Pinned to ${agentName}. Press to unpin`
-                : `Pin to ${agentName}: it stays beside the chat`
-            }
-            disabled={pin.pending}
-            onClick={pin.toggle}
-            className={cn(pin.pinned && "bg-primary/12 text-primary hover:bg-primary/18")}
-          >
-            <PushPinIcon weight={pin.pinned ? "fill" : "regular"} />
-          </Button>
-          {/* Anything can be shared: a page as the page, and the rest as what each is. */}
-          <SharePopover agentId={agentId} site={site} path={file.path}>
+      {bar === undefined ? (
+        <header className="flex h-13 shrink-0 items-center gap-1 border-b pr-2 pl-3 @md/viewer:gap-2">
+          {compact ? null : (
             <Button
-              variant="outline"
-              size={compact ? "icon-sm" : "sm"}
-              aria-label={site === undefined ? "Share" : "Shared with a link"}
-              title={site === undefined ? "Share with a link" : "Shared with a link"}
+              variant="ghost"
+              size="icon-sm"
+              className="md:hidden"
+              aria-label="Back to the library"
+              onClick={() => onOpen()}
             >
-              {site === undefined ? (
-                <ShareNetworkIcon />
-              ) : site.public ? (
-                <GlobeIcon />
-              ) : (
-                <LockIcon />
-              )}
-              <span className={cn("hidden", !compact && "@xl/viewer:inline")}>
-                {site === undefined ? "Share" : "Shared"}
-              </span>
+              <ArrowLeftIcon />
             </Button>
-          </SharePopover>
-          <History agentId={agentId} agentName={agentName} file={file} />
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon-sm" aria-label="More" title="More" />}
-          >
-            <DotsThreeIcon weight="bold" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onClick={() => setRenaming(file.path)}>
-              <PencilSimpleIcon /> Rename or move
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              render={
-                <a
-                  // A page takes the app's look with it, so it is the same page out of the app.
-                  href={`${api.libraryFileUrl(file.id)}${kindOf(file) === "page" ? "?look" : ""}`}
-                  download={file.name}
-                />
-              }
-            >
-              <DownloadSimpleIcon /> Download
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() => remove.mutate()}
-            >
-              <TrashIcon /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {actions}
-      </header>
+          )}
+          {where}
+          {tools}
+          {actions}
+        </header>
+      ) : (
+        // In the row above the page, either side of the agent's name, so that there is one row.
+        <>
+          {createPortal(where, bar.start)}
+          {createPortal(tools, bar.end)}
+        </>
+      )}
       <div className="min-h-0 flex-1">
         {kind === "image" ? (
           <div className="grid h-full place-items-center overflow-auto bg-[repeating-conic-gradient(var(--surface)_0_25%,transparent_0_50%)] bg-size-[22px_22px] p-8">

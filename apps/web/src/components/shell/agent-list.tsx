@@ -27,6 +27,7 @@ import {
   FolderIcon,
   PhoneIcon,
   PlusIcon,
+  SidebarSimpleIcon,
   SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import { Link, useNavigate } from "@tanstack/react-router"
@@ -589,10 +590,10 @@ function AgentRow({
       onDragStart={(event) => event.preventDefault()}
       className={cn(
         "group/agent relative flex shrink-0 items-center rounded-xl select-none [-webkit-touch-callout:none]",
-        // The one that is open is raised off the frame, and so is one that is being moved,
+        // The one that is open is a shade off the frame, and so is one that is being moved,
         // over the rest. The others darken under the pointer.
         active || sortable.isDragging
-          ? "bg-card shadow-raised [--face-ring:var(--card)]"
+          ? "bg-[color-mix(in_oklab,var(--foreground)_9%,var(--frame))] [--face-ring:color-mix(in_oklab,var(--foreground)_9%,var(--frame))]"
           : "[--face-ring:var(--frame)] hover:bg-foreground/6",
         sortable.isDragging && "z-10",
       )}
@@ -765,5 +766,46 @@ function AgentMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * The way to the sidebar where it is out of sight, on a narrow screen, for whoever does not
+ * pull it across with a finger. It says when a Dood that is not on screen has something new.
+ */
+export function DoodsButton({
+  meId,
+  activeAgentId,
+  onClick,
+}: {
+  meId: string
+  /** The agent on screen, whose news is being read as it comes. */
+  activeAgentId?: string | undefined
+  onClick: () => void
+}) {
+  const { data: agents } = useLiveQuery((q) => q.from({ agent: agentsCollection }))
+  const seenHere = useSeenHere()
+  const wanted = (agents ?? []).some(
+    (agent) =>
+      agent.id !== activeAgentId &&
+      (agent.asking === true || isUnread(agent, meId, seenHere[agent.id])),
+  )
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={wanted ? "Show your Doods: something new" : "Show your Doods"}
+      title="Your Doods"
+      className="relative shrink-0 text-muted-foreground"
+      onClick={onClick}
+    >
+      <SidebarSimpleIcon />
+      {wanted ? (
+        <span
+          aria-hidden
+          className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-background"
+        />
+      ) : null}
+    </Button>
   )
 }

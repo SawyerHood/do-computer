@@ -1,7 +1,7 @@
 import type { Pin } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, signIn, tab, tool } from "./helpers.ts"
+import { asOwner, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -104,10 +104,7 @@ test("a person pins a file from its card and from the document, and unpins it th
 
   // From the bar of a document, in the library.
   await tab(page, "Library").click()
-  await page
-    .getByRole("navigation", { name: "Files" })
-    .getByRole("link", { name: "relaunch.html" })
-    .click()
+  await openFile(page, "relaunch.html")
   await page.getByRole("button", { name: "Pin to Juniper" }).click()
   await expect(page.getByRole("button", { name: "Unpin from Juniper" })).toBeVisible()
   // Beside the library the agent's panel has them too, and there a pin opens in the library.

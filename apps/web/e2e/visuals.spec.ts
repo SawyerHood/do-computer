@@ -1,7 +1,7 @@
 import type { SiteSummary } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, signIn, tab, tool } from "./helpers.ts"
+import { asOwner, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -129,10 +129,7 @@ test("a visual is a file of the library, opened beside the chat and shared from 
   await expect(sites.getByText("Public")).toBeVisible()
   await page.screenshot({ path: "test-results/library-shared.png" })
   // Among the files it is under visuals, as any page is.
-  await page
-    .getByRole("navigation", { name: "Files" })
-    .getByRole("link", { name: "churn-by-plan.html" })
-    .click()
+  await openFile(page, "churn-by-plan.html")
   await expect(
     page.frameLocator('iframe[title="churn-by-plan.html"]').getByText("ran:blocked:null"),
   ).toBeVisible()

@@ -34,6 +34,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 import { useContext, useEffect, useMemo, useState } from "react"
+import { AgentFace } from "@/components/agent-avatar"
 import { CallInChat, CallRecord } from "@/components/call/call"
 import { useAgentsById } from "@/components/computer-requests"
 import { PersonFace } from "@/components/people"
@@ -56,7 +57,7 @@ import { chatKey } from "@/lib/atoms"
 import { keptLine } from "@/lib/passwords"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
-import { TeamContext } from "@/lib/workspaces"
+import { TeamContext, useListedAgent } from "@/lib/workspaces"
 import { Markdown } from "./markdown.tsx"
 import { McpAppFrame } from "./mcp-app.tsx"
 
@@ -469,11 +470,7 @@ function MessageView({
           ) : null}
           {message.parts.map((part, index) =>
             part.type === "text" ? (
-              <Bubble
-                key={index}
-                align="end"
-                variant={other === undefined ? "tinted" : "secondary"}
-              >
+              <Bubble key={index} align="end" variant={other === undefined ? "plain" : "secondary"}>
                 <BubbleContent className="rounded-[1.125rem] px-4 py-2 text-base leading-[1.55] whitespace-pre-wrap">
                   {part.text}
                 </BubbleContent>
@@ -618,6 +615,8 @@ export function Transcript({
           keptLine(part) !== undefined,
       ) === true
   const agentId = useContext(AgentIdContext)
+  // Whose work it is, beside the words for what it is doing.
+  const working = useListedAgent(agentId)
   const draftKey =
     agentId === undefined || chatId === undefined ? undefined : chatKey(agentId, chatId)
   // The calls the chat already has the record of, so that one just ended is not also waited for.
@@ -662,7 +661,10 @@ export function Transcript({
                 ))}
                 {activity === null || stepping || signingIn ? null : (
                   // The moving shine says it is working; a spinner beside it would say it twice.
-                  <Marker role="status" aria-live="polite" className="px-1">
+                  <Marker role="status" aria-live="polite" className="gap-2 px-1">
+                    {working === undefined ? null : (
+                      <AgentFace agent={working} className="size-5 shrink-0" still />
+                    )}
                     <MarkerContent className="animate-shine truncate">{activity}…</MarkerContent>
                   </Marker>
                 )}
