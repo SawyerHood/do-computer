@@ -25,6 +25,7 @@ import { dirOf, kindOf, parseCsv, siteOfFile, withPictures } from "@/library/mod
 import { PageView } from "@/library/page-view"
 import { SAVE_WORDS, useDocument } from "@/library/use-document"
 import { useLibrary, useLibraryActions } from "@/library/use-library"
+import { usePinOf } from "@/pins/pins"
 import {
   Button,
   Empty,
@@ -106,6 +107,7 @@ function Opened({
   const { auth } = useSession()
   const library = useLibrary(agentId)
   const actions = useLibraryActions(agentId)
+  const pin = usePinOf(agentId)(file)
   const kind = kindOf(file)
   const written = kind === "markdown" || kind === "page" || kind === "text" || kind === "csv"
   const [mode, setMode] = useState<Mode>(startEditing && written ? "edit" : "read")
@@ -448,6 +450,25 @@ function Opened({
             paddingHorizontal: 4,
           }}
         >
+          {pin.menu.length === 0 ? null : (
+            // Pinned to the Dood this file was opened from, as the web's document bar pins it.
+            // Filled in its color while it is pinned, so the bar says how it stands.
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={pin.menu[0]?.title}
+              accessibilityState={{ selected: pin.pinned }}
+              hitSlop={4}
+              onPress={pin.toggle}
+              style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+            >
+              <Icon
+                name={pin.pinned ? "pinFill" : "pin"}
+                size={21}
+                color={pin.pinned ? theme.amber : theme.ink}
+                weight="medium"
+              />
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="History"

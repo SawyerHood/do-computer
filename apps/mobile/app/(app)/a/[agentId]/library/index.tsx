@@ -18,6 +18,7 @@ import {
 } from "@/library/model"
 import { FileRow, FolderRow } from "@/library/rows"
 import { type Picked, useLibrary, useLibraryActions } from "@/library/use-library"
+import { usePinOf } from "@/pins/pins"
 import {
   Empty,
   errorText,
@@ -52,6 +53,7 @@ export default function Library() {
   const top = dir === ""
   const library = useLibrary(agentId)
   const actions = useLibraryActions(agentId)
+  const pinOf = usePinOf(agentId)
   const [search, setSearch] = useState("")
   const [refreshing, setRefreshing] = useState(false)
 
@@ -74,6 +76,8 @@ export default function Library() {
 
   const fileMenu = (file: LibraryFile): MenuItem[] => [
     { title: "Open", icon: "doc", onPress: () => open(file) },
+    // Pinned to the Dood this library was opened from, as the web pins from a file's own bar.
+    ...pinOf(file).menu,
     { title: "Share…", icon: "share", onPress: () => actions.shareFile(file) },
     { title: "Rename", icon: "pencil", onPress: () => void actions.rename(file) },
     {
@@ -97,6 +101,7 @@ export default function Library() {
     { title: "Delete", icon: "trash", destructive: true, onPress: () => void actions.remove(file) },
   ]
   const fileSwipe = (file: LibraryFile): SwipeAction[] => [
+    ...pinOf(file).swipe,
     { title: "Share", icon: "share", color: "tint", onPress: () => actions.shareFile(file) },
     { title: "Rename", icon: "pencil", color: "grey", onPress: () => void actions.rename(file) },
     { title: "Delete", icon: "trash", color: "red", onPress: () => void actions.remove(file) },
@@ -244,6 +249,7 @@ export default function Library() {
                 title={file.path}
                 by={by(file.updatedBy, file)}
                 site={siteOfFile(sites, file.path)}
+                pinnedTo={pinOf(file).pinned ? library.agentName : undefined}
                 menu={fileMenu(file)}
                 swipe={fileSwipe(file)}
                 onPress={() => open(file)}
@@ -284,6 +290,7 @@ export default function Library() {
                   file={file}
                   by={by(file.updatedBy, file)}
                   site={siteOfFile(sites, file.path)}
+                  pinnedTo={pinOf(file).pinned ? library.agentName : undefined}
                   menu={fileMenu(file)}
                   swipe={fileSwipe(file)}
                   onPress={() => open(file)}

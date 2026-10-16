@@ -430,6 +430,160 @@ test("the library shows what the agent wrote, and a deleted file can be restored
   await expect(row(page, "plan\\.md")).toBeVisible()
 })
 
+/* ---------- pins ---------- */
+
+/** A picture of the phone's pins, for whoever looks at the change. */
+async function shoot(page: Page, name: string) {
+  // A menu fades in and out; the picture is of the page once it has stopped moving.
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: `test-results/mobile-${name}.png` })
+}
+type ListedFile = { id: string; path: string }
+const libraryOf = async (page: Page): Promise<ListedFile[]> =>
+  (
+    (await (await page.request.get(`/api/agents/${await agentId(page)}/library`)).json()) as {
+      files: ListedFile[]
+    }
+  ).files
+const fileAt = async (page: Page, path: string) => {
+  const file = (await libraryOf(page)).find((each) => each.path === path)
+  expect(file, `${path} is in the library`).toBeDefined()
+  return file!
+}
+const pinsOf = async (page: Page) =>
+  (
+    (await (await page.request.get(`/api/agents/${await agentId(page)}/pins`)).json()) as {
+      pins: { fileId: string; path: string; by: string }[]
+    }
+  ).pins
+const pinFile = async (page: Page, path: string) => {
+  const file = await fileAt(page, path)
+  const response = await page.request.put(`/api/agents/${await agentId(page)}/pins/${file.id}`)
+  expect(response.ok()).toBe(true)
+}
+
+test("what the Dood pins is shown in its chat, and under its face on its page as it changes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openChat(page)
+  await send(
+    page,
+    '/tool write {"path":"library/boards/launch.html","content":"<h1>Launch</h1><ul><li>Write the post</li><li>Ship it</li></ul>"}',
+  )
+  await expect(words(page, /Successfully wrote/).last()).toBeVisible()
+  await send(page, '/tool pin {"action":"pin","path":"boards/launch.html","title":"Launch board"}')
+
+  // The chat says what was pinned, with the way to open it and to take the pin off.
+  await expect(words(page, "Pip pinned Launch board")).toBeVisible()
+  await expect(words(page, "boards/launch.html").last()).toBeVisible()
+  await shoot(page, "pin-card")
+  // The card says how the pin stands now: taken off, it offers to put it back as it was.
+  await page.getByRole("button", { name: "Unpin Launch board" }).click()
+  await expect(words(page, "Launch board is no longer pinned")).toBeVisible()
+  expect(await pinsOf(page)).toEqual([])
+  await page.getByRole("button", { name: "Pin it again" }).click()
+  await expect(words(page, "Pip pinned Launch board")).toBeVisible()
+  expect(await pinsOf(page)).toMatchObject([{ path: "boards/launch.html", by: "user" }])
+
+  // Open leads to the library's own viewer, whose bar says that it is pinned.
+  await page.getByRole("button", { name: "Open Launch board" }).click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+  await back(page).click()
+
+  // The chat's More has what is pinned, a press from opening.
+  await page.getByRole("button", { name: "More", exact: true }).click()
+  await expect(item(page, "Open Launch board")).toBeVisible()
+  await shoot(page, "chat-pinned-menu")
+  await item(page, "Open Launch board").click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+  await back(page).click()
+
+  // Under the face on the Dood's page, with the first drawn as what it is.
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await expect(words(page, "Pinned", { exact: true })).toBeVisible()
+  await expect(row(page, "Launch board, ")).toBeVisible()
+  await expect(page.locator('iframe[title="launch.html"]')).toBeVisible()
+
+  // Something pinned elsewhere is here at once: the Dood says when its pins change.
+  await pinFile(page, "list.md")
+  await expect(row(page, "list\\.md, ")).toBeVisible()
+  await words(page, /^Pinned for everyone/).scrollIntoViewIfNeeded()
+  await shoot(page, "pins-on-page")
+
+  // A pin is taken off from its menu, and the file stays in the library.
+  await page.getByRole("button", { name: "More for list.md" }).click()
+  await item(page, "Unpin").click()
+  await expect(row(page, "list\\.md, ")).toHaveCount(0)
+  expect((await pinsOf(page)).map((pin) => pin.path)).toEqual(["boards/launch.html"])
+  await fileAt(page, "list.md")
+
+  await row(page, "Launch board, ").click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+})
+
+test("a person pins from the library, at most eight, and a pin whose file was deleted says so", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openChat(page)
+  await page.getByRole("button", { name: "More", exact: true }).click()
+  await item(page, "Library").click()
+  await expect(page.getByRole("heading", { name: "Library" })).toBeVisible()
+
+  // From a file's menu in the list, and the row then says it is pinned.
+  await page.getByRole("button", { name: "More for plan.md" }).click()
+  await expect(item(page, "Pin to Pip")).toBeVisible()
+  await shoot(page, "library-pin-menu")
+  await item(page, "Pin to Pip").click()
+  await expect(row(page, "plan\\.md, pinned")).toBeVisible()
+  await shoot(page, "library-pinned")
+  expect((await pinsOf(page)).map((pin) => pin.path)).toEqual(["boards/launch.html", "plan.md"])
+
+  // From the bar of the open file, where it is taken off again.
+  await row(page, "plan\\.md").click()
+  await page.getByRole("button", { name: "Unpin from Pip" }).click()
+  await expect(page.getByRole("button", { name: "Pin to Pip" })).toBeVisible()
+  expect((await pinsOf(page)).map((pin) => pin.path)).toEqual(["boards/launch.html"])
+  await page.getByRole("button", { name: "Pin to Pip" }).click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+  await shoot(page, "viewer-pinned")
+  await back(page).click()
+
+  // Eight are as many as a Dood can have, and the ninth is refused in words.
+  for (const name of ["a.md", "b.md", "c.md", "d.md", "e.md", "gone.md"]) {
+    await keep(page, name, "text/markdown", Buffer.from(`# ${name}\n`), "pinboard")
+    await pinFile(page, `pinboard/${name}`)
+  }
+  expect(await pinsOf(page)).toHaveLength(8)
+  await page.getByRole("button", { name: "More for list.md" }).click()
+  const told = agree(page)
+  await item(page, "Pin to Pip").click()
+  expect(await told).toContain("8 things are pinned already")
+  expect(await pinsOf(page)).toHaveLength(8)
+
+  // A pin whose file was deleted stays on the Dood's page, saying so, until it is taken off.
+  const gone = await fileAt(page, "pinboard/gone.md")
+  await page.request.delete(`/api/agents/${await agentId(page)}/library/${gone.id}`)
+  await back(page).click()
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await expect(words(page, "No longer in the library")).toBeVisible()
+  await words(page, /^Pinned for everyone/).scrollIntoViewIfNeeded()
+  await shoot(page, "pin-gone")
+  await page.getByRole("button", { name: "Unpin gone.md" }).click()
+  await expect(words(page, "No longer in the library")).toHaveCount(0)
+  expect(await pinsOf(page)).toHaveLength(7)
+
+  // Left as it was found, for the tests after these.
+  const id = await agentId(page)
+  for (const pin of await pinsOf(page))
+    await page.request.delete(`/api/agents/${id}/pins/${pin.fileId}`)
+  for (const file of await libraryOf(page)) {
+    if (file.path.startsWith("pinboard/"))
+      await page.request.delete(`/api/agents/${id}/library/${file.id}`)
+  }
+})
+
 test("automations made in chat can be paused, resumed, run and deleted", async ({ page }) => {
   await openChat(page)
   await send(

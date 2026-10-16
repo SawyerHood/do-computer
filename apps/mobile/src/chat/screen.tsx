@@ -29,6 +29,7 @@ import { radius, useAgentAccent, useTheme } from "@/lib/theme"
 import { useEarlierMessages, useLiveChat } from "@/lib/use-live-chat"
 import { useMood } from "@/lib/use-mood"
 import { useSession } from "@/lib/use-session"
+import { usePinnedMenu } from "@/pins/menu"
 import {
   confirm,
   errorText,
@@ -121,6 +122,7 @@ export function ChatScreen({
     [chats, chatId],
   )
   const sideCount = sideChatsOf(chats).length
+  const pinnedMenu = usePinnedMenu(agentId)
   /** Where a chat of this agent is: its main chat is the agent's own address. */
   const hrefOf = (id: string): Href => (id === main?.id ? `/a/${agentId}` : `/a/${agentId}/c/${id}`)
 
@@ -529,6 +531,7 @@ export function ChatScreen({
                     icon: "folder",
                     onPress: () => router.push(`/a/${agentId}/library`),
                   },
+                  ...pinnedMenu,
                   {
                     title: "Automations",
                     icon: "clock",

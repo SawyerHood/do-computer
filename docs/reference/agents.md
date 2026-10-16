@@ -115,7 +115,9 @@
   stays beside the Dood's chat, under its face: the first is drawn small as what it is and
   follows the file as it changes, the rest are listed by name, and each opens beside the chat
   at a press. It is for a board or a tracker the Dood keeps up to date, or a plan the two of
-  you work from. A Dood's pins are its own, and everyone who shares the Dood sees them.
+  you work from. A Dood's pins are its own, and everyone who shares the Dood sees them. In the
+  phone app they are on the Dood's page, under its face, and in its chat's More menu; a file
+  is pinned from its menu in the Library or with the pin on the bar of the open file.
 - **Work on your own machines.** On a Mac or Linux box, run the command shown under Computers. It
   prints a link; confirm it, say whose the computer is, and choose which Doods get it. Those
   Doods can then run commands and read and write files there, and everything they do is logged

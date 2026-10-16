@@ -49,3 +49,36 @@ export function pinOf<P extends Pick<Pin, "fileId" | "path">>(
 /** What a pin is called: its title, or the name of the file it is of. */
 export const pinTitle = (pin: Pick<Pin, "title" | "path">, file?: { name: string }): string =>
   pin.title ?? file?.name ?? pin.path.slice(pin.path.lastIndexOf("/") + 1)
+
+/** Whether a Dood has as many things pinned as it can have, so that another must wait. */
+export const pinsFull = (pins: readonly unknown[] | undefined): boolean =>
+  (pins?.length ?? 0) >= MAX_PINS
+
+/** One thing pinned, with the file it is of now. A file that was deleted leaves `file` empty. */
+export type PinnedEntry<File> = { pin: Pin; file: File | undefined; title: string }
+
+/**
+ * What is pinned, in the order it is shown, each with its file and what it is called. A pin
+ * whose file is gone stays in its place, so that it can say so until it is taken off.
+ */
+export function pinnedEntries<File extends { id: string; path: string; name: string }>(
+  pins: readonly Pin[],
+  files: readonly File[],
+): PinnedEntry<File>[] {
+  return pins.map((pin) => {
+    const file = pinnedFile(pin, files)
+    return { pin, file, title: pinTitle(pin, file) }
+  })
+}
+
+/**
+ * How something a Dood pinned in a chat stands now: its pin, or undefined once it was taken
+ * off. Until what is pinned is known it is taken to stand as the Dood left it, so that a chat
+ * does not say "no longer pinned" for a moment as it opens.
+ */
+export function pinStanding(
+  then: { pin: Pin; file: { id: string; path?: string } },
+  pins: readonly Pin[] | undefined,
+): Pin | undefined {
+  return pins === undefined ? then.pin : pinOf(pins, then.file)
+}
