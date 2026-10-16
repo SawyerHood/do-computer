@@ -1,8 +1,7 @@
 import { type AgentSummary, continuesMain } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
-import { Link, useNavigate, useRouteContext } from "@tanstack/react-router"
-import { ArrowLeftIcon, ArrowsClockwiseIcon, StopIcon } from "@phosphor-icons/react"
-import { useAtom } from "jotai"
+import { Link, useRouteContext } from "@tanstack/react-router"
+import { ArrowLeftIcon, StopIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
@@ -21,7 +20,7 @@ import { useSettings } from "@/lib/settings"
 import { desktop } from "@/lib/desktop"
 import { screenHolds, type Starter, startersFor } from "@/lib/starters"
 import { cn } from "@/lib/utils"
-import { startsMidway, useChat } from "@/lib/use-chat"
+import { useChat } from "@/lib/use-chat"
 import { meetingWith } from "@/lib/welcome"
 import { useMascotMood } from "@/lib/use-mascot-mood"
 import { useWide } from "@/lib/use-wide"
@@ -217,11 +216,7 @@ export function ChatView({
   /** A side chat to have open beside this one, where there is room. */
   sideId?: string | undefined
 }) {
-  const { live, state, earlier, startFresh, send, sendError, retry, stop, attach } = useChat(
-    agent.id,
-    chatId,
-  )
-  const navigate = useNavigate()
+  const { live, state, earlier, send, sendError, retry, stop, attach } = useChat(agent.id, chatId)
 
   // What kind of chat this is. A sub-agent's is read here and not written in.
   const { data: agentState } = useQuery(agentQuery(agent.id))
@@ -282,7 +277,7 @@ export function ChatView({
   })
   const hatch = useHatch(agent)
   const { open: openSettings } = useSettings()
-  const [panel, setPanel] = useAtom(agentPanelOpenAtom)
+  const panel = useAtomValue(agentPanelOpenAtom)
   const wide = useWide()
   // A file from the library that is open beside this chat, by its id. It takes the panel's place.
   const [openDoc, setOpenDoc] = useState<string>()
@@ -291,8 +286,6 @@ export function ChatView({
   // the things that can be there, one is: a document, else a side chat, else the panel.
   const sideOpen = wide && side !== undefined && openDoc === undefined
   const beside = panel && wide && openDoc === undefined && side === undefined
-  const closeSide = () =>
-    void navigate({ to: "/a/$agentId/c/$chatId", params: { agentId: agent.id, chatId } })
   // Someone who starts talking before the egg has opened has met their agent all the same.
   const talked = live.loaded && live.state.messages.length > 0
   useEffect(() => {
@@ -300,31 +293,15 @@ export function ChatView({
   }, [talked, agent.hatched, agent.id])
 
   const name = agent.name ?? "New Dood"
-  const canStartFresh =
-    own && live.state.messages.length > 0 && !startsMidway(live.state.messages.at(-1))
-  const startFreshTitle =
-    "Start fresh: the Dood stops carrying this chat's earlier messages. Its memory is kept, and you can still read them."
-  // An empty chat has the creature in its middle, so the one in the header, right above it, holds
-  // still.
-  const welcoming = live.loaded && state.messages.length === 0 && !state.busy
   // The stream was turned away, which it will be again: there is no such chat to show.
   const refused = live.status === "closed" && !live.loaded
   // A sub-agent is shown over the chat and in the panel only while it is at work. Once it has
   // ended it is in the transcript, where it was started and where it reported back.
   const atWork = useMemo(() => subagents.filter((entry) => isAtWork(entry.status)), [subagents])
-  // What the header above the chat has to say on a narrow screen, where the strip names the agent.
-  const floats =
-    sub !== undefined ||
-    thread?.peer !== undefined ||
-    live.status === "reconnecting" ||
-    atWork.length > 0
-  const identity = (
-    <>
-      <AgentFace agent={agent} className="size-11" still={welcoming} />
-      <span className="text-sm font-medium">{name}</span>
-    </>
-  )
-
+  // What the chat has to say that the strip above it does not, where the panel is not there to.
+  const notes = !beside && (live.status === "reconnecting" || atWork.length > 0)
+  // Whether anything is over the top of the transcript.
+  const floats = sub !== undefined || thread?.peer !== undefined || notes
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -339,7 +316,7 @@ export function ChatView({
             className={cn(
               "pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-linear-to-b from-background via-background/80 to-transparent",
               // With nothing over the transcript there is nothing to fade it under.
-              !floats && "max-md:hidden",
+              !floats && "hidden",
             )}
           />
           {sub !== undefined ? (
@@ -418,50 +395,13 @@ export function ChatView({
                 ) : null}
               </div>
             </div>
-          ) : beside ? null : (
-            // With the panel beside the chat the agent is there, and needs no header here as well.
-            // On a narrow screen the strip right above says whose chat this is, so what is left
-            // here is what the strip does not have, and with none of that there is nothing here.
-            <div
-              className={cn(
-                "pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center",
-                !floats && "max-md:hidden",
-              )}
-            >
-              <div className="pointer-events-auto relative flex items-center gap-1 rounded-xl bg-background/85 py-1 pr-2.5 pl-1.5 shadow-raised backdrop-blur max-md:px-1.5">
-                {wide ? (
-                  // Pressing the header brings the panel back.
-                  <button
-                    type="button"
-                    aria-label={`Show ${name} beside the chat`}
-                    title={`Show ${name} beside the chat`}
-                    className="flex items-center gap-2.5 rounded-lg pr-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
-                    onClick={() => {
-                      setPanel(true)
-                      // A side chat is where the panel would be, and makes way for it.
-                      if (side !== undefined) closeSide()
-                    }}
-                  >
-                    {identity}
-                  </button>
-                ) : (
-                  <span className="flex items-center gap-2.5 pr-1.5 max-md:hidden">{identity}</span>
-                )}
+          ) : !notes ? null : (
+            // The strip above says whose chat this is, and the panel beside it says the rest. With
+            // the panel away, what is left to say here is what neither does, when there is any.
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
+              <div className="pointer-events-auto relative flex items-center gap-1 rounded-full bg-background/85 px-1.5 py-1 shadow-raised backdrop-blur">
                 {live.status === "reconnecting" ? (
-                  <span className="pr-1 text-xs text-muted-foreground">reconnecting…</span>
-                ) : null}
-                {canStartFresh ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Start fresh"
-                    title={startFreshTitle}
-                    disabled={live.state.busy}
-                    onClick={startFresh}
-                    className="text-muted-foreground max-md:hidden"
-                  >
-                    <ArrowsClockwiseIcon className="size-4" />
-                  </Button>
+                  <span className="px-1.5 text-xs text-muted-foreground">reconnecting…</span>
                 ) : null}
                 {/* Without the panel, this is the way to the chat's sub-agents while they work. */}
                 {atWork.length === 0 ? null : (
@@ -703,11 +643,6 @@ export function ChatView({
           }
           onOpenFile={setOpenDoc}
           reconnecting={live.status === "reconnecting"}
-          startFresh={
-            canStartFresh
-              ? { title: startFreshTitle, disabled: live.state.busy, run: startFresh }
-              : undefined
-          }
         />
       ) : null}
     </div>

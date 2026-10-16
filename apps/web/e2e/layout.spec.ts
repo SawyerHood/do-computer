@@ -31,8 +31,9 @@ test("the sidebar is put away until it is asked for, and stays how it was left",
   await page.reload()
   await expect(composer(page)).toBeVisible()
   await expect(panel).toHaveCount(0)
-  // Pressing the header above the chat brings it back.
-  await page.getByRole("button", { name: "Show Juniper beside the chat" }).click()
+  // Nothing is over the chat in its place: the strip says whose chat this is, and brings it back.
+  await expect(page.getByRole("button", { name: "Show Juniper beside the chat" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Show Juniper's panel" }).click()
   await expect(panel.getByRole("img", { name: "Dood avatar" })).toBeVisible()
 
   // The agent's side chats are reached without it.

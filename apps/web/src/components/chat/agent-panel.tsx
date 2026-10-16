@@ -13,13 +13,7 @@ import {
   type ToolPart,
   toolSummary,
 } from "@do-computer/protocol"
-import {
-  ArrowsClockwiseIcon,
-  CheckCircleIcon,
-  FileIcon,
-  TShirtIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react"
+import { CheckCircleIcon, FileIcon, TShirtIcon, WarningCircleIcon } from "@phosphor-icons/react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { type ReactNode, useMemo, useRef, useState } from "react"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
@@ -246,7 +240,6 @@ export function AgentPanel({
   state,
   face,
   reconnecting,
-  startFresh,
   subagent,
   subagents,
   running = [],
@@ -265,8 +258,6 @@ export function AgentPanel({
   face: React.ReactNode
   /** The chat's stream dropped and is being picked up again. */
   reconnecting: boolean
-  /** Starts the chat's context over, where there is something to start over from. */
-  startFresh: { title: string; disabled: boolean; run: () => void } | undefined
   /** Set in a sub-agent's chat: the panel is then about it, not about its agent. */
   subagent?: {
     chatId: string
@@ -337,20 +328,6 @@ export function AgentPanel({
       style={{ width }}
     >
       <ResizeHandle column={agentPanelColumn} edge="left" label={`Resize ${name}'s panel`} />
-      {/* Rarely wanted, so it is out of the way in the corner. It stays there over the bar. */}
-      {startFresh === undefined ? null : (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Start fresh"
-          title={startFresh.title}
-          disabled={startFresh.disabled}
-          onClick={startFresh.run}
-          className="absolute top-2.5 right-2.5 z-20 size-7 text-muted-foreground/60"
-        >
-          <ArrowsClockwiseIcon />
-        </Button>
-      )}
       {tucked ? (
         // The face has been scrolled away: who this is and what it is doing stay in sight, and
         // a press brings the face back.
@@ -360,7 +337,7 @@ export function AgentPanel({
           title="Back to the top"
           onClick={() => scroller.current?.scrollTo({ top: 0, behavior: "smooth" })}
           style={{ height: BAR }}
-          className="absolute inset-x-0 top-0 z-10 flex animate-in cursor-default items-center gap-2.5 border-b bg-background pr-11 pl-3 text-left duration-150 outline-none slide-in-from-top-2 fade-in focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:ring-inset"
+          className="absolute inset-x-0 top-0 z-10 flex animate-in cursor-default items-center gap-2.5 border-b bg-background px-3 text-left duration-150 outline-none slide-in-from-top-2 fade-in focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:ring-inset"
         >
           {/* Over the page's color, the panel's own tint, as the rest of the panel has. */}
           <span aria-hidden className="absolute inset-0 bg-rail/50" />
