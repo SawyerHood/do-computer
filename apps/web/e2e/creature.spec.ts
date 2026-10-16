@@ -78,13 +78,30 @@ test("a box that is waiting holds still", async ({ page }) => {
   await expect.poll(pictures).toBe(1)
 })
 
+test("the creature's picture at the top of its pages shows and hides its panel", async ({
+  page,
+}) => {
+  await signIn(page)
+  await expect(panel(page)).toHaveCount(0)
+  const picture = page.getByRole("button", { name: /^Show Juniper's panel/ })
+  await expect(picture).toHaveAttribute("aria-pressed", "false")
+  await picture.click()
+  await expect(panel(page)).toBeVisible()
+  // It opens the panel and nothing over it.
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  const hide = page.getByRole("button", { name: /^Hide Juniper's panel/ })
+  await expect(hide).toHaveAttribute("aria-pressed", "true")
+  await hide.click()
+  await expect(panel(page)).toHaveCount(0)
+})
+
 test("a box opens on something to wear, which is put on and kept in the wardrobe", async ({
   page,
 }) => {
   await open(page)
   // Its picture at the top of its pages says that a box is waiting.
-  const picture = page.getByRole("button", { name: /^Juniper's wardrobe/ }).first()
-  await expect(picture).toHaveAccessibleName("Juniper's wardrobe: a box is waiting")
+  const picture = page.getByRole("button", { name: /^Hide Juniper's panel/ })
+  await expect(picture).toHaveAccessibleName("Hide Juniper's panel: a box is waiting")
 
   await waitingBox(page).click()
   const box = page.getByRole("dialog")
@@ -102,14 +119,14 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
   await expect(box).toHaveCount(0)
 
   // There was only the one box. The next turns up by itself, six hours on.
-  await expect(picture).toHaveAccessibleName("Juniper's wardrobe")
+  await expect(picture).toHaveAccessibleName("Hide Juniper's panel")
   await expect(waitingBox(page)).toHaveCount(0)
   await expect(
     panel(page).getByRole("button", { name: "Juniper's next box turns up in about 6 hours" }),
   ).toBeVisible()
 
   // The wardrobe has it, and says the creature has it on. Everything else is still to find.
-  await picture.click()
+  await panel(page).getByRole("button", { name: "Juniper's wardrobe" }).click()
   const wardrobe = page.getByRole("dialog")
   await expect(wardrobe.getByText("1 of 200 found")).toBeVisible()
   const wearing = wardrobe.getByRole("list", { name: "What Juniper has on" })
@@ -129,10 +146,11 @@ test("a box opens on something to wear, which is put on and kept in the wardrobe
 
   // It is still on after the page is loaded again: the agent keeps it, not the browser.
   await page.reload()
-  await page
-    .getByRole("button", { name: /^Juniper's wardrobe/ })
-    .first()
-    .click()
+  // Whether its panel is open after a reload is up to the shell, so its picture opens it if not.
+  const show = page.getByRole("button", { name: "Show Juniper's panel" })
+  await expect(show.or(panel(page))).toBeVisible()
+  if (await show.isVisible()) await show.click()
+  await panel(page).getByRole("button", { name: "Juniper's wardrobe" }).click()
   await expect(
     page.getByRole("dialog").getByRole("list", { name: "What Juniper has on" }),
   ).toContainText(found)
