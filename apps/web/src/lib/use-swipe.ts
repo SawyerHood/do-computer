@@ -80,3 +80,67 @@ export function useSwipe(on: HTMLElement | null, towards: "left" | "right", swip
     }
   }, [on, towards])
 }
+
+/** What a pull is told of: that it began, how far across it has gone, and where it ended. */
+export type Pull = {
+  /** The finger is known to be going across. What follows it can get ready to. */
+  start: () => void
+  /** How far it is from where it went down, in pixels: to the right is more than nothing. */
+  move: (across: number) => void
+  /** It lifted, that far from where it went down. */
+  end: (across: number) => void
+}
+
+/**
+ * A finger drawn across something, to either side, which is followed for as long as it is down
+ * rather than taken as a swipe once it has gone far enough. What makes a touch one, and what
+ * keeps it from being one, are what they are for a swipe.
+ */
+export function usePull(on: HTMLElement | null, pull: Pull) {
+  const latest = useRef(pull)
+  latest.current = pull
+  useEffect(() => {
+    if (on === null) return
+    let from: { x: number; y: number; across: boolean; last: number } | null = null
+    const start = (event: TouchEvent) => {
+      const touch = event.touches[0]
+      // A finger put down beside one that is pulling ends the pull where it is.
+      if (from?.across) latest.current.end(from.last)
+      from =
+        event.touches.length !== 1 || touch === undefined || taken(event.target, on)
+          ? null
+          : { x: touch.clientX, y: touch.clientY, across: false, last: 0 }
+    }
+    const move = (event: TouchEvent) => {
+      const touch = event.touches[0]
+      if (from === null || touch === undefined) return
+      const across = touch.clientX - from.x
+      if (!from.across) {
+        const along = Math.abs(touch.clientY - from.y)
+        if (Math.max(Math.abs(across), along) < SLOP) return
+        if (Math.abs(across) < along * 1.5) {
+          from = null
+          return
+        }
+        from.across = true
+        latest.current.start()
+      }
+      from.last = across
+      latest.current.move(across)
+    }
+    const end = () => {
+      if (from?.across) latest.current.end(from.last)
+      from = null
+    }
+    on.addEventListener("touchstart", start, { passive: true })
+    on.addEventListener("touchmove", move, { passive: true })
+    on.addEventListener("touchend", end)
+    on.addEventListener("touchcancel", end)
+    return () => {
+      on.removeEventListener("touchstart", start)
+      on.removeEventListener("touchmove", move)
+      on.removeEventListener("touchend", end)
+      on.removeEventListener("touchcancel", end)
+    }
+  }, [on])
+}

@@ -152,17 +152,32 @@ export function TreePlaceholder() {
 }
 
 /** Agents in the sidebar: a face, a name, and a line under it. */
-export function AgentRowsPlaceholder({ now }: { now?: boolean }) {
+export function AgentRowsPlaceholder({
+  now,
+  narrow,
+}: {
+  now?: boolean
+  /** On a narrow screen, where a face is nearer the edge, and may be all there is of a row. */
+  narrow?: "rail" | "open" | undefined
+}) {
   const widths = ["40%", "52%", "36%"]
   return (
     <Placeholder now={now} className="flex flex-col gap-0.5">
       {widths.map((width) => (
-        <div key={width} className="flex items-center gap-3 py-2 pr-1 pl-2.5">
+        <div
+          key={width}
+          className={cn(
+            "flex items-center gap-3 pr-1",
+            narrow === undefined ? "py-2 pl-2.5" : "py-1.5 pl-1",
+          )}
+        >
           <Skeleton className="size-10 shrink-0 rounded-full" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <Skeleton className="h-3 rounded-full" style={{ width }} />
-            <Skeleton className="h-2.5 w-[70%] rounded-full" />
-          </div>
+          {narrow === "rail" ? null : (
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-3 rounded-full" style={{ width }} />
+              <Skeleton className="h-2.5 w-[70%] rounded-full" />
+            </div>
+          )}
         </div>
       ))}
     </Placeholder>

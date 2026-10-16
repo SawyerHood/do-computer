@@ -100,6 +100,7 @@ export function AgentList({
   pending = false,
   activeAgentId,
   me,
+  narrow,
   onNavigate,
 }: {
   /** The workspace of the page that is open. */
@@ -108,6 +109,8 @@ export function AgentList({
   pending?: boolean
   activeAgentId: string | undefined
   me: { id: string; name: string; image?: string | null }
+  /** On a narrow screen: a column of faces, or those faces with the rest of the list beside them. */
+  narrow?: "rail" | "open" | undefined
   onNavigate?: () => void
 }) {
   const { data: listed, isLoading } = useLiveQuery((q) => q.from({ agent: agentsCollection }))
@@ -127,14 +130,27 @@ export function AgentList({
   return (
     <nav
       aria-label="Doods"
-      className="flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto px-2 pb-3"
+      className={cn(
+        "flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto pb-3",
+        // A face is as far from the edge of a narrow screen as it is from the page beside it.
+        narrow === undefined ? "px-2" : "px-1 [scrollbar-width:none]",
+      )}
     >
       {loading ? (
         <>
           <div className="flex h-9 shrink-0 items-center">
-            <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Doods</h2>
+            {narrow === "rail" ? null : (
+              <h2
+                className={cn(
+                  "text-[0.8125rem] font-medium text-muted-foreground",
+                  narrow === "open" && "pl-1",
+                )}
+              >
+                Doods
+              </h2>
+            )}
           </div>
-          <AgentRowsPlaceholder />
+          <AgentRowsPlaceholder narrow={narrow} />
         </>
       ) : (
         <>
@@ -153,10 +169,11 @@ export function AgentList({
               now={now}
               howToMove={howToMove}
               tell={tell}
+              narrow={narrow}
               onNavigate={onNavigate}
             />
           ))}
-          <MoreWorkspaces me={me} onNavigate={onNavigate} />
+          {narrow === "rail" ? null : <MoreWorkspaces me={me} onNavigate={onNavigate} />}
         </>
       )}
       <p id={howToMove} hidden>
@@ -220,6 +237,7 @@ function Section({
   now,
   howToMove,
   tell,
+  narrow,
   onNavigate,
 }: {
   workspace: WorkspaceSummary
@@ -239,8 +257,10 @@ function Section({
   howToMove: string
   /** Say what has become of a row that is being moved. */
   tell: (words: string) => void
+  narrow: "rail" | "open" | undefined
   onNavigate?: (() => void) | undefined
 }) {
+  const rail = narrow === "rail"
   const { open: openSettings } = useSettings()
   const team = workspace.kind === "team"
   // Who is where is only known for the team that is on screen.
@@ -296,62 +316,29 @@ function Section({
       data-current={current ? "" : undefined}
       className="flex shrink-0 flex-col gap-0.5 not-first:mt-2"
     >
-      {/* Flush with the rows under it: its ends are where the chosen row's are. */}
-      <div className="flex h-9 items-center gap-0.5 [--face-ring:var(--frame)]">
-        {named ? (
-          <button
-            type="button"
-            aria-expanded={!folded}
-            onClick={onFold}
-            className="flex min-w-0 items-center gap-1.5 rounded-md py-1 pr-1 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
-          >
-            <WorkspaceMark workspace={workspace} me={me} className="size-4" />
-            <span className={cn("truncate", LEVEL)}>{workspace.name}</span>
-            <CaretDownIcon
-              aria-hidden
-              className={cn("size-3 shrink-0 transition-transform", folded && "-rotate-90")}
-            />
-          </button>
-        ) : (
-          <h2 className={cn("truncate text-[0.8125rem] font-medium text-muted-foreground", LEVEL)}>
-            Doods
-          </h2>
-        )}
-        <span className="min-w-1 flex-1" />
-        {folded ? (
-          // Folded, it still says who is in there, and whether one of them wants looking at.
-          <span className="flex shrink-0 items-center gap-2 pr-0.5">
-            <span className="flex items-center -space-x-1.5">
-              {list.slice(0, 3).map((agent) => (
-                <AgentFace key={agent.id} agent={agent} className="size-5" still />
-              ))}
-            </span>
-            {wanted ? (
-              <span
-                role="img"
-                aria-label="Something new"
-                className="size-2 rounded-full bg-primary"
-              />
-            ) : null}
-          </span>
-        ) : (
-          <>
-            {others.length > 0 ? (
-              <button
-                type="button"
-                aria-label={`${others.length} here now: ${names(others)}`}
-                title={`Here now: ${names(others)}`}
-                onClick={() => {
-                  onNavigate?.()
-                  openSettings({ at: "workspace", workspaceId: workspace.id, section: "people" })
-                }}
-                className="mr-0.5 flex shrink-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
-              >
-                <FaceStack people={others} className="size-4" />
-                {others.length} here
-              </button>
-            ) : null}
-            <WorkspaceMenu workspace={workspace} onNavigate={onNavigate} />
+      {rail ? (
+        // Only what fits over a face: the workspace's mark, which folds it, where there are
+        // several to tell apart, and otherwise the way to a new Dood.
+        <div className="flex h-9 items-center justify-center [--face-ring:var(--frame)]">
+          {named ? (
+            <button
+              type="button"
+              aria-expanded={!folded}
+              aria-label={workspace.name}
+              title={workspace.name}
+              onClick={onFold}
+              className="relative rounded-md p-1.5 outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40"
+            >
+              <WorkspaceMark workspace={workspace} me={me} className="size-5" />
+              {folded && wanted ? (
+                <span
+                  role="img"
+                  aria-label="Something new"
+                  className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-(--face-ring)"
+                />
+              ) : null}
+            </button>
+          ) : (
             <Button
               variant="ghost"
               size="icon-xs"
@@ -360,20 +347,100 @@ function Section({
               onClick={() => void newAgent.create()}
               aria-label={named ? `New Dood in ${workspace.name}` : "New Dood"}
               title={named ? `New Dood in ${workspace.name}` : "New Dood"}
-              className="-mr-1 text-muted-foreground [&_svg]:size-4"
+              className="text-muted-foreground [&_svg]:size-4"
             >
               {newAgent.making ? <Spinner /> : <PlusIcon />}
             </Button>
-          </>
-        )}
-      </div>
-      {newAgent.error === undefined || folded ? null : (
+          )}
+        </div>
+      ) : (
+        // Flush with the rows under it: its ends are where the chosen row's are.
+        <div
+          className={cn(
+            "flex h-9 items-center gap-0.5 [--face-ring:var(--frame)]",
+            // The row under it starts nearer the edge on a narrow screen, and the heading with it.
+            narrow === "open" && "px-1.5",
+          )}
+        >
+          {named ? (
+            <button
+              type="button"
+              aria-expanded={!folded}
+              onClick={onFold}
+              className="flex min-w-0 items-center gap-1.5 rounded-md py-1 pr-1 text-[0.8125rem] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+            >
+              <WorkspaceMark workspace={workspace} me={me} className="size-4" />
+              <span className={cn("truncate", LEVEL)}>{workspace.name}</span>
+              <CaretDownIcon
+                aria-hidden
+                className={cn("size-3 shrink-0 transition-transform", folded && "-rotate-90")}
+              />
+            </button>
+          ) : (
+            <h2
+              className={cn("truncate text-[0.8125rem] font-medium text-muted-foreground", LEVEL)}
+            >
+              Doods
+            </h2>
+          )}
+          <span className="min-w-1 flex-1" />
+          {folded ? (
+            // Folded, it still says who is in there, and whether one of them wants looking at.
+            <span className="flex shrink-0 items-center gap-2 pr-0.5">
+              <span className="flex items-center -space-x-1.5">
+                {list.slice(0, 3).map((agent) => (
+                  <AgentFace key={agent.id} agent={agent} className="size-5" still />
+                ))}
+              </span>
+              {wanted ? (
+                <span
+                  role="img"
+                  aria-label="Something new"
+                  className="size-2 rounded-full bg-primary"
+                />
+              ) : null}
+            </span>
+          ) : (
+            <>
+              {others.length > 0 ? (
+                <button
+                  type="button"
+                  aria-label={`${others.length} here now: ${names(others)}`}
+                  title={`Here now: ${names(others)}`}
+                  onClick={() => {
+                    onNavigate?.()
+                    openSettings({ at: "workspace", workspaceId: workspace.id, section: "people" })
+                  }}
+                  className="mr-0.5 flex shrink-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+                >
+                  <FaceStack people={others} className="size-4" />
+                  {others.length} here
+                </button>
+              ) : null}
+              <WorkspaceMenu workspace={workspace} onNavigate={onNavigate} />
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                disabled={newAgent.making}
+                aria-busy={newAgent.making}
+                onClick={() => void newAgent.create()}
+                aria-label={named ? `New Dood in ${workspace.name}` : "New Dood"}
+                title={named ? `New Dood in ${workspace.name}` : "New Dood"}
+                className="-mr-1 text-muted-foreground [&_svg]:size-4"
+              >
+                {newAgent.making ? <Spinner /> : <PlusIcon />}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {newAgent.error === undefined || folded || rail ? null : (
         <p role="alert" className="px-2.5 py-1 text-xs text-destructive">
           {newAgent.error}
         </p>
       )}
       {/* First, which is where it will be: the one last heard from, and it was only just made. */}
-      {making ? <MakingAgentRow /> : null}
+      {making ? <MakingAgentRow narrow={narrow} /> : null}
       {folded || list.length === 0 ? null : (
         <DndContext
           sensors={sensors}
@@ -415,6 +482,7 @@ function Section({
                   now={now}
                   // One on its own has nowhere to go.
                   howToMove={list.length > 1 ? howToMove : undefined}
+                  narrow={narrow}
                   onNavigate={onNavigate}
                 />
               ))}
@@ -422,7 +490,7 @@ function Section({
           </SortableContext>
         </DndContext>
       )}
-      {!folded && !making && list.length === 0 ? (
+      {!folded && !making && !rail && list.length === 0 ? (
         <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
           {team ? "This team has no Doods yet." : "You have no Doods yet."}
         </p>
@@ -432,22 +500,30 @@ function Section({
 }
 
 /**
+ * The room around what is in a row. On a narrow screen a face is four pixels in from the row's
+ * edge whether its words are beside it or not, so the row of a face alone is a square around it.
+ */
+const ROW = { wide: "px-2.5 py-2", open: "py-1.5 pr-2.5 pl-1", rail: "px-1 py-1.5" }
+
+/**
  * An agent that is being made, in the list from the moment it is asked for: the row it will have,
  * with its creature and what it says still to come.
  */
-function MakingAgentRow() {
+function MakingAgentRow({ narrow }: { narrow: "rail" | "open" | undefined }) {
   return (
     <div
       data-loading
       aria-busy="true"
       aria-label="Making a new Dood"
-      className="flex shrink-0 items-center gap-3 rounded-xl px-2.5 py-2"
+      className={cn("flex shrink-0 items-center gap-3 rounded-xl", ROW[narrow ?? "wide"])}
     >
       <Skeleton className="size-10 shrink-0 rounded-full" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.90625rem] font-medium">New Dood</span>
-        <span className="mt-px block truncate text-xs text-muted-foreground">On its way…</span>
-      </span>
+      {narrow === "rail" ? null : (
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[0.90625rem] font-medium">New Dood</span>
+          <span className="mt-px block truncate text-xs text-muted-foreground">On its way…</span>
+        </span>
+      )}
     </div>
   )
 }
@@ -467,6 +543,7 @@ function AgentRow({
   people,
   now,
   howToMove,
+  narrow,
   onNavigate,
 }: {
   agent: AgentSummary
@@ -481,8 +558,10 @@ function AgentRow({
   now: number
   /** The id of what says how it is moved. None where there are no others to move it among. */
   howToMove: string | undefined
+  narrow: "rail" | "open" | undefined
   onNavigate?: (() => void) | undefined
 }) {
+  const rail = narrow === "rail"
   const name = agent.name ?? "New Dood"
   const { latest } = agent
   const sortable = useSortable({ id: agent.id, disabled: howToMove === undefined })
@@ -528,7 +607,13 @@ function AgentRow({
         params={{ agentId: agent.id }}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2.5 py-2 outline-none group-data-dragging/agent:cursor-grabbing focus-visible:ring-3 focus-visible:ring-ring/40"
+        // A face on its own still says whose it is.
+        aria-label={rail ? (unread ? `${name}: something new` : name) : undefined}
+        title={rail ? name : undefined}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-3 rounded-xl outline-none group-data-dragging/agent:cursor-grabbing focus-visible:ring-3 focus-visible:ring-ring/40",
+          ROW[narrow ?? "wide"],
+        )}
       >
         <span className="relative shrink-0">
           <AgentFace agent={agent} className="size-10" quiet />
@@ -551,68 +636,77 @@ function AgentRow({
               <Spinner className="size-2.5" />
             </span>
           ) : null}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-baseline gap-2">
+          {/* With no words beside it to carry the mark, the face does. */}
+          {rail && unread ? (
             <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-[0.90625rem]",
-                unread ? "font-semibold" : "font-medium",
-              )}
-            >
-              {name}
-            </span>
-            {working || latest !== undefined ? (
-              <time
-                dateTime={latest === undefined ? undefined : new Date(latest.at).toISOString()}
-                className={cn(
-                  // It gives way to the row's menu, where there is a pointer to bring that out.
-                  "shrink-0 text-[0.71875rem] text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible",
-                  unread && "font-medium text-primary",
-                )}
-              >
-                {working ? "now" : when(latest!.at, now)}
-              </time>
-            ) : null}
-          </span>
-          {line !== undefined || with_.length > 0 || unread ? (
-            <span className="mt-px flex items-center gap-1.5 text-xs text-muted-foreground">
-              {calling ? (
-                <PhoneIcon
-                  aria-hidden
-                  weight="fill"
-                  className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-                />
-              ) : waiting !== undefined && !working ? (
-                <ClockIcon aria-hidden className="size-3 shrink-0" />
-              ) : latest?.kind === "scheduled" ? (
-                <ClockIcon aria-hidden className="size-3 shrink-0" />
-              ) : latest?.kind === "agent" ? (
-                <ArrowsLeftRightIcon aria-hidden className="size-3 shrink-0" />
-              ) : null}
-              <span
-                data-latest=""
-                className={cn(
-                  "min-w-0 flex-1 truncate",
-                  unread && "text-foreground",
-                  calling && "font-medium text-emerald-700 dark:text-emerald-400",
-                )}
-              >
-                {line}
-              </span>
-              <FaceStack people={with_} className="size-4" />
-              {unread ? (
-                <span
-                  role="img"
-                  aria-label="Something new"
-                  className="size-2 shrink-0 rounded-full bg-primary"
-                />
-              ) : null}
-            </span>
+              aria-hidden
+              className="absolute -top-0.5 -right-0.5 z-10 size-3 rounded-full bg-primary ring-2 ring-(--face-ring)"
+            />
           ) : null}
         </span>
+        {rail ? null : (
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline gap-2">
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-[0.90625rem]",
+                  unread ? "font-semibold" : "font-medium",
+                )}
+              >
+                {name}
+              </span>
+              {working || latest !== undefined ? (
+                <time
+                  dateTime={latest === undefined ? undefined : new Date(latest.at).toISOString()}
+                  className={cn(
+                    // It gives way to the row's menu, where there is a pointer to bring that out.
+                    "shrink-0 text-[0.71875rem] text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible",
+                    unread && "font-medium text-primary",
+                  )}
+                >
+                  {working ? "now" : when(latest!.at, now)}
+                </time>
+              ) : null}
+            </span>
+            {line !== undefined || with_.length > 0 || unread ? (
+              <span className="mt-px flex items-center gap-1.5 text-xs text-muted-foreground">
+                {calling ? (
+                  <PhoneIcon
+                    aria-hidden
+                    weight="fill"
+                    className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  />
+                ) : waiting !== undefined && !working ? (
+                  <ClockIcon aria-hidden className="size-3 shrink-0" />
+                ) : latest?.kind === "scheduled" ? (
+                  <ClockIcon aria-hidden className="size-3 shrink-0" />
+                ) : latest?.kind === "agent" ? (
+                  <ArrowsLeftRightIcon aria-hidden className="size-3 shrink-0" />
+                ) : null}
+                <span
+                  data-latest=""
+                  className={cn(
+                    "min-w-0 flex-1 truncate",
+                    unread && "text-foreground",
+                    calling && "font-medium text-emerald-700 dark:text-emerald-400",
+                  )}
+                >
+                  {line}
+                </span>
+                <FaceStack people={with_} className="size-4" />
+                {unread ? (
+                  <span
+                    role="img"
+                    aria-label="Something new"
+                    className="size-2 shrink-0 rounded-full bg-primary"
+                  />
+                ) : null}
+              </span>
+            ) : null}
+          </span>
+        )}
       </Link>
-      <AgentMenu agent={agent} onNavigate={onNavigate} />
+      {rail ? null : <AgentMenu agent={agent} onNavigate={onNavigate} />}
     </div>
   )
 }

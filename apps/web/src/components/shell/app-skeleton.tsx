@@ -85,10 +85,23 @@ export function AppSkeleton() {
           <Skeleton className="h-3 w-16 rounded-full" />
         </div>
       </aside>
+      {/* On a narrow screen the sidebar is a column of faces, and is always there. */}
+      <aside className="flex w-14 shrink-0 flex-col md:hidden">
+        <div className="flex items-center px-3 pt-2.5 pb-0.5">
+          <img src="/icon-192.png" alt="" className="m-1 size-6 shrink-0 rounded-md" />
+        </div>
+        <div className="h-9" />
+        <div className="flex-1 px-1">
+          <AgentRowsPlaceholder now narrow="rail" />
+        </div>
+        <div className="p-1.5">
+          <Skeleton className="mx-2 my-1.5 size-7 rounded-full" />
+        </div>
+      </aside>
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 shrink-0 items-center gap-x-1.5 border-b px-2.5 md:h-13 md:px-3">
           {/* Where the button that shows the sidebar is, while the sidebar is hidden. */}
-          <span className="size-8 md:[[data-sidebar=open]_&]:hidden" />
+          <span className="hidden size-8 md:block md:[[data-sidebar=open]_&]:hidden" />
           <div className="flex h-full items-center gap-2 py-1 pr-2 pl-1">
             <Skeleton className="size-7 rounded-full" />
             <Skeleton className="h-3 w-20 rounded-full" />

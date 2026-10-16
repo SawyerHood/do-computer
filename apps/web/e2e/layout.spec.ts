@@ -386,8 +386,7 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Library", exact: true })).toBeVisible()
   // Off the chat, the name says which page this is.
   await expect(name).toContainText("Juniper · Library")
-  // And the row starts with the way back to the chat, where the way to the agents was.
-  await expect(page.getByRole("button", { name: "Doods", exact: true })).toHaveCount(0)
+  // And the row starts with the way back to the chat.
   await page.getByRole("button", { name: "Back to the chat" }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await expect(name).not.toContainText("·")
@@ -399,18 +398,33 @@ test("the layout works at phone width", async ({ page }) => {
   await name.click()
   await page.getByRole("menuitem", { name: "Chat" }).click()
   await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
-  // The sidebar is a sheet from the side. Measured once it has finished sliding in.
-  await page.getByRole("button", { name: "Doods", exact: true }).click()
-  await expect(async () => {
-    const sheet = (await page.getByRole("dialog").boundingBox())!
-    expect(sheet.x).toBe(0)
-  }).toPass()
-  // Choosing the agent there is talking to it: its main chat.
-  await page
-    .getByRole("dialog")
-    .getByRole("link", { name: /Juniper/ })
-    .click()
-  await expect(page.getByRole("dialog")).toHaveCount(0)
+  // The sidebar is a column of faces beside the page, with no button for it in the strip.
+  const agents = page.getByRole("navigation", { name: "Doods" })
+  const juniper = agents.getByRole("link", { name: /Juniper/ })
+  const sidebar = () =>
+    page.locator("[data-pulled-sidebar]").evaluate((el) => el.getBoundingClientRect().width)
+  await expect(juniper).toBeVisible()
+  expect(await sidebar()).toBe(56)
+  expect((await juniper.boundingBox())!.width).toBe(48)
+  const face = async () => (await juniper.locator("> span").first().boundingBox())!
+  expect(await face()).toMatchObject({ x: 8, width: 40 })
+  await expect(agents.locator("[data-latest]")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Doods", exact: true })).toHaveCount(0)
+  await page.screenshot({ path: "test-results/phone-faces.png" })
+  // The mark at its top opens it out into the list, and the page slides aside as wide as it was.
+  const pageWidth = async () => (await page.getByRole("main").boundingBox())!.width
+  expect(await pageWidth()).toBe(344)
+  await page.getByRole("button", { name: "Show Doods by name" }).click()
+  await expect.poll(sidebar).toBe(320)
+  await expect(agents.locator("[data-latest]")).toBeVisible()
+  expect(await pageWidth()).toBe(344)
+  // The face is where it was.
+  expect(await face()).toMatchObject({ x: 8, width: 40 })
+  await page.screenshot({ path: "test-results/phone-doods.png" })
+  // Choosing the agent there is talking to it: its main chat. The list is faces again.
+  await juniper.click()
+  await expect.poll(sidebar).toBe(56)
+  await expect(agents.locator("[data-latest]")).toHaveCount(0)
   await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   // The strip says whose chat this is, so nothing is over the transcript saying it again.
   await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(0)
@@ -477,7 +491,7 @@ test("under a finger every field is written in at a size a phone does not zoom i
   await context.close()
 })
 
-test("at phone width a finger draws the sidebar out from the left, and pushes it back", async ({
+test("at phone width a finger pulls the faces open into the sidebar, and pushes it shut", async ({
   browser,
   baseURL,
 }) => {
@@ -504,13 +518,16 @@ test("at phone width a finger draws the sidebar out from the left, and pushes it
     await finger.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [to] })
     await finger.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
   }
-  const sheet = page.getByRole("dialog")
+  const names = page.getByRole("navigation", { name: "Doods" }).locator("[data-latest]")
+  const sidebar = () =>
+    page.locator("[data-pulled-sidebar]").evaluate((el) => el.getBoundingClientRect().width)
 
   // Scrolling the chat is not a swipe, though the finger drifts across as it goes.
   await swipe({ x: 120, y: 300 }, { x: 180, y: 600 })
   // Nor is a finger going the other way.
   await swipe({ x: 300, y: 400 }, { x: 60, y: 410 })
-  await expect(sheet).toHaveCount(0)
+  await expect(names).toHaveCount(0)
+  expect(await sidebar()).toBe(56)
 
   // On something that scrolls sideways, a finger across it is scrolling that.
   await composer(page).fill(`Here:\n\n\`\`\`\n${"wide ".repeat(60)}\n\`\`\`\n`)
@@ -526,23 +543,42 @@ test("at phone width a finger draws the sidebar out from the left, and pushes it
   await expect.poll(() => code.evaluate((pre) => pre.scrollLeft)).toBeGreaterThan(150)
   await swipe({ x: block.x + 16, y: middle }, { x: block.x + 136, y: middle })
   await expect.poll(() => code.evaluate((pre) => pre.scrollLeft)).toBeLessThan(150)
-  await expect(sheet).toHaveCount(0)
+  await expect(names).toHaveCount(0)
 
-  // Across the page from the left, and the sidebar is there, as from its button.
-  await swipe({ x: 24, y: 400 }, { x: 220, y: 420 })
-  await expect(sheet.getByRole("link", { name: /Juniper/ })).toBeVisible()
-  await expect(async () => {
-    expect((await sheet.boundingBox())!.x).toBe(0)
-  }).toPass()
-  // Scrolling its list leaves it open, and a finger back across it puts it away.
+  // A finger that has not gone far lets the faces go back to where they were.
+  await swipe({ x: 24, y: 400 }, { x: 54, y: 402 })
+  await expect.poll(sidebar).toBe(56)
+  await expect(names).toHaveCount(0)
+  // Across the page, and the faces have their names beside them. It follows the finger there.
+  await finger.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: 24, y: 400 }],
+  })
+  for (const x of [44, 84, 124]) {
+    await finger.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x, y: 402 }],
+    })
+  }
+  await expect.poll(sidebar).toBe(156)
+  await finger.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  await expect.poll(sidebar).toBe(320)
+  await expect(names).toBeVisible()
+  // Scrolling its list leaves it open, and a finger back across it shuts it to faces.
   await swipe({ x: 160, y: 300 }, { x: 150, y: 500 })
-  await expect(sheet).toBeVisible()
+  expect(await sidebar()).toBe(320)
   await swipe({ x: 260, y: 400 }, { x: 60, y: 390 })
-  await expect(sheet).toHaveCount(0)
+  await expect.poll(sidebar).toBe(56)
+  await expect(names).toHaveCount(0)
+  // Open again, a touch on the page beside it shuts it too.
+  await swipe({ x: 80, y: 400 }, { x: 280, y: 410 })
+  await expect.poll(sidebar).toBe(320)
+  await page.touchscreen.tap(370, 400)
+  await expect.poll(sidebar).toBe(56)
 
-  // Where the sidebar is beside the page there is nothing to draw out.
+  // Where the sidebar is beside the page at its own width there is nothing to pull.
   await page.setViewportSize({ width: 1280, height: 800 })
   await swipe({ x: 500, y: 400 }, { x: 800, y: 410 })
-  await expect(sheet).toHaveCount(0)
+  await expect(page.locator("[data-pulled-sidebar]")).toHaveCount(0)
   await context.close()
 })

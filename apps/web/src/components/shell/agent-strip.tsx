@@ -3,7 +3,6 @@ import {
   ArrowLeftIcon,
   CaretDownIcon,
   CheckIcon,
-  ListIcon,
   SidebarSimpleIcon,
   SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
@@ -205,7 +204,6 @@ export function AgentStrip({
   page,
   sidebarOpen,
   onShowSidebar,
-  onOpenSheet,
 }: {
   /** The agent whose pages these are. The address says so before the agent itself is here. */
   agentId: string
@@ -216,8 +214,6 @@ export function AgentStrip({
   /** Whether the sidebar is beside this on a wide screen. */
   sidebarOpen: boolean
   onShowSidebar: () => void
-  /** Opens the sidebar as a sheet, on a narrow screen. */
-  onOpenSheet: () => void
 }) {
   const { chatId } = useParams({ strict: false })
   const { side } = useSearch({ strict: false })
@@ -251,19 +247,8 @@ export function AgentStrip({
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-x-1.5 px-2.5 md:h-13 md:px-3">
-      {page === "chat" ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Doods"
-          title="Doods"
-          className="text-muted-foreground md:hidden"
-          onClick={onOpenSheet}
-        >
-          <ListIcon />
-        </Button>
-      ) : (
-        // The agents are still a swipe from the left away, and in the menu on the name.
+      {page === "chat" ? null : (
+        // The other Doods are beside the page, as faces, and in the menu on the name.
         <Button
           variant="ghost"
           size="icon-sm"
