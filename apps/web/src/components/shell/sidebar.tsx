@@ -22,7 +22,7 @@ import { authClient } from "@/lib/auth-client"
 import { forgetNotifications } from "@/lib/notifications"
 import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
-import { AgentList, LEVEL } from "./agent-list.tsx"
+import { AgentList } from "./agent-list.tsx"
 
 type Me = { id: string; name: string; email: string; image?: string | null }
 
@@ -151,8 +151,8 @@ function AccountMenu({
 
 /**
  * The one column of navigation: the user's agents, under their workspaces where they have more
- * than their own, and the user's own menu at its foot. The mark at its top opens it out from
- * faces into the whole list and shuts it again, for whoever is not dragging its edge.
+ * than their own, and the user's own menu at its foot. Its edge opens it out from faces into
+ * the whole list and shuts it again.
  */
 export function Sidebar({
   workspace,
@@ -160,7 +160,6 @@ export function Sidebar({
   me,
   agentId,
   drawn,
-  onPull,
   onNavigate,
   className,
 }: {
@@ -171,8 +170,6 @@ export function Sidebar({
   /** The agent whose page is open, which the address says before the agent itself is here. */
   agentId: string | undefined
   drawn: Drawn
-  /** Opens the faces out into the list, or shuts the list. */
-  onPull: () => void
   onNavigate?: () => void
   className?: string
 }) {
@@ -188,23 +185,8 @@ export function Sidebar({
     >
       {/* Under the window's buttons, which are all there is at the top of it there. */}
       <div aria-hidden className="hidden h-10 shrink-0 inset:block" />
-      {/* Over the faces: its mark is where theirs are. With no title bar its edge opens it. */}
-      <div className="flex items-center gap-2 px-3 pt-2.5 pb-0.5 inset:hidden">
-        <button
-          type="button"
-          aria-label={drawn === "rail" ? "Show Doods by name" : "Show Doods as faces"}
-          aria-expanded={drawn !== "rail"}
-          onClick={onPull}
-          className="shrink-0 rounded-lg p-1 outline-none hover:bg-foreground/6 focus-visible:ring-3 focus-visible:ring-ring/40"
-        >
-          <img src="/icon-192.png" alt="" className="size-6 rounded-md" />
-        </button>
-        {drawn === "rail" ? null : (
-          <span className={cn("min-w-0 flex-1 truncate text-sm font-semibold", LEVEL)}>
-            Do Computer
-          </span>
-        )}
-      </div>
+      {/* Elsewhere, a little room over the list. */}
+      <div aria-hidden className="h-2 shrink-0 inset:hidden" />
       <div className="flex min-h-0 flex-1 flex-col">
         <AgentList
           workspace={workspace}

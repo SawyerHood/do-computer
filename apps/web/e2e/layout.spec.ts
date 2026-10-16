@@ -47,13 +47,13 @@ test("the sidebar is a column of faces until it is opened out, and stays how it 
   await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
 
-  // Opened out from the mark at its top, the sidebar is the list by name, and still is after a
-  // reload.
-  await page.getByRole("button", { name: "Show Doods by name" }).click()
+  // Opened out by its edge, the sidebar is the list by name, and still is after a reload.
+  const edge = page.getByRole("separator", { name: "Resize the sidebar" })
+  await edge.dblclick()
   await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
   await page.reload()
   await expect(page.getByRole("heading", { name: "Doods" })).toBeVisible()
-  await page.getByRole("button", { name: "Show Doods as faces" }).click()
+  await edge.press("Home")
   await expect(page.getByRole("heading", { name: "Doods" })).toHaveCount(0)
   await context.close()
 })

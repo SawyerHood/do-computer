@@ -155,9 +155,7 @@ test("with no title bar the page makes room for the window's buttons and is what
 
   // As a column of faces the sidebar is wide enough for the three buttons, with room above
   // the faces for them.
-  // The mark that opens the sidebar is not there, where the window's buttons are: its edge
-  // opens it and shuts it.
-  await expect(main.getByRole("button", { name: /Show Doods/ })).toBeHidden()
+  // Its edge opens it and shuts it.
   const edge = main.getByRole("separator", { name: "Resize the sidebar" })
   const top = async () => (await main.locator("aside a").first().boundingBox())!.y
   await edge.focus()
@@ -170,7 +168,7 @@ test("with no title bar the page makes room for the window's buttons and is what
     }
     await main.request.post(`${url}/api/agents`)
     await main.reload()
-    await shot(main, "wells")
+    await shot(main, "workspaces")
   }
   const column = main.locator("aside").first()
   await expect.poll(async () => (await column.boundingBox())?.width).toBe(76)

@@ -236,7 +236,6 @@ export function AppShell({
               me={me.user}
               agentId={agentId}
               drawn="open"
-              onPull={() => pulled.settle(false)}
               onNavigate={() => pulled.settle(false)}
               className="w-[min(20rem,100vw-3rem)]"
             />
@@ -254,7 +253,6 @@ export function AppShell({
             me={me.user}
             agentId={agentId}
             drawn={sidebarOpen ? "open" : "rail"}
-            onPull={() => setSidebarOpen(!sidebarOpen)}
           />
           {/* Its edge is the way to open it and to shut it, and says so only by the pointer. */}
           <ResizeHandle
@@ -292,8 +290,7 @@ export function AppShell({
         )}
         <div className="relative min-h-0 flex-1">{children}</div>
         {/*
-          Under the open sidebar the page is set back, and a touch on it shuts the sidebar. The
-          mark at the top of the sidebar does the same, for whoever is not touching.
+          Under the open sidebar the page is set back, and a touch on it shuts the sidebar.
         */}
         {beside || !pulled.whole ? null : (
           <div

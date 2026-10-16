@@ -91,10 +91,7 @@ export function AppSkeleton() {
         style={{ width: "var(--kept-sidebar, 288px)" }}
       >
         <div className="hidden h-10 shrink-0 inset:block" />
-        <div className="flex items-center gap-2 px-3 pt-2.5 pb-0.5 inset:hidden">
-          <img src="/icon-192.png" alt="" className="m-1 size-6 shrink-0 rounded-md" />
-          <span className="text-sm font-semibold">Do Computer</span>
-        </div>
+        <div className="h-2 shrink-0 inset:hidden" />
         <div className="flex h-9 items-center px-2.5">
           <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Doods</h2>
         </div>
@@ -106,9 +103,7 @@ export function AppSkeleton() {
       {/* As a column of faces, which is how it starts. On a narrow screen it is out of sight. */}
       <aside className="hidden w-14 shrink-0 flex-col inset:w-19 inset:px-2.5 md:flex md:[[data-sidebar=open]_&]:hidden">
         <div className="hidden h-10 shrink-0 inset:block" />
-        <div className="flex items-center px-3 pt-2.5 pb-0.5 inset:hidden">
-          <img src="/icon-192.png" alt="" className="m-1 size-6 shrink-0 rounded-md" />
-        </div>
+        <div className="h-2 shrink-0 inset:hidden" />
         <div className="h-9" />
         <div className="flex-1 px-1">
           <AgentRowsPlaceholder now narrow="rail" />
