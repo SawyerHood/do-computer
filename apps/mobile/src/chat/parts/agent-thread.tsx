@@ -8,6 +8,7 @@ import { Icon, type IconName, Text } from "@/ui"
 import { Avatar } from "@/ui/avatar"
 import { Markdown } from "@/ui/markdown"
 import { drawNamed } from "./named"
+import { drawDiagram } from "./diagram"
 import { Chip, Fold, NoticeLine } from "./shared"
 
 /** Where a conversation is: the chat of that id on the agent that holds it. */
@@ -126,7 +127,7 @@ export const AgentWord = memo(function AgentWord({ part }: { part: NoticePart })
               paddingVertical: 8,
             }}
           >
-            <Markdown text={part.detail} image={drawNamed} />
+            <Markdown text={part.detail} image={drawNamed} diagram={drawDiagram} />
           </View>
         </Fold>
       )}

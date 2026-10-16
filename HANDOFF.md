@@ -7105,6 +7105,66 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       before, byte for byte; `apps/web/e2e/app-icon.spec.ts`. **Not checked:** the tray in a
       running app on a Mac, which is where its owner will see it.
 
+95. **The phone app's replies catch up with the web app's: code in its colors, notes, folding
+    sections, diagrams, a connector's page, and the word that a message was delivered**
+    (2026-10-16; `apps/mobile/src/ui/markdown.tsx`, `syntax.ts`, `chat/parts/diagram.tsx`,
+    `app.tsx`, `visual.tsx`, `chat/transcript.tsx`, `library/page-view.tsx`,
+    `apps/web/src/routes/embed.diagram.tsx`, `packages/protocol/src/diagram.ts`,
+    `packages/client/src/app-host.ts`). The owner asked which of the changes since item 65 the
+    phone app had not been given, and then to "port all of these". Pins, calls, saved logins
+    and cards and the order of Doods were built apart from this and have entries of their own.
+    - **Code is in its colors** on the phone, the same seven as the web app's. Shiki's
+      grammars need a regular-expression engine a phone's JavaScript has not got, so the phone
+      reads code with a small reader of its own (`syntax.ts`): comments, strings, numbers, a
+      language's own words, what is called, and punctuation, for the languages the web app
+      has grammars for, with JSON, YAML, TOML, HTML, CSS and a diff read their own way. It is
+      less exact than a grammar. Code a reply is still writing is plain, as on the web, and a
+      block has a button that wraps its long lines.
+    - **A `mermaid` block is its diagram.** A phone cannot draw one, so the deployment does:
+      `/embed/diagram` is a page of the web app that draws one diagram with the web app's own
+      drawing and says how large it is, shown in a web view (a frame in the browser build).
+      The diagram is handed over by a call to `window.dcDraw`, which only a page of the same
+      origin or the app around the web view can make; it is never in the address, so a link
+      to the page draws nothing and nothing of a diagram reaches the server. One that cannot
+      be drawn, or a deployment from before the page (nothing heard in fifteen seconds), is
+      shown as its code.
+    - **A note** (`> [!NOTE]` and its kin) has its name and color; **a section that folds**
+      (`<details>`) opens when its heading is pressed, and is the one piece of HTML the phone
+      reads; **a table** is copied as Markdown or as CSV from a menu under it
+      (`tableMarkdown` and `tableCsv` are in the protocol package now, for both apps).
+    - **A connector's own page for a tool** (item 82) is shown in the chat on the phone. The
+      talk with the page (`createAppHost`) moved to `packages/client` for both apps. In the
+      browser build it is the same frame as the web app's. On a phone it is a web view that
+      asks for the page with the session once, gives the page no cookie, and stands in for
+      the window a page speaks to (`APP_SCRIPT` in `app-frame.native.tsx`). A tool that may
+      change something is asked about in the phone's own sheet. There is no large.
+    - **`dc.save` and `dc.expand`** in a page the Dood drew now do something on the phone: a
+      file is handed to the share sheet (downloaded, in the browser build), and large is the
+      library's own screen for the page, where the page starts again.
+    - **A page of the library** is opened in the app's light or dark with its Dood's color,
+      as the web app shows it, and follows them when they change.
+    - **Under a sent message** it says "Sending" and then "Delivered", only for a message
+      seen on its way, and the word leaves after three seconds; it takes no room of its own.
+    - **A connector's tools** are named up to twelve, then counted, as on the web app's card.
+    - **Mine:** a reader of our own for code in place of Shiki; the deployment's page for
+      diagrams, and how it is handed one; `<details>` as the only HTML read; the menu under a
+      table; large as the library's screen; that a connector's page is asked for with the
+      session in a web view.
+    - **Checked:** `apps/mobile` unit tests (the reader of code, the new blocks, the script a
+      page is given); `packages/protocol/test/diagram.test.ts`; and `e2e/mobile.spec.ts` on
+      the phone app's browser build: the words under a sent message, code in three colors,
+      wrapping, a table copied both ways from the clipboard, a note and a folded section, a
+      diagram drawn and one that cannot be, a file saved from a page and the page opened
+      large in the app's colors, and a connector's page told its tool's answer, running a
+      reading tool at once and another only after a yes. **Not checked:** any of it in a
+      simulator or on a phone. The web views for a diagram and for a connector's page, the
+      share sheet for a saved file and the colors handed to a library page have only been
+      type-checked there; the standing-in for a page's window in particular is untried
+      against WebKit. A deployment older than this, which has no `/embed/diagram`.
+    - **Not built:** inline HTML other than `<details>` (`kbd`, `sub`, `sup`), a link to a
+      heading in the same reply, a connector's page shown large, and a Markdown document of
+      the library in its Dood's color (its links are still the app's teal).
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

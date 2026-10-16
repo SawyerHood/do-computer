@@ -110,6 +110,12 @@ import {
   whenUnattended,
 } from "./attention.ts"
 import { createFollowing, type SocketConstructor } from "./follow.ts"
+export {
+  type AppDisplayMode,
+  type AppHostContext,
+  type AppHostOptions,
+  createAppHost,
+} from "./app-host.ts"
 
 export type { Attention, StreamStatus, Subscription } from "./attention.ts"
 export type { SocketConstructor, SocketLike } from "./follow.ts"

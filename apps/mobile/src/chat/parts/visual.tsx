@@ -12,7 +12,8 @@ import { memo, useCallback, useMemo, useRef, useState } from "react"
 import { View } from "react-native"
 import { useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
-import { GlassButton, Text } from "@/ui"
+import { saveText } from "@/lib/files"
+import { errorText, GlassButton, tell, Text } from "@/ui"
 import { useSay } from "../composer"
 import { useChatScope } from "./shared"
 import { VisualPage } from "./visual-frame"
@@ -21,7 +22,8 @@ import { VisualPage } from "./visual-frame"
  * A visual the agent drew, in the chat: the page itself on the chat's own background, as tall
  * as the page says it is. The page is a file of the library and runs in a frame kept apart from
  * the app. It is in the app's colors, and follows them when they change. What the page says
- * with `dc.say`, on the reader's own press, is put in the message box for them to send.
+ * with `dc.say`, on the reader's own press, is put in the message box for them to send; with
+ * `dc.expand` it is opened on a screen of its own, and with `dc.save` they are handed a file.
  */
 export const VisualFrame = memo(function VisualFrame({ part }: { part: ToolPart }) {
   const drawn = part.details as unknown as LibraryFile
@@ -43,6 +45,15 @@ export const VisualFrame = memo(function VisualFrame({ part }: { part: ToolPart 
   )
   const [height, setHeight] = useState<number>()
   const onHeight = useCallback((tall: number) => setHeight(tall), [])
+  // Shown large, a page is the library's own screen for it: a phone has no window to lift a
+  // page out of its reply into, and the page starts again there.
+  const fileId = file?.id
+  const onExpand = useCallback(() => {
+    if (fileId !== undefined) router.push(`/a/${agentId}/library/${fileId}`)
+  }, [router, agentId, fileId])
+  const onSave = useCallback((saved: { name: string; type: string; text: string }) => {
+    saveText(saved).catch((error) => tell("That file could not be saved", errorText(error)))
+  }, [])
 
   // The page keeps the address it was first given for as long as it is the same page: a new
   // address would load it again. The colors it starts in ride on the address.
@@ -77,6 +88,8 @@ export const VisualFrame = memo(function VisualFrame({ part }: { part: ToolPart 
             theme={theme}
             onHeight={onHeight}
             onSay={say}
+            onExpand={onExpand}
+            onSave={onSave}
           />
           <View style={{ position: "absolute", top: 0, right: 0, flexDirection: "row", gap: 6 }}>
             <GlassButton

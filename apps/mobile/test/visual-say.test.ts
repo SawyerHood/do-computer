@@ -1,4 +1,4 @@
-import { readVisualSay } from "@do-computer/protocol"
+import { readVisualMode, readVisualSave, readVisualSay } from "@do-computer/protocol"
 import { describe, expect, it, vi } from "vitest"
 
 // The script is a string run in a page; the web view that runs it needs a device.
@@ -7,7 +7,11 @@ vi.mock("react-native-webview", () => ({ WebView: () => null }))
 
 const { SAY_SCRIPT } = await import("../src/chat/parts/visual-frame.native.tsx")
 
-type Dc = { say?: (text: unknown) => boolean; expand?: () => boolean }
+type Dc = {
+  say?: (text: unknown) => boolean
+  expand?: (large?: boolean) => boolean
+  save?: (name: string, text: string, type?: string) => boolean
+}
 type Page = { dc?: Dc; ReactNativeWebView?: { postMessage(data: string): void } }
 
 /** A page's window, with the app listening to it, in which the script has been run. */
@@ -28,9 +32,24 @@ describe("a visual's words on a phone", () => {
     // The page's own script runs after, and makes a `dc` whose `say` does nothing here.
     window.dc = { say: () => false, expand: () => false }
     expect(window.dc.say?.("Go with plan B")).toBe(true)
-    expect(window.dc.expand?.()).toBe(false)
     expect(heard).toHaveLength(1)
     expect(readVisualSay(heard[0])).toEqual({ id: "dc-say-1", text: "Go with plan B" })
+  })
+
+  it("gives it an expand and a save that tell the app too, in the words a frame would hear", () => {
+    const { window, heard } = page()
+    window.dc = { say: () => false, expand: () => false, save: () => false }
+    expect(window.dc.expand?.()).toBe(true)
+    expect(window.dc.expand?.(false)).toBe(true)
+    expect(window.dc.save?.("../figures.csv", "a,b\n1,2", "text/csv")).toBe(true)
+    expect(readVisualMode(heard[0])).toEqual({ id: "dc-expand-1", mode: "fullscreen" })
+    expect(readVisualMode(heard[1])).toEqual({ id: "dc-expand-2", mode: "inline" })
+    expect(readVisualSave(heard[2])).toEqual({
+      id: "dc-save-3",
+      name: "figures.csv",
+      type: "text/csv",
+      text: "a,b\n1,2",
+    })
   })
 
   it("does the same for a dc that was there before it ran, and only once however often it runs", () => {

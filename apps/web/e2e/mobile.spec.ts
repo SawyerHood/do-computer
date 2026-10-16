@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Page } from "@playwright/test"
+import { startFakeMcp } from "./fake-mcp-server.ts"
 import { expect, test } from "./fixtures.ts"
 
 /**
@@ -348,6 +349,111 @@ test("Markdown in a reply is rendered, not shown as markup", async ({ page }) =>
   await send(page, "a list:\n\n- one\n- **two**")
   await expect(words(page, "two", { exact: true })).toBeVisible()
   await expect(words(page, "**two**")).toHaveCount(1) // only in the user's own bubble
+})
+
+test("a sent message says Sending and then Delivered, and the word leaves", async ({ page }) => {
+  await openChat(page)
+  await send(page, "are you there?")
+  // It is on its way, then the Dood has it, and a few seconds later nothing is said of it.
+  await expect(page.getByLabel(/^(Sending|Delivered)$/)).toBeVisible()
+  await expect(page.getByLabel("Delivered", { exact: true })).toBeVisible()
+  await expect(words(page, "Delivered", { exact: true })).toBeVisible()
+  await page.screenshot({ path: "test-results/phone-delivered.png" })
+  await expect(page.getByLabel("Delivered", { exact: true })).toHaveCount(0, { timeout: 10_000 })
+  // A chat that is opened says nothing of the messages it already had.
+  await page.reload()
+  await expect(composer(page)).toBeVisible()
+  await expect(words(page, "are you there?").first()).toBeVisible()
+  await expect(page.getByLabel("Delivered", { exact: true })).toHaveCount(0)
+})
+
+test("code in a reply is in its colors, wraps, and a table is copied as CSV or as Markdown", async ({
+  page,
+}) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"])
+  await openChat(page)
+  await send(
+    page,
+    "Here:\n\n```ts\nconst total = add(price, 2) // a note\n```\n\n| City | High |\n| --- | --: |\n| **Lisbon** | 21 |\n| Porto, PT | 19 |",
+  )
+  // The words of the language, what is called and a comment are each in a color of their own.
+  const keyword = page.getByText("const", { exact: true }).last()
+  await expect(keyword).toBeVisible()
+  const color = (text: string) =>
+    page
+      .getByText(text, { exact: true })
+      .last()
+      .evaluate((piece) => getComputedStyle(piece).color)
+  const colors = new Set([await color("const"), await color("add"), await color("// a note")])
+  expect(colors.size).toBe(3)
+  await page.screenshot({ path: "test-results/phone-code-table.png" })
+
+  // The reply has all arrived: what is switched in a block is kept by the message it is in.
+  const copy = page.getByRole("button", { name: "Copy the table" }).last()
+  await expect(copy).toBeVisible()
+  await expect(page.getByRole("button", { name: "Dictate" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
+  // Long lines scroll sideways until they are asked to wrap.
+  await page.getByRole("button", { name: "Wrap long lines" }).last().click()
+  await expect(page.getByRole("button", { name: "Stop wrapping long lines" })).toHaveCount(1)
+
+  await copy.click()
+  await item(page, "Copy as CSV").click()
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe('City,High\nLisbon,21\n"Porto, PT",19')
+  await copy.click()
+  await item(page, "Copy as Markdown").click()
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe("| City | High |\n| --- | --: |\n| Lisbon | 21 |\n| Porto, PT | 19 |")
+})
+
+test("a note has its name over it, and a section that folds opens when its heading is pressed", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(
+    page,
+    "Two things:\n\n> [!WARNING]\n> Mind the gap.\n\n<details>\n<summary>The full log</summary>\n\n- step one\n- step two\n\n</details>",
+  )
+  await expect(words(page, "Warning", { exact: true }).last()).toBeVisible()
+  await expect(words(page, "Mind the gap.").last()).toBeVisible()
+  // The mark is not shown as words, but in the reader's own message, which is as they typed it.
+  await expect(words(page, "[!WARNING]")).toHaveCount(1)
+  // The reply has all arrived: what is opened is kept by the message it is in.
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Dictate" })).toBeVisible()
+  const heading = page.getByRole("button", { name: "The full log" }).last()
+  await expect(heading).toHaveAttribute("aria-expanded", "false")
+  await expect(words(page, "step two")).toHaveCount(1) // only in the reader's own message
+  await heading.click()
+  await expect(heading).toHaveAttribute("aria-expanded", "true")
+  await expect(words(page, "step two")).toHaveCount(2)
+  await page.screenshot({ path: "test-results/phone-note-details.png" })
+})
+
+test("a mermaid block is drawn as its diagram by the deployment's page, with the code a press away", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(page, "A diagram:\n\n```mermaid\nflowchart LR\n  Draft --> Review --> Shipped\n```")
+  const diagram = page.getByLabel("Diagram", { exact: true }).last().frameLocator("iframe")
+  await expect(diagram.locator("svg")).toBeVisible()
+  await expect(diagram.getByRole("img", { name: "Diagram" })).toContainText("Review")
+  // The words under the diagram are gone once it is drawn.
+  await expect(words(page, "Drawing the diagram…")).toHaveCount(0)
+  await page.screenshot({ path: "test-results/phone-diagram.png" })
+  await page.getByRole("button", { name: "Show the code" }).last().click()
+  await expect(words(page, /Draft --> Review --> Shipped/).last()).toBeVisible()
+  await page.getByRole("button", { name: "Show the diagram" }).last().click()
+  await expect(diagram.locator("svg")).toBeVisible()
+
+  // One that cannot be drawn stays code.
+  await send(page, "Another:\n\n```mermaid\nthis is not a diagram\n```")
+  await expect(page.getByRole("button", { name: "Wrap long lines" }).last()).toBeVisible()
+  await expect(words(page, "this is not a diagram").last()).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show the code" })).toHaveCount(1)
 })
 
 test("earlier messages can be brought back after a chat was started fresh", async ({ page }) => {
@@ -773,6 +879,88 @@ test("a page the agent drew puts words in the message box when the reader presse
   // More goes after what is there, on a line of its own.
   await pick.click()
   await expect(composer(page)).toHaveValue("Go with plan B\nGo with plan B")
+})
+
+test("a page the agent drew hands the reader a file, and is opened on a screen of its own in the app's colors", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(
+    page,
+    `/tool visual ${JSON.stringify({
+      title: "Figures",
+      html: "<button id=save>Save</button><button id=large>Larger</button><script>save.onclick = function () { dc.save('figures.csv', 'a,b\\n1,2', 'text/csv') }; large.onclick = function () { dc.expand() }</script>",
+    })}`,
+  )
+  const frame = page.getByLabel("Visual: figures.html").frameLocator("iframe")
+  await expect(frame.getByRole("button", { name: "Save" })).toBeVisible()
+  const download = page.waitForEvent("download")
+  await frame.getByRole("button", { name: "Save" }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe("figures.csv")
+  expect(readFileSync(await file.path(), "utf8")).toBe("a,b\n1,2")
+
+  // Large, on a phone, is the library's own screen for the page, in the app's light or dark.
+  await frame.getByRole("button", { name: "Larger" }).click()
+  const large = page.locator('iframe[title="figures.html"]').last()
+  await expect(large).toBeVisible()
+  await expect(large.contentFrame().getByRole("button", { name: "Larger" })).toBeVisible()
+  await expect(large.contentFrame().locator("html")).toHaveAttribute(
+    "data-dc-theme",
+    /^(light|dark)$/,
+  )
+  expect(await large.getAttribute("src")).toContain("#dc-theme=")
+  await page.screenshot({ path: "test-results/phone-page-large.png" })
+})
+
+test("a connector's own page for a tool is shown in the chat, told what the tool answered, and asks before a tool that may change something", async ({
+  page,
+}) => {
+  const mcp = await startFakeMcp()
+  try {
+    await signIn(page)
+    const id = await agentId(page)
+    const added = await page.request.post(`/api/agents/${id}/connectors`, {
+      data: { name: "Weather", url: `${mcp.origin}/apps/mcp` },
+    })
+    expect(added.ok()).toBe(true)
+    await agent(page, "Pip").click()
+    await send(page, `/tool weather__forecast ${JSON.stringify({ city: "Lisbon" })}`)
+    // It says whose page it is: not the Dood's, and not the app's.
+    await expect(words(page, "From Weather")).toBeVisible()
+    const frame = page.getByLabel("App: forecast from Weather").frameLocator("iframe")
+    // The page was told what the tool was asked and what it answered, and where it is shown.
+    await expect(frame.locator("#city")).toHaveText("Lisbon")
+    await expect(frame.locator("#temp")).toHaveText("Sunny, 21 degrees")
+    await expect(frame.locator("html")).toHaveAttribute("data-host", "do-computer")
+    // It is nobody: it has no cookies, and cannot reach the app it is served from.
+    await expect(frame.locator("html")).toHaveAttribute("data-cookie", "blocked")
+    await expect(frame.locator("html")).toHaveAttribute("data-api", "blocked")
+    await page.screenshot({ path: "test-results/phone-connector-page.png" })
+
+    // A tool that only reads runs at once.
+    await frame.getByRole("button", { name: "Refresh" }).click()
+    await expect(frame.locator("#log")).toHaveText("refresh done")
+    // Booking may change something, so the person is asked, and a no is told to the page.
+    const refused = new Promise<string>((resolve) =>
+      page.once("dialog", (dialog) => {
+        resolve(dialog.message())
+        void dialog.dismiss()
+      }),
+    )
+    await frame.getByRole("button", { name: "Book a trip" }).click()
+    expect(await refused).toContain("Let this page use “book”?")
+    await expect(frame.locator("#log")).toHaveText("refused: The person said no.")
+    const agreed = agree(page)
+    await frame.getByRole("button", { name: "Book a trip" }).click()
+    expect(await agreed).toContain("The page from Weather wants to run that tool there")
+    await expect(frame.locator("#log")).toHaveText("book done")
+    // Its words go in the message box, for the person to send or not.
+    await frame.getByRole("button", { name: "Tell the Dood" }).click()
+    await expect(composer(page)).toHaveValue("Book the trip to Lisbon")
+  } finally {
+    await mcp.close()
+  }
 })
 
 test("a second agent hatches and names itself, settings show who and what there is, and signing out ends the session", async ({

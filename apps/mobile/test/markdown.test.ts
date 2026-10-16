@@ -16,6 +16,7 @@ vi.mock("expo-clipboard", () => ({ setStringAsync: async () => true }))
 vi.mock("expo-image", () => ({ Image: () => null }))
 vi.mock("@/ui/haptics", () => ({ haptic: { done: () => {} } }))
 vi.mock("@/ui/icon", () => ({ Icon: () => null }))
+vi.mock("@/ui/menu", () => ({ Menu: () => null }))
 
 const { parseBlocks, parseInline } = await import("../src/ui/markdown.tsx")
 
@@ -38,7 +39,7 @@ describe("mobile Markdown", () => {
   it("keeps an unfinished code fence as code, as it is while a reply streams", () => {
     expect(parseBlocks("Here:\n```sh\nls -la")).toEqual([
       { type: "paragraph", text: "Here:" },
-      { type: "code", text: "ls -la", lang: "sh" },
+      { type: "code", text: "ls -la", lang: "sh", open: true },
     ])
   })
 
@@ -544,5 +545,62 @@ describe("mobile Markdown: a reply as it arrives", () => {
     expect(parseBlocks(`${">".repeat(5000)} deep`)).toEqual([
       { type: "quote", text: `${">".repeat(4999)} deep` },
     ])
+  })
+
+  it("says a block of code is still being written until the reply shuts it", () => {
+    expect(parseBlocks("```ts\nconst a = 1")).toEqual([
+      { type: "code", text: "const a = 1", lang: "ts", open: true },
+    ])
+    expect(parseBlocks("```ts\nconst a = 1\n```")).toEqual([
+      { type: "code", text: "const a = 1", lang: "ts" },
+    ])
+  })
+
+  it("reads a quote that begins with one of GitHub's marks as a note of that kind", () => {
+    expect(parseBlocks("> [!WARNING]\n> Mind the gap.")).toEqual([
+      { type: "quote", text: "Mind the gap.", alert: "warning" },
+    ])
+    expect(parseBlocks("> [!tip] \n> Short.\n> More.")).toEqual([
+      { type: "quote", text: "Short.\nMore.", alert: "tip" },
+    ])
+    // A mark that is not alone on its line is only words.
+    expect(parseBlocks("> [!NOTE] and so on")).toEqual([
+      { type: "quote", text: "[!NOTE] and so on" },
+    ])
+  })
+
+  it("reads a section that folds, with its heading and what is inside it", () => {
+    const source =
+      "Before\n<details>\n<summary>The full log</summary>\n\n- one\n- two\n\n</details>\nAfter"
+    expect(parseBlocks(source)).toEqual([
+      { type: "paragraph", text: "Before" },
+      { type: "details", summary: "The full log", text: "- one\n- two" },
+      { type: "paragraph", text: "After" },
+    ])
+  })
+
+  it("keeps a folding section whole when another is inside it or it was left open", () => {
+    const [outer, after] = parseBlocks(
+      "<details open><summary>Outer</summary>\n<details>\n<summary>Inner</summary>\nx\n</details>\ny\n</details>\nz",
+    )
+    expect(outer).toEqual({
+      type: "details",
+      summary: "Outer",
+      text: "<details>\n<summary>Inner</summary>\nx\n</details>\ny",
+      open: true,
+    })
+    expect(after).toEqual({ type: "paragraph", text: "z" })
+    // One a reply has not shut yet runs to the end, and has a heading until it is given one.
+    expect(parseBlocks("<details>\nstill arriving")).toEqual([
+      { type: "details", summary: "Details", text: "still arriving" },
+    ])
+  })
+
+  it("does not take a closing mark inside code for the end of a folding section", () => {
+    const [block, after] = parseBlocks(
+      "<details>\n<summary>Code</summary>\n\n```html\n</details>\n```\n\n</details>\nafter",
+    )
+    expect(block).toMatchObject({ type: "details", text: "```html\n</details>\n```" })
+    expect(after).toEqual({ type: "paragraph", text: "after" })
   })
 })

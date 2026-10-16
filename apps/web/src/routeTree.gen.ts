@@ -31,6 +31,7 @@ import { Route as DesktopSignInRouteImport } from './routes/desktop.sign-in'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
 import { Route as DoodDoodIdRouteImport } from './routes/dood.$doodId'
+import { Route as EmbedDiagramRouteImport } from './routes/embed.diagram'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as LocalSignInRouteImport } from './routes/local.sign-in'
 import { Route as ThemeNameRouteImport } from './routes/theme.$name'
@@ -211,6 +212,11 @@ const DocsSlugRoute = DocsSlugRouteImport.update({
 const DoodDoodIdRoute = DoodDoodIdRouteImport.update({
   id: '/dood/$doodId',
   path: '/dood/$doodId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedDiagramRoute = EmbedDiagramRouteImport.update({
+  id: '/embed/diagram',
+  path: '/embed/diagram',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -617,6 +623,7 @@ export interface FileRoutesByFullPath {
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
+  '/embed/diagram': typeof EmbedDiagramRoute
   '/invite/$token': typeof InviteTokenRoute
   '/local/sign-in': typeof LocalSignInRoute
   '/theme/$name': typeof ThemeNameRoute
@@ -712,6 +719,7 @@ export interface FileRoutesByTo {
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
+  '/embed/diagram': typeof EmbedDiagramRoute
   '/invite/$token': typeof InviteTokenRoute
   '/local/sign-in': typeof LocalSignInRoute
   '/theme/$name': typeof ThemeNameRoute
@@ -807,6 +815,7 @@ export interface FileRoutesById {
   '/desktop/sign-in': typeof DesktopSignInRoute
   '/docs/$slug': typeof DocsSlugRoute
   '/dood/$doodId': typeof DoodDoodIdRoute
+  '/embed/diagram': typeof EmbedDiagramRoute
   '/invite/$token': typeof InviteTokenRoute
   '/local/sign-in': typeof LocalSignInRoute
   '/theme/$name': typeof ThemeNameRoute
@@ -904,6 +913,7 @@ export interface FileRouteTypes {
     | '/desktop/sign-in'
     | '/docs/$slug'
     | '/dood/$doodId'
+    | '/embed/diagram'
     | '/invite/$token'
     | '/local/sign-in'
     | '/theme/$name'
@@ -999,6 +1009,7 @@ export interface FileRouteTypes {
     | '/desktop/sign-in'
     | '/docs/$slug'
     | '/dood/$doodId'
+    | '/embed/diagram'
     | '/invite/$token'
     | '/local/sign-in'
     | '/theme/$name'
@@ -1093,6 +1104,7 @@ export interface FileRouteTypes {
     | '/desktop/sign-in'
     | '/docs/$slug'
     | '/dood/$doodId'
+    | '/embed/diagram'
     | '/invite/$token'
     | '/local/sign-in'
     | '/theme/$name'
@@ -1189,6 +1201,7 @@ export interface RootRouteChildren {
   DesktopSignInRoute: typeof DesktopSignInRoute
   DocsSlugRoute: typeof DocsSlugRoute
   DoodDoodIdRoute: typeof DoodDoodIdRoute
+  EmbedDiagramRoute: typeof EmbedDiagramRoute
   InviteTokenRoute: typeof InviteTokenRoute
   LocalSignInRoute: typeof LocalSignInRoute
   ThemeNameRoute: typeof ThemeNameRoute
@@ -1400,6 +1413,13 @@ declare module '@tanstack/react-router' {
       path: '/dood/$doodId'
       fullPath: '/dood/$doodId'
       preLoaderRoute: typeof DoodDoodIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/diagram': {
+      id: '/embed/diagram'
+      path: '/embed/diagram'
+      fullPath: '/embed/diagram'
+      preLoaderRoute: typeof EmbedDiagramRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite/$token': {
@@ -2033,6 +2053,7 @@ const rootRouteChildren: RootRouteChildren = {
   DesktopSignInRoute: DesktopSignInRoute,
   DocsSlugRoute: DocsSlugRoute,
   DoodDoodIdRoute: DoodDoodIdRoute,
+  EmbedDiagramRoute: EmbedDiagramRoute,
   InviteTokenRoute: InviteTokenRoute,
   LocalSignInRoute: LocalSignInRoute,
   ThemeNameRoute: ThemeNameRoute,

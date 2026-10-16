@@ -15,7 +15,6 @@ import {
   type MessagePart,
   type NoticePart,
   type Person,
-  readMcpApp,
 } from "@do-computer/protocol"
 import {
   type ComponentType,
@@ -30,6 +29,7 @@ import {
 } from "react"
 import {
   ActivityIndicator,
+  Animated,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
@@ -47,11 +47,13 @@ import type { useEarlierMessages } from "@/lib/use-live-chat"
 import { Button, Face, GlassButton, haptic, Icon, type IconName, Text } from "@/ui"
 import { Markdown } from "@/ui/markdown"
 import { AgentMessageChip, AgentWord, PeerFace } from "./parts/agent-thread"
+import { McpAppFrame } from "./parts/app"
 import { CommandChip, CommandWord } from "./parts/command"
 import { ReplyError } from "./parts/error"
 import { SentFile } from "./parts/file"
 import { clockOf, isAtEnd, isUntouched, shownMessages, shownParts, textOf } from "./parts/logic"
 import { drawNamed } from "./parts/named"
+import { drawDiagram } from "./parts/diagram"
 import { type Picture, SentPictures } from "./parts/pictures"
 import {
   type ChatScope,
@@ -104,7 +106,7 @@ type Team = { meId: string; people: Map<string, Person> }
 /** What the agent says: the page's own text, with nothing drawn around it. */
 const Answer = memo(function Answer({ text }: { text: string }) {
   // Its words can be selected, which brings up the system's own Copy, Look Up and Share.
-  return <Markdown text={text} image={drawNamed} />
+  return <Markdown text={text} image={drawNamed} diagram={drawDiagram} />
 })
 
 const AssistantPart = memo(function AssistantPart({
@@ -114,12 +116,8 @@ const AssistantPart = memo(function AssistantPart({
   part: MessagePart
   whole: string
 }) {
-  // A connector's own page for a tool is shown in a browser, where it can be kept apart as it
-  // has to be. Here it is said to be there, and what the tool answered is in the reply.
-  if (isMcpApp(part)) {
-    const connector = readMcpApp(part.details)?.app.connector ?? "The connector"
-    return <Marker icon="globe">{connector} has a page for this, shown in a browser.</Marker>
-  }
+  // A connector's own page for a tool, where the tool call is.
+  if (isMcpApp(part)) return <McpAppFrame part={part} />
   if (isSentFile(part)) return <SentFile part={part} />
   if (isVisual(part)) return <VisualFrame part={part} />
   if (isSiteShare(part)) return <SiteCard part={part} />
@@ -410,21 +408,61 @@ type RowProps = {
   delivery: "sent" | "delivered" | undefined
 }
 
+/** How long the word that a message was delivered stays before it leaves. */
+const DELIVERED_STAYS_MS = 3000
+
+/** How long after a message stopped being on its way the chat's copy of it is still taken for it. */
+const JUST_SENT_MS = 3000
+
 /**
- * Whether a message of one's own has reached the agent, said the way a message app says it: a
- * ring while it is on its way, and a check once the agent has it.
+ * Whether a message of one's own has reached the agent, said the way a message app says it:
+ * "Sending" with a ring while it is on its way, which becomes "Delivered" with a check once
+ * the agent has it, and leaves a few seconds later. It is in the space under the message and
+ * takes none of its own, so nothing moves when it comes or goes. The web app says the same
+ * (its components/chat/transcript.tsx).
  */
 function Delivery({ delivered }: { delivered: boolean }) {
   const theme = useTheme()
+  const [gone, setGone] = useState(false)
+  const shown = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    shown.setValue(1)
+    setGone(false)
+    if (!delivered) return
+    const leave = Animated.timing(shown, {
+      toValue: 0,
+      duration: 400,
+      delay: DELIVERED_STAYS_MS,
+      useNativeDriver: Platform.OS !== "web",
+    })
+    leave.start(({ finished }) => {
+      if (finished) setGone(true)
+    })
+    return () => leave.stop()
+  }, [delivered, shown])
+  if (gone) return null
+  const words = delivered ? "Delivered" : "Sending"
   return (
-    <View
+    <Animated.View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={delivered ? "Delivered" : "Not delivered yet"}
-      style={{ marginTop: -2, marginRight: 2 }}
+      accessibilityLabel={words}
+      style={{
+        position: "absolute",
+        top: "100%",
+        right: 2,
+        height: 20,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        opacity: shown,
+      }}
     >
+      <Text variant="caption" tone="ink3">
+        {words}
+      </Text>
       <Icon name={delivered ? "checkCircle" : "circle"} size={13} color={theme.ink3} />
-    </View>
+    </Animated.View>
   )
 }
 
@@ -709,7 +747,7 @@ export function Transcript({
     if (more) toEnd(true)
   }, [onTheirWay, toEnd])
   // The newest message a person wrote here that the agent has.
-  const lastDelivered =
+  const newestDelivered =
     undelivered === undefined || asker !== undefined
       ? undefined
       : state.messages.findLast(
@@ -719,6 +757,32 @@ export function Transcript({
             message.slack === undefined &&
             !undelivered.has(message.id),
         )?.id
+  // It is said to be delivered only if it was seen on its way here: a chat that is opened says
+  // nothing of the messages it already had. A message that waited for the agent is gone from
+  // what is being sent a moment before the chat has its own copy, so having just seen one on
+  // its way counts too.
+  const [marked, setMarked] = useState<{
+    newest: string | undefined
+    onTheirWay: number
+    /** When the last of them stopped being on its way. */
+    since: number | undefined
+    arrived: string | undefined
+  }>({ newest: newestDelivered, onTheirWay, since: undefined, arrived: undefined })
+  if (marked.newest !== newestDelivered || marked.onTheirWay !== onTheirWay) {
+    const now = Date.now()
+    const watched =
+      marked.onTheirWay > 0 || (marked.since !== undefined && now - marked.since < JUST_SENT_MS)
+    setMarked({
+      newest: newestDelivered,
+      onTheirWay,
+      since: marked.onTheirWay > 0 && onTheirWay === 0 ? now : marked.since,
+      arrived:
+        newestDelivered !== undefined && newestDelivered !== marked.newest && watched
+          ? newestDelivered
+          : marked.arrived,
+    })
+  }
+  const lastDelivered = marked.arrived === newestDelivered ? newestDelivered : undefined
   // The box at the foot is measured after the page is first laid out, and grows with what is
   // typed in it: a reader at the end stays there.
   useEffect(() => {
