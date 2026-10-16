@@ -750,20 +750,17 @@ describe("the settings tool", () => {
       action: "set",
       model: "test/big",
       thinking: "high",
-      when_busy: "queue",
       timezone: "Europe/Paris",
     })
     expect(last(state).output).toContain(
-      "Saved. Model: test/big. Thinking: high. When busy: queue.",
+      "Saved. Model: test/big. Thinking: high. Timezone: Europe/Paris.",
     )
     const agent = await call<{
       agent: { model: string; thinking: string }
-      whenBusy: string
       timezone: string
     }>(world, "/")
     expect(agent).toMatchObject({
       agent: { model: "test/big", thinking: "high" },
-      whenBusy: "queue",
       timezone: "Europe/Paris",
     })
 

@@ -143,16 +143,31 @@ export const GIVE_UP_MS = 20_000
 const textOf = (message: ChatMessage) =>
   message.parts.map((part) => (part.type === "text" ? part.text : "")).join("")
 
+const NONE: readonly string[] = []
+
 /**
- * The chat with what is being sent after it. A send is over once the chat shows a message of
- * the user's, or a queued one, that it did not have before and that says the same.
+ * The chat with what the agent has not been given yet after it, as a message app shows what it
+ * has not delivered: what the chat has waiting for the agent, then what is being sent. A send
+ * is over once the chat shows a message of the user's, or a waiting one, that it did not have
+ * before and that says the same. `undelivered` is the ids of the messages that were added.
  */
 export function withSending(
   state: ChatState,
   sending: readonly Sending[],
   now: number,
-): { state: ChatState; left: readonly Sending[] } {
-  if (sending.length === 0) return { state, left: sending }
+): { state: ChatState; left: readonly Sending[]; undelivered: readonly string[] } {
+  // What the server itself has lined up for the agent's next turn was written by nobody here.
+  const waiting: ChatMessage[] = state.queued
+    .filter((input) => input.mode === "steer")
+    .map((input) => ({
+      id: `queued:${input.id}`,
+      role: "user",
+      parts: [{ type: "text", text: input.text }],
+      status: "done",
+    }))
+  if (sending.length === 0 && waiting.length === 0) {
+    return { state, left: sending, undelivered: NONE }
+  }
   const taken = new Set<string>()
   const left = sending.filter((send) => {
     const arrived =
@@ -173,17 +188,20 @@ export function withSending(
     }
     return send.acceptedAt === undefined || now - send.acceptedAt < GIVE_UP_MS
   })
-  if (left.length === 0) return { state, left: left.length === sending.length ? sending : left }
-  const ahead: ChatMessage[] = left.map((send) => ({
+  const kept = left.length === sending.length ? sending : left
+  if (left.length === 0 && waiting.length === 0) return { state, left: kept, undelivered: NONE }
+  const sent: ChatMessage[] = left.map((send) => ({
     id: send.id,
     role: "user",
     parts: [{ type: "text", text: send.text }],
     status: "done",
     createdAt: send.at,
   }))
+  const ahead = [...waiting, ...sent]
   return {
     // What was just said is about to be answered: the agent is shown at it from now.
     state: { ...state, messages: [...state.messages, ...ahead], busy: true },
-    left: left.length === sending.length ? sending : left,
+    left: kept,
+    undelivered: ahead.map((message) => message.id),
   }
 }

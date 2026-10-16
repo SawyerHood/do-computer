@@ -326,7 +326,7 @@ function asked(call: ToolCall): { title: string; detail: string } | undefined {
     return verb[action] === undefined ? undefined : { title: `${verb[action]} ${name}`, detail: "" }
   }
   if (call.name === "settings" && action === "set") {
-    const changes = ["model", "thinking", "when_busy", "timezone"].flatMap((key) =>
+    const changes = ["model", "thinking", "timezone"].flatMap((key) =>
       word(args[key]) === "" ? [] : [`${key.replace("_", " ")}: ${word(args[key])}`],
     )
     return { title: "Change its settings", detail: changes.join("\n") }

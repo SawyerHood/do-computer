@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatState, MessageImage, QueuedInput } from "@do-computer/protocol"
+import type { ChatMessage, ChatState, MessageImage } from "@do-computer/protocol"
 
 /**
  * A message the user has sent that the chat does not have yet. It is shown from the moment it
@@ -11,8 +11,8 @@ export type Sending = {
   images: MessageImage[]
   at: number
   /**
-   * The agent was at work when it was sent, so it is shown among what is waiting for the agent.
-   * Otherwise it is shown in the transcript, as what the agent is about to answer.
+   * The agent was at work when it was sent, so it joins that work once the step under way is
+   * over. Otherwise it is what the agent is about to answer.
    */
   waiting: boolean
   /** The messages and waiting inputs the chat already had. None of those is this one. */
@@ -45,14 +45,24 @@ const asMessage = (send: Sending): ChatMessage => ({
   createdAt: send.at,
 })
 
+const NOTHING = { messages: [], undelivered: [], arrived: [] } satisfies {
+  messages: ChatMessage[]
+  undelivered: string[]
+  arrived: string[]
+}
+
 /**
  * Set what is being sent against the chat as the server has it. The chat's copy of a message
  * has an id of the chat's own, so a message is known to have arrived by its words: it is the
  * first message of the user's with those words that was not there when it was sent.
  *
- * Returns the sends that are still on their way (the same list if none has arrived), those of
- * them to show as messages after the chat's own, what to show as waiting for the agent, and the
- * chat's own messages that have just taken a send's place.
+ * Returns the sends that are still on their way (the same list if none has arrived), what to
+ * show as messages after the chat's own, which of those the agent has not been given yet, and
+ * the chat's own messages that have just taken a send's place.
+ *
+ * What the agent has not been given yet is in the transcript all the same, as a message app
+ * shows what it has not delivered: the sends, and whatever else the chat has waiting for the
+ * agent, sent from somewhere else or before this page was opened.
  */
 export function settleSends(
   sending: readonly Sending[],
@@ -63,15 +73,14 @@ export function settleSends(
 ): {
   sending: readonly Sending[]
   messages: ChatMessage[]
-  queued: QueuedInput[]
+  /** The ids of those of `messages` that have not reached the agent. */
+  undelivered: string[]
   arrived: string[]
 } {
-  if (sending.length === 0) return { sending, messages: [], queued: state.queued, arrived: [] }
+  if (sending.length === 0 && state.queued.length === 0) return { sending, ...NOTHING }
   const taken = new Set<string>()
-  const stoodFor = new Set<string>()
   const next: Sending[] = []
   const messages: ChatMessage[] = []
-  const waiting: QueuedInput[] = []
   const arrivals: string[] = []
   let changed = false
   for (const send of sending) {
@@ -100,11 +109,8 @@ export function settleSends(
       taken.add(queued.id)
       if (send.queued !== true) changed = true
       next.push(send.queued === true ? send : { ...send, queued: true })
-      // Shown once: as the message it was sent as, or as the chat's own waiting input.
-      if (!send.waiting) {
-        stoodFor.add(queued.id)
-        messages.push(asMessage(send))
-      }
+      // Shown once, as the message it was sent as, and not also as the chat's waiting input.
+      messages.push(asMessage(send))
       continue
     }
     // It was waiting for the agent and no longer is. Taken up, it is a message of the chat's
@@ -118,16 +124,23 @@ export function settleSends(
       continue
     }
     next.push(send)
-    if (send.waiting) waiting.push({ id: `sending:${send.id}`, mode: "steer", text: send.text })
-    else messages.push(asMessage(send))
+    messages.push(asMessage(send))
   }
+  // What else waits for the agent was sent before any of these, so it comes before them. What
+  // the server itself has lined up for the agent's next turn was written by nobody here.
+  const others: ChatMessage[] = state.queued
+    .filter((input) => input.mode === "steer" && !taken.has(input.id))
+    .map((input) => ({
+      id: `queued:${input.id}`,
+      role: "user",
+      parts: [{ type: "text", text: input.text }],
+      status: "done",
+    }))
+  const shown = [...others, ...messages]
   return {
     sending: changed ? next : sending,
-    messages,
+    messages: shown,
+    undelivered: shown.map((message) => message.id),
     arrived: arrivals,
-    queued:
-      stoodFor.size === 0 && waiting.length === 0
-        ? state.queued
-        : [...state.queued.filter((input) => !stoodFor.has(input.id)), ...waiting],
   }
 }

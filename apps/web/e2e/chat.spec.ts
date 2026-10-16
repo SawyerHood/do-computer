@@ -12,6 +12,33 @@ import {
 
 asOwner()
 
+test("a message sent while the agent works is in the chat at once, and is marked once it is delivered", async ({
+  page,
+}) => {
+  await signIn(page)
+  await newChat(page)
+  await composer(page).fill('/tool bash {"command":"sleep 4; echo rested"}')
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("status")).toContainText("Running: sleep 4")
+
+  await composer(page).fill("and then say hello")
+  await page.keyboard.press("Enter")
+  // It is a message like any other, after the one before it, and not a note over the box.
+  const transcript = page.getByRole("log")
+  await expect(transcript.getByText("and then say hello", { exact: true })).toBeVisible()
+  // It has not reached the agent, which is in the middle of a step, and says so.
+  await expect(transcript.getByRole("img", { name: "Not delivered yet" })).toHaveCount(1)
+  if (process.env.DC_SHOTS) await page.screenshot({ path: `${process.env.DC_SHOTS}/1-sent.png` })
+
+  // The step over, the agent has it: the mark is a check, on the last message it was given.
+  await expect(transcript.getByRole("img", { name: "Delivered" })).toHaveCount(1)
+  await expect(transcript.getByRole("img", { name: "Not delivered yet" })).toHaveCount(0)
+  await expect(transcript.getByText("and then say hello", { exact: true })).toHaveCount(1)
+  await expect(page.getByRole("status")).toHaveCount(0)
+  if (process.env.DC_SHOTS)
+    await page.screenshot({ path: `${process.env.DC_SHOTS}/2-delivered.png` })
+})
+
 test("the agent uses its computer: one line says what it is doing, and only its answer stays", async ({
   page,
 }) => {

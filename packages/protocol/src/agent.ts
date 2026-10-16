@@ -463,8 +463,6 @@ export type SendMessageRequest = {
   images?: MessageImage[]
   /** Client-chosen id; resending the same one never submits twice. */
   requestId: string
-  /** What to do when the agent is already working. Default `steer`. */
-  whenBusy?: "steer" | "followUp"
   /** The sender's IANA timezone, so the agent can reason about "tomorrow at 9". */
   timezone?: string
   /** Where it was written, so the agent can tell which computer the sender is at. */

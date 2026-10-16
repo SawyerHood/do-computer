@@ -2,7 +2,6 @@ import {
   type LibraryFile,
   MAX_MESSAGE_IMAGES,
   type MessageImage,
-  type QueuedInput,
   randomId,
 } from "@do-computer/protocol"
 import { ArrowUpIcon, MicrophoneIcon, PaperclipIcon, StopIcon, XIcon } from "@phosphor-icons/react"
@@ -35,13 +34,12 @@ function pasted(file: File): File {
 /**
  * The message box: what is written across its whole width, and its buttons in a row underneath.
  * Enter sends, Shift+Enter adds a line. While the agent is working, sending steers the run and
- * the stop button aborts it.
+ * the stop button aborts it. What was sent is in the transcript from then on.
  */
 export function Composer({
   draftKey,
   placeholder,
   busy,
-  queued,
   onSend,
   error,
   onStop,
@@ -54,7 +52,6 @@ export function Composer({
   draftKey: string
   placeholder: string
   busy: boolean
-  queued: QueuedInput[]
   /** Resolves false when the message did not go, so it stays in the box. */
   onSend: (text: string, images: MessageImage[]) => Promise<boolean>
   /** Whether the agent's model can look at pictures. If not, they only reach it as files. */
@@ -180,19 +177,6 @@ export function Composer({
 
   return (
     <div className="mx-auto flex w-full max-w-[45rem] flex-col gap-2 px-4 pb-4">
-      {queued.length > 0 ? (
-        <div className="flex flex-col items-end gap-1">
-          {queued.map((item) => (
-            <div
-              key={item.id}
-              className="max-w-[80%] truncate rounded-2xl border border-dashed px-3 py-1.5 text-sm text-muted-foreground"
-              title="Will be read after the current step"
-            >
-              {item.text}
-            </div>
-          ))}
-        </div>
-      ) : null}
       <AttachedFiles
         files={attached}
         uploading={uploading}

@@ -1,4 +1,4 @@
-import { type MessageImage, type QueuedInput, randomId } from "@do-computer/protocol"
+import { type MessageImage, randomId } from "@do-computer/protocol"
 import { useRouter } from "expo-router"
 import { atom, useAtom, useSetAtom } from "jotai"
 import { useCallback, useMemo, useState } from "react"
@@ -66,7 +66,7 @@ const UNDER = 4
  * written in, the words have its whole width and the buttons are in a row under them: "+" and
  * what the agent thinks with on the left, and on the right the microphone, or the send button
  * once there is something to send. Stop is beside the microphone while the agent works. What
- * is sent while the agent works steers it or waits, as the agent is set to. A picture that was
+ * is sent while the agent works steers it, and is in the chat from then on. A picture that was
  * copied is pasted into the box as words are, and is attached.
  */
 export function Composer({
@@ -75,8 +75,6 @@ export function Composer({
   placeholder,
   accent,
   busy,
-  queued,
-  waits,
   onSend,
   error,
   onStop,
@@ -90,9 +88,6 @@ export function Composer({
   placeholder: string
   accent: Accent
   busy: boolean
-  queued: readonly QueuedInput[]
-  /** The agent finishes what it is doing before it reads a new message, and is not steered by it. */
-  waits: boolean
   /** Resolves false when the message did not go, so it stays in the box. */
   onSend: (text: string, images: MessageImage[]) => Promise<boolean>
   /** Why the last message was not sent, if it was not. */
@@ -242,30 +237,11 @@ export function Composer({
 
   return (
     <View style={{ gap: 6 }}>
-      {queued.length > 0 ? (
-        <View
-          accessibilityLabel="Will be read after the current step"
-          style={{ gap: 3, paddingHorizontal: 6 }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Icon name="clock" size={12} color={theme.ink2} />
-            <Text variant="caption" tone="ink2">
-              Will be read after the current step
-            </Text>
-          </View>
-          {queued.map((item) => (
-            <Text key={item.id} variant="footnote" tone="ink2" numberOfLines={2}>
-              {item.text}
-            </Text>
-          ))}
-        </View>
-      ) : busy && ready ? (
+      {busy && ready ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 6 }}>
           <Icon name="clock" size={12} color={theme.ink2} />
           <Text variant="caption" tone="ink2">
-            {waits
-              ? `${agentName} reads this once it has finished`
-              : `${agentName} reads this after the step it is on`}
+            {agentName} reads this after the step it is on
           </Text>
         </View>
       ) : null}

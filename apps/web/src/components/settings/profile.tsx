@@ -32,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -348,38 +347,6 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
           Delete Dood…
         </Button>
       )}
-    </Section>
-  )
-}
-
-/**
- * What a message does that arrives while the agent is working. Saved as it is chosen, apart from
- * the form above: it is about how the agent is used, not who it is.
- */
-function WhenBusy({ agentId, state }: { agentId: string; state: AgentState }) {
-  const save = useMutation({
-    mutationFn: (whenBusy: "steer" | "queue") => client.agent(agentId).update({ whenBusy }),
-    onSuccess: (next) => queryClient.setQueryData(agentKey(agentId), next),
-  })
-  const chosen = save.isPending ? save.variables : (state.whenBusy ?? "steer")
-  return (
-    <Section
-      title="When a message arrives while it is working"
-      hint="It takes the new message into what it is doing, as a correction would be. It can be made to finish first instead."
-    >
-      <Label className="font-normal">
-        <Switch
-          checked={chosen === "queue"}
-          disabled={save.isPending}
-          onCheckedChange={(next) => save.mutate(next ? "queue" : "steer")}
-        />
-        Wait until it has finished
-      </Label>
-      {save.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {save.error.message}
-        </p>
-      ) : null}
     </Section>
   )
 }
@@ -894,7 +861,6 @@ export function ProfileSettings({
         </Section>
 
         <Computers agentId={agentId} />
-        <WhenBusy agentId={agentId} state={state} />
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}
       {typed || dirty ? (

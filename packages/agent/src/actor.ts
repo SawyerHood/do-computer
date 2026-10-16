@@ -498,10 +498,6 @@ function eventStream(
   return new Response(stream, { headers: SSE_HEADERS })
 }
 
-/** What a message does that arrives while the agent is working, where the sender did not say. */
-const whenBusyOf = (identity: Readonly<IdentityState>): "steer" | "queue" =>
-  identity.whenBusy ?? "steer"
-
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
   // Where a side chat branched off is the agent's to know, not a client's. Left in, it would
   // also be a part of the document still being written, which cannot be read once it is stored.
@@ -1196,7 +1192,6 @@ export class AgentActor implements Actor {
             return {
               model: identity.model,
               thinking: identity.thinking ?? DEFAULT_THINKING,
-              whenBusy: whenBusyOf(identity),
               timezone: identity.timezone ?? null,
             }
           },
@@ -2349,7 +2344,6 @@ export class AgentActor implements Actor {
       ownerId: identity.ownerId,
       // The team that shares it, by name, or null for one person's.
       team: identity.team ?? null,
-      whenBusy: whenBusyOf(identity),
       soul: identity.soul,
       user: identity.user,
       memory: identity.memory,
@@ -2606,10 +2600,6 @@ export class AgentActor implements Actor {
     if (timezone !== undefined && !isValidTimezone(timezone)) {
       throw new HttpError(400, `"${timezone}" is not an IANA timezone`)
     }
-    const whenBusy = text("whenBusy", 10)
-    if (whenBusy !== undefined && whenBusy !== "steer" && whenBusy !== "queue") {
-      throw new HttpError(400, "whenBusy must be steer or queue")
-    }
     // The voice it has on a call. Which voices there are depends on what places the call, so
     // any short name is kept, and one that call cannot speak in is passed over when it is made.
     const voice = input.voice === null ? null : text("voice", 40)?.trim().toLowerCase()
@@ -2639,7 +2629,6 @@ export class AgentActor implements Actor {
       // Hatching happens once. There is no putting it back in the egg.
       if (input.hatched === true) identity.hatchedAt ??= now
       if (timezone !== undefined) identity.timezone = timezone
-      if (whenBusy !== undefined) identity.whenBusy = whenBusy
       if (voice === null) delete identity.voice
       else if (voice !== undefined) identity.voice = voice
       // Chats pick this up on their next message.
@@ -2951,13 +2940,8 @@ export class AgentActor implements Actor {
           ...(spoken === undefined ? [] : [{ type: "text" as const, text: spoken }]),
         ],
         requestId: input.requestId,
-        // What the sender asked for, else what the agent is set to do with a message that
-        // arrives while it is working.
-        whenBusy:
-          input.whenBusy === "followUp" ||
-          (input.whenBusy === undefined && whenBusyOf(identity) === "queue")
-            ? "followUp"
-            : "steer",
+        // A message that arrives while the agent is working always joins what it is doing.
+        whenBusy: "steer",
       },
       context,
     )

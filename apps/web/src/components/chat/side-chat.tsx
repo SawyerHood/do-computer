@@ -118,7 +118,10 @@ export function SideChat({
   /** The chat it is beside. */
   mainId: string
 }) {
-  const { live, state, earlier, send, sendError, retry, stop, attach } = useChat(agent.id, chat.id)
+  const { live, state, undelivered, earlier, send, sendError, retry, stop, attach } = useChat(
+    agent.id,
+    chat.id,
+  )
   const width = useAtomValue(sideChatColumn.width)
   const beside = useBeside<HTMLElement>()
   const archive = useArchiveSideChat(agent.id, mainId)
@@ -190,6 +193,7 @@ export function SideChat({
           <TeamContext value={teamContext}>
             <Transcript
               state={state}
+              undelivered={undelivered}
               chatId={chat.id}
               onRetry={retry}
               empty={
@@ -221,7 +225,6 @@ export function SideChat({
         draftKey={chatKey(agent.id, chat.id)}
         placeholder={`Message ${name} in this side chat`}
         busy={live.state.busy}
-        queued={state.queued}
         onSend={send}
         error={sendError}
         onStop={stop}
