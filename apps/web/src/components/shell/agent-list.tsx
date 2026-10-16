@@ -262,7 +262,6 @@ function Section({
   onNavigate?: (() => void) | undefined
 }) {
   const rail = narrow === "rail"
-  const well = rail && named
   const { open: openSettings } = useSettings()
   const team = workspace.kind === "team"
   // Who is where is only known for the team that is on screen.
@@ -316,22 +315,18 @@ function Section({
     <section
       aria-label={named ? workspace.name : "Doods"}
       data-current={current ? "" : undefined}
-      className={cn(
-        "flex shrink-0 flex-col gap-0.5",
-        // As faces, where there are several workspaces, each is a well its faces are in, with
-        // its mark on the well's top edge.
-        well
-          ? "relative mt-5 min-h-7 rounded-2xl bg-foreground/5 pt-3.5 pb-0.5 first:mt-4"
-          : "not-first:mt-2",
-      )}
+      className="flex shrink-0 flex-col gap-0.5 not-first:mt-2"
     >
       {rail ? (
         // Only what fits over a face: the workspace's mark, which folds it, where there are
-        // several to tell apart, and otherwise the way to a new Dood.
+        // several to tell apart, and otherwise the way to a new Dood. The mark is in the middle
+        // of a line across the column, which is all that parts one workspace's faces from the
+        // next's.
         <div
           className={cn(
-            "flex items-center justify-center [--face-ring:var(--frame)]",
-            well ? "absolute inset-x-0 -top-3 h-6" : "h-9",
+            "flex h-9 items-center justify-center [--face-ring:var(--frame)]",
+            named &&
+              "-mx-1 gap-0.5 before:h-px before:flex-1 before:bg-hairline after:h-px after:flex-1 after:bg-hairline",
           )}
         >
           {named ? (
@@ -343,8 +338,7 @@ function Section({
               onClick={onFold}
               className="relative rounded-md p-0.5 outline-none hover:brightness-95 focus-visible:ring-3 focus-visible:ring-ring/40"
             >
-              {/* Ringed in the sidebar's own color, which cuts it out of the well's edge. */}
-              <WorkspaceMark workspace={workspace} me={me} className="size-5 ring-2 ring-frame" />
+              <WorkspaceMark workspace={workspace} me={me} className="size-5" />
               {folded && wanted ? (
                 <span
                   role="img"
