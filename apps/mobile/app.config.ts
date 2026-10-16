@@ -21,7 +21,8 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: "computer.do.app",
     infoPlist: {
-      NSMicrophoneUsageDescription: "Used to dictate messages to your Dood.",
+      NSMicrophoneUsageDescription:
+        "Used to dictate messages to your Dood and to talk with it on a call.",
       ITSAppUsesNonExemptEncryption: false,
     },
   },
@@ -38,7 +39,13 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     "expo-secure-store",
-    ["expo-audio", { microphonePermission: "Used to dictate messages to your Dood." }],
+    [
+      "expo-audio",
+      {
+        microphonePermission:
+          "Used to dictate messages to your Dood and to talk with it on a call.",
+      },
+    ],
     "expo-notifications",
     "expo-sharing",
     // The scene lifecycle that the iOS 27 SDK asks every app for.

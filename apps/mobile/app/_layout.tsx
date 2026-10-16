@@ -6,6 +6,7 @@ import { useMemo } from "react"
 import { LogBox } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { KeyboardProvider } from "react-native-keyboard-controller"
+import { LineHost } from "@/call/line-host"
 import { configureNotifications } from "@/lib/push"
 import { useTheme } from "@/lib/theme"
 // Importing this applies the look that was chosen under General, if one was.
@@ -52,6 +53,8 @@ export default function RootLayout() {
               <Stack.Screen name="welcome" options={{ animation: "fade", gestureEnabled: false }} />
               <Stack.Screen name="(app)" options={{ animation: "fade" }} />
             </Stack>
+            {/* Where the sound of a call is carried, out of sight, whichever screen is in front. */}
+            <LineHost />
           </ThemeProvider>
         </QueryClientProvider>
       </KeyboardProvider>

@@ -4,7 +4,8 @@
 width: your Doods under their workspaces, each with a main chat and side chats, and its own
 page (profile, memory, model and computers, skills, connectors, permissions, usage). There is
 the creature's wardrobe with its treats and boxes, the library with a viewer and sharing by
-link, automations, approval requests, dictation and push notifications. A reply is drawn as on
+link, automations, approval requests, dictation, push notifications, and calling a Dood out
+loud where the deployment offers calls ([calls](calls.md)). A reply is drawn as on
 the web: code in its colors, tables that copy, notes, sections that fold, diagrams, pages the
 Dood drew and a connector's own page for a tool. The message box is one line
 until it is written in, and then has the Dood's model and how hard it thinks under the words.
@@ -23,7 +24,9 @@ pnpm mobile              # Expo dev server; open in a development build
 
 It is still built from source. It is made for iOS 26: Liquid Glass, and the system's own bars,
 menus and sheets. Elsewhere those are plain stand-ins. Push notifications, the microphone and
-coming back from GitHub or Google need a development build, not Expo Go. The screens are
+coming back from GitHub or Google need a development build, not Expo Go. A call's sound is
+carried by the system's web view, which builds already have; it has not yet been heard on a
+phone. The screens are
 tested through the web build (`apps/web/e2e/mobile.spec.ts`) and have been run in an iOS
 simulator; they have not yet been run on a physical phone or on Android from this repository. The Dood's creature is
 drawn with `expo-gl`: on a device that cannot run it, a still picture is shown instead.

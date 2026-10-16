@@ -7000,8 +7000,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       one (the test used the Codex client's, put in as the server's); Safari, Firefox, a
       phone's browser; the desktop app; how it sounds, which nothing here could hear; a real
       person talking over it; a long call; two people in a team.
-    - **Not built:** calling from the phone app, which shows a call's record and cannot start
-      one; a person's own sign-in, a level the app does not have (the owner agreed it comes
+    - **Not built:** calling from the phone app, which came after as its own change (item 95);
+      a person's own sign-in, a level the app does not have (the owner agreed it comes
       after, as its own change); the voice being told how work is going that it did not hand
       on, or what is typed during a call; the server cutting a call off itself (the browser
       hangs up at the limit and the server's count stops there); the whole-window layout; the
@@ -7353,6 +7353,65 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       tests run on Node's). The browser loads the order with the list and not before it, so a
       page shows its Doods latest-first for as long as the order takes to come, which is one
       read of the database and is usually there before the list.
+95. **A Dood can be called from the phone app** (2026-10-16; `packages/client/src/call.ts`,
+    `call-events.ts`, `call-said.ts`, `call-script.ts`, `apps/web/src/lib/call.ts`,
+    `apps/mobile/src/call/`, `apps/mobile/app/(app)/a/[agentId]/call.tsx`,
+    `apps/mobile/src/chat/screen.tsx`, `apps/web/e2e/mobile.spec.ts`). The owner asked for the
+    calls of item 91 in the phone app, laid out as an iOS screen and not as a copy of the web
+    panel.
+    - **What it does.** A phone in a chat's bar calls the Dood wherever the web app has its
+      call button: a chat that is the reader's to write in, a Dood that has hatched, and the
+      server's `GET /calls` saying this person may call it. The call is a sheet over
+      everything, in the Dood's color: its creature talking and listening, the clock, what is
+      being said, each thing handed on with the step the Dood is on, and Mute, End and Chat.
+      Swiped down or left with Chat, the call goes on, and a bar over every chat says so and
+      leads back. When it ends, the chat says it is being written up until its record arrives,
+      and the record is the one the phone already showed. The screen is kept on while a call
+      is (`expo-keep-awake`, which every build already has through `expo`).
+    - **One call, two devices.** What a call does (the voice's events, what was said, handing
+      on, following the call's chat for the answer, the limits, ending) moved out of the web
+      app into `@do-computer/client` as `createCaller`, with the event readers and what-was-said
+      beside it and their tests. The web app hands it the browser's WebRTC, its own chat
+      streams and its desktop origin, and keeps its atoms and screens as they were; the phone
+      hands it a line of its own, its client's chat streams and `messageOrigin`.
+    - **How the sound is carried on a phone.** React Native has no WebRTC, and the system's
+      web view does. The phone runs one small page (`line-page.ts`) in a `react-native-webview`
+      no one sees (`line-host.tsx`), which takes the microphone, makes the offer, opens the
+      `oai-events` channel and plays the voice; the app places the call with the offer through
+      its own signed-in client, so the page never sees the server or the session. The page's
+      address is the deployment's, which is what makes it a secure one that may have a
+      microphone. The browser build runs the same page in a frame (`line-host.web.tsx`). This
+      was chosen over `react-native-webrtc` because the web view is already in every build:
+      no new native module, no config plugin, no new build. The microphone's words in
+      `app.config.ts` now name calls as well, which shows from the next build; until then the
+      old words are asked with.
+    - **Mine:** the web view over a native WebRTC module; the sheet and its three buttons
+      (Chat where the web has "Hide words"); a bar over chats in place of the web's corner
+      card and live card in the transcript; that a call's problem is said on its sheet and in
+      that bar; keeping the screen on; moving the call into `@do-computer/client`.
+    - **Checked:** `pnpm check`; the client's tests, eight of them new (`test/call.test.ts`: a
+      call with a stand-in server and voice through connecting, listening, words kept once,
+      handing on, a step, the answer given to the voice, mute, a refused microphone, a lost
+      line, one call at a time, a script, a device that goes away); the phone app's tests, five
+      new (`test/call-line.test.ts`: the app's side of the page); `calls.spec.ts` against the
+      moved code; and three new tests in `mobile.spec.ts` through the phone app's browser build
+      against the built Node server: a scripted call from the chat's bar through calling,
+      handed on, answered, muted, back to the chat and back, ended, and its record; no button
+      where the server offers no call; and the page that carries the sound run in Chromium in
+      a frame, with a second connection in the test as the voice, making an offer with sound
+      and the channel, passing events both ways, and being muted and closed.
+    - **Not checked:** anything on an iPhone or in iOS's web view: there was no Mac. Whether
+      WKWebView gives the hidden page the microphone without asking again
+      (`mediaCapturePermissionGrantType`), plays the voice out loud and not at the earpiece,
+      measures loudness, and gets along with dictation's audio settings were never run. A real
+      voice on a phone; Android; WebKit at all (the test machine's WebKit would not start).
+    - **Not built:** a call that goes on with the phone locked or the app in the background
+      (a web view is stopped there, and nothing asks iOS for background audio); a speaker
+      button; the call in the Dynamic Island or on the lock screen (CallKit); hiding the words;
+      a way back to a call from outside a chat (the Doods list, settings); a link from the
+      record to the call's side chat. If WKWebView's page turns out not to do, the fallback is
+      `react-native-webrtc` with its config plugin behind the same `OpenVoiceLine`, which needs
+      a new build.
 
 ## 6. What the owner has said they want
 

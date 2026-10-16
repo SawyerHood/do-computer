@@ -16,6 +16,18 @@ export const ICONS = {
     "mic",
     '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.500a6.5 6.5 0 0 0 13 0M12 18v3"/>',
   ],
+  micSlash: [
+    "mic.slash",
+    '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.500a6.5 6.5 0 0 0 13 0M12 18v3M4 4l16 16"/>',
+  ],
+  phone: [
+    "phone.fill",
+    '<path d="M6.6 3.5h2.600l1.400 4.200-2 1.500a11 11 0 0 0 6.200 6.200l1.500-2 4.200 1.400v2.600A2 2 0 0 1 18.500 19.500 15 15 0 0 1 4.500 5.500a2 2 0 0 1 2.100-2z" fill="currentColor"/>',
+  ],
+  phoneDown: [
+    "phone.down.fill",
+    '<path d="M3.2 13.800c4.800-4.400 12.800-4.400 17.600 0l-1.900 2.700-3.800-1.300v-2.500a12 12 0 0 0-6.200 0v2.500l-3.800 1.300z" fill="currentColor"/>',
+  ],
   arrowUp: ["arrow.up", '<path d="M12 19V5M6 11l6-6 6 6"/>'],
   stop: [
     "stop.fill",
