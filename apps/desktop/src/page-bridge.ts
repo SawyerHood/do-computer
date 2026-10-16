@@ -38,9 +38,17 @@ export type PageInfo = {
    * no account to sign in to: `signInHere` says who they are.
    */
   local: boolean
+  /**
+   * `inset` where the window has no title bar: the page runs to the top of the window, with
+   * the window's three buttons over its top left corner, and says what the window is dragged
+   * by. Absent where the window has a title bar, and in full screen.
+   */
+  titleBar?: "inset"
 }
 
 export type DesktopBridge = PageInfo & {
+  /** Told whenever the window's title bar is another: `inset`, or null where there is one. */
+  onTitleBar(listener: (titleBar: "inset" | null) => void): void
   /**
    * Sign in through the owner's own browser, where they are at home: the app opens it on
    * `/desktop/sign-in`, and resolves once whoever is signed in there has agreed. The token is
@@ -94,6 +102,7 @@ export const CHANNELS = {
   icon: "page-icon",
   signInHere: "page-sign-in-here",
   pairedAs: "page-paired-as",
+  titleBar: "page-title-bar",
 } as const
 
 /**

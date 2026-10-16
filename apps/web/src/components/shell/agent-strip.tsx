@@ -294,8 +294,12 @@ export function AgentStrip({
 
   return (
     <header
+      // With no title bar the window is dragged by it, and where the sidebar is out of sight
+      // it starts past the window's buttons.
+      data-title-drag=""
+      data-agent-strip=""
       // A line under it only while a page's bar is in it: the name alone floats over the page.
-      className="relative z-20 grid h-13 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-hairline pl-2.5 data-bar:border-b has-[[data-strip-slot]:not(:empty)]:border-b"
+      className="relative z-20 grid h-13 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-hairline pl-2.5 inset:max-md:pl-20 data-bar:border-b has-[[data-strip-slot]:not(:empty)]:border-b"
       // The library's row is a bar, whether or not a file is open to fill it.
       data-bar={page === "library" ? "" : undefined}
       style={{ paddingRight: `calc(0.5rem + ${taken})` }}

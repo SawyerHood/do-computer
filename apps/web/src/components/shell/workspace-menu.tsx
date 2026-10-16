@@ -22,11 +22,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { agentOrderAtom } from "@/lib/atoms"
 import { useSettings } from "@/lib/settings"
+import { cn } from "@/lib/utils"
 import { useWorkspaces } from "@/lib/workspaces"
 
 type Me = { id: string; name: string; image?: string | null }
 
-/** A workspace's mark: a team's tile, or for a personal one its owner's face. */
+/** A workspace's mark: a team's tile, or for a personal one its owner's face, cut as a tile. */
 export function WorkspaceMark({
   workspace,
   me,
@@ -40,7 +41,8 @@ export function WorkspaceMark({
     <PersonFace
       person={{ id: me.id, name: me.name, image: me.image ?? null }}
       title=""
-      className={className}
+      // The shape of a team's tile, so that a mark is told from a face by its shape.
+      className={cn("rounded-[30%] *:rounded-[30%]", className)}
     />
   ) : (
     <WorkspaceTile workspace={workspace} className={className} />

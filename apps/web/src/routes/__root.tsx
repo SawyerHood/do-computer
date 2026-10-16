@@ -5,6 +5,7 @@ import { FRAME_INIT_SCRIPT } from "@/components/shell/app-skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { WelcomeHost } from "@/components/welcome/host"
 import { BOOT_GUARD_SCRIPT, started } from "@/lib/boot"
+import { TITLE_BAR_INIT_SCRIPT } from "@/lib/desktop"
 import { queryClient } from "@/lib/query"
 import { THEME_INIT_SCRIPT } from "@/lib/theme"
 import appCss from "../styles.css?url"
@@ -19,6 +20,8 @@ export const Route = createRootRoute({
       { name: "application-name", content: "Do Computer" },
       { name: "apple-mobile-web-app-title", content: "Do Computer" },
       { name: "mobile-web-app-capable", content: "yes" },
+      // Read by the desktop app: these pages can be shown in a window with no title bar.
+      { name: "do-computer-title-bar", content: "inset" },
       { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#121415" },
       { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#f8fbfb" },
     ],
@@ -47,12 +50,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `${THEME_INIT_SCRIPT};${FRAME_INIT_SCRIPT};${BOOT_GUARD_SCRIPT}`,
+            __html: `${THEME_INIT_SCRIPT};${FRAME_INIT_SCRIPT};${TITLE_BAR_INIT_SCRIPT};${BOOT_GUARD_SCRIPT}`,
           }}
         />
         <HeadContent />
       </head>
       <body className="h-dvh overflow-hidden">
+        {/* In the desktop app's window with no title bar: what the window is dragged by. */}
+        <div
+          aria-hidden
+          data-title-drag=""
+          className="fixed inset-x-0 top-0 hidden h-7 inset:block"
+        />
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             {children}

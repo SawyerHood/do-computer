@@ -18,6 +18,7 @@ import {
 } from "@/lib/atoms"
 import { agentsCollection } from "@/lib/collections"
 import { sidebarColumn } from "@/lib/columns"
+import { cn } from "@/lib/utils"
 import { usePull } from "@/lib/use-swipe"
 import { useMedia } from "@/lib/use-wide"
 import { accentChanged } from "@/lib/visual-theme"
@@ -242,7 +243,11 @@ export function AppShell({
           ) : null}
         </aside>
       ) : (
-        <aside className="relative shrink-0" style={{ width: sidebarOpen ? sidebarWidth : FACES }}>
+        <aside
+          // As faces it is wider under a window with no title bar, whose buttons lie over it.
+          className={cn("relative shrink-0", !sidebarOpen && "w-14 inset:w-19")}
+          style={sidebarOpen ? { width: sidebarWidth } : undefined}
+        >
           <Sidebar
             workspace={workspace}
             settled={settled}
@@ -266,7 +271,10 @@ export function AppShell({
       <main className="relative flex w-full shrink-0 flex-col overflow-hidden bg-background md:w-auto md:min-w-0 md:flex-1 md:shrink md:border-l md:border-hairline">
         {agentId === undefined ? (
           // A workspace with no agent open has nothing to say above its page but its name.
-          <header className="flex h-13 shrink-0 items-center gap-1.5 px-2.5 md:px-3">
+          <header
+            data-title-drag=""
+            className="flex h-13 shrink-0 items-center gap-1.5 px-2.5 inset:max-md:pl-20 md:px-3"
+          >
             {beside ? null : <DoodsButton meId={me.user.id} onClick={() => pulled.settle(true)} />}
             <span className="truncate px-1 text-[0.9375rem] font-semibold">
               {settled ? workspace.name : null}

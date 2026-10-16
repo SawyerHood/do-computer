@@ -56,77 +56,85 @@ export function AgentPanelPlaceholder({
   )
 }
 
+/** The user's own face and name at the foot of the sidebar, or the face alone. */
+function AccountPlaceholder({ named = false }: { named?: boolean }) {
+  return (
+    <div className="p-1.5">
+      <div className="flex items-center gap-2.5 px-2 py-1.5">
+        <Skeleton className="size-7 shrink-0 rounded-full" />
+        {named ? <Skeleton className="h-3 w-16 rounded-full" /> : null}
+      </div>
+    </div>
+  )
+}
+
 /**
  * The frame of the app with nothing in it yet: what is on screen from the moment the page
  * arrives until who is signed in, and what they have, is known. It is in the page as it is sent,
- * so it is there before the app's own code has run. Everything in it is where the app puts it.
+ * so it is there before the app's own code has run. Everything in it is where the app puts it:
+ * the sidebar as it was left, as faces or opened out, and the page flat against it with the
+ * Dood's name floating over its chat.
  */
 export function AppSkeleton() {
   const page = useLocation({ select: (location) => location.pathname.split("/").at(-1) })
   const chat = page !== "library" && page !== "automations" && page !== "pair"
   return (
-    <div data-loading aria-busy="true" aria-label="Loading" className="flex h-full min-h-0">
+    <div
+      data-loading
+      aria-busy="true"
+      aria-label="Loading"
+      className="flex h-full min-h-0 bg-frame"
+    >
+      {/* Opened out. In a window with no title bar, all that is over the list is its buttons. */}
       <aside
-        className="hidden shrink-0 flex-col md:[[data-sidebar=open]_&]:flex"
+        className="hidden shrink-0 flex-col inset:pl-2.5 md:[[data-sidebar=open]_&]:flex"
         style={{ width: "var(--kept-sidebar, 288px)" }}
       >
-        <div className="flex h-8 items-center gap-2 px-2 pt-2.5 pb-0.5 box-content">
-          <img src="/icon-192.png" alt="" className="size-6 shrink-0 rounded-md" />
+        <div className="hidden h-10 shrink-0 inset:block" />
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-0.5 inset:hidden">
+          <img src="/icon-192.png" alt="" className="m-1 size-6 shrink-0 rounded-md" />
           <span className="text-sm font-semibold">Do Computer</span>
         </div>
-        <div className="flex h-9 items-center px-2">
+        <div className="flex h-9 items-center px-2.5">
           <h2 className="text-[0.8125rem] font-medium text-muted-foreground">Doods</h2>
         </div>
-        <div className="flex-1 px-2">
-          <AgentRowsPlaceholder now />
+        <div className="flex-1 px-1">
+          <AgentRowsPlaceholder now narrow="open" />
         </div>
-        <div className="flex items-center gap-2.5 border-t px-4 py-3.5">
-          <Skeleton className="size-7 rounded-full" />
-          <Skeleton className="h-3 w-16 rounded-full" />
-        </div>
+        <AccountPlaceholder named />
       </aside>
-      {/* On a narrow screen the sidebar is a column of faces, and is always there. */}
-      <aside className="flex w-14 shrink-0 flex-col md:hidden">
-        <div className="flex items-center px-3 pt-2.5 pb-0.5">
+      {/* As a column of faces, which is how it starts. On a narrow screen it is out of sight. */}
+      <aside className="hidden w-14 shrink-0 flex-col inset:w-19 inset:px-2.5 md:flex md:[[data-sidebar=open]_&]:hidden">
+        <div className="hidden h-10 shrink-0 inset:block" />
+        <div className="flex items-center px-3 pt-2.5 pb-0.5 inset:hidden">
           <img src="/icon-192.png" alt="" className="m-1 size-6 shrink-0 rounded-md" />
         </div>
         <div className="h-9" />
         <div className="flex-1 px-1">
           <AgentRowsPlaceholder now narrow="rail" />
         </div>
-        <div className="p-1.5">
-          <Skeleton className="mx-2 my-1.5 size-7 rounded-full" />
-        </div>
+        <AccountPlaceholder />
       </aside>
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-x-1.5 border-b px-2.5 md:h-13 md:px-3">
-          {/* Where the button that shows the sidebar is, while the sidebar is hidden. */}
-          <span className="hidden size-8 md:block md:[[data-sidebar=open]_&]:hidden" />
-          <div className="flex h-full items-center gap-2 py-1 pr-2 pl-1">
+      <main className="flex min-w-0 flex-1 flex-col bg-background md:border-l md:border-hairline">
+        {/* The Dood's name, over the middle of the page. */}
+        <header className="flex h-13 shrink-0 items-center justify-center">
+          <div className="flex items-center gap-2 rounded-full bg-popover py-1 pr-3 pl-1 shadow-raised">
             <Skeleton className="size-7 rounded-full" />
             <Skeleton className="h-3 w-20 rounded-full" />
           </div>
-          <nav
-            aria-hidden
-            className="hidden h-full items-stretch text-sm font-medium text-muted-foreground/60 md:ml-1.5 md:flex"
-          >
-            <span className="flex items-center px-2.5">Chat</span>
-            <span className="flex items-center px-2.5">Library</span>
-            <span className="flex items-center px-2.5">Automations</span>
-          </nav>
         </header>
         <div className="relative flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden">
               {chat ? (
-                <TranscriptPlaceholder now className="mx-auto w-full max-w-3xl px-4 pb-6" />
+                <TranscriptPlaceholder now className="mx-auto w-full max-w-[45rem] px-4 pb-6" />
               ) : null}
             </div>
             {chat ? <ComposerPlaceholder /> : null}
           </div>
           <AgentPanelPlaceholder
             width="var(--kept-panel, 320px)"
-            className="hidden xl:flex [[data-panel=closed]_&]:hidden"
+            className="hidden xl:[[data-panel=open]_&]:flex"
           />
         </div>
       </main>
