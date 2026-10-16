@@ -40,6 +40,8 @@ export function webSearchExtension(options: WebSearchOptions): Extension {
   const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const tool = defineTool({
     name: "web_search",
+    // It changes nothing, so a search that a restart cut off is made again.
+    replay: "safe",
     description:
       "Search the web and get an answer with its sources. Use it for anything current or anything you are not sure of: news, prices, opening hours, documentation, facts that change. Ask a full question, not keywords, and search again with a narrower question if the answer is thin.",
     parameters: Type.Object({

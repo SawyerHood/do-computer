@@ -489,6 +489,49 @@ describe("agent actor", () => {
     })
   })
 
+  it("makes one chat for a request however often it is sent", async () => {
+    const world = open(temporary())
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    const main = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const count = async () =>
+      (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) => !chat.main).length
+
+    // Nothing has been answered in the main chat, so there is nothing to branch off: new chats.
+    const first = await call<ChatSummary>(world, "/chats", "POST", { requestId: "one" })
+    expect(first).not.toHaveProperty("request")
+    expect(await call<ChatSummary>(world, "/chats", "POST", { requestId: "one" })).toEqual(first)
+    expect(await count()).toBe(1)
+    const twice = await Promise.all([
+      call<ChatSummary>(world, "/chats", "POST", { requestId: "two" }),
+      call<ChatSummary>(world, "/chats", "POST", { requestId: "two" }),
+    ])
+    expect(twice[0].id).toBe(twice[1].id)
+    expect(twice[0].id).not.toBe(first.id)
+    expect(await count()).toBe(2)
+
+    // With an answer in the main chat a side chat branches off it, and the same holds.
+    world.faux.setResponses([fauxAssistantMessage("Hello.")])
+    await send(world, main.id, "hello")
+    await follow(world, main.id, answered(1))
+    const branched = await Promise.all([
+      call<ChatSummary>(world, "/chats", "POST", { requestId: "three" }),
+      call<ChatSummary>(world, "/chats", "POST", { requestId: "three" }),
+      call<ChatSummary>(world, "/chats", "POST", { requestId: "three" }),
+    ])
+    expect(new Set(branched.map((chat) => chat.id)).size).toBe(1)
+    expect(await call<ChatSummary>(world, "/chats", "POST", { requestId: "three" })).toEqual(
+      branched[0],
+    )
+    expect(await count()).toBe(3)
+    expect(world.reports).toEqual([])
+
+    // One with no id is a chat of its own each time, as it always was.
+    await call(world, "/chats", "POST", {})
+    await call(world, "/chats", "POST", {})
+    expect(await count()).toBe(5)
+    await expect(call(world, "/chats", "POST", { requestId: "" })).rejects.toThrow("400")
+  })
+
   it("has one main chat, which a new agent is given and which cannot be put away", async () => {
     const world = open(temporary())
     await call(world, "/init", "POST", { ownerId: "user-1" })

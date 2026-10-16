@@ -81,6 +81,7 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import {
   ChatsDoc,
   type ChatRecord,
+  type ChatsState,
   DEFAULT_CHAT_TITLE,
   CreatureDoc,
   IdentityDoc,
@@ -150,6 +151,7 @@ import { vault } from "./vault.ts"
 import { SubagentError, Subagents } from "./subagents.ts"
 import { webSearchExtension, type WebSearchOptions } from "./web-search.ts"
 import { isInherited, own } from "./own.ts"
+import { liveWork } from "./live.ts"
 
 const context = BACKGROUND_CONTEXT
 
@@ -498,10 +500,29 @@ function eventStream(
   return new Response(stream, { headers: SSE_HEADERS })
 }
 
+/** A chat was already made for the request another is being made for. */
+class ChatMade extends Error {
+  constructor(readonly chatId: string) {
+    super(`Chat ${chatId} was already made for this request`)
+  }
+}
+
+/**
+ * Refuses, inside the commit that makes a chat, to make a second one for a request that has
+ * one. Asked there, it holds however many of the same request arrive at once.
+ */
+function refuseSecond(chats: ChatsState["chats"], requestId: string | undefined): void {
+  if (requestId === undefined) return
+  for (const [id, chat] of Object.entries(chats)) {
+    if (chat.request === requestId) throw new ChatMade(id)
+  }
+}
+
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
   // Where a side chat branched off is the agent's to know, not a client's. Left in, it would
   // also be a part of the document still being written, which cannot be read once it is stored.
-  const { subagent, peer, slack, fork: _fork, ...chat } = record
+  // What its making was asked under is between the agent and whoever asked.
+  const { subagent, peer, slack, fork: _fork, request: _request, ...chat } = record
   return {
     id,
     ...chat,
@@ -572,6 +593,8 @@ export class AgentActor implements Actor {
   #harness: Promise<Harness> | undefined
   /** When the agent next wakes itself to keep live work going, while that is still to come. */
   #wake: number | undefined
+  /** The tasks that were reported as ones this deployment cannot run, so each is reported once. */
+  readonly #blockedTold = new Set<string>()
   /** The address the app was last reached at, as its gateway said. */
   #origin: string | undefined
   /** When its model was last seen to be one that can be called. */
@@ -1346,18 +1369,31 @@ export class AgentActor implements Actor {
     if (this.#harness === undefined) return
     const harness = await this.#harness
     const inspection = await harness.inspect(context)
-    if (inspection.tasks.length > 0 || inspection.submissions.length > 0) {
+    // Work that nothing this deployment has can run is not woken for, and is not the agent at
+    // work: only another deployment gets it further, and it is found again when the agent is
+    // next opened.
+    const work = liveWork(inspection)
+    if (work.live) {
       this.#found(harness)
     } else {
       // Where the watch gave up before the work was over, its end is found here.
       this.#rested()
     }
+    for (const task of work.blocked) {
+      const id = String(task.record.id)
+      if (this.#blockedTold.has(id) || task.state.kind !== "blocked") continue
+      this.#blockedTold.add(id)
+      this.#options.onReport?.(
+        new Error(
+          `Task ${id} (${task.record.kind} v${task.record.version}) of agent ${this.#host.name} cannot run in this deployment: ${task.state.reason}`,
+        ),
+      )
+    }
     // A sub-agent that has finished and not yet reported has nothing live, and still needs a
     // look. So does a conversation with another agent whose answer is still to be handed back,
     // and a thread in Slack whose answer is still to be posted.
     const live =
-      inspection.tasks.length > 0 ||
-      inspection.submissions.length > 0 ||
+      work.live ||
       (await this.#subagents.working(context)) ||
       (await this.#jobs.working(context)) ||
       (await this.#scheduler.working(context)) ||
@@ -1412,8 +1448,7 @@ export class AgentActor implements Actor {
         await harness.waitForIdle(context)
         // Told only where nothing is left: work that is still to start, or that began meanwhile,
         // is found by the request or the wake-up that comes next.
-        const { tasks, submissions } = await harness.inspect(context)
-        if (tasks.length === 0 && submissions.length === 0) this.#rested()
+        if (!liveWork(await harness.inspect(context)).live) this.#rested()
       } catch (error) {
         // An agent that was closed meanwhile is found at work, or at rest, when it next opens.
         if (this.#opened === harness) this.#options.onReport?.(error)
@@ -2372,8 +2407,7 @@ export class AgentActor implements Actor {
    * not the agent at work: its turn is over, and it is given another when the command ends.
    */
   async #working(harness: Harness): Promise<boolean> {
-    const { tasks, submissions } = await harness.inspect(context)
-    if (tasks.length > 0 || submissions.length > 0) {
+    if (liveWork(await harness.inspect(context)).live) {
       // Whoever reads that it is at work may be the first to find it so.
       this.#found(harness)
       return true
@@ -2654,6 +2688,7 @@ export class AgentActor implements Actor {
     title: string | undefined,
     caller: Caller | undefined,
     main: boolean,
+    requestId?: string,
   ): Promise<ChatSummary> {
     const now = this.#host.now()
     const record: ChatRecord = {
@@ -2663,6 +2698,7 @@ export class AgentActor implements Actor {
       updatedAt: now,
       archived: false,
       ...(caller === undefined ? {} : { createdBy: caller.id }),
+      ...(requestId === undefined ? {} : { request: requestId }),
     }
     const conversation = await harness.createConversation(
       {
@@ -2673,6 +2709,7 @@ export class AgentActor implements Actor {
         },
         init: async (tx, id) => {
           const doc = await tx.doc(ChatsDoc)
+          refuseSecond(doc.chats, requestId)
           doc.chats[String(id)] = record
           if (main) doc.main = String(id)
         },
@@ -2693,17 +2730,48 @@ export class AgentActor implements Actor {
     input: CreateChatRequest,
     caller: Caller | undefined,
   ): Promise<Response> {
-    const branched = await this.#branchChat(harness, identity, input.title, caller).catch(
-      (error) => {
+    const { requestId } = input
+    if (
+      requestId !== undefined &&
+      (typeof requestId !== "string" || requestId === "" || requestId.length > 100)
+    ) {
+      throw new HttpError(400, "requestId must be a string of at most 100 characters")
+    }
+    // A request that is sent again, because its answer never arrived, is answered with the
+    // chat the first one made.
+    const made = async (chatId: string) => {
+      const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
+      const record = own(chats, chatId)
+      if (record === undefined) throw new HttpError(409, "That chat is gone")
+      return json(summarize(chatId, record, main), 200)
+    }
+    if (requestId !== undefined) {
+      const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
+      const found = Object.entries(chats).find(([, chat]) => chat.request === requestId)
+      if (found !== undefined) return made(found[0])
+    }
+    try {
+      const branched = await this.#branchChat(
+        harness,
+        identity,
+        input.title,
+        caller,
+        requestId,
+      ).catch((error) => {
+        if (error instanceof ChatMade) throw error
         // Not being able to branch must not cost the user their chat.
         this.#options.onReport?.(error)
         return undefined
-      },
-    )
-    return json(
-      branched ?? (await this.#newChat(harness, identity, input.title, caller, false)),
-      201,
-    )
+      })
+      return json(
+        branched ?? (await this.#newChat(harness, identity, input.title, caller, false, requestId)),
+        201,
+      )
+    } catch (error) {
+      // The same request, twice at once: the one that came second finds the first one's chat.
+      if (error instanceof ChatMade) return made(error.chatId)
+      throw error
+    }
   }
 
   /**
@@ -2720,6 +2788,7 @@ export class AgentActor implements Actor {
     identity: Readonly<IdentityState>,
     title: string | undefined,
     caller: Caller | undefined,
+    requestId?: string,
   ): Promise<ChatSummary | undefined> {
     const mainId = (await harness.snapshot(ChatsDoc, context))?.main
     if (mainId === undefined) return undefined
@@ -2743,6 +2812,7 @@ export class AgentActor implements Actor {
       updatedAt: now,
       archived: false,
       ...(caller === undefined ? {} : { createdBy: caller.id }),
+      ...(requestId === undefined ? {} : { request: requestId }),
       fork: { chatId: mainId, at: Number(at) },
     }
     const conversation = await main.fork(
@@ -2751,7 +2821,9 @@ export class AgentActor implements Actor {
         ownership: { kind: "ownerless" },
         agent: { model, thinkingLevel: identity.thinking ?? DEFAULT_THINKING },
         init: async (tx, id) => {
-          ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
+          const doc = await tx.doc(ChatsDoc)
+          refuseSecond(doc.chats, requestId)
+          doc.chats[String(id)] = record
           // A fork is given a session of its own, and some providers keep their cache by
           // session: under a new one the main chat's prompt would be paid for again.
           if (session !== undefined) (await tx.doc(ProviderDoc, id)).sessionId = session

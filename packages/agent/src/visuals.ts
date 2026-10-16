@@ -370,6 +370,8 @@ export function visuals(options: VisualsOptions): Extension {
       ? undefined
       : defineTool({
           name: LOOK_TOOL,
+          // Nothing is kept and nothing is changed, so a look that a restart cut off is taken again.
+          replay: "safe",
           description: [
             "Look at something in a browser: you get a picture of it. Nothing is shown to the person, nothing is kept and nothing is changed. Give one of two things.",
             `\`html\`: a page you are about to draw with \`${VISUAL_TOOL}\`. It is drawn as the chat will draw it, and you are told how tall it is on a computer and on a phone, and what it wrote to its console, with anything that failed in it. Use it to check the page, fix what is wrong, and look again; console.log is a fine way to check something of your own. Pictures and data the page loads from elsewhere may not arrive here.`,

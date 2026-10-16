@@ -361,6 +361,9 @@ export function historyExtension(harness: () => Harness, index: HistoryIndex): E
   const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
   const tool = defineTool({
     name: "history",
+    // It only reads, and what it keeps for searching is the same however often it is kept: a
+    // call that a restart cut off is made again.
+    replay: "safe",
     description:
       "Look through what was said in your other chats, including Slack threads and scheduled runs. `search` finds messages containing all the given words, in any chat however old. `list` shows your most recent chats and where each stands. `read` shows the messages of one chat: around a match, or its latest when no message is given. Use it for anything about earlier work, decisions, dates, people or things still to do that is not in this chat or in your memory.",
     parameters: Type.Object({

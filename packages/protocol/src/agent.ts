@@ -471,7 +471,14 @@ export type SendMessageRequest = {
 
 export type SendMessageResponse = { submissionId: string }
 
-export type CreateChatRequest = { title?: string }
+export type CreateChatRequest = {
+  title?: string
+  /**
+   * An id of the caller's own for this one chat. A request sent again under the same id, as
+   * after an answer that never arrived, is given the chat the first one made.
+   */
+  requestId?: string
+}
 
 export type UpdateChatRequest = { title?: string; archived?: boolean }
 

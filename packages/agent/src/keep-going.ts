@@ -63,6 +63,8 @@ const NUDGE = `<meta kind="continue">Your turn ended there, because you replied 
  */
 const progress = defineTool({
   name: PROGRESS_TOOL,
+  // It does nothing but answer: the words are in the call, which the chat already shows.
+  replay: "safe",
   description: `Tell the person how the work is going, without ending your turn: what you just finished, what you found, or what you are about to do. They see the message in the chat right away, and you carry on. Use it whenever there is more to do after what you have to say. You can call it in the same reply as other tools. Put the words in the message only: do not also write them as text in that reply. It is not for your final answer, for a question, or for anything you need them to answer: reply normally for those.`,
   parameters: Type.Object({
     message: Type.String({ description: "What to tell them, in a sentence or two" }),
