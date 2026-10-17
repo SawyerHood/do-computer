@@ -7092,8 +7092,10 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     (`prototypes/app-icon-minimal`), and asked that the tray follow the agent as well.
     - **The desktop's picture** is the creature, or its egg, on a plain square of its own
       color taken 68% of the way to a near black (`portrait.backdrop`), with the same shadow
-      under it. The app's two built-in desktop icons are that of the teal mochi. The phone's
-      and the browser's icons are still the island: nobody asked for those to change.
+      under it. The app's two built-in desktop icons are that of the teal mochi. The browser's
+      icons are still the island. The phone app's icon became this picture too on 2026-10-17
+      (the owner: "use the same thing so it was less noisy background"), full-bleed and
+      without corners since iOS cuts its own.
     - **The tray follows the agent.** `app-icon.ts` draws the agent alone at 36 pixels with
       `portrait.sprite`, which is the code `scripts/icons.mjs` drew the usual tray with,
       moved into `portrait.js`: awake in its color for a computer that is shared, grey and
