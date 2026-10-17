@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { pieces, readVoiceEvent, voiceClose, voiceReply } from "./call-events.ts"
+import { pieces, readVoiceEvent, voiceClose, voiceReply } from "../src/call-events.ts"
 
 /** Events as the two kinds of call really sent them, taken from calls placed on 2026-10-14. */
 const codex = (event: unknown) => readVoiceEvent("codex", JSON.stringify(event))

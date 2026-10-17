@@ -3,6 +3,7 @@ import type { AgentSummary, FeedEvent, WorkspacesState } from "@do-computer/prot
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query"
 import { atom, getDefaultStore, useAtomValue } from "jotai"
 import { useEffect } from "react"
+import { orderKey, takeOrder } from "./order.ts"
 import type { Session } from "./session.ts"
 import { useSession } from "./use-session.ts"
 
@@ -31,6 +32,7 @@ export const keys = {
   secrets: (agentId: string) => ["agents", agentId, "secrets"] as const,
   creature: (agentId: string) => ["agents", agentId, "creature"] as const,
   jobs: (agentId: string) => ["agents", agentId, "jobs"] as const,
+  pins: (agentId: string) => ["agents", agentId, "pins"] as const,
   usage: (agentId: string) => ["agents", agentId, "usage"] as const,
   slack: (agentId: string) => ["agents", agentId, "slack"] as const,
 }
@@ -83,6 +85,8 @@ const CHANGED: Record<string, (agentId: string) => readonly unknown[]> = {
   secrets: keys.secrets,
   creature: keys.creature,
   jobs: keys.jobs,
+  // A Dood that pins something says so, and everyone looking at it sees it at once.
+  pins: keys.pins,
 }
 
 type Watch = { count: number; close: () => void }
@@ -162,6 +166,7 @@ export function useFeed(userId: string | undefined): void {
     const askAgain = () =>
       void queryClient.invalidateQueries({ queryKey: keys.agents, exact: true })
     const take = (event: FeedEvent) => {
+      if (event.type === "order") return takeOrder(queryClient, event.workspaceId, event.ids)
       const listed = queryClient.getQueryData<AgentSummary[]>(keys.agents)
       // An agent the list does not have yet: the list is asked for, which has it whole.
       if (listed === undefined || !listed.some((agent) => agent.id === event.agentId)) {
@@ -184,6 +189,8 @@ export function useFeed(userId: string | undefined): void {
         const fresh =
           list?.fetchStatus === "fetching" || Date.now() - (list?.dataUpdatedAt ?? 0) < FRESH_MS
         if (again || !fresh) askAgain()
+        // What was put in order elsewhere while it was down was said to nobody too.
+        if (again) void queryClient.invalidateQueries({ queryKey: orderKey })
       },
     })
     return () => feed.close()

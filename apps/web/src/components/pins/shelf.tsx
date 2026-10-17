@@ -2,7 +2,7 @@ import {
   type LibraryFile,
   type LibraryListing,
   type Pin,
-  pinnedFile,
+  pinnedEntries,
   pinTitle,
 } from "@do-computer/protocol"
 import { FileIcon, PushPinSlashIcon } from "@phosphor-icons/react"
@@ -276,11 +276,9 @@ export function PinnedShelf({
   return (
     <PanelSection id="pinned" title="Pinned" count={pins.length}>
       <ul className="flex flex-col gap-1 px-2.5 pt-px pb-3">
-        {pins.map((pin, index) => {
-          const file = pinnedFile(pin, listing.files)
+        {pinnedEntries(pins, listing.files).map(({ pin, file, title }, index) => {
           const off = () => unpin.mutate(pin.fileId)
           if (file === undefined) {
-            const title = pinTitle(pin)
             return (
               // Its file was deleted. The pin stays until it is taken off, since the file can be brought back.
               <li key={pin.fileId} className="flex items-center gap-2.5 py-2 pr-1.5 pl-2.5 text-sm">

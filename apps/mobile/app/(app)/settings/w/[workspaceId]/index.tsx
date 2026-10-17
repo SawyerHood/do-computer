@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from "@do-computer/protocol"
+import { keepsSecrets, type WorkspaceSummary } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useEffect, useState } from "react"
@@ -38,7 +38,8 @@ function Name({ workspace, change }: { workspace: WorkspaceSummary; change: Chan
 
 /**
  * One workspace: for a team its name, its people and who has been asked to join, and for every
- * workspace the way in to its computers and its model sign-ins.
+ * workspace the way in to its computers, its model sign-ins and, where it keeps any for this
+ * person, its saved logins and cards.
  */
 export default function Workspace() {
   const { workspaceId } = useLocalSearchParams<{ workspaceId: string }>()
@@ -184,6 +185,22 @@ export default function Workspace() {
           go
           onPress={() => router.push(`${base}/models` as never)}
         />
+        {/* Only where the workspace keeps logins or cards and this person may see them. */}
+        {keepsSecrets(workspace) ? (
+          <Row
+            icon={["key", theme.green]}
+            title="Passwords"
+            subtitle={
+              workspace.savedLogins && workspace.savedCards
+                ? "Logins and cards"
+                : workspace.savedCards
+                  ? "Cards"
+                  : "Logins"
+            }
+            go
+            onPress={() => router.push(`${base}/passwords` as never)}
+          />
+        ) : null}
       </Section>
 
       {!team ? null : workspace.role === "owner" ? (

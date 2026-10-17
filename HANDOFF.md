@@ -5870,10 +5870,10 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       shares it; that the agent need not ask; eight at most; that only the first is drawn; the
       title; that a pin whose file is deleted stays, saying so, until it is taken off.
     - **Not built, though the mock-up drew them:** a window of its own over other windows; the
-      chips under an agent's name on a phone (on a narrow screen there is no panel, so pins
-      are not shown there, and the card's Open leads to the Library); a mark for "changed since
-      you last looked"; ticking a step on a page (a page still cannot write to its file). The
-      phone app shows nothing for the tool's part.
+      chips under an agent's name on a phone (the web app on a narrow screen has no panel, so
+      pins are not shown there, and the card's Open leads to the Library); a mark for "changed
+      since you last looked"; ticking a step on a page (a page still cannot write to its file).
+      The native phone app shows pins and the tool's card since item 95.
     - **Checked:** `packages/agent/test/pins.test.ts` and three browser tests
       (`pins.spec.ts`): the agent pinning and the tile following a rewrite of the file, a
       person pinning from a card and from the Library, a deleted file. Looked at in both
@@ -6443,7 +6443,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       **Not checked:** a real site (the page was a form of our own); macOS and Windows; an
       owner's own Chrome with its real Allow prompt; the desktop app, which needs a release
       before its daemon can do this at all; Cloudflare beyond the store's tests in workerd;
-      the phone, where the form for a login was built and never run.
+      the phone's form for a login on a phone: since item 95 it has its sites as the web's
+      has, and has been run in the phone app's browser build, not in a simulator or on a phone.
 82. **A connector's own page for a tool is shown in the chat (MCP Apps)** (2026-10-13;
     `packages/protocol/src/mcp-app.ts`, `packages/agent/src/connectors.ts` and `actor.ts`,
     `apps/web/src/lib/mcp-app-host.ts`, `components/chat/mcp-app.tsx`; phase 5 of
@@ -6668,8 +6669,9 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Mine:** that the daemon presses the button itself, so that the number is never left in
       a page the Dood can look at; that there is no "Never" for paying, only not saving a
       card; that the number is in the server's store for now; `DC_SECRET_KINDS` and its
-      default; the phone getting the code box and nothing else; no mock-up of its own, the
-      screens being a second part of the page that was mocked up for logins.
+      default; no mock-up of its own, the screens being a second part of the page that was
+      mocked up for logins. The phone first had the code box and nothing else; item 95 gave it
+      the Passwords section, where a card is added, listed and removed.
     - **Checked:** unit tests of the store, the tool and who has cards; the daemon's typing
       against a real Chromium with pages of our own (boxes in the page, in one frame of another
       site, in a frame each, lists for the month and year, a button that waits for the card,
@@ -6680,7 +6682,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       card; a bank's own check after the button (3-D Secure); Braintree, Adyen, Shopify and
       PayPal pages; a checkout that keeps its boxes inside shadow DOM, which are not found;
       macOS, Windows, an owner's own Chrome with its real prompt; the desktop app, which needs
-      a release for its daemon to pay; the phone's code box, which was type-checked only.
+      a release for its daemon to pay; the phone's code box on a phone (item 95 ran it in the
+      phone app's browser build only).
 
 87. **The sections of a Dood's panel fold, and the panel scrolls as one** (2026-10-13;
     `apps/web/src/components/chat/panel-section.tsx`, `agent-panel.tsx`). The owner, of a
@@ -6844,14 +6847,13 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       still say who has something new. One made since, or moved in from another workspace,
       is above the rest. "Sort by latest" in the workspace's menu gives the order up, and is
       only there while there is one.
-    - **The order is kept in the browser** (`dc-agent-order` in its storage: for each
+    - **The order was kept in the browser** (`dc-agent-order` in its storage: for each
       workspace, its Doods' ids from the top down), as which workspaces are folded is. The
       owner: "Could these just be local storage sorts like on the client? Do they have to be
       on the server or not? ... we can kind of do that and then figure that out as we go". So
-      it is each person's own, and also each browser's own: the desktop app and a browser
-      can differ, and the phone app still has the one last heard from first. An id that is
-      no longer a Dood of the workspace is passed over. Two tabs of one browser follow each
-      other.
+      it was each person's own, and also each browser's own. An id that is no longer a Dood
+      of the workspace is passed over. Item 95 moved it to the server, in the same shape, and
+      a browser's own is carried up there once.
     - **How.** dnd-kit, one sortable list for each workspace, held to moving up and down
       within its own rows. A mouse takes a row up once it has moved six pixels, so a press
       that does not move is still a click; a finger takes it up after a quarter of a second
@@ -6886,9 +6888,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       a finger stood in for over the DevTools protocol (moved at once, held and moved, held
       and let go) and with the click guard taken away, which loaded the page again.
     - **Not checked:** a real touch screen, Safari, the desktop app, and anything on macOS.
-    - **Not built:** the order on the server, which is what would make every browser and the
-      phone agree. What is kept is already the shape it would have there. Moving a row from
-      the phone app.
+    - **Not built here:** the order on the server, and moving a row from the phone app. Both
+      are item 95.
 
 91. **A Dood can be called out loud** (2026-10-14; `packages/protocol/src/calls.ts`,
     `packages/agent/src/calls.ts`, `actor.ts`, `project.ts`,
@@ -6999,8 +7000,8 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       one (the test used the Codex client's, put in as the server's); Safari, Firefox, a
       phone's browser; the desktop app; how it sounds, which nothing here could hear; a real
       person talking over it; a long call; two people in a team.
-    - **Not built:** calling from the phone app, which shows a call's record and cannot start
-      one; a person's own sign-in, a level the app does not have (the owner agreed it comes
+    - **Not built:** calling from the phone app, which came after as its own change (item 95);
+      a person's own sign-in, a level the app does not have (the owner agreed it comes
       after, as its own change); the voice being told how work is going that it did not hand
       on, or what is typed during a call; the server cutting a call off itself (the browser
       hangs up at the limit and the server's count stops there); the whole-window layout; the
@@ -7104,6 +7105,313 @@ put` never has to ask whether to make a Worker. The first person to follow it on
     - **Checked:** `scripts/icons.mjs` writes the same tray, tab and phone pictures as
       before, byte for byte; `apps/web/e2e/app-icon.spec.ts`. **Not checked:** the tray in a
       running app on a Mac, which is where its owner will see it.
+
+95. **The phone app's replies catch up with the web app's: code in its colors, notes, folding
+    sections, diagrams, a connector's page, and the word that a message was delivered**
+    (2026-10-16; `apps/mobile/src/ui/markdown.tsx`, `syntax.ts`, `chat/parts/diagram.tsx`,
+    `app.tsx`, `visual.tsx`, `chat/transcript.tsx`, `library/page-view.tsx`,
+    `apps/web/src/routes/embed.diagram.tsx`, `packages/protocol/src/diagram.ts`,
+    `packages/client/src/app-host.ts`). The owner asked which of the changes since item 65 the
+    phone app had not been given, and then to "port all of these". Pins, calls, saved logins
+    and cards and the order of Doods were built apart from this and have entries of their own.
+    - **Code is in its colors** on the phone, the same seven as the web app's. Shiki's
+      grammars need a regular-expression engine a phone's JavaScript has not got, so the phone
+      reads code with a small reader of its own (`syntax.ts`): comments, strings, numbers, a
+      language's own words, what is called, and punctuation, for the languages the web app
+      has grammars for, with JSON, YAML, TOML, HTML, CSS and a diff read their own way. It is
+      less exact than a grammar. Code a reply is still writing is plain, as on the web, and a
+      block has a button that wraps its long lines.
+    - **A `mermaid` block is its diagram.** A phone cannot draw one, so the deployment does:
+      `/embed/diagram` is a page of the web app that draws one diagram with the web app's own
+      drawing and says how large it is, shown in a web view (a frame in the browser build).
+      The diagram is handed over by a call to `window.dcDraw`, which only a page of the same
+      origin or the app around the web view can make; it is never in the address, so a link
+      to the page draws nothing and nothing of a diagram reaches the server. One that cannot
+      be drawn, or a deployment from before the page (nothing heard in fifteen seconds), is
+      shown as its code.
+    - **A note** (`> [!NOTE]` and its kin) has its name and color; **a section that folds**
+      (`<details>`) opens when its heading is pressed, and is the one piece of HTML the phone
+      reads; **a table** is copied as Markdown or as CSV from a menu under it
+      (`tableMarkdown` and `tableCsv` are in the protocol package now, for both apps).
+    - **A connector's own page for a tool** (item 82) is shown in the chat on the phone. The
+      talk with the page (`createAppHost`) moved to `packages/client` for both apps. In the
+      browser build it is the same frame as the web app's. On a phone it is a web view that
+      asks for the page with the session once, gives the page no cookie, and stands in for
+      the window a page speaks to (`APP_SCRIPT` in `app-frame.native.tsx`). A tool that may
+      change something is asked about in the phone's own sheet. There is no large.
+    - **`dc.save` and `dc.expand`** in a page the Dood drew now do something on the phone: a
+      file is handed to the share sheet (downloaded, in the browser build), and large is the
+      library's own screen for the page, where the page starts again.
+    - **A page of the library** is opened in the app's light or dark with its Dood's color,
+      as the web app shows it, and follows them when they change.
+    - **Under a sent message** it says "Sending" and then "Delivered", only for a message
+      seen on its way, and the word leaves after three seconds; it takes no room of its own.
+    - **A connector's tools** are named up to twelve, then counted, as on the web app's card.
+    - **Mine:** a reader of our own for code in place of Shiki; the deployment's page for
+      diagrams, and how it is handed one; `<details>` as the only HTML read; the menu under a
+      table; large as the library's screen; that a connector's page is asked for with the
+      session in a web view.
+    - **Checked:** `apps/mobile` unit tests (the reader of code, the new blocks, the script a
+      page is given); `packages/protocol/test/diagram.test.ts`; and `e2e/mobile.spec.ts` on
+      the phone app's browser build: the words under a sent message, code in three colors,
+      wrapping, a table copied both ways from the clipboard, a note and a folded section, a
+      diagram drawn and one that cannot be, a file saved from a page and the page opened
+      large in the app's colors, and a connector's page told its tool's answer, running a
+      reading tool at once and another only after a yes. **Not checked:** any of it in a
+      simulator or on a phone. The web views for a diagram and for a connector's page, the
+      share sheet for a saved file and the colors handed to a library page have only been
+      type-checked there; the standing-in for a page's window in particular is untried
+      against WebKit. A deployment older than this, which has no `/embed/diagram`.
+    - **Not built:** inline HTML other than `<details>` (`kbd`, `sub`, `sup`), a link to a
+      heading in the same reply, a connector's page shown large, and a Markdown document of
+      the library in its Dood's color (its links are still the app's teal).
+96. **The phone app shows a Dood's pins, and pins and unpins as the web does** (2026-10-16;
+    `apps/mobile/src/pins`, `apps/mobile/src/chat/parts/pin.tsx`, the library's list and
+    viewer in `apps/mobile/app/(app)/a/[agentId]/library`, `packages/protocol/src/pins.ts`).
+    Until now the native app had nothing of item 71: no pins, and nothing in a chat where the
+    Dood pinned something.
+    - **In a chat** the Dood's pinning is the web's card, drawn natively (`PinCard`): "Pip
+      pinned Launch board", the file's place, Open (the library's viewer) and Unpin. It says how
+      the pin stands now; taken off, it offers "Pin it again" under the Dood's title.
+    - **Under the face, on the Dood's page** (`info.tsx`, `PinnedSection`): a Pinned group
+      between the three buttons and At work now, where the web has its Pinned section under
+      the face in the panel. The first pin, when it is a page, a document or a picture, is
+      drawn at the page's width over its row (a web view, the Markdown, the picture), and a
+      page is loaded again when anything in its top folder changes. Every pin is a row that
+      opens the file, says when it last changed or "Just changed" for a few seconds, and is
+      taken off with a swipe, or from its menu (a hold on iOS, three dots elsewhere). A pin
+      whose file was deleted stays, saying "No longer in the library", with Unpin beside it.
+      With nothing pinned there is no group.
+    - **From the chat**, the main chat's More has a Pinned menu listing them, so a pin opens
+      in two taps, which is the nearest a phone comes to the web's "beside the chat".
+    - **A person pins** from a file's menu in the library ("Pin to Pip", also a swipe), and
+      with a pin on the bar of the open file, filled while it is pinned ("Unpin from Pip").
+      A pinned file's row has a pin mark. The library is the workspace's, so a file is pinned
+      to the Dood the library was opened from, as on the web.
+    - **The web's rules hold** because they are the server's: eight at most (the phone says so
+      before asking, in the server's words), anyone who can open the Dood may pin, and the
+      Dood's `changed: "pins"` now asks for the pins again (`CHANGED` in `lib/queries.ts`), so
+      a pin the Dood makes appears at once on every screen of it.
+    - **Shared, not copied:** `pinnedEntries`, `pinsFull` and `pinStanding` in
+      `packages/protocol/src/pins.ts`, and `pageShownAt` in `library-links.ts`. The web's
+      shelf and card use them too. The phone's own choices (the words of a menu item, the
+      menu of pins) are pure functions in `apps/mobile/src/pins/model.ts`.
+    - **Mine, not the owner's:** the Dood's page and the chat's More as the places for pins
+      (the phone's chat has no panel, and its header has no room for chips); drawing the
+      first pin at full width rather than at half size; the pin in the viewer's bar rather
+      than in its menu, so that it shows how the file stands; orange for the swipe, as
+      Messages pins; refusing a ninth pin on the phone before the server does.
+    - **Not built:** reordering, which the web does not have either; the pin on a file's card
+      in a chat, which the web has (the card has a download and a share already, and the file
+      is a tap from its viewer's pin); a mark for "changed since you last looked".
+    - **Checked:** unit tests for the shared functions (`packages/protocol/test/pins.test.ts`,
+      `library-links.test.ts`) and the phone's (`apps/mobile/test/pins.test.ts`); two browser
+      tests through the phone's web build (`mobile.spec.ts`): the Dood pinning, the card's
+      Unpin and Pin it again, Open, the chat's Pinned menu, the group on the Dood's page with
+      the first pin drawn, a pin made elsewhere appearing without a reload, unpinning from a
+      pin's menu; pinning from the library's menu and the viewer's bar, the ninth refused, a
+      deleted file's pin saying so and taken off. Looked at at phone width in the browser
+      build. **Not checked:** anything on iOS itself (no Mac was at hand, so no simulator):
+      the system's menus, the swipe, the web view drawing the first pin, SF Symbols `pin`,
+      `pin.fill` and `pin.slash`; Android; a real model deciding to pin.
+97. **The phone keeps a workspace's saved logins and cards, and a card is added there**
+    (2026-10-16; `apps/mobile/app/(app)/settings/w/[workspaceId]/passwords.tsx` and
+    `passwords/`, `apps/mobile/src/passwords`, `apps/mobile/src/chat/asks.tsx`,
+    `packages/protocol/src/passwords-typed.ts`). The owner asked for the web's management of
+    saved logins and cards to be on the phone, and for a new card to be entered there.
+    - **Where.** A workspace's settings on the phone have a Passwords row under Computers and
+      Models, under the web's condition and no other: the workspace keeps logins or cards and
+      this person may see them (`keepsSecrets`, which the web's `workspaceSections` now uses
+      too). It opens one grouped list with a section for each kind the workspace keeps.
+    - **Logins.** A row each, with its first letter, its username and sites, and when and by
+      which Dood it was last used, or in red that its password can no longer be read. A tap
+      opens it to change its name, username and sites, with Replace the password and Remove
+      under them; one whose password cannot be read opens on giving it again. A swipe gives
+      the password and Remove too. Adding asks for the name, the username, the password and the
+      sites, a row each, with a row to type the next site in. The words and the checks are the
+      web's: everything a person types is checked by the same functions, which moved from the
+      web app into `packages/protocol` (`loginToSend`, `withSite`, `cardToSend`, `usedWords`
+      and the rest) and are tested there.
+    - **Cards.** A row each, with its kind, the end of its number, when it runs out and the
+      name on it, and Remove, which the web has and nothing more. Adding asks for the number
+      (grouped in fours as it is typed), the month and year (the slash put in by
+      `groupedExpiry`, since a number pad has none), the postal code, the name on the card and
+      a name. There is no box for a security code.
+    - **The phone's own autofill.** The boxes are named to the system for what they are
+      (`textContentType` and `autoComplete`: username, password, card number, expiry, the name
+      on a card, postal code), with the number pad for digits, so that iOS can offer the
+      passwords and cards the phone keeps. The web turns its browser's offers off, so that a
+      browser does not take a website's password for this app's; the app has no associated
+      domain, so iOS has nowhere to offer to save one. The security code's box is named
+      nothing, as on the web: it is typed fresh for each payment.
+    - **In a chat.** The form for a login a Dood asks for now has the web's "Used only on",
+      the site that asked fixed among the sites and others added, and is sent through
+      `loginAnswer` as on the web; it shows only where the workspace keeps logins for this
+      person, as on the web. The box for a card's security code has the number pad and takes
+      four digits at most. There is no form for a new card in a chat, on the web or the phone:
+      `pay` names a saved card and asks only for its code, and with none saved it tells the
+      Dood to have someone add one under Passwords. A card is entered under Passwords.
+    - **Nothing secret is kept.** What is typed lives in the screen's state and goes with it;
+      it is sent from the screen with the client and not through a React Query mutation, whose
+      cache keeps what it was given for minutes. The lists are cached as the web caches them,
+      and have no password or number in them.
+    - **Mine:** one screen for adding, changing and replacing a login's password, a tap on a
+      login opening the change and not a menu, a swipe for the password and for removing, the
+      Remove word on a card's row, the separate add screens pushed in the settings sheet and
+      not sheets of their own, the autofill names, the green key, and the slash in the expiry.
+      `Field` in the kit no longer lets its label be squeezed, which a phone never did but the
+      browser build did.
+    - **Checked:** `pnpm check`; the protocol's tests (`passwords-typed.test.ts`, with the
+      web's tests of the moved functions and new ones for the expiry, a card's trouble,
+      Passwords being shown and `usedWords` without `Intl.RelativeTimeFormat`); the web's and
+      the mobile app's unit tests; and three new tests in `e2e/mobile.spec.ts` through the
+      browser build, run with the rest of that file and `passwords.spec.ts`: a login added,
+      refused for a site that is not one, changed, given a new password and removed, with the
+      password in neither the page nor what the server answers; a card refused for a number
+      that does not add up, added, listed by its last four digits and removed, with no box for
+      a code; and in a chat, a payment's code typed with the yes and a login given with its
+      sites, the server's answers stood in for, since asking needs a computer with a browser.
+      Pictures of the screens were taken at a phone's width.
+    - **Not checked:** an iOS simulator or a phone, since this was built where there is no
+      Mac; so not the system's own bars and menus, the swipes, the number pad, or what iOS's
+      AutoFill actually offers for each box. Android. A real `sign_in` or `pay` reaching the
+      phone.
+    - **Not built:** a form for a new card in a chat, which the web does not have either;
+      changing a card, which the web does not allow.
+98. **The order a person put their Doods in is kept on the server, and a Dood is moved on the
+    phone too** (2026-10-16; `apps/web/src/server/agent-order.ts`, `schema.ts`,
+    `apps/web/src/lib/agent-order.ts`, `packages/protocol/src/order.ts`,
+    `apps/mobile/src/ui/sortable.tsx`, `apps/mobile/src/lib/order.ts`,
+    `apps/mobile/app/(app)/index.tsx`). Item 90 kept the order in each browser and left the
+    server and the phone for later; the owner had said "we can kind of do that and then figure
+    that out as we go". This is the later.
+    - **What it does.** The order is the person's own and the same everywhere they are signed
+      in: every browser, the desktop app and the phone. A move in one is made in the others
+      while they are open, with nothing asked for again. The rules are item 90's, now in one
+      place for both apps (`inOrder` in `packages/protocol`): a workspace's Doods are the one
+      last heard from first until one is moved; an id that is no longer one of its Doods is
+      passed over; one made since, or moved in from another workspace, is above the rest. It
+      is still each person's own in a team: one member's order leaves the others' as it was.
+    - **Where it is kept.** `dc_agent_order`, one row for each person and workspace with the
+      Doods' ids from the top down as JSON, in the app database, made by the schema's next
+      migration on Node and on D1 alike. No row is a workspace never put in order. Only the
+      workspace's own Doods are kept of what is sent, each once and at most 500. A workspace
+      the person has left is not given back to them.
+    - **The API.** `GET /api/agent-order` is the person's whole order, by workspace (`{ order
+      }`). `PUT /api/workspaces/<id>/agent-order` with `{ ids }` keeps a workspace's, and
+      `DELETE` gives it up (Sort by latest); both answer with what is kept now, and someone not
+      in the workspace is answered 404. In `packages/client`: `agentOrder()` and
+      `workspace(id).putAgentOrder(ids | null)`.
+    - **How the others hear.** On the person's own feed (item 63), the socket that already
+      carries a row's latest: a new event, `{ type: "order", workspaceId, ids }`, with `ids`
+      null where it was given up. Only that person's tabs and devices are told. When the feed
+      comes back after a break the order is asked for again with the list, since what was said
+      while it was down was said to nobody. An app older than this passes the new event over.
+    - **Moving at once.** The web app and the phone change the list first and tell the server
+      after, one write after another for each workspace, so the last one made is the one kept.
+      While a write of theirs is on its way, what the feed says of that workspace is their own
+      word coming back, perhaps an older one, so it is passed over and the answer to the last
+      write is taken. A write that fails puts the list back to what the server has.
+    - **What a browser kept is carried up once.** On its first load since this, a browser
+      that has `dc-agent-order` sends each workspace's as `carried`, which stands only where the
+      person has no order there yet, so that a second browser carrying its own does not undo
+      the first; the answer is what is kept, and the key is let go once every workspace was
+      taken or refused. A failure for another reason leaves it to be tried on the next load.
+    - **On the phone** the list has Edit in its bar, as Mail's and Reminders' lists do, which
+      is its edit mode: each row has a handle at its end (`line.3.horizontal`), a finger on
+      the handle takes the row up at once, lighter and a little larger, the rows it passes
+      make room as it goes, with a tap of haptics for each, and letting go puts it there. In
+      edit mode a row is not opened and has no menu, the page does not scroll while a row is
+      in the hand, and a workspace that was put in order has Sort by latest in place of its
+      heading's buttons (over the rows, for someone in no team). Done, where Edit was, leaves
+      it. VoiceOver has Move up and Move down on each handle. It is the kit's `Sortable`, on
+      the gesture handler and Reanimated the app already has: no new native code, so no new
+      build is needed for it beyond the next one. In edit mode the rows are placed by hand
+      from their measured heights, so a move does not lay the list out again until it is let
+      go, and going into edit mode and out of it does not draw the creatures again.
+    - **Mine, not the owner's:** the server's table and API; the feed event; that a carried
+      order does not undo one already kept; that the phone has an edit mode with handles and
+      not a long press and drag (a hold on a row is already its sheet of actions, item 65);
+      Sort by latest's place on the phone; and that what is sent is trimmed to the
+      workspace's own Doods.
+    - **Checked:** `src/server/agent-order.test.ts` (each person's own, told to their own
+      feed only, trimmed, refused outside the workspace, given up, a left team, carried and
+      not undoing), `packages/protocol/test/order.test.ts`, `apps/mobile/test/sortable.test.ts`
+      (where a held row goes), and the browser tests: `e2e/sidebar.spec.ts` (item 90's, as
+      before; an order made in one browser is there in a second, fresh one, and a move there
+      is made in the first with nothing asked for again; an order kept in a browser's storage
+      is carried up, let go there, and is every browser's) and `e2e/mobile.spec.ts` (the phone
+      build follows an order put in elsewhere, as it is said; a row dragged by its handle with
+      a mouse; the server has it; Done; the order kept when the app is opened again; Sort by
+      latest). Looked at in pictures of the web sidebar after a move and the phone build at
+      390 by 844 before, during and after one.
+    - **Not checked:** anything on an iPhone or in a simulator, so not a finger on the handle,
+      the haptics, VoiceOver's actions, or whether the page's own scrolling ever takes a drag
+      that starts on a handle before the page is told to stop (the browser build is driven
+      with a mouse); Android; the desktop app; Safari; Workers and D1, where the migration
+      and the API have not been run (the table is plain SQLite, as the others are, and the
+      tests run on Node's). The browser loads the order with the list and not before it, so a
+      page shows its Doods latest-first for as long as the order takes to come, which is one
+      read of the database and is usually there before the list.
+99. **A Dood can be called from the phone app** (2026-10-16; `packages/client/src/call.ts`,
+    `call-events.ts`, `call-said.ts`, `call-script.ts`, `apps/web/src/lib/call.ts`,
+    `apps/mobile/src/call/`, `apps/mobile/app/(app)/a/[agentId]/call.tsx`,
+    `apps/mobile/src/chat/screen.tsx`, `apps/web/e2e/mobile.spec.ts`). The owner asked for the
+    calls of item 91 in the phone app, laid out as an iOS screen and not as a copy of the web
+    panel.
+    - **What it does.** A phone in a chat's bar calls the Dood wherever the web app has its
+      call button: a chat that is the reader's to write in, a Dood that has hatched, and the
+      server's `GET /calls` saying this person may call it. The call is a sheet over
+      everything, in the Dood's color: its creature talking and listening, the clock, what is
+      being said, each thing handed on with the step the Dood is on, and Mute, End and Chat.
+      Swiped down or left with Chat, the call goes on, and a bar over every chat says so and
+      leads back. When it ends, the chat says it is being written up until its record arrives,
+      and the record is the one the phone already showed. The screen is kept on while a call
+      is (`expo-keep-awake`, which every build already has through `expo`).
+    - **One call, two devices.** What a call does (the voice's events, what was said, handing
+      on, following the call's chat for the answer, the limits, ending) moved out of the web
+      app into `@do-computer/client` as `createCaller`, with the event readers and what-was-said
+      beside it and their tests. The web app hands it the browser's WebRTC, its own chat
+      streams and its desktop origin, and keeps its atoms and screens as they were; the phone
+      hands it a line of its own, its client's chat streams and `messageOrigin`.
+    - **How the sound is carried on a phone.** React Native has no WebRTC, and the system's
+      web view does. The phone runs one small page (`line-page.ts`) in a `react-native-webview`
+      no one sees (`line-host.tsx`), which takes the microphone, makes the offer, opens the
+      `oai-events` channel and plays the voice; the app places the call with the offer through
+      its own signed-in client, so the page never sees the server or the session. The page's
+      address is the deployment's, which is what makes it a secure one that may have a
+      microphone. The browser build runs the same page in a frame (`line-host.web.tsx`). This
+      was chosen over `react-native-webrtc` because the web view is already in every build:
+      no new native module, no config plugin, no new build. The microphone's words in
+      `app.config.ts` now name calls as well, which shows from the next build; until then the
+      old words are asked with.
+    - **Mine:** the web view over a native WebRTC module; the sheet and its three buttons
+      (Chat where the web has "Hide words"); a bar over chats in place of the web's corner
+      card and live card in the transcript; that a call's problem is said on its sheet and in
+      that bar; keeping the screen on; moving the call into `@do-computer/client`.
+    - **Checked:** `pnpm check`; the client's tests, eight of them new (`test/call.test.ts`: a
+      call with a stand-in server and voice through connecting, listening, words kept once,
+      handing on, a step, the answer given to the voice, mute, a refused microphone, a lost
+      line, one call at a time, a script, a device that goes away); the phone app's tests, five
+      new (`test/call-line.test.ts`: the app's side of the page); `calls.spec.ts` against the
+      moved code; and three new tests in `mobile.spec.ts` through the phone app's browser build
+      against the built Node server: a scripted call from the chat's bar through calling,
+      handed on, answered, muted, back to the chat and back, ended, and its record; no button
+      where the server offers no call; and the page that carries the sound run in Chromium in
+      a frame, with a second connection in the test as the voice, making an offer with sound
+      and the channel, passing events both ways, and being muted and closed.
+    - **Not checked:** anything on an iPhone or in iOS's web view: there was no Mac. Whether
+      WKWebView gives the hidden page the microphone without asking again
+      (`mediaCapturePermissionGrantType`), plays the voice out loud and not at the earpiece,
+      measures loudness, and gets along with dictation's audio settings were never run. A real
+      voice on a phone; Android; WebKit at all (the test machine's WebKit would not start).
+    - **Not built:** a call that goes on with the phone locked or the app in the background
+      (a web view is stopped there, and nothing asks iOS for background audio); a speaker
+      button; the call in the Dynamic Island or on the lock screen (CallKit); hiding the words;
+      a way back to a call from outside a chat (the Doods list, settings); a link from the
+      record to the call's side chat. If WKWebView's page turns out not to do, the fallback is
+      `react-native-webrtc` with its config plugin behind the same `OpenVoiceLine`, which needs
+      a new build.
 
 ## 6. What the owner has said they want
 

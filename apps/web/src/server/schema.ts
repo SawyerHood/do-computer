@@ -286,6 +286,18 @@ const MIGRATIONS: readonly (readonly string[])[] = [
       PRIMARY KEY (user_id, month)
     )`,
   ],
+  [
+    // The order each person put a workspace's Doods in by hand: their ids from the top down, as
+    // JSON. Each person has their own, so one moving a team's Doods leaves the rest as they were.
+    // No row is a workspace that was never put in order, whose Doods are latest-first.
+    `CREATE TABLE dc_agent_order (
+      user_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      agent_ids TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, workspace_id)
+    )`,
+  ],
 ]
 
 const VERSION_KEY = "schema_version"

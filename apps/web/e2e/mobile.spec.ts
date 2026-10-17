@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Page } from "@playwright/test"
+import { startFakeMcp } from "./fake-mcp-server.ts"
 import { expect, test } from "./fixtures.ts"
 
 /**
@@ -19,6 +20,19 @@ const dist = fileURLToPath(new URL("../../mobile/dist-web-test/", import.meta.ur
 test.skip(!existsSync(join(dist, "index.html")), "the mobile web build has not been exported")
 // The app draws the agent's creature with expo-gl, which on the web needs WebGL to be there.
 test.use({ viewport: { width: 400, height: 860 }, creature: true })
+// Saved logins are for the deployment's admins unless it says otherwise, and cards are kept only
+// where it names them: the phone's user is an admin here, and it does, as in passwords.spec.ts.
+// Calls are open to everyone on this server, and have no voice: the server hands the app a
+// script to play, in which the voice hears a question, hands it on to the Dood, says what the
+// Dood answers, and then says goodbye (see calls.spec.ts, which does the same in the web app).
+test.use({
+  settings: {
+    DC_ADMIN_EMAILS: "mobile@example.com",
+    DC_SECRET_KINDS: "passwords,cards",
+    DC_CALLS: "on",
+    DC_CALLS_SCRIPT: "1",
+  },
+})
 test.describe.configure({ mode: "serial" })
 
 async function open(page: Page, path = "/__mobile/") {
@@ -350,6 +364,111 @@ test("Markdown in a reply is rendered, not shown as markup", async ({ page }) =>
   await expect(words(page, "**two**")).toHaveCount(1) // only in the user's own bubble
 })
 
+test("a sent message says Sending and then Delivered, and the word leaves", async ({ page }) => {
+  await openChat(page)
+  await send(page, "are you there?")
+  // It is on its way, then the Dood has it, and a few seconds later nothing is said of it.
+  await expect(page.getByLabel(/^(Sending|Delivered)$/)).toBeVisible()
+  await expect(page.getByLabel("Delivered", { exact: true })).toBeVisible()
+  await expect(words(page, "Delivered", { exact: true })).toBeVisible()
+  await page.screenshot({ path: "test-results/phone-delivered.png" })
+  await expect(page.getByLabel("Delivered", { exact: true })).toHaveCount(0, { timeout: 10_000 })
+  // A chat that is opened says nothing of the messages it already had.
+  await page.reload()
+  await expect(composer(page)).toBeVisible()
+  await expect(words(page, "are you there?").first()).toBeVisible()
+  await expect(page.getByLabel("Delivered", { exact: true })).toHaveCount(0)
+})
+
+test("code in a reply is in its colors, wraps, and a table is copied as CSV or as Markdown", async ({
+  page,
+}) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"])
+  await openChat(page)
+  await send(
+    page,
+    "Here:\n\n```ts\nconst total = add(price, 2) // a note\n```\n\n| City | High |\n| --- | --: |\n| **Lisbon** | 21 |\n| Porto, PT | 19 |",
+  )
+  // The words of the language, what is called and a comment are each in a color of their own.
+  const keyword = page.getByText("const", { exact: true }).last()
+  await expect(keyword).toBeVisible()
+  const color = (text: string) =>
+    page
+      .getByText(text, { exact: true })
+      .last()
+      .evaluate((piece) => getComputedStyle(piece).color)
+  const colors = new Set([await color("const"), await color("add"), await color("// a note")])
+  expect(colors.size).toBe(3)
+  await page.screenshot({ path: "test-results/phone-code-table.png" })
+
+  // The reply has all arrived: what is switched in a block is kept by the message it is in.
+  const copy = page.getByRole("button", { name: "Copy the table" }).last()
+  await expect(copy).toBeVisible()
+  await expect(page.getByRole("button", { name: "Dictate" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
+  // Long lines scroll sideways until they are asked to wrap.
+  await page.getByRole("button", { name: "Wrap long lines" }).last().click()
+  await expect(page.getByRole("button", { name: "Stop wrapping long lines" })).toHaveCount(1)
+
+  await copy.click()
+  await item(page, "Copy as CSV").click()
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe('City,High\nLisbon,21\n"Porto, PT",19')
+  await copy.click()
+  await item(page, "Copy as Markdown").click()
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe("| City | High |\n| --- | --: |\n| Lisbon | 21 |\n| Porto, PT | 19 |")
+})
+
+test("a note has its name over it, and a section that folds opens when its heading is pressed", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(
+    page,
+    "Two things:\n\n> [!WARNING]\n> Mind the gap.\n\n<details>\n<summary>The full log</summary>\n\n- step one\n- step two\n\n</details>",
+  )
+  await expect(words(page, "Warning", { exact: true }).last()).toBeVisible()
+  await expect(words(page, "Mind the gap.").last()).toBeVisible()
+  // The mark is not shown as words, but in the reader's own message, which is as they typed it.
+  await expect(words(page, "[!WARNING]")).toHaveCount(1)
+  // The reply has all arrived: what is opened is kept by the message it is in.
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Dictate" })).toBeVisible()
+  const heading = page.getByRole("button", { name: "The full log" }).last()
+  await expect(heading).toHaveAttribute("aria-expanded", "false")
+  await expect(words(page, "step two")).toHaveCount(1) // only in the reader's own message
+  await heading.click()
+  await expect(heading).toHaveAttribute("aria-expanded", "true")
+  await expect(words(page, "step two")).toHaveCount(2)
+  await page.screenshot({ path: "test-results/phone-note-details.png" })
+})
+
+test("a mermaid block is drawn as its diagram by the deployment's page, with the code a press away", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(page, "A diagram:\n\n```mermaid\nflowchart LR\n  Draft --> Review --> Shipped\n```")
+  const diagram = page.getByLabel("Diagram", { exact: true }).last().frameLocator("iframe")
+  await expect(diagram.locator("svg")).toBeVisible()
+  await expect(diagram.getByRole("img", { name: "Diagram" })).toContainText("Review")
+  // The words under the diagram are gone once it is drawn.
+  await expect(words(page, "Drawing the diagram…")).toHaveCount(0)
+  await page.screenshot({ path: "test-results/phone-diagram.png" })
+  await page.getByRole("button", { name: "Show the code" }).last().click()
+  await expect(words(page, /Draft --> Review --> Shipped/).last()).toBeVisible()
+  await page.getByRole("button", { name: "Show the diagram" }).last().click()
+  await expect(diagram.locator("svg")).toBeVisible()
+
+  // One that cannot be drawn stays code.
+  await send(page, "Another:\n\n```mermaid\nthis is not a diagram\n```")
+  await expect(page.getByRole("button", { name: "Wrap long lines" }).last()).toBeVisible()
+  await expect(words(page, "this is not a diagram").last()).toBeVisible()
+  await expect(page.getByRole("button", { name: "Show the code" })).toHaveCount(1)
+})
+
 test("earlier messages can be brought back after a chat was started fresh", async ({ page }) => {
   await openChat(page)
   await expect(words(page, /You said: hello from the phone/)).toBeVisible()
@@ -428,6 +547,160 @@ test("the library shows what the agent wrote, and a deleted file can be restored
   await expect(page.getByRole("button", { name: "Restore plan.md" })).toHaveCount(0)
   await back(page).click()
   await expect(row(page, "plan\\.md")).toBeVisible()
+})
+
+/* ---------- pins ---------- */
+
+/** A picture of the phone's pins, for whoever looks at the change. */
+async function shoot(page: Page, name: string) {
+  // A menu fades in and out; the picture is of the page once it has stopped moving.
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: `test-results/mobile-${name}.png` })
+}
+type ListedFile = { id: string; path: string }
+const libraryOf = async (page: Page): Promise<ListedFile[]> =>
+  (
+    (await (await page.request.get(`/api/agents/${await agentId(page)}/library`)).json()) as {
+      files: ListedFile[]
+    }
+  ).files
+const fileAt = async (page: Page, path: string) => {
+  const file = (await libraryOf(page)).find((each) => each.path === path)
+  expect(file, `${path} is in the library`).toBeDefined()
+  return file!
+}
+const pinsOf = async (page: Page) =>
+  (
+    (await (await page.request.get(`/api/agents/${await agentId(page)}/pins`)).json()) as {
+      pins: { fileId: string; path: string; by: string }[]
+    }
+  ).pins
+const pinFile = async (page: Page, path: string) => {
+  const file = await fileAt(page, path)
+  const response = await page.request.put(`/api/agents/${await agentId(page)}/pins/${file.id}`)
+  expect(response.ok()).toBe(true)
+}
+
+test("what the Dood pins is shown in its chat, and under its face on its page as it changes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openChat(page)
+  await send(
+    page,
+    '/tool write {"path":"library/boards/launch.html","content":"<h1>Launch</h1><ul><li>Write the post</li><li>Ship it</li></ul>"}',
+  )
+  await expect(words(page, /Successfully wrote/).last()).toBeVisible()
+  await send(page, '/tool pin {"action":"pin","path":"boards/launch.html","title":"Launch board"}')
+
+  // The chat says what was pinned, with the way to open it and to take the pin off.
+  await expect(words(page, "Pip pinned Launch board")).toBeVisible()
+  await expect(words(page, "boards/launch.html").last()).toBeVisible()
+  await shoot(page, "pin-card")
+  // The card says how the pin stands now: taken off, it offers to put it back as it was.
+  await page.getByRole("button", { name: "Unpin Launch board" }).click()
+  await expect(words(page, "Launch board is no longer pinned")).toBeVisible()
+  expect(await pinsOf(page)).toEqual([])
+  await page.getByRole("button", { name: "Pin it again" }).click()
+  await expect(words(page, "Pip pinned Launch board")).toBeVisible()
+  expect(await pinsOf(page)).toMatchObject([{ path: "boards/launch.html", by: "user" }])
+
+  // Open leads to the library's own viewer, whose bar says that it is pinned.
+  await page.getByRole("button", { name: "Open Launch board" }).click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+  await back(page).click()
+
+  // The chat's More has what is pinned, a press from opening.
+  await page.getByRole("button", { name: "More", exact: true }).click()
+  await expect(item(page, "Open Launch board")).toBeVisible()
+  await shoot(page, "chat-pinned-menu")
+  await item(page, "Open Launch board").click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+  await back(page).click()
+
+  // Under the face on the Dood's page, with the first drawn as what it is.
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await expect(words(page, "Pinned", { exact: true })).toBeVisible()
+  await expect(row(page, "Launch board, ")).toBeVisible()
+  await expect(page.locator('iframe[title="launch.html"]')).toBeVisible()
+
+  // Something pinned elsewhere is here at once: the Dood says when its pins change.
+  await pinFile(page, "list.md")
+  await expect(row(page, "list\\.md, ")).toBeVisible()
+  await words(page, /^Pinned for everyone/).scrollIntoViewIfNeeded()
+  await shoot(page, "pins-on-page")
+
+  // A pin is taken off from its menu, and the file stays in the library.
+  await page.getByRole("button", { name: "More for list.md" }).click()
+  await item(page, "Unpin").click()
+  await expect(row(page, "list\\.md, ")).toHaveCount(0)
+  expect((await pinsOf(page)).map((pin) => pin.path)).toEqual(["boards/launch.html"])
+  await fileAt(page, "list.md")
+
+  await row(page, "Launch board, ").click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+})
+
+test("a person pins from the library, at most eight, and a pin whose file was deleted says so", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openChat(page)
+  await page.getByRole("button", { name: "More", exact: true }).click()
+  await item(page, "Library").click()
+  await expect(page.getByRole("heading", { name: "Library" })).toBeVisible()
+
+  // From a file's menu in the list, and the row then says it is pinned.
+  await page.getByRole("button", { name: "More for plan.md" }).click()
+  await expect(item(page, "Pin to Pip")).toBeVisible()
+  await shoot(page, "library-pin-menu")
+  await item(page, "Pin to Pip").click()
+  await expect(row(page, "plan\\.md, pinned")).toBeVisible()
+  await shoot(page, "library-pinned")
+  expect((await pinsOf(page)).map((pin) => pin.path)).toEqual(["boards/launch.html", "plan.md"])
+
+  // From the bar of the open file, where it is taken off again.
+  await row(page, "plan\\.md").click()
+  await page.getByRole("button", { name: "Unpin from Pip" }).click()
+  await expect(page.getByRole("button", { name: "Pin to Pip" })).toBeVisible()
+  expect((await pinsOf(page)).map((pin) => pin.path)).toEqual(["boards/launch.html"])
+  await page.getByRole("button", { name: "Pin to Pip" }).click()
+  await expect(page.getByRole("button", { name: "Unpin from Pip" })).toBeVisible()
+  await shoot(page, "viewer-pinned")
+  await back(page).click()
+
+  // Eight are as many as a Dood can have, and the ninth is refused in words.
+  for (const name of ["a.md", "b.md", "c.md", "d.md", "e.md", "gone.md"]) {
+    await keep(page, name, "text/markdown", Buffer.from(`# ${name}\n`), "pinboard")
+    await pinFile(page, `pinboard/${name}`)
+  }
+  expect(await pinsOf(page)).toHaveLength(8)
+  await page.getByRole("button", { name: "More for list.md" }).click()
+  const told = agree(page)
+  await item(page, "Pin to Pip").click()
+  expect(await told).toContain("8 things are pinned already")
+  expect(await pinsOf(page)).toHaveLength(8)
+
+  // A pin whose file was deleted stays on the Dood's page, saying so, until it is taken off.
+  const gone = await fileAt(page, "pinboard/gone.md")
+  await page.request.delete(`/api/agents/${await agentId(page)}/library/${gone.id}`)
+  await back(page).click()
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await expect(words(page, "No longer in the library")).toBeVisible()
+  await words(page, /^Pinned for everyone/).scrollIntoViewIfNeeded()
+  await shoot(page, "pin-gone")
+  await page.getByRole("button", { name: "Unpin gone.md" }).click()
+  await expect(words(page, "No longer in the library")).toHaveCount(0)
+  expect(await pinsOf(page)).toHaveLength(7)
+
+  // Left as it was found, for the tests after these.
+  const id = await agentId(page)
+  for (const pin of await pinsOf(page))
+    await page.request.delete(`/api/agents/${id}/pins/${pin.fileId}`)
+  for (const file of await libraryOf(page)) {
+    if (file.path.startsWith("pinboard/"))
+      await page.request.delete(`/api/agents/${id}/library/${file.id}`)
+  }
 })
 
 test("automations made in chat can be paused, resumed, run and deleted", async ({ page }) => {
@@ -775,6 +1048,513 @@ test("a page the agent drew puts words in the message box when the reader presse
   await expect(composer(page)).toHaveValue("Go with plan B\nGo with plan B")
 })
 
+test("a page the agent drew hands the reader a file, and is opened on a screen of its own in the app's colors", async ({
+  page,
+}) => {
+  await openChat(page)
+  await send(
+    page,
+    `/tool visual ${JSON.stringify({
+      title: "Figures",
+      html: "<button id=save>Save</button><button id=large>Larger</button><script>save.onclick = function () { dc.save('figures.csv', 'a,b\\n1,2', 'text/csv') }; large.onclick = function () { dc.expand() }</script>",
+    })}`,
+  )
+  const frame = page.getByLabel("Visual: figures.html").frameLocator("iframe")
+  await expect(frame.getByRole("button", { name: "Save" })).toBeVisible()
+  const download = page.waitForEvent("download")
+  await frame.getByRole("button", { name: "Save" }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toBe("figures.csv")
+  expect(readFileSync(await file.path(), "utf8")).toBe("a,b\n1,2")
+
+  // Large, on a phone, is the library's own screen for the page, in the app's light or dark.
+  await frame.getByRole("button", { name: "Larger" }).click()
+  const large = page.locator('iframe[title="figures.html"]').last()
+  await expect(large).toBeVisible()
+  await expect(large.contentFrame().getByRole("button", { name: "Larger" })).toBeVisible()
+  await expect(large.contentFrame().locator("html")).toHaveAttribute(
+    "data-dc-theme",
+    /^(light|dark)$/,
+  )
+  expect(await large.getAttribute("src")).toContain("#dc-theme=")
+  await page.screenshot({ path: "test-results/phone-page-large.png" })
+})
+
+test("a connector's own page for a tool is shown in the chat, told what the tool answered, and asks before a tool that may change something", async ({
+  page,
+}) => {
+  const mcp = await startFakeMcp()
+  try {
+    await signIn(page)
+    const id = await agentId(page)
+    const added = await page.request.post(`/api/agents/${id}/connectors`, {
+      data: { name: "Weather", url: `${mcp.origin}/apps/mcp` },
+    })
+    expect(added.ok()).toBe(true)
+    await agent(page, "Pip").click()
+    await send(page, `/tool weather__forecast ${JSON.stringify({ city: "Lisbon" })}`)
+    // It says whose page it is: not the Dood's, and not the app's.
+    await expect(words(page, "From Weather")).toBeVisible()
+    const frame = page.getByLabel("App: forecast from Weather").frameLocator("iframe")
+    // The page was told what the tool was asked and what it answered, and where it is shown.
+    await expect(frame.locator("#city")).toHaveText("Lisbon")
+    await expect(frame.locator("#temp")).toHaveText("Sunny, 21 degrees")
+    await expect(frame.locator("html")).toHaveAttribute("data-host", "do-computer")
+    // It is nobody: it has no cookies, and cannot reach the app it is served from.
+    await expect(frame.locator("html")).toHaveAttribute("data-cookie", "blocked")
+    await expect(frame.locator("html")).toHaveAttribute("data-api", "blocked")
+    await page.screenshot({ path: "test-results/phone-connector-page.png" })
+
+    // A tool that only reads runs at once.
+    await frame.getByRole("button", { name: "Refresh" }).click()
+    await expect(frame.locator("#log")).toHaveText("refresh done")
+    // Booking may change something, so the person is asked, and a no is told to the page.
+    const refused = new Promise<string>((resolve) =>
+      page.once("dialog", (dialog) => {
+        resolve(dialog.message())
+        void dialog.dismiss()
+      }),
+    )
+    await frame.getByRole("button", { name: "Book a trip" }).click()
+    expect(await refused).toContain("Let this page use “book”?")
+    await expect(frame.locator("#log")).toHaveText("refused: The person said no.")
+    const agreed = agree(page)
+    await frame.getByRole("button", { name: "Book a trip" }).click()
+    expect(await agreed).toContain("The page from Weather wants to run that tool there")
+    await expect(frame.locator("#log")).toHaveText("book done")
+    // Its words go in the message box, for the person to send or not.
+    await frame.getByRole("button", { name: "Tell the Dood" }).click()
+    await expect(composer(page)).toHaveValue("Book the trip to Lisbon")
+  } finally {
+    await mcp.close()
+  }
+})
+
+/** A box to type in on the screen in front, by what it is called. */
+const box = (page: Page, name: string) =>
+  page.getByLabel(name, { exact: true }).filter({ visible: true })
+const save = (page: Page) =>
+  page.getByRole("button", { name: "Save", exact: true }).filter({ visible: true })
+/** A row that is a button and says nothing more than its name. */
+const plainRow = (page: Page, name: string) =>
+  page.getByRole("button", { name, exact: true }).filter({ visible: true })
+
+async function openPasswords(page: Page) {
+  await page.getByRole("button", { name: "Phone user: settings and signing out" }).click()
+  await page.getByRole("button", { name: "Personal: workspace settings" }).click()
+  await row(page, "Passwords").click()
+  await expect(page.getByRole("heading", { name: "Passwords" })).toBeVisible()
+}
+
+test("a workspace's saved logins are added, changed, given a new password and removed on the phone, and never shown again", async ({
+  page,
+}) => {
+  const PASSWORD = "nobody-is-shown-this-again"
+  await signIn(page)
+  await openPasswords(page)
+  const logins = page.getByRole("list", { name: "Saved logins" })
+  await expect(logins).toContainText("No logins yet")
+  await expect(page.getByRole("list", { name: "Saved cards" })).toContainText("No cards yet")
+
+  await plainRow(page, "Add a login").click()
+  await expect(page.getByRole("heading", { name: "Add a login" })).toBeVisible()
+  await box(page, "Name").fill("Example")
+  // Each box is named to the system, so that the phone's own saved passwords can fill it in.
+  await expect(box(page, "Username or email")).toHaveAttribute("autocomplete", "username")
+  await expect(box(page, "Password")).toHaveAttribute("autocomplete", "current-password")
+  await expect(box(page, "Password")).toHaveAttribute("type", "password")
+  await box(page, "Username or email").fill("test.user@example.com")
+  await box(page, "Password").fill(PASSWORD)
+  // What is not a site is said before anything is sent.
+  await box(page, "A site to add").fill("not a site")
+  await save(page).click()
+  await expect(page.getByRole("alert").filter({ visible: true })).toContainText("not a site")
+  // An address is taken for its site.
+  await box(page, "A site to add").fill("https://Example.com/login")
+  await box(page, "A site to add").press("Enter")
+  await expect(
+    page.getByRole("list", { name: "Used only on" }).filter({ visible: true }),
+  ).toContainText("example.com")
+  await save(page).click()
+
+  await expect(logins).toContainText("Example")
+  await expect(logins).toContainText("test.user@example.com · example.com")
+  await expect(logins).toContainText("Not used yet")
+  // Neither the page nor what the server answers with has the password in it.
+  expect(await page.content()).not.toContain(PASSWORD)
+  const workspaces = (await (await page.request.get("/api/workspaces")).json()) as {
+    workspaces: { id: string; savedLogins?: boolean }[]
+  }
+  const mine = workspaces.workspaces[0]!
+  expect(mine.savedLogins).toBe(true)
+  const listed = await (await page.request.get(`/api/workspaces/${mine.id}/passwords`)).text()
+  expect(listed).toContain("test.user@example.com")
+  expect(listed).not.toContain(PASSWORD)
+
+  // Its name and its sites are changed, and its password is not there to change.
+  await row(page, "Example").click()
+  await expect(page.getByRole("heading", { name: "Example" })).toBeVisible()
+  await expect(box(page, "Password")).toHaveCount(0)
+  await expect(words(page, "Its password stays as it is.")).toBeVisible()
+  await box(page, "Name").fill("Example at work")
+  await box(page, "A site to add").fill("app.example.org")
+  await save(page).click()
+  await expect(logins).toContainText("Example at work")
+  await expect(logins).toContainText("example.com, app.example.org")
+
+  // A new password is given without the old one being shown.
+  await row(page, "Example at work").click()
+  await plainRow(page, "Replace the password").click()
+  await expect(page.getByRole("heading", { name: "Replace the password" })).toBeVisible()
+  await expect(box(page, "New password")).toHaveValue("")
+  await box(page, "New password").fill("another-one-entirely")
+  await save(page).click()
+  await expect(page.getByRole("heading", { name: "Example at work" })).toBeVisible()
+  expect(await page.content()).not.toContain("another-one-entirely")
+
+  // Removing asks first.
+  const asked = agree(page)
+  await plainRow(page, "Remove").click()
+  expect(await asked).toContain("Remove Example at work?")
+  await expect(logins).toContainText("No logins yet")
+})
+
+test("a card is added on the phone without a security code, shown by its last four digits, and removed", async ({
+  page,
+}) => {
+  await signIn(page)
+  await openPasswords(page)
+  const cards = page.getByRole("list", { name: "Saved cards" })
+  await plainRow(page, "Add a card").click()
+  await expect(page.getByRole("heading", { name: "Add a card" })).toBeVisible()
+  // There is nowhere to type a security code: it is not kept.
+  await expect(page.getByLabel(/security code|CVC|CVV/i).filter({ visible: true })).toHaveCount(0)
+  // Each box has the keypad it needs and is named to the system for what it is.
+  await expect(box(page, "Card number")).toHaveAttribute("autocomplete", "cc-number")
+  await expect(box(page, "Card number")).toHaveAttribute("inputmode", "numeric")
+  await expect(box(page, "Expires")).toHaveAttribute("autocomplete", "cc-exp")
+  await expect(box(page, "Name on the card")).toHaveAttribute("autocomplete", "cc-name")
+
+  // A number that is not a card's is said before anything is sent.
+  await box(page, "Card number").fill("4242424242424241")
+  await box(page, "Expires").fill("0840")
+  await expect(box(page, "Expires")).toHaveValue("08/40")
+  await save(page).click()
+  await expect(page.getByRole("alert").filter({ visible: true })).toContainText("not a card number")
+  await box(page, "Card number").fill("4242424242424242")
+  await expect(box(page, "Card number")).toHaveValue("4242 4242 4242 4242")
+  await expect(box(page, "Name")).toHaveAttribute("placeholder", "Visa ending 4242")
+  await box(page, "Name on the card").fill("Test Person")
+  await save(page).click()
+
+  await expect(cards).toContainText("Visa ending 4242")
+  await expect(cards).toContainText("expires 08/40 · Test Person")
+  await expect(cards).toContainText("Not used yet")
+  // Neither the page nor what the server answers with has the number in it.
+  expect(await page.content()).not.toContain("4242 4242")
+  const workspaces = (await (await page.request.get("/api/workspaces")).json()) as {
+    workspaces: { id: string }[]
+  }
+  const listed = await (
+    await page.request.get(`/api/workspaces/${workspaces.workspaces[0]!.id}/cards`)
+  ).text()
+  expect(listed).toContain('"last4":"4242"')
+  expect(listed).not.toContain("4242424242424242")
+
+  const asked = agree(page)
+  await page.getByRole("button", { name: "Remove Visa ending 4242" }).click()
+  expect(await asked).toContain("Remove Visa ending 4242?")
+  await expect(cards).toContainText("No cards yet")
+})
+
+test("a payment a Dood asks about takes the card's security code with the yes, and a login it asks for is given with its sites", async ({
+  page,
+}) => {
+  // Asking needs a computer with a browser on a shop's page (sign-in.spec.ts goes through it
+  // all): here the server's answers are stood in for, so that what the phone shows and sends
+  // can be looked at.
+  const now = Date.now()
+  let pending = true
+  let answered: unknown
+  await page.route(/\/api\/agents\/[^/]+\/approvals$/, async (route) => {
+    const response = await route.fetch()
+    const state = (await response.json()) as { pending: unknown[] }
+    await route.fulfill({
+      response,
+      json: {
+        ...state,
+        pending: pending
+          ? [
+              {
+                id: "pay-1",
+                chatId: "1",
+                chatTitle: "Main",
+                chatKind: "chat",
+                title: "Pay on shop.example.com with Visa ending 4242",
+                detail:
+                  "Card: Visa ending 4242\nPage: https://shop.example.com/checkout\nIt will press: “Pay $12.98”\nIt says: “Two mugs”",
+                createdAt: now,
+                onceOnly: true,
+                wants: { label: "Security code" },
+              },
+            ]
+          : [],
+      },
+    })
+  })
+  await page.route(/\/api\/agents\/[^/]+\/approvals\/pay-1$/, async (route) => {
+    answered = route.request().postDataJSON()
+    pending = false
+    await route.fulfill({ json: { ok: true } })
+  })
+  let asking = true
+  let given: unknown
+  await page.route(/\/api\/agents\/[^/]+\/secrets$/, (route) =>
+    route.fulfill({
+      json: {
+        requests: asking
+          ? [
+              {
+                id: "login-1",
+                chatId: "1",
+                purpose: "To check the order",
+                fields: [
+                  { name: "username", description: "The username or email you sign in with" },
+                  { name: "password", description: null },
+                ],
+                destination: { kind: "login", site: "shop.example.com" },
+                createdAt: now,
+              },
+            ]
+          : [],
+      },
+    }),
+  )
+  await page.route(/\/api\/agents\/[^/]+\/secrets\/login-1$/, async (route) => {
+    given = route.request().postDataJSON()
+    asking = false
+    await route.fulfill({ json: { ok: true } })
+  })
+  await openChat(page)
+
+  // The payment: no "always", and no yes until a code of three or four digits is typed.
+  await expect(words(page, "Pay on shop.example.com with Visa ending 4242")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Always allow" }).filter({ visible: true }),
+  ).toHaveCount(0)
+  const code = box(page, "Security code")
+  await expect(code).toHaveAttribute("type", "password")
+  await expect(code).toHaveAttribute("inputmode", "numeric")
+  await expect(code).toHaveAttribute("maxlength", "4")
+  await expect(code).toHaveAttribute("autocomplete", "off")
+  const allow = page.getByRole("button", { name: "Allow once" }).filter({ visible: true })
+  await code.fill("12")
+  await expect(allow).toBeDisabled()
+  await code.fill("123")
+  await allow.click()
+  await expect(words(page, "Pay on shop.example.com with Visa ending 4242")).toHaveCount(0)
+  expect(answered).toEqual({ decision: "once", typed: "123" })
+
+  // The login: the site that asked is always among its sites, and another can be added.
+  await expect(words(page, "Pip needs a login for shop.example.com")).toBeVisible()
+  await expect(box(page, "Username or email")).toHaveAttribute("autocomplete", "username")
+  await expect(box(page, "Password")).toHaveAttribute("autocomplete", "current-password")
+  await expect(page.getByRole("button", { name: "Remove shop.example.com" })).toHaveCount(0)
+  await box(page, "Username or email").fill("test.user@example.com")
+  await box(page, "Password").fill("not-a-real-password")
+  await box(page, "A site to add").fill("accounts.example.com")
+  await page.getByRole("button", { name: "Save", exact: true }).filter({ visible: true }).click()
+  await expect(words(page, "Pip needs a login for shop.example.com")).toHaveCount(0)
+  expect(given).toEqual({
+    values: { username: "test.user@example.com", password: "not-a-real-password" },
+    sites: ["shop.example.com", "accounts.example.com"],
+  })
+})
+
+/** Where the pictures of a call on the phone are put, for whoever reads the change. */
+const callShots = "test-results/mobile-call"
+
+test("a Dood is called from the phone: it talks, hands on what was asked, and the chat keeps the call", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openChat(page)
+  // The call is placed a moment late and the hand-off is taken a moment late, so that what the
+  // screen shows meanwhile can be seen.
+  const hold = async (route: import("@playwright/test").Route, ms: number) => {
+    await new Promise((done) => setTimeout(done, ms))
+    await route.continue()
+  }
+  await page.route(/\/api\/agents\/[^/]+\/calls$/, (route) =>
+    route.request().method() === "POST" ? hold(route, 1_500) : route.continue(),
+  )
+  await page.route(/\/api\/agents\/[^/]+\/calls\/[^/]+\/work$/, (route) => hold(route, 2_500))
+
+  await page.getByRole("button", { name: "Call Pip" }).click()
+  // The call is a screen of its own: the Dood, what is going on, and the buttons of a call.
+  await expect(words(page, "Calling Pip…")).toBeVisible()
+  await expect(page.getByRole("button", { name: "End" })).toBeVisible()
+  await page.screenshot({ path: `${callShots}/1-calling.png` })
+
+  // The voice hears the question and hands it on: the Dood is working on it.
+  await expect(words(page, "On a call")).toBeVisible()
+  await expect(words(page, "What did I say before the call?").first()).toBeVisible()
+  await expect(words(page, "Handed to Pip")).toBeVisible()
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText(
+    "Working on it",
+  )
+  await page.screenshot({ path: `${callShots}/2-handed-on.png` })
+
+  // The Dood's answer is said by its voice, and the call goes on to its goodbye.
+  await expect(words(page, "Any time.")).toBeVisible({ timeout: 15_000 })
+  await expect(words(page, "Handed to Pip")).toHaveCount(0)
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText("Listening")
+  // Muting is said plainly, and taken back.
+  await page.getByRole("button", { name: "Mute" }).click()
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText("You’re muted")
+  await page.screenshot({ path: `${callShots}/3-muted.png` })
+  await page.getByRole("button", { name: "Unmute" }).click()
+  await expect(page.getByTestId("call-status").filter({ visible: true })).toHaveText("Listening")
+
+  // Back in the chat the call goes on, and the bar over the chat leads back to it.
+  await page.getByRole("button", { name: "Chat", exact: true }).click()
+  const bar = page.getByRole("button", { name: /^On a call with Pip, / })
+  await expect(bar).toBeVisible()
+  await expect(page.getByRole("button", { name: "On a call with Pip", exact: true })).toBeVisible()
+  await page.screenshot({ path: `${callShots}/4-in-the-chat.png` })
+  await bar.click()
+  await page.getByRole("button", { name: "End" }).click()
+
+  // The chat has one record of the call, with what was said folded inside it.
+  await expect(composer(page)).toBeVisible()
+  await expect(words(page, /^A call of /)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole("button", { name: /^On a call with Pip/ })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Call Pip" })).toBeEnabled()
+  await page.getByRole("button", { name: "What was said" }).last().click()
+  await expect(words(page, /You: What did I say before the call\?/)).toBeVisible()
+  await expect(words(page, /Dood: Any time\./)).toBeVisible()
+  await page.screenshot({ path: `${callShots}/5-record.png` })
+
+  // The server kept each thing said once, in order, and the work went to a side chat of the call's own.
+  const id = await agentId(page)
+  const state = (await (await page.request.get(`/api/agents/${id}`)).json()) as {
+    chats: { id: string; main?: boolean }[]
+  }
+  const main = state.chats.find((chat) => chat.main)!.id
+  const chat = (await (await page.request.get(`/api/agents/${id}/chats/${main}`)).json()) as {
+    messages: {
+      spoken?: unknown
+      parts: { call?: { chatId?: string; lines: { who: string; text: string }[] } }[]
+    }[]
+  }
+  const kept = chat.messages.flatMap((message) => message.parts).find((part) => part.call)!.call!
+  expect(kept.lines.map((line) => line.who)).toEqual(["you", "dood", "you", "dood"])
+  expect(kept.lines[0]!.text).toBe("What did I say before the call?")
+  expect(kept.lines[3]!.text).toBe("Any time.")
+  expect(kept.chatId).toMatch(/^\d+$/)
+  expect(chat.messages.some((message) => message.spoken !== undefined)).toBe(false)
+})
+
+test("a Dood is not offered a call where the server does not offer one", async ({ page }) => {
+  await page.route(/\/api\/agents\/[^/]+\/calls$/, (route) =>
+    route.request().method() === "GET"
+      ? route.fulfill({
+          json: { available: false, reason: "admins", voices: [], voice: null },
+        })
+      : route.continue(),
+  )
+  await openChat(page)
+  await expect(page.getByRole("button", { name: "Pip's side chats" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Call Pip" })).toHaveCount(0)
+})
+
+test("the page that carries a call's sound on the phone makes an offer, carries events both ways, and mutes", async ({
+  page,
+}) => {
+  // The page is run as the browser build runs it, in a frame of the app's own origin, and the
+  // test is the app around it and the voice at the other end, which here is a second
+  // connection in the test's own page. Only the voice's provider is stood in for.
+  await open(page)
+  await page
+    .context()
+    .grantPermissions(["local-network-access", "microphone"])
+    .catch(() => page.context().grantPermissions(["microphone"]))
+  const { LINE_PAGE } = await import("../../mobile/src/call/line-page.ts")
+  const heard = await page.evaluate(async (html) => {
+    const frame = document.createElement("iframe")
+    frame.setAttribute("allow", "microphone; autoplay")
+    const said: { type: string; [key: string]: unknown }[] = []
+    const waitFor = (type: string) =>
+      new Promise<{ type: string; [key: string]: unknown }>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`no ${type}`)), 10_000)
+        const look = () => {
+          const found = said.find((message) => message.type === type)
+          if (found === undefined) return void setTimeout(look, 20)
+          clearTimeout(timer)
+          resolve(found)
+        }
+        look()
+      })
+    window.addEventListener("message", (event) => {
+      if (event.source !== frame.contentWindow || typeof event.data !== "string") return
+      said.push(JSON.parse(event.data))
+    })
+    const tell = (message: unknown) =>
+      frame.contentWindow!.postMessage(JSON.stringify(message), "*")
+    frame.srcdoc = html
+    document.body.appendChild(frame)
+    await waitFor("ready")
+    tell({ type: "open" })
+    const offer = (await waitFor("offer")) as { sdp: string }
+
+    // The voice: it answers the offer, and talks on the channel the page opened.
+    const voice = new RTCPeerConnection()
+    const toPage = new Promise<string>((resolve) => {
+      voice.ondatachannel = (event) => {
+        const channel = event.channel
+        channel.onmessage = (message) => resolve(String(message.data))
+        channel.onopen = () => channel.send(JSON.stringify({ type: "session.started" }))
+      }
+    })
+    const microphone = new Promise<MediaStreamTrack>((resolve) => {
+      voice.ontrack = (event) => resolve(event.track)
+    })
+    await voice.setRemoteDescription({ type: "offer", sdp: offer.sdp })
+    await voice.setLocalDescription(await voice.createAnswer())
+    await new Promise<void>((resolve) => {
+      if (voice.iceGatheringState === "complete") return resolve()
+      voice.onicegatheringstatechange = () => {
+        if (voice.iceGatheringState === "complete") resolve()
+      }
+      setTimeout(resolve, 2_500)
+    })
+    tell({ type: "answer", sdp: voice.localDescription!.sdp })
+    await waitFor("answered")
+    const event = (await waitFor("event")) as { data: string }
+    tell({ type: "send", events: [JSON.stringify({ type: "session.close" })] })
+    const sentToVoice = await toPage
+    const track = await microphone
+    await waitFor("levels")
+    tell({ type: "mute", muted: true })
+    tell({ type: "close" })
+    voice.close()
+    return {
+      offerHasAudio: /m=audio/.test(offer.sdp),
+      offerHasChannel: /m=application/.test(offer.sdp),
+      event: event.data,
+      sentToVoice,
+      microphone: track.kind,
+    }
+  }, LINE_PAGE)
+  expect(heard).toEqual({
+    offerHasAudio: true,
+    offerHasChannel: true,
+    event: JSON.stringify({ type: "session.started" }),
+    sentToVoice: JSON.stringify({ type: "session.close" }),
+    microphone: "audio",
+  })
+})
+
 test("a second agent hatches and names itself, settings show who and what there is, and signing out ends the session", async ({
   page,
 }) => {
@@ -818,4 +1598,113 @@ test("a second agent hatches and names itself, settings show who and what there 
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
   await open(page)
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible()
+})
+
+/** The Doods in the list as they are seen, from the top down, by name. */
+async function shownInOrder(page: Page): Promise<string[]> {
+  const names = new Map(
+    (
+      (await (await page.request.get("/api/agents")).json()) as {
+        agents: { id: string; name: string | null }[]
+      }
+    ).agents.map((each) => [each.id, each.name ?? ""]),
+  )
+  const ids = await page.locator('[data-testid^="agent-"]').evaluateAll((rows) =>
+    rows
+      .map((row) => ({
+        id: row.getAttribute("data-testid")!.slice(6),
+        box: row.getBoundingClientRect(),
+      }))
+      .filter((row) => row.box.height > 0)
+      .sort((a, b) => a.box.top - b.box.top)
+      .map((row) => row.id),
+  )
+  return ids.map((id) => names.get(id) ?? id)
+}
+
+test("the Doods are in the order they were put in elsewhere, and are moved on the phone too", async ({
+  page,
+}) => {
+  // As wide and as tall as a phone of the day, for its pictures.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await signIn(page)
+  const me = ((await (await page.request.get("/api/me")).json()) as { user: { id: string } }).user
+  const order = `/api/workspaces/${encodeURIComponent(`personal:${me.id}`)}/agent-order`
+  const made = (await (await page.request.post("/api/agents")).json()) as { agent: { id: string } }
+  await page.request.patch(`/api/agents/${made.agent.id}`, {
+    data: { name: "Fern", hatched: true },
+  })
+  await page.reload()
+  await expect(agent(page, "Fern")).toBeVisible()
+  const ids = Object.fromEntries(
+    (
+      (await (await page.request.get("/api/agents")).json()) as {
+        agents: { id: string; name: string }[]
+      }
+    ).agents.map((each) => [each.name, each.id]),
+  )
+
+  // Put in order in a browser, they are in that order here, as it is said and with nothing
+  // asked for again.
+  await page.request.put(order, { data: { ids: [ids.Pip, ids.Fern, ids.Dot] } })
+  await expect.poll(() => shownInOrder(page)).toEqual(["Pip", "Fern", "Dot"])
+
+  // Edit is the list's edit mode: each row has a handle, and a row is no longer opened.
+  await page.getByRole("button", { name: "Edit", exact: true }).click()
+  const handle = (name: string) => page.getByRole("button", { name: `Move ${name}` })
+  await expect(handle("Pip")).toBeVisible()
+  await page.screenshot({ path: "test-results/dood-order-phone-before.png" })
+
+  // The top one is dragged by its handle to the foot of the list. The rows it passes make room.
+  const from = (await handle("Pip").boundingBox())!
+  const to = (await handle("Dot").boundingBox())!
+  const x = from.x + from.width / 2
+  await page.mouse.move(x, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(x, from.y + from.height / 2 + 10, { steps: 3 })
+  await page.mouse.move(x, to.y + to.height / 2 + 6, { steps: 14 })
+  await expect.poll(() => shownInOrder(page)).toEqual(["Fern", "Dot", "Pip"])
+  await page.screenshot({ path: "test-results/dood-order-phone-during.png" })
+  await page.mouse.up()
+  await expect.poll(() => shownInOrder(page)).toEqual(["Fern", "Dot", "Pip"])
+  // The server has it, so every browser has it too.
+  await expect
+    .poll(
+      async () =>
+        (
+          (await (await page.request.get("/api/agent-order")).json()) as {
+            order: Record<string, string[]>
+          }
+        ).order[`personal:${me.id}`],
+    )
+    .toEqual([ids.Fern, ids.Dot, ids.Pip])
+  await page.screenshot({ path: "test-results/dood-order-phone-after.png" })
+
+  // Put in another order elsewhere while it is in edit mode, it follows that too.
+  await page.request.put(order, { data: { ids: [ids.Dot, ids.Pip, ids.Fern] } })
+  await expect.poll(() => shownInOrder(page)).toEqual(["Dot", "Pip", "Fern"])
+
+  // Done leaves edit mode, and the order is kept when the app is opened again.
+  await page.getByRole("button", { name: "Done", exact: true }).click()
+  await expect(handle("Pip")).toHaveCount(0)
+  await open(page)
+  await expect.poll(() => shownInOrder(page)).toEqual(["Dot", "Pip", "Fern"])
+
+  // Sort by latest, in edit mode, gives the order up for the one last heard from first.
+  await page.getByRole("button", { name: "Edit", exact: true }).click()
+  await page.getByRole("button", { name: "Personal: sort by latest" }).click()
+  await expect
+    .poll(
+      async () =>
+        (
+          (await (await page.request.get("/api/agent-order")).json()) as {
+            order: Record<string, string[]>
+          }
+        ).order,
+    )
+    .toEqual({})
+  await expect(page.getByRole("button", { name: "Personal: sort by latest" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Done", exact: true }).click()
+  await agent(page, "Pip").click()
+  await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
 })

@@ -57,3 +57,18 @@ export function markdownFiles(path: string, text: string): Set<string> {
   }
   return files
 }
+
+/**
+ * When a page of the library last changed as it is seen. A page shows what is beside it, so it
+ * is as new as the newest file in its top folder.
+ */
+export function pageShownAt(
+  files: readonly { path: string; updatedAt: number }[],
+  page: { path: string; updatedAt: number },
+): number {
+  const top = page.path.includes("/") ? `${page.path.split("/")[0]}/` : ""
+  return Math.max(
+    page.updatedAt,
+    ...files.filter((entry) => entry.path.startsWith(top)).map((entry) => entry.updatedAt),
+  )
+}

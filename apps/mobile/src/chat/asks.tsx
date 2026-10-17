@@ -4,22 +4,22 @@ import {
   type ApprovalsState,
   type ComputerRequest,
   type ConnectorSummary,
-  isPersonalWorkspace,
   CARD_CODE,
-  LOGIN_PASSWORD,
-  LOGIN_USERNAME,
-  MAX_PASSWORD_CHARS,
+  isPersonalWorkspace,
+  loginAnswer,
+  MAX_LOGIN_SITES,
   MAX_SECRET_CHARS,
-  MAX_USERNAME_CHARS,
   type SecretRequest,
 } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "expo-router"
 import { type ReactNode, useState } from "react"
-import { Pressable, ScrollView, TextInput, View } from "react-native"
-import { keys, useWorkspaces } from "@/lib/queries"
+import { Pressable, ScrollView, TextInput, type TextInputProps, View } from "react-native"
+import { keys, useAgentSummary, useWorkspaces } from "@/lib/queries"
 import { type Accent, mono, radius, useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
+import { SITE_INPUT, useSiteAdder } from "@/passwords/fields"
+import { loginsKey } from "@/passwords/keys"
 import { Button, errorText, Glass, haptic, Icon, type IconName, Text } from "@/ui"
 
 /** Do one thing for a card's button: busy while it runs, and what went wrong if it did. */
@@ -221,6 +221,10 @@ function ApprovalCard({
           busy={answer.busy}
           accent={accent}
           onChangeText={setTyped}
+          // A card's security code: three or four digits, on the keypad for them. It is not
+          // named a security code to the system, as the web's box is not, so that nothing
+          // offers to fill in or keep a code that is typed fresh for each payment.
+          input={{ keyboardType: "number-pad", maxLength: 4 }}
         />
       )}
     </Card>
@@ -392,6 +396,7 @@ function TypedField({
   busy,
   accent,
   onChangeText,
+  input,
 }: {
   label: string
   /** What it is called where its eye is named: "Show password". */
@@ -404,6 +409,11 @@ function TypedField({
   busy: boolean
   accent: Accent
   onChangeText: (text: string) => void
+  /**
+   * What the box is to the system: its keypad, and what the phone may fill it in with. Unsaid,
+   * nothing fills it in.
+   */
+  input?: Pick<TextInputProps, "keyboardType" | "maxLength" | "textContentType" | "autoComplete">
 }) {
   const theme = useTheme()
   const [visible, setVisible] = useState(false)
@@ -432,7 +442,9 @@ function TypedField({
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete="off"
+          textContentType="none"
           spellCheck={false}
+          {...input}
           editable={!busy}
           value={value}
           onChangeText={onChangeText}
@@ -469,20 +481,108 @@ function TypedField({
   )
 }
 
-/** Why a login cannot be saved, or undefined when it can. */
-function problemWithLogin(username: string, password: string): string | undefined {
-  if (username.trim() === "") return "Type the username or email."
-  if (username.trim().length > MAX_USERNAME_CHARS) return "That username is too long."
-  if (password === "") return "Type the password."
-  if (/[\r\n]/.test(password)) return "A password has to be a single line."
-  if (password.length > MAX_PASSWORD_CHARS) return "That password is too long to save."
-  return undefined
+/**
+ * The sites a login asked for in a chat is to be typed on, as small pills, with a box to add
+ * another. The site the Dood asked about is always among them and cannot be taken out.
+ */
+function SitePills({
+  sites,
+  fixed,
+  typed,
+  busy,
+  accent,
+  onSites,
+  onTyped,
+  onProblem,
+}: {
+  sites: readonly string[]
+  fixed: string
+  typed: string
+  busy: boolean
+  accent: Accent
+  onSites: (sites: string[]) => void
+  onTyped: (typed: string) => void
+  onProblem: (problem: string | undefined) => void
+}) {
+  const theme = useTheme()
+  const add = useSiteAdder({ sites, typed, onSites, onTyped, onProblem })
+  const pill = {
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: theme.fill,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingLeft: 10,
+  } as const
+  return (
+    <View style={{ gap: 3 }}>
+      <Text variant="caption" weight="600">
+        Used only on
+      </Text>
+      <View
+        accessibilityRole="list"
+        accessibilityLabel="Used only on"
+        style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}
+      >
+        {sites.map((site) => (
+          <View key={site} style={[pill, { paddingRight: site === fixed ? 10 : 4 }]}>
+            <Text style={{ fontFamily: mono, fontSize: 13 }}>{site}</Text>
+            {site === fixed ? null : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${site}`}
+                disabled={busy}
+                hitSlop={6}
+                onPress={() => {
+                  onProblem(undefined)
+                  onSites(sites.filter((each) => each !== site))
+                }}
+                style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }}
+              >
+                <Icon name="close" size={11} color={theme.ink2} weight="bold" />
+              </Pressable>
+            )}
+          </View>
+        ))}
+        {sites.length >= MAX_LOGIN_SITES && typed === "" ? null : (
+          <TextInput
+            {...SITE_INPUT}
+            placeholder="Add a site"
+            placeholderTextColor={theme.ink3}
+            editable={!busy}
+            value={typed}
+            onChangeText={(text) => {
+              onProblem(undefined)
+              onTyped(text)
+            }}
+            onSubmitEditing={() => add(true)}
+            onBlur={() => add(false)}
+            selectionColor={accent.a}
+            style={[
+              pill,
+              {
+                minWidth: 110,
+                paddingRight: 10,
+                color: theme.ink,
+                fontFamily: mono,
+                fontSize: 13,
+                paddingVertical: 0,
+              },
+            ]}
+          />
+        )}
+      </View>
+    </View>
+  )
 }
 
 /**
- * The form for a login an agent asked for, to sign in on a site with. The workspace keeps it
- * for that site. What is typed is held here only until it is sent, and forgotten when the form
- * goes.
+ * The form for a login an agent asked for, to sign in on a site with. It is kept by the
+ * workspace and typed only on the sites named here, the one that asked always among them, as
+ * on the web. What is typed is held here only until it is sent, and forgotten when the form
+ * goes. The two boxes are named a username and a password to the system, so that the phone's
+ * own saved passwords can fill them in.
  */
 function LoginCard({
   request,
@@ -492,27 +592,31 @@ function LoginCard({
   chatId,
   accent,
   team,
-}: Shared & { request: SecretRequest; site: string }) {
+  workspaceId,
+}: Shared & { request: SecretRequest; site: string; workspaceId: string | undefined }) {
   const { client } = useSession()
   const queryClient = useQueryClient()
   const api = client.agent(agentId)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [sites, setSites] = useState<string[]>([site])
+  const [typedSite, setTypedSite] = useState("")
   const [problem, setProblem] = useState<string>()
   const answer = useAnswer(() => queryClient.invalidateQueries({ queryKey: keys.secrets(agentId) }))
   const save = () => {
-    const wrong = problemWithLogin(username, password)
-    setProblem(wrong)
-    if (wrong === undefined) {
-      void answer.run(
-        () =>
-          api.answerSecretRequest(request.id, {
-            [LOGIN_USERNAME]: username.trim(),
-            [LOGIN_PASSWORD]: password,
-          }),
-        () => setPassword(""),
-      )
-    }
+    const sent = loginAnswer(site, { username, password, sites, site: typedSite })
+    if ("problem" in sent) return setProblem(sent.problem)
+    setProblem(undefined)
+    void answer.run(
+      () => api.answerSecretRequest(request.id, sent.values, sent.sites),
+      () => {
+        setPassword("")
+        // The workspace has one more login, wherever its list is on screen.
+        if (workspaceId !== undefined) {
+          void queryClient.invalidateQueries({ queryKey: loginsKey(workspaceId) })
+        }
+      },
+    )
   }
   return (
     <Card
@@ -544,7 +648,8 @@ function LoginCard({
     >
       {request.purpose === null ? null : <Text variant="subhead">“{request.purpose}”</Text>}
       <Text variant="footnote" tone="ink2">
-        Kept encrypted by Do Computer. {agentName} can sign in with it on {site} and cannot read it.
+        Kept encrypted by Do Computer. {agentName} can sign in with it on the sites below and cannot
+        read it.
         {request.chatId === chatId ? null : (
           <AskedElsewhere agentId={agentId} chatId={request.chatId} accent={accent} />
         )}
@@ -559,6 +664,11 @@ function LoginCard({
           setProblem(undefined)
           setUsername(text)
         }}
+        input={{
+          textContentType: "username",
+          autoComplete: "username",
+          keyboardType: "email-address",
+        }}
       />
       <TypedField
         label="Password"
@@ -571,6 +681,20 @@ function LoginCard({
           setProblem(undefined)
           setPassword(text)
         }}
+        input={{ textContentType: "password", autoComplete: "current-password" }}
+      />
+      <SitePills
+        sites={sites}
+        fixed={site}
+        typed={typedSite}
+        busy={answer.busy}
+        accent={accent}
+        onSites={(next) => {
+          setProblem(undefined)
+          setSites(next)
+        }}
+        onTyped={setTypedSite}
+        onProblem={setProblem}
       />
     </Card>
   )
@@ -698,6 +822,8 @@ export function Asks(
   const { agentId, agentName, accent } = props
   const { client } = useSession()
   const [all, setAll] = useState(false)
+  const workspaceId = useAgentSummary(agentId)?.workspaceId
+  const workspace = useWorkspaces().data?.workspaces.find((each) => each.id === workspaceId)
   const approvals = useQuery<ApprovalsState>({
     queryKey: keys.approvals(agentId),
     queryFn: () => client.agent(agentId).approvals(),
@@ -734,14 +860,29 @@ export function Asks(
     ...(connectors.data ?? [])
       .filter((connector) => connector.status === "needs_auth" && connector.askedIn !== undefined)
       .map((connector) => <SignInCard key={`s${connector.id}`} {...props} connector={connector} />),
-    ...(secrets.data ?? []).map((request) => {
-      const { destination } = request
-      return destination.kind === "login" ? (
-        <LoginCard key={`k${request.id}`} {...props} request={request} site={destination.site} />
-      ) : (
-        <SecretCard key={`k${request.id}`} {...props} request={request} destination={destination} />
-      )
-    }),
+    // A login is asked for only where the workspace keeps logins and this person may give one,
+    // as on the web.
+    ...(secrets.data ?? [])
+      .filter((request) => request.destination.kind !== "login" || workspace?.savedLogins === true)
+      .map((request) => {
+        const { destination } = request
+        return destination.kind === "login" ? (
+          <LoginCard
+            key={`k${request.id}`}
+            {...props}
+            request={request}
+            site={destination.site}
+            workspaceId={workspaceId}
+          />
+        ) : (
+          <SecretCard
+            key={`k${request.id}`}
+            {...props}
+            request={request}
+            destination={destination}
+          />
+        )
+      }),
   ]
   if (cards.length === 0) return null
   const folded = cards.length > 2 && !all

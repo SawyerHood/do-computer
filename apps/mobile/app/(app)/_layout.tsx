@@ -106,6 +106,12 @@ export default function AppLayout() {
         name="a/[agentId]/box"
         options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }}
       />
+      {/* A call is a sheet over everything, as a call on the phone itself is. Swiped down, it
+          goes on, and its chat leads back to it. */}
+      <Stack.Screen
+        name="a/[agentId]/call"
+        options={{ presentation: "modal", headerShown: false }}
+      />
       <Stack.Screen
         name="a/[agentId]/library/share"
         options={{ ...sheet([0.65, 1]), title: "Share" }}

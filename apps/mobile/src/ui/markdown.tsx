@@ -9,11 +9,15 @@ import {
   type TextStyle,
   View,
 } from "react-native"
+import { tableCsv, tableMarkdown } from "@do-computer/protocol"
 import * as Clipboard from "expo-clipboard"
 import { Image } from "expo-image"
 import { mono, radius, space, type, useTheme } from "@/lib/theme"
 import { haptic } from "@/ui/haptics"
 import { Icon } from "@/ui/icon"
+import type { IconName } from "@/ui/icons"
+import { Menu } from "@/ui/menu"
+import { SYNTAX_COLORS, syntaxOf } from "@/ui/syntax"
 
 /* ---------- blocks ---------- */
 
@@ -23,7 +27,8 @@ export type Align = "left" | "center" | "right" | null
 /**
  * One piece of a document. Text is kept as it was written: `parseInline` reads emphasis and
  * links out of it when it is drawn, and a quote's `text` is Markdown of its own, read again with
- * `parseBlocks`.
+ * `parseBlocks`, as is the `text` of a section that folds. A block of code is `open` while the
+ * reply has not shut it, and a quote that is a note says which kind in `alert`.
  *
  * A list's `items` holds each item's first paragraph. The other three are only there when the
  * list needs them: `start` when a numbered list does not begin at 1, `checked` when any item is a
@@ -33,7 +38,7 @@ export type Align = "left" | "center" | "right" | null
 export type Block =
   | { type: "paragraph"; text: string }
   | { type: "heading"; level: number; text: string }
-  | { type: "code"; text: string; lang?: string }
+  | { type: "code"; text: string; lang?: string; open?: true }
   | {
       type: "list"
       ordered: boolean
@@ -42,14 +47,22 @@ export type Block =
       checked?: (boolean | null)[]
       children?: Block[][]
     }
-  | { type: "quote"; text: string }
+  | { type: "quote"; text: string; alert?: Alert }
+  | { type: "details"; summary: string; text: string; open?: true }
   | { type: "rule" }
   | { type: "table"; head: string[]; align: Align[]; rows: string[][] }
   | { type: "image"; alt: string; src: string; href?: string }
 
+/** The kinds of note GitHub writes as `> [!NOTE]`, in the order it lists them. */
+export const ALERTS = ["note", "tip", "important", "warning", "caution"] as const
+export type Alert = (typeof ALERTS)[number]
+
+const ALERT_MARK = /^\[!(note|tip|important|warning|caution)\][^\S\n]*(?:\n|$)/i
+
 export type PictureBlock = Extract<Block, { type: "image" }>
 type ListBlock = Extract<Block, { type: "list" }>
 type TableBlock = Extract<Block, { type: "table" }>
+type DetailsBlock = Extract<Block, { type: "details" }>
 
 /** How deep lists and quotes may sit inside each other before the rest is shown as plain text. */
 const MAX_DEPTH = 8
@@ -175,6 +188,7 @@ function tableAt(lines: string[], index: number, end: number) {
 function interrupts(lines: string[], index: number, end: number) {
   const line = lines[index] ?? ""
   if (blank(line) || fenceOf(line) || headingOf(line) || isRule(line) || isQuote(line)) return true
+  if (DETAILS_OPEN.test(line)) return true
   const marker = markerOf(line)
   // "1986. A good year" in the middle of a paragraph is not a list: only a bullet or a 1 is.
   if (marker && marker.rest.trim() !== "" && (!marker.ordered || marker.number === 1)) return true
@@ -339,6 +353,43 @@ function withPictures(text: string, every: boolean): Block[] {
   return blocks
 }
 
+const DETAILS_OPEN = /^ {0,3}<details(\s[^>]*)?>/i
+
+/**
+ * A section that folds, written as HTML's `<details>`, which starts at this line: its heading,
+ * what is inside it as Markdown, and the line after it. It is the one piece of HTML that is
+ * read, since an agent is told to fold long detail away with it. One that is never shut runs to
+ * the end, as it does while a reply is arriving.
+ */
+function detailsAt(lines: string[], from: number, end: number): [DetailsBlock, number] | null {
+  const opening = DETAILS_OPEN.exec(lines[from] ?? "")
+  if (opening === null) return null
+  const inner: string[] = [(lines[from] ?? "").slice(opening[0].length)]
+  let depth = 1
+  let index = from + 1
+  // What a line opens and shuts, looked for only outside code, where it is only being shown.
+  let fence: Fence | null = null
+  const count = (line: string, mark: RegExp) => (fence ? 0 : (line.match(mark)?.length ?? 0))
+  depth += count(inner[0]!, /<details(\s[^>]*)?>/gi) - count(inner[0]!, /<\/details>/gi)
+  while (index < end && depth > 0) {
+    const line = lines[index++] ?? ""
+    if (!fence) fence = fenceOf(line)
+    else if (closes(line, fence)) fence = null
+    depth += count(line, /<details(\s[^>]*)?>/gi) - count(line, /<\/details>/gi)
+    inner.push(line)
+  }
+  let body = inner.join("\n")
+  if (depth <= 0) body = body.slice(0, body.toLowerCase().lastIndexOf("</details>"))
+  const summary = /^\s*<summary>([\s\S]*?)<\/summary>/i.exec(body)
+  const block: DetailsBlock = {
+    type: "details",
+    summary: (summary?.[1] ?? "").replace(/\s+/g, " ").trim() || "Details",
+    text: (summary === null ? body : body.slice(summary[0].length)).replace(/^\n+|\s+$/g, ""),
+  }
+  if (/\sopen\b/i.test(opening[1] ?? "")) block.open = true
+  return [block, index]
+}
+
 function blocksOf(lines: string[], depth: number, every: boolean): Block[] {
   const blocks: Block[] = []
   let end = lines.length
@@ -359,10 +410,18 @@ function blocksOf(lines: string[], depth: number, every: boolean): Block[] {
         const row = lines[index++] ?? ""
         code.push(row.slice(Math.min(indentOf(row), fence.indent)))
       }
+      const shut = index < end
       index++
       const block: Block = { type: "code", text: code.join("\n") }
       if (fence.lang) block.lang = fence.lang
+      if (!shut) block.open = true
       blocks.push(block)
+      continue
+    }
+    const details = depth < MAX_DEPTH ? detailsAt(lines, index, end) : null
+    if (details) {
+      blocks.push(details[0])
+      index = details[1]
       continue
     }
     const heading = headingOf(line)
@@ -378,7 +437,13 @@ function blocksOf(lines: string[], depth: number, every: boolean): Block[] {
     }
     if (isQuote(line)) {
       const [text, next] = quoteAt(lines, index, end)
-      blocks.push({ type: "quote", text })
+      // A quote whose first line is `[!NOTE]` or one of its kin is a note of that kind.
+      const mark = ALERT_MARK.exec(text)
+      if (mark === null) blocks.push({ type: "quote", text })
+      else {
+        const alert = mark[1]!.toLowerCase() as Alert
+        blocks.push({ type: "quote", text: text.slice(mark[0].length), alert })
+      }
       index = next
       continue
     }
@@ -423,8 +488,9 @@ function blocksOf(lines: string[], depth: number, every: boolean): Block[] {
 
 /**
  * Split Markdown into blocks: paragraphs, headings, fenced code, lists (nested, numbered, tasks),
- * quotes, rules, tables and pictures. It never throws on Markdown that is only half written, so
- * it can be run on a reply at every step of its arriving. HTML is not read: it stays text.
+ * quotes and notes, rules, tables, pictures and sections that fold. It never throws on Markdown
+ * that is only half written, so it can be run on a reply at every step of its arriving. No HTML
+ * is read but `<details>`: the rest stays text.
  * With `every`, a picture is taken out wherever its address is, and not only one on the web.
  */
 export function parseBlocks(source: string, every = false): Block[] {
@@ -826,6 +892,8 @@ type Ink = {
   open: (href: string) => void
   /** The caller's own way of drawing a picture, if it has one. */
   image: MarkdownProps["image"]
+  /** The caller's own way of drawing a diagram, if it has one. */
+  diagram: MarkdownProps["diagram"]
 }
 
 type Piece = {
@@ -907,9 +975,41 @@ const Line = memo(function Line({ text, ink, muted, style, align, heading }: Lin
   )
 })
 
-/** Fenced code: its language and a button that copies it, over the code itself. */
-function Code({ text, lang, ink }: { text: string; lang?: string; ink: Ink }) {
-  const theme = useTheme()
+/** A button in the bar over a block of code or a table. */
+function BarButton({
+  icon,
+  label,
+  words,
+  color,
+  on,
+  onPress,
+}: {
+  icon: IconName
+  label: string
+  /** What is written beside the picture, where anything is. */
+  words?: string
+  color: string
+  /** Whether what the button switches is on now, where it switches something. */
+  on?: boolean
+  onPress: () => void
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      aria-selected={on}
+      hitSlop={8}
+      onPress={onPress}
+      style={({ pressed }) => [styles.copy, pressed ? styles.pressed : null]}
+    >
+      <Icon name={icon} size={14} color={color} />
+      {words === undefined ? null : <Text style={[styles.codeLabel, { color }]}>{words}</Text>}
+    </Pressable>
+  )
+}
+
+/** Something copied, and for a moment afterwards that it was. */
+function useCopy(): [boolean, (text: string) => void] {
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(
@@ -918,7 +1018,7 @@ function Code({ text, lang, ink }: { text: string; lang?: string; ink: Ink }) {
     },
     [],
   )
-  const copy = () => {
+  const copy = useCallback((text: string) => {
     Clipboard.setStringAsync(text)
       .then(() => {
         haptic.done()
@@ -927,35 +1027,107 @@ function Code({ text, lang, ink }: { text: string; lang?: string; ink: Ink }) {
         timer.current = setTimeout(() => setCopied(false), 1600)
       })
       .catch(() => {})
-  }
+  }, [])
+  return [copied, copy]
+}
+
+/**
+ * Fenced code: its language, a button that wraps long lines and one that copies it, over the
+ * code in its colors. Code a reply is still writing is plain, since half a block reads wrongly,
+ * and so is code on a tinted bubble. A `mermaid` block is its diagram where the caller can draw
+ * one, with a switch to the code; one that cannot be drawn stays code.
+ */
+function Code({
+  text,
+  lang,
+  writing,
+  ink,
+}: {
+  text: string
+  lang?: string
+  writing: boolean
+  ink: Ink
+}) {
+  const theme = useTheme()
+  const [copied, copy] = useCopy()
+  const [wrapped, setWrapped] = useState(false)
+  const [asCode, setAsCode] = useState(false)
+  const [undrawn, setUndrawn] = useState<string>()
+  const lines = useMemo(
+    () => (writing || ink.color !== undefined ? undefined : syntaxOf(text, lang ?? "")),
+    [text, lang, writing, ink.color],
+  )
+  const failed = useCallback(() => setUndrawn(text), [text])
   const quiet = ink.color ?? theme.ink2
+  const colors = SYNTAX_COLORS[theme.dark ? "dark" : "light"]
+  const drawable =
+    lang?.toLowerCase() === "mermaid" &&
+    !writing &&
+    ink.diagram !== undefined &&
+    text.trim() !== "" &&
+    undrawn !== text
+  const code = (
+    <Text selectable={ink.selectable} style={[styles.codeText, { color: ink.color ?? theme.ink }]}>
+      {lines === undefined
+        ? text
+        : lines.map((line, row) => [
+            row > 0 ? "\n" : null,
+            ...line.map((piece, at) =>
+              piece.kind === undefined ? (
+                piece.text
+              ) : (
+                <Text key={`${row}:${at}`} style={{ color: colors[piece.kind] }}>
+                  {piece.text}
+                </Text>
+              ),
+            ),
+          ])}
+    </Text>
+  )
   return (
     <View style={[styles.code, { backgroundColor: theme.fill }]}>
       <View style={[styles.codeBar, { borderBottomColor: theme.sep }]}>
         <Text style={[styles.codeLabel, { color: quiet }]}>{lang || "code"}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Copy code"
-          hitSlop={8}
-          onPress={copy}
-          style={({ pressed }) => [styles.copy, pressed ? styles.pressed : null]}
-        >
-          <Icon name={copied ? "check" : "copy"} size={14} color={quiet} />
-          <Text style={[styles.codeLabel, { color: quiet }]}>{copied ? "Copied" : "Copy"}</Text>
-        </Pressable>
+        <View style={styles.codeTools}>
+          {drawable ? (
+            <BarButton
+              icon={asCode ? "chart" : "code"}
+              label={asCode ? "Show the diagram" : "Show the code"}
+              color={quiet}
+              onPress={() => setAsCode((now) => !now)}
+            />
+          ) : null}
+          {drawable && !asCode ? null : (
+            <BarButton
+              icon="list"
+              label={wrapped ? "Stop wrapping long lines" : "Wrap long lines"}
+              color={wrapped ? (ink.color ?? theme.tint) : quiet}
+              on={wrapped}
+              onPress={() => setWrapped((now) => !now)}
+            />
+          )}
+          <BarButton
+            icon={copied ? "check" : "copy"}
+            label="Copy code"
+            words={copied ? "Copied" : "Copy"}
+            color={quiet}
+            onPress={() => copy(text)}
+          />
+        </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.codeBody}
-      >
-        <Text
-          selectable={ink.selectable}
-          style={[styles.codeText, { color: ink.color ?? theme.ink }]}
+      {drawable && !asCode ? (
+        <View style={styles.codeBody}>{ink.diagram?.(text, failed)}</View>
+      ) : wrapped ? (
+        <View style={styles.codeBody}>{code}</View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.codeBody}
         >
-          {text}
-        </Text>
-      </ScrollView>
+          {code}
+        </ScrollView>
+      )}
     </View>
   )
 }
@@ -969,6 +1141,17 @@ const COLUMN = { min: 64, max: 240, letter: 8, padding: 26 }
  */
 function Table({ block, ink, muted }: { block: TableBlock; ink: Ink; muted: boolean }) {
   const theme = useTheme()
+  const [copied, copy] = useCopy()
+  // What is copied is the table's words, without the marks of emphasis around them.
+  const plain = () =>
+    [block.head, ...block.rows].map((row) =>
+      row.map((cell) =>
+        parseInline(cell)
+          .map((span) => span.text)
+          .join(""),
+      ),
+    )
+  const quiet = ink.color ?? theme.ink2
   const widths = useMemo(
     () =>
       block.head.map((head, column) => {
@@ -1011,16 +1194,41 @@ function Table({ block, ink, muted }: { block: TableBlock; ink: Ink; muted: bool
     </View>
   )
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={[styles.table, { borderColor: theme.sep }]}
-    >
-      <View>
-        {row(block.head, -1)}
-        {block.rows.map(row)}
-      </View>
-    </ScrollView>
+    <View style={styles.tableRoom}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.table, { borderColor: theme.sep }]}
+      >
+        <View>
+          {row(block.head, -1)}
+          {block.rows.map(row)}
+        </View>
+      </ScrollView>
+      <Menu
+        title="Copy the table"
+        style={styles.tableCopy}
+        items={[
+          {
+            title: "Copy as Markdown",
+            icon: "copy",
+            onPress: () =>
+              copy(
+                tableMarkdown(
+                  plain(),
+                  block.align.map((side) => side ?? undefined),
+                ),
+              ),
+          },
+          { title: "Copy as CSV", icon: "copy", onPress: () => copy(tableCsv(plain())) },
+        ]}
+      >
+        <View accessibilityLabel="Copy the table" style={styles.copy}>
+          <Icon name={copied ? "check" : "copy"} size={14} color={quiet} />
+          <Text style={[styles.codeLabel, { color: quiet }]}>{copied ? "Copied" : "Copy"}</Text>
+        </View>
+      </Menu>
+    </View>
   )
 }
 
@@ -1147,16 +1355,50 @@ function List({ block, ink, depth, muted }: Piece & { block: ListBlock }) {
   )
 }
 
-/** A quote: a rule down the left, and whatever Markdown was quoted beside it. */
-function Quote({ text, ink, depth }: Piece & { text: string }) {
+/** What each kind of note is called, and the picture beside its name. */
+const NOTES: Record<Alert, { name: string; icon: IconName }> = {
+  note: { name: "Note", icon: "info" },
+  tip: { name: "Tip", icon: "spark" },
+  important: { name: "Important", icon: "note" },
+  warning: { name: "Warning", icon: "warning" },
+  caution: { name: "Caution", icon: "warning" },
+}
+
+/**
+ * A quote: a rule down the left, and whatever Markdown was quoted beside it. One that is a note
+ * (`> [!NOTE]` and its kin) has the note's name over it and its rule in the note's color, and
+ * its words are not made quieter, as the web app has it.
+ */
+function Quote({ text, alert, ink, depth }: Piece & { text: string; alert: Alert | undefined }) {
   const theme = useTheme()
   const every = ink.image !== undefined
   const blocks = useMemo(
     () => (depth >= MAX_DEPTH * 2 ? null : parseBlocks(text, every)),
     [text, depth, every],
   )
+  const note = alert === undefined ? undefined : NOTES[alert]
+  const color =
+    ink.color ??
+    (alert === undefined
+      ? theme.sep
+      : {
+          note: theme.ink2,
+          tip: theme.green,
+          important: SYNTAX_COLORS[theme.dark ? "dark" : "light"].keyword,
+          warning: theme.amber,
+          caution: theme.red,
+        }[alert])
   return (
-    <View style={[styles.quote, { borderLeftColor: ink.color ?? theme.sep }]}>
+    <View
+      accessibilityRole={note === undefined ? undefined : "summary"}
+      style={[styles.quote, { borderLeftColor: color }]}
+    >
+      {note === undefined ? null : (
+        <View style={styles.noteTitle}>
+          <Icon name={note.icon} size={15} color={color} />
+          <Text style={[styles.noteName, { color }]}>{note.name}</Text>
+        </View>
+      )}
       {blocks ? (
         blocks.map((block, index) => (
           <BlockView
@@ -1164,12 +1406,64 @@ function Quote({ text, ink, depth }: Piece & { text: string }) {
             block={block}
             ink={ink}
             depth={depth + 2}
-            muted
+            muted={note === undefined}
             first={index === 0}
           />
         ))
       ) : (
-        <Line text={text} ink={ink} muted />
+        <Line text={text} ink={ink} muted={note === undefined} />
+      )}
+    </View>
+  )
+}
+
+/**
+ * A section that folds: its heading is pressed to open it and to shut it again. What is inside
+ * is Markdown of its own, and is not read until the section is first opened.
+ */
+function Details({ block, ink, depth, muted }: Piece & { block: DetailsBlock }) {
+  const theme = useTheme()
+  const [open, setOpen] = useState(block.open === true)
+  const every = ink.image !== undefined
+  const blocks = useMemo(
+    () => (open && depth < MAX_DEPTH * 2 ? parseBlocks(block.text, every) : null),
+    [open, block.text, depth, every],
+  )
+  return (
+    <View style={[styles.details, { borderColor: ink.color ?? theme.sep }]}>
+      <Pressable
+        accessibilityRole="button"
+        aria-expanded={open}
+        onPress={() => setOpen((now) => !now)}
+        style={({ pressed }) => [styles.summary, pressed ? styles.pressed : null]}
+      >
+        <Icon
+          name={open ? "chevronDown" : "chevronRight"}
+          size={14}
+          color={ink.color ?? theme.ink2}
+        />
+        <View style={styles.itemBody}>
+          <Line text={block.summary} ink={ink} muted={muted} style={styles.summaryText} />
+        </View>
+      </Pressable>
+      {!open ? null : (
+        <View style={styles.detailsBody}>
+          {blocks === null ? (
+            <Line text={block.text} ink={ink} muted={muted} />
+          ) : (
+            blocks.map((child, index) => (
+              <BlockView
+                key={index}
+                block={child}
+                ink={ink}
+                // Two deeper, as a quote is, so that a list inside starts with the bullet a list outside has.
+                depth={depth + 2}
+                muted={muted}
+                first={index === 0}
+              />
+            ))
+          )}
+        </View>
       )}
     </View>
   )
@@ -1214,11 +1508,13 @@ const BlockView = memo(
         )
       }
       case "code":
-        return <Code text={block.text} lang={block.lang} ink={ink} />
+        return <Code text={block.text} lang={block.lang} writing={block.open === true} ink={ink} />
       case "list":
         return <List block={block} ink={ink} depth={depth} muted={muted} />
       case "quote":
-        return <Quote text={block.text} ink={ink} depth={depth} muted={muted} />
+        return <Quote text={block.text} alert={block.alert} ink={ink} depth={depth} muted={muted} />
+      case "details":
+        return <Details block={block} ink={ink} depth={depth} muted={muted} />
       case "rule":
         return (
           <View
@@ -1271,10 +1567,17 @@ export type MarkdownProps = {
    * each time, or every block is drawn again.
    */
   image?: (picture: PictureBlock, draw: (src: string) => ReactNode) => ReactNode
+  /**
+   * Draws a `mermaid` block as its diagram, for a caller that has a way to: a phone cannot draw
+   * one itself. `onFailed` is called where it could not be drawn, and the block is then shown
+   * as its code, as it is without this. It must be the same function each time.
+   */
+  diagram?: (code: string, onFailed: () => void) => ReactNode
 }
 
 /**
- * A reply or a document, drawn from Markdown. Raw HTML is shown as text, never interpreted. The
+ * A reply or a document, drawn from Markdown. Raw HTML is shown as text, never interpreted,
+ * but for a section that folds. The
  * text can grow one word at a time: only the block being written is drawn again.
  */
 export const Markdown = memo(function Markdown({
@@ -1284,6 +1587,7 @@ export const Markdown = memo(function Markdown({
   breaks = false,
   onLink,
   image,
+  diagram,
 }: MarkdownProps) {
   const every = image !== undefined
   const blocks = useMemo(() => parseBlocks(text, every), [text, every])
@@ -1297,8 +1601,8 @@ export const Markdown = memo(function Markdown({
     if (/^(https?:\/\/|mailto:)/i.test(href)) Linking.openURL(href).catch(() => {})
   }, [])
   const ink = useMemo<Ink>(
-    () => ({ color, selectable, breaks, open, image }),
-    [color, selectable, breaks, open, image],
+    () => ({ color, selectable, breaks, open, image, diagram }),
+    [color, selectable, breaks, open, image, diagram],
   )
   return (
     <View style={styles.blocks}>
@@ -1335,7 +1639,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   codeLabel: { ...type.footnote },
+  codeTools: { flexDirection: "row", alignItems: "center", gap: space(3.5) },
   copy: { flexDirection: "row", alignItems: "center", gap: space(1) },
+  noteTitle: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
+  noteName: { ...type.subhead, fontWeight: "600" },
+  details: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: space(2),
+  },
+  summary: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
+  summaryText: { fontWeight: "600" },
+  detailsBody: { paddingTop: space(2), paddingLeft: space(5), gap: space(2.5) },
+  tableRoom: { alignItems: "flex-start", gap: space(1.5), maxWidth: "100%" },
+  tableCopy: { alignSelf: "flex-start" },
   pressed: { opacity: 0.5 },
   codeBody: { padding: space(3) },
   codeText: { fontFamily: mono, fontSize: 14, lineHeight: 20 },
@@ -1350,7 +1667,6 @@ const styles = StyleSheet.create({
   faint: { opacity: 0.4 },
   // As wide as its columns, and no wider than the page: past that it scrolls.
   table: {
-    alignSelf: "flex-start",
     maxWidth: "100%",
     flexGrow: 0,
     borderWidth: StyleSheet.hairlineWidth,

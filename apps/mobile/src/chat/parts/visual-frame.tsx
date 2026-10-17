@@ -1,6 +1,8 @@
 import {
   readVisualHeight,
   readVisualLink,
+  readVisualMode,
+  readVisualSave,
   readVisualSay,
   visualRefusal,
   visualResult,
@@ -19,6 +21,10 @@ export type VisualPageProps = {
   onHeight: (height: number) => void
   /** The page asked, on the reader's own press, for words to be put in the message box. */
   onSay: (text: string) => void
+  /** The page asked, on the reader's own press, to be shown large. */
+  onExpand: () => void
+  /** The page handed the reader a file, on their own press. */
+  onSave: (file: { name: string; type: string; text: string }) => void
 }
 
 /** The little of a browser's frame that is used here, so that this file needs no DOM types. */
@@ -54,11 +60,19 @@ async function pressedIn(host: Host, frame: Frame, waitMs = 600): Promise<boolea
  * A visual's page in a browser: a frame kept apart from the app, exactly as the web app shows
  * it. (On a phone it is a web view: see visual-frame.native.tsx.)
  */
-export function VisualPage({ src, title, theme, onHeight, onSay }: VisualPageProps): ReactNode {
+export function VisualPage({
+  src,
+  title,
+  theme,
+  onHeight,
+  onSay,
+  onExpand,
+  onSave,
+}: VisualPageProps): ReactNode {
   const frame = useRef<Frame>(null)
   // What the page says is heard by whatever these are now, without listening anew each time.
-  const heard = useRef({ onHeight, onSay })
-  heard.current = { onHeight, onSay }
+  const heard = useRef({ onHeight, onSay, onExpand, onSave })
+  heard.current = { onHeight, onSay, onExpand, onSave }
   // Its origin is nobody's, so "*" is the only address that reaches it; the window is what
   // makes sure it is this frame that hears.
   const say = () => frame.current?.contentWindow?.postMessage(visualThemeMessage(theme), "*")
@@ -72,9 +86,23 @@ export function VisualPage({ src, title, theme, onHeight, onSay }: VisualPagePro
       if (tall !== undefined) return heard.current.onHeight(tall)
       const said = readVisualSay(event.data)
       const link = said === undefined ? readVisualLink(event.data) : undefined
-      if (said === undefined && link === undefined) return
-      // Only on the reader's own click in the page: a page does neither of these by itself.
+      const mode = readVisualMode(event.data)
+      const saved = readVisualSave(event.data)
+      const asked = said ?? link ?? mode ?? saved
+      if (asked === undefined) return
+      // Only on the reader's own click in the page: a page does none of these by itself.
       void pressedIn(host, target).then((pressed) => {
+        if (mode !== undefined || saved !== undefined) {
+          if (!pressed) {
+            return target.contentWindow?.postMessage(
+              visualRefusal(asked.id, "Only when the person has just pressed something."),
+              "*",
+            )
+          }
+          if (saved !== undefined) heard.current.onSave(saved)
+          else if (mode?.mode === "fullscreen") heard.current.onExpand()
+          return target.contentWindow?.postMessage(visualResult(asked.id), "*")
+        }
         if (said !== undefined) {
           if (pressed) heard.current.onSay(said.text)
           return target.contentWindow?.postMessage(

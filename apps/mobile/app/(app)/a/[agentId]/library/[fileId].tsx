@@ -1,4 +1,4 @@
-import { type LibraryFile, resolveLink } from "@do-computer/protocol"
+import { type LibraryFile, resolveLink, type VisualTheme } from "@do-computer/protocol"
 import { Image } from "expo-image"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
@@ -18,13 +18,15 @@ import { Film } from "@/chat/parts/film"
 import { Sound } from "@/chat/parts/sound"
 import { formatBytes } from "@/lib/files"
 import { authHeaders } from "@/lib/session"
-import { mono, useTheme } from "@/lib/theme"
+import { useAgentSummary } from "@/lib/queries"
+import { mono, useAgentAccent, useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
 import { Conflict, Editor } from "@/library/editor"
 import { dirOf, kindOf, parseCsv, siteOfFile, withPictures } from "@/library/model"
 import { PageView } from "@/library/page-view"
 import { SAVE_WORDS, useDocument } from "@/library/use-document"
 import { useLibrary, useLibraryActions } from "@/library/use-library"
+import { usePinOf } from "@/pins/pins"
 import {
   Button,
   Empty,
@@ -38,6 +40,7 @@ import {
   Text,
 } from "@/ui"
 import { Markdown } from "@/ui/markdown"
+import { drawDiagram } from "@/chat/parts/diagram"
 
 type Mode = "read" | "edit"
 
@@ -106,6 +109,13 @@ function Opened({
   const { auth } = useSession()
   const library = useLibrary(agentId)
   const actions = useLibraryActions(agentId)
+  // A page is shown in the app's look: light or dark as the app is, with its Dood's own color.
+  const accent = useAgentAccent(useAgentSummary(agentId))
+  const colors = useMemo(
+    (): VisualTheme => ({ appearance: theme.dark ? "dark" : "light", color: accent.a }),
+    [theme.dark, accent.a],
+  )
+  const pin = usePinOf(agentId)(file)
   const kind = kindOf(file)
   const written = kind === "markdown" || kind === "page" || kind === "text" || kind === "csv"
   const [mode, setMode] = useState<Mode>(startEditing && written ? "edit" : "read")
@@ -274,7 +284,14 @@ function Opened({
       </Screen>
     )
   } else if (kind === "page" && mode === "read") {
-    body = <PageView key={`${stamp}-${reloads}`} uri={`${viewUrl}?v=${stamp}`} title={file.name} />
+    body = (
+      <PageView
+        key={`${stamp}-${reloads}`}
+        uri={`${viewUrl}?v=${stamp}`}
+        title={file.name}
+        colors={colors}
+      />
+    )
   } else if (document.text === undefined) {
     body = <Screen page>{unread}</Screen>
   } else if (editing) {
@@ -315,7 +332,7 @@ function Opened({
         page
         contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 130 }}
       >
-        <Markdown text={shown} selectable onLink={follow} />
+        <Markdown text={shown} selectable onLink={follow} diagram={drawDiagram} />
       </Screen>
     )
   } else if (kind === "csv") {
@@ -448,6 +465,25 @@ function Opened({
             paddingHorizontal: 4,
           }}
         >
+          {pin.menu.length === 0 ? null : (
+            // Pinned to the Dood this file was opened from, as the web's document bar pins it.
+            // Filled in its color while it is pinned, so the bar says how it stands.
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={pin.menu[0]?.title}
+              accessibilityState={{ selected: pin.pinned }}
+              hitSlop={4}
+              onPress={pin.toggle}
+              style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+            >
+              <Icon
+                name={pin.pinned ? "pinFill" : "pin"}
+                size={21}
+                color={pin.pinned ? theme.amber : theme.ink}
+                weight="medium"
+              />
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="History"

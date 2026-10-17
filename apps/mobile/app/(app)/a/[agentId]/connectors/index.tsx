@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { ActivityIndicator, StyleSheet } from "react-native"
-import { hostOf, originOf, signIn, STATUS, Words, WordsLink } from "@/agent/connectors"
+import { hostOf, originOf, signIn, STATUS, toolNames, Words, WordsLink } from "@/agent/connectors"
 import { keys, useAgentLive, useAgentSummary } from "@/lib/queries"
 import { useTheme } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
@@ -249,7 +249,7 @@ function Connector({
       <Words>
         {connector.tools.length === 0
           ? "It offers no tools."
-          : `${connector.tools.length} tools: ${connector.tools.map((tool) => tool.name).join(", ")}`}
+          : `${connector.tools.length} tools: ${toolNames(connector.tools)}`}
       </Words>
     ) : connector.status === "needs_auth" ? (
       <Words>Sign in to the service to let your Dood use it.</Words>

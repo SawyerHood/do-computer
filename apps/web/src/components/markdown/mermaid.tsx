@@ -28,7 +28,11 @@ const load = import.meta.env.SSR ? undefined : () => import("mermaid")
 // Mermaid keeps one set of settings and draws one diagram at a time, so they take turns.
 let turn: Promise<unknown> = Promise.resolve()
 
-async function draw(id: string, source: string, dark: boolean): Promise<string> {
+/**
+ * A diagram as Mermaid's own drawing, in the app's colors as they are now. Also what the page
+ * that draws for the phone app asks (routes/embed.diagram.tsx).
+ */
+export async function drawDiagram(id: string, source: string, dark: boolean): Promise<string> {
   const next = turn.then(async () => {
     if (load === undefined) throw new Error("No diagram is drawn on the server.")
     const { default: mermaid } = await load()
@@ -89,7 +93,7 @@ export function MermaidBlock({ code, writing }: { code: string; writing: boolean
   useEffect(() => {
     if (writing || code.trim() === "") return
     let current = true
-    void draw(id, code, appearance === "dark").then(
+    void drawDiagram(id, code, appearance === "dark").then(
       (svg) => {
         if (current) setDrawn({ of, svg })
       },

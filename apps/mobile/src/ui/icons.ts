@@ -16,12 +16,25 @@ export const ICONS = {
     "mic",
     '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.500a6.5 6.5 0 0 0 13 0M12 18v3"/>',
   ],
+  micSlash: [
+    "mic.slash",
+    '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.500a6.5 6.5 0 0 0 13 0M12 18v3M4 4l16 16"/>',
+  ],
+  phone: [
+    "phone.fill",
+    '<path d="M6.6 3.5h2.600l1.400 4.200-2 1.500a11 11 0 0 0 6.200 6.200l1.500-2 4.200 1.400v2.600A2 2 0 0 1 18.500 19.500 15 15 0 0 1 4.500 5.500a2 2 0 0 1 2.100-2z" fill="currentColor"/>',
+  ],
+  phoneDown: [
+    "phone.down.fill",
+    '<path d="M3.2 13.800c4.800-4.400 12.800-4.400 17.600 0l-1.900 2.700-3.800-1.300v-2.500a12 12 0 0 0-6.200 0v2.500l-3.800 1.300z" fill="currentColor"/>',
+  ],
   arrowUp: ["arrow.up", '<path d="M12 19V5M6 11l6-6 6 6"/>'],
   stop: [
     "stop.fill",
     '<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/>',
   ],
   more: ["ellipsis", '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="2.8"/>'],
+  reorder: ["line.3.horizontal", '<path d="M4 7.500h16M4 12h16M4 16.500h16"/>'],
   chats: [
     "bubble.left.and.bubble.right",
     '<path d="M14 9.500A5.5 5.5 0 0 0 8.5 4h-1A5.5 5.5 0 0 0 4 13.700V17l3-1.600h1.5"/><path d="M11 13.500a4.5 4.5 0 0 1 4.5-4.500h1a4.5 4.5 0 0 1 3 7.900V20l-2.8-1.500h-1.200a4.5 4.5 0 0 1-4.5-4.500z"/>',
@@ -92,6 +105,15 @@ export const ICONS = {
     "link",
     '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.700l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.700l1-1"/>',
   ],
+  pin: ["pin", '<path d="M9 3.5h6M10 3.500v6l-3 3.500h10l-3-3.500v-6M12 13v7.5"/>'],
+  pinFill: [
+    "pin.fill",
+    '<path d="M10 3.500h4v6l3 3.500H7l3-3.500z" fill="currentColor"/><path d="M9 3.5h6M12 13v7.5"/>',
+  ],
+  pinSlash: [
+    "pin.slash",
+    '<path d="M9 3.5h6M10 3.500v6l-3 3.500h10l-3-3.500v-6M12 13v7.5M4 4l16 16"/>',
+  ],
   globe: [
     "globe",
     '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.500c3 3 3 14 0 17M12 3.500c-3 3-3 14 0 17"/>',
@@ -160,6 +182,10 @@ export const ICONS = {
   key: [
     "key",
     '<circle cx="8" cy="15" r="3.5"/><path d="m10.5 12.5 8-8M15.5 7.500l2.5 2.500M13 10l2 2"/>',
+  ],
+  card: [
+    "creditcard",
+    '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h3"/>',
   ],
   slider: [
     "slider.horizontal.3",

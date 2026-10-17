@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { dirOf, markdownFiles, markdownTargets, resolveLink } from "../src/index.ts"
+import { dirOf, markdownFiles, markdownTargets, pageShownAt, resolveLink } from "../src/index.ts"
 
 describe("where a link from a document leads", () => {
   it("is a place in the library, from the folder the document is in", () => {
@@ -57,5 +57,19 @@ describe("what a Markdown document refers to", () => {
     ])
     // From the top of the library, nothing is above it.
     expect([...markdownFiles("plan.md", "![a](../a.png) ![b](b.png)")]).toEqual(["b.png"])
+  })
+})
+
+describe("when a page last changed as it is seen", () => {
+  const at = (path: string, updatedAt: number) => ({ path, updatedAt })
+
+  it("is when anything in its top folder last changed, since a page shows what is beside it", () => {
+    const files = [at("boards/launch.html", 1), at("boards/data/tasks.json", 5), at("other.md", 9)]
+    expect(pageShownAt(files, files[0]!)).toBe(5)
+  })
+
+  it("is when anything in the library changed, for a page at the top", () => {
+    const files = [at("index.html", 1), at("notes/plan.md", 7)]
+    expect(pageShownAt(files, files[0]!)).toBe(7)
   })
 })
