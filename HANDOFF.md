@@ -7415,6 +7415,55 @@ put` never has to ask whether to make a Worker. The first person to follow it on
       `react-native-webrtc` with its config plugin behind the same `OpenVoiceLine`, which needs
       a new build.
 
+100. **A request to the model is kept small enough to send, and one that keeps being cut off
+     ends its chat's run** (2026-10-17; `packages/agent/src/limits.ts`, `project.ts`,
+     `packages/protocol/src/chat-error.ts`, `apps/web/e2e/request-limits.spec.ts`). A request
+     is built in the agent's actor, which on Cloudflare is one Durable Object, in an isolate of
+     128 MB, for every chat and sub-agent of the agent. A conversation on the same harness that
+     had read 42 screenshots (some 31 MB as base64) was seen to take its isolate down each time
+     it built a request; the keep-alive wake-up took the run up from its checkpoint, which built
+     the same request again, for hours, and nothing noticed. Here that would take down every
+     chat of the agent with it.
+     - **The oldest pictures are left out, in steps.** A `beforeRequest` hook, installed after
+       every other extension so that what they add is counted, replaces the oldest pictures of
+       a request with a line saying one was there, once the pictures pass 8 MB of base64 or 80
+       of them, until they are under 3 MB and 40. What is left out depends only on the order
+       the pictures came in and only grows, so a request starts as the one before it did until
+       the next time the mark is crossed, and the prompt cache is spent only then. The newest
+       picture is never left out. The chat and its stored entries keep them all. Why those
+       numbers is in `IMAGE_LIMITS`: lower than for an actor that holds one conversation, since
+       several chats can be building a request at once.
+     - **A request started three times with no answer is not started a fourth.** Each start is
+       counted in the agent's own database (`dc_request_starts`), a row per generation task;
+       the row is cleared by any answer, a provider's error included, and dropped once its task
+       is no longer live. Past three, the hook writes an entry of kind `dc.cut-off` into that
+       chat, stops that chat's conversation, and throws: pi-durable only reports a hook that
+       throws and makes the request anyway, unless the run was stopped by then. The stop is
+       started and not waited for, since it waits for the request, which is waiting in the
+       hook; the hook waits for its own signal instead, ten seconds at most. Other chats go on.
+     - **The chat says why.** The entry is shown as a failed reply (`CUT_OFF_TEXT`, which
+       `describeChatError` knows as `cutOff`): "This run was ended: its request to the model
+       was cut off several times before it could be sent", that this happens when what the
+       chat holds is too large for the server, and Try again. The web and phone apps draw it
+       with the error row they already have. Whatever reads a chat's last reply, such as a
+       sub-agent's report, reads it as a failed one.
+     - **Checked:** `pnpm check`; `pnpm test`, with `packages/agent/test/limits.test.ts`: the
+       rule (steps, only growing, the newest kept, counts as well as sizes, 42 screenshots),
+       the messages it gives back, a count kept per task and pruned, and against the actor with
+       the faux provider: no try at all ends the run with the entry and never asks the model,
+       one try answers a tool call and three more messages, and small limits leave the oldest
+       pictures of a chat out of what the model is sent. `request-limits.spec.ts` runs the
+       built Node server with `DC_REQUEST_TRIES=0`, a setting for tests only, and checks the
+       row in the web app. The phone app's row was looked at in its browser build.
+     - **Not done:** `dropOldPictures` in `uses.ts` still keeps only the last four pictures of
+       the screen and browser tools. It runs before the new hook and moves its window with
+       every screenshot, which changes the start of the request and spends the prompt cache
+       each time. Doing that in steps too (keep up to eight, then come down to four) would keep
+       the cache; it changes what the model sees, so it was left for a change of its own. The
+       whole conversation is still read into memory before the hook runs, pictures and all:
+       the hook keeps the request's copies small, not that one. Nothing watches for a run that
+       makes no progress for other reasons.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:

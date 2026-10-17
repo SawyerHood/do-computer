@@ -13,6 +13,7 @@ export type ChatErrorKind =
   | "provider"
   | "network"
   | "refused"
+  | "cutOff"
   | "unknown"
 
 /** A failed reply, put so a person can read it. */
@@ -82,8 +83,23 @@ const WORDS: Record<ChatErrorKind, { title: string; hint?: string; retryable: bo
     retryable: true,
   },
   refused: { title: "The model provider refused the request.", retryable: true },
+  cutOff: {
+    title:
+      "This run was ended: its request to the model was cut off several times before it could be sent.",
+    hint: "That happens when what the chat holds is too large for the server. Send a message to try again, or start fresh if it happens again.",
+    retryable: true,
+  },
   unknown: { title: "Something went wrong generating this reply.", retryable: true },
 }
+
+/**
+ * What a run says where it was ended because its request to the model kept being cut off before
+ * it could be sent: the server, not the provider, gave up on it (`limits.ts` in the agent).
+ */
+export const CUT_OFF_TEXT =
+  "This run was ended: its request to the model was cut off several times before it could be " +
+  "sent, which happens when what the chat holds is too large for the server. Send a message to " +
+  "try again, or start fresh if it happens again."
 
 /**
  * What a failure is, by what it says. The first that matches wins, so the narrower ones come
@@ -210,6 +226,8 @@ function sentence(text: string): string {
 export function describeChatError(error: string | undefined): ChatErrorView {
   const raw = error?.trim() ?? ""
   if (raw === "") return { kind: "unknown", ...WORDS.unknown, facts: [] }
+  // Said by the server itself, and in full by the title and the hint: nothing more to show.
+  if (raw === CUT_OFF_TEXT) return { kind: "cutOff", ...WORDS.cutOff, facts: [] }
 
   const objects = objectsIn(raw).map(unwrap)
   const leading = /^(?:HTTP |error:? )?(\d{3})\b/i.exec(raw)
