@@ -20,6 +20,7 @@ import {
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
+import { bounded } from "../src/connectors.ts"
 import { CONNECTOR_REDIRECT_HEADER, connectorToolName, createAgentActor } from "../src/index.ts"
 import { APP_PAGE, APP_URI, fakeMcp, type FakeMcpOptions, GOOD_CODE, ISSUER } from "./fake-mcp.ts"
 
@@ -136,6 +137,42 @@ describe("connector tool names", () => {
     expect(connectorToolName("My Calendar!", "events.list")).toBe("my_calendar__events_list")
     expect(connectorToolName("x".repeat(80), "y".repeat(80)).length).toBe(64)
     expect(connectorToolName("???", "t")).toBe("service__t")
+  })
+})
+
+describe("what a connector's tool answers", () => {
+  const picture = (chars: number) => ({
+    type: "image",
+    mimeType: "image/png",
+    data: "A".repeat(chars),
+  })
+
+  it("carries its pictures into the conversation where they are few and small enough", () => {
+    const answer = [
+      { type: "text", text: "four charts" },
+      ...[1, 2, 3, 4].map(() => picture(300_000)),
+    ]
+    expect(bounded(answer)).toEqual(answer)
+  })
+
+  it("leaves out a picture larger than the conversation can keep, and says so in its place", () => {
+    const kept = bounded([picture(3_000_000), picture(1000)])
+    expect(kept[0]).toEqual({
+      type: "text",
+      text: "[A picture was left out here: it is 2.1 MB, larger than the conversation can keep. Ask for fewer or smaller pictures, or save it to a file instead.]",
+    })
+    expect(kept[1]).toEqual(picture(1000))
+  })
+
+  it("keeps no more pictures than four, and no more of them together than about a megabyte", () => {
+    const many = bounded([1, 2, 3, 4, 5].map(() => picture(10)))
+    expect(many.filter((part) => part.type === "image")).toHaveLength(4)
+    expect(many[4]).toMatchObject({
+      type: "text",
+      text: expect.stringContaining("only 4 pictures"),
+    })
+    const large = bounded([picture(800_000), picture(800_000)])
+    expect(large.map((part) => part.type)).toEqual(["image", "text"])
   })
 })
 

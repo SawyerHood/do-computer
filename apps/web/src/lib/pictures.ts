@@ -2,12 +2,17 @@ import {
   MAX_MESSAGE_IMAGE_CHARS,
   MAX_MESSAGE_IMAGES,
   type MessageImage,
+  pictureSize,
 } from "@do-computer/protocol"
 
 /** What one picture may take of a message's allowance, so that a full set still fits. */
 const BUDGET = Math.floor(MAX_MESSAGE_IMAGE_CHARS / MAX_MESSAGE_IMAGES) - 1_000
 
-/** Longest side and JPEG quality to try, from as good as a model can use down to merely legible. */
+/**
+ * Longest side and JPEG quality to try, from as good as a model can use down to merely legible.
+ * Each is also kept to the pixels a model is shown (`pictureSize`): a larger picture costs the
+ * agent memory with every request and shows the model nothing more.
+ */
 const ATTEMPTS: readonly (readonly [number, number])[] = [
   [1568, 0.85],
   [1568, 0.7],
@@ -36,9 +41,9 @@ export async function pictureFor(file: File): Promise<MessageImage | undefined> 
     const context = canvas.getContext("2d")
     if (context === null) return undefined
     for (const [side, quality] of ATTEMPTS) {
-      const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height))
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+      const size = pictureSize(bitmap.width, bitmap.height, side)
+      canvas.width = size.width
+      canvas.height = size.height
       // JPEG has no transparency, and what shows through would otherwise be black.
       context.fillStyle = "#fff"
       context.fillRect(0, 0, canvas.width, canvas.height)

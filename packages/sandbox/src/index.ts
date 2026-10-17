@@ -1,3 +1,4 @@
+import type { ImageLimits, PreparedImage } from "@do-computer/protocol"
 import type { SandboxJobs } from "./jobs.ts"
 
 export { SandboxEnv } from "./env.ts"
@@ -55,6 +56,12 @@ export interface SandboxFs {
   rename(from: string, to: string): Promise<void>
   /** The path with every symlink resolved. */
   realpath(path: string): Promise<string>
+  /**
+   * The picture at `path` made as small as it can be for a model to look at, on the machine
+   * itself: scaled to `limits` and re-encoded. Undefined where it is not a picture the machine
+   * can prepare, and absent where the machine prepares none: it is then read as it is.
+   */
+  readImage?(path: string, limits: ImageLimits): Promise<PreparedImage | undefined>
 }
 
 export type ExecOptions = {

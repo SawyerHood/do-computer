@@ -221,7 +221,8 @@ function browser(answer?: Error, page: { tall?: number; said?: PreviewLine[] } =
       const tall = (width: number) => page.tall ?? (width < 500 ? 300 : 120)
       const top = Math.min(request.top ?? 0, tall(request.width) - 1)
       return {
-        png: "aGVsbG8=",
+        picture: "aGVsbG8=",
+        mimeType: "image/jpeg",
         width: request.width,
         pictured: Math.min(tall(request.width) - top, request.most ?? 2000, 2000),
         ...(top === 0 ? {} : { top }),

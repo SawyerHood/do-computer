@@ -4,10 +4,12 @@ import * as path from "node:path"
 import { EXEC_STDIO_CAP, type RemoteFileStat } from "@do-computer/protocol"
 import type { DaemonIO } from "./daemon-core.ts"
 import { killTree } from "./kill.ts"
+import { prepareImage } from "./node-image.ts"
 import { nodeJobs } from "./node-jobs.ts"
 import { fromPosixView, shownPath } from "./paths.ts"
 import { findShell, posixShell, type Shell } from "./shell.ts"
 
+export { prepareImage } from "./node-image.ts"
 export { shownPath } from "./paths.ts"
 export { findShell, posixShell, type Shell } from "./shell.ts"
 
@@ -143,6 +145,7 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
       await fs.rm(full, { recursive, force })
     },
     rename: (from, to) => fs.rename(resolve(from), resolve(to)),
+    prepareImage,
     audit: options.audit,
   }
 }

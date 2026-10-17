@@ -3,6 +3,15 @@
  * into what an agent is told of its script.
  */
 
+import {
+  bytesToBase64,
+  IMAGE_MAX_EDGE,
+  IMAGE_MAX_PIXELS,
+  IMAGE_RESULT_BYTES,
+  type Shot,
+} from "@do-computer/protocol"
+import { prepareImage } from "../node-image.ts"
+
 /** The most an agent is given of what its script printed. The end is kept: that is where it failed. */
 export const OUTPUT_CAP = 60_000
 
@@ -83,6 +92,33 @@ export function readFrames(ndjson: string): RanFrames {
     ...(error === undefined ? {} : { error }),
     images,
     ...(exitCode === undefined ? {} : { exitCode }),
+  }
+}
+
+/**
+ * A picture a script took, as it is handed back: no larger than a model is shown, since the agent
+ * keeps every one for as long as its chat lasts. A page drawn at twice its size on a sharp
+ * screen is scaled down here, on the computer; one that fits goes as it is. Undefined for one
+ * that is not a JPEG, cannot be read, or is too large still.
+ */
+export function shotOf(
+  bytes: Uint8Array,
+  said: { width: number; height: number },
+): Shot | undefined {
+  if (!isJpeg(bytes)) return undefined
+  const made = prepareImage(bytes, {
+    maxEdge: IMAGE_MAX_EDGE,
+    maxPixels: IMAGE_MAX_PIXELS,
+    maxBytes: IMAGE_RESULT_BYTES,
+  })
+  if (made === undefined) return undefined
+  // What dev-browser said of its size stands where nothing was changed.
+  const scaled = made.width !== made.from.width || made.height !== made.from.height
+  return {
+    mimeType: made.mimeType,
+    data: bytesToBase64(made.bytes),
+    width: scaled ? made.width : said.width,
+    height: scaled ? made.height : said.height,
   }
 }
 

@@ -14,8 +14,10 @@ export type PreviewLine = {
 }
 
 export type PagePreview = {
-  /** A PNG of the page from its top, as base64, at `width`. */
-  readonly png: string
+  /** A picture of the page from its top, as base64, at `width`. */
+  readonly picture: string
+  /** What kind of picture it is: a JPEG from a browser, which is a fraction of a PNG of a page. */
+  readonly mimeType: "image/jpeg" | "image/png"
   readonly width: number
   /** How much of the page's height is in the picture. */
   readonly pictured: number
@@ -57,6 +59,12 @@ export interface PagePreviewer {
 /** A preview that could not be made, with why, in words for whoever asked. */
 export class PreviewError extends Error {}
 
+/**
+ * How good the JPEG of a page is. The agent keeps every picture it was shown for as long as its
+ * chat lasts, and sends them all with every request, so a page's picture is a JPEG, several
+ * times smaller than a PNG of it, at a quality whose words still read clearly.
+ */
+const PICTURE_QUALITY = 80
 /** The most of a page's height that is pictured. */
 export const MAX_PICTURED_HEIGHT = 2000
 /** How tall the window is that a page is drawn in. */
@@ -83,7 +91,8 @@ export type PreviewPage = {
   emulateMediaFeatures(features: { name: string; value: string }[]): Promise<unknown>
   evaluate(script: string): Promise<unknown>
   screenshot(options: {
-    type: "png"
+    type: "jpeg"
+    quality: number
     encoding: "base64"
     clip: { x: number; y: number; width: number; height: number }
   }): Promise<unknown>
@@ -183,14 +192,18 @@ export async function previewIn(page: PreviewPage, request: PreviewRequest): Pro
   const top = Math.max(0, Math.min(Math.round(request.top ?? 0), tall - 1))
   const most = Math.min(MAX_PICTURED_HEIGHT, Math.max(1, Math.round(request.most ?? Infinity)))
   const pictured = Math.max(1, Math.min(tall - top, most))
-  const png = await page.screenshot({
-    type: "png",
+  const picture = await page.screenshot({
+    type: "jpeg",
+    quality: PICTURE_QUALITY,
     encoding: "base64",
     clip: { x: 0, y: top, width: request.width, height: pictured },
   })
-  if (typeof png !== "string") throw new PreviewError("The browser gave no picture of the page.")
+  if (typeof picture !== "string") {
+    throw new PreviewError("The browser gave no picture of the page.")
+  }
   return {
-    png,
+    picture,
+    mimeType: "image/jpeg",
     width: request.width,
     pictured,
     ...(top === 0 ? {} : { top }),

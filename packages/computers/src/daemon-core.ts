@@ -1,5 +1,6 @@
 import {
   base64ToBytes,
+  bytesToBase64,
   chunkBytes,
   type DaemonErrorCode,
   DEFAULT_EXEC_TIMEOUT_MS,
@@ -12,6 +13,9 @@ import {
   DEFAULT_BROWSER_TIMEOUT_MS,
   type FsFrame,
   type HostFrame,
+  IMAGE_RESULT_BYTES,
+  type ImageFrame,
+  type ImageLimits,
   type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
@@ -29,6 +33,7 @@ import {
   VIEW_WAIT_MS,
 } from "@do-computer/protocol"
 import type { SandboxJobs } from "@do-computer/sandbox"
+import type { ShrunkImage } from "./node-image.ts"
 import { UseRefused } from "./use.ts"
 
 export { UseRefused } from "./use.ts"
@@ -111,6 +116,11 @@ export interface DaemonIO {
   screen?: ScreenIO
   /** A browser, where agents may use one. Absent: likewise. */
   browser?: BrowserIO
+  /**
+   * A picture made as small as it can be for a model to look at, or undefined where it is not
+   * one this can prepare. Absent: the daemon prepares none, and says so.
+   */
+  prepareImage?(bytes: Uint8Array, limits: ImageLimits): ShrunkImage | undefined
   /** Record one thing the agent did on this machine. */
   audit(entry: Record<string, unknown>): void
 }
@@ -290,6 +300,9 @@ export class DaemonCore {
         return
       case "read":
         this.#track(this.#read(frame.id, frame.path, frame.maxBytes ?? REMOTE_FILE_CAP))
+        return
+      case "image":
+        this.#track(this.#image(frame))
         return
       case "write_begin":
         if (this.#readOnly) return this.#refuse(frame.id, "write files")
@@ -627,6 +640,44 @@ export class DaemonCore {
         JSON.stringify({ t: "file_chunk", id, seq, data, last: seq === chunks.length - 1 }),
       )
     })
+  }
+
+  /**
+   * A picture read for a model, prepared here so that the server is sent no more of it than the
+   * model can see. Answers null for whatever is to be read as it is instead.
+   */
+  async #image(frame: ImageFrame): Promise<void> {
+    const answer = (value: unknown) =>
+      this.#sendOrBuffer(JSON.stringify({ t: "image_result", id: frame.id, value }))
+    const prepare = this.#io.prepareImage
+    if (prepare === undefined) return answer(null)
+    const size = await this.#io.statSize(frame.path).catch(() => null)
+    if (size === null) return this.#error(frame.id, "not_found", `No such file: ${frame.path}`)
+    if (size > REMOTE_FILE_CAP) return answer(null)
+    let bytes: Uint8Array
+    try {
+      bytes = await this.#io.readFile(frame.path)
+    } catch (error) {
+      return this.#error(
+        frame.id,
+        "io",
+        `Could not read ${frame.path}: ${(error as Error)?.message}`,
+      )
+    }
+    this.#io.audit({ ts: this.#now(), kind: "read", path: frame.path, bytes: bytes.length })
+    let prepared: ReturnType<typeof prepare>
+    try {
+      prepared = prepare(bytes, {
+        maxEdge: frame.maxEdge,
+        maxPixels: frame.maxPixels,
+        maxBytes: Math.min(frame.maxBytes, IMAGE_RESULT_BYTES),
+      })
+    } catch {
+      prepared = undefined
+    }
+    if (prepared === undefined) return answer(null)
+    const { bytes: made, ...rest } = prepared
+    answer({ ...rest, data: bytesToBase64(made) })
   }
 
   async #fs(frame: FsFrame): Promise<void> {

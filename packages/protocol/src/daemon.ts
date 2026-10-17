@@ -40,6 +40,63 @@ export type ExecFrame = {
   timeoutMs?: number
 }
 export type ReadFrame = { t: "read"; id: string; path: string; maxBytes?: number }
+
+/**
+ * The longest edge and the most pixels of a picture a model is shown. Anthropic scales anything
+ * larger down to this before the model sees it, and other providers to about as much, so
+ * sending more costs memory and bytes and shows the model nothing more.
+ */
+export const IMAGE_MAX_EDGE = 1568
+export const IMAGE_MAX_PIXELS = 1_150_000
+/**
+ * The size a picture of `width` by `height` is drawn at for a model: no longer than `edge` on its
+ * longest side (`IMAGE_MAX_EDGE` unless less is wanted) and no more than `IMAGE_MAX_PIXELS`,
+ * keeping its shape. A picture already within them keeps its size.
+ */
+export function pictureSize(
+  width: number,
+  height: number,
+  edge = IMAGE_MAX_EDGE,
+): { width: number; height: number } {
+  const scale = Math.min(
+    1,
+    edge / Math.max(width, height),
+    Math.sqrt(IMAGE_MAX_PIXELS / (width * height)),
+  )
+  if (scale >= 1) return { width, height }
+  return {
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
+  }
+}
+/**
+ * The most bytes of a picture the daemon sends in one `image_result`: well under the 1 MiB of a
+ * frame once base64-encoded.
+ */
+export const IMAGE_RESULT_BYTES = 640 * 1024
+/** How small a picture read for a model is to be made: what `image` asks of the daemon. */
+export type ImageLimits = {
+  /** Pixels on the longest edge. */
+  maxEdge: number
+  maxPixels: number
+  /** Bytes of the picture itself, not of its base64. */
+  maxBytes: number
+}
+/**
+ * Read a picture for a model to look at, made as small as it can be without the model seeing
+ * less: scaled down to `ImageLimits`, turned the way its camera said, and in whichever of its own
+ * bytes or a re-encoding is smaller. The daemon answers `image_result`.
+ */
+export type ImageFrame = { t: "image"; id: string; path: string } & ImageLimits
+/** A picture as the daemon prepared it, with what it was before. */
+export type PreparedImage = {
+  /** Base64. */
+  data: string
+  mimeType: string
+  width: number
+  height: number
+  from: { mimeType: string; width: number; height: number; bytes: number }
+}
 export type WriteBeginFrame = { t: "write_begin"; id: string; path: string; size: number }
 export type WriteChunkFrame = { t: "write_chunk"; id: string; seq: number; data: string }
 export type WriteEndFrame = { t: "write_end"; id: string }
@@ -145,6 +202,7 @@ export type RevokedFrame = { t: "revoked" }
 export type HostFrame =
   | ExecFrame
   | ReadFrame
+  | ImageFrame
   | WriteBeginFrame
   | WriteChunkFrame
   | WriteEndFrame
@@ -187,6 +245,8 @@ export type HelloFrame = {
   signIn?: boolean
   /** True when the daemon can pay with a saved card (`pay` of a browser frame). Absent on one from before it could. */
   pay?: boolean
+  /** True when the daemon understands `image` frames and can make a picture smaller. */
+  images?: boolean
 }
 export type ExecResultFrame = {
   t: "exec_result"
@@ -218,6 +278,12 @@ export type FsResultFrame = {
 export type JobResultFrame = { t: "job_result"; id: string; value: unknown }
 /** The answer to a `screen` or a `browser` frame: what its `op` answers with, or nothing. */
 export type UseResultFrame = { t: "use_result"; id: string; value: unknown }
+/**
+ * The answer to an `image` frame: the picture, or null where the file is not one the daemon
+ * can prepare (another format, too large to decode, or still too large once made smaller), and
+ * is to be read as it is.
+ */
+export type ImageResultFrame = { t: "image_result"; id: string; value: PreparedImage | null }
 export type DaemonErrorCode =
   | "not_found"
   | "not_directory"
@@ -240,6 +306,7 @@ export type DaemonFrame =
   | FsResultFrame
   | JobResultFrame
   | UseResultFrame
+  | ImageResultFrame
   | ErrFrame
 
 export function parseFrame<T extends { t: string }>(raw: unknown): T | null {

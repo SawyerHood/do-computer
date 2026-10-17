@@ -7,6 +7,8 @@ import {
   DEFAULT_EXEC_TIMEOUT_MS,
   type FsFrame,
   type FsResultFrame,
+  type ImageFrame,
+  type ImageResultFrame,
   type JobFrame,
   MAX_EXEC_TIMEOUT_MS,
   parseFrame,
@@ -32,7 +34,7 @@ export class RemoteError extends Error {
 export type RemoteExecResult = { stdout: string; stderr: string; exitCode: number }
 
 type Waiter = {
-  kind: "exec" | "read" | "write" | "fs" | "job" | "use"
+  kind: "exec" | "read" | "image" | "write" | "fs" | "job" | "use"
   resolve(value: unknown): void
   reject(error: RemoteError): void
   timer: ReturnType<typeof setTimeout>
@@ -204,6 +206,26 @@ export class LinkCore {
   }
 
   /**
+   * A picture read for a model, made smaller on the machine; null where the daemon says to read
+   * it as it is. Only a daemon that said `images` in its hello understands this.
+   */
+  async image(request: Omit<ImageFrame, "t" | "id">): Promise<ImageResultFrame["value"]> {
+    const id = this.#nextId()
+    const waited = this.#wait<ImageResultFrame["value"]>(
+      id,
+      "image",
+      this.#fileOpTimeoutMs,
+      "No response from the computer. The connection may have been lost.",
+    )
+    if (!this.#send(JSON.stringify({ t: "image", id, ...request }))) {
+      this.#settle(id)
+      waited.catch(() => {})
+      throw new RemoteError("offline", "The computer is offline.")
+    }
+    return waited
+  }
+
+  /**
    * Something to do with a job the daemon keeps going. One that follows a job waits as long as
    * it was told to, so the answer is given that long and a little more.
    */
@@ -298,6 +320,11 @@ export class LinkCore {
     if (frame.t === "fs_result") {
       const waiter = this.#settle(frame.id)
       if (waiter?.kind === "fs") waiter.resolve(frame.value)
+      return
+    }
+    if (frame.t === "image_result") {
+      const waiter = this.#settle(frame.id)
+      if (waiter?.kind === "image") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "job_result") {
