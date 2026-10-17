@@ -377,3 +377,30 @@ test("an order a browser kept before the server did is carried up to it once", a
   await expect.poll(() => idsIn(theirs)).toEqual(kept)
   await context.close()
 })
+
+test("on the rail, each workspace's mark sits in the middle of the line across the column", async ({
+  page,
+}) => {
+  // Run after the one that opens the sidebar for the other tests here.
+  await page.addInitScript(() => localStorage.setItem("dc-chat-list", "closed"))
+  await signIn(page)
+  await page.request.post("/api/workspaces", { data: { name: "Bluff", color: "teal" } })
+  await page.reload()
+
+  // Mine is a picture and the team's a tile with a letter on it, which a line of text set apart.
+  for (const name of ["Personal", "Bluff"]) {
+    const mark = agents(page)
+      .getByRole("region", { name })
+      .getByRole("button", { name, exact: true })
+    await expect(mark).toBeVisible()
+    // The middle of the row the line is drawn across, and of the picture or tile in the button.
+    const [line, picture] = await mark.evaluate((button) => {
+      const middle = (box: DOMRect) => box.top + box.height / 2
+      return [
+        middle(button.parentElement!.getBoundingClientRect()),
+        middle(button.firstElementChild!.getBoundingClientRect()),
+      ]
+    })
+    expect(Math.abs(line - picture), name).toBeLessThan(0.5)
+  }
+})
