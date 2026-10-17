@@ -28,7 +28,10 @@
 /*
  * A window with no title bar is dragged by the top of the page: a strip as tall as a title bar
  * on every page, and whatever else says so. Nothing that can be pressed is part of it, nor is
- * anything laid over the page.
+ * anything laid over the page. A region that is focusable only to be scrolled from the keyboard,
+ * such as a chat's messages, is not something pressed: the page runs under the strip, and since
+ * what the window is dragged by is passed down to all that is inside, a scroller saying no-drag
+ * would take the whole strip over it away. What can be pressed inside it still says so itself.
  */
 [data-title-bar="inset"] [data-title-drag] {
   -webkit-app-region: drag;
@@ -42,7 +45,7 @@
     textarea,
     label,
     summary,
-    [tabindex],
+    [tabindex]:not([role="region"]),
     [role="button"],
     [role="separator"],
     [role="dialog"],
