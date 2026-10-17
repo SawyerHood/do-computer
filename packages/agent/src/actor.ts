@@ -116,6 +116,7 @@ import {
 import { Journal, type ReviewOptions } from "./journal.ts"
 import { type JudgeOptions, KeepGoing } from "./keep-going.ts"
 import { logExtension } from "./log.ts"
+import { type ImageLimits, RequestLimits } from "./limits.ts"
 import {
   type AgentComputer,
   type ComputerAnswer,
@@ -231,6 +232,13 @@ export type AgentActorOptions = {
   readonly boxEveryMs?: number
   /** How often the actor wakes itself while work is live. */
   readonly keepAliveMs?: number
+  /**
+   * How many times one request to the model is started without an answer before that chat's run
+   * is ended (`limits.ts`). Three if left out; only a test has it anything else.
+   */
+  readonly requestTries?: number
+  /** How much of a chat's pictures a request carries (`limits.ts`). Only a test changes it. */
+  readonly imageLimits?: ImageLimits
   /** How long a command is waited for before it is left to run in the background. */
   readonly foregroundMs?: number
   /**
@@ -589,6 +597,7 @@ export class AgentActor implements Actor {
   readonly #signIns: SignIns
   readonly #pays: Pays
   readonly #keepGoing: KeepGoing
+  readonly #limits: RequestLimits
   readonly #journal: Journal
   readonly #history: HistoryIndex
   #harness: Promise<Harness> | undefined
@@ -827,6 +836,14 @@ export class AgentActor implements Actor {
       onError: (error) => options.onReport?.(error),
     })
     this.#history = new HistoryIndex(host.sql, () => host.now())
+    this.#limits = new RequestLimits({
+      sql: host.sql,
+      now: () => host.now(),
+      context,
+      ...(options.requestTries === undefined ? {} : { tries: options.requestTries }),
+      ...(options.imageLimits === undefined ? {} : { images: options.imageLimits }),
+      onReport: (error) => options.onReport?.(error),
+    })
     this.#keepGoing = new KeepGoing({
       judge: options.judge,
       chat: (chatId) => this.#chatState(chatId),
@@ -1247,6 +1264,8 @@ export class AgentActor implements Actor {
       // Finds the tools that are not offered until asked for, which a connector's are.
       registry.install(createToolSearchExtension())
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
+      // Last, so that what the others add to a request is counted with the rest.
+      registry.install(this.#limits.extension)
       const harness = await Harness.open(
         await SqliteStorage.open(keptOpen(this.#host.sql)),
         {
@@ -1286,6 +1305,7 @@ export class AgentActor implements Actor {
       })
       this.#approvals.attach(harness)
       this.#keepGoing.attach(harness)
+      this.#limits.attach(harness)
       this.#journal.attach(harness)
       this.#computers.attach(harness)
       this.#scheduler.attach(harness)
@@ -1371,7 +1391,12 @@ export class AgentActor implements Actor {
   async #rearm(): Promise<void> {
     if (this.#harness === undefined) return
     const harness = await this.#harness
+    const seen = this.#host.now()
     const inspection = await harness.inspect(context)
+    // A request that came to no answer is counted until its task ends, however it ends.
+    await this.#limits.starts
+      .prune(new Set(inspection.tasks.map((task) => String(task.record.id))), seen)
+      .catch((error) => this.#options.onReport?.(error))
     // Work that nothing this deployment has can run is not woken for, and is not the agent at
     // work: only another deployment gets it further, and it is found again when the agent is
     // next opened.

@@ -78,6 +78,7 @@ export const AgentObject = createDurableActorClass<Env>({
       review: models.review,
       allowPrivateHosts: config.allowPrivateHosts,
       boxEveryMs: config.boxEveryMs,
+      ...(config.requestTries === undefined ? {} : { requestTries: config.requestTries }),
       ...(env.BROWSER === undefined ? {} : { pagePreviewer: browserRunPreviewer(env.BROWSER) }),
       // Nothing is kept in memory for a chat that has gone quiet, nor a document that nothing
       // is watching: what keeps each is a timer, and a pending timer keeps the whole object

@@ -134,6 +134,11 @@ export type Config = {
   /** How long after a creature's box is opened the next one turns up. Only a test has it anything but six hours. */
   readonly boxEveryMs: number | undefined
   /**
+   * How many times one request to the model is started without an answer before its chat's run
+   * is ended. Only a test has it anything but three.
+   */
+  readonly requestTries: number | undefined
+  /**
    * Under Node: the Chrome that draws a page for an agent to look at before it shows it.
    * Without it, one is looked for where a Chrome usually is; `none` says to have none.
    */
@@ -312,6 +317,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     slackApiUrl: optional("DC_SLACK_API_URL"),
     appsUrl: optional("DC_APPS_URL"),
     boxEveryMs: wholeNumber(optional("DC_BOX_EVERY_MS")),
+    requestTries: wholeNumber(optional("DC_REQUEST_TRIES")),
     chromePath: optional("DC_CHROME_PATH"),
     email: { resendApiKey: optional("RESEND_API_KEY"), from: optional("DC_EMAIL_FROM") },
   }

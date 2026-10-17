@@ -1,5 +1,6 @@
 import {
   callLength,
+  CUT_OFF_TEXT,
   type ChatMessage,
   type ChatState,
   type ChatUsage,
@@ -26,6 +27,7 @@ import type {
 } from "@earendil-works/pi-durable"
 import type { Carried } from "./branch.ts"
 import { CALL_ENTRY, type CallEntry, callOf } from "./calls.ts"
+import { CUT_OFF_ENTRY, type CutOffEntry } from "./limits.ts"
 import { agentSenderOf, type Caller, senderOf, type SlackSender, slackSenderOf } from "./caller.ts"
 
 type UserContent = UserMessage["content"]
@@ -291,6 +293,20 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         ],
         status: "done",
         createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case CUT_OFF_ENTRY: {
+      // A run ended because its request kept being cut off before it could be sent. It is
+      // shown, and read by whatever waits on the chat (a sub-agent's report, an answer to
+      // another agent), as a reply that failed.
+      const at = (entry.data as Partial<CutOffEntry> | null | undefined)?.at
+      return {
+        id,
+        role: "assistant",
+        parts: [],
+        status: "error",
+        error: CUT_OFF_TEXT,
+        ...(typeof at === "number" ? { createdAt: at } : {}),
       }
     }
     case "dc.scheduled": {
