@@ -346,7 +346,7 @@ function Section({
                 <span
                   role="img"
                   aria-label="Something new"
-                  className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-(--face-ring)"
+                  className="absolute top-0.5 right-0.5 size-2 rounded-full bg-notice ring-2 ring-(--face-ring)"
                 />
               ) : null}
             </button>
@@ -408,7 +408,7 @@ function Section({
                 <span
                   role="img"
                   aria-label="Something new"
-                  className="size-2 rounded-full bg-primary"
+                  className="size-2 rounded-full bg-notice"
                 />
               ) : null}
             </span>
@@ -654,7 +654,7 @@ function AgentRow({
           {rail && unread ? (
             <span
               aria-hidden
-              className="absolute -top-0.5 -right-0.5 z-10 size-3 rounded-full bg-primary ring-2 ring-(--face-ring)"
+              className="absolute -top-0.5 -right-0.5 z-10 size-3 rounded-full bg-notice ring-2 ring-(--face-ring)"
             />
           ) : null}
         </span>
@@ -675,7 +675,7 @@ function AgentRow({
                   className={cn(
                     // It gives way to the row's menu, where there is a pointer to bring that out.
                     "shrink-0 text-[0.71875rem] text-muted-foreground group-has-[[data-agent-menu]:focus-visible]/agent:invisible group-has-[[data-agent-menu][aria-expanded=true]]/agent:invisible [@media(hover:hover)]:group-hover/agent:invisible",
-                    unread && "font-medium text-primary",
+                    unread && "font-medium text-notice",
                   )}
                 >
                   {working ? "now" : when(latest!.at, now)}
@@ -712,7 +712,7 @@ function AgentRow({
                   <span
                     role="img"
                     aria-label="Something new"
-                    className="size-2 shrink-0 rounded-full bg-primary"
+                    className="size-2 shrink-0 rounded-full bg-notice"
                   />
                 ) : null}
               </span>
@@ -816,7 +816,7 @@ export function DoodsButton({
       {wanted ? (
         <span
           aria-hidden
-          className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-background"
+          className="absolute top-0.5 right-0.5 size-2 rounded-full bg-notice ring-2 ring-background"
         />
       ) : null}
     </Button>

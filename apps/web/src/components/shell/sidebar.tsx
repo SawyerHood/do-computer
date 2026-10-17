@@ -83,7 +83,7 @@ function AccountMenu({
             {rail && asking > 0 ? (
               <span
                 title="A Dood is asking to use a computer"
-                className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-primary ring-2 ring-frame"
+                className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-notice ring-2 ring-frame"
               />
             ) : null}
           </span>
@@ -97,7 +97,7 @@ function AccountMenu({
               ) : asking > 0 ? (
                 <span
                   title="A Dood is asking to use a computer"
-                  className="size-2 shrink-0 rounded-full bg-primary"
+                  className="size-2 shrink-0 rounded-full bg-notice"
                 />
               ) : null}
               {leaving ? null : (
@@ -125,7 +125,7 @@ function AccountMenu({
               <span className="flex-1">
                 {asking === 1 ? "A Dood asks for a computer" : `${asking} Doods ask for computers`}
               </span>
-              <span aria-hidden className="size-2 shrink-0 rounded-full bg-primary" />
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-notice" />
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onClick={() => openSettings({ at: "top" })}>
