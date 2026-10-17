@@ -1,8 +1,8 @@
 // Draws the app's own pictures from its mascot: the tab's icon, the icons a phone and a
 // desktop show for the app, the tray's, and the mark on the desktop app's own pages. The
 // creature is one grown from a seed, in the app's teal, drawn by the same code that draws every
-// agent's; where there is room it stands on the island of the first run at sunrise, and in the
-// desktop app's icon on its own color made deep, as an agent's own does there (see
+// agent's; in the browser's icons it stands on the island of the first run at sunrise, and in the
+// desktop and phone apps' icons on its own color made deep, as an agent's own does there (see
 // packages/mascot/src/portrait.js).
 // `node scripts/icons.mjs` writes them all where they are used; it needs a Chromium that
 // Playwright can start (PLAYWRIGHT_CHROMIUM_PATH names one that is already here).
@@ -42,8 +42,9 @@ const PICTURES = [
   // A phone cuts its own shape out of these two, so they have no corners and more room.
   { file: "apps/web/public/icon-maskable-512.png", tile: { grid: 128, scale: 4, zoom: 0.78 } },
   { file: "apps/web/public/apple-touch-icon.png", tile: { grid: 90, scale: 2, zoom: 0.92 } },
-  // The phone app's own, which iOS also cuts to its shape: 1024 across, as the App Store asks.
-  { file: "apps/mobile/assets/icon.png", tile: { grid: 128, scale: 8, zoom: 0.92 } },
+  // The phone app's own is as quiet as a desktop's: the creature on its own color, made deep.
+  // iOS cuts it to its shape, so it has no corners: 1024 across, as the App Store asks.
+  { file: "apps/mobile/assets/icon.png", tile: { grid: 128, scale: 8, plain: true } },
   // A desktop's are quieter: the creature on its own color, made deep.
   {
     file: "apps/desktop/assets/icon.png",
