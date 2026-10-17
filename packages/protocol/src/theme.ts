@@ -90,6 +90,9 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
   { name: "--destructive", light: "oklch(0.5 0.19 26)", dark: "oklch(0.7 0.17 24)" },
   { name: "--success", light: "oklch(0.52 0.13 155)", dark: "oklch(0.74 0.14 155)" },
   { name: "--warning", light: "oklch(0.6 0.13 75)", dark: "oklch(0.8 0.13 80)" },
+  // What marks something new or waiting: the teal the accent is with no agent open, and kept so
+  // when one is, so a dot means the same thing whichever agent is in front.
+  { name: "--notice", light: "oklch(0.5 0.08 195)", dark: "oklch(0.52 0.08 195)" },
   { name: "--border", light: mix(13) },
   { name: "--input", light: mix(22), dark: mix(20) },
   { name: "--ring", light: "var(--primary)" },
