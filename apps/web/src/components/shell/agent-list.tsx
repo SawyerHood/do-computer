@@ -337,7 +337,9 @@ function Section({
               aria-label={workspace.name}
               title={workspace.name}
               onClick={onFold}
-              className="relative rounded-md p-0.5 outline-none hover:brightness-95 focus-visible:ring-3 focus-visible:ring-ring/40"
+              // A flex box, so the mark is not set on a line of text: on one, a picture sits
+              // above the line's middle and a letter's tile below it.
+              className="relative flex rounded-md p-0.5 outline-none hover:brightness-95 focus-visible:ring-3 focus-visible:ring-ring/40"
             >
               <WorkspaceMark workspace={workspace} me={me} className="size-5" />
               {folded && wanted ? (
