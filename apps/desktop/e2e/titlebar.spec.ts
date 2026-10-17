@@ -190,6 +190,9 @@ test("with no title bar the page makes room for the window's buttons and is what
   expect(await region("body > [data-title-drag]")).toBe("drag")
   expect(await region("main > header")).toBe("drag")
   expect(await region("main > header button")).toBe("no-drag")
+  // The chat runs under the strip, and its messages, focusable only to be scrolled, do not take
+  // the strip away over them.
+  expect(await region('main [role="region"][aria-label="Messages"]')).not.toBe("no-drag")
   await shot(main, "faces")
 
   // The chat runs under the Dood's name, to the top of the window.
