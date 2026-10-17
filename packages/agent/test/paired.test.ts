@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { crc32, deflateSync } from "node:zlib"
 import { createComputerLinkActor, DaemonCore } from "@do-computer/computers"
 import { nodeDaemonIO } from "@do-computer/computers/node"
 import type {
@@ -68,7 +69,13 @@ afterAll(async () => {
 })
 
 /** Run a daemon for computer `id` on a fresh home directory, connected to its link in memory. */
-async function startDaemon(id: string, readOnly = false, current = false): Promise<string> {
+async function startDaemon(
+  id: string,
+  readOnly = false,
+  current = false,
+  /** What its hello says besides, where it is a daemon of today. */
+  said: Record<string, unknown> = {},
+): Promise<string> {
   const home = mkdtempSync(join(tmpdir(), "dc-laptop-"))
   const listeners = {
     message: [] as ((data: unknown, binary: boolean) => void)[],
@@ -98,7 +105,7 @@ async function startDaemon(id: string, readOnly = false, current = false): Promi
   if (current) {
     const hello = { t: "hello", platform: "linux", hostname: id, home, readOnly, version: "test" }
     listeners.message.forEach((listener) =>
-      listener(JSON.stringify({ ...hello, jobs: true }), false),
+      listener(JSON.stringify({ ...hello, jobs: true, ...said }), false),
     )
   }
   daemon.onOpen()
@@ -133,6 +140,35 @@ async function say(chatId: string, text: string, from?: MessageOrigin): Promise<
     if (Date.now() > deadline) throw new Error("run did not finish")
     await new Promise((resolve) => setTimeout(resolve, 30))
   }
+}
+
+/** An RGB PNG of noise, which does not compress: a rendered scene or a photo, as a PNG. */
+function noisyPng(width: number, height: number): Uint8Array {
+  const chunk = (type: string, data: Uint8Array) => {
+    const out = Buffer.alloc(12 + data.length)
+    out.writeUInt32BE(data.length, 0)
+    out.write(type, 4, "latin1")
+    out.set(data, 8)
+    out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length)
+    return out
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header.set([8, 2, 0, 0, 0], 8)
+  const rows = Buffer.alloc((width * 3 + 1) * height)
+  let seed = 3
+  for (let index = 0; index < rows.length; index++) {
+    seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff
+    // Each row starts with its filter, none.
+    rows[index] = index % (width * 3 + 1) === 0 ? 0 : 100 + ((seed >>> 16) % 64)
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(rows)),
+    chunk("IEND", new Uint8Array()),
+  ])
 }
 
 const lastTool = (state: ChatState) =>
@@ -321,6 +357,63 @@ describe("paired computers", () => {
     expect(
       (await call<{ computers: { name: string }[] }>("/computers")).computers.map((c) => c.name),
     ).toEqual(["computer", "laptop"])
+  })
+
+  it("have a picture read there made smaller there, where the daemon can", async () => {
+    const easelHome = await startDaemon("c-easel", false, true, { images: true })
+    await call("/computers/c-easel", "PUT", {
+      name: "easel",
+      platform: "linux",
+      hostname: "easel",
+      home: easelHome,
+      readOnly: false,
+      pairedAt: 3,
+    })
+    const shot = noisyPng(2000, 1000)
+    writeFileSync(join(easelHome, "shot.png"), shot)
+    writeFileSync(join(laptopHome, "shot.png"), noisyPng(40, 30))
+    /** What the model is sent of the picture `read` gave it, and what it is told of it. */
+    const readOn = async (computer: string) => {
+      let sent: { image?: { mimeType: string; data: string }; said: string } = { said: "" }
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall("read", { path: "shot.png", computer })], {
+          stopReason: "toolUse",
+        }),
+        (context) => {
+          const result = context.messages.findLast((message) => message.role === "toolResult")!
+          const content = result.content as {
+            type: string
+            text?: string
+            mimeType?: string
+            data?: string
+          }[]
+          const image = content.find((part) => part.type === "image")
+          sent = {
+            ...(image === undefined
+              ? {}
+              : { image: { mimeType: image.mimeType!, data: image.data! } }),
+            said: content
+              .flatMap((part) => (part.text === undefined ? [] : [part.text]))
+              .join("\n"),
+          }
+          return fauxAssistantMessage("done")
+        },
+      ])
+      await say(chat.id, `look at the picture on ${computer}`)
+      return sent
+    }
+    const easel = await readOn("easel")
+    expect(easel.image?.mimeType).toBe("image/jpeg")
+    expect(Buffer.from(easel.image!.data, "base64").length * 4).toBeLessThan(shot.length)
+    expect(easel.said).toContain(
+      "Read image file [image/jpeg]. Converted from image/png to image/jpeg. Resized from 2000x1000 to 1516x758. Multiply coordinates by 1.32 to map them to the original.",
+    )
+    // The laptop's daemon is from before it could, so the picture is read as it is.
+    const laptop = await readOn("laptop")
+    expect(laptop.image?.mimeType).toBe("image/png")
+    expect(laptop.said).toContain("Read image file [image/png].")
+    expect(laptop.said).not.toContain("Converted")
+    await call("/computers/c-easel", "DELETE")
   })
 })
 

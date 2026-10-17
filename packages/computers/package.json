@@ -20,12 +20,15 @@
   "dependencies": {
     "@do-computer/protocol": "workspace:*",
     "@do-computer/runtime": "workspace:*",
-    "@do-computer/sandbox": "workspace:*"
+    "@do-computer/sandbox": "workspace:*",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0"
   },
   "devDependencies": {
     "@earendil-works/chord": "catalog:",
     "@earendil-works/pi-durable": "catalog:",
     "@types/node": "catalog:",
+    "@types/pngjs": "^6.0.5",
     "@typescript/native": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

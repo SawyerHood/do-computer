@@ -31,7 +31,7 @@ import {
   supervise,
   type Supervised,
 } from "./chrome.ts"
-import { isJpeg, keepEnd, readFrames } from "./frames.ts"
+import { keepEnd, readFrames, shotOf } from "./frames.ts"
 import { createPreview, type Preview, type PreviewSocket } from "./preview.ts"
 import { createRelay, type Relay } from "./relay.ts"
 import { payOnPage } from "./pay.ts"
@@ -55,7 +55,10 @@ const KEPT_IDLE_MS = 15 * 60_000
  * may be used. The question stays on their screen after that, for the next script to find answered.
  */
 const ASK_WAIT_MS = 30_000
-/** The most pictures one script hands back, and the largest any may be. */
+/**
+ * The most pictures one script hands back, and the largest any may be as it was taken: it is
+ * then made no larger than a model is shown (`shotOf`).
+ */
 const MAX_SHOTS = 10
 const MAX_SHOT_BYTES = 4_000_000
 /** The most dev-browser may print before it is taken to have run away. */
@@ -399,13 +402,9 @@ export function nodeBrowserIO(options: NodeBrowserOptions): BrowserIO {
         if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) continue
         const bytes = await readFile(path)
         await rm(path, { force: true })
-        if (shots.length >= MAX_SHOTS || bytes.length > MAX_SHOT_BYTES || !isJpeg(bytes)) continue
-        shots.push({
-          mimeType: "image/jpeg",
-          data: bytes.toString("base64"),
-          width: image.width,
-          height: image.height,
-        })
+        if (shots.length >= MAX_SHOTS || bytes.length > MAX_SHOT_BYTES) continue
+        const shot = shotOf(bytes, image)
+        if (shot !== undefined) shots.push(shot)
       } catch {
         // A picture that cannot be read is left out; what the script printed still says it was taken.
       }

@@ -1,3 +1,4 @@
+import type { PreparedImage } from "@do-computer/protocol"
 import type { ActorStub } from "@do-computer/runtime"
 import {
   type DirectoryEntry,
@@ -81,6 +82,18 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
       void (await operate({ op: "remove", path, recursive, force })),
     rename: async (from, to) => void (await operate({ op: "rename", path: from, to })),
     realpath: (path) => operate<string>({ op: "realpath", path }),
+    readImage: async (path, limits) => {
+      try {
+        const { value } = (await (await post("/image", { path, ...limits }, path)).json()) as {
+          value: PreparedImage | null
+        }
+        return value ?? undefined
+      } catch (error) {
+        // A daemon from before it could: the picture is read as it is.
+        if (error instanceof JobsUnsupported) return undefined
+        throw error
+      }
+    },
   }
 
   return {

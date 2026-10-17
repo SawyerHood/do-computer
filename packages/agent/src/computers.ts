@@ -24,6 +24,7 @@ import {
 } from "@earendil-works/pi-durable/tools"
 import { ChatsDoc, IdentityDoc } from "./docs.ts"
 import { isInherited, own } from "./own.ts"
+import { readPreparedImage } from "./read-images.ts"
 
 /** The kind of a computer someone paired, as opposed to a machine the app made at a provider. */
 export const PAIRED = "paired"
@@ -312,14 +313,14 @@ export class Computers {
           }
           const around = found.machine ? options.around : undefined
           await around?.before?.(inner.name, found, context)
-          const result = await inner.execute(
-            rest as never,
-            {
-              ...api,
-              env: found.machine ? new MachineEnv(found) : new ComputerEnv(found),
-            },
-            context,
-          )
+          const env = found.machine ? new MachineEnv(found) : new ComputerEnv(found)
+          // A picture is made smaller on the computer, where that is cheap, before the agent
+          // keeps it for good; `read` does anything else.
+          const image =
+            inner.name === "read"
+              ? await readPreparedImage(rest, env, found.sandbox, api, context)
+              : undefined
+          const result = image ?? (await inner.execute(rest as never, { ...api, env }, context))
           for (const message of (await around?.after?.(inner.name, found, context)) ?? []) {
             api.diagnostic({ severity: "warn", message })
           }

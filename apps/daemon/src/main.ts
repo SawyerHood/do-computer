@@ -322,6 +322,8 @@ async function run(config: Config): Promise<void> {
             browser: browser !== undefined,
             signIn: browser !== undefined,
             pay: browser !== undefined,
+            // Pictures an agent reads are made smaller here, before the server keeps them.
+            images: true,
           }),
         )
         core.onOpen()

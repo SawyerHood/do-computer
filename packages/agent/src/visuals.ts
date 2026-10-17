@@ -182,7 +182,7 @@ export function visuals(options: VisualsOptions): Extension {
   const consoleOf = (lines: PagePreview["console"]) =>
     lines.map((line) => `[${line.level}] ${line.text}`).join("\n")
   /** What a look answers with: the words, and the picture for a model that takes one. */
-  const answer = async (words: readonly string[], png: string) => {
+  const answer = async (words: readonly string[], seen: PagePreview) => {
     const sees = (await options.sees?.()) ?? true
     return {
       output: [
@@ -192,7 +192,7 @@ export function visuals(options: VisualsOptions): Extension {
             ? words.join("\n")
             : `${words.join("\n")}\nYour model does not take pictures, so the picture of it is left out.`,
         },
-        ...(sees ? [{ type: "image" as const, data: png, mimeType: "image/png" }] : []),
+        ...(sees ? [{ type: "image" as const, data: seen.picture, mimeType: seen.mimeType }] : []),
       ],
     }
   }
@@ -256,7 +256,7 @@ export function visuals(options: VisualsOptions): Extension {
                 `To fix before you draw it:\n${problems.notes.map((note) => `- ${note}`).join("\n")}`,
               ]),
         ],
-        seen.png,
+        seen,
       )
     } catch (error) {
       if (error instanceof PreviewError) {
@@ -341,7 +341,7 @@ export function visuals(options: VisualsOptions): Extension {
           [
             `${file.path} is a picture${size}. In a window ${frame.width}px wide it is ${tall}px tall, and ${shown}`,
           ],
-          seen.png,
+          seen,
         )
       }
       return answer(
@@ -355,7 +355,7 @@ export function visuals(options: VisualsOptions): Extension {
                   : `Its console:\n${consoleOf(lines)}`,
               ]),
         ],
-        seen.png,
+        seen,
       )
     } catch (error) {
       if (error instanceof PreviewError) {

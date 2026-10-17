@@ -74,10 +74,49 @@ const APPS_LOOKUPS = [
   "COMPOSIO_MANAGE_CONNECTIONS",
 ]
 
-/** An answer's text, cut where it is longer than a conversation should carry. */
-function bounded<T extends { type: string }>(content: T[]): T[] {
+/**
+ * The most pictures one call's answer may carry into the conversation, and how large they may be
+ * together, as base64. A server can answer with pictures of any size, and the conversation keeps
+ * every one and sends it again with every request; nothing here decodes a picture to make it
+ * smaller, so one that does not fit is left out and the agent is told so.
+ */
+const MAX_RESULT_PICTURES = 4
+const MAX_RESULT_PICTURE_CHARS = 1_400_000
+
+/** About how large base64 of `chars` characters is, for the agent to be told. */
+const sizeOf = (chars: number) => {
+  const bytes = Math.floor((chars * 3) / 4)
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.ceil(bytes / 1024)} KB`
+}
+
+/**
+ * An answer's text, cut where it is longer than a conversation should carry, and its pictures,
+ * left out where there are more of them or they are larger than it should carry.
+ */
+export function bounded<T extends { type: string }>(content: T[]): T[] {
   let left = MAX_RESULT_CHARS
+  let pictures = MAX_RESULT_PICTURES
+  let room = MAX_RESULT_PICTURE_CHARS
   return content.map((part) => {
+    if (part.type === "image") {
+      const data = (part as { data?: unknown }).data
+      const chars = typeof data === "string" ? data.length : 0
+      if (pictures > 0 && chars <= room) {
+        pictures--
+        room -= chars
+        return part
+      }
+      const why =
+        pictures === 0
+          ? `only ${MAX_RESULT_PICTURES} pictures of one answer are kept`
+          : `it is ${sizeOf(chars)}, larger than the conversation can keep`
+      return {
+        type: "text",
+        text: `[A picture was left out here: ${why}. Ask for fewer or smaller pictures, or save it to a file instead.]`,
+      } as unknown as T
+    }
     const text = (part as { text?: unknown }).text
     if (part.type !== "text" || typeof text !== "string") return part
     if (text.length <= left) {

@@ -1,12 +1,19 @@
-import { existsSync, mkdtempSync, readFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { REVOKED_CLOSE_CODE, SUPERSEDED_CLOSE_CODE } from "@do-computer/protocol"
+import {
+  IMAGE_MAX_EDGE,
+  IMAGE_MAX_PIXELS,
+  IMAGE_RESULT_BYTES,
+  REVOKED_CLOSE_CODE,
+  SUPERSEDED_CLOSE_CODE,
+} from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace, type SocketLike } from "@do-computer/runtime/node"
 import { JobsUnsupported, type Sandbox, SandboxEnv } from "@do-computer/sandbox"
 import { registerSandboxConformance } from "@do-computer/sandbox/testing"
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env"
+import { PNG } from "pngjs"
 import { afterAll, describe, expect, it } from "vitest"
 import {
   computerSandbox,
@@ -322,6 +329,60 @@ describe("computer link", () => {
     expect(await connected.closed).toBe(REVOKED_CLOSE_CODE)
     const again = await connectDaemon("to-revoke")
     expect(await again.closed).toBe(REVOKED_CLOSE_CODE)
+  })
+})
+
+describe("pictures on a paired computer", () => {
+  const limits = {
+    maxEdge: IMAGE_MAX_EDGE,
+    maxPixels: IMAGE_MAX_PIXELS,
+    maxBytes: IMAGE_RESULT_BYTES,
+  }
+  /** A PNG of `width` by `height` that does not compress, as a photo or a rendered scene does not. */
+  const noisy = (width: number, height: number) => {
+    const image = new PNG({ width, height })
+    let seed = 1
+    for (let index = 0; index < image.data.length; index++) {
+      seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff
+      image.data[index] = index % 4 === 3 ? 255 : 100 + ((seed >>> 16) % 80)
+    }
+    return PNG.sync.write(image, { colorType: 2 })
+  }
+
+  it("are made smaller on the machine before they are sent", async () => {
+    const { sandbox, home, audits } = await connectDaemon(undefined, false, false, { images: true })
+    const shot = noisy(2000, 1000)
+    writeFileSync(join(home, "shot.png"), shot)
+    const image = await sandbox.fs.readImage!(join(home, "shot.png"), limits)
+    expect(image).toMatchObject({
+      mimeType: "image/jpeg",
+      width: 1516,
+      height: 758,
+      from: { mimeType: "image/png", width: 2000, height: 1000, bytes: shot.length },
+    })
+    expect(Buffer.from(image!.data, "base64").subarray(0, 3)).toEqual(
+      Buffer.from([0xff, 0xd8, 0xff]),
+    )
+    expect(audits).toContainEqual(expect.objectContaining({ kind: "read", bytes: shot.length }))
+    // What is not a picture is read as it is; what is not there is said to be missing.
+    writeFileSync(join(home, "notes.png"), "not really a picture")
+    expect(await sandbox.fs.readImage!(join(home, "notes.png"), limits)).toBeUndefined()
+    await expect(sandbox.fs.readImage!(join(home, "gone.png"), limits)).rejects.toMatchObject({
+      code: "not_found",
+    })
+  })
+
+  it("are read as they are from a daemon from before it could prepare them", async () => {
+    const { sandbox, home } = await connectDaemon()
+    writeFileSync(join(home, "shot.png"), noisy(20, 20))
+    expect(await sandbox.fs.readImage!(join(home, "shot.png"), limits)).toBeUndefined()
+  })
+
+  it("are not prepared by a daemon that has no way to", async () => {
+    const io = fakeIO()
+    const { link } = wire(io)
+    await link.writeFile("/tmp/shot.png", noisy(20, 20))
+    expect(await link.image({ path: "/tmp/shot.png", ...limits })).toBeNull()
   })
 })
 

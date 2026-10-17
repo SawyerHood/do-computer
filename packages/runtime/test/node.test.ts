@@ -6,6 +6,7 @@ import { openNodeSqliteDatabase } from "@earendil-works/pi-durable/storage/sqlit
 import { afterAll, describe, expect, it } from "vitest"
 import { fileBlobs, NodeActorNamespace, openNodeAppDatabase } from "../src/node/index.ts"
 import { type SocketLike } from "../src/node/index.ts"
+import { type PreviewPage, previewIn } from "../src/preview.ts"
 import {
   CONFORMANCE_AUTO_RESPONSE,
   conformanceActor,
@@ -172,5 +173,34 @@ describe("Node: database facade", () => {
     await database.exec("CREATE TABLE t (v TEXT)")
     await database.close()
     expect(BACKGROUND_CONTEXT).toBeDefined()
+  })
+})
+
+describe("a preview of a page", () => {
+  it("is a JPEG of the part asked for, which is a fraction of a PNG of it", async () => {
+    const shots: unknown[] = []
+    const page: PreviewPage = {
+      setViewport: async () => {},
+      on: () => {},
+      setContent: async () => {},
+      goto: async () => null,
+      emulateMediaFeatures: async () => {},
+      // Every width is 900px tall.
+      evaluate: async () => 900,
+      screenshot: async (options) => {
+        shots.push(options)
+        return "/9j/AA=="
+      },
+    }
+    const seen = await previewIn(page, { html: "<p>hi</p>", width: 640, widths: [360], most: 500 })
+    expect(shots).toEqual([
+      {
+        type: "jpeg",
+        quality: 80,
+        encoding: "base64",
+        clip: { x: 0, y: 0, width: 640, height: 500 },
+      },
+    ])
+    expect(seen).toMatchObject({ picture: "/9j/AA==", mimeType: "image/jpeg", pictured: 500 })
   })
 })

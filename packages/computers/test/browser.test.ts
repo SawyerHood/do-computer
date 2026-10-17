@@ -13,7 +13,8 @@ import {
   ownDataDirs,
   readDevToolsActivePort,
 } from "../src/browser/chrome.ts"
-import { isJpeg, keepEnd, readFrames } from "../src/browser/frames.ts"
+import jpeg from "jpeg-js"
+import { isJpeg, keepEnd, readFrames, shotOf } from "../src/browser/frames.ts"
 import {
   POINTER_BINDING,
   createPreview,
@@ -67,6 +68,36 @@ describe("what dev-browser printed", () => {
   it("knows a JPEG by how it starts", () => {
     expect(isJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe(true)
     expect(isJpeg(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBe(false)
+  })
+
+  it("hands back a picture no larger than a model is shown", () => {
+    /** A page's picture of `width` by `height`, as a JPEG: noise, which does not squeeze. */
+    const page = (width: number, height: number) => {
+      const data = new Uint8Array(width * height * 4)
+      let seed = 5
+      for (let index = 0; index < data.length; index++) {
+        seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff
+        data[index] = index % 4 === 3 ? 255 : (seed >>> 16) % 256
+      }
+      return jpeg.encode({ width, height, data }, 90).data
+    }
+    // A page drawn at twice its size on a sharp screen is scaled down to what a model keeps.
+    const sharp = page(2560, 1600)
+    const shot = shotOf(sharp, { width: 2560, height: 1600 })!
+    expect(shot).toMatchObject({ mimeType: "image/jpeg", width: 1356, height: 847 })
+    expect(Buffer.from(shot.data, "base64").length).toBeLessThan(sharp.length / 2)
+    // One that fits goes as it is, with the size dev-browser said.
+    const small = page(400, 300)
+    expect(shotOf(small, { width: 400, height: 300 })).toEqual({
+      mimeType: "image/jpeg",
+      data: Buffer.from(small).toString("base64"),
+      width: 400,
+      height: 300,
+    })
+    // What is not a JPEG is not handed back.
+    expect(
+      shotOf(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), { width: 1, height: 1 }),
+    ).toBeUndefined()
   })
 })
 

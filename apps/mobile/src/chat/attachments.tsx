@@ -3,6 +3,7 @@ import {
   MAX_MESSAGE_IMAGES,
   MESSAGE_IMAGE_TYPES,
   type MessageImage,
+  pictureSize,
 } from "@do-computer/protocol"
 import { Image } from "expo-image"
 import { ActivityIndicator, Platform, Pressable, ScrollView, View } from "react-native"
@@ -94,7 +95,7 @@ export async function bodyOf(chosen: Chosen): Promise<Blob> {
 /** What one picture may take of a message's allowance, so that a full set still fits. */
 const BUDGET = Math.floor(MAX_MESSAGE_IMAGE_CHARS / MAX_MESSAGE_IMAGES) - 1_000
 
-/** Longest side and JPEG quality to try, as the web app does. */
+/** Longest side and JPEG quality to try, as the web app does, within the pixels a model is shown. */
 const ATTEMPTS: readonly (readonly [number, number])[] = [
   [1568, 0.85],
   [1568, 0.7],
@@ -130,9 +131,9 @@ async function scaledInBrowser(blob: Blob): Promise<MessageImage | undefined> {
     const context = canvas.getContext("2d")
     if (context === null) return undefined
     for (const [side, quality] of ATTEMPTS) {
-      const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height))
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+      const size = pictureSize(bitmap.width, bitmap.height, side)
+      canvas.width = size.width
+      canvas.height = size.height
       // JPEG has no transparency, and what shows through would otherwise be black.
       context.fillStyle = "#fff"
       context.fillRect(0, 0, canvas.width, canvas.height)
@@ -152,12 +153,10 @@ async function scaledOnDevice(uri: string): Promise<MessageImage | undefined> {
   const { ImageManipulator, SaveFormat } = await import("expo-image-manipulator")
   const whole = await ImageManipulator.manipulate(uri).renderAsync()
   try {
-    const wide = whole.width >= whole.height
     for (const [side, quality] of ATTEMPTS) {
       const drawing = ImageManipulator.manipulate(whole)
-      if (Math.max(whole.width, whole.height) > side) {
-        drawing.resize(wide ? { width: side } : { height: side })
-      }
+      const size = pictureSize(whole.width, whole.height, side)
+      if (size.width !== whole.width || size.height !== whole.height) drawing.resize(size)
       const drawn = await drawing.renderAsync()
       const { base64 } = await drawn
         .saveAsync({ format: SaveFormat.JPEG, compress: quality, base64: true })

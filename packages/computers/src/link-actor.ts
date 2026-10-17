@@ -164,6 +164,19 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
           }
           case "/fs":
             return json({ value: await core.fs(await request.json()) })
+          case "/image": {
+            if (host.sockets().length === 0) {
+              throw new RemoteError("offline", "The computer is offline.")
+            }
+            // Not waited for to update, as a job is: the picture is read as it is meanwhile.
+            if ((await status()).hello?.images !== true) {
+              return json(
+                { error: "This computer's program cannot prepare pictures.", code: "unsupported" },
+                409,
+              )
+            }
+            return json({ value: await core.image(await request.json()) })
+          }
           case "/read": {
             const { path } = (await request.json()) as { path: string }
             const bytes = await core.readFile(path)

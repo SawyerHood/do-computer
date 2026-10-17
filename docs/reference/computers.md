@@ -85,3 +85,37 @@ your own account: `DAYTONA_API_KEY=... pnpm --filter @do-computer/sandbox exec v
 test/daytona.live.test.ts` (it creates one machine and deletes it). Modal and Cloudflare
 Containers are tested against stand-ins that run real commands, and have not yet been run with a
 real account: treat the first deployment on either as a trial.
+
+## Pictures a Dood is shown
+
+A conversation keeps every picture its model was shown for as long as it lasts, and sends them
+all again with every request, in the memory of the Dood's own Durable Object. So a picture is
+made small before it reaches the Dood, wherever that is cheap, and the Dood never decodes one:
+
+- **Read from a computer of yours.** When a Dood `read`s a `.png`, `.jpg` or `.jpeg` file on a
+  paired computer whose daemon says `images` in its hello, the server asks the daemon for it
+  with an `image` frame rather than for the file (`packages/agent/src/read-images.ts`). The
+  daemon (`packages/computers/src/node-image.ts`, pure JavaScript: jpeg-js and pngjs, bundled
+  into its one file) scales it to a long edge of 1568 pixels and 1.15 megapixels, or the
+  model's own smaller limits, which is what Anthropic scales a larger picture to before the
+  model sees it; turns a photo upright as its EXIF orientation says; and makes it a JPEG at
+  quality 80 (a PNG where it has transparency), stepping down to 50 only where it is still over
+  640 KB. A JPEG that needs no change, and a flat drawing that is smaller as the PNG it is, are
+  sent as they are. `read` says what was done ("Converted from image/png to image/jpeg. Resized
+  from …"), as it would have. Anything else is read as it always was: WebP and GIF, a model
+  that does not take pictures, a picture of more than 25 megapixels or still too large, and a
+  daemon from before this.
+- **A browser on a computer of yours.** The pictures a script takes are made no larger the same
+  way, on the computer, before they are sent.
+- **The screen of a computer of yours** is already sent as a JPEG of at most 1280 pixels.
+- **A page a Dood looks at** (`look`, and drawing a page) is pictured as a JPEG at quality 80
+  in place of a PNG.
+- **A picture attached or pasted in the app** is scaled in the browser, or on the phone, to
+  1568 pixels and 1.15 megapixels at most, and goes as a JPEG.
+- **A connector's answer** may carry four pictures, and about a megabyte of them together. One
+  that does not fit is left out, and the Dood is told so in its place: nothing on the server
+  scales a picture.
+- **Slack** sends the smaller copy it makes of a picture, four at most to a message.
+- **The machines of a workspace** (`just-bash`, Daytona, Modal, Cloudflare containers) have no
+  daemon, so a picture read on one is read as it is, as pi-durable's `read` takes it: up to
+  2000 pixels and 4.5 MB of base64.
