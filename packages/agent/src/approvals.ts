@@ -17,7 +17,7 @@ import {
   hook,
   ToolTask,
 } from "@earendil-works/pi-durable"
-import { APPROVAL_ENTRY, busOn, eventText } from "./bus.ts"
+import { APPROVAL_ENTRY, ASKED_THROUGH_MAIN, askingThrough, busOn, eventText } from "./bus.ts"
 import { type Caller, sentMeta } from "./caller.ts"
 import { ChatsDoc } from "./docs.ts"
 import { ComputersDoc } from "./computers.ts"
@@ -215,6 +215,13 @@ const ABILITIES: readonly Ability[] = [
 ]
 
 const abilityOf = (id: string) => ABILITIES.find((ability) => ability.id === id)
+
+/**
+ * What asks first because it wants someone's yes, and not because it changes the app: a
+ * sub-agent asking through a main chat with the bus on can ask for these. Paying is not among
+ * them: whoever says yes types the card's code, in a conversation with them.
+ */
+const SOMEONES_YES: ReadonlySet<string> = new Set([SIGN_IN_ABILITY, "tool:share_public"])
 
 /** The rule for a subject that nobody has set one for. */
 const defaultRule = (subject: string): ApprovalRule =>
@@ -566,12 +573,18 @@ export class Approvals {
     const title = described?.title ?? what
     const binding = described?.binding
 
-    // What changes the app is for a person to ask for, and there is nobody in these to ask.
-    const kind = own((await harness.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind
+    // What changes the app is for a person to ask for, and there is nobody in these to ask. A
+    // sub-agent that asks through a main chat with the bus on can still ask for someone's yes.
+    const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
+    const kind = own(chats, chatId)?.kind
+    const through = askingThrough(chats, chatId) !== undefined
     if (
       kind !== undefined &&
       kind !== "chat" &&
-      governed.some((subject) => defaultRule(subject.id) === "ask")
+      governed.some(
+        (subject) =>
+          defaultRule(subject.id) === "ask" && !(through && SOMEONES_YES.has(subject.id)),
+      )
     ) {
       // A saved login changes nothing in the app: what it wants is someone's yes.
       const why = governed.some(
@@ -636,7 +649,9 @@ export class Approvals {
       if (request !== undefined) this.#options.onRequest?.(request)
     }
     return {
-      block: `This needs the user's approval first (${title}), and they have now been asked. Stop here: do not try it again and do not look for another way to do the same thing. Tell the user in a sentence what you want to do and why, then wait. You will be told when they have answered.`,
+      block: through
+        ? `This needs the user's approval first (${title}), and they have now been asked. ${ASKED_THROUGH_MAIN}`
+        : `This needs the user's approval first (${title}), and they have now been asked. Stop here: do not try it again and do not look for another way to do the same thing. Tell the user in a sentence what you want to do and why, then wait. You will be told when they have answered.`,
     }
   }
 

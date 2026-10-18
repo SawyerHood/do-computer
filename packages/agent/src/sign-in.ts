@@ -18,6 +18,7 @@ import {
   type ToolExecutionResult,
 } from "@earendil-works/pi-durable"
 import type { Described } from "./approvals.ts"
+import { ASKED_THROUGH_MAIN } from "./bus.ts"
 import { type ComputerTarget, isPaired } from "./computers.ts"
 import { vault, type VaultAccess, VaultError } from "./vault.ts"
 
@@ -35,6 +36,11 @@ export type SignInsOptions = {
   readonly vault: VaultAccess
   /** What kind of conversation a chat is: one with a person, a scheduled run, a thread in Slack. */
   readonly chatKind: (chatId: string, context: Context) => Promise<string | undefined>
+  /**
+   * Whether a chat can ask a person for a login: one with people in it, or a sub-agent that asks
+   * through a main chat with the bus on (`bus.ts`). Absent: only a chat with people in it.
+   */
+  readonly canAsk?: (chatId: string, context: Context) => Promise<boolean>
   /**
    * Ask the person to save a login for a site, in the chat that needs it. Resolves with whether
    * this is the first time it was asked.
@@ -284,7 +290,8 @@ export class SignIns {
         }
         if (plan.do === "fail") return fail(plan.text)
         if (plan.do === "ask") {
-          if (kind !== "chat") {
+          const asks = kind === "chat" || (await this.#options.canAsk?.(chatId, context)) === true
+          if (!asks) {
             return fail(
               `No login is saved for ${plan.site}, and only a conversation with a person can ask for one: there has to be someone to type it. Say in your answer that one is needed.`,
             )
@@ -303,7 +310,9 @@ export class SignIns {
               {
                 type: "text",
                 text: fresh
-                  ? `No login is saved for ${plan.site}, so the person has been asked for one: a form is in front of them, above their message box. Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell them in a sentence what you need it for.`
+                  ? kind === "chat"
+                    ? `No login is saved for ${plan.site}, so the person has been asked for one: a form is in front of them, above their message box. Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell them in a sentence what you need it for.`
+                    : `No login is saved for ${plan.site}, so the person has been asked for one. ${ASKED_THROUGH_MAIN}`
                   : `You have already asked for a login for ${plan.site}, and the person has not answered yet. Do not ask again: the answer will reach you as a message.`,
               },
             ],

@@ -22,6 +22,7 @@ import {
   createReadTool,
   createWriteTool,
 } from "@earendil-works/pi-durable/tools"
+import { ASKED_THROUGH_MAIN, askingThrough, canAsk } from "./bus.ts"
 import { ChatsDoc, IdentityDoc } from "./docs.ts"
 import { isInherited, own } from "./own.ts"
 import { readPreparedImage } from "./read-images.ts"
@@ -83,8 +84,11 @@ export const MIRROR_FILES = ["SOUL.md", "IDENTITY.md", "USER.md", "MEMORY.md"] a
 
 type ComputersState = {
   computers: Record<string, AgentComputer>
-  /** Computers the agent asked to use and has not been answered about, by computer id. */
-  asked?: Record<string, { name: string; at: number }>
+  /**
+   * Computers the agent asked to use and has not been answered about, by computer id, with the
+   * chat that asked where that is known.
+   */
+  asked?: Record<string, { name: string; at: number; chatId?: string }>
 }
 
 /** A computer the agent could be connected to, as the directory describes it. */
@@ -265,6 +269,11 @@ export type ComputersOptions = {
   readonly onProblem?: (error: unknown) => void
   /** The address of the app, where it is known: what a person is sent to. */
   readonly appUrl?: () => string | undefined
+  /**
+   * Called when a chat has asked to use a computer, the first time it asks: a sub-agent that
+   * asks through the main chat has the main chat told of it.
+   */
+  readonly onAsked?: (asked: { chatId: string; computer: string; requestKey: string }) => void
 }
 
 const fail = (text: string): ToolExecutionResult => ({
@@ -746,25 +755,38 @@ export class Computers {
     )
   }
 
-  /** Keep what the agent believes it has asked for in step with what the directory says. */
+  /**
+   * Keep what the agent believes it has asked for in step with what the directory says. `by`
+   * names the chat that has just asked for one of them, which waits for the answer.
+   */
   async #noteAsked(
     asked: readonly { id: string; name: string }[],
     context: Context,
+    by?: { id: string; chatId: string },
   ): Promise<void> {
     const harness = this.#require()
     const known = (await harness.snapshot(ComputersDoc, context))?.asked ?? {}
     const same =
       Object.keys(known).length === asked.length &&
-      asked.every(({ id }) => own(known, id) !== undefined)
+      asked.every(({ id }) => own(known, id) !== undefined) &&
+      (by === undefined || own(known, by.id)?.chatId === by.chatId)
     if (same) return
     await harness.commit(async (tx) => {
       const state = await tx.doc(ComputersDoc)
       const before = state.asked ?? {}
       state.asked = {}
       for (const { id, name } of asked) {
-        if (!isInherited(id)) state.asked[id] = own(before, id) ?? { name, at: Date.now() }
+        if (isInherited(id)) continue
+        const kept = own(before, id) ?? { name, at: Date.now() }
+        state.asked[id] = by?.id === id ? { ...kept, chatId: by.chatId } : kept
       }
     }, context)
+  }
+
+  /** Whether a chat asked to use a computer and has not been answered. */
+  async waitingIn(chatId: string, context: Context): Promise<boolean> {
+    const asked = (await this.#require().snapshot(ComputersDoc, context))?.asked ?? {}
+    return Object.values(asked).some((computer) => computer.chatId === chatId)
   }
 
   #tool() {
@@ -944,11 +966,14 @@ export class Computers {
             `You can already use "${computer.name}": pass that name as \`computer\` to read, write, edit or bash.`,
           )
         }
-        if (chat?.kind !== "chat") {
+        const chats = (await api.snapshot(ChatsDoc, context))?.chats
+        // A sub-agent asks through a main chat with the bus on, and the answer comes back to it.
+        if (!canAsk(chats, chatId)) {
           return fail(
             "Only a conversation with the user can ask for a computer: the answer has to have somewhere to arrive.",
           )
         }
+        const through = askingThrough(chats, chatId) !== undefined
         const identity = await api.snapshot(IdentityDoc, context)
         const asked = await lookup.request(agentId, {
           computerId: computer.id,
@@ -960,10 +985,20 @@ export class Computers {
         await this.#noteAsked(
           [...named.filter((other) => other.asked && !other.connected), computer],
           context,
+          { id: computer.id, chatId },
         )
+        if (asked.fresh) {
+          this.#options.onAsked?.({
+            chatId,
+            computer: computer.name,
+            requestKey: `${computer.id}:${chatId}:${Date.now()}`,
+          })
+        }
         return reply(
           asked.fresh
-            ? `Asked ${asked.asked} whether you may use "${computer.name}". Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell the user that you asked, and who.`
+            ? through
+              ? `Asked ${asked.asked} whether you may use "${computer.name}". ${ASKED_THROUGH_MAIN}`
+              : `Asked ${asked.asked} whether you may use "${computer.name}". Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell the user that you asked, and who.`
             : `You have already asked to use "${computer.name}", and ${asked.asked} has not answered yet. Do not ask again: the answer will reach you as a message.`,
         )
       },

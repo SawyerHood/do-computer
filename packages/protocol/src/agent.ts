@@ -421,8 +421,11 @@ export type ScheduleSummary = {
     /**
      * "skipped": its check found nothing, and the agent was not started. "check-failed": its
      * check could not be run, the agent has already been told, and it was not started again.
+     * "reported": its result went to the agent's main chat, where the agent has the bus on, which
+     * decides whether to tell anyone. "delivered" and "silent", for an agent without the bus:
+     * its report was delivered where the task was made, or it had nothing to report.
      */
-    outcome: "delivered" | "silent" | "failed" | "skipped" | "check-failed"
+    outcome: "reported" | "delivered" | "silent" | "failed" | "skipped" | "check-failed"
   } | null
   /** How many times its time has come. */
   runCount: number
@@ -618,6 +621,11 @@ export type SecretRequest = {
   id: string
   /** The chat the agent asked from. */
   chatId: string
+  /**
+   * The sub-agent that asked, where one did: it asks a person through the main chat, where the
+   * request is shown under its name, and the answer goes back to it.
+   */
+  subagent?: { title: string }
   /** What the secrets are for, in the agent's words. */
   purpose: string | null
   fields: SecretField[]

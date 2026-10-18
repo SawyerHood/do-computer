@@ -33,7 +33,10 @@ export type NoticePart = {
    * where a side chat's own messages begin, after the ones it carries from the main chat. `call`
    * is a voice call that was held in the chat, once it is over; its text is how long it was.
    * `approval` is someone's answer to something the agent asked leave for, where it is told as an
-   * event; its text is what was asked.
+   * event; its text is what was asked. `automation` is what a run of an automation came to, told
+   * to the main chat as an event; its text is the automation's title. `asked` is a sub-agent
+   * asking a person for something through the main chat; its text is the sub-agent's title.
+   * `slack` is something a thread in Slack told the main chat; its text is where the thread is.
    */
   kind:
     | "reset"
@@ -49,6 +52,9 @@ export type NoticePart = {
     | "command"
     | "call"
     | "approval"
+    | "automation"
+    | "asked"
+    | "slack"
   text: string
   /**
    * For `computer`: whether the agent was let in. For `secret`: whether they were saved. For
@@ -57,14 +63,18 @@ export type NoticePart = {
   approved?: boolean
   /** For `computer`, `secret`, `connector` and `approval`: who answered. */
   by?: string
-  /** For `subagent`: the sub-agent's own chat. For `agent`: the conversation on the other agent. */
+  /**
+   * For `subagent` and `asked`: the sub-agent's own chat. For `agent`: the conversation on the
+   * other agent. For `automation`: the chat the run happened in. For `slack`: the thread's chat.
+   */
   chatId?: string
   /** For `agent`: the agent that replied. */
   agentId?: string
-  /** For `subagent` and `agent`: what the word is. */
+  /** For `subagent`, `agent` and `automation`: what the word is. */
   outcome?: "reported" | "failed" | "stopped"
   /**
-   * For `subagent` and `agent`: what it reported, or why it failed. For `secret`: the names that
+   * For `subagent`, `agent` and `automation`: what it reported, or why it failed. For `asked`:
+   * what it asked for. For `slack`: what the thread said. For `secret`: the names that
    * were asked for, never their values. For `connector`: what went wrong, if something did.
    * For `command`: the last of what it printed.
    */

@@ -44,12 +44,63 @@ export type SubagentSummary = {
   status: SubagentStatus
 }
 
-/** What a sub-agent is told with its task. Not shown in its chat, where the task is. */
-const preamble = (title: string) =>
+/**
+ * What a sub-agent is told with its task. Not shown in its chat, where the task is. `asks` is
+ * whether it can ask a person for what only a person can give, through a main chat with the bus
+ * on.
+ */
+const preamble = (title: string, asks = false) =>
   `<meta kind="subagent">You are working as a sub-agent: a copy of yourself that your main conversation with the user started to do one piece of work, "${title}", which is the message above. ` +
-  "The user is not in this conversation, so you cannot ask them anything: make reasonable choices and say which you made. " +
+  (asks
+    ? "The user is not in this conversation, so do not ask them questions: make reasonable choices and say which you made. What only a person can give you (a secret, a login, a computer, leave for something that asks first) you can still ask for with the tools for it: the request is shown to them in the main conversation under your name, and their answer comes back here. "
+    : "The user is not in this conversation, so you cannot ask them anything: make reasonable choices and say which you made. ") +
   "Your final reply is sent back to the main conversation as your report, so make it complete and able to stand on its own: what you found or did, and anything left undone. " +
   "You cannot start sub-agents or change schedules from here.</meta>"
+
+/** How many files and links a brief can point at. */
+const MAX_POINTERS = 20
+const MAX_POINTER_CHARS = 1_000
+
+/**
+ * What a brief points at, put under the task in words: the files to start from, as paths on a
+ * computer or in the library, and the links. Why not, where it cannot be.
+ */
+function pointers(
+  files: readonly string[] | undefined,
+  links: readonly string[] | undefined,
+): string | SubagentError {
+  const clean = (list: readonly string[] | undefined) =>
+    (list ?? []).map((item) => item.replace(/\s+/g, " ").trim()).filter((item) => item !== "")
+  const named = clean(files)
+  const linked = clean(links)
+  if (named.length + linked.length > MAX_POINTERS) {
+    return new SubagentError(`A brief can point at ${MAX_POINTERS} files and links at most.`)
+  }
+  if ([...named, ...linked].some((item) => item.length > MAX_POINTER_CHARS)) {
+    return new SubagentError("A file's path or a link is too long.")
+  }
+  for (const link of linked) {
+    let url: URL | undefined
+    try {
+      url = new URL(link)
+    } catch {
+      url = undefined
+    }
+    if (url === undefined || (url.protocol !== "https:" && url.protocol !== "http:")) {
+      return new SubagentError(`"${link}" is not a web address.`)
+    }
+  }
+  return [
+    ...(named.length === 0
+      ? []
+      : [
+          `Files to start from (paths on your computer, or in the library):\n${named.map((file) => `- ${file}`).join("\n")}`,
+        ]),
+    ...(linked.length === 0
+      ? []
+      : [`Links to start from:\n${linked.map((link) => `- ${link}`).join("\n")}`]),
+  ].join("\n\n")
+}
 
 const MORE =
   '<meta kind="subagent">The message above is more from your main conversation with the user, which started you as a sub-agent. As before, your final reply is your report.</meta>'
@@ -153,20 +204,26 @@ export class Subagents {
     return Object.values(chats).some((chat) => chat.subagent?.status === "working")
   }
 
-  /** Start a sub-agent on a task, from the chat `parentId`. Returns once it has been set going. */
+  /**
+   * Start a sub-agent on a task, from the chat `parentId`, with the files and links its brief
+   * points at. Returns once it has been set going.
+   */
   async start(
-    input: { task: string; title?: string },
+    input: { task: string; title?: string; files?: string[]; links?: string[] },
     parentId: string,
     context: Context,
   ): Promise<SubagentSummary> {
     const harness = this.#require()
     const now = this.#options.now()
-    const task = input.task.trim()
-    if (task === "") throw new SubagentError("A task is required: what should the sub-agent do?")
-    if (task.length > MAX_TASK_CHARS) {
+    const brief = input.task.trim()
+    if (brief === "") throw new SubagentError("A task is required: what should the sub-agent do?")
+    if (brief.length > MAX_TASK_CHARS) {
       throw new SubagentError(`A task can be at most ${MAX_TASK_CHARS} characters.`)
     }
-    const title = (input.title?.trim() || titleOf(task)).slice(0, MAX_TITLE_CHARS)
+    const pointed = pointers(input.files, input.links)
+    if (pointed instanceof SubagentError) throw pointed
+    const task = pointed === "" ? brief : `${brief}\n\n${pointed}`
+    const title = (input.title?.trim() || titleOf(brief)).slice(0, MAX_TITLE_CHARS)
     const identity = await harness.snapshot(IdentityDoc, context)
     if (identity === undefined) throw new SubagentError("The agent is not set up yet.")
     const conversation = await harness.createConversation(
@@ -305,6 +362,8 @@ export class Subagents {
       const conversation = await harness.conversation(Number(id) as ConversationId, context)
       if (conversation === undefined) continue
       if (subagent.started !== true) {
+        // Where its main chat has the bus on, it can ask a person for things through it.
+        const asks = await busOn(harness, subagent.parentId, context)
         // Keyed, so sending it again after a crash between these two steps starts nothing new.
         await conversation.submit(
           {
@@ -312,7 +371,7 @@ export class Subagents {
             requestId: `subagent:${id}`,
             content: [
               { type: "text", text: subagent.task },
-              { type: "text", text: preamble(chat.title) },
+              { type: "text", text: preamble(chat.title, asks) },
             ],
           },
           context,
@@ -520,7 +579,7 @@ export class Subagents {
       description:
         "Hand work to sub-agents: copies of you that work in the background, each in a conversation of its own, while you stay free to talk with the user. " +
         'action "start" needs `task`, and takes `title` (a few words to call it by); "message" needs `id` and `task` (more for one that is at work, or something new for one that has finished); "stop" needs `id`; "list" shows the ones started in this conversation. ' +
-        "A sub-agent has your memory, skills and computer but knows nothing of this conversation, so write the task to stand on its own and say what to report back. " +
+        "A sub-agent has your memory, skills and computer but knows nothing of this conversation, so write the task to stand on its own and say what to report back. `files` (paths on your computer or in the library) and `links` (web addresses) point it at what to start from, so the task need not paste them. " +
         "Starting one returns at once. Its report reaches you later as a message and gives you a turn then, so do not wait for it, check on it, or do the same work yourself in the meantime. The user can open a sub-agent's conversation and read along.",
       parameters: Type.Object({
         action: Type.Union([
@@ -532,6 +591,14 @@ export class Subagents {
         id: Type.Optional(Type.String({ description: "A sub-agent's id, from start or list" })),
         title: Type.Optional(Type.String({ description: "A few words to call it by" })),
         task: Type.Optional(Type.String({ description: "What it should do and report back" })),
+        files: Type.Optional(
+          Type.Array(Type.String(), {
+            description: "For start: files it should start from, as paths",
+          }),
+        ),
+        links: Type.Optional(
+          Type.Array(Type.String(), { description: "For start: web addresses it should read" }),
+        ),
       }),
       execute: async (args, api, context) => {
         const reply = (text: string, details?: { chatId: string; title: string }) => ({
@@ -560,7 +627,7 @@ export class Subagents {
             case "start": {
               if (!args.task) return fail('"start" needs a task.')
               const started = await this.start(
-                { task: args.task, title: args.title },
+                { task: args.task, title: args.title, files: args.files, links: args.links },
                 chatId,
                 context,
               )

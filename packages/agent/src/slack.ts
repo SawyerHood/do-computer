@@ -186,6 +186,10 @@ const titleOf = (text: string) => {
 
 const live = (status: SubagentStatus) => status === "working" || status === "waiting"
 
+/** Whether a thread is set up for the bus, as its record says. */
+const busOnRecord = async (harness: Harness, chatId: string, context: Context) =>
+  own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.bus === true
+
 /** Mark a thread as having been given something to answer. */
 const wake = (slack: SlackRecord) => {
   slack.status = "working"
@@ -203,14 +207,20 @@ const where = (slack: Pick<SlackRecord, "direct" | "channelName">) =>
 /**
  * What an agent is told with the first message of a thread. Whoever put it in Slack put it there
  * for everyone in that workspace, so it works for whoever writes as it does for its own people.
+ * `bus`: the thread works as a message bus, where only what is passed to `send` is posted.
  */
-const first = (name: string, slack: Pick<SlackRecord, "direct" | "channelName">) =>
+const first = (name: string, slack: Pick<SlackRecord, "direct" | "channelName">, bus = false) =>
   `The message above was written in Slack by ${name}, ${where(slack)}. You are in Slack as a bot, and this conversation is one thread there. Everyone in this Slack workspace is someone you work for: help ${name} as you would in any other conversation, with everything you know and can do. ` +
-  "Each time you finish, your last reply is posted to the thread, where everyone in it reads it, so write it for them: complete, and as short as a chat message. Nobody in Slack sees your steps or your tools, and nobody writes to you here but through Slack."
+  (bus
+    ? "What you pass to `send` is posted to the thread at once, where everyone in it reads it, so write it for them: complete, and as short as a chat message. Nothing else you write is posted. Nobody in Slack sees your steps or your tools, and nobody writes to you here but through Slack."
+    : "Each time you finish, your last reply is posted to the thread, where everyone in it reads it, so write it for them: complete, and as short as a chat message. Nobody in Slack sees your steps or your tools, and nobody writes to you here but through Slack.")
 
 /** What it is told with each message after that. */
-const more = (name: string) =>
-  `The message above is from ${name}, in the same Slack thread, and is someone you work for as everyone in this Slack workspace is. As before, your last reply is posted to the thread.`
+const more = (name: string, bus = false) =>
+  `The message above is from ${name}, in the same Slack thread, and is someone you work for as everyone in this Slack workspace is. ` +
+  (bus
+    ? "As before, only what you pass to `send` is posted to the thread."
+    : "As before, your last reply is posted to the thread.")
 
 /** What others said in the thread in between, for the model alone. */
 function earlierNote(earlier: SlackContext["earlier"]): string | undefined {
@@ -244,6 +254,13 @@ export type SlackChatsOptions = {
   readonly running?: (chatId: string, context: Context) => Promise<boolean>
   /** Called when a thread was stopped, so that what it was waiting on is not left asking. */
   readonly onStopped?: (chatId: string, context: Context) => Promise<void>
+  /**
+   * Sets a thread up for the bus, or back from it, as its agent's switch says, before a message
+   * is given to it; resolves with whether the bus is on there. Absent: it never is.
+   */
+  readonly prepare?: (chatId: string, context: Context) => Promise<boolean>
+  /** How long to wait before trying to post again, after the `n`th failure in a row. */
+  readonly retryMs?: (n: number) => number
   /** Keeps a file that was attached in Slack, in the library, as an upload in that chat. */
   readonly keep?: (file: {
     name: string
@@ -519,6 +536,11 @@ export class SlackChats {
     }
     const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
     if (conversation === undefined) throw new SlackError("That conversation is gone.")
+    // Not being able to set it up costs nobody their message: it answers as the thread is.
+    const bus = await this.#options.prepare?.(chatId, context).catch((error: unknown) => {
+      this.#options.onError?.(error)
+      return busOnRecord(harness, chatId, context)
+    })
     const place = { direct: message.direct, channelName: found.channelName }
     const before = earlierNote(found.earlier)
     const attached = await this.#attached(chatId, files, identity.model)
@@ -552,7 +574,7 @@ export class SlackChats {
             text: slackMeta(
               formatTime(now, identity.timezone),
               { ...found.from, name },
-              fresh ? first(name, place) : more(name),
+              fresh ? first(name, place, bus === true) : more(name, bus === true),
             ),
           },
         ],
@@ -714,12 +736,16 @@ export class SlackChats {
         continue
       }
       this.#spins.delete(id)
-      await this.#rested(id, slack, context)
+      await this.#rested(id, slack, chat.bus === true, context)
     }
   }
 
-  /** A thread has nothing left to do: post what it came to, if it has not been posted. */
-  async #rested(id: string, slack: SlackRecord, context: Context): Promise<void> {
+  /**
+   * A thread has nothing left to do: post what it came to, if it has not been posted. With the
+   * bus on, what it said was posted as it was sent, and nothing it wrote is posted now: only that
+   * it failed or was stopped, which nobody else would say.
+   */
+  async #rested(id: string, slack: SlackRecord, bus: boolean, context: Context): Promise<void> {
     // Posting takes a while, and more can arrive meanwhile. Then it is at work again, whatever
     // was found here, and the next look deals with it.
     const rest = (stored: SlackRecord, status: SubagentStatus) => {
@@ -747,6 +773,11 @@ export class SlackChats {
       } else if (last?.status === "aborted") {
         status = "stopped"
         text = "I was interrupted before I had finished."
+      } else if (bus) {
+        // Saying nothing was its choice, and what it said is in the thread already. A page it
+        // drew is posted as a file, as it always was.
+        const files = await this.#sendFiles(id, slack, state, true, context)
+        if (files === "later") return
       } else if (said === "") {
         status = "failed"
         text = "I came to the end of that without an answer. Ask me again?"
@@ -756,7 +787,8 @@ export class SlackChats {
     }
     if (text !== undefined) {
       // What it sent as files goes first, so that its words come after what they are about.
-      const files = slack.stopping === true ? [] : await this.#sendFiles(id, slack, state, context)
+      const files =
+        slack.stopping === true ? [] : await this.#sendFiles(id, slack, state, bus, context)
       if (files === "later") return
       if (files.length > 0) {
         text += `\n\n_I could not attach ${files.join(", ")} here._`
@@ -765,8 +797,8 @@ export class SlackChats {
       if (sent === "later") return
       // Words nobody could be given are not an answer that was given.
       if (sent === "gone") status = "failed"
-      // Every other status came with word that it had no answer.
-      else if (status === "done" || status === "waiting") {
+      // Every other status came with word that it had no answer. On the bus, each send was told.
+      else if (!bus && (status === "done" || status === "waiting")) {
         this.#options.onAnswered?.({ chatId: id, text: said, channelName: slack.channelName })
       }
     }
@@ -783,12 +815,14 @@ export class SlackChats {
   /**
    * Post to the thread the files the agent sent in its chat and that are not there yet. Each is
    * noted once it is dealt with, so that trying again posts only what is left. Resolves with the
-   * names of those that could not be posted, or `later` when one is worth another try.
+   * names of those that could not be posted, or `later` when one is worth another try. With the
+   * bus on, files go with the send that names them, and only pages it drew are left for here.
    */
   async #sendFiles(
     id: string,
     slack: SlackRecord,
     state: ChatState | undefined,
+    bus: boolean,
     context: Context,
   ): Promise<string[] | "later"> {
     const { agentId, directory, contents } = this.#options
@@ -797,7 +831,7 @@ export class SlackChats {
     const missed: string[] = []
     // A visual is drawn in the app's chat. Slack has nowhere to draw it, so it goes as the file.
     const parts = (state?.messages ?? []).flatMap((message) =>
-      message.parts.filter((part) => isSentFile(part) || isVisual(part)),
+      message.parts.filter((part) => (!bus && isSentFile(part)) || isVisual(part)),
     )
     for (const part of parts) {
       if (posted.has(part.toolCallId)) continue
@@ -859,6 +893,79 @@ export class SlackChats {
         stored.failures = failures
       })
       return "later"
+    }
+  }
+
+  /**
+   * Post what a send in a thread's chat says to the thread, at once, where the bus is on: its
+   * files, then its words, so that they come after what they are about. Each is noted once it is
+   * posted, by the call's id, so a call made again posts only what is left; a crash between
+   * posting and noting can still post one twice, as Slack has no way to say a thing once. Posting
+   * is tried a few times before it is given up. Why not, where it was not posted.
+   */
+  async post(
+    sent: { chatId: string; callId: string; text: string; files: readonly LibraryFile[] },
+    context: Context,
+  ): Promise<string | undefined> {
+    const harness = this.#require()
+    const { agentId, directory, contents } = this.#options
+    const slack = own((await harness.snapshot(ChatsDoc, context))?.chats, sent.chatId)?.slack
+    if (slack === undefined) return "This conversation is not a thread in Slack."
+    const place = { channel: slack.channel, thread: slack.thread }
+    const done = new Set([...(slack.files ?? []), ...(slack.sent ?? [])])
+    const missed: string[] = []
+    for (const [index, file] of sent.files.entries()) {
+      const key = `${sent.callId}:file${index}`
+      if (done.has(key)) continue
+      const uploaded =
+        directory.upload === undefined || contents === undefined
+          ? false
+          : await this.#tries(async () => {
+              const bytes = await contents(file)
+              return (
+                bytes !== undefined &&
+                (await directory.upload!(agentId, place, { name: file.name, bytes }))
+              )
+            })
+      if (uploaded === "failed") {
+        return `Slack could not be reached, so ${file.name} and what came after it were not posted.`
+      }
+      // One that cannot be posted is let go, and the thread is told it is missing.
+      if (!uploaded) missed.push(file.name)
+      await this.#change(sent.chatId, context, (stored) => {
+        stored.files = [...(stored.files ?? []), key].slice(-MAX_REMEMBERED)
+      })
+    }
+    if (done.has(sent.callId)) return undefined
+    const text = [
+      sent.text,
+      missed.length === 0 ? "" : `_I could not attach ${missed.join(", ")} here._`,
+    ]
+      .filter((part) => part !== "")
+      .join("\n\n")
+    if (text !== "") {
+      const posted = await this.#tries(() => directory.post(agentId, place, text))
+      if (posted === "failed") return "Slack could not be reached, so it was not posted."
+      if (!posted) return "You are no longer in Slack, so it could not be posted."
+    }
+    await this.#change(sent.chatId, context, (stored) => {
+      stored.sent = [...(stored.sent ?? []), sent.callId].slice(-MAX_REMEMBERED)
+      stored.replies += 1
+    })
+    return undefined
+  }
+
+  /** Try something that reaches Slack up to MAX_POST_FAILURES times, waiting longer each time. */
+  async #tries(attempt: () => Promise<boolean>): Promise<boolean | "failed"> {
+    for (let n = 1; ; n++) {
+      try {
+        return await attempt()
+      } catch (error) {
+        this.#options.onError?.(error)
+        if (n >= MAX_POST_FAILURES) return "failed"
+        const wait = this.#options.retryMs?.(n) ?? Math.min(8_000, 500 * 2 ** (n - 1))
+        await new Promise((resolve) => setTimeout(resolve, wait))
+      }
     }
   }
 
