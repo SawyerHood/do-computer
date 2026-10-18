@@ -19,7 +19,9 @@ import {
   continuesMain,
   type MessagePart,
   sentWords,
+  drawnInWork,
   toolSummary,
+  workSummary,
 } from "@do-computer/protocol"
 import {
   ArrowClockwiseIcon,
@@ -426,7 +428,9 @@ function WorkPart({ part }: { part: MessagePart }) {
     )
   }
   // What is drawn in a chat, such as a screen it used, is drawn here as it is there.
-  if (part.type === "tool" && isShown(part)) return <AssistantPart part={part} writing={false} />
+  if (part.type === "tool" && (drawnInWork(part) || keptLine(part) !== undefined)) {
+    return <AssistantPart part={part} writing={false} />
+  }
   if (part.type === "tool") {
     return (
       <div
@@ -453,14 +457,9 @@ function WorkPart({ part }: { part: MessagePart }) {
  * quiet line that says it worked on it, which opens on what it thought, the steps it took and
  * the events it was told of. None of it was said to anyone.
  */
-function WorkRow({ message, working }: { message: ChatMessage; working: boolean }) {
+function WorkRow({ message, last, busy }: { message: ChatMessage; last: boolean; busy: boolean }) {
   const [open, setOpen] = useState(false)
-  const steps = message.parts.filter((part) => part.type === "tool").length
-  const events = message.parts.filter((part) => part.type === "notice").length
-  const counts = [
-    steps === 0 ? undefined : steps === 1 ? "1 step" : `${steps} steps`,
-    events === 0 ? undefined : events === 1 ? "1 event" : `${events} events`,
-  ].filter((count) => count !== undefined)
+  const { working, title, counts } = workSummary(message, last, busy)
   return (
     <Collapsible open={open} onOpenChange={setOpen} data-work="">
       <CollapsibleTrigger
@@ -472,9 +471,7 @@ function WorkRow({ message, working }: { message: ChatMessage; working: boolean 
         }
       >
         <CaretRightIcon className={cn("size-3.5 transition-transform", open && "rotate-90")} />
-        <span className={working ? "animate-shine" : undefined}>
-          {working ? "Working on it" : "Worked on it"}
-        </span>
+        <span className={working ? "animate-shine" : undefined}>{title}</span>
         {counts.length === 0 ? null : (
           <span className="text-xs text-muted-foreground/80">· {counts.join(" · ")}</span>
         )}
@@ -496,7 +493,8 @@ function MessageView({
   onRetry,
   asker,
   delivery,
-  working = false,
+  last = false,
+  busy = false,
 }: {
   message: ChatMessage
   failures: number
@@ -504,11 +502,12 @@ function MessageView({
   asker?: string | undefined
   /** For a message of the user's: whether the agent has it. Left out where that is not said. */
   delivery?: "sent" | "delivered" | undefined
-  /** For the agent's working: whether it is still at it. */
-  working?: boolean
+  /** Whether it is the last message shown, and whether the agent is at work in the chat. */
+  last?: boolean
+  busy?: boolean
 }) {
   const team = useContext(TeamContext)
-  if (message.work === true) return <WorkRow message={message} working={working} />
+  if (message.work === true) return <WorkRow message={message} last={last} busy={busy} />
   if (message.role === "notice") {
     const part = message.parts[0]
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
@@ -709,6 +708,13 @@ function MessageView({
               writing={message.status === "streaming"}
             />
           ))}
+        {message.notSent === undefined ? null : (
+          // Its words were on screen as they were written; it says it did not go, and why.
+          <div role="alert" className="flex items-start gap-1.5 px-1 text-sm text-destructive">
+            <WarningCircleIcon className="mt-0.5 size-4 shrink-0" />
+            <span className="min-w-0 wrap-anywhere">Not sent: {message.notSent}</span>
+          </div>
+        )}
         {message.status === "error" ? (
           <ReplyError error={message.error} failures={failures} onRetry={onRetry} />
         ) : null}
@@ -815,8 +821,9 @@ export function Transcript({
   }, [state, chatId])
   // A message whose every shown part is a later step of a use shows nothing, and leaves no gap.
   const shows = (message: ChatMessage) =>
-    // The agent's own working is one row, whatever is in it.
+    // The agent's own working is one row, whatever is in it, and a send that failed says so.
     message.work === true ||
+    message.notSent !== undefined ||
     message.role !== "assistant" ||
     message.status === "error" ||
     message.status === "aborted" ||
@@ -873,9 +880,8 @@ export function Transcript({
                       failures={failures}
                       onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
                       asker={asker}
-                      working={
-                        message.status === "streaming" || (state.busy && index === shown.length - 1)
-                      }
+                      last={index === shown.length - 1}
+                      busy={state.busy}
                       delivery={
                         undelivered?.has(message.id) === true
                           ? "sent"

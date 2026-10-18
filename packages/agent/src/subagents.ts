@@ -420,6 +420,7 @@ export class Subagents {
     if (await busOn(harness, parentId, context)) {
       // On the bus it is an event, which waits for the agent to finish what it is doing, and is
       // taken up with whatever else came meanwhile. The user stopping it needs nothing doing.
+      // Keyed as the report is off the bus, so one made again after the switch changed lands once.
       const event = eventText(
         "subagent-report",
         { id, title, ...(outcome === "reported" ? {} : { outcome }) },
@@ -429,7 +430,7 @@ export class Subagents {
         await parent.submit(
           {
             type: "write",
-            requestId: `subagent:${key}`,
+            requestId: `subagent-report:${key}`,
             entry: {
               kind: SUBAGENT_ENTRY,
               model: [{ role: "user", content: event, timestamp: now }],
@@ -442,7 +443,7 @@ export class Subagents {
         turn = await parent.submit(
           {
             type: "input",
-            requestId: `subagent:${key}`,
+            requestId: `subagent-report:${key}`,
             content: [{ type: "text", text: event }],
             entry: { kind: SUBAGENT_ENTRY, data },
             whenBusy: "followUp",

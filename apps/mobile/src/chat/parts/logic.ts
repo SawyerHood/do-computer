@@ -183,8 +183,9 @@ export function shownMessages(
 ): { message: ChatMessage; failures: number }[] {
   if (isUntouched(state.messages)) return []
   const shows = (message: ChatMessage) =>
-    // The agent's own working is one row, whatever is in it.
+    // The agent's own working is one row, whatever is in it, and a send that failed says so.
     message.work === true ||
+    message.notSent !== undefined ||
     (isVisibleMessage(message) &&
       (message.role !== "assistant" ||
         message.status === "error" ||

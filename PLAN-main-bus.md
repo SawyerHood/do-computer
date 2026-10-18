@@ -88,7 +88,12 @@ from outside. So:
 2. If that turn still sends nothing, nothing is shown. Saying nothing to a person's message is
    then a choice it made twice. (Alternative: show its last text. Section 9 asks.)
 
-Turns started by events never get the nudge: quiet is the normal answer to most of them.
+Turns started by events get no nudge of their own: quiet is the normal answer to most of them.
+The nudge is about the person, though, and not about what started the turn. Where the person's
+turn ends just as an event arrives, pi-durable drops the nudge of that turn (a continuation is
+only taken where the boundary placed no queued input), and the run the event starts is the one
+that gets it, because the person has still had nothing back. A turn events start after the
+person was answered is never nudged.
 
 ### 3.4 Events
 
@@ -341,33 +346,52 @@ isolation and can follow.
 Notes from building it, where it differs from or adds to the sections above.
 
 - **The switch** is `bus` on the identity document, set in the Dood's settings (Model and
-  computers, "Main chat"). The main chat is set up for it when the switch changes, when the
-  main chat is settled on, and before a person's message is given to it: a `dc.bus` entry marks
-  where it was switched, and the chat selects the bus's extension (`bus.ts`), which holds `send`,
-  the prompt section and the reminder. No other chat selects it: the harness's default selection
-  is every installed extension but that one, and a side chat forked from the main chat clears
-  what it inherited. The chat record keeps where each mark is, so a page of earlier messages is
+  computers, "Main chat", saved as it is switched). The main chat is set up for it when the
+  switch changes, when the main chat is settled on, and before a person's message is given to it.
+  A `dc.bus` entry marks where it was switched, for drawing; a `dc.bus-note` entry beside it
+  tells the model what changed, both ways; and the chat selects the bus's extension (`bus.ts`),
+  which holds `send`, the prompt section and the reminder. No other chat selects it: the
+  harness's default selection is every installed extension but that one, a side chat forked from
+  the main chat clears what it inherited, and a chat that stops being the main one has the bus
+  switched off in it. The chat record keeps where each mark is, so a page of earlier messages is
   drawn as it was at the time.
+- **`send` replaces `send_file`** in a chat with the bus on: the bus wraps `send_file` so that
+  only tools may call it, and `send` calls it for each of its files. Every file is looked at
+  first (that it is there, is a file and is small enough), so a send goes whole or not at all.
+  Two sends in one answer run one after the other.
 - **Streaming.** pi-durable does commit the partial message with a tool call's partial arguments
   in `pi.live` (it copies pi-ai's `partial`, whose `arguments` providers fill with
   `parseStreamingJson`), so `send`'s text grows in the chat as it is written. Checked in a unit
   test of the projection; not with a real provider.
-- **What is shown** besides people's messages and each `send`: a `progress` call (it is still
-  the way to say something mid-work and its description says it is shown), and a file or a page
-  put in front of people with `send_file` or `visual`. A send that failed is not shown. A reply
-  that failed or was stopped says so, as before.
+- **What is shown** besides people's messages and each `send`: a `progress` call (a word on the
+  way, which tells nobody), and a page drawn with `visual`. A send that failed stays in view,
+  marked as not sent with the reason, since its words may have been on screen as they streamed.
+  A reply that failed or was stopped says so, as before.
 - **The rows of working** are assistant messages with `work: true`, named for what they follow so
-  that they keep their id while they grow. Web and mobile draw them as one line that opens.
+  that they keep their id while they grow. Web and mobile draw them the same way, from
+  `workSummary` in the protocol: one line that opens. A row after the last send of a turn that
+  holds only the model's own words ("Done.") is not drawn at all.
 - **The reminder** is decided from the context: a person wrote since the bus was switched on,
-  and since their last message nothing was sent, nothing failed or was stopped, and it was not
-  reminded already. A run that only events set going has nobody waiting, so it is never
-  reminded, as 3.3 says. Keep going's own continuation, where its judge asks for one, comes first.
+  and since their last message nothing was sent (with `send`, or a page drawn with `visual`),
+  nothing failed or was stopped, and it was not reminded already. See 3.3 for when that lands on
+  a run an event started. Keep going's own continuation, where its judge asks for one, comes
+  first.
 - **Events** in this phase: sub-agent reports, answered approvals and ended background commands,
   each one input of its own kind (`dc.subagent`, `dc.approval`, `dc.job`) whose model text is
-  `<event …>…</event>`, keyed `subagent:<id>:<n>`, `approval:<id>`, `job:<id>:<startedAt>`.
-  Answers to asks for secrets, computers and connector sign-ins are unchanged and still nudge.
-- **Notifications** in a chat with the bus on come from `send` alone, for whoever the chat last
-  answered (`lastBy`), where nobody has the chat open. A run that ends tells nobody anything.
+  `<event …>…</event>`, keyed `subagent-report:<id>:<n>`, `approval:<id>` and
+  `job-report:<id>:<startedAt>`, the same keys as the write the old path makes, so a delivery
+  made again after the switch changed lands once. They are told apart by their entry kind, never
+  by their text, and the prompt says events never come inside a person's message. Answers to
+  asks for secrets, computers and connector sign-ins are unchanged and still nudge.
+- **Notifications** in a chat with the bus on come from `send` alone, once its result is stored
+  (the round's `afterTools`), remembered by call id. They go to whoever the chat last answered,
+  and in a team Dood to everyone, since who a send answers is not known yet (section 9). A run
+  that ends tells nobody anything. Off the bus, an answer that settles several inputs at once
+  (follow-ups taken together) is told of once.
+- **Side chats lose the cache.** A side chat forked from a main chat with the bus on has neither
+  the bus's section nor `send`, so its prompt differs from the main chat's from the start and
+  reads nothing from the main chat's cache. That includes the side chat a call works in. Side
+  chats go in phase 4, so nothing is done about it here.
 - **Calls.** A call held in the main chat still works in a side chat (phase 4 moves that to a
   sub-agent), so what its voice speaks is that chat's answer, as before. What the voice is given
   of the main chat at the start leaves the rows of working out.

@@ -114,6 +114,11 @@ export type ChatMessage = {
    * can be opened. A client shows it as one line, and never as words to the person.
    */
   work?: true
+  /**
+   * A call to `send` that failed: why. Its words are still shown, as they may have been while
+   * they were written, marked as not sent.
+   */
+  notSent?: string
 }
 
 export type QueuedInput = {

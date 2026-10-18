@@ -96,7 +96,7 @@ import { createEditTool, createReadTool, createWriteTool } from "@earendil-works
 import { ApprovalError, Approvals, ApprovalsDoc, SIGN_IN_ABILITY } from "./approvals.ts"
 import { appGuide } from "./app-guide.ts"
 import { type Caller, readCaller, sentFrom, sentMeta } from "./caller.ts"
-import { BUS_ENTRY, BUS_EXTENSION, busExtension, busOn } from "./bus.ts"
+import { BUS_ENTRY, BUS_EXTENSION, BUS_NOTE_ENTRY, busExtension, busNote, busOn } from "./bus.ts"
 import {
   CALL_ENTRY,
   CALL_OVER_ENTRY,
@@ -128,8 +128,11 @@ import {
   Computers,
   ComputersDoc,
   isPaired,
+  MachineEnv,
+  ComputerEnv,
 } from "./computers.ts"
 import { harnessDocs, Library, LibraryDoc, LibraryError, LibraryStore } from "./library.ts"
+import { MAX_LIBRARY_FILE_BYTES } from "./library-store.ts"
 import { LIBRARY_AGENT_HEADER } from "./library-actor.ts"
 import { type RemoteLibrary, remoteLibrary } from "./library-remote.ts"
 import { routeLibrary, routeLibraryView } from "./library-routes.ts"
@@ -189,6 +192,8 @@ const MAX_MESSAGE_CHARS = 200_000
 const MAX_TITLE_CHARS = 80
 /** The most treats its creature is given from outside the app in one go. */
 const MAX_GIFTED_TREATS = 400
+/** How many answers are remembered as told of, so that one is not told twice. */
+const MAX_TOLD_ANSWERS = 500
 /** How often an agent in use is looked at for a model its deployment has stopped offering. */
 const MODEL_CHECK_MS = 60_000
 /** What a side chat that branched off the main chat is told, once, where its own messages begin. */
@@ -632,6 +637,11 @@ export class AgentActor implements Actor {
   readonly #history: HistoryIndex
   /** The main chat as a message bus, for an agent that has it switched on (`bus.ts`). */
   readonly #bus: Extension
+  /**
+   * The answers already told of, by chat and entry, newest last. When several inputs are taken
+   * up in one run, each settles with the same answer, and that answer is told of once.
+   */
+  readonly #toldAnswers = new Set<string>()
   /** Setting the main chat up for the bus, one at a time, so that each switch is marked once. */
   #busing: Promise<void> = Promise.resolve()
   #harness: Promise<Harness> | undefined
@@ -875,6 +885,7 @@ export class AgentActor implements Actor {
         if (this.#opened === undefined) throw new Error("The Dood is not open yet")
         return this.#opened
       },
+      checkFiles: (paths, computer, c) => this.#checkFiles(paths, computer, c),
       onSent: (sent) => void this.#sent(sent.chatId, sent.text, sent.files.length),
       onError: (error) => options.onReport?.(error),
     })
@@ -1320,10 +1331,11 @@ export class AgentActor implements Actor {
       // Finds the tools that are not offered until asked for, which a connector's are.
       registry.install(createToolSearchExtension())
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
-      // Last, so that what the others add to a request is counted with the rest. Its hook is the
-      // one place a request is changed (`shapeRequest`), which the idle compaction's summary
+      // After the others, so that what they add to a request is counted with the rest. Its hook is
+      // the one place a request is changed (`shapeRequest`), which the idle compaction's summary
       // request repeats so as to be read from the cache: another `beforeRequest` hook, such as
-      // one in `extensions`, would make the two differ.
+      // one in `extensions`, would make the two differ. The bus, installed after it, has none:
+      // it adds a section and a tool, which a main chat with it on has in both.
       registry.install(this.#limits.extension)
       // Selected by a main chat with the bus on, and by no other chat: see `settings` below.
       registry.install(this.#bus)
@@ -1349,7 +1361,9 @@ export class AgentActor implements Actor {
             followUpMode: "all",
             // The longest cache a provider keeps: an hour on Claude where five minutes is usual.
             // It costs more to write and the same to read. A chat picked up again within the
-            // hour then reads its prompt from the cache, and so does a side chat opened from it.
+            // hour then reads its prompt from the cache, and so does a side chat opened from it,
+            // except from a main chat with the bus on: the side chat has neither its section nor
+            // `send`, so its prompt differs from the start.
             stream: { cacheRetention: CACHE_RETENTION },
             ...(this.#options.compaction === undefined
               ? {}
@@ -3009,33 +3023,83 @@ export class AgentActor implements Actor {
     const run = async () => {
       const on = (await harness.snapshot(IdentityDoc, context))?.bus === true
       const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
-      const record = main === undefined ? undefined : own(chats, main)
-      if (main === undefined || record === undefined || (record.bus === true) === on) return
-      const conversation = await harness.conversation(Number(main) as ConversationId, context)
-      if (conversation === undefined) return
-      // The mark first: a chat set up for the bus with nothing to say where it began would be
-      // drawn as if it had always had it.
-      const marked = await conversation.submit(
-        {
-          type: "write",
-          requestId: `bus:${main}:${record.busMarks?.length ?? 0}`,
-          entry: { kind: BUS_ENTRY, data: { on } },
-        },
-        context,
-      )
-      const placed = await marked.wait(context)
-      await conversation.configure({ extensions: on ? { add: [this.#bus] } : null }, context)
-      await harness.commit(async (tx) => {
-        const chat = own((await tx.doc(ChatsDoc)).chats, main)
-        if (chat === undefined) return
-        chat.bus = on
-        if (placed.entry !== undefined) {
-          chat.busMarks = [...(chat.busMarks ?? []), { at: Number(placed.entry), on }]
+      // A chat that was the main one and is no longer has the bus taken off it: it is the main
+      // chat's alone.
+      for (const [id, record] of Object.entries(chats)) {
+        if (id === main ? (record.bus === true) !== on : record.bus === true) {
+          await this.#switchBus(harness, id, record, id === main && on)
         }
-      }, context)
+      }
     }
     this.#busing = this.#busing.then(run, run)
     return this.#busing
+  }
+
+  /**
+   * Switch the bus on or off in one chat. A mark says where, for drawing it; a note tells the
+   * model, at its next step, what changed. Then the chat selects the bus's extension, or stops.
+   */
+  async #switchBus(harness: Harness, chatId: string, record: ChatRecord, on: boolean) {
+    const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
+    if (conversation === undefined) return
+    const n = record.busMarks?.length ?? 0
+    // The mark first, and at once: a chat set up for the bus with nothing to say where it began
+    // would be drawn as if it had always had it.
+    const marked = await conversation.submit(
+      {
+        type: "write",
+        requestId: `bus:${chatId}:${n}`,
+        entry: { kind: BUS_ENTRY, data: { on } },
+      },
+      context,
+    )
+    const placed = await marked.wait(context)
+    // Placed where the model next looks, which while it works is after the step under way.
+    await conversation.submit(
+      {
+        type: "write",
+        requestId: `bus-note:${chatId}:${n}`,
+        entry: {
+          kind: BUS_NOTE_ENTRY,
+          model: [{ role: "user", content: busNote(on), timestamp: this.#host.now() }],
+        },
+      },
+      context,
+    )
+    await conversation.configure({ extensions: on ? { add: [this.#bus] } : null }, context)
+    await harness.commit(async (tx) => {
+      const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
+      if (chat === undefined) return
+      chat.bus = on
+      if (placed.entry !== undefined) {
+        chat.busMarks = [...(chat.busMarks ?? []), { at: Number(placed.entry), on }]
+      }
+    }, context)
+  }
+
+  /**
+   * Whether every file a send names can be sent, before any is: each is a file, and small enough
+   * for the library. Why not, where one cannot.
+   */
+  async #checkFiles(
+    paths: readonly string[],
+    computer: string | undefined,
+    c: Context,
+  ): Promise<string | undefined> {
+    const target = await this.#computers.resolve(computer, c)
+    if (typeof target === "string") return target
+    const env = target.machine ? new MachineEnv(target) : new ComputerEnv(target)
+    for (const path of paths) {
+      const absolute = await env.absolutePath(path)
+      if (!absolute.ok) return `${path} is not a path there: ${absolute.error.message}`
+      const info = await env.fileInfo(absolute.value)
+      if (!info.ok) return `could not find ${path}: ${info.error.message}`
+      if (info.value.kind !== "file") return `${path} is not a file.`
+      if (info.value.size > MAX_LIBRARY_FILE_BYTES) {
+        return `${path} is ${Math.round(info.value.size / (1024 * 1024))} MB; files up to ${MAX_LIBRARY_FILE_BYTES / (1024 * 1024)} MB can be sent.`
+      }
+    }
+    return undefined
   }
 
   /**
@@ -3049,14 +3113,17 @@ export class AgentActor implements Actor {
       const seen = (this.#watchers.get(chatId) ?? 0) > 0 || this.#followers.following(chatId)
       const harness = await this.#open()
       const chat = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)
+      // Which of a team's people a send answers is not known: whoever spoke last may not be the
+      // one it is for. So in a team everyone is told, until sends say whom they are for.
+      const team = (await harness.snapshot(IdentityDoc, context))?.team
+      const userId = team ? undefined : chat?.lastBy
       await this.#record({ kind: "reply", text: said, chatId })
       if (!seen) {
         await this.#notify({
           kind: "reply",
           text: said,
           chatId,
-          // Whoever it last answered, where that is known; everyone it works for otherwise.
-          ...(chat?.lastBy === undefined ? {} : { userId: chat.lastBy }),
+          ...(userId === undefined ? {} : { userId }),
         })
       }
     } catch (error) {
@@ -3282,6 +3349,13 @@ export class AgentActor implements Actor {
     try {
       const settled = await submission.wait(context)
       if (settled.status !== "done" || settled.type !== "input") return
+      // The same answer, to more than one input that the run took up together, is told once.
+      const answerKey = `${chatId}:${settled.answer}`
+      if (this.#toldAnswers.has(answerKey)) return
+      this.#toldAnswers.add(answerKey)
+      if (this.#toldAnswers.size > MAX_TOLD_ANSWERS) {
+        this.#toldAnswers.delete(this.#toldAnswers.values().next().value!)
+      }
       // With the bus on, what a run ends with is nobody's to read: a send is told of as it is made.
       if (await busOn(harness, chatId, context)) return
       // Whether anyone saw it is asked now, at the moment it ended, and not after what follows.

@@ -34,7 +34,7 @@ import {
   BUS_ENTRY,
   BUS_EXTENSION,
   type BusMark,
-  isEvent,
+  EVENT_ENTRIES,
   SEND_TOOL,
 } from "./bus.ts"
 import { CALL_ENTRY, type CallEntry, callOf } from "./calls.ts"
@@ -661,7 +661,11 @@ function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessag
       show(shown)
     }
     for (const part of message.parts) {
-      if (part.type === "tool" && part.name === SEND_TOOL && part.status !== "error") {
+      if (part.type === "tool" && part.name === SEND_TOOL && part.status === "error") {
+        // Its words may have been on screen as they were written. They stay, marked as not
+        // sent, and say why: they do not just go.
+        said({ ...sentMessage(part, message), notSent: notSentWhy(part.output) })
+      } else if (part.type === "tool" && part.name === SEND_TOOL) {
         const sent = sentMessage(part, message)
         // Nothing of it to show yet, while its words are on their way.
         if (sent.parts.length > 0) said(sent)
@@ -697,7 +701,25 @@ function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessag
       show({ ...message, parts: [] })
     }
   }
-  return folded
+  // What the agent writes after the last thing it sent in a turn, with nothing done or told
+  // besides ("Done."), is not worth a row of working.
+  return folded.filter((message, index) => {
+    if (message.work !== true || !message.parts.every((part) => part.type === "text")) return true
+    const before = folded[index - 1]?.id ?? ""
+    const after = folded[index + 1]
+    const sent = before.startsWith("send:") || before.startsWith("shown:")
+    return !(sent && (after === undefined || after.role === "user"))
+  })
+}
+
+/** Why a send was not sent, from what it answered. */
+function notSentWhy(output: string | undefined): string {
+  const said = (output ?? "")
+    .replace(/<\/?harness>/g, "")
+    .replace(/^\s*\[error\]\s*/m, "")
+    .replace(/^\s*Nothing was sent:\s*/, "")
+    .trim()
+  return said === "" ? "It could not be sent." : said
 }
 
 /**
@@ -872,9 +894,9 @@ export function projectChat(view: ConversationView): ChatState {
     // sub-agent reports, was written by nobody: it waits its turn without being shown.
     if (typeof content !== "string" && content.every((b) => b.type === "text" && isMeta(b.text)))
       continue
-    // Nor are the events the bus is told of.
-    if (typeof content !== "string" && content[0]?.type === "text" && isEvent(content[0].text))
-      continue
+    // Nor are the events the bus is told of, which are known by their kind.
+    const kind = (item as { entry?: { kind?: unknown } }).entry?.kind
+    if (typeof kind === "string" && EVENT_ENTRIES.has(kind)) continue
     queued.push({ id: String(item.id), mode: item.mode, text: contentText(content) })
   }
 

@@ -563,6 +563,7 @@ export class Jobs {
     if (await busOn(harness, job.chatId, context)) {
       // On the bus it is an event, which waits for the agent to finish what it is doing and is
       // taken up with whatever else came meanwhile.
+      // Keyed as the report is off the bus, so one made again after the switch changed lands once.
       const event = eventText(
         "command-ended",
         { job: id, computer: job.computer, status: job.status, exit: job.exitCode },
@@ -572,7 +573,7 @@ export class Jobs {
         given = await chat.submit(
           {
             type: "input",
-            requestId: `job:${key}`,
+            requestId: `job-report:${key}`,
             content: [{ type: "text", text: event }],
             entry: { kind: JOB_ENTRY, data },
             whenBusy: "followUp",
@@ -583,7 +584,7 @@ export class Jobs {
         await chat.submit(
           {
             type: "write",
-            requestId: `job:${key}`,
+            requestId: `job-report:${key}`,
             entry: {
               kind: JOB_ENTRY,
               model: [{ role: "user", content: event, timestamp: now }],

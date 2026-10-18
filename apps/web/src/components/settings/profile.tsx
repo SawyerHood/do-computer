@@ -377,6 +377,14 @@ function Bus({ agentId, name, on }: { agentId: string; name: string; on: boolean
         />
         Speak only through what it sends (preview)
       </Label>
+      {/* Saved as it is switched, which the form's button below has nothing to do with. */}
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {save.isPending
+          ? "Saving…"
+          : save.isSuccess
+            ? "Saved."
+            : "Saved as soon as it is switched."}
+      </p>
       {save.isError ? (
         <p role="alert" className="text-sm text-destructive">
           {save.error.message}
