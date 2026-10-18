@@ -1,7 +1,8 @@
 # The main chat as a message bus: plan
 
-**Status:** a plan, written 2026-10-18. Phase 1 (section 6) is built; the rest is not. Sawyer
-made the choices in section 2; section 9 lists what is still open.
+**Status:** a plan, written 2026-10-18. Phase 1 (section 6) is built, and phase 2 is built
+behind a switch (8.1 says how); the rest is not. Sawyer made the choices in section 2; section 9
+lists what is still open.
 
 This is the shape described in Lee Robinson's Stanford CS146S lecture on always-on agents
 (how Grok's bot is built), adapted to Do Computer. The ideas taken from it:
@@ -28,7 +29,7 @@ Sections 3 to 7 cover the five pieces; section 8 says in what order to do them.
 | Slack | Each thread is a chat of kind `slack`; when it comes to rest its last answer is posted to the thread | `slack.ts` `tick` / `#post` (:839) |
 | Where it all runs | One Durable Object per Dood (`AgentObject`): every chat, sub-agent, run and Slack thread shares one 128 MB isolate | `apps/web/wrangler.jsonc` |
 | Compaction | Only pi-durable's own: when a request would pass `contextWindow - reserveTokens` (16k), or on overflow. `conversation.compact()` is never called | pi-durable `DEFAULT_COMPACTION_POLICY` |
-| Messages while busy | Everything steers (`whenBusy: "steer"`): the user, Slack, sub-agent reports, approvals | `actor.ts` :3044, `slack.ts` :559, `subagents.ts` :228 |
+| Messages while busy | The user, Slack and answered approvals steer (`whenBusy: "steer"`). Sub-agent reports and ended commands were already follow-ups: a write, then a separate nudge input with `whenBusy: "followUp"` (`subagents.ts` `#deliver`, `jobs.ts` `#deliver`) | `actor.ts` :3044, `slack.ts` :559, `approvals.ts` :863 |
 
 `PLAN-chat-objects.md` (branch `plan-chat-objects`) is the groundwork for objects of their own
 and is relied on in section 4. It kept sub-agents and side chats in one "talk object" because
@@ -105,7 +106,10 @@ Everything that is not a person speaking arrives as an input in the main chat wi
 - A person's message still steers: it joins the running turn at once.
 - Several events that arrive while it is busy are taken together: pi-durable's
   `followUpMode: "all"` places every queued input at the next boundary, so they make one turn.
-  To confirm in a test that this is the mode the harness is opened with.
+  It was not: pi-durable's default is `"one-at-a-time"`, and phase 2 opens the harness with
+  `followUpMode: "all"`. The setting is the harness's, not a chat's, so it applies to every chat:
+  follow-ups that pile up in a side chat or a sub-agent are now taken together too. Nothing there
+  relied on one at a time. pi-durable's word for "queue" is `followUp`.
 - Each event carries a key (`subagent:<id>:<n>`, `schedule:<id>:<firedAt>`, …) as its
   `requestId`, so delivering one twice does nothing.
 - Text inside an event is information and not instructions; the main chat's prompt says so once,
@@ -332,6 +336,44 @@ do-computer that means watching `gh pr checks --watch` before merging, since not
 Phases 1–4 need none of the object work and change how a Dood feels the most; 5–7 are about
 isolation and can follow.
 
+## 8.1 Phase 2 as built
+
+Notes from building it, where it differs from or adds to the sections above.
+
+- **The switch** is `bus` on the identity document, set in the Dood's settings (Model and
+  computers, "Main chat"). The main chat is set up for it when the switch changes, when the
+  main chat is settled on, and before a person's message is given to it: a `dc.bus` entry marks
+  where it was switched, and the chat selects the bus's extension (`bus.ts`), which holds `send`,
+  the prompt section and the reminder. No other chat selects it: the harness's default selection
+  is every installed extension but that one, and a side chat forked from the main chat clears
+  what it inherited. The chat record keeps where each mark is, so a page of earlier messages is
+  drawn as it was at the time.
+- **Streaming.** pi-durable does commit the partial message with a tool call's partial arguments
+  in `pi.live` (it copies pi-ai's `partial`, whose `arguments` providers fill with
+  `parseStreamingJson`), so `send`'s text grows in the chat as it is written. Checked in a unit
+  test of the projection; not with a real provider.
+- **What is shown** besides people's messages and each `send`: a `progress` call (it is still
+  the way to say something mid-work and its description says it is shown), and a file or a page
+  put in front of people with `send_file` or `visual`. A send that failed is not shown. A reply
+  that failed or was stopped says so, as before.
+- **The rows of working** are assistant messages with `work: true`, named for what they follow so
+  that they keep their id while they grow. Web and mobile draw them as one line that opens.
+- **The reminder** is decided from the context: a person wrote since the bus was switched on,
+  and since their last message nothing was sent, nothing failed or was stopped, and it was not
+  reminded already. A run that only events set going has nobody waiting, so it is never
+  reminded, as 3.3 says. Keep going's own continuation, where its judge asks for one, comes first.
+- **Events** in this phase: sub-agent reports, answered approvals and ended background commands,
+  each one input of its own kind (`dc.subagent`, `dc.approval`, `dc.job`) whose model text is
+  `<event …>…</event>`, keyed `subagent:<id>:<n>`, `approval:<id>`, `job:<id>:<startedAt>`.
+  Answers to asks for secrets, computers and connector sign-ins are unchanged and still nudge.
+- **Notifications** in a chat with the bus on come from `send` alone, for whoever the chat last
+  answered (`lastBy`), where nobody has the chat open. A run that ends tells nobody anything.
+- **Calls.** A call held in the main chat still works in a side chat (phase 4 moves that to a
+  sub-agent), so what its voice speaks is that chat's answer, as before. What the voice is given
+  of the main chat at the start leaves the rows of working out.
+- **Not changed:** history search still finds the model's private text, as the agent's own
+  record of what it did.
+
 ## 9. Still open
 
 - **Unanswered message.** After the nudge, does a turn that still sends nothing stay silent, or
@@ -347,7 +389,8 @@ isolation and can follow.
 ## 10. Not checked
 
 - That `toolcall_delta` reaches Do Computer's live projection through pi-durable while a call is
-  still being generated (pi-ai has it; pi-durable passing it on is not checked).
+  still being generated. pi-durable's code passes it on (8.1), and a unit test draws it; a real
+  provider streaming a `send` into the chat has not been watched.
 - Whether the idle compaction's summary request reads the conversation from the cache in
   practice, on Claude through OpenRouter. Phase 1 records it (`GET /usage`, `compactions`);
   pi-durable's own `compact()` summarizer does not (section 6).
