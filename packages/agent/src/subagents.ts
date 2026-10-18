@@ -522,9 +522,9 @@ export class Subagents {
   ): Promise<void> {
     const harness = this.#require()
     const now = this.#options.now()
-    // The main chat, which started it. One started in a side chat before there were none still
-    // reports to the main chat, where everything reaches the agent now.
-    const parentId = (await harness.snapshot(ChatsDoc, context))?.main ?? subagent.parentId
+    // The main chat, which started it. One started in a side chat before there were none was
+    // given to the main chat when its side chat was archived.
+    const parentId = subagent.parentId
     const parent = await harness.conversation(Number(parentId) as ConversationId, context)
     if (parent === undefined) return
     const key = `${id}:${subagent.reports + 1}`

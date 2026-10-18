@@ -212,6 +212,18 @@ function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): Sandb
   return value as SandboxKind
 }
 
+/**
+ * A switch only a test turns on. A server run for real is refused it, so that it cannot be left
+ * on by mistake: it would let anyone make what the app no longer makes.
+ */
+function testOnly(env: Record<string, string | undefined>, name: string): boolean {
+  if (env[name] !== "1") return false
+  if (env.NODE_ENV === "production") {
+    throw new ConfigError(`${name} is for tests, and this server is run with NODE_ENV=production.`)
+  }
+  return true
+}
+
 function secretsMode(value: string | undefined, name = "DC_SECRETS"): SecretsMode {
   const said = (value ?? "admins").toLowerCase()
   if (said === "admins") return "admins"
@@ -321,7 +333,7 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     callMonthlyMinutes: wholeNumber(optional("DC_CALL_MONTHLY_MINUTES")) ?? 60,
     callScript:
       env.DC_CALLS_SCRIPT === "1" ? "plain" : env.DC_CALLS_SCRIPT === "work" ? "work" : false,
-    testOldSideChats: env.DC_TEST_OLD_SIDE_CHATS === "1",
+    testOldSideChats: testOnly(env, "DC_TEST_OLD_SIDE_CHATS"),
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
     slackApiUrl: optional("DC_SLACK_API_URL"),

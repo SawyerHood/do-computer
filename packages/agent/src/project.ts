@@ -816,7 +816,6 @@ export function projectPast(entries: readonly EntryRecord[], bus = false): ChatM
   return inBus.size === 0 ? messages : busMessages(messages, inBus)
 }
 
-/** The words of an entry that a person wrote or read, for searching. Undefined for the rest. */
 /** What a call to `send` said, which is what the people in a main chat were told. */
 function sendText(block: { name: string; arguments?: unknown }): string | undefined {
   if (block.name !== SEND_TOOL) return undefined
@@ -824,6 +823,7 @@ function sendText(block: { name: string; arguments?: unknown }): string | undefi
   return typeof text === "string" ? text : undefined
 }
 
+/** The words of an entry that a person wrote or read, for searching. Undefined for the rest. */
 export function entryText(
   entry: EntryRecord,
 ): { role: "user" | "assistant"; text: string; at: number | undefined } | undefined {

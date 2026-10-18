@@ -414,9 +414,12 @@ export function createCaller(options: CallerOptions) {
           answer(handoff, "I could not get to that. Ask me again.")
         continue
       }
-      // What follows it, up to whatever a person says next.
+      // What follows it, up to whatever a person says next that is not more of this call. A later
+      // handoff of the call joins the run that is answering this one, and what that run sends is
+      // the answer to both: each is settled with the same words.
       const next = chat.messages.findIndex(
-        (message, index) => index > at && message.role === "user",
+        (message, index) =>
+          index > at && message.role === "user" && message.spoken?.call !== mine.id,
       )
       const after = chat.messages.slice(at + 1, next === -1 ? undefined : next)
       // What the Dood sent: its own words are not text in the chat, and a send that failed was not

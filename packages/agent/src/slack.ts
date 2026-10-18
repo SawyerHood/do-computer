@@ -2,6 +2,7 @@ import {
   bytesToBase64,
   type ChatState,
   DEFAULT_THINKING,
+  isSentFile,
   isVisual,
   type LibraryFile,
   MAX_MESSAGE_IMAGE_CHARS,
@@ -718,7 +719,7 @@ export class SlackChats {
         continue
       }
       this.#spins.delete(id)
-      await this.#rested(id, slack, context)
+      await this.#rested(id, slack, chat.bus === true, context)
     }
   }
 
@@ -726,8 +727,13 @@ export class SlackChats {
    * A thread has nothing left to do. What it said was posted as it was sent, and nothing it wrote
    * is posted now: only that it failed or was stopped, which nobody else would say, and a page it
    * drew, as a file.
+   *
+   * `bus` is whether the thread has been set up as a bus, which happens before it is next given
+   * a message from Slack. A thread from before that, in the middle of a run or waiting on an
+   * answer when it was last looked at, was told its last reply is posted, and has no `send`: its
+   * last reply is posted, as it was then.
    */
-  async #rested(id: string, slack: SlackRecord, context: Context): Promise<void> {
+  async #rested(id: string, slack: SlackRecord, bus: boolean, context: Context): Promise<void> {
     // Posting takes a while, and more can arrive meanwhile. Then it is at work again, whatever
     // was found here, and the next look deals with it.
     const rest = (stored: SlackRecord, status: SubagentStatus) => {
@@ -737,6 +743,10 @@ export class SlackChats {
     if (slack.stopping !== true && (await this.#options.running?.(id, context))) return
     const state = await this.#options.chat(id)
     const last = state?.messages.findLast((message) => message.role === "assistant")
+    const said = (last?.parts ?? [])
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n\n")
+      .trim()
     // It stopped to ask its people for something. Their answer sets it going again.
     const waiting = slack.stopping !== true && (await this.#options.waiting(id, context))
     let status: SubagentStatus = waiting ? "waiting" : "done"
@@ -753,16 +763,22 @@ export class SlackChats {
       } else if (last?.status === "aborted") {
         status = "stopped"
         text = "I was interrupted before I had finished."
-      } else {
+      } else if (bus) {
         // Saying nothing was its choice, and what it said is in the thread already. A page it
         // drew is posted as a file, as it always was.
-        const files = await this.#sendFiles(id, slack, state, context)
+        const files = await this.#sendFiles(id, slack, state, true, context)
         if (files === "later") return
+      } else if (said === "") {
+        status = "failed"
+        text = "I came to the end of that without an answer. Ask me again?"
+      } else {
+        text = said
       }
     }
     if (text !== undefined) {
       // What it sent as files goes first, so that its words come after what they are about.
-      const files = slack.stopping === true ? [] : await this.#sendFiles(id, slack, state, context)
+      const files =
+        slack.stopping === true ? [] : await this.#sendFiles(id, slack, state, bus, context)
       if (files === "later") return
       if (files.length > 0) {
         text += `\n\n_I could not attach ${files.join(", ")} here._`
@@ -786,12 +802,14 @@ export class SlackChats {
    * Post to the thread the pages the agent drew in its chat and that are not there yet. Each is
    * noted once it is dealt with, so that trying again posts only what is left. Resolves with the
    * names of those that could not be posted, or `later` when one is worth another try. Files go
-   * with the send that names them, and only pages are left for here.
+   * with the send that names them, and only pages are left for here; a thread from before it was
+   * a bus (`bus` false) sent its files with `send_file`, and those are posted here too.
    */
   async #sendFiles(
     id: string,
     slack: SlackRecord,
     state: ChatState | undefined,
+    bus: boolean,
     context: Context,
   ): Promise<string[] | "later"> {
     const { agentId, directory, contents } = this.#options
@@ -801,7 +819,7 @@ export class SlackChats {
     const missed: string[] = []
     // A visual is drawn in the app's chat. Slack has nowhere to draw it, so it goes as the file.
     const parts = (state?.messages ?? []).flatMap((message) =>
-      message.parts.filter((part) => isVisual(part)),
+      message.parts.filter((part) => isVisual(part) || (!bus && isSentFile(part))),
     )
     for (const part of parts) {
       if (posted.has(part.toolCallId)) continue

@@ -957,7 +957,12 @@ export class AgentActor implements Actor {
       onReport: (report) => {
         // Its other chats are told what the latest run of each schedule came to.
         void this.#journal
-          .record({ chatId: report.runChatId, title: report.title, outcome: report.text })
+          .record({
+            chatId: report.runChatId,
+            title: report.title,
+            outcome: report.text,
+            schedule: report.scheduleId,
+          })
           .catch((error) => options.onReport?.(error))
         // Nobody is told of it here: it went to the main chat, which tells people what it
         // sends, if anything.
@@ -2954,17 +2959,23 @@ export class AgentActor implements Actor {
           await this.#switchBus(harness, id, record)
         }
       }
-      // Only the main chat is talked in now. The others are kept, as they were, to be read.
+      // Only the main chat is talked in now. The others are kept, as they were, to be read, and
+      // a sub-agent one of them started is the main chat's from now on: it reports there, takes
+      // more from there, and asks a person through it.
       if (main === undefined) return
-      const side = Object.entries(chats).filter(
-        ([id, record]) => record.kind === "chat" && id !== main && !record.archived,
+      const isSide = (id: string) => own(chats, id)?.kind === "chat" && id !== main
+      const side = Object.entries(chats).filter(([id, record]) => isSide(id) && !record.archived)
+      const orphans = Object.values(chats).filter(
+        (record) => record.subagent !== undefined && isSide(record.subagent.parentId),
       )
-      if (side.length === 0) return
+      if (side.length === 0 && orphans.length === 0) return
       await harness.commit(async (tx) => {
         const doc = await tx.doc(ChatsDoc)
-        for (const [id] of side) {
-          const record = own(doc.chats, id)
-          if (record !== undefined) record.archived = true
+        for (const [id, record] of Object.entries(doc.chats)) {
+          if (record.kind === "chat" && id !== main && !record.archived) record.archived = true
+          if (record.subagent !== undefined && isSide(record.subagent.parentId)) {
+            record.subagent.parentId = main
+          }
         }
       }, context)
     }
@@ -2981,10 +2992,11 @@ export class AgentActor implements Actor {
     if (conversation === undefined) return
     const slack = record.kind === "slack"
     // A chat that nothing has been said in yet has nothing to be told about what changed: its
-    // first message says how it works. A thread in Slack is set up before its first message.
+    // first message says how it works. A thread in Slack is set up before its first message. A
+    // mark written before a crash, with the record not yet saying so, is not something said.
     const fresh = slack
       ? record.slack?.woken === undefined
-      : (await conversation.context(context)).entries.length === 0
+      : (await conversation.context(context)).entries.every((entry) => entry.kind === BUS_ENTRY)
     const n = record.busMarks?.length ?? 0
     // The mark first, and at once: a chat set up for the bus with nothing to say where it began
     // would be drawn as if it had always had it.
