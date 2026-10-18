@@ -38,7 +38,8 @@ export function BusEvent({ part }: { part: NoticePart }) {
   // What it asked for is said in the line; what the others said is folded away.
   const detail = part.kind === "asked" ? undefined : part.detail
   return (
-    <div data-event={part.kind} className="border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
+    // Drawn inside the row of working, whose own rule is beside it: it needs none of its own.
+    <div data-event={part.kind} className="py-0.5 text-sm text-muted-foreground">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Icon className="size-4 shrink-0" />
         <span className="min-w-0 wrap-anywhere">{said}</span>

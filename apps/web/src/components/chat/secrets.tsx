@@ -43,6 +43,12 @@ function AskedElsewhere({
         {request.subagent?.title ?? "another chat"}
       </Link>
       {request.subagent === undefined ? null : ", which gets the answer"}
+      {request.subagent === undefined ? null : (
+        // A sub-agent reads what it finds, and what it finds can ask for things in its name.
+        <span className="mt-0.5 block">
+          Asked while working on: “{request.subagent.task}”. Fill it in only if you expected it.
+        </span>
+      )}
     </p>
   )
 }

@@ -193,6 +193,12 @@ function ApprovalCard({
       }
     >
       <Text variant="headline">{request.title}</Text>
+      {request.chatKind === "subagent" && request.task !== undefined ? (
+        // A sub-agent reads what it finds, and what it finds can ask for things in its name.
+        <Text variant="footnote" tone="ink2">
+          Asked while working on: “{request.task}”. Allow it only if you expected it.
+        </Text>
+      ) : null}
       {request.detail === "" ? null : (
         <View
           style={{
@@ -364,7 +370,7 @@ function AskedElsewhere({
   agentId: string
   chatId: string
   /** The sub-agent that asked through the main chat, where one did. */
-  subagent?: { title: string } | undefined
+  subagent?: { title: string; task: string } | undefined
   accent: Accent
 }) {
   const router = useRouter()
@@ -381,6 +387,10 @@ function AskedElsewhere({
         {subagent?.title ?? "another chat"}
       </Text>
       .
+      {subagent === undefined
+        ? null
+        : // A sub-agent reads what it finds, and what it finds can ask for things in its name.
+          ` Asked while working on: “${subagent.task}”. Fill it in only if you expected it.`}
     </>
   )
 }
