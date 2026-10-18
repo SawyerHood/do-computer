@@ -572,7 +572,11 @@ switch.
   mark and, where it had been talked in, the `dc.bus-note` saying what changed; a thread in Slack
   is set up the same way when it is next given a message (most are long over). A chat with
   nothing in it yet is given no note: its first message says how it works. Marks that say off,
-  from when there was a switch, are still read, so old history is drawn as it was.
+  from when there was a switch, are still read, so old history is drawn as it was. A thread in
+  Slack from before, which was at work or waiting when it was last looked at and has not been set
+  up yet, was told its last reply is posted and has no `send`: its last reply is posted as before
+  (`#rested`, where the record has no `bus`). A test opens a Dood left as before this phase
+  (`migration.test.ts`): one mark and one note, nothing more on a second open.
 - **Side chats.** `POST /chats` answers 410; `POST /chats/main` stays. `#branchChat`, `branch.ts`
   and its tests are gone; `BRANCH_ENTRY` stays, to draw an old side chat's first notice. Every
   side chat is archived as the actor opens, and a message to one (or a reset of one) is refused
@@ -580,18 +584,25 @@ switch.
   "Old side chats" in the menu on the Dood's name, shown only where there are any; on the phone,
   from an "Old side chats" row on the Dood's page, which opens a list. An old side chat is drawn
   read-only, with "Back to the main chat" where the message box was. History search and the
-  `history` tool still find and read them. A sub-agent started in a side chat before this reports
-  to the main chat. The web's side-chat column (`sideChatColumn`, `?side=`), its bar, its welcome
+  `history` tool still search and read them. A side chat a person had archived themselves is
+  listed with the rest. A sub-agent started in a side chat before this is given to the main chat
+  in the same commit that archives the side chat (`parentId`), so it reports there, takes more
+  from there, and asks a person through it. The web's side-chat column (`sideChatColumn`, `?side=`), its bar, its welcome
   and "New side chat" are gone, and so are the phone's sheet and its links.
 - **Sub-agents** are started from the main chat alone ("Only your main conversation can start
   sub-agents"), always as able to ask a person through it (`askingThrough` no longer looks at a
   switch), and always report as events.
 - **`recent`** (`journal.ts`) is now what goes on around a chat: the sub-agents at work, the
-  automations with what each last came to, the threads in Slack that are at work, waiting, or
-  have a note of where they stand, and work written up in Slack threads and conversations with
-  other agents. A chat other than the main one is also shown where the main chat stands. Side
-  chats' notes are not shown. The section changes as sub-agents start and end; pi-durable sends
-  only what changed, as a positional system entry, so the cache is kept.
+  automations, the threads in Slack that are at work, waiting, or have a note of where they stand,
+  and work written up in Slack threads and conversations with other agents. A chat other than the
+  main one is also shown where the main chat stands, and what each automation last came to (the
+  main chat was told of each run as it happened). Side chats' notes are not shown. The section
+  changes as sub-agents start and end, and is always there in a chat other than a sub-agent's,
+  saying "Nothing is at work around this conversation." where nothing is: pi-durable adds a
+  section that is new at the end of the prompt, and where that is out of its place it removes
+  every section and sends them all again. A section that stays is changed by a small patch, so
+  the cache is kept; a test counts the prompt's entries through two sub-agents. An automation's
+  last run is kept by its schedule's id, and by its title for one written up before.
 - **Calls.** A call is held in the main chat alone (409 elsewhere). What its voice hands on goes
   into the main chat as a message said out loud; the call's note (`callMeta`) now says that what
   is sent is read out, and that anything more than a quick look goes to a sub-agent while a word
@@ -609,8 +620,9 @@ switch.
   answer `[SILENT]`, is reported all the same. `originChatId` is no longer written or read. The
   schedule skill no longer mentions `[SILENT]`. `delivered` and `silent` remain as outcomes of
   old runs.
-- **Slack.** Every thread is a bus; the posting of a last answer at rest, `onAnswered`, and the
-  error text with the provider's message are gone (it says only that it could not finish).
+- **Slack.** Every thread is a bus; `onAnswered` and the error text with the provider's message
+  are gone (it says only that it could not finish). A last answer is posted at rest only for a
+  thread from before that has not been set up yet (above).
 - **What is drawn.** A reset and a compaction are now shown in the main chat as they were before
   the bus, not folded, since they are where earlier messages are reached from; and
   `GET /chats/:id/history?before=work:N` reads back from the message a row of working is named
@@ -622,16 +634,19 @@ switch.
   what follows is its own; an event or a note gets words nobody sees, and so does a message that
   begins `/quiet`, as from a model that forgot to send.
 - **Tests.** A test may make an old side chat (`testOldSideChats`, `POST /chats/old`;
-  `DC_TEST_OLD_SIDE_CHATS=1` in the browser tests), as nothing else can. Unit tests that are not
-  about the bus wrap their scripted model in `quietOnReminder`, which answers the reminder, the
-  request after a send and an event nothing was scripted for with nothing, so that what they
-  script stays for the requests they are about. In the browser tests `newChat` now starts the main
-  chat fresh, and `seeInWork` opens the rows of working where a test looks at a step or an
-  event.
+  `DC_TEST_OLD_SIDE_CHATS=1` in the browser tests, refused where `NODE_ENV=production`), as nothing
+  else can. Unit tests that are not about the bus wrap their scripted model in `quietOnReminder`,
+  which answers the reminder, the request after a send and an event nothing was scripted for with
+  nothing, so that what they script stays for the requests they are about. In the browser tests
+  `newChat` now starts the main chat fresh, and `seeInWork` opens the rows of working where a test
+  looks at a step or an event.
 - **Not done:** a send made while a call is on, after the voice has said its answer (a sub-agent's
   result, say), is shown in the chat and not said: the voice has nothing to say it against.
   Steps in the main chat (a screen being used, a command's chip) are folded into the row of
   working, and the list of running commands does not open that row when it leads to one.
+- **Known:** something handed on by a call while the main chat is in the middle of a long turn
+  waits for that turn, as any message does, and the voice says "This is taking me a while" in the
+  meantime. Two things handed on into one run are answered with what that run sends, each.
 
 ## 9. Still open
 
