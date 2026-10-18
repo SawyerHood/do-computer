@@ -1,7 +1,7 @@
 # The main chat as a message bus: plan
 
-**Status:** a plan, written 2026-10-18. Nothing in it is built. Sawyer made the choices in
-section 2; section 9 lists what is still open.
+**Status:** a plan, written 2026-10-18. Phase 1 (section 6) is built; the rest is not. Sawyer
+made the choices in section 2; section 9 lists what is still open.
 
 This is the shape described in Lee Robinson's Stanford CS146S lecture on always-on agents
 (how Grok's bot is built), adapted to Do Computer. The ideas taken from it:
@@ -260,6 +260,27 @@ preferences learned in the conversation (and a reminder to save lasting ones to 
 **Checked by** the usage of the compaction request: its cache-read share should be high. It is
 recorded per compaction, with the tokens before and after, so the 70% can be tuned.
 
+**Built (phase 1), and where it differs.** `packages/agent/src/idle-compaction.ts`; HANDOFF item
+101 has the detail.
+
+- **`compact()` alone reads nothing from the cache.** pi-durable's summarizer sends the
+  conversation as a new prompt (its own system prompt, the transcript as text) with
+  `cacheRetention: "none"`, so its cache-read share would be about 0%. The idle compaction still
+  calls `compact()`, and a `beforeCompact` hook answers for it with a summary asked for as the
+  chat's own next request: the same messages, provider session and cache retention, with one
+  more message asking for the summary. pi-durable's summarizer is the fallback.
+- **The alarm is the actor's one wake-up**, as for schedules: a row per chat in the agent's
+  database, which each answer moves ten minutes on. It works the same on Node and on Durable
+  Objects, and a restart keeps it.
+- **Main chats only** for now. Sub-agents end once they report; Slack threads can follow at the
+  same rule by widening one check.
+- **Presence** says who is typing only in a team, so a personal Dood is never held off by it.
+- **Memory.** The summary request can call no tool, so it does not save to memory itself; the
+  journal's review, which already runs before every compaction, may add lasting facts there.
+- **70% of a large window is a lot.** pi-ai's catalog lists Claude Sonnet 4.5 on OpenRouter at
+  a 1,000,000-token window, where 70% is 700,000 tokens: such a chat is rarely compacted this
+  way. A cap in tokens as well as the share may be wanted once the numbers come in.
+
 ## 7. Messages while busy
 
 | Input | `whenBusy` |
@@ -308,7 +329,8 @@ isolation and can follow.
 
 - That `toolcall_delta` reaches Do Computer's live projection through pi-durable while a call is
   still being generated (pi-ai has it; pi-durable passing it on is not checked).
-- Whether a `compact()` request reads the conversation from the cache in practice, on Claude
-  through OpenRouter. Phase 1 measures it.
+- Whether the idle compaction's summary request reads the conversation from the cache in
+  practice, on Claude through OpenRouter. Phase 1 records it (`GET /usage`, `compactions`);
+  pi-durable's own `compact()` summarizer does not (section 6).
 - Whether pi-durable's own threshold compaction should be moved up as well, so the idle one
   does most of the work.

@@ -39,7 +39,7 @@ import {
 } from "./server/computers.ts"
 import { type Env, getPlatform } from "./server/platform.cloudflare.ts"
 import { admitToPresence, presenceWorkspace } from "./server/presence.ts"
-import { tellPeopleOfAgent } from "./server/feed.ts"
+import { tellPeopleOfAgent, typingIn } from "./server/feed.ts"
 import { createLiveActor } from "./server/presence-actor.ts"
 import { readConfig } from "./server/platform.ts"
 import { notifyPeople } from "./server/push.ts"
@@ -126,6 +126,8 @@ export const AgentObject = createDurableActorClass<Env>({
         ),
       onActivity: (change) =>
         void tellPeopleOfAgent(d1Database(env.DB), durableObjectNamespace(env.PRESENCE), change),
+      typing: (agentId, chatId) =>
+        typingIn(d1Database(env.DB), durableObjectNamespace(env.PRESENCE), agentId, chatId),
       onReport: (error) => console.error(`[agent ${host.name}]`, error),
     })
   },

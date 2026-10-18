@@ -493,6 +493,38 @@ export type AgentUsage = {
   scheduled: ChatUsage
   /** How many chats and runs the total covers. */
   chats: number
+  /**
+   * The latest compactions of a quiet main chat while its prompt was still in the provider's
+   * cache, newest last, so that what sets one off can be tuned. What each cost is in the totals.
+   */
+  compactions?: IdleCompaction[]
+}
+
+/** One compaction of a quiet main chat, as it was recorded when its summary was asked for. */
+export type IdleCompaction = {
+  chatId: string
+  /** The compaction task, which a record is kept once for. */
+  taskId: string
+  at: number
+  /** `provider/model` that wrote the summary. */
+  model: string
+  /** The input of the chat's last request before it, in tokens. */
+  before: number
+  /**
+   * An estimate of the chat's context after it, in tokens: its system prompt, the summary and
+   * what was kept word for word. Null where no summary came of the request.
+   */
+  after: number | null
+  /** The summary request's input: not cached, read from the cache, and written to it. */
+  input: number
+  cacheRead: number
+  cacheWrite: number
+  /** The part of that input read from the cache, from 0 to 1. */
+  cacheReadShare: number
+  /** What the summary request cost, in dollars. */
+  cost: number
+  /** Whether it gave a summary; where it did not, pi-durable's own summarizer wrote one. */
+  summarized: boolean
 }
 
 /** A place in the agent's past chats where a search matched. */

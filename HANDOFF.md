@@ -7464,6 +7464,53 @@ put` never has to ask whether to make a Worker. The first person to follow it on
        the hook keeps the request's copies small, not that one. Nothing watches for a run that
        makes no progress for other reasons.
 
+101. **A quiet main chat is compacted while its prompt is still in the provider's cache**
+     (2026-10-18; `packages/agent/src/idle-compaction.ts`, `PLAN-main-bus.md` section 6, phase 1
+     of that plan). pi-durable compacts a chat only when a request would pass the model's
+     window, which is when the chat is wanted. A long main chat that goes quiet for over an hour
+     then pays to write its whole prompt into the cache again on the next message.
+     - **When.** An answer in a main chat whose request filled 70% of the window, on a model
+       with a long cache, records a time ten minutes on, in the agent's own database
+       (`dc_idle_compaction`, a row per chat that each answer moves later or clears), and the
+       actor's one wake-up covers the soonest; other answers wake nothing. Then the chat is
+       compacted if it is at rest (no task in it, nothing waiting to be taken up), its last
+       request's input was at least 70% of the model's window, the model keeps a long cache
+       (`cacheLifetimeMs`: the model's own `promptCache` where pi-ai has one, otherwise an hour
+       for Claude through Anthropic's interface or OpenRouter's, a day for OpenAI's, and nothing
+       known for the rest), that request was less than the cache's lifetime less ten minutes
+       ago, and the model is still the one that answered. Someone typing in it (a team's presence; nothing is known of a
+       personal workspace) puts the look off by two minutes. A row is dropped once looked at;
+       the next answer makes another.
+     - **The summary is asked for as the chat's own request.** pi-durable's summarizer sends the
+       conversation as a new prompt of its own with no cache, so `compact()` alone would read
+       nothing from the cache. The idle compaction calls `conversation.compact()` with its own
+       instructions, and a `beforeCompact` hook answers for that compaction: it sends the
+       chat's messages as they stand (with the same picture limits as its requests), the same
+       provider session and cache retention, and one more message asking for a summary of
+       everything before the message pi-durable keeps from. Where that gives no summary, the
+       hook gives way and pi-durable's own summarizer writes one, with the same instructions as
+       its focus. The answer is kept as a memo of the task, so one taken up again after a
+       restart does not ask twice.
+     - **What it keeps** is written for a long main chat: what was asked for and not done,
+       promises, sub-agents at work and what each is for, automations and when they run,
+       decisions and preferences, marked where lasting. Saving those to memory is not done by
+       this request, which can call no tool; the journal's review, which runs before every
+       compaction, already may add one lasting fact to each store of notes.
+     - **Recorded** in the session document `dc.idle-compactions`, the last 50, and given on
+       `GET /usage` as `compactions`: tokens before, an estimate of after, the summary
+       request's input, cache read and write, its cache-read share and cost. The cost is added
+       to the chat's `pi.usage`, so it is in the totals. Nothing in the apps shows the records.
+     - **Checked:** `pnpm check`; `packages/agent/test/idle-compaction.test.ts`: the rule and the
+       cache lifetimes, and through the actor with the faux provider: compacting when all
+       holds, with the request starting as the chat's own and 99% of it read from the cache;
+       none under 70%, on a five-minute cache, or with the cache about to run out; waiting out
+       a run and compacting after its answer; waiting while someone types; pi-durable's
+       summarizer when asking fails; and after a restart, compacting from the stored time, once.
+     - **Not checked:** a real provider (whether Claude through OpenRouter reads the request
+       from the cache, which is what this is for), a deployed Worker, and a team's presence
+       answering. The faux provider counts what it newly caches twice in a request's input,
+       which the tests work around.
+
 ## 6. What the owner has said they want
 
 Design, in their words where quoted:
