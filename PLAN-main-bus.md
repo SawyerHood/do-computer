@@ -278,7 +278,8 @@ do-computer that means watching `gh pr checks --watch` before merging, since not
 2. **`send` and the bus in the main chat** (3.1–3.4, 7) behind a per-Dood switch: the tool,
    showing only `send`, the folded rows, notifications, the safety net, voice. Events for
    sub-agent reports, approvals and commands. About a week.
-3. **Automations onto the bus** (3.5) and **the delegation prompt** (5). About 2–3 days.
+3. **Automations onto the bus** (3.5), **the delegation prompt** (5), and **sub-agents asking a
+   person through the main chat** (4.2). About 3–4 days.
 4. **Delete side chats** (3.7), calls moved to sub-agents. Turn the switch on for everyone.
    About 3–4 days.
 5. **Groundwork for objects of their own**: `PLAN-chat-objects.md` phases 1–2 (seams, the mirror,
