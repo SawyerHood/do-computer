@@ -12,6 +12,7 @@ import {
   openWorkspaceSettings,
   signIn,
   panelSwitch,
+  seeInWork,
 } from "./helpers.ts"
 
 asOwner()
@@ -69,7 +70,8 @@ test.describe("an agent using a computer's screen", () => {
 
     // The screen stays the agent's for a while after its step, and is shown for as long.
     const view = page.locator('[data-use="screen"]')
-    await expect(view).toBeVisible({ timeout: 20_000 })
+    // In the row of the agent's working, which opens on it.
+    await seeInWork(page, view, 20_000)
     await expect(view).toContainText("use-laptop")
     await expect(view).toContainText("the screen")
     await expect(view.locator('img[src^="data:image/"]')).toBeVisible()
@@ -119,7 +121,7 @@ test.describe("an agent using a computer's screen", () => {
     await page.setViewportSize({ width: 390, height: 780 })
     await ask(page, { action: "type", text: "4,820", note: "Typing the total" })
     const second = page.locator('[data-use="screen"]')
-    await expect(second).toBeVisible({ timeout: 20_000 })
+    await seeInWork(page, second, 20_000)
     await expect(second.getByRole("status")).toContainText("Typing the total")
     await second.getByRole("button", { name: "Open it large" }).last().click()
     await expect(second.getByRole("list", { name: "Steps so far" })).toContainText(
@@ -150,6 +152,7 @@ test.describe("an agent using a computer's screen", () => {
     // One window for the three, showing the last of them.
     // The window of the use before it folds away once this one begins.
     const view = page.locator('[data-use="screen"]').last()
+    await seeInWork(page, view, 20_000)
     await expect(view.getByRole("status")).toContainText("Clicking the Shipping cell", {
       timeout: 20_000,
     })

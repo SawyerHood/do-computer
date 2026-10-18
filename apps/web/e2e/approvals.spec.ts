@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, newChat, openSettings, signIn, tool } from "./helpers.ts"
+import { asOwner, composer, newChat, openSettings, signIn, tool, seeInWork } from "./helpers.ts"
 
 asOwner()
 
@@ -26,9 +26,8 @@ test("an agent told to ask first waits for an answer before it acts", async ({ p
 
   await waiting.getByRole("button", { name: "Allow once" }).click()
   await expect(waiting).toHaveCount(0)
-  await expect(
-    transcript.getByText("Approved: Run commands: echo ran-with-permission", { exact: true }),
-  ).toBeVisible()
+  // The answer is told to the main chat as an event, in the row of the agent's working.
+  await seeInWork(page, transcript.getByText(/allowed Run commands: echo ran-with-permission/))
   // The echo model does not act on being told; a real one would. Its next attempt is let through.
   await expect(composer(page)).toBeEnabled()
   await composer(page).fill(run)
@@ -39,9 +38,7 @@ test("an agent told to ask first waits for an answer before it acts", async ({ p
   await composer(page).fill('/tool bash {"command":"echo second-try"}')
   await composer(page).press("Enter")
   await waiting.getByRole("button", { name: "Don’t allow" }).click()
-  await expect(
-    transcript.getByText("Not allowed: Run commands: echo second-try", { exact: true }),
-  ).toBeVisible()
+  await seeInWork(page, transcript.getByText(/said no to Run commands: echo second-try/))
   await expect(waiting).toHaveCount(0)
 
   // Back to trusting it, as the other tests expect.

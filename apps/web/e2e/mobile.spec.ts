@@ -31,6 +31,8 @@ test.use({
     DC_SECRET_KINDS: "passwords,cards",
     DC_CALLS: "on",
     DC_CALLS_SCRIPT: "1",
+    // A side chat as there were before can be made here, to see that one is kept and read.
+    DC_TEST_OLD_SIDE_CHATS: "1",
   },
 })
 test.describe.configure({ mode: "serial" })
@@ -71,6 +73,27 @@ const item = (page: Page, name: string) => page.getByRole("menuitem", { name, ex
 const agentId = async (page: Page) =>
   ((await (await page.request.get("/api/agents")).json()) as { agents: { id: string }[] })
     .agents[0]!.id
+
+/**
+ * Wait for something in a row of the agent's working, which in the main chat holds its steps and
+ * the events it was told of, folded until opened: the rows are opened as they come.
+ */
+async function seeInWork(page: Page, locator: ReturnType<Page["locator"]>, timeout = 10_000) {
+  // A row does not say whether it is open, so each is opened once, as it comes.
+  const rows = page.getByRole("button", { name: /^Work(ed|ing) on it/ }).filter({ visible: true })
+  let opened = 0
+  await expect
+    .poll(
+      async () => {
+        for (const count = await rows.count(); opened < count; opened++) {
+          await rows.nth(opened).click()
+        }
+        return locator.first().isVisible()
+      },
+      { timeout },
+    )
+    .toBe(true)
+}
 
 /** Say yes to the next thing the app asks before doing, and give back what it asked. */
 function agree(page: Page): Promise<string> {
@@ -233,7 +256,7 @@ test("the agent's work leaves only its answer, and a sent file can be opened", a
   // The call itself is not in the transcript, only what the agent said.
   await expect(page.getByRole("button", { name: "Wrote list.md" })).toHaveCount(0)
 
-  await send(page, '/tool send_file {"path":"list.md"}')
+  await send(page, '/tool send {"text":"","files":["list.md"]}')
   const file = page.getByRole("button", { name: /^list\.md, \d+ B$/ })
   await expect(file).toBeVisible()
   // Downloading hands the file's address to the browser, which fetches it with the session.
@@ -265,10 +288,8 @@ test("a request for approval can be answered from the phone", async ({ page }) =
 
     await page.getByRole("button", { name: "Allow once" }).click()
     await expect(words(page, "Pip asks first · from this chat")).toHaveCount(0)
-    // The answer is told to the agent, and is in the transcript as a note of its own.
-    await expect(
-      words(page, "Approved: Run commands: echo from-the-phone", { exact: true }),
-    ).toBeVisible()
+    // The answer is told to the agent as an event, in the row of its working.
+    await seeInWork(page, words(page, /allowed Run commands: echo from-the-phone/))
   } finally {
     await page.request.patch(rules, { data: { "tool:bash": "allow" } })
   }
@@ -472,17 +493,17 @@ test("a mermaid block is drawn as its diagram by the deployment's page, with the
 
 test("earlier messages can be brought back after a chat was started fresh", async ({ page }) => {
   await openChat(page)
-  await expect(words(page, /You said: hello from the phone/)).toBeVisible()
+  await send(page, "just before starting fresh")
+  await expect(words(page, /You said: just before starting fresh/)).toBeVisible()
   await page.getByRole("button", { name: "More", exact: true }).click()
   const asked = agree(page)
   await item(page, "Start fresh").click()
   expect(await asked).toContain("Start fresh?")
 
   // The transcript now starts at the fresh start, and offers what came before it.
-  await expect(words(page, /You said: hello from the phone/)).toHaveCount(0)
+  await expect(words(page, /You said: just before starting fresh/)).toHaveCount(0)
   await page.getByRole("button", { name: "Show earlier messages" }).click()
-  await expect(words(page, /You said: hello from the phone/)).toBeVisible()
-  await expect(page.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
+  await expect(words(page, /You said: just before starting fresh/)).toBeVisible()
 })
 
 test("the agent's page says what it is and has, and a skill can be switched off and on", async ({
@@ -594,8 +615,9 @@ test("what the Dood pins is shown in its chat, and under its face on its page as
   await expect(words(page, /Successfully wrote/).last()).toBeVisible()
   await send(page, '/tool pin {"action":"pin","path":"boards/launch.html","title":"Launch board"}')
 
-  // The chat says what was pinned, with the way to open it and to take the pin off.
-  await expect(words(page, "Pip pinned Launch board")).toBeVisible()
+  // The chat says what was pinned, with the way to open it and to take the pin off, in the row
+  // of the Dood's working.
+  await seeInWork(page, words(page, "Pip pinned Launch board"))
   await expect(words(page, "boards/launch.html").last()).toBeVisible()
   await shoot(page, "pin-card")
   // The card says how the pin stands now: taken off, it offers to put it back as it was.
@@ -736,24 +758,34 @@ test("automations made in chat can be paused, resumed, run and deleted", async (
   await expect(words(page, "Nothing scheduled yet.")).toBeVisible()
 })
 
-test("a side chat is started from the agent's side chats and is listed there afterwards", async ({
+test("a Dood is talked to in its main chat alone, and an old side chat is kept to read", async ({
   page,
 }) => {
   await openChat(page)
-  await page.getByRole("button", { name: "Pip's side chats" }).click()
-  await expect(page.getByRole("heading", { name: "Side chats" })).toBeVisible()
-  await expect(words(page, /^None yet\./)).toBeVisible()
-  await page.getByRole("button", { name: "New side chat" }).click()
+  // Nothing on the main chat starts another chat.
+  await expect(page.getByRole("button", { name: /side chats/ })).toHaveCount(0)
+  const id = await agentId(page)
+  const made = await page.request.post(`/api/agents/${id}/chats/old`, {
+    data: { text: "an aside about kites", requestId: crypto.randomUUID() },
+  })
+  expect(made.status()).toBe(201)
 
-  await send(page, "an aside about kites")
+  // A Dood with old side chats has a row for them on its page, which lists them to read.
+  await page.getByRole("button", { name: "Pip's page" }).click()
+  await row(page, "Old side chats").click()
+  await expect(words(page, /Kept to read\.$/)).toBeVisible()
+  await row(page, "an aside about kites").click()
   await expect(words(page, /You said: an aside about kites/)).toBeVisible()
-  await expect(page).toHaveURL(/\/a\/[^/]+\/c\/[^/]+$/)
-
-  // The main chat is as it was, and the side chat is in its list.
-  await back(page).click()
-  await expect(words(page, /You said: an aside about kites/)).toHaveCount(0)
-  await page.getByRole("button", { name: "Pip's side chats" }).click()
-  await expect(row(page, "an aside about kites")).toBeVisible()
+  await expect(words(page, /^An old side chat, kept to read\./)).toBeVisible()
+  await expect(composer(page)).toHaveCount(0)
+  await page
+    .screenshot({
+      path: process.env.DC_SHOTS ? `${process.env.DC_SHOTS}/mobile-old-side-chat.png` : "/dev/null",
+    })
+    .catch(() => {})
+  // It leads back to the main chat.
+  await page.getByRole("button", { name: "Back to the main chat" }).click()
+  await expect(composer(page)).toBeVisible()
 })
 
 /** A picture of four dots, small enough to write here. */
@@ -981,7 +1013,7 @@ test("a film the agent sends has the player over its card, and the library plays
   await keep(page, "take.webm", "video/webm", CLIP)
   await send(page, '/tool library {"action":"get","file":"take.webm","path":"sent.webm"}')
   await expect(words(page, /Copied take\.webm/).first()).toBeVisible()
-  await send(page, '/tool send_file {"path":"sent.webm"}')
+  await send(page, '/tool send {"text":"","files":["sent.webm"]}')
   const card = page.getByRole("button", { name: /^sent\.webm, [\d.]+ KB$/ })
   await expect(card).toBeVisible()
   const player = film(page, "sent.webm")
@@ -1011,7 +1043,7 @@ test("a table the agent sends has its first rows over its card", async ({ page }
   await openChat(page)
   await send(page, '/tool write {"path":"sent.csv","content":"City,Visits\\nLeeds,41\\nYork,7\\n"}')
   await expect(words(page, /Successfully wrote to sent\.csv/).first()).toBeVisible()
-  await send(page, '/tool send_file {"path":"sent.csv"}')
+  await send(page, '/tool send {"text":"","files":["sent.csv"]}')
   await expect(page.getByRole("button", { name: /^sent\.csv, \d+ B$/ })).toBeVisible()
   for (const cell of ["City", "Visits", "Leeds", "41", "York"]) {
     await expect(words(page, cell, { exact: true })).toBeVisible()
@@ -1094,8 +1126,9 @@ test("a connector's own page for a tool is shown in the chat, told what the tool
     expect(added.ok()).toBe(true)
     await agent(page, "Pip").click()
     await send(page, `/tool weather__forecast ${JSON.stringify({ city: "Lisbon" })}`)
-    // It says whose page it is: not the Dood's, and not the app's.
-    await expect(words(page, "From Weather")).toBeVisible()
+    // It says whose page it is: not the Dood's, and not the app's. It is in the row of the
+    // Dood's working.
+    await seeInWork(page, words(page, "From Weather"))
     const frame = page.getByLabel("App: forecast from Weather").frameLocator("iframe")
     // The page was told what the tool was asked and what it answered, and where it is shown.
     await expect(frame.locator("#city")).toHaveText("Lisbon")
@@ -1436,7 +1469,7 @@ test("a Dood is called from the phone: it talks, hands on what was asked, and th
   await expect(words(page, /Dood: Any time\./)).toBeVisible()
   await page.screenshot({ path: `${callShots}/5-record.png` })
 
-  // The server kept each thing said once, in order, and the work went to a side chat of the call's own.
+  // The server kept each thing said once, in order, and the work was asked in the main chat.
   const id = await agentId(page)
   const state = (await (await page.request.get(`/api/agents/${id}`)).json()) as {
     chats: { id: string; main?: boolean }[]
@@ -1452,8 +1485,8 @@ test("a Dood is called from the phone: it talks, hands on what was asked, and th
   expect(kept.lines.map((line) => line.who)).toEqual(["you", "dood", "you", "dood"])
   expect(kept.lines[0]!.text).toBe("What did I say before the call?")
   expect(kept.lines[3]!.text).toBe("Any time.")
-  expect(kept.chatId).toMatch(/^\d+$/)
-  expect(chat.messages.some((message) => message.spoken !== undefined)).toBe(false)
+  expect(kept.chatId).toBeUndefined()
+  expect(chat.messages.some((message) => message.spoken !== undefined)).toBe(true)
 })
 
 test("a Dood is not offered a call where the server does not offer one", async ({ page }) => {
@@ -1465,7 +1498,7 @@ test("a Dood is not offered a call where the server does not offer one", async (
       : route.continue(),
   )
   await openChat(page)
-  await expect(page.getByRole("button", { name: "Pip's side chats" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Pip's page" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Call Pip" })).toHaveCount(0)
 })
 

@@ -1,7 +1,7 @@
 import type { Pin } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
+import { asOwner, newChat, signIn, tab, tool, openFile, seeInWork } from "./helpers.ts"
 
 asOwner()
 
@@ -43,7 +43,7 @@ test("what the agent pins stays under its face, drawn small, and follows the fil
   )
   // The chat says that it was pinned, with the way to open it and to take the pin off.
   const card = page.getByRole("group", { name: "Pinned: Launch board" })
-  await expect(card.getByText("Juniper pinned Launch board")).toBeVisible()
+  await seeInWork(page, card.getByText("Juniper pinned Launch board"))
   // Under the face it is the page itself, small.
   await expect(shelf.getByText("Launch board")).toBeVisible()
   const small = shelf.frameLocator("iframe")
@@ -92,7 +92,7 @@ test("a person pins a file from its card and from the document, and unpins it th
   await withPanel(page)
   await write(page, "boards/relaunch.html", board("18,240"))
   await write(page, "pricing/plan.md", "# Pricing plan\n\nThree plans in one row.\n")
-  await tool(page, "send_file", { path: "library/pricing/plan.md" }, /Showed the user/)
+  await tool(page, "send", { text: "The plan.", files: ["library/pricing/plan.md"] }, "The plan.")
   // From the file's card in the chat.
   await page.getByRole("button", { name: "Pin plan.md", exact: true }).click()
   const shelf = page.getByRole("region", { name: "Pinned" })

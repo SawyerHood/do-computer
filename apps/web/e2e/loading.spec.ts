@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
-import { asOwner, composer, sideChats, signIn, tab, nameMenu } from "./helpers.ts"
+import { asOwner, composer, signIn, tab, nameMenu } from "./helpers.ts"
 
 asOwner()
 
@@ -81,9 +81,7 @@ test("choosing an agent moves the page before the server has answered", async ({
   // The address, the row, the strip and the message box are Juniper's at once.
   await page.waitForURL(juniper)
   await expect(agentRow(page, /Juniper/)).toHaveAttribute("aria-current", "page")
-  await expect(
-    page.getByRole("button", { name: "Juniper: pages, side chats and settings" }),
-  ).toBeVisible()
+  await expect(page.getByRole("button", { name: "Juniper: pages and settings" })).toBeVisible()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Juniper")
   // What was said is on its way, and its place is held. It is not an empty chat.
   await expect(page.locator("main [data-loading]").first()).toBeVisible()
@@ -297,34 +295,4 @@ test("an agent that could not be made says why, where it was asked for", async (
   await expect(agents.getByLabel("Making a new Dood")).toHaveCount(0)
   await expect(add).toBeEnabled()
   expect(page.url()).toBe(before)
-})
-
-test("a side chat says it is being started, and opens without asking the agent again", async ({
-  page,
-}) => {
-  await holdableSockets(page)
-  await signIn(page)
-  await expect(composer(page)).toBeVisible()
-  const main = page.url()
-  await expect(page.locator("main [data-loading]")).toHaveCount(0)
-  const server = await holdRequests(page)
-  // What the agent is, its chats among it, is as slow as the agent. From here it never comes.
-  await page.route("**/api/agents/*", (route) =>
-    route.request().method() === "GET" ? undefined : route.fallback(),
-  )
-  await sideChats(page).click()
-  await page.getByRole("menuitem", { name: "New side chat" }).click()
-  // Nothing has come back. The menu stays, and says what is going on.
-  const starting = page.getByRole("menuitem", { name: "Starting a side chat…" })
-  await expect(starting).toBeVisible()
-  await expect(starting).toHaveAttribute("aria-busy", "true")
-  expect(page.url()).toBe(main)
-
-  server.release()
-  // Made, it is open beside the main chat under its own name, and the menu is gone.
-  await page.waitForURL((url) => url.searchParams.has("side"))
-  await expect(page.getByRole("complementary", { name: "Side chat: New chat" })).toBeVisible()
-  await expect(page.getByRole("menu")).toHaveCount(0)
-  await nameMenu(page).click()
-  await expect(page.getByRole("menuitem", { name: /'s side chats$/ })).toContainText("1")
 })

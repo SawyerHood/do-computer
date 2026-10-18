@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test"
+import { expect, type Locator, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
 
 export const owner = {
@@ -138,8 +138,7 @@ export async function openFile(page: Page, name: string | RegExp) {
 }
 
 /** The agent's name above its pages, which opens the menu of everything else of the agent's. */
-export const nameMenu = (page: Page) =>
-  page.getByRole("button", { name: /: pages, side chats and settings$/ })
+export const nameMenu = (page: Page) => page.getByRole("button", { name: /: pages and settings$/ })
 
 /** Choose something from the menu on the agent's name, opening the menu if it is shut. */
 export async function fromNameMenu(page: Page, name: string | RegExp) {
@@ -154,61 +153,90 @@ export const tab = (page: Page, name: "Chat" | "Library" | "Automations") => ({
   click: () => fromNameMenu(page, name),
 })
 
-/**
- * The way to the agent's side chats: a row of the menu on its name, which opens into them.
- * Pressing it opens the menu first.
- */
-export const sideChats = (page: Page) => ({
-  click: () => fromNameMenu(page, /'s side chats$/),
-})
-
 /** Show the agent's panel beside its pages, or put it away, from the menu on its name. */
 export const panelSwitch = (page: Page, to: "Show" | "Hide", name = "Juniper") =>
   fromNameMenu(page, `${to} ${name}'s panel`)
 
 /**
- * Start a side chat and give it the middle of the page, so that it is the only chat on screen
- * and typing lands in it. Started from the main chat on a wide screen it opens beside it, where
- * there would be two boxes to write in.
+ * Start the main chat fresh, so that what earlier tests said there is out of the way and typing
+ * lands in a chat with nothing on screen. A Dood has one chat with people, its main chat: this is
+ * what a test that once started a side chat of its own does instead. It is the same as "Start
+ * fresh" in the Dood's settings, asked of the server, and what was said before is kept as
+ * earlier messages.
  */
 export async function newChat(page: Page) {
   // A settings window is over the page, and in the way, until it is closed.
   if ((await page.getByRole("dialog").count()) > 0) await closeSettings(page)
-  const before = page.url()
-  // The address changes a moment before the page does. Until the page is listening to the new
-  // chat, the message box is still the old one's, and what is typed there stays behind with it.
-  // It says so on the socket it follows the agent over, which is already open: so what it
-  // says there is listened to from inside the page.
-  const listening = page.evaluate(
-    (before) =>
-      new Promise<void>((resolve) => {
-        const send = WebSocket.prototype.send
-        WebSocket.prototype.send = function (data) {
-          send.call(this, data)
-          try {
-            const said = JSON.parse(String(data)) as { type?: string; chat?: string }
-            if (said.type !== "follow" || before.endsWith(`/c/${said.chat}`)) return
-            WebSocket.prototype.send = send
-            resolve()
-          } catch {
-            // Not something said to an agent.
-          }
-        }
-      }),
-    before,
-  )
-  await sideChats(page).click()
-  await page.getByRole("menuitem", { name: "New side chat" }).click()
-  await page.waitForURL((url) => /\/c\/\d+$/.test(url.pathname) && url.href !== before)
-  await listening
-  if (new URL(page.url()).searchParams.has("side")) {
-    await page.getByRole("link", { name: "Give it the whole chat" }).click()
-    await page.waitForURL((url) => !url.searchParams.has("side"))
+  const agentId = /\/a\/([^/?#]+)/.exec(page.url())?.[1]
+  if (agentId === undefined) throw new Error(`Not on a Dood's page: ${page.url()}`)
+  // The main chat, which a Dood's own address opens.
+  if (!/\/c\/\d+$/.test(new URL(page.url()).pathname) || !(await onMainChat(page, agentId))) {
+    await page.goto(`/a/${agentId}`)
+    await page.waitForURL(/\/c\/\d+$/)
   }
-  // Here too the address changes before the page does: wait until the one chat is all there is.
-  await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
-  await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
-  await expect(composer(page)).toHaveValue("")
+  const chatId = /\/c\/(\d+)/.exec(page.url())![1]!
+  // The chat starts at the fresh start, which is the one thing in it, and the page follows. One
+  // still at work from a test before, on an event, is waited for and started fresh again.
+  const chat = async () =>
+    (await (await page.request.get(`/api/agents/${agentId}/chats/${chatId}`)).json()) as {
+      busy: boolean
+      messages: { parts: { type: string; kind?: string }[] }[]
+    }
+  let reset = false
+  await expect
+    .poll(
+      async () => {
+        const { busy, messages } = await chat()
+        if (!busy && reset && messages.length === 1 && messages[0]!.parts[0]?.kind === "reset") {
+          return true
+        }
+        if (!busy) {
+          const answer = await page.request.post(`/api/agents/${agentId}/chats/${chatId}/reset`)
+          expect(answer.ok()).toBe(true)
+          reset = true
+        }
+        return false
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true)
+  const transcript = page.getByRole("log")
+  await expect(transcript.getByText("New context")).toHaveCount(1)
+  await expect(transcript.locator("[data-work]")).toHaveCount(0)
+  await expect(composer(page)).toBeVisible()
+}
+
+/**
+ * Open every row of the agent's working in the transcript, which in the main chat holds its
+ * steps, what it thought and the events it was told of, folded away until it is opened.
+ */
+export async function unfoldWork(page: Page) {
+  const folded = page.getByRole("log").locator("[data-work] > button[aria-expanded=false]")
+  for (let count = await folded.count(); count > 0; count = await folded.count()) {
+    await folded.first().click()
+  }
+}
+
+/** Wait for something drawn in a row of the agent's working, opening the rows as they come. */
+export async function seeInWork(page: Page, locator: Locator, timeout = 10_000) {
+  await expect
+    .poll(
+      async () => {
+        await unfoldWork(page)
+        return locator.first().isVisible()
+      },
+      { timeout },
+    )
+    .toBe(true)
+}
+
+/** Whether the chat on screen is the Dood's main chat. */
+async function onMainChat(page: Page, agentId: string): Promise<boolean> {
+  const state = (await (await page.request.get(`/api/agents/${agentId}`)).json()) as {
+    chats: { id: string; main?: boolean }[]
+  }
+  const chatId = /\/c\/(\d+)/.exec(page.url())?.[1]
+  return state.chats.some((chat) => chat.id === chatId && chat.main === true)
 }
 
 /** Have the agent call a tool, and wait for what the tool says it did. */
@@ -220,7 +248,8 @@ export async function tool(
 ) {
   await composer(page).fill(`/tool ${name} ${JSON.stringify(args)}`)
   await page.keyboard.press("Enter")
-  await expect(page.getByText(said).last()).toBeVisible()
+  // What the tool said is sent to the person, as the words are written: a long one takes a while.
+  await expect(page.getByText(said).last()).toBeVisible({ timeout: 15_000 })
 }
 
 /**

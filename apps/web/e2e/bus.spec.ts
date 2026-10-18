@@ -2,9 +2,9 @@ import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 import { asOwner, closeSettings, composer, openSettings, signIn, tab } from "./helpers.ts"
 
-// The main chat as a message bus: with the switch on, a Dood reaches the people in its main chat
-// only through `send`. Its own words and ordinary steps are not shown at all; what a chat draws
-// anywhere (a sub-agent it started, the events it was told of) is drawn in order, as it is there.
+// The main chat as a message bus: a Dood reaches the people in its main chat only through
+// `send`. Its own words and ordinary steps are not shown at all; what a chat draws anywhere (a
+// sub-agent it started, the events it was told of) is drawn in order, as it is there.
 
 asOwner()
 
@@ -27,21 +27,16 @@ async function say(page: Page, text: string) {
   await page.keyboard.press("Enter")
 }
 
-test("is switched on in the Dood's settings, and is off until then", async ({ page }) => {
+test("is how every Dood's main chat works, with no switch for it", async ({ page }) => {
   await signIn(page)
-  // Off, the Dood's words are its answer, as they always were.
-  await say(page, "before the switch")
-  await expect(transcript(page).getByText("You said: before the switch")).toBeVisible()
-
+  // What it says to a person is what it sends, and that is all there is to see of an answer.
+  await say(page, "hello there")
+  await expect(transcript(page).getByText("You said: hello there")).toBeVisible()
+  await expect(rows(page)).toHaveCount(0)
   await openSettings(page, "Model and computers")
-  const toggle = page
-    .getByRole("dialog")
-    .getByRole("switch", { name: "Speak only through what it sends (preview)" })
-  await expect(toggle).not.toBeChecked()
-  await toggle.click()
-  await expect(toggle).toBeChecked()
-  await toggle.scrollIntoViewIfNeeded()
-  await shot(page, "settings-switch")
+  await expect(page.getByRole("dialog").getByRole("switch", { name: /what it sends/ })).toHaveCount(
+    0,
+  )
   await closeSettings(page)
 })
 
@@ -60,8 +55,6 @@ test("shows what it sends, and keeps its own words and steps to itself", async (
   await expect(rows(page)).toHaveCount(0)
   await expect(transcript(page).getByText(/Ran: echo/)).toHaveCount(0)
   await expect(transcript(page).getByText(/The tool returned/)).toHaveCount(0)
-  // What came before the switch is drawn as it was.
-  await expect(transcript(page).getByText("You said: before the switch")).toBeVisible()
   await shot(page, "send-and-working")
 })
 
@@ -93,11 +86,12 @@ test("is reminded once when it sends nothing, and then shows nothing", async ({ 
   // The chat as the last test left it, once the Dood is done with it.
   await expect(transcript(page).getByText("Here is the report.").last()).toBeVisible()
   await expect(page.getByRole("status")).toHaveCount(0)
-  await say(page, "are you there?")
-  await expect(transcript(page).getByText("are you there?", { exact: true })).toBeVisible()
+  // The echo model answers this in words, and does not send them, as a model that forgot to.
+  await say(page, "/quiet are you there?")
+  await expect(transcript(page).getByText("/quiet are you there?", { exact: true })).toBeVisible()
   await expect(page.getByRole("status")).toHaveCount(0)
   // It answered with words twice, the second time to the reminder, and neither is shown.
-  await expect(transcript(page).getByText("You said: are you there?")).toHaveCount(0)
+  await expect(transcript(page).getByText("You said: /quiet are you there?")).toHaveCount(0)
   await expect(rows(page)).toHaveCount(0)
   await shot(page, "unanswered")
 })

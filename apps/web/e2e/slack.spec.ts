@@ -253,7 +253,7 @@ test.describe("slack", () => {
     await say(
       page.request,
       agentId,
-      mention("USAWYER", '/tool send_file {"path":"report.txt"}', first.ts),
+      mention("USAWYER", '/tool send {"text":"Here it is.","files":["report.txt"]}', first.ts),
     )
     await expect
       .poll(() => slack.uploads)

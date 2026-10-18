@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures.ts"
 import { startFakeMcp } from "./fake-mcp-server.ts"
-import { asOwner, composer, newChat, openSettings, signIn, tool } from "./helpers.ts"
+import { asOwner, composer, newChat, openSettings, signIn, tool, seeInWork } from "./helpers.ts"
 
 asOwner()
 
@@ -27,7 +27,8 @@ test("a connector's own page for a tool is shown with what the tool answered, ke
   await tool(page, "weather__forecast", { city: "Lisbon" }, /Sunny, 21 degrees/)
   // It says whose page it is: not the agent's, and not the app's.
   const log = page.getByRole("log")
-  await expect(log.getByText("From Weather")).toBeVisible()
+  // Drawn in the row of the agent's working, which opens on it.
+  await seeInWork(page, log.getByText("From Weather"))
   const app = log.getByRole("figure", { name: "App: forecast from Weather" })
   const frame = app.frameLocator("iframe")
   // The page was told what the tool was asked and what it answered.
@@ -66,6 +67,7 @@ test("the page uses its server's tools: one that only reads at once, one that ma
   await newChat(page)
   await tool(page, "weather__forecast", { city: "Porto" }, /Sunny, 21 degrees/)
   const app = page.getByRole("log").getByRole("figure", { name: "App: forecast from Weather" })
+  await seeInWork(page, app)
   const frame = app.frameLocator("iframe")
   await expect(frame.locator("#city")).toHaveText("Porto")
 

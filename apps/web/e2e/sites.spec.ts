@@ -277,7 +277,7 @@ test("a file is shared from its card, from the library, and a folder from its ro
   await signIn(page)
   await newChat(page)
   // The card of a file the agent sent has the way to share it.
-  await tool(page, "send_file", { path: "library/exports/report.zip" }, /report\.zip/)
+  await tool(page, "send", { text: "", files: ["library/exports/report.zip"] }, /report\.zip/)
   // It is shared already, by the test before this one, and the card says so.
   await page.getByRole("button", { name: "report.zip is shared with a link" }).last().click()
   const popover = page.getByRole("dialog")
