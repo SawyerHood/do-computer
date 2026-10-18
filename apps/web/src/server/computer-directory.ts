@@ -84,6 +84,12 @@ export function computerDirectory(
             readOnly: status?.hello?.readOnly ?? row.read_only === 1,
             online: status?.online ?? false,
             connected: connected.has(row.id),
+            ...(connected.has(row.id) && status?.hello?.screenAdapter
+              ? { screenAdapter: status.hello.screenAdapter }
+              : {}),
+            ...(connected.has(row.id) && status?.hello?.browserAdapter
+              ? { browserAdapter: status.hello.browserAdapter }
+              : {}),
             asked: asked.has(row.id),
             ...(row.added_by_agent === agentId ? { mine: true } : {}),
           }

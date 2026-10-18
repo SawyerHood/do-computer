@@ -86,6 +86,13 @@ test/daytona.live.test.ts` (it creates one machine and deletes it). Modal and Cl
 Containers are tested against stand-ins that run real commands, and have not yet been run with a
 real account: treat the first deployment on either as a trial.
 
+## Screen and browser adapters
+
+Paired daemons can use the desktop app's screen IPC, native Hyprland, or native X11, with
+browser automation selected independently. Standalone screen sharing is opt-in. See
+[Screen and browser adapters](screen-adapters.md) for setup, `--doctor`, same-user session
+discovery, permissions, diagnostics, and platform limitations.
+
 ## Pictures a Dood is shown
 
 A conversation keeps every picture its model was shown for as long as it lasts, and sends them
