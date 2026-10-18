@@ -64,6 +64,12 @@ export type IdentityState = {
    * has a personality as well, its first conversation is still for the two to work that out.
    */
   namedByOwner?: boolean
+  /**
+   * Its main chat works as a message bus: it reaches the people there only through `send`, and
+   * what it writes otherwise is its own working (`bus.ts`). Absent: off. A switch while it is
+   * tried out.
+   */
+  bus?: boolean
 }
 
 export const IdentityDoc = defineDoc<IdentityState>({
@@ -201,6 +207,16 @@ export type ChatRecord = {
    * request sent again is answered with this chat, and makes no other.
    */
   request?: string
+  /**
+   * The bus is on in this chat (`bus.ts`): the main chat of an agent that has it switched on,
+   * once the chat has been set up for it.
+   */
+  bus?: boolean
+  /**
+   * Where the bus was switched on and off in this chat, by the entries that say so, oldest
+   * first, so that a page of its earlier messages is drawn as it was at the time.
+   */
+  busMarks?: { at: number; on: boolean }[]
 }
 
 /** The agent's chats, keyed by conversation id. One document, so the list is watched as a unit. */

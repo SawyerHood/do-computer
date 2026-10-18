@@ -21,6 +21,7 @@ import {
   type ToolRegistration,
 } from "@earendil-works/pi-durable"
 import { createBashTool } from "@earendil-works/pi-durable/tools"
+import { busOn, eventText } from "./bus.ts"
 import { ComputerEnv, type ComputerTarget } from "./computers.ts"
 import { own } from "./own.ts"
 
@@ -534,49 +535,89 @@ export class Jobs {
     const chat = await harness.conversation(Number(job.chatId) as ConversationId, context)
     if (chat === undefined) return
     const said = output.trim()
-    const told =
+    // What it came to, then the last of what it printed, where it printed anything.
+    const head =
       job.status === "stopped"
-        ? `[The user stopped your background command ${id} on "${job.computer}" after ${spanOf((job.endedAt ?? now) - job.startedAt)}.\nCommand: ${job.command}]`
-        : `[Your background command ${id} on "${job.computer}" ${ending(job, now)}.\nCommand: ${job.command}\n${
+        ? `The user stopped your background command ${id} on "${job.computer}" after ${spanOf((job.endedAt ?? now) - job.startedAt)}.\nCommand: ${job.command}`
+        : `Your background command ${id} on "${job.computer}" ${ending(job, now)}.\nCommand: ${job.command}\n${
             job.status === "lost"
-              ? `Whatever it printed before that is in ${job.log}, if the computer still has it.]`
+              ? `Whatever it printed before that is in ${job.log}, if the computer still has it.`
               : said === ""
-                ? "It printed nothing.]"
-                : `The last of what it printed is below. All of it: ${job.log}]\n\n${said}`
+                ? "It printed nothing."
+                : `The last of what it printed is below. All of it: ${job.log}`
           }`
+    const tail = job.status !== "stopped" && job.status !== "lost" && said !== "" ? said : ""
+    const told = `[${head}]${tail === "" ? "" : `\n\n${tail}`}`
     // Keyed by when it started as well: ids start over if the agent's record of jobs is lost.
     const key = `${id}:${job.startedAt}`
-    await chat.submit(
-      {
-        type: "write",
-        requestId: `job-report:${key}`,
-        entry: {
-          kind: JOB_ENTRY,
-          model: [{ role: "user", content: told, timestamp: now }],
-          data: {
-            id,
-            computer: job.computer,
-            command: job.command,
-            status: job.status,
-            ...(job.exitCode === undefined ? {} : { exitCode: job.exitCode }),
-            ms: (job.endedAt ?? now) - job.startedAt,
-            output: said,
-          },
-        },
-      },
-      context,
-    )
-    const given = turn
-      ? await chat.submit(
+    const data = {
+      id,
+      computer: job.computer,
+      command: job.command,
+      status: job.status,
+      ...(job.exitCode === undefined ? {} : { exitCode: job.exitCode }),
+      ms: (job.endedAt ?? now) - job.startedAt,
+      output: said,
+    }
+    let given: JobReport["turn"]
+    if (await busOn(harness, job.chatId, context)) {
+      // On the bus it is an event, which waits for the agent to finish what it is doing and is
+      // taken up with whatever else came meanwhile.
+      const event = eventText(
+        "command-ended",
+        { job: id, computer: job.computer, status: job.status, exit: job.exitCode },
+        tail === "" ? head : `${head}\n\n${tail}`,
+      )
+      if (turn) {
+        given = await chat.submit(
           {
             type: "input",
-            requestId: `job-turn:${key}`,
-            content: [{ type: "text", text: NUDGE }],
+            requestId: `job:${key}`,
+            content: [{ type: "text", text: event }],
+            entry: { kind: JOB_ENTRY, data },
             whenBusy: "followUp",
           },
           context,
         )
-      : undefined
+      } else {
+        await chat.submit(
+          {
+            type: "write",
+            requestId: `job:${key}`,
+            entry: {
+              kind: JOB_ENTRY,
+              model: [{ role: "user", content: event, timestamp: now }],
+              data,
+            },
+          },
+          context,
+        )
+      }
+    } else {
+      await chat.submit(
+        {
+          type: "write",
+          requestId: `job-report:${key}`,
+          entry: {
+            kind: JOB_ENTRY,
+            model: [{ role: "user", content: told, timestamp: now }],
+            data,
+          },
+        },
+        context,
+      )
+      given = turn
+        ? await chat.submit(
+            {
+              type: "input",
+              requestId: `job-turn:${key}`,
+              content: [{ type: "text", text: NUDGE }],
+              whenBusy: "followUp",
+            },
+            context,
+          )
+        : undefined
+    }
     this.#options.onReport?.({ id, chatId: job.chatId, turn: given })
   }
 

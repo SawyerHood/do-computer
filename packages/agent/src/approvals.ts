@@ -17,6 +17,7 @@ import {
   hook,
   ToolTask,
 } from "@earendil-works/pi-durable"
+import { APPROVAL_ENTRY, busOn, eventText } from "./bus.ts"
 import { type Caller, sentMeta } from "./caller.ts"
 import { ChatsDoc } from "./docs.ts"
 import { ComputersDoc } from "./computers.ts"
@@ -849,21 +850,54 @@ export class Approvals {
               ? ", and you no longer need to ask for it"
               : ""
           }. Do it now, exactly as you asked, and carry on with what you were doing.</meta>`
-    const turn = await conversation.submit(
-      {
-        type: "input",
-        requestId: `approval:${id}`,
-        content: [
-          { type: "text", text: `${decision === "deny" ? "Not allowed" : "Approved"}: ${what}` },
-          { type: "text", text: note },
-          ...(by === undefined
-            ? []
-            : [{ type: "text" as const, text: sentMeta(formatTime(now, null), by) }]),
-        ],
-        whenBusy: "steer",
-      },
-      context,
-    )
+    const from =
+      by === undefined ? [] : [{ type: "text" as const, text: sentMeta(formatTime(now, null), by) }]
+    // On the bus the answer is an event, which waits for what the agent is doing to finish.
+    const turn = (await busOn(harness, request.chatId, context))
+      ? await conversation.submit(
+          {
+            type: "input",
+            requestId: `approval:${id}`,
+            content: [
+              {
+                type: "text",
+                text: eventText(
+                  "approval-answered",
+                  { decision: decision === "deny" ? "denied" : "approved", by: by?.name },
+                  what,
+                ),
+              },
+              { type: "text", text: note },
+              ...from,
+            ],
+            entry: {
+              kind: APPROVAL_ENTRY,
+              data: {
+                title: what,
+                approved: decision !== "deny",
+                ...(by === undefined ? {} : { by: by.name }),
+              },
+            },
+            whenBusy: "followUp",
+          },
+          context,
+        )
+      : await conversation.submit(
+          {
+            type: "input",
+            requestId: `approval:${id}`,
+            content: [
+              {
+                type: "text",
+                text: `${decision === "deny" ? "Not allowed" : "Approved"}: ${what}`,
+              },
+              { type: "text", text: note },
+              ...from,
+            ],
+            whenBusy: "steer",
+          },
+          context,
+        )
     return { chatId: request.chatId, turn }
   }
 }

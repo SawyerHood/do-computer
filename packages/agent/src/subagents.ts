@@ -10,6 +10,7 @@ import {
   type Harness,
   section,
 } from "@earendil-works/pi-durable"
+import { busOn, eventText } from "./bus.ts"
 import { ChatsDoc, IdentityDoc, type SubagentRecord } from "./docs.ts"
 import { parseModel } from "./models.ts"
 import { own } from "./own.ts"
@@ -414,36 +415,73 @@ export class Subagents {
     const parent = await harness.conversation(Number(parentId) as ConversationId, context)
     if (parent === undefined) return
     const key = `${id}:${subagent.reports + 1}`
-    const told =
-      outcome === "reported"
-        ? `[Your sub-agent "${title}" (id ${id}) has reported back. This is its report.]\n\n${text}`
-        : outcome === "failed"
-          ? `[Your sub-agent "${title}" (id ${id}) failed before it could report: ${text}]`
-          : `[The user stopped your sub-agent "${title}" (id ${id}) before it had finished.]`
-    await parent.submit(
-      {
-        type: "write",
-        requestId: `subagent-report:${key}`,
-        entry: {
-          kind: SUBAGENT_ENTRY,
-          model: [{ role: "user", content: told, timestamp: now }],
-          data: { chatId: id, title, outcome, text },
-        },
-      },
-      context,
-    )
-    const turn =
-      outcome === "stopped"
-        ? undefined
-        : await parent.submit(
-            {
-              type: "input",
-              requestId: `subagent-turn:${key}`,
-              content: [{ type: "text", text: NUDGE }],
-              whenBusy: "followUp",
+    const data = { chatId: id, title, outcome, text }
+    let turn: SubagentReport["turn"]
+    if (await busOn(harness, parentId, context)) {
+      // On the bus it is an event, which waits for the agent to finish what it is doing, and is
+      // taken up with whatever else came meanwhile. The user stopping it needs nothing doing.
+      const event = eventText(
+        "subagent-report",
+        { id, title, ...(outcome === "reported" ? {} : { outcome }) },
+        outcome === "stopped" ? "The user stopped it before it had finished." : text,
+      )
+      if (outcome === "stopped") {
+        await parent.submit(
+          {
+            type: "write",
+            requestId: `subagent:${key}`,
+            entry: {
+              kind: SUBAGENT_ENTRY,
+              model: [{ role: "user", content: event, timestamp: now }],
+              data,
             },
-            context,
-          )
+          },
+          context,
+        )
+      } else {
+        turn = await parent.submit(
+          {
+            type: "input",
+            requestId: `subagent:${key}`,
+            content: [{ type: "text", text: event }],
+            entry: { kind: SUBAGENT_ENTRY, data },
+            whenBusy: "followUp",
+          },
+          context,
+        )
+      }
+    } else {
+      const told =
+        outcome === "reported"
+          ? `[Your sub-agent "${title}" (id ${id}) has reported back. This is its report.]\n\n${text}`
+          : outcome === "failed"
+            ? `[Your sub-agent "${title}" (id ${id}) failed before it could report: ${text}]`
+            : `[The user stopped your sub-agent "${title}" (id ${id}) before it had finished.]`
+      await parent.submit(
+        {
+          type: "write",
+          requestId: `subagent-report:${key}`,
+          entry: {
+            kind: SUBAGENT_ENTRY,
+            model: [{ role: "user", content: told, timestamp: now }],
+            data,
+          },
+        },
+        context,
+      )
+      turn =
+        outcome === "stopped"
+          ? undefined
+          : await parent.submit(
+              {
+                type: "input",
+                requestId: `subagent-turn:${key}`,
+                content: [{ type: "text", text: NUDGE }],
+                whenBusy: "followUp",
+              },
+              context,
+            )
+    }
     await harness.commit(async (tx) => {
       const chat = own((await tx.doc(ChatsDoc)).chats, parentId)
       if (chat !== undefined) chat.updatedAt = now
