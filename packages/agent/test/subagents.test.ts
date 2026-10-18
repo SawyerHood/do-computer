@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 import { quietOnReminder, sent } from "./quiet.ts"
 import { entriesOf, inStore } from "./seed.ts"
+import { newest } from "./newest.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -152,11 +153,7 @@ function script(
       const turn: Turn = {
         seen: JSON.stringify(context.messages),
         // What it was last told, past what changed of its prompt since.
-        last: JSON.stringify(
-          (context.messages as { role?: string }[]).findLast(
-            (message) => message.role !== "system",
-          ),
-        ),
+        last: JSON.stringify(newest(context.messages)),
         sub: JSON.stringify(context.messages).includes("You are working as a sub-agent"),
       }
       seen.push(turn)

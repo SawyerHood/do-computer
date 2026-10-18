@@ -6,14 +6,14 @@ import {
   type FauxResponseStep,
 } from "@earendil-works/pi-ai/providers/faux"
 import { UNSENT } from "../src/bus.ts"
+import { newest } from "./newest.ts"
 
 /**
  * Whether a request needs nothing from the script: the one reminder a run gets when it sent a
  * person nothing, or the result of a `send`, after which a model has nothing more to say.
  */
 function reminded(context: ModelContext): boolean {
-  // What changed of the prompt since is not something said.
-  const last = context.messages.findLast((message) => message.role !== "system")
+  const last = newest(context.messages)
   if (last?.role === "toolResult") {
     // The round that sent something, once all of its results are in.
     const round = context.messages.findLast((message) => message.role === "assistant")
@@ -33,7 +33,7 @@ function reminded(context: ModelContext): boolean {
 
 /** The words of the newest thing a request was told, past what changed of its prompt. */
 function told(context: ModelContext): string | undefined {
-  const last = context.messages.findLast((message) => message.role !== "system")
+  const last = newest(context.messages)
   if (last?.role !== "user") return undefined
   return typeof last.content === "string"
     ? last.content

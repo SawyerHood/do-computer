@@ -22,6 +22,7 @@ import {
 import { afterAll, describe, expect, it } from "vitest"
 import { computerActorName, createAgentActor, type NearbyComputer } from "../src/index.ts"
 import { quietOnReminder } from "./quiet.ts"
+import { newest } from "./newest.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-paired-"))
 const links = new NodeActorNamespace({
@@ -182,14 +183,6 @@ function noisyPng(width: number, height: number): Uint8Array {
     chunk("IEND", new Uint8Array()),
   ])
 }
-
-/**
- * The newest message of a request that is not the prompt. A change to the prompt (what the
- * agent is told about its computers, say) is sent as a system message after what came before
- * it, so the very last message may be that and not the input that set the request going.
- */
-const newest = (messages: readonly unknown[]) =>
-  messages.findLast((message) => (message as { role?: string }).role !== "system")
 
 const lastTool = (state: ChatState) =>
   state.messages.flatMap((m) => m.parts).findLast((part): part is ToolPart => part.type === "tool")!

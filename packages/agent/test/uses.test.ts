@@ -23,6 +23,7 @@ import { afterAll, describe, expect, it } from "vitest"
 import { computerActorName, createAgentActor } from "../src/index.ts"
 import { dropOldPictures, screenAction } from "../src/uses.ts"
 import { quietOnReminder } from "./quiet.ts"
+import { newest } from "./newest.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-uses-"))
 const links = new NodeActorNamespace({
@@ -319,7 +320,7 @@ describe("a window on somebody's own computer", () => {
         stopReason: "toolUse",
       }),
       (context) => {
-        shown = JSON.stringify(context.messages.at(-1))
+        shown = JSON.stringify(newest(context.messages))
         return fauxAssistantMessage("done")
       },
     ])
@@ -474,8 +475,8 @@ describe("a browser on somebody's own computer", () => {
         { stopReason: "toolUse" },
       ),
       (context) => {
-        // What the browser gave back, which is the last thing the model is shown.
-        second = JSON.stringify(context.messages.at(-1))
+        // What the browser gave back, which is the newest thing the model is shown.
+        second = JSON.stringify(newest(context.messages))
         return fauxAssistantMessage("done")
       },
     ])

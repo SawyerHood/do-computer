@@ -31,6 +31,7 @@ import {
 import { fakeMcp } from "./fake-mcp.ts"
 import { quietOnReminder, sent as sending } from "./quiet.ts"
 import { chatRecord, inStore, seedChat, wakeSoon } from "./seed.ts"
+import { newest } from "./newest.ts"
 
 const AGENT = "agent-1"
 
@@ -247,14 +248,6 @@ async function until<T>(
     await new Promise((resolve) => setTimeout(resolve, 40))
   }
 }
-
-/**
- * The newest message of a request that is not the prompt. A change to the prompt (what the
- * agent is told about its computers, say) is sent as a system message after what came before
- * it, so the very last message may be that and not the input that set the request going.
- */
-const newest = (messages: readonly unknown[]) =>
-  messages.findLast((message) => (message as { role?: string }).role !== "system")
 
 const threads = async (world: World) =>
   (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) => chat.kind === "slack")

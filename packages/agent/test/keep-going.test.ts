@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 import { mightBeMidway } from "../src/keep-going.ts"
 import { quietOnReminder } from "./quiet.ts"
+import { newest } from "./newest.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -160,7 +161,7 @@ describe("an agent that stops on a progress update", () => {
       // A word on the way with no tool call: its turn ends here, though it means to go on.
       fauxAssistantMessage("a.txt is done, making b.txt next."),
       (context) => {
-        nudged = JSON.stringify(context.messages.at(-1))
+        nudged = JSON.stringify(newest(context.messages))
         return step("echo b > b.txt")
       },
       fauxAssistantMessage("Both files are made."),
@@ -254,7 +255,7 @@ describe("an agent that says how the work is going with the progress tool", () =
         { stopReason: "toolUse" },
       ),
       (context) => {
-        told = JSON.stringify(context.messages.at(-1))
+        told = JSON.stringify(newest(context.messages))
         // A word and a step in one reply.
         return fauxAssistantMessage(
           [

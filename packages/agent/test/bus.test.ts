@@ -27,6 +27,7 @@ import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { busExtension, eventText, FROM_SLACK, UNSENT, unsent } from "../src/bus.ts"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 import { projectChat } from "../src/project.ts"
+import { newest } from "./newest.ts"
 
 // --- What is drawn, from entries made up here.
 
@@ -828,14 +829,6 @@ async function until<T>(
     await new Promise((resolve) => setTimeout(resolve, 40))
   }
 }
-
-/**
- * The newest message of a request that is not the prompt. A change to the prompt (what the
- * agent is told about its computers, say) is sent as a system message after what came before
- * it, so the very last message may be that and not the input that set the request going.
- */
-const newest = (messages: readonly unknown[]) =>
-  messages.findLast((message) => (message as { role?: string }).role !== "system")
 
 /** An agent with a main chat, which is a bus. */
 async function setup(world: World): Promise<ChatSummary> {

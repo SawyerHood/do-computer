@@ -23,6 +23,7 @@ import {
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 import { quietOnReminder, sent } from "./quiet.ts"
+import { newest } from "./newest.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -145,11 +146,7 @@ function script(world: World, answer: (turn: Turn) => AssistantMessage) {
       const turn: Turn = {
         seen: JSON.stringify(context.messages),
         // What it was last told, past what changed of its prompt since.
-        last: JSON.stringify(
-          (context.messages as { role?: string }[]).findLast(
-            (message) => message.role !== "system",
-          ),
-        ),
+        last: JSON.stringify(newest(context.messages)),
       }
       seen.push(turn)
       return answer(turn)
