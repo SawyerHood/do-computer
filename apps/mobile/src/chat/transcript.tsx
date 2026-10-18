@@ -227,6 +227,7 @@ function Notice({ part }: { part: NoticePart | undefined }) {
         <Text variant="subhead" tone="ink2">
           {part.by ?? "Someone"} {part.approved ? "said yes to" : "said no to"} using{" "}
           <Code>{part.text}</Code>
+          {part.detail ? `, ${part.detail}` : null}
         </Text>
       </NoticeLine>
     )
@@ -249,6 +250,38 @@ function Notice({ part }: { part: NoticePart | undefined }) {
             </>
           )}
         </Text>
+      </NoticeLine>
+    )
+  }
+  if (part?.kind === "automation" || part?.kind === "asked" || part?.kind === "slack") {
+    // Events the main chat was told of, where it is a message bus.
+    const name = (
+      <Text variant="subhead" weight="600">
+        {part.text}
+      </Text>
+    )
+    return (
+      <NoticeLine
+        icon={part.kind === "automation" ? "clock" : part.kind === "asked" ? "key" : "hash"}
+      >
+        <Text variant="subhead" tone="ink2">
+          {part.kind === "automation" ? (
+            <>
+              The automation {name} {part.outcome === "failed" ? "did not finish" : "reported"}
+            </>
+          ) : part.kind === "asked" ? (
+            <>
+              The sub-agent {name} asked for {part.detail ?? "something"}
+            </>
+          ) : (
+            <>A thread in Slack, {name}, told it something</>
+          )}
+        </Text>
+        {part.kind === "asked" || part.detail === undefined ? null : (
+          <Fold label={part.outcome === "failed" ? "What went wrong" : "What it said"}>
+            <Markdown text={part.detail} image={drawNamed} diagram={drawDiagram} />
+          </Fold>
+        )}
       </NoticeLine>
     )
   }

@@ -117,6 +117,11 @@ export type SubagentRecord = {
   reports: number
   /** Who asked for it to be stopped, until it has been. */
   stopping?: "user" | "agent"
+  /**
+   * When it began waiting for a person's answer to what it asked for, while it waits. Nobody
+   * answering within a day takes the request back, and it carries on without.
+   */
+  waitingSince?: number
 }
 
 /** What is kept about a conversation with another agent, on its chat. */
@@ -174,6 +179,22 @@ export type SlackRecord = {
   told?: string[]
   /** The files it sent that have been posted to the thread, by the calls that sent them. */
   files?: string[]
+  /**
+   * With the bus on: the calls to `send` whose words have been posted to the thread, so that a
+   * call made again posts nothing twice.
+   */
+  sent?: string[]
+  /**
+   * With the bus on: the files of those sends that have been posted, as `<call id>:file<n>`.
+   * Kept apart from `files`, so that many of them cannot push out what says a page it drew was
+   * posted.
+   */
+  sentFiles?: string[]
+  /**
+   * With the bus on: the last time it told the main chat something with `tell_main`, as the
+   * message from Slack it was working on (`woken`) and the call that told it. Once for each.
+   */
+  toldMain?: { woken: number; callId: string }
   /** Set when someone asked for it to be stopped, until it has been. */
   stopping?: true
   /** How many times in a row an answer could not be posted. */
@@ -261,17 +282,27 @@ export type ScheduleRecord = {
   enabled: boolean
   nextRunAt: number | null
   createdAt: number
-  /** The chat the schedule was created in, where its reports are delivered. */
+  /**
+   * The chat the schedule was created in, where its reports are delivered. Not where the agent
+   * has the bus on: a run's result then goes to the main chat, as an event.
+   */
   originChatId: string | null
   /**
    * A run that has fired and not been reported yet. It has no chat until its check, where the
    * schedule has one, has said the agent is to be started; `context` is what the check found.
+   * `bus` is set on a run started while the agent had the bus on: it was told its result goes
+   * to the main chat, and it does.
    */
-  pending: { chatId: string | null; firedAt: number; context?: string } | null
+  pending: { chatId: string | null; firedAt: number; context?: string; bus?: true } | null
   lastRun: {
     at: number
     chatId: string | null
-    outcome: "delivered" | "silent" | "failed" | "skipped" | "check-failed"
+    /**
+     * "reported": its result went to the main chat, as an event, which decides whether to tell
+     * anyone. "delivered" and "silent" are for an agent without the bus: whether its report was
+     * delivered where the schedule was made.
+     */
+    outcome: "reported" | "delivered" | "silent" | "failed" | "skipped" | "check-failed"
   } | null
   runCount: number
   /** A command that says, with no model run, whether a run has anything to do. */

@@ -22,7 +22,8 @@ import {
   createReadTool,
   createWriteTool,
 } from "@earendil-works/pi-durable/tools"
-import { ChatsDoc, IdentityDoc } from "./docs.ts"
+import { ASKED_THROUGH_MAIN, askingThrough, canAsk, eventText } from "./bus.ts"
+import { ChatsDoc, IdentityDoc, type SubagentRecord } from "./docs.ts"
 import { isInherited, own } from "./own.ts"
 import { readPreparedImage } from "./read-images.ts"
 
@@ -83,8 +84,11 @@ export const MIRROR_FILES = ["SOUL.md", "IDENTITY.md", "USER.md", "MEMORY.md"] a
 
 type ComputersState = {
   computers: Record<string, AgentComputer>
-  /** Computers the agent asked to use and has not been answered about, by computer id. */
-  asked?: Record<string, { name: string; at: number }>
+  /**
+   * Computers the agent asked to use and has not been answered about, by computer id, with the
+   * chat that asked where that is known.
+   */
+  asked?: Record<string, { name: string; at: number; chatId?: string }>
 }
 
 /** A computer the agent could be connected to, as the directory describes it. */
@@ -131,6 +135,11 @@ export type ComputerDirectory = {
     agentId: string,
     ask: { computerId: string; chatId: string; reason: string; agentName: string | null },
   ): Promise<{ asked: string; fresh: boolean } | undefined>
+  /**
+   * Take back what a chat of the agent asked for a computer, which nobody is to answer now: the
+   * chat was stopped, or waited too long. Absent: a request stays until someone answers it.
+   */
+  withdraw?(agentId: string, ask: { computerId: string; chatId: string }): Promise<void>
   /**
    * The machines of the agent's workspace that it can use right now. This is how an agent
    * catches up when it was not told of one. Absent where the host has no such machines.
@@ -265,6 +274,11 @@ export type ComputersOptions = {
   readonly onProblem?: (error: unknown) => void
   /** The address of the app, where it is known: what a person is sent to. */
   readonly appUrl?: () => string | undefined
+  /**
+   * Called when a chat has asked to use a computer, the first time it asks: a sub-agent that
+   * asks through the main chat has the main chat told of it.
+   */
+  readonly onAsked?: (asked: { chatId: string; computer: string; requestKey: string }) => void
 }
 
 const fail = (text: string): ToolExecutionResult => ({
@@ -715,6 +729,11 @@ export class Computers {
     )
     if (chat === undefined || conversation === undefined) return undefined
     const by = answer.by.replace(/\s+/g, " ").trim().slice(0, 80) || "Someone"
+    // A sub-agent that has stopped, or gave up waiting, is not set going again by a late answer:
+    // that would be a run with tools nobody started and nobody reads. It is written in its chat
+    // for the record, and its main chat is told instead, which decides.
+    const sub = chat.subagent
+    const over = sub !== undefined && sub.status !== "working" && sub.status !== "waiting"
     await conversation.submit(
       {
         type: "write",
@@ -735,6 +754,10 @@ export class Computers {
       },
       context,
     )
+    if (over) {
+      await this.#lateAnswer(sub, chat.title, answer, name, by, id, context)
+      return undefined
+    }
     return conversation.submit(
       {
         type: "input",
@@ -746,25 +769,109 @@ export class Computers {
     )
   }
 
-  /** Keep what the agent believes it has asked for in step with what the directory says. */
+  /**
+   * Tell the main chat that a computer its sub-agent asked for was answered after the sub-agent
+   * had stopped, as an event keyed by the answer. Nobody else is told.
+   */
+  async #lateAnswer(
+    sub: SubagentRecord,
+    title: string,
+    answer: ComputerAnswer,
+    name: string,
+    by: string,
+    computerId: string,
+    context: Context,
+  ): Promise<void> {
+    const harness = this.#require()
+    const parent = await harness.conversation(Number(sub.parentId) as ConversationId, context)
+    if (parent === undefined) return
+    await parent.submit(
+      {
+        type: "input",
+        requestId: `computer-late:${answer.requestId}`,
+        content: [
+          {
+            type: "text",
+            text: eventText(
+              "computer-answered",
+              { subagent: title, computer: name, approved: answer.approved, by },
+              `${by} ${answer.approved ? "said yes" : "said no"} to the use of the computer "${name}", which your sub-agent "${title}" asked for. It has stopped, and was not told. ${answer.approved ? `You can use "${name}" yourself now; ` : ""}Decide whether anything needs doing.`,
+            ),
+          },
+        ],
+        entry: {
+          kind: COMPUTER_ENTRY,
+          data: { computerId, name, approved: answer.approved, by, late: title },
+        },
+        whenBusy: "followUp",
+      },
+      context,
+    )
+  }
+
+  /**
+   * Keep what the agent believes it has asked for in step with what the directory says. `by`
+   * names the chat that has just asked for one of them, which waits for the answer.
+   */
   async #noteAsked(
     asked: readonly { id: string; name: string }[],
     context: Context,
+    by?: { id: string; chatId: string },
   ): Promise<void> {
     const harness = this.#require()
     const known = (await harness.snapshot(ComputersDoc, context))?.asked ?? {}
     const same =
       Object.keys(known).length === asked.length &&
-      asked.every(({ id }) => own(known, id) !== undefined)
+      asked.every(({ id }) => own(known, id) !== undefined) &&
+      (by === undefined || own(known, by.id)?.chatId === by.chatId)
     if (same) return
     await harness.commit(async (tx) => {
       const state = await tx.doc(ComputersDoc)
       const before = state.asked ?? {}
       state.asked = {}
       for (const { id, name } of asked) {
-        if (!isInherited(id)) state.asked[id] = own(before, id) ?? { name, at: Date.now() }
+        if (isInherited(id)) continue
+        const kept = own(before, id) ?? { name, at: Date.now() }
+        state.asked[id] = by?.id === id ? { ...kept, chatId: by.chatId } : kept
       }
     }, context)
+  }
+
+  /**
+   * Forget that a chat waits for an answer about a computer, when its work was stopped or nobody
+   * answered in time. The people asked may still answer; their answer then reaches the chat.
+   */
+  async withdrawFor(chatId: string, context: Context): Promise<void> {
+    const harness = this.#require()
+    const asked = (await harness.snapshot(ComputersDoc, context))?.asked ?? {}
+    const mine = Object.entries(asked).filter(([, computer]) => computer.chatId === chatId)
+    if (mine.length === 0) return
+    // Taken back where it was asked, so that nobody is shown it to answer any more.
+    const withdraw = this.#directory?.lookup.withdraw
+    const gone = new Set<string>()
+    for (const [computerId] of mine) {
+      if (withdraw === undefined) continue
+      try {
+        await withdraw(this.#directory!.agentId, { computerId, chatId })
+        gone.add(computerId)
+      } catch (error) {
+        this.#options.onProblem?.(error)
+      }
+    }
+    await harness.commit(async (tx) => {
+      const state = await tx.doc(ComputersDoc)
+      for (const [computerId, computer] of Object.entries(state.asked ?? {})) {
+        if (computer.chatId !== chatId) continue
+        if (gone.has(computerId)) delete state.asked![computerId]
+        else delete computer.chatId
+      }
+    }, context)
+  }
+
+  /** Whether a chat asked to use a computer and has not been answered. */
+  async waitingIn(chatId: string, context: Context): Promise<boolean> {
+    const asked = (await this.#require().snapshot(ComputersDoc, context))?.asked ?? {}
+    return Object.values(asked).some((computer) => computer.chatId === chatId)
   }
 
   #tool() {
@@ -944,11 +1051,14 @@ export class Computers {
             `You can already use "${computer.name}": pass that name as \`computer\` to read, write, edit or bash.`,
           )
         }
-        if (chat?.kind !== "chat") {
+        const chats = (await api.snapshot(ChatsDoc, context))?.chats
+        // A sub-agent asks through a main chat with the bus on, and the answer comes back to it.
+        if (!canAsk(chats, chatId)) {
           return fail(
             "Only a conversation with the user can ask for a computer: the answer has to have somewhere to arrive.",
           )
         }
+        const through = askingThrough(chats, chatId) !== undefined
         const identity = await api.snapshot(IdentityDoc, context)
         const asked = await lookup.request(agentId, {
           computerId: computer.id,
@@ -957,13 +1067,25 @@ export class Computers {
           agentName: identity?.name ?? null,
         })
         if (asked === undefined) return fail(`There is no computer named "${args.name}" any more.`)
+        // Only the chat that asked first waits for the answer, which goes to it.
         await this.#noteAsked(
           [...named.filter((other) => other.asked && !other.connected), computer],
           context,
+          asked.fresh ? { id: computer.id, chatId } : undefined,
         )
+        if (asked.fresh) {
+          // Keyed by the call, which is the same call if it is made again.
+          this.#options.onAsked?.({
+            chatId,
+            computer: computer.name,
+            requestKey: `${computer.id}:${api.callId}`,
+          })
+        }
         return reply(
           asked.fresh
-            ? `Asked ${asked.asked} whether you may use "${computer.name}". Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell the user that you asked, and who.`
+            ? through
+              ? `Asked ${asked.asked} whether you may use "${computer.name}". ${ASKED_THROUGH_MAIN}`
+              : `Asked ${asked.asked} whether you may use "${computer.name}". Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell the user that you asked, and who.`
             : `You have already asked to use "${computer.name}", and ${asked.asked} has not answered yet. Do not ask again: the answer will reach you as a message.`,
         )
       },

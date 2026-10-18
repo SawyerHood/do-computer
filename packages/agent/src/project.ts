@@ -32,11 +32,14 @@ import type {
 import type { Carried } from "./branch.ts"
 import {
   APPROVAL_ENTRY,
+  ASKED_ENTRY,
+  AUTOMATION_ENTRY,
   BUS_ENTRY,
-  BUS_EXTENSION,
+  BUS_EXTENSIONS,
   type BusMark,
   EVENT_ENTRIES,
   SEND_TOOL,
+  SLACK_NOTE_ENTRY,
 } from "./bus.ts"
 import { CALL_ENTRY, type CallEntry, callOf } from "./calls.ts"
 import { CUT_OFF_ENTRY, type CutOffEntry } from "./limits.ts"
@@ -437,7 +440,8 @@ function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined 
     }
     case "dc.computer-access": {
       // The answer to the agent's asking to use a computer, in the chat it asked from.
-      const answer = entry.data as { name?: string; approved?: boolean; by?: string } | undefined
+      const answer = entry.data as
+        { name?: string; approved?: boolean; by?: string; late?: string } | undefined
       return {
         id,
         role: "notice",
@@ -448,6 +452,10 @@ function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined 
             text: answer?.name ?? "a computer",
             approved: answer?.approved === true,
             ...(answer?.by ? { by: answer.by } : {}),
+            // Told to the main chat, where the sub-agent that asked had stopped.
+            ...(answer?.late
+              ? { detail: `asked for by the sub-agent ${answer.late}, which had stopped` }
+              : {}),
           },
         ],
         status: "done",
@@ -501,6 +509,72 @@ function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined 
             text: answer?.title ?? "",
             approved: answer?.approved === true,
             ...(answer?.by ? { by: answer.by } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case AUTOMATION_ENTRY: {
+      // What a run of an automation came to, told to the main chat as an event.
+      const word = entry.data as
+        | {
+            title?: string
+            runChatId?: string
+            outcome?: "reported" | "failed"
+            text?: string
+          }
+        | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "automation",
+            text: word?.title ?? "An automation",
+            ...(word?.runChatId === undefined ? {} : { chatId: word.runChatId }),
+            outcome: word?.outcome ?? "reported",
+            ...(word?.text ? { detail: word.text } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case ASKED_ENTRY: {
+      // A sub-agent asking a person for something through the main chat.
+      const word = entry.data as { chatId?: string; title?: string; what?: string } | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "asked",
+            text: word?.title ?? "A sub-agent",
+            ...(word?.chatId === undefined ? {} : { chatId: word.chatId }),
+            ...(word?.what ? { detail: word.what } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
+    case SLACK_NOTE_ENTRY: {
+      // Something a thread in Slack told the main chat.
+      const word = entry.data as
+        { chatId?: string; where?: string; title?: string; text?: string } | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "slack",
+            text: word?.where ?? "Slack",
+            ...(word?.chatId === undefined ? {} : { chatId: word.chatId }),
+            ...(word?.text ? { detail: word.text } : {}),
           },
         ],
         status: "done",
@@ -580,7 +654,7 @@ function busBefore(entries: readonly EntryRecord[], agent: unknown): boolean {
   const named = Array.isArray(extensions)
     ? extensions
     : ((extensions as { add?: unknown } | undefined)?.add ?? [])
-  return Array.isArray(named) && named.includes(BUS_EXTENSION)
+  return Array.isArray(named) && named.some((name) => BUS_EXTENSIONS.has(String(name)))
 }
 
 /** A call to `send`, as the message it says, with the files it sent as sent files are shown. */
@@ -792,6 +866,8 @@ export function entryText(
         at: first?.role === "user" ? first.timestamp : undefined,
       }
     }
+    case AUTOMATION_ENTRY:
+    case SLACK_NOTE_ENTRY:
     case "dc.subagent": {
       const word = entry.data as { title?: string; text?: string } | undefined
       return {

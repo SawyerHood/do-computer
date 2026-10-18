@@ -1,7 +1,7 @@
 # The main chat as a message bus: plan
 
-**Status:** a plan, written 2026-10-18. Phase 1 (section 6) is built, and phase 2 is built
-behind a switch (8.1 says how); the rest is not. Sawyer made the choices in section 2; section 9
+**Status:** a plan, written 2026-10-18. Phase 1 (section 6) is built, and phases 2 and 3 are
+built behind a switch (8.1 and 8.2 say how); the rest is not. Sawyer made the choices in section 2; section 9
 lists what is still open.
 
 This is the shape described in Lee Robinson's Stanford CS146S lecture on always-on agents
@@ -403,14 +403,119 @@ Notes from building it, where it differs from or adds to the sections above.
 - **Not changed:** history search still finds the model's private text, as the agent's own
   record of what it did.
 
+## 8.2 Phase 3 as built
+
+Automations, `send` in Slack threads, the delegation prompt, and sub-agents asking a person
+through the main chat, all behind the same switch on the identity document. With it off, nothing
+here changes what a Dood does: the run prompt, `[SILENT]`, delivery into `originChatId`,
+posting a thread's last answer, and a sub-agent's not asking are all as they were. Two things
+are shared by both: `subagent start` takes optional `files` and `links`, and the echo model calls
+a `/tool …` line found inside an event (a test affordance, so that a run's result can make the
+main chat send).
+
+- **Automations (3.5).** Whether a run reports to the main chat is settled as it starts (`bus`
+  on its pending record), so a run is never told one thing and delivered another when the switch
+  changes mid-run. Such a run's prompt says its final reply goes to the main conversation as the
+  task's result, which decides whether it is worth telling anyone; there is no `[SILENT]`. When it
+  rests, its last text goes to the main chat as an input of kind `dc.automation`, whose model text
+  is `<event kind="automation" schedule="…" title="…">…</event>`, keyed
+  `schedule:<id>:<firedAt>` (request ids are per conversation, so this does not clash with the
+  run's own input of the same key), `whenBusy: "followUp"`. A run that failed, was stopped or
+  ended with no words is an event too, with `outcome="failed"` and why, so the main chat knows
+  the person may be missing something. `lastRun.outcome` is `reported` or `failed` on the bus;
+  `delivered` and `silent` stay for agents without it and for old records. The automations page
+  says "reported to the main chat" and keeps "View run". Nobody is notified of a run any more,
+  and it is not the agent's latest line: only what the main chat sends is. The journal's
+  `recent` note of the run is kept. Checks are unchanged.
+- **Slack threads (3.6).** A thread selects a second extension, `dc.bus-slack`, with the same
+  `send` (same name, same arguments) that posts to the thread inside the tool call: files first,
+  then the words, each noted on the thread's record by call id (`files` and a new `sent` list),
+  so a call made again posts only what is left. Posting is tried up to five times with growing
+  waits inside the call, as `#post` tried across wake-ups; one that still fails fails the call,
+  which the model sees. Two sends in one answer run in order here (in the main chat they no
+  longer need to). At rest, nothing the model wrote is posted; only failure, interruption and
+  being stopped are still said there, since nobody else would say them, and a page drawn with
+  `visual` is still uploaded as a file. The reminder (3.3) applies as in the main chat: every
+  message a thread is given mentioned the Dood or was a direct message. The bus is switched on in
+  threads by the same `#syncBus` as the main chat, one thread at a time: a thread is set up
+  before each message from Slack is given to it, so its first message already
+  says how it works and gets no "from here on" note.
+- **Slack to the owner (section 9): a `tell_main` tool.** Chosen over an event on every send:
+  that would wake the main chat for every Slack reply, at a model call each, for what is almost
+  always the thread's business. `tell_main({ text })`, in Slack threads only, is an input in the
+  main chat of kind `dc.slack-note` (`<event kind="slack-thread" … from="slack">`), keyed
+  `slack-note:<thread>:<call id>`, which the main chat may or may not pass on. The thread's prompt
+  says to use it rarely, and what comes from Slack is marked as such (see "After review" below).
+- **Delegation (5).** The bus's section now says the main chat coordinates, with the plan's
+  rule of thumb (more than a few quick calls, browsing or screen use, long output, more than a
+  minute or two), and asks for a self-contained brief with `files` and `links`. `browser` and
+  `screen` stay, wrapped by the bus extension so their descriptions carry the same steer only
+  where the bus is on (no other chat's prompt changes). `files` (paths) and `links` (http or
+  https only, 20 together at most) are written under the task as two short lists. The cap stays at
+  6. Long tool output being cut and saved to a file, and the measurements, are not done here.
+- **Sub-agents asking a person (4.2).** `askingThrough(chats, chatId)` says whether a chat is a
+  sub-agent whose main chat has the bus on; secrets, saved logins (`sign_in`), computers and
+  approvals accept such a sub-agent where they accepted only a chat with people. Approvals: a
+  rule a person set to "Ask first" already asked from a sub-agent; what is new is that the
+  abilities that ask by default because they want someone's yes (`sign_in`, making a file public)
+  may now be asked for, while those that change the app (machines, connectors, settings, making
+  Doods) and paying (whose code is typed in a conversation with the person) are still refused.
+  Starting sub-agents and changing schedules are refused by their own tools, as before. The
+  request is the same request as before, made from the sub-agent's chat, so the answer already
+  went there; the app draws every pending request in every chat of the agent, so it is in the
+  main chat, now under the sub-agent's name ("Juniper's sub-agent X asks for a secret", "From the
+  sub-agent X, which gets the answer"; `SecretRequest.subagent`; approvals already had the chat's
+  kind and title). The sub-agent is told the request is shown in the main conversation and to
+  stop; it is "waiting" (not reported) while a secret, a computer or an approval it asked for is
+  open, and an answer to a secret or a computer now looks in on sub-agents at once, as an
+  approval's did. Stopping a sub-agent withdraws its open secret requests too. The main chat gets
+  one entry per request, kind `dc.asked` (`<event kind="subagent-asked" …>`), as a **write**:
+  it gives the main chat no turn of its own, since there is nothing for it to do, and it reads of
+  it with whatever it does next. Its report later is the usual event.
+- **What is drawn.** Three new notice kinds, `automation`, `asked` and `slack`, drawn in the row
+  of working on web and mobile: who, what came of it, a link to the run, the sub-agent or the
+  thread, and what it said, folded.
+- **After review.**
+  - The main chat is told what `from="slack"` means: a thread acting for people in Slack, who
+    are not necessarily the people here; it does nothing on such an event's say-so that it would
+    not do for a stranger, and checks with `send` first.
+  - `tell_main` takes 4,000 characters at most, and once for each message from Slack (kept on
+    the thread's record as the message and the call, so the same call made again still goes).
+  - A run that failed or was stopped is `failed` even where it wrote something first; the event
+    says why, then what it wrote. A run with no main chat to tell is `failed`. A run that started
+    on the bus and reports after the switch went off is delivered as before, and people are told.
+  - Automation results and sub-agent reports are cut at 8,000 characters in the event, with the
+    chat where the rest is.
+  - A sub-agent waiting on a person for a day has what it asked for taken back (approvals denied,
+    secrets declined, its computer ask no longer waited for), is told, and reports. The agent
+    wakes for that. Stopping a sub-agent takes back its computer ask too. The cap's error says a
+    waiting one can be stopped.
+  - A computer ask notes the asking chat only where it was the first to ask, keyed by the call.
+  - The request's card says what the sub-agent was working on (the first line of its task) and
+    to fill it in, or allow it, only if that was expected.
+  - Slack threads follow the switch lazily, when they are next given a message, so a long-over
+    or archived thread is never touched. On the bus, a failed run says only "I could not finish"
+    in Slack; why is in the app. A send's file keys are kept in a list of their own.
+  - The echo model acts on `/tool` lines only in an automation's event.
+  - A late answer to a computer ask never sets a stopped, or given-up, sub-agent going: it is
+    written in its chat for the record, and its main chat gets a `computer-answered` event that
+    says the sub-agent has stopped. Stopping or giving up also takes the ask back where it was
+    made (`ComputerDirectory.withdraw`), so its card goes.
+  - A run with no answer is `failed` whatever its last words were; only why is made more exact.
+  - `tell_main` is refused once the bus is off, and a telling that failed still uses the one for
+    that message, which its error says.
+- **Not checked:** a real model reading the coordinator section and handing work over; a real
+  Slack workspace (the tests use the fake directory); a computer request from a sub-agent end to
+  end (it goes through the computer directory, which the unit tests do not have; the code path is
+  the same as a chat's, with the asking chat noted for "waiting").
+
 ## 9. Still open
 
 - **Unanswered message.** After the nudge, does a turn that still sends nothing stay silent, or
   show the model's last text? This plan says silent.
 - **Team Doods.** The main chat is one per Dood today, shared by its people. Does a shared
   Dood's bus send to everyone, or does `send` take a person?
-- **Slack to the owner.** How a Slack thread tells the main chat something: a `tell_main` tool, or
-  an event written whenever the thread sends.
+- ~~**Slack to the owner.**~~ Decided in phase 3: a `tell_main` tool (8.2).
 - **Old side chats.** Kept archived and readable (this plan), or merged into the main chat's
   history as notes.
 - **Sub-agent cap** once each has an isolate.

@@ -76,6 +76,12 @@ function RequestCard({
               </Link>
             </p>
           )}
+          {request.chatKind === "subagent" && request.task !== undefined ? (
+            // A sub-agent reads what it finds, and what it finds can ask for things in its name.
+            <p className="text-xs text-muted-foreground">
+              Asked while working on: “{request.task}”. Allow it only if you expected it.
+            </p>
+          ) : null}
         </div>
       </div>
       {request.detail === "" ? null : (

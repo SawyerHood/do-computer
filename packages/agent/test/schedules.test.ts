@@ -14,6 +14,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
   fauxProvider,
+  fauxText,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
@@ -658,5 +659,385 @@ describe("message time", () => {
     expect(seen).toContain("(Asia/Tokyo)")
     expect(state.messages[0]!.parts).toEqual([{ type: "text", text: "what time is it?" }])
     expect((await call<{ timezone: string }>(world, "/")).timezone).toBe("Asia/Tokyo")
+  })
+})
+
+describe("automations on the bus", () => {
+  /** An agent with the bus on, and its main chat, where its schedules are made. */
+  async function onTheBus(world: World): Promise<ChatSummary> {
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    await call(world, "/", "PATCH", { bus: true })
+    return call<ChatSummary>(world, "/chats/main", "POST")
+  }
+  const send = (text: string) =>
+    fauxAssistantMessage([fauxToolCall("send", { text })], { stopReason: "toolUse" })
+  const ask = async (world: World, chatId: string, text: string) => {
+    await call(world, `/chats/${chatId}/messages`, "POST", { text, requestId: crypto.randomUUID() })
+  }
+  /** What people are shown as said in a chat with the bus on, without the agent's working. */
+  const spoken = (state: ChatState) =>
+    texts({ ...state, messages: state.messages.filter((message) => message.work !== true) })
+  const events = (state: ChatState) =>
+    state.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "notice" && part.kind === "automation" ? [part] : [],
+      ),
+    )
+
+  type Turn = { run: boolean; seen: string; last: string }
+  /** Answer each request from what it was shown: the run, or the main chat. */
+  function script(world: World, reply: (turn: Turn) => ReturnType<typeof fauxAssistantMessage>) {
+    const turns: Turn[] = []
+    world.faux.setResponses(
+      Array.from({ length: 30 }, () => (context: { messages: { role: string }[] }) => {
+        const seen = JSON.stringify(context.messages)
+        const turn = {
+          run: seen.includes("You are running the scheduled task"),
+          seen,
+          // The newest message, which is not the prompt: it names automations too.
+          last: JSON.stringify(context.messages.findLast((message) => message.role !== "system")),
+        }
+        turns.push(turn)
+        return reply(turn)
+      }),
+    )
+    return turns
+  }
+  const creating = (inMs: number) =>
+    fauxAssistantMessage(
+      [
+        fauxToolCall("schedule", {
+          action: "create",
+          schedule: new Date(Date.now() + inMs).toISOString(),
+          prompt: "Check the weather.",
+          title: "Weather check",
+        }),
+      ],
+      { stopReason: "toolUse" },
+    )
+
+  it("tells the main chat what a run came to, which can stay quiet about it", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    const turns = script(world, (turn) => {
+      if (turn.run) return fauxAssistantMessage("Sunny, 21°C. Same as yesterday.")
+      if (turn.last.includes("automation")) return fauxAssistantMessage("Nothing new; quiet.")
+      if (turn.last.includes("Scheduled.")) return send("I will check the weather shortly.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(300)
+    })
+    await ask(world, main.id, "check the weather shortly")
+    const [done] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(done!.lastRun).toMatchObject({ outcome: "reported" })
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) => !state.busy && turns.some((turn) => turn.last.includes("automation")),
+    )
+    const run = turns.find((turn) => turn.run)!
+    // The run is told where its result goes, and not to stay silent.
+    expect(run.seen).toContain("your final reply goes to your main conversation")
+    expect(run.seen).not.toContain("[SILENT]")
+    expect(run.seen).not.toContain("delivered to the user automatically")
+    // The main chat is told as an event, keyed by the run.
+    const told = turns.find((turn) => turn.last.includes("automation"))!
+    expect(told.last).toContain('kind=\\"automation\\"')
+    expect(told.last).toContain("Sunny, 21°C. Same as yesterday.")
+    expect(state.messages.some((message) => message.id.startsWith("live"))).toBe(false)
+    // It stayed quiet: nothing more is shown, and nobody was told.
+    expect(spoken(state)).toEqual([
+      "check the weather shortly",
+      "I will check the weather shortly.",
+    ])
+    expect(events(state)).toEqual([
+      expect.objectContaining({
+        kind: "automation",
+        text: "Weather check",
+        outcome: "reported",
+        chatId: done!.lastRun!.chatId,
+        detail: "Sunny, 21°C. Same as yesterday.",
+      }),
+    ])
+    expect(world.reports.filter((one) => one.kind === "scheduled")).toEqual([])
+    expect(world.reports.map((one) => one.text)).toEqual(["I will check the weather shortly."])
+    // A run that events set going is not reminded that it sent nothing.
+    expect(turns.some((turn) => turn.last.includes("unsent"))).toBe(false)
+    expect(world.errors).toEqual([])
+  })
+
+  it("sends what is worth sending from a run's result, and only that is told", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    script(world, (turn) => {
+      if (turn.run) return fauxAssistantMessage("Rain from 3pm.")
+      if (turn.last.includes("automation")) return send("Heads up: rain from 3pm.")
+      if (turn.last.includes("Scheduled.")) return send("Will do.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(300)
+    })
+    await ask(world, main.id, "warn me about rain")
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) => !state.busy && spoken(state).includes("Heads up: rain from 3pm."),
+    )
+    expect(spoken(state)).toEqual(["warn me about rain", "Will do.", "Heads up: rain from 3pm."])
+    expect(world.reports.map((one) => one.text)).toEqual(["Will do.", "Heads up: rain from 3pm."])
+    expect(world.reports.filter((one) => one.kind === "scheduled")).toEqual([])
+  })
+
+  it("tells the main chat once, across a restart while the event waits its turn", async () => {
+    const directory = temporary()
+    const world = open(directory)
+    const main = await onTheBus(world)
+    script(world, (turn) => {
+      if (turn.last.includes("Scheduled.")) return send("Will do.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(400)
+    })
+    await ask(world, main.id, "check the weather in a moment")
+    await until(
+      () => chatState(world, main.id),
+      (state) => !state.busy && spoken(state).includes("Will do."),
+    )
+    // The main chat is at work, on a long answer, when the run reports: its event waits.
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    world.faux.setResponses(
+      Array.from({ length: 5 }, () => async (context: { messages: unknown[] }) => {
+        if (JSON.stringify(context.messages).includes("You are running the scheduled task")) {
+          return fauxAssistantMessage("Sunny.")
+        }
+        await held
+        return fauxAssistantMessage("slow")
+      }),
+    )
+    await ask(world, main.id, "think about it slowly")
+    await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    // Closed while the main chat still works and the event waits for it to finish.
+    expect((await chatState(world, main.id)).busy).toBe(true)
+    const closing = world.namespace.close()
+    release()
+    await closing
+    worlds.splice(worlds.indexOf(world), 1)
+
+    const again = open(directory)
+    const turns = script(again, (turn) =>
+      turn.seen.includes("automation") ? fauxAssistantMessage("Quiet.") : send("Done thinking."),
+    )
+    const state = await until(
+      () => chatState(again, main.id),
+      (state) => !state.busy && events(state).length > 0 && turns.length > 0,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const after = await chatState(again, main.id)
+    expect(events(after)).toHaveLength(1)
+    expect(events(state)[0]).toMatchObject({ detail: "Sunny." })
+    // The model was shown it once.
+    const last = turns.at(-1)!.seen
+    expect(last.split('kind=\\"automation\\"').length - 1).toBe(1)
+  })
+
+  it("tells the main chat a run failed, with what it wrote first, and one that said nothing", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    let runs = 0
+    const turns = script(world, (turn) => {
+      if (turn.run) {
+        runs++
+        return runs === 1
+          ? fauxAssistantMessage("Half of the forecast", {
+              stopReason: "error",
+              errorMessage: "The provider is on fire.",
+            })
+          : fauxAssistantMessage("")
+      }
+      if (turn.last.includes("automation")) return fauxAssistantMessage("quiet")
+      if (turn.last.includes("Scheduled.")) return send("Will do.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(300)
+    })
+    await ask(world, main.id, "check the weather")
+    const [first] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(first!.lastRun).toMatchObject({ outcome: "failed" })
+    const failed = await until(
+      () => chatState(world, main.id),
+      (state) => events(state).length === 1,
+    )
+    expect(events(failed)[0]).toMatchObject({ outcome: "failed" })
+    expect(events(failed)[0]!.detail).toContain("It did not finish: The provider is on fire.")
+    expect(events(failed)[0]!.detail).toContain("Half of the forecast")
+    const told = await until(
+      async () => turns.find((turn) => turn.last.includes("automation")),
+      (found) => found !== undefined,
+    )
+    expect(told!.last).toContain('outcome=\\"failed\\"')
+
+    // A run that ends with nothing to say failed too: it was asked for a result.
+    await call(world, `/schedules/${first!.id}/run`, "POST")
+    const empty = await until(
+      () => chatState(world, main.id),
+      (state) => events(state).length === 2,
+    )
+    expect(events(empty)[1]).toMatchObject({
+      outcome: "failed",
+      detail: "It ended without saying anything.",
+    })
+    expect((await schedules(world))[0]!.lastRun).toMatchObject({ outcome: "failed" })
+  })
+
+  it("is failed where it was stopped while a step ran, whatever it wrote before", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    script(world, (turn) => {
+      if (turn.run) {
+        return fauxAssistantMessage(
+          [fauxText("Let me check the forecast."), fauxToolCall("bash", { command: "sleep 20" })],
+          { stopReason: "toolUse" },
+        )
+      }
+      if (turn.last.includes("automation")) return fauxAssistantMessage("quiet")
+      if (turn.last.includes("Scheduled.")) return send("Will do.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(300)
+    })
+    await ask(world, main.id, "check the weather")
+    // The run is at its step when it is stopped.
+    const [running] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.running === true,
+    )
+    const chats = await until(
+      async () => (await call<{ chats: ChatSummary[] }>(world, "/")).chats,
+      (all) => all.some((one) => one.kind === "schedule"),
+    )
+    const run = chats.find((one) => one.kind === "schedule")!
+    await until(
+      () => chatState(world, run.id),
+      (state) =>
+        state.messages.some((one) =>
+          one.parts.some((part) => part.type === "tool" && part.status === "running"),
+        ),
+    )
+    await call(world, `/chats/${run.id}/abort`, "POST")
+    const [done] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(running).toBeDefined()
+    expect(done!.lastRun).toMatchObject({ outcome: "failed" })
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) => events(state).length === 1,
+    )
+    expect(events(state)[0]).toMatchObject({ outcome: "failed" })
+    expect(events(state)[0]!.detail).toMatch(
+      /^It (did not finish|was stopped before it finished)\./,
+    )
+    expect(events(state)[0]!.detail).toContain("Let me check the forecast.")
+  })
+
+  it("cuts a long result short in the event, and says where the rest is", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    const long = "word ".repeat(3_000)
+    const turns = script(world, (turn) => {
+      if (turn.run) return fauxAssistantMessage(long)
+      if (turn.last.includes("automation")) return fauxAssistantMessage("quiet")
+      if (turn.last.includes("Scheduled.")) return send("Will do.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(300)
+    })
+    await ask(world, main.id, "write a lot")
+    const told = await until(
+      async () => turns.find((turn) => turn.last.includes("automation")),
+      (found) => found !== undefined,
+    )
+    const [done] = await schedules(world)
+    expect(told!.last).toContain(`cut short: the rest is in chat ${done!.lastRun!.chatId}`)
+    expect(told!.last.length).toBeLessThan(9_000)
+  })
+
+  it("is delivered as it is without the bus where the switch went off while it ran", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let started = false
+    // Made, said, and then the run, which waits until the switch is off.
+    world.faux.setResponses([
+      creating(300),
+      send("Will do."),
+      fauxAssistantMessage("ok"),
+      async () => {
+        started = true
+        await held
+        return fauxAssistantMessage("Sunny.")
+      },
+      fauxAssistantMessage("Noted."),
+    ])
+    await ask(world, main.id, "check the weather")
+    await until(
+      async () => started,
+      (yes) => yes,
+    )
+    await call(world, "/", "PATCH", { bus: false })
+    release()
+    const [done] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(done!.lastRun).toMatchObject({ outcome: "delivered" })
+    expect(world.reports.filter((one) => one.kind === "scheduled")).toMatchObject([
+      { heading: "Weather check", text: "Sunny." },
+    ])
+    const state = await chatState(world, main.id)
+    expect(events(state)).toEqual([])
+    expect(texts(state).some((text) => text.includes("Sunny."))).toBe(true)
+  })
+
+  it("fails where there is no main chat to tell", async () => {
+    const world = open(temporary())
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    await call(world, "/", "PATCH", { bus: true })
+    const side = await call<ChatSummary>(world, "/chats", "POST", {})
+    world.faux.setResponses([
+      ...createSchedule(250, "Check the weather."),
+      fauxAssistantMessage("Sunny."),
+    ])
+    await say(world, side.id, "check the weather")
+    const [done] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(done!.lastRun).toMatchObject({ outcome: "failed" })
+  })
+
+  it("is as it was where the bus is off: delivered where it was asked for", async () => {
+    const world = open(temporary())
+    const chat = await setup(world)
+    let runPrompt = ""
+    world.faux.setResponses([
+      ...createSchedule(250, "Check the weather."),
+      (context) => {
+        runPrompt = JSON.stringify(context.messages)
+        return fauxAssistantMessage("Sunny.")
+      },
+    ])
+    await say(world, chat.id, "check the weather")
+    const [done] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(done!.lastRun).toMatchObject({ outcome: "delivered" })
+    expect(runPrompt).toContain("[SILENT]")
+    expect(world.reports.filter((one) => one.kind === "scheduled")).toHaveLength(1)
   })
 })

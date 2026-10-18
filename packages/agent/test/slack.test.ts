@@ -161,6 +161,7 @@ function open(
   keepAliveMs = 60_000,
   /** What a small model answers when asked for a thread's note. Absent: there is none. */
   note?: string,
+  extra: Partial<Parameters<typeof createAgentActor>[1]> = {},
 ): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
@@ -220,6 +221,7 @@ function open(
         connectorFetch: world.mcp.fetch,
         onNotify: (notification) => world.reports.push(notification),
         onReport: (error) => world.errors.push(error),
+        ...extra,
       }),
     onError: (error) => world.errors.push(error),
   })
@@ -241,6 +243,14 @@ async function until<T>(
     await new Promise((resolve) => setTimeout(resolve, 40))
   }
 }
+
+/**
+ * The newest message of a request that is not the prompt. A change to the prompt (what the
+ * agent is told about its computers, say) is sent as a system message after what came before
+ * it, so the very last message may be that and not the input that set the request going.
+ */
+const newest = (messages: readonly unknown[]) =>
+  messages.findLast((message) => (message as { role?: string }).role !== "system")
 
 const threads = async (world: World) =>
   (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) => chat.kind === "slack")
@@ -810,5 +820,309 @@ describe("an agent in Slack", () => {
       output: "You are not in Slack.",
     })
     expect(world.errors).toEqual([])
+  })
+})
+
+describe("a thread in Slack with the bus on", () => {
+  /** An agent in Slack with the bus switched on, and its main chat. */
+  async function onTheBus(world: World): Promise<ChatSummary> {
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    await call(world, "/", "PATCH", { bus: true })
+    return call<ChatSummary>(world, "/chats/main", "POST")
+  }
+  const send = (text: string) =>
+    fauxAssistantMessage([fauxToolCall("send", { text })], { stopReason: "toolUse" })
+
+  it("posts each send to the thread at once and once, and nothing it wrote besides", async () => {
+    const world = open()
+    await onTheBus(world)
+    let first = ""
+    const seen: string[] = []
+    world.faux.setResponses([
+      (context) => {
+        first = JSON.stringify(context)
+        return send("Looking now.")
+      },
+      async () => {
+        // The first send is in the thread before the run goes on.
+        seen.push(...world.posts.map((post) => post.text))
+        return send("Three things are open.")
+      },
+      fauxAssistantMessage("Done, that was my private note."),
+    ])
+    const message = mention("what is open?")
+    const { chatId } = await say(world, message)
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(seen).toEqual(["Looking now."])
+    expect(world.posts).toEqual([
+      { channel: "C1", thread: message.ts, text: "Looking now." },
+      { channel: "C1", thread: message.ts, text: "Three things are open." },
+    ])
+    // It is told how the thread works, and `send` is how it answers there.
+    expect(first).toContain("What you pass to `send` is posted to the thread at once")
+    expect(first).toContain('"name":"send"')
+    expect(first).toContain('"name":"tell_main"')
+    expect(first).not.toContain('"name":"send_file"')
+    // Its own words are not posted, nor drawn as said in the app.
+    const state = await chatState(world, chatId)
+    const said = state.messages
+      .filter((one) => one.work !== true && one.role === "assistant")
+      .map((one) => one.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(""))
+    expect(said).toEqual(["Looking now.", "Three things are open."])
+    // What it sent is its latest line, from the channel, and nobody in the app is told.
+    const { agent } = await call<{ agent: AgentSummary }>(world, "/")
+    expect(agent.latest).toMatchObject({ kind: "slack", text: "Three things are open." })
+    expect(world.reports).toEqual([])
+    expect(world.errors).toEqual([])
+  })
+
+  it("tries again when posting fails, and posts once", async () => {
+    const world = open()
+    await onTheBus(world)
+    let failures = 1
+    world.onPost = () => {
+      if (failures-- > 0) throw new Error("Slack is down")
+    }
+    world.faux.setResponses([send("Here you are."), fauxAssistantMessage("ok")])
+    await say(world, mention("something"))
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    expect(world.posts.map((post) => post.text)).toEqual(["Here you are."])
+  })
+
+  it("gives up posting after its tries, says why, and posts nothing twice", async () => {
+    const world = open(undefined, undefined, undefined, { slackRetryMs: () => 5 })
+    await onTheBus(world)
+    let tries = 0
+    world.onPost = () => {
+      tries++
+      throw new Error("Slack is down")
+    }
+    const results: string[] = []
+    world.faux.setResponses([
+      send("Here you are."),
+      (context) => {
+        results.push(JSON.stringify(newest(context.messages)))
+        return fauxAssistantMessage("It did not go.")
+      },
+      fauxAssistantMessage("Still nothing."),
+    ])
+    await say(world, mention("something"))
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status !== "working",
+    )
+    expect(tries).toBe(5)
+    expect(world.posts).toEqual([])
+    expect(results[0]).toContain("Slack could not be reached, so it was not posted.")
+  })
+
+  it("says only that it could not finish in Slack where a run fails", async () => {
+    const world = open()
+    await onTheBus(world)
+    world.faux.setResponses([
+      fauxAssistantMessage("", {
+        stopReason: "error",
+        errorMessage: "Credits ran out on acct 42.",
+      }),
+    ])
+    await say(world, mention("something"))
+    await posted(world, 1)
+    expect(world.posts.map((post) => post.text)).toEqual([
+      "Something went wrong, and I could not finish.",
+    ])
+  })
+
+  it("tells the main chat once for each message, and not at any length", async () => {
+    const world = open()
+    await onTheBus(world)
+    const results: string[] = []
+    const tell = (text: string) =>
+      fauxAssistantMessage([fauxToolCall("tell_main", { text })], { stopReason: "toolUse" })
+    world.faux.setResponses(
+      Array.from({ length: 12 }, () => (context: { messages: unknown[] }) => {
+        const seen = JSON.stringify(context.messages)
+        const last = JSON.stringify(newest(context.messages))
+        if (seen.includes("slack-thread")) return fauxAssistantMessage("quiet")
+        if (last.includes("toolResult")) {
+          results.push(last)
+          if (results.length === 1) return tell("x".repeat(5_000))
+          if (results.length === 2) return tell("Jon wants the budget.")
+          if (results.length === 3) return tell("And again.")
+          return fauxAssistantMessage("Done.")
+        }
+        return tell("First word.")
+      }),
+    )
+    await say(world, mention("tell them"))
+    await until(
+      async () => results,
+      (found) => found.length >= 4,
+    )
+    // The first is told, one too long is refused, and a second for the same message too.
+    expect(results[0]).toContain("Told your main conversation.")
+    expect(results[1]).toContain("That is too long to tell: at most 4000 characters.")
+    expect(results[2]).toContain("You have already told your main conversation something")
+    expect(results[3]).toContain("You have already told your main conversation something")
+  })
+
+  it("tells the main chat once where one answer calls tell_main three times", async () => {
+    const world = open()
+    const main = await onTheBus(world)
+    let results: string[] = []
+    let told = 0
+    type Message = { role: string; toolName?: string; isError?: boolean; content?: unknown }
+    world.faux.setResponses(
+      Array.from({ length: 8 }, () => (context: { messages: Message[] }) => {
+        const seen = JSON.stringify(context.messages)
+        if (seen.includes("slack-thread")) {
+          told++
+          return fauxAssistantMessage("quiet")
+        }
+        // After the three, and when reminded that it sent nothing to the thread, it is done.
+        if (seen.includes('"toolName":"tell_main"')) {
+          results = context.messages
+            .filter((one) => one.role === "toolResult" && one.toolName === "tell_main")
+            .map((one) => JSON.stringify(one.content))
+          return fauxAssistantMessage("Done.")
+        }
+        return fauxAssistantMessage(
+          ["One.", "Two.", "Three."].map((text) => fauxToolCall("tell_main", { text })),
+          { stopReason: "toolUse" },
+        )
+      }),
+    )
+    await say(world, mention("tell them three times"))
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) =>
+        !state.busy &&
+        state.messages.some((one) => one.parts.some((part) => part.type === "notice")),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(results).toHaveLength(3)
+    expect(results.filter((one) => one.includes("Told your main conversation."))).toHaveLength(1)
+    expect(
+      results.filter((one) => one.includes("You have already told your main conversation")),
+    ).toHaveLength(2)
+    expect(told).toBe(1)
+    const notices = state.messages
+      .flatMap((one) => one.parts)
+      .filter((part) => part.type === "notice" && part.kind === "slack")
+    expect(notices).toHaveLength(1)
+  })
+
+  it("does not tell the main chat where the bus went off while the thread was at work", async () => {
+    const world = open()
+    await onTheBus(world)
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let started = false
+    let result = ""
+    world.faux.setResponses([
+      async () => {
+        started = true
+        await held
+        return fauxAssistantMessage([fauxToolCall("tell_main", { text: "Jon wants it." })], {
+          stopReason: "toolUse",
+        })
+      },
+      (context) => {
+        result = JSON.stringify(newest(context.messages))
+        return fauxAssistantMessage("ok")
+      },
+    ])
+    await say(world, mention("tell them"))
+    await until(
+      async () => started,
+      (yes) => yes,
+    )
+    await call(world, "/", "PATCH", { bus: false })
+    release()
+    await until(
+      async () => result,
+      (found) => found !== "",
+    )
+    expect(result).toContain("The main conversation is not taking word from Slack now.")
+  })
+
+  it("is reminded once where it sent nothing, then left to stay quiet", async () => {
+    const world = open()
+    await onTheBus(world)
+    const turns: string[] = []
+    world.faux.setResponses(
+      Array.from({ length: 4 }, () => (context: { messages: unknown[] }) => {
+        turns.push(JSON.stringify(newest(context.messages)))
+        return fauxAssistantMessage("Not for me to answer.")
+      }),
+    )
+    await say(world, mention("hello all"))
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(turns).toHaveLength(2)
+    expect(turns[1]).toContain('kind=\\"unsent\\"')
+    expect(world.posts).toEqual([])
+  })
+
+  it("tells the main chat something with tell_main, as an event", async () => {
+    const world = open()
+    const main = await onTheBus(world)
+    const told: string[] = []
+    world.faux.setResponses(
+      Array.from({ length: 6 }, () => (context: { messages: unknown[] }) => {
+        const seen = JSON.stringify(context.messages)
+        const last = JSON.stringify(newest(context.messages))
+        if (seen.includes("slack-thread")) {
+          told.push(last)
+          return fauxAssistantMessage("Nothing to send.")
+        }
+        if (last.includes("toolResult") && last.includes("Told your main")) {
+          return send("I have let them know.")
+        }
+        if (last.includes("toolResult")) return fauxAssistantMessage("ok")
+        return fauxAssistantMessage(
+          [fauxToolCall("tell_main", { text: "Jon wants the budget by Friday." })],
+          { stopReason: "toolUse" },
+        )
+      }),
+    )
+    const { chatId } = await say(world, mention("tell your owner we need the budget"))
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) =>
+        !state.busy &&
+        state.messages.some((one) => one.parts.some((part) => part.type === "notice")),
+    )
+    expect(told[0]).toContain("Jon wants the budget by Friday.")
+    expect(told[0]).toContain('from=\\"slack\\"')
+    const notice = state.messages.flatMap((one) => one.parts).find((part) => part.type === "notice")
+    expect(notice).toMatchObject({ kind: "slack", text: "#launch", chatId })
+    expect(world.posts.map((post) => post.text)).toEqual(["I have let them know."])
+  })
+
+  it("answers as it did before where the bus is off", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    let first = ""
+    world.faux.setResponses([
+      (context) => {
+        first = JSON.stringify(context)
+        return fauxAssistantMessage("Plain answer.")
+      },
+    ])
+    await say(world, mention("hi"))
+    await posted(world, 1)
+    expect(world.posts.map((post) => post.text)).toEqual(["Plain answer."])
+    expect(first).not.toContain('"name":"send"')
+    expect(first).not.toContain('"name":"tell_main"')
   })
 })

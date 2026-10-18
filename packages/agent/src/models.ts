@@ -161,7 +161,8 @@ function asked(text: string): { name: string; args: string }[] | undefined {
  * What the echo model answers. It repeats the last user message, with two affordances for trying
  * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
  * that tool and then report the result (several such lines make it call them all in one round),
- * and `/fail <error>` makes the reply fail with that error, the way a model provider's would.
+ * and `/fail <error>` makes the reply fail with that error, the way a model provider's would. An
+ * automation's result's lines of that form are called in the same way.
  * A tool it is not offered yet, as a connector's is not, it looks for first, as a model would.
  */
 function echoAnswer(context: EchoContext) {
@@ -173,7 +174,16 @@ function echoAnswer(context: EchoContext) {
     (message) => message.role === "user" && blockText(message.content) !== "",
   )
   const text = blockText(user?.content)
-  const calls = asked(text)
+  // An automation's result is answered as what it carries asks: a line in it of the form
+  // `/tool …` is called, so that a main chat on the bus can be tried reacting to one. Only that
+  // event: the others carry what came from outside, such as a page or a thread in Slack.
+  const carried = text.startsWith('<event kind="automation"')
+    ? text
+        .split("\n")
+        .filter((line) => /^\/tool\s+\w+\s+\{.*\}\s*$/.test(line))
+        .join("\n")
+    : ""
+  const calls = asked(carried === "" ? text : carried)
   // It looked for what it was asked to use, and uses it now, found or not.
   const looked =
     last?.role === "toolResult" &&

@@ -1,8 +1,4 @@
-import {
-  type AddableKind,
-  computerActorName,
-  type ComputerDirectory,
-} from "@do-computer/agent"
+import { type AddableKind, computerActorName, type ComputerDirectory } from "@do-computer/agent"
 import { linkStatus } from "@do-computer/computers"
 import { isPersonalWorkspace } from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
@@ -118,6 +114,15 @@ export function computerDirectory(
           add: (agentId, input) => machines.add(agentId, input),
           remove: (agentId, computerId) => machines.remove(agentId, computerId),
         }),
+    // Nobody is shown it to answer any more: the chat that asked was stopped or gave up.
+    async withdraw(agentId, input) {
+      await db.run(
+        "DELETE FROM dc_computer_requests WHERE computer_id = ? AND agent_id = ? AND chat_id = ?",
+        input.computerId,
+        agentId,
+        input.chatId,
+      )
+    },
     async request(agentId, input) {
       const row = (await computersNear(db, agentId)).find(
         (computer) => computer.id === input.computerId,

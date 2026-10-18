@@ -14,7 +14,9 @@ import {
   defineTool,
   type Extension,
   type Harness,
+  type SubmissionRecord,
 } from "@earendil-works/pi-durable"
+import { AUTOMATION_ENTRY, eventBody, eventText } from "./bus.ts"
 import { ChatsDoc, IdentityDoc, type ScheduleRecord, SchedulesDoc } from "./docs.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone, nextRunAt, parseSchedule } from "./schedule.ts"
@@ -38,17 +40,26 @@ export type ScheduledReport = {
   title: string
   /** The chat holding the run's full transcript. */
   runChatId: string
-  /** The chat the report was delivered into, when it still exists. */
+  /**
+   * The chat the report was delivered into, when it still exists. On the bus, the main chat,
+   * which was told of it as an event.
+   */
   chatId: string | null
   text: string
+  /**
+   * The run's result went to the main chat as an event, where the agent has the bus on: nobody
+   * was told of it, and the main chat decides whether anyone is.
+   */
+  bus?: true
 }
 
-function preamble(title: string, now: number, timezone: string | null): string {
-  return (
-    `[You are running the scheduled task "${title}". It is ${formatTime(now, timezone)}. Nobody is present, so you cannot ask questions. ` +
-    "Your final reply is delivered to the user automatically; do not try to send it yourself. " +
-    `If there is genuinely nothing new to report, reply with exactly "${SILENT_MARKER}" and nothing else to skip the message.]`
-  )
+function preamble(title: string, now: number, timezone: string | null, bus = false): string {
+  return bus
+    ? `[You are running the scheduled task "${title}". It is ${formatTime(now, timezone)}. Nobody is present, so you cannot ask questions. ` +
+        "When you finish, your final reply goes to your main conversation as this task's result, not to the user: your main conversation decides whether any of it is worth telling them. So say plainly and completely what you found or did, and what changed since last time if you can tell; where there is nothing new, say so in a few words.]"
+    : `[You are running the scheduled task "${title}". It is ${formatTime(now, timezone)}. Nobody is present, so you cannot ask questions. ` +
+        "Your final reply is delivered to the user automatically; do not try to send it yourself. " +
+        `If there is genuinely nothing new to report, reply with exactly "${SILENT_MARKER}" and nothing else to skip the message.]`
 }
 
 /** What running a check came to: what it printed, or why it could not be run. */
@@ -530,7 +541,9 @@ export class Scheduler {
             updatedAt: now,
             archived: false,
           }
-          record.pending = { chatId, ...run }
+          // Whether it reports to the main chat is settled as it starts, with what it is told.
+          const bus = (await tx.doc(IdentityDoc)).bus === true
+          record.pending = { chatId, ...run, ...(bus ? { bus: true as const } : {}) }
         },
       },
       context,
@@ -670,7 +683,12 @@ export class Scheduler {
           type: "input",
           requestId: `schedule:${id}:${pending.firedAt}`,
           content: [
-            preamble(record.title, pending.firedAt, identity?.timezone ?? record.timezone),
+            preamble(
+              record.title,
+              pending.firedAt,
+              identity?.timezone ?? record.timezone,
+              pending.bus === true,
+            ),
             ...(pending.context === undefined ? [] : [pending.context]),
             record.prompt,
           ].join("\n\n"),
@@ -687,7 +705,11 @@ export class Scheduler {
         continue
       }
       let outcome: NonNullable<ScheduleRecord["lastRun"]>["outcome"] = "failed"
-      if (status.status === "done" && status.type === "input") {
+      // Started on the bus and reporting with it still on. A run started on the bus whose agent
+      // has had it switched off since is delivered as runs are without it, and people are told.
+      if (pending.bus === true && identity?.bus === true) {
+        outcome = await this.#report(id, record.title, runChatId, pending.firedAt, status, context)
+      } else if (status.status === "done" && status.type === "input") {
         const answer = await harness.commit(
           (tx) => tx.entry(AssistantEntry, status.answer),
           context,
@@ -718,6 +740,106 @@ export class Scheduler {
         stored.lastRun = { at: pending.firedAt, chatId: runChatId, outcome }
       }, context)
     }
+  }
+
+  /**
+   * Tell the main chat what a run came to, as an event, where the agent has the bus on: what it
+   * ended with, or that it did not finish. The main chat decides whether anyone hears of it.
+   * Keyed by the run, so telling it again after a crash tells nothing twice.
+   */
+  async #report(
+    id: string,
+    title: string,
+    runChatId: string,
+    firedAt: number,
+    status: SubmissionRecord,
+    context: Context,
+  ): Promise<"reported" | "failed"> {
+    const harness = this.#require()
+    const now = this.#options.now()
+    let text = ""
+    // Why it failed, where it did. A run that wrote something and then failed or was stopped
+    // failed all the same, and what it wrote comes after why.
+    let why: string | undefined = "It did not finish."
+    // What it ended with: its answer, or, for a run that failed on the way to one, the last
+    // thing it wrote.
+    const answered = status.status === "done" && status.type === "input"
+    const message = answered
+      ? (await harness.commit((tx) => tx.entry(AssistantEntry, status.answer), context))?.model?.[0]
+      : (
+          await (
+            await harness.conversation(Number(runChatId) as ConversationId, context)
+          )?.context(context)
+        )?.entries.findLast((entry) => entry.kind === "pi.assistant")?.model?.[0]
+    if (message?.role === "assistant") {
+      text = message.content
+        .flatMap((block) => (block.type === "text" ? [block.text] : []))
+        .join("")
+        .trim()
+      // A run with no answer did not finish, whatever its last words were: they may be on the
+      // way to a step, such as "Let me check the forecast". Why is only made more exact.
+      why =
+        message.stopReason === "error"
+          ? `It did not finish: ${message.errorMessage ?? "the model could not be reached."}`
+          : message.stopReason === "aborted"
+            ? "It was stopped before it finished."
+            : !answered
+              ? why
+              : text === ""
+                ? "It ended without saying anything."
+                : undefined
+    }
+    const said =
+      why === undefined ? text : text === "" ? why : `${why}\n\nWhat it wrote first:\n\n${text}`
+    const mainId = (await harness.snapshot(ChatsDoc, context))?.main
+    const main =
+      mainId === undefined
+        ? undefined
+        : await harness.conversation(Number(mainId) as ConversationId, context)
+    // Told to nobody, where there is no main chat to tell, it did not report.
+    const outcome = why === undefined && main !== undefined ? "reported" : "failed"
+    if (main !== undefined) {
+      await main.submit(
+        {
+          type: "input",
+          requestId: `schedule:${id}:${firedAt}`,
+          content: [
+            {
+              type: "text",
+              text: eventText(
+                "automation",
+                {
+                  schedule: id,
+                  title,
+                  ...(outcome === "reported" ? {} : { outcome }),
+                },
+                // Long, it is cut short, with where the rest is.
+                eventBody(said, runChatId),
+              ),
+            },
+          ],
+          entry: {
+            kind: AUTOMATION_ENTRY,
+            data: { scheduleId: id, title, runChatId, outcome, text: said },
+          },
+          whenBusy: "followUp",
+        },
+        context,
+      )
+      await harness.commit(async (tx) => {
+        const chat = own((await tx.doc(ChatsDoc)).chats, mainId!)
+        if (chat !== undefined) chat.updatedAt = now
+      }, context)
+    }
+    this.#options.onReport?.({
+      scheduleId: id,
+      title,
+      runChatId,
+      chatId: main === undefined ? null : mainId!,
+      text: said,
+      bus: true,
+    })
+    return outcome
   }
 
   async #deliver(

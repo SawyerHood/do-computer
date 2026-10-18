@@ -23,6 +23,7 @@ import {
   type Harness,
   section,
 } from "@earendil-works/pi-durable"
+import { ASKED_THROUGH_MAIN, askingThrough, canAsk } from "./bus.ts"
 import type { Caller } from "./caller.ts"
 import type { ComputerTarget } from "./computers.ts"
 import { ChatsDoc } from "./docs.ts"
@@ -175,11 +176,50 @@ export class Secrets {
   }
 
   async pending(context: Context): Promise<SecretRequest[]> {
-    const state = await this.#require().snapshot(SecretsDoc, context)
+    const harness = this.#require()
+    const state = await harness.snapshot(SecretsDoc, context)
+    const chats = (await harness.snapshot(ChatsDoc, context))?.chats
     return Object.entries(state?.requests ?? {})
       .filter(([, request]) => request.status === "pending")
-      .map(([id, request]) => shown({ id, ...request }))
+      .map(([id, request]) => {
+        // Shown in the main chat under the name of the sub-agent that asked, where one did.
+        const through = askingThrough(chats, request.chatId)
+        return {
+          ...shown({ id, ...request }),
+          ...(through === undefined
+            ? {}
+            : { subagent: { title: through.title, task: through.task } }),
+        }
+      })
       .sort((a, b) => a.createdAt - b.createdAt)
+  }
+
+  /** Whether a chat asked for something that is still waiting to be typed in. */
+  async waitingIn(chatId: string, context: Context): Promise<boolean> {
+    const state = await this.#require().snapshot(SecretsDoc, context)
+    return Object.values(state?.requests ?? {}).some(
+      (request) => request.status === "pending" && request.chatId === chatId,
+    )
+  }
+
+  /**
+   * Take back what a chat asked for and was not answered, when its work has been stopped. Nobody
+   * is told: the chat that asked is not at work any more.
+   */
+  async withdraw(chatId: string, context: Context): Promise<void> {
+    const now = this.#options.now()
+    const withdrawn = await this.#require().commit(async (tx) => {
+      const doc = await tx.doc(SecretsDoc)
+      let any = false
+      for (const request of Object.values(doc.requests)) {
+        if (request.chatId !== chatId || request.status !== "pending") continue
+        request.status = "declined"
+        request.answeredAt = now
+        any = true
+      }
+      return any
+    }, context)
+    if (withdrawn) this.#options.onSettled?.()
   }
 
   /**
@@ -492,12 +532,14 @@ export class Secrets {
       }),
       execute: async (args, api, context) => {
         const chatId = String(api.conversationId)
-        const kind = own((await api.snapshot(ChatsDoc, context))?.chats ?? {}, chatId)?.kind
-        if (kind !== "chat") {
+        const chats = (await api.snapshot(ChatsDoc, context))?.chats
+        // A sub-agent asks through a main chat with the bus on, where someone can type it.
+        if (!canAsk(chats, chatId)) {
           return fail(
             "Only a conversation with the user can ask for a secret: there has to be someone to type it.",
           )
         }
+        const through = askingThrough(chats, chatId) !== undefined
         const fields: SecretField[] = []
         for (const entry of args.secrets ?? []) {
           const name = (entry.name ?? "").trim()
@@ -554,7 +596,9 @@ export class Secrets {
           return {
             ...reply(
               fresh
-                ? `Asked. A form for ${names} is in front of the person, above their message box, and what they type will be saved to ${path} on "${target.computer.name}". Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell them in a sentence what you asked for and why.`
+                ? through
+                  ? `Asked for ${names}, to be saved to ${path} on "${target.computer.name}". ${ASKED_THROUGH_MAIN}`
+                  : `Asked. A form for ${names} is in front of the person, above their message box, and what they type will be saved to ${path} on "${target.computer.name}". Their answer will reach you as a message, which may take a while: do not wait for it or ask again. Tell them in a sentence what you asked for and why.`
                 : `You have already asked for ${names}, and the person has not answered yet. Do not ask again: the answer will reach you as a message.`,
             ),
             details: { requestId: request.id, path, computer: target.computer.name },
