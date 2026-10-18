@@ -478,6 +478,34 @@ describe("computers the agent was not given", () => {
     )
   })
 
+  it("report adapter diagnostics before the agent tries to use a screen", async () => {
+    const before = nearby
+    nearby = nearby.map((computer) =>
+      computer.id === "c1"
+        ? {
+            ...computer,
+            screenAdapter: {
+              name: "hyprland",
+              state: "blocked",
+              tools: ["grim", "wtype", "hyprctl"],
+              reason: "The graphical session is locked.",
+            },
+            browserAdapter: { name: "dev-browser", state: "ready", tools: ["CDP"] },
+          }
+        : computer,
+    )
+    try {
+      faux.setResponses(useTool("computers", { action: "list" }))
+      const listed = lastTool(await say(chat.id, "what screen adapters are available?"))
+      expect(listed.output).toContain(
+        "screen: hyprland (grim/wtype/hyprctl) [blocked]: The graphical session is locked.",
+      )
+      expect(listed.output).toContain("browser: dev-browser (CDP) [ready]")
+    } finally {
+      nearby = before
+    }
+  })
+
   it("are asked for once, from the chat the answer should come back to", async () => {
     faux.setResponses(
       useTool("computers", { action: "request", name: "Studio", reason: "to read the designs" }),

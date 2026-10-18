@@ -272,6 +272,27 @@ describe("computer link", () => {
     })
   })
 
+  it("retains adapter diagnostics and accepts readiness updates on an existing connection", async () => {
+    const { name, hello } = await connectDaemon()
+    const blocked = {
+      name: "hyprland",
+      state: "blocked",
+      reason: "Display asleep",
+      tools: ["grim", "wtype", "hyprctl"],
+    }
+    const browser = { name: "dev-browser", state: "ready" }
+    hello({ screen: true, screenAdapter: blocked, browserAdapter: browser })
+    await expect
+      .poll(() => linkStatus(namespace.get(name)))
+      .toMatchObject({ hello: { screenAdapter: blocked, browserAdapter: browser } })
+    const ready = { ...blocked, state: "ready", reason: undefined }
+    hello({ screen: true, screenAdapter: ready, browserAdapter: browser })
+    await expect
+      .poll(() => linkStatus(namespace.get(name)))
+      .toMatchObject({ hello: { screenAdapter: { name: "hyprland", state: "ready" } } })
+    expect((await linkStatus(namespace.get(name))).hello?.screenAdapter?.reason).toBeUndefined()
+  })
+
   it("keeps a log on the machine of everything the agent did there", async () => {
     const { sandbox, audits } = await connectDaemon()
     const env = environment(sandbox)
@@ -588,7 +609,7 @@ describe("a screen and a browser, asked for through the link", () => {
       screen: false,
       browser: false,
     })
-    await expect(sandbox.use!("screen", act)).rejects.toThrow(/does not let Doods use its screen/)
+    await expect(sandbox.use!("screen", act)).rejects.toThrow(/Screen sharing is unavailable/)
     await expect(sandbox.use!("browser", { op: "run", agent, script: "1" })).rejects.toThrow(
       /does not let Doods use a browser/,
     )

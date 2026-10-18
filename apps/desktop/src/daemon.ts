@@ -62,6 +62,7 @@ export type RunnerOptions = {
    * the daemon tells the server what it can do once, as it connects.
    */
   readonly abilities?: () => { screen: boolean; browser: boolean }
+  readonly screenStatus?: () => { available: boolean; reason?: string }
   /** Something the daemon asks of the app: to use the screen, which only the app can. */
   readonly onCall?: (call: AppCall) => Promise<AppAnswer>
 }
@@ -175,7 +176,18 @@ export class DaemonRunner {
     child.stdin?.on("error", () => {})
     const asked = (call: AppCall) => {
       const answering =
-        this.#options.onCall?.(call) ??
+        (call.op === "hello"
+          ? Promise.resolve<AppAnswer>({
+              id: call.id,
+              value: {
+                protocolVersion: 1,
+                screen: this.#options.abilities?.().screen === true,
+                ...(this.#options.screenStatus?.() ?? {
+                  available: this.#options.onCall !== undefined,
+                }),
+              },
+            })
+          : this.#options.onCall?.(call)) ??
         Promise.resolve<AppAnswer>({
           id: call.id,
           error: { refused: true, message: "This computer does not let Doods use its screen." },

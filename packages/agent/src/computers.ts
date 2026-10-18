@@ -1,4 +1,5 @@
 import { computerSandbox } from "@do-computer/computers"
+import type { ComputerAdapterStatus } from "@do-computer/protocol"
 import type { ActorNamespace } from "@do-computer/runtime"
 import { type Sandbox, SandboxEnv } from "@do-computer/sandbox"
 import type { Context } from "@earendil-works/chord"
@@ -100,6 +101,9 @@ export type NearbyComputer = {
   kind?: string
   readOnly: boolean
   online: boolean
+  /** Last reported diagnostics, only for a computer the agent can use. */
+  screenAdapter?: ComputerAdapterStatus
+  browserAdapter?: ComputerAdapterStatus
   /** The agent can work on it already. */
   connected: boolean
   /** The agent asked for it and nobody has answered yet. */
@@ -882,13 +886,28 @@ export class Computers {
               `There is no computer: your workspace has no machine, and nobody you work for has connected one of theirs. Either can be done from Computers, in the workspace settings of the app.${addable === "" ? "" : `\n${addable}`}`,
             )
           }
+          const adapters = (computer: NearbyComputer) =>
+            (
+              [
+                ["screen", computer.screenAdapter],
+                ["browser", computer.browserAdapter],
+              ] as const
+            )
+              .flatMap(([what, adapter]) =>
+                adapter
+                  ? [
+                      `${what}: ${adapter.name}${adapter.tools?.length ? ` (${adapter.tools.join("/")})` : ""} [${adapter.state}]${adapter.reason ? `: ${adapter.reason}` : ""}. `,
+                    ]
+                  : [],
+              )
+              .join("")
           const shared = (name: string) =>
             named.filter((other) => other.name.toLowerCase() === name.toLowerCase()).length > 1
           return reply(
             named
               .map(
                 (computer) =>
-                  `- ${computer.name}${shared(computer.name) ? ` (id ${computer.id})` : ""}: ${whose(computer)}, ${computer.platform}, ${computer.online ? "online" : "offline"}${computer.readOnly ? ", read-only" : ""}. ${
+                  `- ${computer.name}${shared(computer.name) ? ` (id ${computer.id})` : ""}: ${whose(computer)}, ${computer.platform}, ${computer.online ? "online" : "offline"}${computer.readOnly ? ", read-only" : ""}. ${adapters(computer)}${
                     computer.connected
                       ? "You can use it."
                       : computer.asked

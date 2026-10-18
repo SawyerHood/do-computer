@@ -215,7 +215,16 @@ export type HostFrame =
 
 // Daemon to host.
 
-/** Sent once after connecting: what this computer is, and what its owner allows. */
+/** Last reported local adapter diagnostics; readiness can change with the session. */
+export type ComputerAdapterStatus = {
+  name: string
+  state: "unsupported" | "disabled" | "blocked" | "ready"
+  reason?: string
+  tools?: string[]
+  actions?: string[]
+}
+
+/** Sent on connect and when diagnostics change: what this computer is, and what its owner allows. */
 export type HelloFrame = {
   t: "hello"
   platform: string
@@ -236,6 +245,9 @@ export type HelloFrame = {
    * its owner switched that on. Absent on a daemon from before there was such a thing.
    */
   screen?: boolean
+  /** Diagnostic metadata; the boolean above remains the sharing/capability gate. Runtime readiness (e.g. a locked session) is checked on each operation. */
+  screenAdapter?: ComputerAdapterStatus
+  browserAdapter?: ComputerAdapterStatus
   /** Whether agents may use a browser here. Absent on a daemon from before there was one. */
   browser?: boolean
   /**
@@ -388,6 +400,8 @@ export type ComputerSummary = {
   screen?: boolean
   /** For a paired computer: whether agents may use a browser there, as its daemon last said. */
   browser?: boolean
+  screenAdapter?: ComputerAdapterStatus
+  browserAdapter?: ComputerAdapterStatus
   /**
    * For a paired computer whose daemon has said what it is: `current` when it is the daemon
    * this deployment serves, `updating` when it is not and keeps itself up to date, `outdated`

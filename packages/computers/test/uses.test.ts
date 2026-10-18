@@ -120,7 +120,7 @@ describe("the screen of a paired computer", () => {
       .catch((error: unknown) => error)
     expect(refused).toBeInstanceOf(RemoteError)
     expect((refused as RemoteError).code).toBe("refused")
-    expect((refused as RemoteError).message).toMatch(/Do Computer app there, under This Computer/)
+    expect((refused as RemoteError).message).toMatch(/--enable-screen.*--doctor/)
   })
 
   it("is looked at but not used on a computer that may only be read", async () => {

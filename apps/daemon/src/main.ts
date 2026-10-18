@@ -20,8 +20,8 @@ import {
 } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { nodeBrowserIO } from "@do-computer/computers/browser"
-import { DaemonCore } from "@do-computer/computers/daemon"
+import { DaemonCore, type ScreenIO } from "@do-computer/computers/daemon"
+import { UseRefused } from "@do-computer/computers/use"
 import { fakeScreen } from "@do-computer/computers/fake-screen"
 import { nodeDaemonIO, shownPath } from "@do-computer/computers/node"
 import {
@@ -34,7 +34,13 @@ import WebSocket from "ws"
 import { parseArguments } from "./args.ts"
 import { BROWSER_ENV, type DaemonEvent, formatEvent, SCREEN_ENV } from "./events.ts"
 import { POLL_EAGER_MS, pollDelay } from "./pairing.ts"
-import { appScreen } from "./screen.ts"
+import {
+  selectScreen,
+  selectBrowser,
+  adapterStatus,
+  screenRefusal,
+  type ScreenAdapterName,
+} from "./adapters/index.ts"
 import { serviceFile } from "./service.ts"
 import { supervise } from "./supervisor.ts"
 import { RESTART_EXIT_CODE, restorePrevious, update } from "./update.ts"
@@ -91,6 +97,10 @@ type Config = {
   autoUpdate?: boolean
   /** False when the owner said agents may not use a browser here. Absent: they may. */
   browser?: boolean
+  screen?: boolean
+  wakeDisplay?: boolean
+  screenAdapter?: ScreenAdapterName
+  browserAdapter?: "dev-browser"
 }
 
 /** What is remembered about updating: the version last installed, and one that would not start. */
@@ -221,19 +231,58 @@ async function run(config: Config): Promise<void> {
   const url = `${config.server.replace(/^http/, "ws")}/api/computers/connect`
   let socket: WebSocket | undefined
   // The app answers for the screen on the daemon's input, which nothing else is written to.
-  const screen = FAKE_SCREEN
+  const screenOptions = {
+    enabled:
+      !config.readOnly && (EMBEDDED ? SCREEN && config.screen !== false : config.screen === true),
+    adapter: config.screenAdapter,
+    wakeDisplay: config.wakeDisplay,
+    embedded: EMBEDDED,
+    env: process.env,
+  }
+  let selected = await selectScreen(screenOptions)
+  process.once("exit", () => selected.dispose())
+  const requireScreen = () => {
+    if (!selected.screen || !selected.report.enabled || !selected.report.available)
+      throw new UseRefused(screenRefusal(selected.report))
+    return selected.screen
+  }
+  const screen: ScreenIO | undefined = FAKE_SCREEN
     ? fakeScreen()
-    : SCREEN
-      ? appScreen((line) => console.log(line), process.stdin)
+    : screenOptions.enabled
+      ? {
+          act: (...args) => requireScreen().act(...args),
+          view: (...args) => requireScreen().view(...args),
+          hold: (...args) => requireScreen().hold(...args),
+        }
       : undefined
-  // A computer that may only be read is not one to browse from.
-  const browser =
-    config.readOnly || config.browser === false || BROWSER_OFF
-      ? undefined
-      : nodeBrowserIO({ dir: path.join(CONFIG_DIR, "browser"), log })
+  log(
+    `Screen adapter ${selected.report.adapter}: ${adapterStatus(selected.report).state}${selected.report.reason ? `; ${selected.report.reason}` : ""}`,
+  )
+  let refreshing = false
+  const refreshScreen = async () => {
+    const before = JSON.stringify(selected.report)
+    if (
+      selected.rediscover ||
+      (!selected.screen && (screenOptions.enabled || selected.report.adapter === "auto"))
+    ) {
+      const next = await selectScreen(screenOptions)
+      selected.dispose()
+      selected = next
+    } else await selected.refresh?.()
+    return JSON.stringify(selected.report) !== before
+  }
+  const { browser, report: browserReport } = selectBrowser({
+    enabled: !config.readOnly && config.browser !== false && !BROWSER_OFF,
+    adapter: config.browserAdapter,
+    dir: path.join(CONFIG_DIR, "browser"),
+    log,
+  })
   const core = new DaemonCore(
     {
       ...nodeDaemonIO({ home: HOME, audit }),
+      get screenUnavailable() {
+        return screenRefusal(selected.report)
+      },
       ...(screen === undefined ? {} : { screen }),
       ...(browser === undefined ? {} : { browser }),
     },
@@ -288,9 +337,49 @@ async function run(config: Config): Promise<void> {
       const current = new WebSocket(url, { headers: { authorization: `Bearer ${config.token}` } })
       socket = current
       let pongDue: ReturnType<typeof setTimeout> | undefined
+      const hello = () => {
+        // A metadata probe may complete after reconnecting; announce on the current socket.
+        const target = socket
+        if (target?.readyState !== WebSocket.OPEN) return
+        target.send(
+          JSON.stringify({
+            t: "hello",
+            platform: process.platform,
+            hostname: os.hostname(),
+            home: SHOWN_HOME,
+            readOnly: config.readOnly,
+            version: VERSION,
+            jobs: true,
+            updates: updating,
+            screen:
+              (FAKE_SCREEN || (selected.screen !== undefined && selected.report.enabled)) &&
+              !config.readOnly,
+            screenAdapter: adapterStatus(selected.report),
+            browserAdapter: adapterStatus(browserReport),
+            browser: browser !== undefined,
+            signIn: browser !== undefined,
+            pay: browser !== undefined,
+            images: true,
+          }),
+        )
+      }
       const ping = setInterval(() => {
         if (current.readyState !== WebSocket.OPEN) return
         current.send(PING_FRAME)
+        // Metadata only: do not capture, inject input, or wake a display in a health check.
+        if (!refreshing) {
+          refreshing = true
+          void refreshScreen()
+            .then((changed) => {
+              if (changed) hello()
+            })
+            .catch((error) =>
+              log(`Could not refresh screen diagnostics: ${(error as Error).message}`),
+            )
+            .finally(() => {
+              refreshing = false
+            })
+        }
         // No answer means the connection is dead even if the socket has not noticed.
         pongDue = setTimeout(() => current.terminate(), PONG_DEADLINE_MS)
       }, PING_INTERVAL_MS)
@@ -308,24 +397,7 @@ async function run(config: Config): Promise<void> {
           computerId: config.computerId,
           readOnly: config.readOnly,
         })
-        current.send(
-          JSON.stringify({
-            t: "hello",
-            platform: process.platform,
-            hostname: os.hostname(),
-            home: SHOWN_HOME,
-            readOnly: config.readOnly,
-            version: VERSION,
-            jobs: true,
-            updates: updating,
-            screen: screen !== undefined && !config.readOnly,
-            browser: browser !== undefined,
-            signIn: browser !== undefined,
-            pay: browser !== undefined,
-            // Pictures an agent reads are made smaller here, before the server keeps them.
-            images: true,
-          }),
-        )
+        hello()
         core.onOpen()
         // A deployment that changed dropped this connection, so this is when to ask.
         void checkForUpdate()
@@ -402,6 +474,15 @@ const USAGE = `Usage: durable-computer-daemon <server-url> [options]
   --install-service   After pairing, keep the daemon running in the background
   --no-auto-update    Do not replace the daemon when the server has a newer one
   --auto-update       Do so again
+  --screen=MODE       Explicitly enable auto|hyprland|wayland|x11|ipc|embedded, or off
+  --browser=MODE      auto|dev-browser|off (independent of screen)
+  --wake-display      Allow waking an unlocked sleeping display during screen use
+  --no-wake-display   Do not wake displays (the default)
+  --enable-screen     Explicitly allow screen sharing (off by default outside the app)
+  --no-screen         Disable screen sharing again
+  --screen-adapter    auto | ipc | hyprland | x11 | none (selection is not permission)
+  --browser-adapter   dev-browser (independent of screen selection)
+  --doctor            Print adapter readiness as JSON; do not pair or connect
   --no-browser        Do not let the Dood use a browser here
   --browser           Let it again
   --unpair            Forget this computer's credentials and exit
@@ -452,6 +533,44 @@ async function main(): Promise<void> {
   const asked = parseArguments(process.argv.slice(2))
   if (asked.version) return void console.log(VERSION)
   if (asked.help) return void console.log(USAGE)
+  if (asked.doctor) {
+    const saved = loadConfig()
+    const readOnly = asked.readOnly || saved?.readOnly === true
+    const screen = await selectScreen({
+      enabled:
+        !readOnly &&
+        (EMBEDDED
+          ? SCREEN && (asked.screen ?? saved?.screen) !== false
+          : (asked.screen ?? saved?.screen ?? false)),
+      adapter: asked.screenAdapter ?? saved?.screenAdapter,
+      embedded: EMBEDDED,
+      env: process.env,
+      wakeDisplay: asked.wakeDisplay ?? saved?.wakeDisplay,
+    })
+    const browser = selectBrowser({
+      enabled: !readOnly && (asked.browser ?? saved?.browser ?? true) && !BROWSER_OFF,
+      adapter: asked.browserAdapter ?? saved?.browserAdapter,
+      dir: path.join(CONFIG_DIR, "browser"),
+      log: () => {},
+    })
+    console.log(
+      JSON.stringify(
+        {
+          screen: { ...screen.report, state: adapterStatus(screen.report).state },
+          browser: { ...browser.report, state: adapterStatus(browser.report).state },
+        },
+        null,
+        2,
+      ),
+    )
+    if (
+      (screen.report.enabled && !screen.report.ready) ||
+      (browser.report.enabled && !browser.report.ready)
+    )
+      process.exitCode = 1
+    screen.dispose()
+    return
+  }
   if (asked.unpair) {
     rmSync(CONFIG_PATH, { force: true })
     return log("Forgot this computer's credentials. Remove it in the app to finish.")
@@ -493,6 +612,21 @@ async function main(): Promise<void> {
     config = { ...config, browser: asked.browser }
     saveConfig(config)
     log(asked.browser ? "Doods may use a browser here." : "Doods may not use a browser here.")
+  }
+  if (
+    asked.screen !== undefined ||
+    asked.screenAdapter !== undefined ||
+    asked.browserAdapter !== undefined ||
+    asked.wakeDisplay !== undefined
+  ) {
+    config = {
+      ...config,
+      ...(asked.screen === undefined ? {} : { screen: asked.screen }),
+      ...(asked.wakeDisplay === undefined ? {} : { wakeDisplay: asked.wakeDisplay }),
+      ...(asked.screenAdapter === undefined ? {} : { screenAdapter: asked.screenAdapter }),
+      ...(asked.browserAdapter === undefined ? {} : { browserAdapter: asked.browserAdapter }),
+    }
+    saveConfig(config)
   }
   if (asked.installService) return installService([config.server])
   await run(config)
