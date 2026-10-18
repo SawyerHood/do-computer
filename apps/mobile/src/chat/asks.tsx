@@ -358,24 +358,27 @@ function SignInCard({
 function AskedElsewhere({
   agentId,
   chatId,
+  subagent,
   accent,
 }: {
   agentId: string
   chatId: string
+  /** The sub-agent that asked through the main chat, where one did. */
+  subagent?: { title: string } | undefined
   accent: Accent
 }) {
   const router = useRouter()
   return (
     <>
       {" "}
-      Asked in{" "}
+      {subagent === undefined ? "Asked in" : "From the sub-agent"}{" "}
       <Text
         variant="footnote"
         color={accent.ink}
         accessibilityRole="link"
         onPress={() => router.push(`/a/${agentId}/c/${chatId}`)}
       >
-        another chat
+        {subagent?.title ?? "another chat"}
       </Text>
       .
     </>
@@ -621,7 +624,7 @@ function LoginCard({
   return (
     <Card
       icon="key"
-      lead={`${agentName} needs a login for ${site}`}
+      lead={`${request.subagent === undefined ? agentName : `${agentName}’s sub-agent ${request.subagent.title}`} needs a login for ${site}`}
       error={problem ?? answer.error}
       note={team === undefined ? undefined : `Anyone in ${team} can answer`}
       buttons={
@@ -651,7 +654,12 @@ function LoginCard({
         Kept encrypted by Do Computer. {agentName} can sign in with it on the sites below and cannot
         read it.
         {request.chatId === chatId ? null : (
-          <AskedElsewhere agentId={agentId} chatId={request.chatId} accent={accent} />
+          <AskedElsewhere
+            agentId={agentId}
+            chatId={request.chatId}
+            subagent={request.subagent}
+            accent={accent}
+          />
         )}
       </Text>
       <TypedField
@@ -743,15 +751,20 @@ function SecretCard({
       )
     }
   }
+  // A sub-agent's request is shown in the main chat under its name.
+  const asker =
+    request.subagent === undefined
+      ? agentName
+      : `${agentName}’s sub-agent ${request.subagent.title}`
   return (
     <Card
       icon="key"
       lead={
         destination.kind === "connector"
-          ? `${agentName} asks for the access token of ${destination.name}`
+          ? `${asker} asks for the access token of ${destination.name}`
           : one
-            ? `${agentName} asks for a secret`
-            : `${agentName} asks for ${request.fields.length} secrets`
+            ? `${asker} asks for a secret`
+            : `${asker} asks for ${request.fields.length} secrets`
       }
       error={problem ?? answer.error}
       note={team === undefined ? undefined : `Anyone in ${team} can answer`}
@@ -784,7 +797,12 @@ function SecretCard({
           : `Saved to ${destination.path} on ${destination.computer}.`}{" "}
         What you type is not put in the chat or shown to {agentName}.
         {request.chatId === chatId ? null : (
-          <AskedElsewhere agentId={agentId} chatId={request.chatId} accent={accent} />
+          <AskedElsewhere
+            agentId={agentId}
+            chatId={request.chatId}
+            subagent={request.subagent}
+            accent={accent}
+          />
         )}
       </Text>
       {request.fields.map((field) => {

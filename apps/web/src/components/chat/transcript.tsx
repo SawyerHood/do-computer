@@ -67,6 +67,7 @@ import { McpAppFrame } from "./mcp-app.tsx"
 
 const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
 import { AgentMessageChip, AgentWord, PeerFace } from "./agent-threads.tsx"
+import { BusEvent } from "./bus-events.tsx"
 import { AgentIdContext, DraftKeyContext, SentFile } from "./sent-file.tsx"
 import { KeptLine } from "./sign-in.tsx"
 import { PinCard } from "./pin-card.tsx"
@@ -558,6 +559,12 @@ function MessageView({
           </span>
         </div>
       )
+    }
+    if (
+      part?.type === "notice" &&
+      (part.kind === "automation" || part.kind === "asked" || part.kind === "slack")
+    ) {
+      return <BusEvent part={part} />
     }
     if (part?.type === "notice" && part.kind === "approval") {
       // Someone's answer to what the agent asked leave for, where it was told of it as an event.

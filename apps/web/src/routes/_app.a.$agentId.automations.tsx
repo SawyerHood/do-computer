@@ -48,6 +48,7 @@ const tally = (checked: number, started: number) =>
     : `Checked ${times(checked)} and started the Dood ${times(started)}.`
 
 const OUTCOMES = {
+  reported: "reported to the main chat",
   delivered: "reported back",
   silent: "had nothing to report",
   failed: "did not finish",

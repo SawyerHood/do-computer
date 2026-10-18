@@ -21,19 +21,41 @@ function problemWith(name: string, value: string): string | undefined {
   return undefined
 }
 
-/** Where a request came from, for one shown in another chat of the agent than the one it was made in. */
-function AskedElsewhere({ agentId, chatId }: { agentId: string; chatId: string }) {
+/**
+ * Where a request came from, for one shown in another chat of the agent than the one it was made
+ * in. A sub-agent's is shown in the main chat under its name, and the answer goes back to it.
+ */
+function AskedElsewhere({
+  agentId,
+  request,
+}: {
+  agentId: string
+  request: Pick<SecretRequest, "chatId" | "subagent">
+}) {
   return (
     <p className="text-xs text-muted-foreground">
-      Asked in{" "}
+      {request.subagent === undefined ? "Asked in " : "From the sub-agent "}
       <Link
         to="/a/$agentId/c/$chatId"
-        params={{ agentId, chatId }}
+        params={{ agentId, chatId: request.chatId }}
         className="underline underline-offset-3"
       >
-        another chat
+        {request.subagent?.title ?? "another chat"}
       </Link>
+      {request.subagent === undefined ? null : ", which gets the answer"}
     </p>
+  )
+}
+
+/** Who asks, as a request's form says it: the agent, or a sub-agent of it by name. */
+function Asker({ agentName, request }: { agentName: string; request: SecretRequest }) {
+  return request.subagent === undefined ? (
+    <span className="font-medium">{agentName}</span>
+  ) : (
+    <>
+      <span className="font-medium">{agentName}</span>’s sub-agent{" "}
+      <span className="font-medium">{request.subagent.title}</span>
+    </>
   )
 }
 
@@ -94,7 +116,7 @@ function SecretForm({
           <KeyIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-sm">
-              <span className="font-medium">{agentName}</span>{" "}
+              <Asker agentName={agentName} request={request} />{" "}
               {destination.kind === "connector" ? (
                 <>
                   asks for the access token of{" "}
@@ -124,7 +146,7 @@ function SecretForm({
               )}{" "}
               What you type is not put in the chat or shown to {agentName}.
             </p>
-            {here ? null : <AskedElsewhere agentId={agentId} chatId={request.chatId} />}
+            {here ? null : <AskedElsewhere agentId={agentId} request={request} />}
           </div>
         </div>
         <div className="flex flex-col gap-3">
@@ -254,7 +276,7 @@ function LoginForm({ agentId, agentName, request, site, here }: FormProps & { si
           <KeyIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="text-sm wrap-anywhere">
-              <span className="font-medium">{agentName}</span> needs a login for{" "}
+              <Asker agentName={agentName} request={request} /> needs a login for{" "}
               <span className="font-medium">{site}</span>
             </p>
             {request.purpose === null ? null : (
@@ -264,7 +286,7 @@ function LoginForm({ agentId, agentName, request, site, here }: FormProps & { si
               Kept encrypted by Do Computer. {agentName} can sign in with it on the sites below and
               cannot read it.
             </p>
-            {here ? null : <AskedElsewhere agentId={agentId} chatId={request.chatId} />}
+            {here ? null : <AskedElsewhere agentId={agentId} request={request} />}
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-1">

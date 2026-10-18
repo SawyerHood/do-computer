@@ -20,6 +20,7 @@ export const tally = (checked: number, started: number) =>
 
 /** What came of a run, in the web app's words. */
 export const OUTCOMES = {
+  reported: "reported to the main chat",
   delivered: "reported back",
   silent: "had nothing to report",
   failed: "did not finish",
