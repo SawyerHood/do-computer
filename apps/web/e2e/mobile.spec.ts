@@ -222,7 +222,8 @@ test("a copied picture is pasted into the message box and goes with the message"
   await page.getByRole("button", { name: "Send" }).click()
   await expect(composer(page)).toHaveValue("")
   // It is in the library by then, and the agent is told its name.
-  await expect(words(page, new RegExp(`^Attached: ${pasted.source}$`)).first()).toBeVisible()
+  // The message shows it by its name, and not the line that tells the agent.
+  await expect(words(page, new RegExp(`^${pasted.source}$`)).first()).toBeVisible()
 })
 
 test("the agent's work leaves only its answer, and a sent file can be opened", async ({ page }) => {

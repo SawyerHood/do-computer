@@ -16,6 +16,7 @@ import {
   type MessagePart,
   type NoticePart,
   type Person,
+  sentWords,
 } from "@do-computer/protocol"
 import {
   type ComponentType,
@@ -388,12 +389,53 @@ function SentParts({ message, own }: { message: ChatMessage; own: boolean }) {
   return (
     <>
       <SentPictures pictures={pictures} />
-      {message.parts.map((part, index) =>
-        part.type === "text" && part.text !== "" ? (
-          <Bubble key={index} text={part.text} own={own} />
-        ) : null,
-      )}
+      {message.parts.map((part, index) => {
+        if (part.type !== "text") return null
+        // The line that names the files is for the agent. The pictures are shown as themselves,
+        // and any other file it named by its name.
+        const shown = sentWords(part.text, pictures.length > 0)
+        if (shown.text === "" && shown.files.length === 0) return null
+        return (
+          <View key={index} style={{ alignItems: "flex-end", gap: 6 }}>
+            {shown.text === "" ? null : <Bubble text={shown.text} own={own} />}
+            {shown.files.length === 0 ? null : <SentFileNames names={shown.files} />}
+          </View>
+        )
+      })}
     </>
+  )
+}
+
+/** The files a message named that are not shown as pictures: by their names, under its words. */
+function SentFileNames({ names }: { names: readonly string[] }) {
+  const theme = useTheme()
+  return (
+    <View
+      accessibilityLabel="Sent files"
+      style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 6 }}
+    >
+      {names.map((name, index) => (
+        <View
+          key={index}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 5,
+            maxWidth: 240,
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: theme.sep,
+          }}
+        >
+          <Icon name="clip" size={13} color={theme.ink2} />
+          <Text variant="caption" tone="ink2" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {name}
+          </Text>
+        </View>
+      ))}
+    </View>
   )
 }
 

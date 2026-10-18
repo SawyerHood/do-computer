@@ -147,12 +147,11 @@ test("a picture pasted into the message box is attached, under a name of its own
   await expect(page.getByRole("button", { name: "Model and thinking" })).toHaveCount(0)
 
   await composer(page).press("Enter")
-  await expect(
-    page
-      .getByRole("log")
-      .getByText(/Attached: pasted-[\d_-]+\.png, receipt\.png/)
-      .first(),
-  ).toBeVisible()
+  // The agent is told the files' names; the message shows them as files, and not that line.
+  // The echo model sees no pictures, so none went with it to be shown as pictures.
+  const sent = page.getByRole("log").getByRole("list", { name: "Sent files" }).first()
+  await expect(sent.getByText(/^pasted-[\d_-]+\.png$/)).toBeVisible()
+  await expect(sent.getByText("receipt.png")).toBeVisible()
   await expect(attached).toHaveCount(0)
 })
 

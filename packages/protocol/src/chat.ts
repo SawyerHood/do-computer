@@ -257,3 +257,36 @@ export type ChatHistoryPage = {
   /** Pass as `before` to get the page before this one. Null when this is the beginning. */
   before: string | null
 }
+
+/**
+ * Where files go with a message, the app (and Slack) says so in a last line of its text,
+ * "Attached: a.jpg, b.txt": that is how the agent knows to look for them in its library.
+ */
+const ATTACHED_LINE = /(?:^|\n\n)Attached: ([^\n]+)$/
+
+const PICTURE_NAME = /\.(?:png|jpe?g|gif|webp|heic|heif|avif|bmp)$/i
+
+/**
+ * A message's words as a person reads them: without the line that names its files for the
+ * agent. The files it named are given back to be shown as files, all but the pictures where the
+ * message carries pictures, which are shown as themselves already.
+ */
+export function sentWords(text: string, pictures: boolean): { text: string; files: string[] } {
+  const found = ATTACHED_LINE.exec(text)
+  if (found === null) return { text, files: [] }
+  const files = found[1]!
+    .split(", ")
+    .map((name) => name.trim())
+    .filter((name) => name !== "" && !(pictures && PICTURE_NAME.test(name)))
+  return { text: text.slice(0, found.index).trimEnd(), files }
+}
+
+/**
+ * A sent message as its agent's latest line has it: its words, or what it sent where it said
+ * nothing, and not the line that names its files for the agent.
+ */
+export function latestOfSent(text: string): string {
+  const shown = sentWords(text, false)
+  if (shown.text !== "" || shown.files.length === 0) return shown.text
+  return shown.files.length === 1 ? `Sent ${shown.files[0]}` : `Sent ${shown.files.length} files`
+}

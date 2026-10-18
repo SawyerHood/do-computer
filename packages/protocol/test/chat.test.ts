@@ -8,6 +8,8 @@ import {
   encodeSse,
   readSse,
   reduceChat,
+  latestOfSent,
+  sentWords,
 } from "../src/index.ts"
 
 const user = (id: string, text: string): ChatMessage => ({
@@ -271,5 +273,38 @@ describe("an agent's look", () => {
     const svg = avatarSvg(old, "agent-1")
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
     expect(svg).toContain("#3f7f9c")
+  })
+})
+
+describe("sentWords", () => {
+  it("leaves out the line that names a message's files, and the pictures it shows", () => {
+    expect(sentWords("clean up\n\nAttached: A.jpg, notes.txt, B.HEIC", true)).toEqual({
+      text: "clean up",
+      files: ["notes.txt"],
+    })
+  })
+
+  it("names every file where the message carries no pictures", () => {
+    expect(sentWords("Attached: shot.png, notes.txt", false)).toEqual({
+      text: "",
+      files: ["shot.png", "notes.txt"],
+    })
+  })
+
+  it("leaves words alone that only mention attaching", () => {
+    expect(sentWords("Attached: is a word\nand more", true)).toEqual({
+      text: "Attached: is a word\nand more",
+      files: [],
+    })
+    expect(sentWords("hello", true)).toEqual({ text: "hello", files: [] })
+  })
+})
+
+describe("latestOfSent", () => {
+  it("is a message's words, or what it sent where it said nothing", () => {
+    expect(latestOfSent("clean up\n\nAttached: a.jpg, b.jpg")).toBe("clean up")
+    expect(latestOfSent("Attached: a.jpg")).toBe("Sent a.jpg")
+    expect(latestOfSent("Attached: a.jpg, b.txt")).toBe("Sent 2 files")
+    expect(latestOfSent("hello")).toBe("hello")
   })
 })
