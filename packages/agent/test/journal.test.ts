@@ -4,11 +4,9 @@ import { join } from "node:path"
 import {
   type AgentUsage,
   type ChatEvent,
-  type ChatHistoryPage,
   type ChatState,
   type ChatSummary,
   EMPTY_CHAT,
-  type HistoryHit,
   readSse,
   reduceChat,
   type ToolPart,
@@ -21,12 +19,11 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
-import type { EntryRecord } from "@earendil-works/pi-durable"
 import { afterEach, describe, expect, it } from "vitest"
-import type { ChatsState } from "../src/docs.ts"
+import type { ChatsState, SchedulesState } from "../src/docs.ts"
 import { createAgentActor } from "../src/index.ts"
 import { type JournalState, parseReview, recentActivity, recordDone } from "../src/journal.ts"
-import { branchPoint } from "../src/project.ts"
+import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -44,11 +41,13 @@ const worlds: World[] = []
 /** `window` is the model's context window, for a chat that is to grow large and not be summarized. */
 function open(review = true, window?: number): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-journal-"))
-  const faux = fauxProvider({
-    provider: "test",
-    models: [{ id: "model", ...(window === undefined ? {} : { contextWindow: window }) }],
-    tokensPerSecond: 50_000,
-  })
+  const faux = quietOnReminder(
+    fauxProvider({
+      provider: "test",
+      models: [{ id: "model", ...(window === undefined ? {} : { contextWindow: window }) }],
+      tokensPerSecond: 50_000,
+    }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const world: World = {
@@ -149,53 +148,12 @@ const answering = (seen: string[], text: string) => (context: unknown) => {
   return fauxAssistantMessage(text)
 }
 
-const texts = (page: ChatHistoryPage | ChatState) =>
-  page.messages.map((message) =>
-    message.parts
-      .map((part) =>
-        part.type === "text"
-          ? part.text
-          : part.type === "notice"
-            ? `<${part.kind}>`
-            : `<${part.type}>`,
-      )
-      .join(""),
-  )
-
-/** What each notice in a chat says. */
-const notices = (state: ChatState) =>
-  state.messages.flatMap((message) =>
-    message.parts.flatMap((part) => (part.type === "notice" ? [part.text] : [])),
-  )
-
 async function start(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
   return call<ChatSummary>(world, "/chats/main", "POST")
 }
 
-describe("what a chat is shown of the agent's other chats", () => {
-  it("is told the work the agent wrote up elsewhere, and not its own", async () => {
-    const world = open(false)
-    const main = await start(world)
-    const seen: string[] = []
-    world.faux.setResponses([
-      step("log", { title: "Set up the backup", outcome: "Backups now run nightly." }),
-      answering(seen, "Backups are set up."),
-    ])
-    await converse(world, main.id, "set up a nightly backup")
-    // In the chat the work was done in, it is not news.
-    expect(seen[0]).not.toContain("Work you finished in them")
-
-    const side = await call<ChatSummary>(world, "/chats", "POST", { title: "Something else" })
-    world.faux.setResponses([answering(seen, "Hello.")])
-    await converse(world, side.id, "hi")
-    expect(seen[1]).toContain("Work you finished in them")
-    expect(seen[1]).toContain(
-      `Your main chat (chat ${main.id}): Set up the backup. Backups now run nightly.`,
-    )
-    expect(world.reports).toEqual([])
-  })
-
+describe("the notes of where a chat stands", () => {
   it("has a small model note where a chat stands, and add a lasting fact nobody saved", async () => {
     const world = open()
     const main = await start(world)
@@ -225,21 +183,18 @@ describe("what a chat is shown of the agent's other chats", () => {
     expect(world.reviewed[1]).not.toContain("Book the Lisbon flight")
     expect(world.reviewed[1]).toContain("Prefers an aisle seat on every flight.")
 
-    // Another chat is shown the note, and can list its chats with it.
-    const side = await call<ChatSummary>(world, "/chats", "POST", { title: "Packing" })
+    // It can list its other chats.
     const seen: string[] = []
     world.faux.setResponses([
       step("history", { action: "list" }),
       answering(seen, "You have the trip chat."),
     ])
-    const state = await converse(world, side.id, "what else is going on?")
-    expect(seen[0]).toContain("Where your other chats stand")
-    expect(seen[0]).toContain("Flight TP1352 on the 14th is booked")
+    const state = await converse(world, main.id, "what is going on?")
     const listed = state.messages
       .flatMap((message) => message.parts)
-      .find((part): part is ToolPart => part.type === "tool")
-    expect(listed?.output).toContain(`Your main chat (chat ${main.id}), last active`)
-    expect(listed?.output).toContain("Planning the Lisbon trip.")
+      .findLast((part): part is ToolPart => part.type === "tool" && part.name === "history")
+    // It has no other chat with people: the main chat is the one.
+    expect(listed?.output).toBe("You have no other chats.")
 
     // What the notes cost is part of what the agent cost.
     const usage = await call<AgentUsage>(world, "/usage")
@@ -253,236 +208,134 @@ describe("what a chat is shown of the agent's other chats", () => {
     const world = open()
     const main = await start(world)
     world.note = "I could not say."
-    world.faux.setResponses([fauxAssistantMessage("Done.")])
+    world.faux.setResponses([sent("Done.")])
     await converse(world, main.id, "Remember I like tea.")
-    await until(() => world.reviewed.length === 1)
+    await until(() => world.reviewed.length >= 1)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const read = world.reviewed.length
     world.note = JSON.stringify({ note: "Talked about tea.", memory: [], user: [] })
-    world.faux.setResponses([fauxAssistantMessage("Yes.")])
+    world.faux.setResponses([sent("Yes.")])
     await converse(world, main.id, "Green tea.")
-    await until(() => world.reviewed.length === 2)
-    // Nothing was taken in the first time, so the second reading starts from the same place.
-    expect(world.reviewed[1]).toContain("Remember I like tea.")
+    await until(() => world.reviewed.length > read)
+    // Nothing was taken in the first time, so the next reading starts from the same place.
+    expect(world.reviewed.at(-1)).toContain("Remember I like tea.")
     expect((await call<{ user: string }>(world, "/")).user).toBe("")
     expect(world.reports).toEqual([])
   })
 })
 
-describe("a side chat", () => {
-  it("carries the main chat with it, and shows only its own messages", async () => {
-    const world = open(false)
-    const main = await start(world)
-    world.faux.setResponses([
-      fauxAssistantMessage("The ferry to Cacilhas leaves from Cais do Sodré every twenty minutes."),
-    ])
-    await converse(world, main.id, "How do I get across the river in Lisbon?")
-
-    const side = await call<ChatSummary>(world, "/chats", "POST", { title: "Tickets" })
-    expect(texts(await call<ChatState>(world, `/chats/${side.id}`))).toEqual(["<branch>"])
-
-    const seen: string[] = []
-    world.faux.setResponses([answering(seen, "About two euros.")])
-    const state = await converse(world, side.id, "What does it cost?")
-    // The agent answers with the main chat in front of it, told where it is.
-    expect(seen[0]).toContain("The ferry to Cacilhas leaves from Cais do Sodré")
-    expect(seen[0]).toContain("This is a side chat.")
-    expect(texts(state)).toEqual(["<branch>", "What does it cost?", "About two euros."])
-    expect(texts(await call<ChatHistoryPage>(world, `/chats/${side.id}/history?limit=50`))).toEqual(
-      ["<branch>", "What does it cost?", "About two euros."],
-    )
-
-    // The main chat goes on without it, and what it said is found once, as its own.
-    expect(texts(await call<ChatState>(world, `/chats/${main.id}`))).toEqual([
-      "How do I get across the river in Lisbon?",
-      "The ferry to Cacilhas leaves from Cais do Sodré every twenty minutes.",
-    ])
-    const found = await call<{ hits: HistoryHit[] }>(world, "/search?q=ferry")
-    expect(found.hits.map((hit) => hit.chatId)).toEqual([main.id])
-    const cost = await call<{ hits: HistoryHit[] }>(world, "/search?q=euros")
-    expect(cost.hits.map((hit) => hit.chatId)).toEqual([side.id])
-
-    // It is renamed and put away like any other side chat.
-    expect(
-      await call<ChatSummary>(world, `/chats/${side.id}`, "PATCH", { title: "Fares" }),
-    ).toMatchObject({ id: side.id, title: "Fares", archived: false })
-    expect(
-      await call<ChatSummary>(world, `/chats/${side.id}`, "PATCH", { archived: true }),
-    ).toMatchObject({ archived: true })
-    const listed = await call<{ chats: ChatSummary[] }>(world, "/")
-    expect(listed.chats.find((chat) => chat.id === side.id)).toMatchObject({ title: "Fares" })
-    expect(world.reports).toEqual([])
-  })
-
-  it("starts empty only when nothing has been answered in the main chat", async () => {
-    const world = open(false)
-    await start(world)
-    const early = await call<ChatSummary>(world, "/chats", "POST", {})
-    expect(texts(await call<ChatState>(world, `/chats/${early.id}`))).toEqual([])
-    expect(world.reports).toEqual([])
-  })
-
-  it("carries a main chat of any size while the provider's cache holds it", async () => {
-    const world = open(false, 1_000_000)
-    const main = await start(world)
-    /** The session each request was made under, which is what a provider's cache can go by. */
-    const sessions: (string | undefined)[] = []
-    const seen: string[] = []
-    const noting = (text: string) => (context: unknown, options?: { sessionId?: string }) => {
-      sessions.push(options?.sessionId)
-      seen.push(JSON.stringify(context))
-      return fauxAssistantMessage(text)
-    }
-    world.faux.setResponses([noting("That is a lot of words."), noting("And more.")])
-    await converse(world, main.id, "alpha ".repeat(30_000))
-    await converse(world, main.id, "beta ".repeat(35_000))
-
-    const side = await call<ChatSummary>(world, "/chats", "POST", {})
-    expect(notices(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([
-      "Continues from the main chat",
-    ])
-    world.faux.setResponses([noting("It was.")])
-    await converse(world, side.id, "Was that a lot?")
-    // All of it, far past what a side chat carries when it must be paid for in full.
-    expect(seen[2]).toContain("alpha alpha")
-    expect(seen[2]).toContain("beta beta")
-    expect(seen[2]).not.toContain("left behind")
-    // Under the main chat's own session, where a provider that keeps its cache by session has it.
-    expect(sessions[0]).toBeTypeOf("string")
-    expect(sessions).toEqual([sessions[0], sessions[0], sessions[0]])
-    expect(world.reports).toEqual([])
-  })
-
-  it("leaves the oldest of a large main chat behind once the cache has gone cold", async () => {
-    const world = open(false, 1_000_000)
-    const main = await start(world)
-    world.faux.setResponses([
-      fauxAssistantMessage("That is a lot of words."),
-      fauxAssistantMessage("And more."),
-    ])
-    await converse(world, main.id, "alpha ".repeat(30_000))
-    await converse(world, main.id, "beta ".repeat(35_000))
-
-    // Two hours on, nothing of the main chat is in a cache, and all of it is too much to pay for.
-    world.ahead = 2 * 60 * 60_000
-    const side = await call<ChatSummary>(world, "/chats", "POST", {})
-    expect(notices(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([
-      "Continues from the most recent part of the main chat",
-    ])
-    const seen: string[] = []
-    world.faux.setResponses([answering(seen, "Beta.")])
-    const state = await converse(world, side.id, "What was the last word?")
-    expect(seen[0]).toContain("beta beta")
-    expect(seen[0]).not.toContain("alpha alpha")
-    // It is told what it is missing, and where that is.
-    expect(seen[0]).toContain("only the most recent part of the main chat is above")
-    expect(seen[0]).toContain(`is in chat ${main.id}`)
-    expect(texts(state)).toEqual(["<branch>", "What was the last word?", "Beta."])
-
-    // The main chat has lost nothing by it.
-    world.faux.setResponses([answering(seen, "Alpha.")])
-    await converse(world, main.id, "And the first?")
-    expect(seen[1]).toContain("alpha alpha")
-    expect(seen[1]).toContain("beta beta")
-    expect(world.reports).toEqual([])
-  })
-
-  it("leaves old tool output behind before anything that was said", async () => {
-    const world = open(false, 1_000_000)
-    const main = await start(world)
-    // Eight long listings, and little said. The word in capitals is in the output alone.
-    const row = (turn: number) => `ROW of listing ${turn} `
-    for (let turn = 1; turn <= 8; turn++) {
-      world.faux.setResponses([
-        step("bash", {
-          command: `yes "$(echo row | tr a-z A-Z) of listing ${turn} ${"x".repeat(90)}" | head -n 400`,
-        }),
-        fauxAssistantMessage(`Listing ${turn} is done.`),
-      ])
-      await converse(world, main.id, `Make listing ${turn}, please.`)
-    }
-
-    world.ahead = 2 * 60 * 60_000
-    const side = await call<ChatSummary>(world, "/chats", "POST", {})
-    expect(notices(await call<ChatState>(world, `/chats/${side.id}`))).toEqual([
-      "Continues from the main chat, with older tool output left behind",
-    ])
-    const seen: string[] = []
-    world.faux.setResponses([answering(seen, "Eight.")])
-    await converse(world, side.id, "How many listings were there?")
-    // Every word that was said is there, and so is the latest output. The oldest is a line.
-    for (let turn = 1; turn <= 8; turn++) expect(seen[0]).toContain(`Make listing ${turn}, please.`)
-    expect(seen[0]).toContain(row(8))
-    expect(seen[0]).not.toContain(row(1))
-    expect(seen[0]).toContain("characters of output left behind in the main chat")
-    expect(seen[0]).toContain("the older tool output and pictures above were left behind")
-
-    world.faux.setResponses([answering(seen, "Yes.")])
-    await converse(world, main.id, "Is the first listing still here?")
-    expect(seen[1]).toContain(row(1))
-    expect(world.reports).toEqual([])
-  })
-})
-
-describe("where a chat can be branched from", () => {
-  const entry = (id: number, kind: string, message?: object): EntryRecord =>
-    ({ id, kind, ...(message === undefined ? {} : { model: [message] }) }) as unknown as EntryRecord
-  const user = (id: number) => entry(id, "pi.user", { role: "user", content: "hi" })
-  const answer = (id: number) =>
-    entry(id, "pi.assistant", {
-      role: "assistant",
-      stopReason: "stop",
-      content: [{ type: "text", text: "Hello." }],
-    })
-  const calling = (id: number) =>
-    entry(id, "pi.assistant", {
-      role: "assistant",
-      stopReason: "toolUse",
-      content: [{ type: "toolCall", id: "c", name: "bash", arguments: {} }],
-    })
-
-  it("is the end of a chat at rest, and the last finished answer of one at work", () => {
-    expect(branchPoint([])).toBeUndefined()
-    expect(branchPoint([user(1), calling(2)])).toBeUndefined()
-    expect(branchPoint([user(1), answer(2)])).toBe(2)
-    // A report written into the chat after the answer goes with it.
-    expect(branchPoint([user(1), answer(2), entry(3, "dc.scheduled")])).toBe(3)
-    // In the middle of the next piece of work, the side chat begins before it.
-    expect(branchPoint([user(1), answer(2), user(3), calling(4), entry(5, "pi.tool-result")])).toBe(
-      2,
-    )
-  })
-})
-
-describe("the account of other chats", () => {
-  const chat = (kind: string, title: string) =>
-    ({ title, kind, createdAt: 0, updatedAt: 0, archived: false }) as ChatsState["chats"][string]
+describe("what goes on around a chat", () => {
+  const chat = (kind: string, title: string, more: object = {}) =>
+    ({
+      title,
+      kind,
+      createdAt: 0,
+      updatedAt: 0,
+      archived: false,
+      ...more,
+    }) as ChatsState["chats"][string]
   const chats: ChatsState = {
     main: "1",
     chats: {
       "1": chat("chat", "Main"),
-      "2": chat("chat", "Trip"),
+      "2": chat("chat", "Trip", { archived: true }),
       "3": chat("schedule", "Morning digest"),
       "4": chat("schedule", "Morning digest"),
-      "5": chat("subagent", "Research"),
+      "5": chat("subagent", "Research", {
+        createdAt: 1,
+        subagent: { parentId: "1", task: "Read.", status: "working", reported: null, reports: 0 },
+      }),
+      "6": chat("subagent", "Old errand", {
+        subagent: { parentId: "1", task: "Go.", status: "done", reported: null, reports: 1 },
+      }),
+      "7": chat("slack", "Launch question", {
+        slack: {
+          channel: "C1",
+          channelName: "launch",
+          direct: false,
+          thread: "1.0",
+          url: null,
+          status: "waiting",
+          replied: null,
+          replies: 1,
+        },
+      }),
     },
   }
+  const schedules = {
+    schedules: {
+      ab12: {
+        title: "Morning digest",
+        prompt: "Sum up the news.",
+        schedule: "0 9 * * *",
+        timezone: null,
+        enabled: true,
+        nextRunAt: 10,
+        createdAt: 0,
+        pending: null,
+        lastRun: null,
+        runCount: 2,
+      },
+    },
+  } as unknown as SchedulesState
 
   it("keeps one entry for each schedule, and none for a sub-agent", () => {
     const journal: JournalState = { notes: {}, done: [] }
-    recordDone(journal, chats, { chatId: "2", title: "Book flights", outcome: "Booked.", at: 1 })
+    recordDone(journal, chats, { chatId: "7", title: "Answer Jo", outcome: "Answered.", at: 1 })
     recordDone(journal, chats, { chatId: "3", title: "Morning digest", outcome: "Monday.", at: 2 })
     recordDone(journal, chats, { chatId: "4", title: "Morning digest", outcome: "Tuesday.", at: 3 })
     recordDone(journal, chats, { chatId: "5", title: "Read papers", outcome: "Read.", at: 4 })
     // Written up again, an entry is replaced.
-    recordDone(journal, chats, { chatId: "2", title: "Book flights", outcome: "Rebooked.", at: 5 })
-    expect(journal.done.map((done) => done.outcome)).toEqual(["Tuesday.", "Rebooked."])
+    recordDone(journal, chats, {
+      chatId: "7",
+      title: "Answer Jo",
+      outcome: "Answered again.",
+      at: 5,
+    })
+    expect(journal.done.map((done) => done.outcome)).toEqual(["Tuesday.", "Answered again."])
+  })
 
-    const shown = recentActivity(journal, chats, "1", "Europe/Lisbon")!
-    expect(shown).toContain('Your side chat "Trip" (chat 2): Book flights. Rebooked.')
-    expect(shown).toContain('A run of your scheduled task "Morning digest" (chat 4)')
-    // A chat is not told about itself, and a sub-agent is told nothing.
-    expect(recentActivity(journal, chats, "2", null)).not.toContain("Rebooked")
+  it("is the sub-agents at work, the automations and the threads in Slack, and no side chat", () => {
+    const journal: JournalState = {
+      notes: {
+        "1": { text: "Planning the launch.", at: 6, through: 1 },
+        "2": { text: "Packing for Lisbon.", at: 7, through: 1 },
+        "7": { text: "Jo asked when the launch is; waiting on the date.", at: 8, through: 1 },
+      },
+      done: [],
+    }
+    recordDone(journal, chats, { chatId: "4", title: "Morning digest", outcome: "Tuesday.", at: 3 })
+    recordDone(journal, chats, { chatId: "7", title: "Answer Jo", outcome: "Answered.", at: 5 })
+    const shown = recentActivity(journal, chats, "1", "Europe/Lisbon", schedules)!
+    expect(shown).toContain("Sub-agents at work:")
+    expect(shown).toContain('Your sub-agent "Research" (chat 5), at work')
+    expect(shown).not.toContain("Old errand")
+    expect(shown).toContain('"Morning digest" (schedule ab12), 0 9 * * *; last run')
+    expect(shown).toContain(": Tuesday.")
+    expect(shown).toContain("Threads in Slack with something open")
+    expect(shown).toContain(
+      'A Slack thread in #launch, "Launch question" (chat 7), waiting for an answer from a person',
+    )
+    expect(shown).toContain("Jo asked when the launch is")
+    expect(shown).toContain("Answer Jo. Answered.")
+    // Nothing of an old side chat, nor of the main chat to itself.
+    expect(shown).not.toContain("Packing for Lisbon")
+    expect(shown).not.toContain("Planning the launch.")
+    // A thread is shown where the main chat stands, and not itself.
+    const thread = recentActivity(journal, chats, "7", null, schedules)!
+    expect(thread).toContain("Where your main chat (chat 1) stands")
+    expect(thread).toContain("Planning the launch.")
+    expect(thread).not.toContain("Launch question")
+    // A sub-agent is told nothing, and where nothing goes on, nothing is said.
     expect(recentActivity(journal, chats, "5", null)).toBeUndefined()
-    expect(recentActivity({ notes: {}, done: [] }, chats, "1", null)).toBeUndefined()
+    expect(
+      recentActivity(
+        { notes: {}, done: [] },
+        { main: "1", chats: { "1": chat("chat", "Main") } },
+        "1",
+        null,
+      ),
+    ).toBeUndefined()
   })
 
   it("reads a small model's answer through the words around it", () => {

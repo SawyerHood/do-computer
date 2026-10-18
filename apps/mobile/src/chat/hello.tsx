@@ -7,7 +7,7 @@ import { usePetting } from "@/creature/petting"
 import { keys } from "@/lib/queries"
 import type { Accent } from "@/lib/theme"
 import { useSession } from "@/lib/use-session"
-import { Button, Icon, Text } from "@/ui"
+import { Button, Text } from "@/ui"
 import { Avatar, type Mood } from "@/ui/avatar"
 
 /** Who a new agent has just met in the first run, and what it was given there. */
@@ -175,20 +175,6 @@ export function Hello({
           ))}
         </View>
       )}
-    </View>
-  )
-}
-
-/** The hello of a side chat nothing has been said in: what a side chat is. */
-export function SideChatHello({ name, carried }: { name: string; carried: boolean }) {
-  return (
-    <View style={{ alignItems: "center", paddingHorizontal: 36, gap: 10 }}>
-      <Icon name="chats" size={30} color="#8b949a" />
-      <Text variant="subhead" tone="ink2" style={{ textAlign: "center" }}>
-        {carried
-          ? `A side chat keeps its own conversation. ${name} picks up from the main chat, which stays as it was.`
-          : `A side chat keeps its own conversation. ${name} brings what it remembers, and the main chat stays as it was.`}
-      </Text>
     </View>
   )
 }

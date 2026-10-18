@@ -32,6 +32,7 @@ import {
   type PeerMessage,
 } from "../src/index.ts"
 import { fakeMcp, type FakeMcpOptions, GOOD_CODE } from "./fake-mcp.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 type Machine = AgentComputer & { id: string; mine?: boolean }
 
@@ -70,11 +71,13 @@ type Setup = {
 
 function open(setup: Setup = {}): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-app-tools-"))
-  const faux = fauxProvider({
-    provider: "test",
-    models: [{ id: "model" }, { id: "big" }],
-    tokensPerSecond: 50_000,
-  })
+  const faux = quietOnReminder(
+    fauxProvider({
+      provider: "test",
+      models: [{ id: "model" }, { id: "big" }],
+      tokensPerSecond: 50_000,
+    }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const mcp = fakeMcp(setup.mcp)
@@ -230,7 +233,7 @@ async function say(world: World, chatId: string, text: string): Promise<ChatStat
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats", "POST", { title: "Chores" })
+  return call<ChatSummary>(world, "/chats/main", "POST", { title: "Chores" })
 }
 
 type ToolArguments = Parameters<typeof fauxToolCall>[1]

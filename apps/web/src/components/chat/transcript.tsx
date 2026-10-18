@@ -733,7 +733,7 @@ export function Transcript({
     })
   }
   const lastDelivered = seen.arrived === newestDelivered ? newestDelivered : undefined
-  // A side chat that continues the main one opens with the mark of where its own messages
+  // An old side chat that continues the main one opens with the mark of where its own messages
   // begin. Until something is said in it, it is as empty as any new chat, and greets like one.
   const untouched = state.messages.length === (continuesMain(state.messages) ? 1 : 0)
   // The steps an agent takes on a screen are shown as one thing, where the first of them is.

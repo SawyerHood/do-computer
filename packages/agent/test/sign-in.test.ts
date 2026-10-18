@@ -35,6 +35,7 @@ import {
   createModelAccessActor,
   vault,
 } from "../src/index.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 const PASSWORD = "tr0ub4dor & 3 horses"
 
@@ -50,11 +51,13 @@ const workspaces = new NodeActorNamespace({
   blobs: () => fileBlobs(join(directory, "workspace-blobs")),
   factory: (host) => createModelAccessActor(host, { providers: () => [], vaultKey: "a key" }),
 })
-const faux = fauxProvider({
-  provider: "test",
-  models: [{ id: "model", input: ["text", "image"] }],
-  tokensPerSecond: 5_000,
-})
+const faux = quietOnReminder(
+  fauxProvider({
+    provider: "test",
+    models: [{ id: "model", input: ["text", "image"] }],
+    tokensPerSecond: 5_000,
+  }),
+)
 const models = createModels()
 models.setProvider(faux.provider)
 /** Which agents' workspaces keep logins, as their host would answer. */
@@ -198,28 +201,37 @@ async function call<T>(agent: string, path: string, method = "GET", payload?: un
   return result
 }
 
-/** Wait for the agent to have answered: it is at rest, with more said than before. */
-async function settled(agent: string, chatId: string, before: number): Promise<ChatState> {
+/**
+ * Wait for the agent to have answered: it is at rest, with more in the chat than `before`. In a
+ * main chat its working is folded into one row that grows, so what is compared is the whole of
+ * what is shown, and not how many messages there are.
+ */
+async function settled(agent: string, chatId: string, before: string): Promise<ChatState> {
   const deadline = Date.now() + 8_000
   for (;;) {
     const state = await call<ChatState>(agent, `/chats/${chatId}`)
-    if (!state.busy && state.messages.length > before + 1) return state
+    const answered = state.messages.at(-1)?.role !== "user"
+    if (!state.busy && state.queued.length === 0 && answered && shown(state) !== before) {
+      return state
+    }
     if (Date.now() > deadline) throw new Error("run did not finish")
     await new Promise((resolve) => setTimeout(resolve, 30))
   }
 }
 
+const shown = (state: ChatState) => JSON.stringify(state.messages)
+
 async function say(agent: string, chatId: string, text: string): Promise<ChatState> {
-  const before = (await call<ChatState>(agent, `/chats/${chatId}`)).messages.length
+  const before = shown(await call<ChatState>(agent, `/chats/${chatId}`))
   await call(agent, `/chats/${chatId}/messages`, "POST", { text, requestId: crypto.randomUUID() })
   return settled(agent, chatId, before)
 }
 
 /** Do `act`, which gives the agent a turn of its own, and wait for it to have taken it. */
 async function after(agent: string, chatId: string, act: () => Promise<unknown>) {
-  const before = (await call<ChatState>(agent, `/chats/${chatId}`)).messages.length
+  const before = shown(await call<ChatState>(agent, `/chats/${chatId}`))
   await act()
-  return settled(agent, chatId, before - 1)
+  return settled(agent, chatId, before)
 }
 
 const tools = (state: ChatState) =>
@@ -236,7 +248,7 @@ const signsIn = (args: Record<string, unknown> = {}) => [
 
 async function setUp(agent: string, signIn = true) {
   await call(agent, "/init", "POST", { ownerId: "user-1" })
-  const chat = await call<ChatSummary>(agent, "/chats", "POST", {})
+  const chat = await call<ChatSummary>(agent, "/chats/main", "POST", {})
   const { home, audited } = await startDaemon(`mac-${agent}`, signIn)
   await call(agent, `/computers/mac-${agent}`, "PUT", {
     name: "MacBook",
@@ -421,58 +433,61 @@ describe("signing in with a saved login", () => {
   })
 
   it("does not ask again where a yes was spent on an attempt that typed no password", async () => {
-    // In a chat of its own: a yes is for the chat it was asked in.
-    const here = await call<ChatSummary>("agent-1", "/chats", "POST", {})
+    // With a Dood of its own: a yes is for the chat it was asked in, and a Dood has one.
+    having.add("agent-5")
+    const { chat: here } = await setUp("agent-5")
     browser.handed.length = 0
     faux.setResponses(signsIn())
-    await say("agent-1", here.id, "sign in")
-    const { pending } = await call<ApprovalsState>("agent-1", "/approvals")
+    await say("agent-5", here.id, "sign in")
+    const { pending } = await call<ApprovalsState>("agent-5", "/approvals")
     expect(pending).toHaveLength(1)
     // The page had no form yet: the computer was handed the login, and typed nothing of it.
     browser.outcome = "no_form"
     browser.typed = false
     faux.setResponses(signsIn())
-    const state = await after("agent-1", here.id, () =>
-      call("agent-1", `/approvals/${pending[0]!.id}`, "POST", { decision: "once" }),
+    const state = await after("agent-5", here.id, () =>
+      call("agent-5", `/approvals/${pending[0]!.id}`, "POST", { decision: "once" }),
     )
     expect(signInOf(tools(state).at(-1)!)?.outcome).toBe("no_form")
     // Once the form is there, the same yes still holds.
     browser.outcome = "signed_in"
     browser.typed = true
     faux.setResponses(signsIn())
-    const last = tools(await say("agent-1", here.id, "the form is there now")).at(-1)!
+    const last = tools(await say("agent-5", here.id, "the form is there now")).at(-1)!
     expect(last.status).toBe("done")
     expect(browser.handed).toHaveLength(2)
-    expect((await call<ApprovalsState>("agent-1", "/approvals")).pending).toEqual([])
+    expect((await call<ApprovalsState>("agent-5", "/approvals")).pending).toEqual([])
 
     // One that was typed and did not get in has used its yes up.
     faux.setResponses(signsIn())
-    await say("agent-1", here.id, "sign in")
-    const next = await call<ApprovalsState>("agent-1", "/approvals")
+    await say("agent-5", here.id, "sign in")
+    const next = await call<ApprovalsState>("agent-5", "/approvals")
     browser.outcome = "still_asking"
     faux.setResponses(signsIn())
-    await after("agent-1", here.id, () =>
-      call("agent-1", `/approvals/${next.pending[0]!.id}`, "POST", { decision: "once" }),
+    await after("agent-5", here.id, () =>
+      call("agent-5", `/approvals/${next.pending[0]!.id}`, "POST", { decision: "once" }),
     )
     browser.outcome = "signed_in"
     browser.handed.length = 0
     faux.setResponses(signsIn())
-    await say("agent-1", here.id, "try once more")
+    await say("agent-5", here.id, "try once more")
     expect(browser.handed).toEqual([])
-    const again = await call<ApprovalsState>("agent-1", "/approvals")
+    const again = await call<ApprovalsState>("agent-5", "/approvals")
     expect(again.pending).toHaveLength(1)
     faux.setResponses([fauxAssistantMessage("understood")])
-    await after("agent-1", here.id, () =>
-      call("agent-1", `/approvals/${again.pending[0]!.id}`, "POST", { decision: "deny" }),
+    await after("agent-5", here.id, () =>
+      call("agent-5", `/approvals/${again.pending[0]!.id}`, "POST", { decision: "deny" }),
     )
   })
 
   it("types nothing where the page changed between the asking and the doing", async () => {
-    const here = await call<ChatSummary>("agent-1", "/chats", "POST", {})
+    // With a Dood of its own: a yes is for the chat it was asked in, and a Dood has one.
+    having.add("agent-6")
+    const { chat: here } = await setUp("agent-6")
     browser.handed.length = 0
     faux.setResponses(signsIn())
-    await say("agent-1", here.id, "sign in")
-    const { pending } = await call<ApprovalsState>("agent-1", "/approvals")
+    await say("agent-6", here.id, "sign in")
+    const { pending } = await call<ApprovalsState>("agent-6", "/approvals")
     expect(pending[0]!.title).toBe("Sign in to github.com as sawyer@example.com")
     // They say yes to GitHub. As the Dood tries again the page is GitHub's when it is looked at
     // to see whether that was said yes to, and Stripe's a moment later when it comes to typing.
@@ -484,8 +499,8 @@ describe("signing in with a saved login", () => {
       },
       fauxAssistantMessage("ok"),
     ])
-    const state = await after("agent-1", here.id, () =>
-      call("agent-1", `/approvals/${pending[0]!.id}`, "POST", { decision: "once" }),
+    const state = await after("agent-6", here.id, () =>
+      call("agent-6", `/approvals/${pending[0]!.id}`, "POST", { decision: "once" }),
     )
     const last = tools(state).at(-1)!
     expect(last.status).toBe("error")
@@ -590,7 +605,7 @@ describe("an agent whose workspace keeps no logins", () => {
     expect(told).toContain("`browser`")
     expect(told).not.toContain("sign_in")
     // An agent whose workspace does keep them is told.
-    const other = await call<ChatSummary>("agent-1", "/chats", "POST", {})
+    const other = await call<ChatSummary>("agent-1", "/chats/main", "POST", {})
     expect(await toldTo("agent-1", other.id)).toContain("`sign_in`")
 
     // Asking for it anyway comes to nothing, and nothing is looked up or typed.
@@ -793,7 +808,7 @@ describe("paying with a saved card", () => {
   })
 
   it("keeps the yes and the code where nothing of the card was typed, for the next try", async () => {
-    const here = await call<ChatSummary>("agent-4", "/chats", "POST", {})
+    const here = await call<ChatSummary>("agent-4", "/chats/main", "POST", {})
     browser.paid.length = 0
     faux.setResponses(pays())
     await say("agent-4", here.id, "buy it")
@@ -816,7 +831,7 @@ describe("paying with a saved card", () => {
   })
 
   it("types nothing of a card where the page changed between the asking and the doing", async () => {
-    const here = await call<ChatSummary>("agent-4", "/chats", "POST", {})
+    const here = await call<ChatSummary>("agent-4", "/chats/main", "POST", {})
     browser.paid.length = 0
     faux.setResponses(pays())
     await say("agent-4", here.id, "buy it")
@@ -850,7 +865,7 @@ describe("paying with a saved card", () => {
         return fauxAssistantMessage("hello")
       },
     ])
-    const other = await call<ChatSummary>("agent-1", "/chats", "POST", {})
+    const other = await call<ChatSummary>("agent-1", "/chats/main", "POST", {})
     await say("agent-1", other.id, "hello")
     expect(told).toContain("`sign_in`")
     expect(told).not.toContain("`pay`")

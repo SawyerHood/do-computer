@@ -283,15 +283,15 @@ export type ScheduleRecord = {
   nextRunAt: number | null
   createdAt: number
   /**
-   * The chat the schedule was created in, where its reports are delivered. Not where the agent
-   * has the bus on: a run's result then goes to the main chat, as an event.
+   * The chat the schedule was created in, on a schedule from when its reports were delivered
+   * there. A run's result goes to the main chat now, as an event, and this is no longer read.
    */
-  originChatId: string | null
+  originChatId?: string | null
   /**
    * A run that has fired and not been reported yet. It has no chat until its check, where the
    * schedule has one, has said the agent is to be started; `context` is what the check found.
-   * `bus` is set on a run started while the agent had the bus on: it was told its result goes
-   * to the main chat, and it does.
+   * `bus` was set on a run started while the bus was a switch, and had it on; every run is told
+   * now that its result goes to the main chat, and it does.
    */
   pending: { chatId: string | null; firedAt: number; context?: string; bus?: true } | null
   lastRun: {
@@ -299,8 +299,8 @@ export type ScheduleRecord = {
     chatId: string | null
     /**
      * "reported": its result went to the main chat, as an event, which decides whether to tell
-     * anyone. "delivered" and "silent" are for an agent without the bus: whether its report was
-     * delivered where the schedule was made.
+     * anyone. "delivered" and "silent" are on runs from before every agent had the bus: whether
+     * its report was delivered where the schedule was made.
      */
     outcome: "reported" | "delivered" | "silent" | "failed" | "skipped" | "check-failed"
   } | null

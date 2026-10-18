@@ -10,7 +10,7 @@ import {
   type Harness,
   section,
 } from "@earendil-works/pi-durable"
-import { busOn, eventBody, eventText } from "./bus.ts"
+import { eventBody, eventText } from "./bus.ts"
 import { ChatsDoc, IdentityDoc, type SubagentRecord } from "./docs.ts"
 import { parseModel } from "./models.ts"
 import { own } from "./own.ts"
@@ -44,16 +44,10 @@ export type SubagentSummary = {
   status: SubagentStatus
 }
 
-/**
- * What a sub-agent is told with its task. Not shown in its chat, where the task is. `asks` is
- * whether it can ask a person for what only a person can give, through a main chat with the bus
- * on.
- */
-const preamble = (title: string, asks = false) =>
+/** What a sub-agent is told with its task. Not shown in its chat, where the task is. */
+const preamble = (title: string) =>
   `<meta kind="subagent">You are working as a sub-agent: a copy of yourself that your main conversation with the user started to do one piece of work, "${title}", which is the message above. ` +
-  (asks
-    ? "The user is not in this conversation, so do not ask them questions: make reasonable choices and say which you made. What only a person can give you (a secret, a login, a computer, leave for something that asks first) you can still ask for with the tools for it: the request is shown to them in the main conversation under your name, and their answer comes back here. "
-    : "The user is not in this conversation, so you cannot ask them anything: make reasonable choices and say which you made. ") +
+  "The user is not in this conversation, so do not ask them questions: make reasonable choices and say which you made. What only a person can give you (a secret, a login, a computer, leave for something that asks first) you can still ask for with the tools for it: the request is shown to them in the main conversation under your name, and their answer comes back here. " +
   "Your final reply is sent back to the main conversation as your report, so make it complete and able to stand on its own: what you found or did, and anything left undone. " +
   "You cannot start sub-agents or change schedules from here.</meta>"
 
@@ -116,10 +110,6 @@ function pointers(
 const MORE =
   '<meta kind="subagent">The message above is more from your main conversation with the user, which started you as a sub-agent. As before, your final reply is your report.</meta>'
 
-/** What the agent is told to set it going on a report. Not shown in the chat. */
-const NUDGE =
-  '<meta kind="subagent">A sub-agent of yours has sent word, above. The user has not read it: tell them what matters from it in your own words, or carry on with the work it was for. You do not need to wait for sub-agents that are still working.</meta>'
-
 const titleOf = (task: string) => {
   const line = task.trim().split("\n")[0]!.trim()
   return line.length > MAX_TITLE_CHARS ? `${line.slice(0, MAX_TITLE_CHARS - 1).trimEnd()}…` : line
@@ -167,7 +157,7 @@ export type SubagentsOptions = {
  *
  * A sub-agent is a conversation of its own, with the agent's memory, skills and computer. It
  * works in the background: starting one returns at once, and when it comes to rest its last
- * answer is written into the chat that started it, where the agent is given a turn to act on it.
+ * answer reaches the main chat, which started it, as an event that gives the agent a turn.
  * Its chat can be read by the user and is written in only by the agent.
  *
  * What a sub-agent is doing is kept on its chat's record. Each step from there is keyed or
@@ -192,7 +182,7 @@ export class Subagents {
         section(
           "subagents",
           () =>
-            "In a conversation with the user you can hand work to sub-agents with the `subagent` tool. Use one for a piece of work that takes many steps and stands on its own, such as research, comparing options or a long job on files, and start several when the pieces do not depend on each other. Do not use one for something quick, or for something you must know before you can reply. After starting them, say in a sentence what you started, and do not wait: each report reaches you when it is ready.",
+            "In your main conversation you can hand work to sub-agents with the `subagent` tool. Use one for a piece of work that takes many steps and stands on its own, such as research, comparing options or a long job on files, and start several when the pieces do not depend on each other. Do not use one for something quick, or for something you must know before you can reply. After starting them, say in a sentence what you started, and do not wait: each report reaches you when it is ready.",
         ),
       ],
     })
@@ -267,9 +257,9 @@ export class Subagents {
           thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
         },
         init: async (tx, conversationId) => {
-          const { chats } = await tx.doc(ChatsDoc)
-          if (own(chats, parentId)?.kind !== "chat") {
-            throw new SubagentError("Only a conversation with the user can start sub-agents.")
+          const { chats, main } = await tx.doc(ChatsDoc)
+          if (parentId !== main) {
+            throw new SubagentError("Only your main conversation can start sub-agents.")
           }
           const working = Object.values(chats).filter(
             (chat) => chat.subagent !== undefined && live(chat.subagent.status),
@@ -395,8 +385,6 @@ export class Subagents {
       const conversation = await harness.conversation(Number(id) as ConversationId, context)
       if (conversation === undefined) continue
       if (subagent.started !== true) {
-        // Where its main chat has the bus on, it can ask a person for things through it.
-        const asks = await busOn(harness, subagent.parentId, context)
         // Keyed, so sending it again after a crash between these two steps starts nothing new.
         await conversation.submit(
           {
@@ -404,7 +392,7 @@ export class Subagents {
             requestId: `subagent:${id}`,
             content: [
               { type: "text", text: subagent.task },
-              { type: "text", text: preamble(chat.title, asks) },
+              { type: "text", text: preamble(chat.title) },
             ],
           },
           context,
@@ -520,8 +508,9 @@ export class Subagents {
   }
 
   /**
-   * Write word of a sub-agent into the chat that started it, and give the agent a turn there
-   * unless it was the user who stopped it. Both are keyed, so repeating them does nothing new.
+   * Tell the main chat a sub-agent's word, as an event, which waits for the agent to finish what
+   * it is doing and is taken up with whatever else came meanwhile. Its being stopped by the user
+   * needs nothing doing, and is a write. Keyed, so repeating it does nothing new.
    */
   async #deliver(
     id: string,
@@ -533,78 +522,44 @@ export class Subagents {
   ): Promise<void> {
     const harness = this.#require()
     const now = this.#options.now()
-    const parentId = subagent.parentId
+    // The main chat, which started it. One started in a side chat before there were none still
+    // reports to the main chat, where everything reaches the agent now.
+    const parentId = (await harness.snapshot(ChatsDoc, context))?.main ?? subagent.parentId
     const parent = await harness.conversation(Number(parentId) as ConversationId, context)
     if (parent === undefined) return
     const key = `${id}:${subagent.reports + 1}`
     const data = { chatId: id, title, outcome, text }
+    const event = eventText(
+      "subagent-report",
+      { id, title, ...(outcome === "reported" ? {} : { outcome }) },
+      // Long, it is cut short, with where the rest is.
+      outcome === "stopped" ? "The user stopped it before it had finished." : eventBody(text, id),
+    )
     let turn: SubagentReport["turn"]
-    if (await busOn(harness, parentId, context)) {
-      // On the bus it is an event, which waits for the agent to finish what it is doing, and is
-      // taken up with whatever else came meanwhile. The user stopping it needs nothing doing.
-      // Keyed as the report is off the bus, so one made again after the switch changed lands once.
-      const event = eventText(
-        "subagent-report",
-        { id, title, ...(outcome === "reported" ? {} : { outcome }) },
-        // Long, it is cut short, with where the rest is.
-        outcome === "stopped" ? "The user stopped it before it had finished." : eventBody(text, id),
-      )
-      if (outcome === "stopped") {
-        await parent.submit(
-          {
-            type: "write",
-            requestId: `subagent-report:${key}`,
-            entry: {
-              kind: SUBAGENT_ENTRY,
-              model: [{ role: "user", content: event, timestamp: now }],
-              data,
-            },
-          },
-          context,
-        )
-      } else {
-        turn = await parent.submit(
-          {
-            type: "input",
-            requestId: `subagent-report:${key}`,
-            content: [{ type: "text", text: event }],
-            entry: { kind: SUBAGENT_ENTRY, data },
-            whenBusy: "followUp",
-          },
-          context,
-        )
-      }
-    } else {
-      const told =
-        outcome === "reported"
-          ? `[Your sub-agent "${title}" (id ${id}) has reported back. This is its report.]\n\n${text}`
-          : outcome === "failed"
-            ? `[Your sub-agent "${title}" (id ${id}) failed before it could report: ${text}]`
-            : `[The user stopped your sub-agent "${title}" (id ${id}) before it had finished.]`
+    if (outcome === "stopped") {
       await parent.submit(
         {
           type: "write",
           requestId: `subagent-report:${key}`,
           entry: {
             kind: SUBAGENT_ENTRY,
-            model: [{ role: "user", content: told, timestamp: now }],
+            model: [{ role: "user", content: event, timestamp: now }],
             data,
           },
         },
         context,
       )
-      turn =
-        outcome === "stopped"
-          ? undefined
-          : await parent.submit(
-              {
-                type: "input",
-                requestId: `subagent-turn:${key}`,
-                content: [{ type: "text", text: NUDGE }],
-                whenBusy: "followUp",
-              },
-              context,
-            )
+    } else {
+      turn = await parent.submit(
+        {
+          type: "input",
+          requestId: `subagent-report:${key}`,
+          content: [{ type: "text", text: event }],
+          entry: { kind: SUBAGENT_ENTRY, data },
+          whenBusy: "followUp",
+        },
+        context,
+      )
     }
     await harness.commit(async (tx) => {
       const chat = own((await tx.doc(ChatsDoc)).chats, parentId)
@@ -675,10 +630,8 @@ export class Subagents {
         })
         const chatId = String(api.conversationId)
         try {
-          const chats = (await api.snapshot(ChatsDoc, context))?.chats ?? {}
-          if (own(chats, chatId)?.kind !== "chat") {
-            return fail("Only a conversation with the user can use sub-agents.")
-          }
+          const { chats, main } = (await api.snapshot(ChatsDoc, context)) ?? { chats: {} }
+          if (main !== chatId) return fail("Only your main conversation can use sub-agents.")
           switch (args.action) {
             case "list": {
               const mine = await this.list(chatId, context)

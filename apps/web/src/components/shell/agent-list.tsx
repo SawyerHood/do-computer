@@ -92,7 +92,7 @@ export const LEVEL = "py-1 [text-box:trim-both_cap_alphabetic]"
 
 /**
  * The list in the sidebar: agents, and nothing under them. Choosing one is talking to it: it
- * opens the agent's main chat. Its side chats are reached from its strip. Each row says what
+ * opens the agent's main chat. Its old side chats are reached from its strip. Each row says what
  * its agent last said or was told, and when. Someone who is in a team has every workspace of
  * theirs here at once, each under a heading that folds; someone who is not has only their
  * own agents, and no headings. A row is dragged to another place among its workspace's.

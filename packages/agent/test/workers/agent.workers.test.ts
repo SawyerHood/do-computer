@@ -43,7 +43,7 @@ describe("agent actor in a Durable Object", () => {
   it("answers a message and streams it through the stub", async () => {
     const agent = "agent-workers-1"
     await call(agent, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(agent, "/chats", "POST", {})
+    const chat = await call<ChatSummary>(agent, "/chats/main", "POST")
 
     const response = await namespace
       .get(agent)
@@ -54,9 +54,9 @@ describe("agent actor in a Durable Object", () => {
     })
 
     let state: ChatState = EMPTY_CHAT
-    const types = new Set<string>()
+    const types: string[] = []
     for await (const event of readSse<ChatEvent>(response.body!)) {
-      types.add(event.type)
+      types.push(event.type)
       state = reduceChat(state, event)
       if (
         !state.busy &&
@@ -71,7 +71,9 @@ describe("agent actor in a Durable Object", () => {
     expect(answer?.type === "text" && answer.text.startsWith("You said: ping from workerd")).toBe(
       true,
     )
-    expect(types.has("delta")).toBe(true)
+    // What it sent arrived as changes to what the client held, and not as the chat again.
+    expect(types).toContain("message")
+    expect(types.filter((type) => type === "snapshot")).toHaveLength(1)
 
     // A second object instance of the same agent sees what the first one stored.
     const again = await call<{ agent: { id: string }; chats: ChatSummary[] }>(agent, "/")
@@ -81,7 +83,7 @@ describe("agent actor in a Durable Object", () => {
 })
 
 describe("an agent's chats in a Durable Object", () => {
-  it("branches a side chat off the main one, and finds what was said in the object's own table", async () => {
+  it("finds what was said in its main chat in the object's own table", async () => {
     const agent = "agent-workers-chats"
     await call(agent, "/init", "POST", { ownerId: "user-1" })
     const main = await call<ChatSummary>(agent, "/chats/main", "POST")
@@ -96,13 +98,6 @@ describe("an agent's chats in a Durable Object", () => {
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
     expect(state.messages.map((m) => m.role)).toEqual(["user", "assistant"])
-
-    // The side chat carries those messages, and shows only where its own begin.
-    const side = await call<ChatSummary>(agent, "/chats", "POST", { title: "Aside" })
-    const opened = await call<ChatState>(agent, `/chats/${side.id}`)
-    expect(opened.messages.map((m) => m.parts[0])).toMatchObject([
-      { type: "notice", kind: "branch" },
-    ])
 
     const found = await call<{ hits: { chatId: string }[]; complete: boolean }>(
       agent,
@@ -120,21 +115,20 @@ describe("sub-agents in a Durable Object", () => {
   it("has a sub-agent work in its own chat and report back to the one that started it", async () => {
     const agent = "agent-workers-subagent"
     await call(agent, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(agent, "/chats", "POST", {})
+    const chat = await call<ChatSummary>(agent, "/chats/main", "POST")
     await call(agent, `/chats/${chat.id}/messages`, "POST", {
       text: '/tool subagent {"action":"start","title":"Flights","task":"Find flights to Lisbon"}',
       requestId: "request-1",
     })
 
-    // The report arrives by itself, and the agent is given a turn over it.
-    const said = (state: ChatState) =>
-      state.messages
-        .flatMap((message) => message.parts)
-        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    // The report arrives by itself, as an event, and the agent is given a turn over it.
     let state: ChatState = EMPTY_CHAT
     for (let attempt = 0; attempt < 150; attempt++) {
       state = await call<ChatState>(agent, `/chats/${chat.id}`)
-      if (!state.busy && said(state).some((text) => text.includes("has reported back"))) break
+      const reported = state.messages.some((message) =>
+        message.parts.some((part) => part.type === "notice" && part.kind === "subagent"),
+      )
+      if (!state.busy && reported) break
       await new Promise((resolve) => setTimeout(resolve, 100))
     }
     const { chats } = await call<{ chats: ChatSummary[] }>(agent, "/")
@@ -144,7 +138,6 @@ describe("sub-agents in a Durable Object", () => {
       .flatMap((message) => message.parts)
       .find((part) => part.type === "notice" && part.kind === "subagent")
     expect(word).toMatchObject({ text: "Flights", chatId: subagent!.id, outcome: "reported" })
-    expect(said(state).at(-1)).toContain('[Your sub-agent "Flights"')
     // Its chat is the agent's to write in.
     await expect(
       call(agent, `/chats/${subagent!.id}/messages`, "POST", { text: "hi", requestId: "direct" }),
@@ -156,7 +149,7 @@ describe("messages between agents in Durable Objects", () => {
   it("reach another agent's object, whose answer comes back to the one that asked", async () => {
     const [ada, bo] = PEERS as [string, string]
     for (const agent of PEERS) await call(agent, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(ada, "/chats", "POST", {})
+    const chat = await call<ChatSummary>(ada, "/chats/main", "POST")
     await call(ada, `/chats/${chat.id}/messages`, "POST", {
       text: `/tool agents {"action":"message","to":"${bo}","message":"When is the launch?"}`,
       requestId: "request-1",
@@ -199,7 +192,7 @@ describe("agent computer in a Durable Object", () => {
     const scriptedCall = <T>(path: string, method = "GET", payload?: unknown) =>
       call<T>(agent, path, method, payload, scriptedNamespace)
     await scriptedCall("/init", "POST", { ownerId: "user-1" })
-    const chat = await scriptedCall<ChatSummary>("/chats", "POST", {})
+    const chat = await scriptedCall<ChatSummary>("/chats/main", "POST")
 
     const run = async (command: string) => {
       scripted.setResponses([
@@ -271,7 +264,7 @@ describe("connectors in a Durable Object", () => {
     expect(authorized.connector.status).toBe("connected")
     expect(authorized.connector.tools.map((tool) => tool.name)).toContain("add")
 
-    const chat = await scriptedCall<ChatSummary>("/chats", "POST", {})
+    const chat = await scriptedCall<ChatSummary>("/chats/main", "POST")
     scripted.setResponses([
       // A connector's tool is not offered until it has been looked for.
       fauxAssistantMessage([fauxToolCall("tool_search", { query: "sums add" })], {
@@ -348,7 +341,7 @@ describe("an agent followed over a socket, in a Durable Object", () => {
     async () => {
       const agent = "agent-workers-socket"
       await call(agent, "/init", "POST", { ownerId: "user-1" })
-      const chat = await call<ChatSummary>(agent, "/chats", "POST", {})
+      const chat = await call<ChatSummary>(agent, "/chats/main", "POST")
       const { socket, heard, until, chat: held } = await connect(agent)
       socket.send(JSON.stringify({ type: "follow", chat: chat.id }))
       await call(agent, `/chats/${chat.id}/messages`, "POST", { text: "first", requestId: "1" })

@@ -19,6 +19,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
+import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -32,7 +33,9 @@ type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
 function open(directory: string, now?: () => number): World {
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
@@ -106,11 +109,21 @@ async function say(world: World, chatId: string, text: string, extra: object = {
     requestId: crypto.randomUUID(),
     ...extra,
   })
+  // The person's message, and a row of the agent's working or what it sent.
   return until(
     () => chatState(world, chatId),
-    (state) => !state.busy && state.messages.length > before + 1,
+    (state) =>
+      !state.busy && state.messages.length > before + 1 && state.messages.at(-1)?.role !== "user",
   )
 }
+
+/** What a main chat was told runs came to: the events it was given, as they are drawn. */
+const automations = (state: ChatState) =>
+  state.messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      part.type === "notice" && part.kind === "automation" ? [part] : [],
+    ),
+  )
 
 /**
  * A model turn that creates a schedule firing `inMs` from when the model answers, then a closing
@@ -134,7 +147,7 @@ const createSchedule = (inMs: number, prompt: string, title?: string) => [
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats", "POST", {})
+  return call<ChatSummary>(world, "/chats/main", "POST", {})
 }
 
 const temporary = () => mkdtempSync(join(tmpdir(), "dc-schedules-"))
@@ -144,7 +157,7 @@ const texts = (state: ChatState) =>
   )
 
 describe("schedules", () => {
-  it("runs a scheduled task in its own chat and reports back where it was asked for", async () => {
+  it("runs a scheduled task in its own chat and tells the main chat what it came to", async () => {
     const world = open(temporary())
     const chat = await setup(world)
     let runPrompt = ""
@@ -176,13 +189,18 @@ describe("schedules", () => {
       runCount: 0,
     })
 
+    // The main chat is told as an event, which it can stay quiet about, as it does here.
     const reported = await until(
       () => chatState(world, chat.id),
-      (state) => texts(state).some((text) => text.includes("Sunny")),
+      (state) => !state.busy && automations(state).length > 0,
     )
-    expect(texts(reported).at(-1)).toBe("Weather check | Sunny, 21°C.")
+    expect(automations(reported)).toMatchObject([
+      { text: "Weather check", outcome: "reported", detail: "Sunny, 21°C." },
+    ])
     expect(runPrompt).toContain('scheduled task \\"Weather check\\"')
     expect(runPrompt).toContain("Check the weather and summarize it.")
+    expect(runPrompt).toContain("your final reply goes to your main conversation")
+    expect(runPrompt).not.toContain("[SILENT]")
 
     const [after] = await until(
       () => schedules(world),
@@ -190,84 +208,46 @@ describe("schedules", () => {
     )
     // A one-shot is spent once it has run.
     expect(after).toMatchObject({ enabled: false, nextRunAt: null, running: false, runCount: 1 })
-    expect(after!.lastRun).toMatchObject({ outcome: "delivered" })
+    expect(after!.lastRun).toMatchObject({ outcome: "reported" })
     // The run has its own chat, with the full transcript, kept apart from the user's chats.
     const run = await chatState(world, after!.lastRun!.chatId!)
     expect(run.messages.at(-1)!.parts).toEqual([{ type: "text", text: "Sunny, 21°C." }])
     expect(after!.lastRun!.chatId).not.toBe(chat.id)
-    // The report is announced once. (These tests poll rather than follow the chat, so the
-    // agent's ordinary replies are announced too; those are not what is being checked.)
-    expect(world.reports.filter((notification) => notification.kind === "scheduled")).toEqual([
-      {
-        agentId: "agent-1",
-        agentName: null,
-        kind: "scheduled",
-        heading: "Weather check",
-        text: "Sunny, 21°C.",
-        chatId: chat.id,
-      },
-    ])
-    // What the run came to is the agent's latest line, under the task's title.
-    const { agent } = await until(
-      () => call<{ agent: AgentSummary }>(world, "/"),
-      (state) => state.agent.latest?.kind === "scheduled",
+    // Nobody is told of it, and it is not the agent's latest line: only what is sent is.
+    expect(world.reports.filter((notification) => notification.kind === "scheduled")).toEqual([])
+    expect((await call<{ agent: AgentSummary }>(world, "/")).agent.latest?.kind).not.toBe(
+      "scheduled",
     )
-    expect(agent.latest).toMatchObject({
-      from: "Weather check",
-      text: "Sunny, 21°C.",
-      chatId: chat.id,
-    })
     // Nobody wrote to the agent to set the run going. The hook was told that it was at work
-    // all the same, and then that it was not, with what the run came to.
-    expect(
-      await until(
-        async () => world.activity.at(-1),
-        (told) => told?.latest?.kind === "scheduled" && !told.working,
-      ),
-    ).toMatchObject({ latest: { from: "Weather check", text: "Sunny, 21°C." } })
+    // all the same, and then that it was not.
+    await until(
+      async () => world.activity.at(-1),
+      (told) => !told?.working,
+    )
     expect(world.activity.slice(rested).some((told) => told.working)).toBe(true)
     expect(world.errors).toEqual([])
   })
 
-  it("puts the report in the model's context when the user replies", async () => {
+  it("puts what a run came to in the model's context, as an event", async () => {
     const world = open(temporary())
     const chat = await setup(world)
+    let event = ""
     world.faux.setResponses([
       ...createSchedule(250, "Report the build status."),
       fauxAssistantMessage("Build is red."),
-    ])
-    await say(world, chat.id, "watch the build")
-    await until(
-      () => chatState(world, chat.id),
-      (state) => texts(state).some((t) => t.includes("Build is red")),
-    )
-    let context = ""
-    world.faux.setResponses([
       (seen) => {
-        context = JSON.stringify(seen.messages)
-        return fauxAssistantMessage("The test job failed.")
+        event = JSON.stringify(seen.messages.findLast((message) => message.role === "user"))
+        return sent("The build is red.")
       },
     ])
-    await say(world, chat.id, "tell me more")
-    expect(context).toContain("ran and reported the following")
-    expect(context).toContain("Build is red.")
-  })
-
-  it("delivers nothing when the task has nothing to report", async () => {
-    const world = open(temporary())
-    const chat = await setup(world)
-    world.faux.setResponses([
-      ...createSchedule(250, "Only speak if something changed."),
-      fauxAssistantMessage("[SILENT]"),
-    ])
-    const asked = await say(world, chat.id, "watch quietly")
-    const [done] = await until(
-      () => schedules(world),
-      ([schedule]) => schedule?.lastRun != null,
+    await say(world, chat.id, "watch the build")
+    const state = await until(
+      () => chatState(world, chat.id),
+      (value) => texts(value).some((t) => t.includes("The build is red.")),
     )
-    expect(done!.lastRun).toMatchObject({ outcome: "silent" })
-    expect((await chatState(world, chat.id)).messages.length).toBe(asked.messages.length)
-    expect(world.reports.filter((notification) => notification.kind === "scheduled")).toEqual([])
+    expect(event).toContain('<event kind=\\"automation\\"')
+    expect(event).toContain("Build is red.")
+    expect(automations(state)).toHaveLength(1)
   })
 
   it("still runs a schedule that came due while the process was down", async () => {
@@ -283,9 +263,9 @@ describe("schedules", () => {
     after.faux.setResponses([fauxAssistantMessage("Good morning!")])
     const state = await until(
       () => chatState(after, chat.id),
-      (value) => texts(value).some((text) => text.includes("Good morning!")),
+      (value) => automations(value).length > 0,
     )
-    expect(texts(state).filter((text) => text.includes("Good morning!")).length).toBe(1)
+    expect(automations(state).map((event) => event.detail)).toEqual(["Good morning!"])
     expect((await schedules(after))[0]).toMatchObject({ runCount: 1, enabled: false })
   })
 
@@ -338,7 +318,7 @@ describe("schedules", () => {
     await nudge("Stretch")
     const [ran] = await until(
       () => schedules(world),
-      ([schedule]) => schedule?.lastRun?.outcome === "delivered",
+      ([schedule]) => schedule?.lastRun?.outcome === "reported",
     )
     // Spent: it has no next time and is switched off, as a one-off should be.
     expect(ran).toMatchObject({ runCount: 1, nextRunAt: null, enabled: false })
@@ -350,9 +330,9 @@ describe("schedules", () => {
       await new Promise((resolve) => setTimeout(resolve, 400))
     }
     expect((await schedules(world))[0]).toMatchObject({ runCount: 1, enabled: false })
-    expect(
-      texts(await chatState(world, chat.id)).filter((text) => text.includes("Stretch.")),
-    ).toEqual(["Stretch | Stretch."])
+    expect(automations(await chatState(world, chat.id)).map((event) => event.detail)).toEqual([
+      "Stretch.",
+    ])
     expect(world.errors).toEqual([])
   })
 
@@ -508,12 +488,12 @@ describe("a schedule with a check", () => {
     await say(world, chat.id, "break it")
     world.faux.setResponses([fauxAssistantMessage("The tests are failing on main.")])
     const woken = await runNow(world, created!.id)
-    expect(woken).toMatchObject({ lastRun: { outcome: "delivered" }, runCount: 3, skipCount: 2 })
+    expect(woken).toMatchObject({ lastRun: { outcome: "reported" }, runCount: 3, skipCount: 2 })
     const run = texts(await chatState(world, woken.lastRun!.chatId!))
     expect(run[0]).toContain("was run first and printed what follows")
     expect(run[0]).toContain("tests failed on main")
     expect(run[0]).toContain("Say what broke.")
-    expect(texts(await chatState(world, chat.id)).at(-1)).toContain(
+    expect(automations(await chatState(world, chat.id)).map((event) => event.detail)).toContain(
       "The tests are failing on main.",
     )
   })
@@ -545,7 +525,7 @@ describe("a schedule with a check", () => {
     await say(world, chat.id, "release again")
     world.faux.setResponses([fauxAssistantMessage("v2 is out.")])
     const woken = await runNow(world, created!.id)
-    expect(woken).toMatchObject({ lastRun: { outcome: "delivered" }, skipCount: 2 })
+    expect(woken).toMatchObject({ lastRun: { outcome: "reported" }, skipCount: 2 })
     const run = texts(await chatState(world, woken.lastRun!.chatId!))
     expect(run[0]).toContain("- v1\n+ v2")
 
@@ -569,7 +549,7 @@ describe("a schedule with a check", () => {
 
     world.faux.setResponses([fauxAssistantMessage("The check is failing: no such queue.")])
     const first = await runNow(world, created!.id)
-    expect(first).toMatchObject({ lastRun: { outcome: "delivered" }, skipCount: 0 })
+    expect(first).toMatchObject({ lastRun: { outcome: "reported" }, skipCount: 0 })
     const run = texts(await chatState(world, first.lastRun!.chatId!))
     expect(run[0]).toContain("could not be run")
     expect(run[0]).toContain("It ended with exit code 3.\nno such queue")
@@ -595,7 +575,7 @@ describe("a schedule with a check", () => {
     expect(tried).toContain("4 waiting")
     expect(tried).toContain("A run now would start you")
     world.faux.setResponses([fauxAssistantMessage("Four are waiting.")])
-    expect((await runNow(world, created!.id)).lastRun).toMatchObject({ outcome: "delivered" })
+    expect((await runNow(world, created!.id)).lastRun).toMatchObject({ outcome: "reported" })
 
     // Without its check, it is a schedule like any other.
     world.faux.setResponses(useTool("schedule", { action: "update", id: created!.id, check: "" }))
@@ -662,11 +642,10 @@ describe("message time", () => {
   })
 })
 
-describe("automations on the bus", () => {
-  /** An agent with the bus on, and its main chat, where its schedules are made. */
+describe("automations, which report to the main chat", () => {
+  /** An agent and its main chat, where its schedules are made. */
   async function onTheBus(world: World): Promise<ChatSummary> {
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    await call(world, "/", "PATCH", { bus: true })
     return call<ChatSummary>(world, "/chats/main", "POST")
   }
   const send = (text: string) =>
@@ -968,81 +947,5 @@ describe("automations on the bus", () => {
     const [done] = await schedules(world)
     expect(told!.last).toContain(`cut short: the rest is in chat ${done!.lastRun!.chatId}`)
     expect(told!.last.length).toBeLessThan(9_000)
-  })
-
-  it("is delivered as it is without the bus where the switch went off while it ran", async () => {
-    const world = open(temporary())
-    const main = await onTheBus(world)
-    let release = () => {}
-    const held = new Promise<void>((resolve) => (release = resolve))
-    let started = false
-    // Made, said, and then the run, which waits until the switch is off.
-    world.faux.setResponses([
-      creating(300),
-      send("Will do."),
-      fauxAssistantMessage("ok"),
-      async () => {
-        started = true
-        await held
-        return fauxAssistantMessage("Sunny.")
-      },
-      fauxAssistantMessage("Noted."),
-    ])
-    await ask(world, main.id, "check the weather")
-    await until(
-      async () => started,
-      (yes) => yes,
-    )
-    await call(world, "/", "PATCH", { bus: false })
-    release()
-    const [done] = await until(
-      () => schedules(world),
-      ([schedule]) => schedule?.lastRun != null,
-    )
-    expect(done!.lastRun).toMatchObject({ outcome: "delivered" })
-    expect(world.reports.filter((one) => one.kind === "scheduled")).toMatchObject([
-      { heading: "Weather check", text: "Sunny." },
-    ])
-    const state = await chatState(world, main.id)
-    expect(events(state)).toEqual([])
-    expect(texts(state).some((text) => text.includes("Sunny."))).toBe(true)
-  })
-
-  it("fails where there is no main chat to tell", async () => {
-    const world = open(temporary())
-    await call(world, "/init", "POST", { ownerId: "user-1" })
-    await call(world, "/", "PATCH", { bus: true })
-    const side = await call<ChatSummary>(world, "/chats", "POST", {})
-    world.faux.setResponses([
-      ...createSchedule(250, "Check the weather."),
-      fauxAssistantMessage("Sunny."),
-    ])
-    await say(world, side.id, "check the weather")
-    const [done] = await until(
-      () => schedules(world),
-      ([schedule]) => schedule?.lastRun != null,
-    )
-    expect(done!.lastRun).toMatchObject({ outcome: "failed" })
-  })
-
-  it("is as it was where the bus is off: delivered where it was asked for", async () => {
-    const world = open(temporary())
-    const chat = await setup(world)
-    let runPrompt = ""
-    world.faux.setResponses([
-      ...createSchedule(250, "Check the weather."),
-      (context) => {
-        runPrompt = JSON.stringify(context.messages)
-        return fauxAssistantMessage("Sunny.")
-      },
-    ])
-    await say(world, chat.id, "check the weather")
-    const [done] = await until(
-      () => schedules(world),
-      ([schedule]) => schedule?.lastRun != null,
-    )
-    expect(done!.lastRun).toMatchObject({ outcome: "delivered" })
-    expect(runPrompt).toContain("[SILENT]")
-    expect(world.reports.filter((one) => one.kind === "scheduled")).toHaveLength(1)
   })
 })

@@ -16,7 +16,6 @@ import {
   type ChatSummary,
   type ChatUsage,
   type ComputerKind,
-  type CreateChatRequest,
   type CreatureState,
   diffChat,
   DEFAULT_THINKING,
@@ -75,7 +74,6 @@ import {
   type Extension,
   Harness,
   type JsonObject,
-  ProviderDoc,
   type SessionDocToken,
   UsageDoc,
 } from "@earendil-works/pi-durable"
@@ -83,7 +81,6 @@ import { SqliteStorage } from "@earendil-works/pi-durable/storage/sqlite"
 import {
   ChatsDoc,
   type ChatRecord,
-  type ChatsState,
   DEFAULT_CHAT_TITLE,
   CreatureDoc,
   IdentityDoc,
@@ -112,7 +109,6 @@ import {
 } from "./bus.ts"
 import {
   CALL_ENTRY,
-  CALL_OVER_ENTRY,
   type CallDirectory,
   type CallEntry,
   CallError,
@@ -165,8 +161,7 @@ import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
 import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 import { preview } from "./preview.ts"
-import { addUsage, BRANCH_ENTRY, branchPoint, projectChat } from "./project.ts"
-import { type Carried, cutDown, isWarm } from "./branch.ts"
+import { addUsage, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
 import { UseError, Uses } from "./uses.ts"
 import { vault } from "./vault.ts"
@@ -209,16 +204,6 @@ const MAX_GIFTED_TREATS = 400
 const MAX_TOLD_ANSWERS = 500
 /** How often an agent in use is looked at for a model its deployment has stopped offering. */
 const MODEL_CHECK_MS = 60_000
-/** What a side chat that branched off the main chat is told, once, where its own messages begin. */
-const branchNote = (carried: Carried, mainId: string) =>
-  '<meta kind="side-chat">This is a side chat. It branched off your main chat here: everything above was said in the main chat, and you carry it with you. ' +
-  (carried === "whole"
-    ? ""
-    : carried === "trimmed"
-      ? "To keep this chat light, the older tool output and pictures above were left behind in the main chat, and a line stands where each was. "
-      : `To keep this chat light, only the most recent part of the main chat is above. Its earlier messages were left out, and so were older tool output and pictures, with a line where each was. What was said earlier is in chat ${mainId}, which you can read with the \`history\` tool. `) +
-  "What is said from here on is said in this side chat only, and the main chat goes on without it.</meta>"
-
 export type AgentActorOptions = {
   readonly models: Models
   /** `provider/modelId` for agents that have not chosen a model. */
@@ -401,6 +386,12 @@ export type AgentActorOptions = {
    * nobody can call an agent here.
    */
   readonly calls?: CallDirectory
+  /**
+   * Lets a test make a side chat as there were before a Dood was talked to in its main chat
+   * alone (`POST /chats/old`), archived, with a message said in it where one is given, to see
+   * that one is kept and read. Nothing else makes one.
+   */
+  readonly testOldSideChats?: boolean
   /** Used to ask a provider of voices for a call. Default: the global `fetch`. */
   readonly callFetch?: (url: string, init: RequestInit) => Promise<Response>
 }
@@ -553,28 +544,10 @@ function eventStream(
   return new Response(stream, { headers: SSE_HEADERS })
 }
 
-/** A chat was already made for the request another is being made for. */
-class ChatMade extends Error {
-  constructor(readonly chatId: string) {
-    super(`Chat ${chatId} was already made for this request`)
-  }
-}
-
-/**
- * Refuses, inside the commit that makes a chat, to make a second one for a request that has
- * one. Asked there, it holds however many of the same request arrive at once.
- */
-function refuseSecond(chats: ChatsState["chats"], requestId: string | undefined): void {
-  if (requestId === undefined) return
-  for (const [id, chat] of Object.entries(chats)) {
-    if (chat.request === requestId) throw new ChatMade(id)
-  }
-}
-
 function summarize(id: string, record: ChatRecord, main: string | undefined): ChatSummary {
-  // Where a side chat branched off is the agent's to know, not a client's. Left in, it would
-  // also be a part of the document still being written, which cannot be read once it is stored.
-  // What its making was asked under is between the agent and whoever asked.
+  // Where an old side chat branched off is the agent's to know, not a client's. Left in, it
+  // would also be a part of the document still being written, which cannot be read once it is
+  // stored. What its making was asked under is between the agent and whoever asked.
   // How the bus is set up in it is the agent's too.
   const {
     subagent,
@@ -618,8 +591,6 @@ export class AgentActor implements Actor {
   readonly #library: Library
   readonly #pins: Pins
   readonly #calls: Calls
-  /** The side chats being made for calls, so that a call is given one. */
-  readonly #callChats = new Map<string, Promise<string>>()
   /** The library the agent keeps for itself, where its workspace has none for it to share. */
   readonly #ownLibrary: LibraryStore
   /** The harness, once it is open, for what is built before it and needs it later. */
@@ -655,16 +626,16 @@ export class AgentActor implements Actor {
   readonly #idle: IdleCompaction
   readonly #journal: Journal
   readonly #history: HistoryIndex
-  /** The main chat as a message bus, for an agent that has it switched on (`bus.ts`). */
+  /** The main chat as a message bus (`bus.ts`). */
   readonly #bus: Extension
-  /** The bus in a thread in Slack, for an agent that has it switched on. */
+  /** The bus in a thread in Slack. */
   readonly #slackBus: Extension
   /**
    * The answers already told of, by chat and entry, newest last. When several inputs are taken
    * up in one run, each settles with the same answer, and that answer is told of once.
    */
   readonly #toldAnswers = new Set<string>()
-  /** Setting the main chat up for the bus, one at a time, so that each switch is marked once. */
+  /** Setting chats up for the bus, one at a time, so that each is marked once. */
   #busing: Promise<void> = Promise.resolve()
   #harness: Promise<Harness> | undefined
   /** When the agent next wakes itself to keep live work going, while that is still to come. */
@@ -738,7 +709,7 @@ export class AgentActor implements Actor {
       change: async (apply) => {
         await (await this.#open()).commit(async (tx) => apply(await tx.doc(CallsDoc)), context)
       },
-      record: (chatId, entry, note, work) => this.#recordCall(chatId, entry, note, work),
+      record: (chatId, entry, note) => this.#recordCall(chatId, entry, note),
       now: () => host.now(),
       ...(options.callFetch === undefined ? {} : { fetch: options.callFetch }),
       onError: (error) => options.onReport?.(error),
@@ -988,20 +959,8 @@ export class AgentActor implements Actor {
         void this.#journal
           .record({ chatId: report.runChatId, title: report.title, outcome: report.text })
           .catch((error) => options.onReport?.(error))
-        // On the bus it went to the main chat, which tells people what it sends, if anything.
-        if (report.bus === true) return
-        void this.#notify({
-          kind: "scheduled",
-          heading: report.title,
-          text: report.text,
-          chatId: report.chatId,
-        })
-        void this.#record({
-          kind: "scheduled",
-          from: report.title,
-          text: report.text,
-          ...(report.chatId === null ? {} : { chatId: report.chatId }),
-        })
+        // Nobody is told of it here: it went to the main chat, which tells people what it
+        // sends, if anything.
       },
       onError: (error) => options.onReport?.(error),
     })
@@ -1009,7 +968,7 @@ export class AgentActor implements Actor {
       now: () => host.now(),
       context,
       chat: (chatId) => this.#chatState(chatId),
-      // Leave for something, or, through a main chat with the bus on, a secret, a login or a
+      // Leave for something, or, through the main chat, a secret, a login or a
       // computer: until someone answers, it waits, and its report is what it says then.
       waiting: async (chatId, c) =>
         (await this.#approvals.pending(c)).some((request) => request.chatId === chatId) ||
@@ -1032,14 +991,6 @@ export class AgentActor implements Actor {
       },
       // The agent is at work for as long as a sub-agent of its is.
       onChanged: () => this.#tell(),
-      // What the agent says about a report is told like any other answer nobody was there for.
-      onReport: (report) => {
-        if (report.turn === undefined || this.#harness === undefined) return
-        void this.#harness.then((harness) =>
-          // Nobody in particular asked for it, so it is for everyone the agent works for.
-          this.#notifyWhenUnseen(harness, report.parentId, report.turn!, undefined),
-        )
-      },
       onError: (error) => options.onReport?.(error),
     })
     this.#peers =
@@ -1071,23 +1022,12 @@ export class AgentActor implements Actor {
               (await this.#approvals.pending(c)).some((request) => request.chatId === chatId),
             running: (chatId, c) => this.#jobs.waiting(chatId, c),
             onStopped: (chatId, c) => this.#approvals.withdraw(chatId, c),
-            // Set up for the bus, or back from it, before a message is given to it.
-            prepare: async (chatId, c) => {
-              const harness = await this.#open()
-              await this.#syncBus(harness, chatId)
-              return busOn(harness, chatId, c)
-            },
+            // Set up for the bus, where it is not yet, before a message is given to it.
+            prepare: async (chatId) => this.#syncBus(await this.#open(), chatId),
             keep: (file) => this.#library.keep(file),
             contents: (file) => this.#library.contents(file),
             libraryFile: (name) => this.#library.named(name),
             sees: (model) => this.#sees(model),
-            onAnswered: (answer) =>
-              void this.#record({
-                kind: "slack",
-                text: answer.text,
-                chatId: answer.chatId,
-                ...(answer.channelName === null ? {} : { from: answer.channelName }),
-              }),
             onError: (error) => options.onReport?.(error),
           })
   }
@@ -1415,8 +1355,8 @@ export class AgentActor implements Actor {
       // one in `extensions`, would make the two differ. The bus, installed after it, has none:
       // it adds a section and a tool, which a main chat with it on has in both.
       registry.install(this.#limits.extension)
-      // Selected by a main chat with the bus on, and the other by a thread in Slack with it on,
-      // and by no other chat: see `settings` below.
+      // Selected by a main chat, and the other by a thread in Slack, and by no other chat: see
+      // `settings` below.
       registry.install(this.#bus)
       registry.install(this.#slackBus)
       const harness = await Harness.open(
@@ -1427,8 +1367,8 @@ export class AgentActor implements Actor {
           now: () => this.#host.now(),
           onReport: (error) => this.#options.onReport?.(error),
           settings: {
-            // Every extension but the bus's, which only a main chat or a thread in Slack with the
-            // bus on adds to its own. Read each time, since connectors install theirs while the
+            // Every extension but the bus's, which only a main chat or a thread in Slack adds to
+            // its own. Read each time, since connectors install theirs while the
             // agent runs.
             get extensions() {
               return registry
@@ -1442,9 +1382,7 @@ export class AgentActor implements Actor {
             followUpMode: "all",
             // The longest cache a provider keeps: an hour on Claude where five minutes is usual.
             // It costs more to write and the same to read. A chat picked up again within the
-            // hour then reads its prompt from the cache, and so does a side chat opened from it,
-            // except from a main chat with the bus on: the side chat has neither its section nor
-            // `send`, so its prompt differs from the start.
+            // hour then reads its prompt from the cache.
             stream: { cacheRetention: CACHE_RETENTION },
             ...(this.#options.compaction === undefined
               ? {}
@@ -1490,6 +1428,9 @@ export class AgentActor implements Actor {
       // Neither stops the agent opening: what could not be done now is tried the next time.
       await this.#adopt(harness).catch((error) => this.#options.onReport?.(error))
       await this.#moveLibrary().catch((error) => this.#options.onReport?.(error))
+      // Every main chat and thread in Slack is a bus. One from before that is set up for it here,
+      // so that what reaches it first, a person or an event, finds it so.
+      await this.#syncBus(harness).catch((error) => this.#options.onReport?.(error))
       // Connector tools come and go while the agent runs, so they are installed after opening.
       this.#connectors = new Connectors({
         sql: this.#host.sql,
@@ -2253,9 +2194,11 @@ export class AgentActor implements Actor {
       if (callId === undefined && method === "POST") {
         const input = await body<StartCallRequest>(request)
         if (typeof input.chatId !== "string") throw new HttpError(400, "chatId is required")
-        // A call is held where a person talks to the agent, and its record is left there.
-        const kind = own((await harness.snapshot(ChatsDoc, context))?.chats, input.chatId)?.kind
-        if (kind !== "chat") throw new HttpError(409, "A call is held in a chat you talk in.")
+        // A call is held where a person talks to the agent, the main chat, and its record is
+        // left there.
+        if ((await harness.snapshot(ChatsDoc, context))?.main !== input.chatId) {
+          throw new HttpError(409, "A call is held in the main chat.")
+        }
         const view = await (await this.#chat(harness, input.chatId)).viewState(context)
         let messages: ChatMessage[]
         try {
@@ -2285,7 +2228,7 @@ export class AgentActor implements Actor {
       }
       if (callId !== undefined && segments[2] === "work" && method === "POST") {
         const input = await body<CallWorkRequest>(request)
-        return this.#callWork(harness, identity, callId, input, caller)
+        return this.#callWork(harness, callId, input, caller)
       }
       if (callId !== undefined && segments[2] === "end" && method === "POST") {
         await this.#calls.end(callId, (await body<EndCallRequest>(request)).lines, caller)
@@ -2293,11 +2236,24 @@ export class AgentActor implements Actor {
       }
     }
     if (segments[0] === "chats") {
+      // A Dood is talked to in its main chat alone. Side chats from before are kept, to read.
       if (segments.length === 1 && method === "POST") {
-        return this.#createChat(harness, identity, await body<CreateChatRequest>(request), caller)
+        throw new HttpError(
+          410,
+          "A Dood is talked to in its main chat. Side chats are no longer made.",
+          "side_chat",
+        )
       }
       if (segments[1] === "main" && segments.length === 2 && method === "POST") {
         return this.#mainChat(harness, identity, caller)
+      }
+      if (
+        segments[1] === "old" &&
+        segments.length === 2 &&
+        method === "POST" &&
+        this.#options.testOldSideChats === true
+      ) {
+        return this.#oldSideChat(harness, identity, await body<SendMessageRequest>(request), caller)
       }
       const chatId = segments[1]
       if (chatId !== undefined) {
@@ -2344,6 +2300,16 @@ export class AgentActor implements Actor {
         const slack = kind === "slack"
         if (slack && (rest === "messages" || rest === "reset") && method === "POST") {
           throw new HttpError(409, "This conversation is written in from Slack.", "slack")
+        }
+        // A side chat from before a Dood was talked to in its main chat alone is kept, to read.
+        const main = (await harness.snapshot(ChatsDoc, context))?.main
+        const side = kind === "chat" && main !== undefined && main !== chatId
+        if (side && (rest === "messages" || rest === "reset") && method === "POST") {
+          throw new HttpError(
+            409,
+            "This side chat is archived, to read. Talk in the main chat.",
+            "side_chat",
+          )
         }
         if (rest === "messages" && method === "POST") {
           return this.#send(harness, conversation, await body<SendMessageRequest>(request), caller)
@@ -2591,8 +2557,6 @@ export class AgentActor implements Actor {
       ownerId: identity.ownerId,
       // The team that shares it, by name, or null for one person's.
       team: identity.team ?? null,
-      // Whether its main chat speaks only through send.
-      bus: identity.bus === true,
       soul: identity.soul,
       user: identity.user,
       memory: identity.memory,
@@ -2771,33 +2735,12 @@ export class AgentActor implements Actor {
 
   /** Change what can be changed about the agent, each thing checked. Rejects with why not. */
   /**
-   * A call is over: its record goes into the chat it was held in, for people and for the agent.
-   * `work` is the side chat it worked in, where that is another one: the agent is told there
-   * that the call is over, and nothing is shown for it.
+   * A call is over: its record goes into the chat it was held in, for people, and is an event
+   * there for the agent, which it reads with whatever it does next.
    */
-  async #recordCall(
-    chatId: string,
-    entry: CallEntry,
-    note: string,
-    work?: { chatId: string; note: string },
-  ): Promise<void> {
+  async #recordCall(chatId: string, entry: CallEntry, note: string): Promise<void> {
     const harness = await this.#open()
     const now = this.#host.now()
-    if (work !== undefined) {
-      const worked = await harness.conversation(Number(work.chatId) as ConversationId, context)
-      await worked?.submit(
-        {
-          type: "write",
-          requestId: `call-over:${entry.id}`,
-          entry: {
-            kind: CALL_OVER_ENTRY,
-            model: [{ role: "user", content: work.note, timestamp: now }],
-            data: { id: entry.id },
-          },
-        },
-        context,
-      )
-    }
     const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
     // The chat was deleted while the call went on: there is nowhere to leave it.
     if (conversation === undefined) return
@@ -2854,10 +2797,6 @@ export class AgentActor implements Actor {
     if (typeof voice === "string" && !/^[a-z]{2,40}$/.test(voice)) {
       throw new HttpError(400, "voice must be the name of a voice")
     }
-    if (input.bus !== undefined && typeof input.bus !== "boolean") {
-      throw new HttpError(400, "bus must be true or false")
-    }
-    const bus = input.bus as boolean | undefined
     const now = this.#host.now()
     let avatar: IdentityState["avatar"] | undefined
     if (input.avatar !== undefined) {
@@ -2885,10 +2824,7 @@ export class AgentActor implements Actor {
       else if (voice !== undefined) identity.voice = voice
       // Chats pick this up on their next message.
       if (thinking !== undefined) identity.thinking = thinking
-      if (bus === true) identity.bus = true
-      else if (bus === false) delete identity.bus
     }, context)
-    if (bus !== undefined) await this.#syncBus(harness)
     // A model change applies to existing chats from their next request.
     if (model !== undefined) await this.#setModel(harness, model)
   }
@@ -2902,24 +2838,20 @@ export class AgentActor implements Actor {
     return conversation
   }
 
-  /** A chat someone talks in. As the main chat, it takes that place from whichever had it. */
+  /** A new main chat, for an agent that has none yet. */
   async #newChat(
     harness: Harness,
     identity: Readonly<IdentityState>,
-    title: string | undefined,
     caller: Caller | undefined,
-    main: boolean,
-    requestId?: string,
   ): Promise<ChatSummary> {
     const now = this.#host.now()
     const record: ChatRecord = {
-      title: title?.trim().slice(0, MAX_TITLE_CHARS) || DEFAULT_CHAT_TITLE,
+      title: DEFAULT_CHAT_TITLE,
       kind: "chat",
       createdAt: now,
       updatedAt: now,
       archived: false,
       ...(caller === undefined ? {} : { createdBy: caller.id }),
-      ...(requestId === undefined ? {} : { request: requestId }),
     }
     const conversation = await harness.createConversation(
       {
@@ -2930,152 +2862,59 @@ export class AgentActor implements Actor {
         },
         init: async (tx, id) => {
           const doc = await tx.doc(ChatsDoc)
-          refuseSecond(doc.chats, requestId)
           doc.chats[String(id)] = record
-          if (main) doc.main = String(id)
+          doc.main = String(id)
         },
       },
       context,
     )
     const id = String(conversation.id)
-    return summarize(id, record, main ? id : undefined)
+    return summarize(id, record, id)
   }
 
   /**
-   * A chat beside the main one: a side chat. It branches off the main chat, so the agent arrives
-   * knowing what was being talked about, and starts empty where nothing has been answered there.
+   * An old side chat, for a test (`testOldSideChats`): archived, as every side chat is now, with
+   * what it is given, if anything, said in it, as it was said in one before.
    */
-  async #createChat(
+  async #oldSideChat(
     harness: Harness,
     identity: Readonly<IdentityState>,
-    input: CreateChatRequest,
+    input: SendMessageRequest,
     caller: Caller | undefined,
   ): Promise<Response> {
-    const { requestId } = input
-    if (
-      requestId !== undefined &&
-      (typeof requestId !== "string" || requestId === "" || requestId.length > 100)
-    ) {
-      throw new HttpError(400, "requestId must be a string of at most 100 characters")
-    }
-    // A request that is sent again, because its answer never arrived, is answered with the
-    // chat the first one made.
-    const made = async (chatId: string) => {
-      const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
-      const record = own(chats, chatId)
-      if (record === undefined) throw new HttpError(409, "That chat is gone")
-      return json(summarize(chatId, record, main), 200)
-    }
-    if (requestId !== undefined) {
-      const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
-      const found = Object.entries(chats).find(([, chat]) => chat.request === requestId)
-      if (found !== undefined) return made(found[0])
-    }
-    try {
-      const branched = await this.#branchChat(
-        harness,
-        identity,
-        input.title,
-        caller,
-        requestId,
-      ).catch((error) => {
-        if (error instanceof ChatMade) throw error
-        // Not being able to branch must not cost the user their chat.
-        this.#options.onReport?.(error)
-        return undefined
-      })
-      return json(
-        branched ?? (await this.#newChat(harness, identity, input.title, caller, false, requestId)),
-        201,
-      )
-    } catch (error) {
-      // The same request, twice at once: the one that came second finds the first one's chat.
-      if (error instanceof ChatMade) return made(error.chatId)
-      throw error
-    }
-  }
-
-  /**
-   * A side chat that carries the main chat's context up to where the agent last came to rest
-   * there. Undefined where there is nothing to carry yet.
-   *
-   * How much it carries turns on what it costs. Where the main chat's prompt is in the
-   * provider's cache still, the side chat is given all of it, whatever its size: the cache is
-   * read for a fraction of the price, and nothing is lost. Where it is not, every token is paid
-   * for in full, and a main chat too large for that is cut down: see `cutDown`.
-   */
-  async #branchChat(
-    harness: Harness,
-    identity: Readonly<IdentityState>,
-    title: string | undefined,
-    caller: Caller | undefined,
-    requestId?: string,
-  ): Promise<ChatSummary | undefined> {
-    const mainId = (await harness.snapshot(ChatsDoc, context))?.main
-    if (mainId === undefined) return undefined
-    const main = await harness.conversation(Number(mainId) as ConversationId, context)
-    if (main === undefined) return undefined
-    const active = await main.context(context)
-    const at = branchPoint(active.entries)
-    if (at === undefined) return undefined
-    const carried = at === active.entries.at(-1)?.id ? active : await main.context(context, { at })
-    const model = parseModel(identity.model)
     const now = this.#host.now()
-    const cut = isWarm(carried.entries, model, now)
-      ? { carried: "whole" as const, edits: [] }
-      : cutDown(carried)
-    const session = (await harness.snapshot(ProviderDoc, main.id, context))?.sessionId
-
     const record: ChatRecord = {
-      title: title?.trim().slice(0, MAX_TITLE_CHARS) || DEFAULT_CHAT_TITLE,
+      title: titleFrom(String(input.text ?? "")) || DEFAULT_CHAT_TITLE,
       kind: "chat",
       createdAt: now,
       updatedAt: now,
-      archived: false,
+      archived: true,
       ...(caller === undefined ? {} : { createdBy: caller.id }),
-      ...(requestId === undefined ? {} : { request: requestId }),
-      fork: { chatId: mainId, at: Number(at) },
     }
-    const conversation = await main.fork(
-      at,
+    const conversation = await harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        // A fork starts with what its parent selected, and the bus is the main chat's alone.
-        agent: { model, thinkingLevel: identity.thinking ?? DEFAULT_THINKING, extensions: null },
+        agent: {
+          model: parseModel(identity.model),
+          thinkingLevel: identity.thinking ?? DEFAULT_THINKING,
+        },
         init: async (tx, id) => {
-          const doc = await tx.doc(ChatsDoc)
-          refuseSecond(doc.chats, requestId)
-          doc.chats[String(id)] = record
-          // A fork is given a session of its own, and some providers keep their cache by
-          // session: under a new one the main chat's prompt would be paid for again.
-          if (session !== undefined) (await tx.doc(ProviderDoc, id)).sessionId = session
+          ;(await tx.doc(ChatsDoc)).chats[String(id)] = record
         },
       },
       context,
     )
-    const id = String(conversation.id)
-    // Tells the agent where it is, marks in the chat where its own messages begin, and holds
-    // what the side chat leaves behind of the main chat, which is unchanged by it.
-    await conversation.submit(
-      {
-        type: "write",
-        requestId: `branch:${id}`,
-        entry: {
-          kind: BRANCH_ENTRY,
-          data: { carried: cut.carried },
-          model: [{ role: "user", content: branchNote(cut.carried, mainId), timestamp: now }],
-          ...(cut.edits.length === 0 ? {} : { edits: cut.edits }),
-        },
-      },
-      context,
-    )
-    return summarize(id, record, undefined)
+    if (typeof input.text === "string" && input.text !== "") {
+      await this.#say(harness, conversation, input, caller)
+    }
+    const { main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
+    return json(summarize(String(conversation.id), record, main), 201)
   }
 
   /**
    * The agent's main chat, settled on if it has none. An agent from before there was such a
-   * thing gets the chat it was last talked to in, and its other chats are side chats from then
-   * on. One that has never been talked to gets a new chat.
+   * thing gets the chat it was last talked to in, and its other chats are old side chats from
+   * then on. One that has never been talked to gets a new chat.
    */
   async #mainChat(
     harness: Harness,
@@ -3093,50 +2932,59 @@ export class AgentActor implements Actor {
       doc.main = latest[0]
       return summarize(latest[0], latest[1], latest[0])
     }, context)
-    const main = found ?? (await this.#newChat(harness, identity, undefined, caller, true))
+    const main = found ?? (await this.#newChat(harness, identity, caller))
     // Not being able to set it up now costs nobody their chat: it is tried again with the next message.
     await this.#syncBus(harness).catch((error) => this.#options.onReport?.(error))
     return json(main)
   }
 
   /**
-   * Set the main chat up as the agent's switch for the bus says (`bus.ts`). Switched on, the chat
-   * selects the bus's extension, and a mark in it says where the bus begins; switched off, it
-   * selects what every chat does, after a mark that says so. A chat that is already as the
-   * switch says is left alone, so this is called wherever the two could differ: when the switch
-   * is changed, when the main chat is settled on, and before a person's message is given to it.
-   * `thread` is a thread in Slack about to be given a message, which is set up the same way.
+   * Set the agent's chats up as a bus (`bus.ts`): its main chat selects the bus's extension, with
+   * a mark that says where the bus begins, and its side chats from before, which nobody writes in
+   * any more, are archived. A chat already set up is left alone, so this is called wherever one
+   * could not be yet: as the agent opens, when the main chat is settled on, and before a message
+   * is given to it. `thread` is a thread in Slack about to be given a message, which is set up the
+   * same way then and not before: most are long over.
    */
   #syncBus(harness: Harness, thread?: string): Promise<void> {
     const run = async () => {
-      const on = (await harness.snapshot(IdentityDoc, context))?.bus === true
       const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
-      // A chat that was the main one and is no longer has the bus taken off it: it is the main
-      // chat's, and the threads in Slack's, alone. A thread in Slack follows the switch when it
-      // is next given a message (`thread`), and not before: most are long over.
       for (const [id, record] of Object.entries(chats)) {
-        if (record.kind === "slack" && id !== thread) continue
-        const wanted = on && (id === main || id === thread)
-        if ((record.bus === true) !== wanted) {
-          await this.#switchBus(harness, id, record, wanted)
+        if (record.bus !== true && (id === main || id === thread)) {
+          await this.#switchBus(harness, id, record)
         }
       }
+      // Only the main chat is talked in now. The others are kept, as they were, to be read.
+      if (main === undefined) return
+      const side = Object.entries(chats).filter(
+        ([id, record]) => record.kind === "chat" && id !== main && !record.archived,
+      )
+      if (side.length === 0) return
+      await harness.commit(async (tx) => {
+        const doc = await tx.doc(ChatsDoc)
+        for (const [id] of side) {
+          const record = own(doc.chats, id)
+          if (record !== undefined) record.archived = true
+        }
+      }, context)
     }
     this.#busing = this.#busing.then(run, run)
     return this.#busing
   }
 
   /**
-   * Switch the bus on or off in one chat. A mark says where, for drawing it; a note tells the
-   * model, at its next step, what changed. Then the chat selects the bus's extension, or stops.
+   * Switch the bus on in one chat. A mark says where, for drawing it; a note tells the model, at
+   * its next step, what changed. Then the chat selects the bus's extension.
    */
-  async #switchBus(harness: Harness, chatId: string, record: ChatRecord, on: boolean) {
+  async #switchBus(harness: Harness, chatId: string, record: ChatRecord) {
     const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
     if (conversation === undefined) return
     const slack = record.kind === "slack"
-    // A thread in Slack that has not been given its first message has nothing to be told about
-    // what changed: its first message says how it works.
-    const fresh = slack && record.slack?.woken === undefined
+    // A chat that nothing has been said in yet has nothing to be told about what changed: its
+    // first message says how it works. A thread in Slack is set up before its first message.
+    const fresh = slack
+      ? record.slack?.woken === undefined
+      : (await conversation.context(context)).entries.length === 0
     const n = record.busMarks?.length ?? 0
     // The mark first, and at once: a chat set up for the bus with nothing to say where it began
     // would be drawn as if it had always had it.
@@ -3144,7 +2992,7 @@ export class AgentActor implements Actor {
       {
         type: "write",
         requestId: `bus:${chatId}:${n}`,
-        entry: { kind: BUS_ENTRY, data: { on } },
+        entry: { kind: BUS_ENTRY, data: { on: true } },
       },
       context,
     )
@@ -3157,20 +3005,20 @@ export class AgentActor implements Actor {
           requestId: `bus-note:${chatId}:${n}`,
           entry: {
             kind: BUS_NOTE_ENTRY,
-            model: [{ role: "user", content: busNote(on, slack), timestamp: this.#host.now() }],
+            model: [{ role: "user", content: busNote(slack), timestamp: this.#host.now() }],
           },
         },
         context,
       )
     }
     const bus = slack ? this.#slackBus : this.#bus
-    await conversation.configure({ extensions: on ? { add: [bus] } : null }, context)
+    await conversation.configure({ extensions: { add: [bus] } }, context)
     await harness.commit(async (tx) => {
       const chat = own((await tx.doc(ChatsDoc)).chats, chatId)
       if (chat === undefined) return
-      chat.bus = on
+      chat.bus = true
       if (placed.entry !== undefined) {
-        chat.busMarks = [...(chat.busMarks ?? []), { at: Number(placed.entry), on }]
+        chat.busMarks = [...(chat.busMarks ?? []), { at: Number(placed.entry), on: true }]
       }
     }, context)
   }
@@ -3201,7 +3049,7 @@ export class AgentActor implements Actor {
   }
 
   /**
-   * The agent sent something to the people in a chat with the bus on. It is its latest line,
+   * The agent sent something to the people in a main chat or a thread in Slack. It is its latest line,
    * and they are told of it where nobody has the chat open. A run there that ends tells nobody
    * anything: only what is sent does (`#notifyWhenUnseen`).
    */
@@ -3300,11 +3148,6 @@ export class AgentActor implements Actor {
     const { chats, main } = (await harness.snapshot(ChatsDoc, c)) ?? { chats: {} }
     const thread = own(chats, told.chatId)
     if (thread?.slack === undefined) return "Only a thread in Slack tells the main conversation."
-    // Switched off while this thread was at work: the main chat has no bus to take it, nor the
-    // words on what comes from Slack.
-    if ((await harness.snapshot(IdentityDoc, c))?.bus !== true) {
-      return "The main conversation is not taking word from Slack now."
-    }
     if (main === undefined) return "There is no main conversation to tell."
     const conversation = await harness.conversation(Number(main) as ConversationId, c)
     if (conversation === undefined) return "There is no main conversation to tell."
@@ -3388,14 +3231,12 @@ export class AgentActor implements Actor {
   }
 
   /**
-   * Something the voice of a call hands on to the agent. It goes to the call's side chat as a
-   * message, marked as said out loud, and the agent does it there with every tool it has. A
-   * call held in the main chat is given a side chat of its own the first time, so that the main
-   * chat is neither held up by the call nor filled with it; one held in a side chat works there.
+   * Something the voice of a call hands on to the agent. It goes to the main chat, where the call
+   * is held, as a message marked as said out loud: the agent answers it with `send`, which the
+   * voice reads out, and hands what takes longer to a sub-agent, as it does any work.
    */
   async #callWork(
     harness: Harness,
-    identity: Readonly<IdentityState>,
     callId: string,
     input: CallWorkRequest,
     caller: Caller | undefined,
@@ -3403,33 +3244,7 @@ export class AgentActor implements Actor {
     if (typeof input.text !== "string" || input.text.trim() === "") {
       throw new HttpError(400, "text is required")
     }
-    const where = await this.#calls.where(callId, caller)
-    let chatId = where.workChatId
-    if (chatId === undefined) {
-      // Two things handed on at once are given the one chat.
-      let making = this.#callChats.get(callId)
-      if (making === undefined) {
-        making = (async () => {
-          const main = (await harness.snapshot(ChatsDoc, context))?.main
-          let made = where.chatId
-          if (where.chatId === main) {
-            const title = titleFrom(`Call: ${input.text}`)
-            const branched = await this.#branchChat(harness, identity, title, caller).catch(
-              (error) => {
-                // Not being able to branch must not cost the call its work.
-                this.#options.onReport?.(error)
-                return undefined
-              },
-            )
-            made = (branched ?? (await this.#newChat(harness, identity, title, caller, false))).id
-          }
-          await this.#calls.worksIn(callId, made)
-          return made
-        })().finally(() => this.#callChats.delete(callId))
-        this.#callChats.set(callId, making)
-      }
-      chatId = await making
-    }
+    const chatId = await this.#calls.where(callId, caller)
     const sent = await this.#say(harness, await this.#chat(harness, chatId), input, caller, callId)
     return json({ chatId, ...sent } satisfies CallWorkResponse, 202)
   }

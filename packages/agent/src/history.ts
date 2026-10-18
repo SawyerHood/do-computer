@@ -311,7 +311,8 @@ export async function readHistory(
   const bounds = fork === undefined ? {} : { minEntryId: (fork.at + 1) as EntryId }
   let maxEntryId: EntryId | undefined
   if (options.before !== undefined) {
-    const before = Number(options.before)
+    // A row of the agent's working in a main chat is named for the first message in it.
+    const before = Number(options.before.replace(/^(live:)?work:/, ""))
     if (!Number.isInteger(before) || before < 1)
       throw new HistoryError("`before` is not a message.")
     if (before === 1) return { messages: [], before: null }

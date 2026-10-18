@@ -46,7 +46,7 @@ function setUp(
     },
     callWork: async (_id, input) => {
       work.push(input)
-      return { chatId: "side-1", submissionId: "s1" }
+      return { chatId: "main", submissionId: "s1" }
     },
     endCall: async (id, lines = []) => {
       ended.push({ id, lines })
@@ -149,7 +149,7 @@ describe("a call", () => {
     expect(call.sent.at(-1)).toBe(JSON.stringify({ type: "session.close" }))
   })
 
-  it("hands on what was asked, follows the chat it is worked in, and gives the Dood's answer to the voice", async () => {
+  it("hands on what was asked, follows the main chat, and gives what the Dood sends to the voice", async () => {
     const call = setUp("codex")
     await call.caller.start(agent, "main")
     call.voice({ type: "session.started" })
@@ -168,7 +168,6 @@ describe("a call", () => {
     })
     await vi.waitFor(() => expect(call.following).toBe(true))
     expect(call.caller.getState().call).toMatchObject({
-      workChatId: "side-1",
       works: [{ id: "d1", ask: "What is in my calendar?", done: false }],
     })
 
@@ -199,8 +198,17 @@ describe("a call", () => {
     })
     expect(call.caller.getState().call?.works[0]?.step).toBeTruthy()
 
-    // It answered: the voice is given the answer to say, and the work is done.
-    call.chat({ ...EMPTY_CHAT, messages: [asked, say("assistant", "Lunch with Sam at one.")] })
+    // It sent something while still at work, as it does when it hands the rest to a sub-agent:
+    // the voice is given that to say at once, and the work is done.
+    call.chat({
+      ...EMPTY_CHAT,
+      busy: true,
+      messages: [
+        asked,
+        { ...say("assistant", "", { work: true } as Partial<ChatMessage>), parts: [] },
+        say("assistant", "Lunch with Sam at one."),
+      ],
+    })
     const answer = call.sent
       .map((event) => JSON.parse(event) as { type: string; channel?: string; content?: unknown })
       .find((event) => event.type === "delegation.context.append" && event.channel === "speakable")

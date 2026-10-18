@@ -15,7 +15,7 @@ import {
   useNow,
 } from "@/agent/agent"
 import { dollars } from "@/agent/usage"
-import { isAtWork, mainChatOf, subagentsOf } from "@/chat/chats"
+import { isAtWork, mainChatOf, sideChatsOf, subagentsOf } from "@/chat/chats"
 import { CreatureHero } from "@/creature/hero"
 import { useHere } from "@/lib/presence"
 import { keys, useMe } from "@/lib/queries"
@@ -46,7 +46,7 @@ const NAME_GONE = 250
 
 /**
  * The agent's own page, as a contact's is in Messages: its creature large and alive, the ways
- * into its side chats, library and automations, what it is doing right now, what belongs to
+ * into its library and automations, what it is doing right now, what belongs to
  * its main chat, and every section of its settings as rows that push in.
  */
 export default function AgentInfo() {
@@ -75,6 +75,7 @@ export default function AgentInfo() {
   })
 
   const main = mainChatOf(state?.chats)
+  const oldSideChats = sideChatsOf(state?.chats).length
   // A team's agent is everyone's, so deleting and moving it are for the people who run the team.
   const mayDelete = workspace?.role !== "member"
   const startDelete = () => router.push(`${base}/profile?delete=1`)
@@ -158,12 +159,6 @@ export default function AgentInfo() {
 
           <View style={{ flexDirection: "row", gap: 10, marginHorizontal: 16, marginBottom: 22 }}>
             <Quick
-              icon="chats"
-              title="Side chats"
-              accent={accent}
-              onPress={() => router.push(`${base}/side-chats`)}
-            />
-            <Quick
               icon="folder"
               title="Library"
               accent={accent}
@@ -182,6 +177,19 @@ export default function AgentInfo() {
 
           {main === undefined ? null : (
             <MainChat agentId={agentId} name={name} chat={main} chats={state?.chats ?? []} />
+          )}
+
+          {/* Side chats from before a Dood was talked to in its main chat alone, kept to read. */}
+          {oldSideChats === 0 ? null : (
+            <Section>
+              <Row
+                icon={["archive", "#6b7780"]}
+                title="Old side chats"
+                value={String(oldSideChats)}
+                go
+                onPress={() => router.push(`${base}/old-side-chats`)}
+              />
+            </Section>
           )}
 
           <Section title={name}>
@@ -247,7 +255,7 @@ export default function AgentInfo() {
   )
 }
 
-/** One of the three ways out of the page, under the creature, in the agent's own color. */
+/** One of the ways out of the page, under the creature, in the agent's own color. */
 function Quick({
   icon,
   title,

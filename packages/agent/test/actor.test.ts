@@ -32,6 +32,7 @@ import {
   encodeCaller,
 } from "../src/index.ts"
 import { preview } from "../src/preview.ts"
+import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -51,7 +52,9 @@ function open(
   /** The agent's database as the agent is to have it, in place of the host's. */
   database: (sql: ActorDatabase) => ActorDatabase = (sql) => sql,
 ): World {
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -100,7 +103,7 @@ async function call<T>(world: World, path: string, method = "GET", payload?: unk
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats", "POST", {})
+  return call<ChatSummary>(world, "/chats/main", "POST", {})
 }
 
 /** Follow a chat's event stream, reducing as a client would, until `done` holds. */
@@ -172,7 +175,8 @@ describe("agent actor", () => {
     const world = open(temporary(), 60)
     const chat = await setup(world)
     const answer = "Hello there, it is very nice to meet you today. ".repeat(3).trim()
-    world.faux.setResponses([fauxAssistantMessage(answer)])
+    // In the main chat what the agent says to the person is what it sends.
+    world.faux.setResponses([sent(answer)])
     const following = follow(world, chat.id, answered(1))
     await send(world, chat.id, "hi, who are you?\nsecond line")
     const { state, events } = await following
@@ -183,9 +187,11 @@ describe("agent actor", () => {
     ])
     expect(state.messages[1]!.parts).toEqual([{ type: "text", text: answer }])
     expect(state.messages[1]!.model).toBe("test/model")
-    // The answer arrived as increments, not as one finished message.
-    expect(events.filter((event) => event.type === "delta").length).toBeGreaterThan(0)
-    expect(events.filter((event) => event.type === "snapshot").length).toBe(1)
+    // The client was kept up to date as it went: it was told the person's message and that the
+    // agent was at work, and caught up with the send by a fresh snapshot where the row of the
+    // agent's working, live while the call was written, gave way to it.
+    expect(events.map((event) => event.type).slice(0, 3)).toEqual(["snapshot", "message", "busy"])
+    expect(events.at(-1)).toEqual({ type: "busy", busy: false })
 
     const { chats } = await call<{ chats: ChatSummary[] }>(world, "/")
     expect(chats[0]!.title).toBe("hi, who are you?")
@@ -223,7 +229,7 @@ describe("agent actor", () => {
       (context) => {
         // The saved identity must be in the prompt of the next request.
         const system = JSON.stringify(context)
-        return fauxAssistantMessage(
+        return sent(
           system.includes("Your name is Juniper.") && system.includes("Name is Sawyer")
             ? "Saved and visible."
             : "Saved but NOT visible in my prompt.",
@@ -328,7 +334,7 @@ describe("agent actor", () => {
       fauxAssistantMessage([fauxToolCall("set_identity", { color: "honey" })], {
         stopReason: "toolUse",
       }),
-      fauxAssistantMessage("Honey it is."),
+      sent("Honey it is."),
     ])
     await send(world, chat.id, "be yellow")
     await follow(world, chat.id, answered(2))
@@ -341,7 +347,7 @@ describe("agent actor", () => {
       fauxAssistantMessage([fauxToolCall("set_identity", { color: "neon" })], {
         stopReason: "toolUse",
       }),
-      fauxAssistantMessage("That is not one I can be."),
+      sent("That is not one I can be."),
     ])
     await send(world, chat.id, "be neon")
     const { state } = await follow(world, chat.id, answered(4))
@@ -358,7 +364,7 @@ describe("agent actor", () => {
         [fauxToolCall("memory", { action: "add", target: "user", content: "x".repeat(4100) })],
         { stopReason: "toolUse" },
       ),
-      fauxAssistantMessage("Too long."),
+      sent("Too long."),
     ])
     await send(world, chat.id, "remember this")
     const { state } = await follow(world, chat.id, answered(2))
@@ -472,78 +478,19 @@ describe("agent actor", () => {
     })
   })
 
-  it("keeps chats separate and only serves ones it listed", async () => {
-    const world = open(temporary())
-    const first = await setup(world)
-    const second = await call<ChatSummary>(world, "/chats", "POST", { title: "Second" })
-    world.faux.setResponses([fauxAssistantMessage("for the first")])
-    await send(world, first.id, "hello first")
-    await follow(world, first.id, answered(1))
-    expect((await call<ChatState>(world, `/chats/${second.id}`)).messages).toEqual([])
-    await expect(call(world, "/chats/99999")).rejects.toThrow("404")
-    await call(world, `/chats/${second.id}`, "PATCH", { archived: true, title: "Renamed" })
-    const { chats } = await call<{ chats: ChatSummary[] }>(world, "/")
-    expect(chats.find((c) => c.id === second.id)).toMatchObject({
-      archived: true,
-      title: "Renamed",
-    })
-  })
-
-  it("makes one chat for a request however often it is sent", async () => {
-    const world = open(temporary())
-    await call(world, "/init", "POST", { ownerId: "user-1" })
-    const main = await call<ChatSummary>(world, "/chats/main", "POST", {})
-    const count = async () =>
-      (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) => !chat.main).length
-
-    // Nothing has been answered in the main chat, so there is nothing to branch off: new chats.
-    const first = await call<ChatSummary>(world, "/chats", "POST", { requestId: "one" })
-    expect(first).not.toHaveProperty("request")
-    expect(await call<ChatSummary>(world, "/chats", "POST", { requestId: "one" })).toEqual(first)
-    expect(await count()).toBe(1)
-    const twice = await Promise.all([
-      call<ChatSummary>(world, "/chats", "POST", { requestId: "two" }),
-      call<ChatSummary>(world, "/chats", "POST", { requestId: "two" }),
-    ])
-    expect(twice[0].id).toBe(twice[1].id)
-    expect(twice[0].id).not.toBe(first.id)
-    expect(await count()).toBe(2)
-
-    // With an answer in the main chat a side chat branches off it, and the same holds.
-    world.faux.setResponses([fauxAssistantMessage("Hello.")])
-    await send(world, main.id, "hello")
-    await follow(world, main.id, answered(1))
-    const branched = await Promise.all([
-      call<ChatSummary>(world, "/chats", "POST", { requestId: "three" }),
-      call<ChatSummary>(world, "/chats", "POST", { requestId: "three" }),
-      call<ChatSummary>(world, "/chats", "POST", { requestId: "three" }),
-    ])
-    expect(new Set(branched.map((chat) => chat.id)).size).toBe(1)
-    expect(await call<ChatSummary>(world, "/chats", "POST", { requestId: "three" })).toEqual(
-      branched[0],
-    )
-    expect(await count()).toBe(3)
-    expect(world.reports).toEqual([])
-
-    // One with no id is a chat of its own each time, as it always was.
-    await call(world, "/chats", "POST", {})
-    await call(world, "/chats", "POST", {})
-    expect(await count()).toBe(5)
-    await expect(call(world, "/chats", "POST", { requestId: "" })).rejects.toThrow("400")
-  })
-
-  it("has one main chat, which a new agent is given and which cannot be put away", async () => {
+  it("is talked to in its main chat alone, and serves only the chats it listed", async () => {
     const world = open(temporary())
     await call(world, "/init", "POST", { ownerId: "user-1" })
     const main = await call<ChatSummary>(world, "/chats/main", "POST")
     expect(main).toMatchObject({ kind: "chat", main: true, archived: false })
-    // Asked for again it is the same chat, and a chat started beside it is not it.
+    // Asked for again it is the same chat. No other chat with people is made.
     expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(main.id)
-    const side = await call<ChatSummary>(world, "/chats", "POST", { title: "Aside" })
-    expect(side.main).toBeUndefined()
+    await expect(call(world, "/chats", "POST", {})).rejects.toThrow("410")
     const { chats } = await call<{ chats: ChatSummary[] }>(world, "/")
-    expect(chats.filter((chat) => chat.main).map((chat) => chat.id)).toEqual([main.id])
+    expect(chats.map((chat) => chat.id)).toEqual([main.id])
+    await expect(call(world, "/chats/99999")).rejects.toThrow("404")
 
+    // It is always there: it is not one that can be put away, and it can be renamed.
     await expect(call(world, `/chats/${main.id}`, "PATCH", { archived: true })).rejects.toThrow(
       "409",
     )
@@ -552,22 +499,19 @@ describe("agent actor", () => {
     ).toBe(true)
   })
 
-  it("makes the chat last talked in the main one, for an agent from before there was one", async () => {
+  it("is set up as a bus as it opens, with nothing to be told where nothing was said", async () => {
     const world = open(temporary())
-    const first = await setup(world)
-    const second = await call<ChatSummary>(world, "/chats", "POST", {})
-    const put = await call<ChatSummary>(world, "/chats", "POST", {})
-    await call(world, `/chats/${put.id}`, "PATCH", { archived: true })
-    world.faux.setResponses([fauxAssistantMessage("hello")])
-    await send(world, first.id, "the one in use")
-    await follow(world, first.id, answered(1))
-
-    expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(first.id)
-    // It stays the main chat whichever is talked in after.
-    world.faux.setResponses([fauxAssistantMessage("hello")])
-    await send(world, second.id, "an aside")
-    await follow(world, second.id, answered(1))
-    expect((await call<ChatSummary>(world, "/chats/main", "POST")).id).toBe(first.id)
+    const main = await setup(world)
+    const state = await call<ChatState>(world, `/chats/${main.id}`)
+    // A chat new on the bus has no note that it changed: its first message says how it works.
+    expect(state.messages).toEqual([])
+    world.faux.setResponses([sent("Hello.")])
+    await send(world, main.id, "hello")
+    const { state: after } = await follow(world, main.id, answered(1))
+    expect(after.messages.map((message) => message.parts[0])).toEqual([
+      { type: "text", text: "hello" },
+      { type: "text", text: "Hello." },
+    ])
   })
 
   it("tells whoever is watching the agent which of its documents changed", async () => {
@@ -583,7 +527,14 @@ describe("agent actor", () => {
     expect(await next()).toEqual({ type: "changed", what: "approvals" })
     await call(world, "/creature/open", "POST")
     expect(await next()).toEqual({ type: "changed", what: "creature" })
-    await call(world, "/chats", "POST", {})
+    await call(
+      world,
+      `/chats/${(await call<ChatSummary>(world, "/chats/main", "POST")).id}`,
+      "PATCH",
+      {
+        title: "Renamed",
+      },
+    )
     expect(await next()).toEqual({ type: "changed", what: "chats" })
     await events.return?.(undefined)
   })
@@ -623,7 +574,7 @@ describe("the agent's latest line", () => {
     expect(idle).not.toHaveProperty("latest")
 
     world.faux.setResponses([
-      fauxAssistantMessage("Here is **the plan**:\n\n```sh\nmake all\n```\n\nThen we ship."),
+      sent("Here is **the plan**:\n\n```sh\nmake all\n```\n\nThen we ship."),
     ])
     const before = Date.now()
     await world.namespace.get("agent-1").fetch(
@@ -664,7 +615,7 @@ describe("the agent's latest line", () => {
     // Nothing has happened that the hook would be told of.
     expect(world.activity).toEqual([])
 
-    world.faux.setResponses([fauxAssistantMessage("Here is the plan.")])
+    world.faux.setResponses([sent("Here is the plan.")])
     await send(world, chat.id, "what is the plan?")
     await told(world, (change) => change.latest?.kind === "reply" && !change.working)
     expect(world.activity[0]).toEqual({
@@ -736,7 +687,7 @@ describe("the agent's latest line", () => {
   it("tells the hook nothing twice in a row", async () => {
     const world = open(temporary())
     const chat = await setup(world)
-    world.faux.setResponses([fauxAssistantMessage("Done.")])
+    world.faux.setResponses([sent("Done.")])
     await send(world, chat.id, "do it")
     await told(world, (change) => change.latest?.kind === "reply" && !change.working)
     const settled = world.activity.length
@@ -744,7 +695,7 @@ describe("the agent's latest line", () => {
     // Reading the agent, and changing what the hook is not told of, tells it nothing.
     await agent(world)
     await call(world, "/", "PATCH", { name: "Ada" })
-    await call<ChatSummary>(world, "/chats", "POST", {})
+    await call<ChatSummary>(world, "/chats/main", "POST", {})
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(world.activity).toHaveLength(settled)
     for (const [index, change] of world.activity.entries()) {
@@ -818,7 +769,7 @@ describe("deleting an agent", () => {
       /502: The Dood's computer could not be deleted, so nothing was: the provider is unreachable/,
     )
     // Still there, and still working.
-    world.faux.setResponses([fauxAssistantMessage("still here")])
+    world.faux.setResponses([sent("still here")])
     await send(world, chat.id, "are you there?")
     const { state } = await follow(world, chat.id, answered(1))
     expect(state.messages.at(-1)?.parts[0]).toMatchObject({ text: "still here" })
@@ -839,15 +790,26 @@ describe("usage", () => {
 
     world.faux.setResponses([
       fauxAssistantMessage("one"),
+      fauxAssistantMessage([fauxToolCall("subagent", { action: "start", task: "Say two." })], {
+        stopReason: "toolUse",
+      }),
       fauxAssistantMessage("two, a longer answer"),
     ])
     await send(world, first.id, "hello")
     await follow(world, first.id, answered(1))
-    const second = await call<ChatSummary>(world, "/chats", "POST", {})
-    await send(world, second.id, "hello again")
-    await follow(world, second.id, answered(1))
+    // A sub-agent is a chat of its own, which spends too.
+    await send(world, first.id, "hand it over")
+    let second: ChatSummary | undefined
+    const deadline = Date.now() + 5_000
+    while (second?.status !== "done" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      second = (await call<{ chats: ChatSummary[] }>(world, "/")).chats.find(
+        (chat) => chat.kind === "subagent",
+      )
+    }
+    await follow(world, first.id, (state) => !state.busy && state.queued.length === 0)
     const one = await call<ChatState>(world, `/chats/${first.id}`)
-    const two = await call<ChatState>(world, `/chats/${second.id}`)
+    const two = await call<ChatState>(world, `/chats/${second!.id}`)
 
     const usage = await call<AgentUsage>(world, "/usage")
     expect(usage.chats).toBe(2)
@@ -864,11 +826,13 @@ describe("usage", () => {
 describe("unseen replies", () => {
   it("are reported only when nobody is following the chat", async () => {
     const directory = temporary()
-    const faux = fauxProvider({
-      provider: "test",
-      models: [{ id: "model" }],
-      tokensPerSecond: 2_000,
-    })
+    const faux = quietOnReminder(
+      fauxProvider({
+        provider: "test",
+        models: [{ id: "model" }],
+        tokensPerSecond: 2_000,
+      }),
+    )
     const models = createModels()
     models.setProvider(faux.provider)
     const unseen: AgentNotification[] = []
@@ -891,7 +855,7 @@ describe("unseen replies", () => {
     const chat = await setup(world)
 
     // Someone is watching: no notification.
-    faux.setResponses([fauxAssistantMessage("While you watch.")])
+    faux.setResponses([sent("While you watch.")])
     const following = follow(world, chat.id, answered(1))
     await send(world, chat.id, "hello")
     await following
@@ -899,7 +863,7 @@ describe("unseen replies", () => {
     expect(unseen).toEqual([])
 
     // Nobody is: the answer is reported once it is complete.
-    faux.setResponses([fauxAssistantMessage("While you were away.")])
+    faux.setResponses([sent("While you were away.")])
     await send(world, chat.id, "and now?")
     const deadline = Date.now() + 5_000
     while (unseen.length === 0 && Date.now() < deadline) {

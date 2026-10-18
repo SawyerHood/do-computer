@@ -563,7 +563,6 @@ export class Jobs {
     if (await busOn(harness, job.chatId, context)) {
       // On the bus it is an event, which waits for the agent to finish what it is doing and is
       // taken up with whatever else came meanwhile.
-      // Keyed as the report is off the bus, so one made again after the switch changed lands once.
       const event = eventText(
         "command-ended",
         { job: id, computer: job.computer, status: job.status, exit: job.exitCode },

@@ -95,8 +95,8 @@ export default function AppLayout() {
         options={{ presentation: "modal", title: "Invite people" }}
       />
       <Stack.Screen
-        name="a/[agentId]/side-chats"
-        options={{ ...sheet([0.55, 1]), title: "Side chats" }}
+        name="a/[agentId]/old-side-chats"
+        options={{ ...sheet([0.55, 1]), title: "Old side chats" }}
       />
       <Stack.Screen
         name="a/[agentId]/subagents"

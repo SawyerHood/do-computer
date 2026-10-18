@@ -33,6 +33,7 @@ import {
   summaryRequest,
   TYPING_CAP_MS,
 } from "../src/idle-compaction.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 const HOUR = 60 * 60_000
 
@@ -250,7 +251,7 @@ describe("whether a quiet chat is compacted", () => {
 
 type World = {
   namespace: NodeActorNamespace
-  faux: ReturnType<typeof fauxProvider>
+  faux: ReturnType<typeof quietOnReminder<ReturnType<typeof fauxProvider>>>
   reports: unknown[]
   /** How far the agent's clock is ahead of the real one. */
   clock: { ahead: number }
@@ -277,11 +278,13 @@ function open(
     imageLimits?: ImageLimits
   } = {},
 ): World {
-  const faux = fauxProvider({
-    provider: "test",
-    models: [{ id: "model" }],
-    tokensPerSecond: more.tokensPerSecond ?? 5_000,
-  })
+  const faux = quietOnReminder(
+    fauxProvider({
+      provider: "test",
+      models: [{ id: "model" }],
+      tokensPerSecond: more.tokensPerSecond ?? 5_000,
+    }),
+  )
   // Claude's caches, as Anthropic's own models say.
   faux.models[0].promptCache = { short: 300, long: 3600 }
   const models = createModels()
@@ -484,8 +487,6 @@ async function fill(
   await call(world, "/init", "POST", { ownerId: "user-1" })
   const main = await call<ChatSummary>(world, "/chats/main", "POST", {})
   world.faux.models[0].contextWindow = 100_000_000
-  // What the chat's last request was sent, as the provider got it.
-  let sent: ModelContext["messages"] = []
   world.faux.setResponses([
     // Three pictures first, where asked, which are in every request after.
     ...(pictures
@@ -498,17 +499,23 @@ async function fill(
       : []),
     fauxAssistantMessage("Hello."),
     fauxAssistantMessage("Noted."),
-    (context: ModelContext) => {
-      sent = structuredClone(context.messages)
-      return fauxAssistantMessage("Noted again.")
-    },
+    fauxAssistantMessage("Noted again."),
   ])
+  // In the main chat each of these is two requests: the answer, and the one reminder a run that
+  // sent the person nothing is given, which the scripted model answers quietly. The reminder's
+  // prompt is the answer's and a few words more, all but those few read from the cache. So
+  // where a message of `LONG` makes a turn's answer P + 2 LONG, its reminder is P + LONG, and
+  // the turn comes to 2P + 3 LONG; the next turn's reminder, the chat's last request, is the
+  // P + 2 LONG this one's answer was.
   const hello = await say(world, main.id, "hi")
   const first = await say(world, main.id, words(LONG, "first"))
-  const expected = first.usage.inputTokens - hello.usage.inputTokens + LONG
+  const expected = (first.usage.inputTokens - hello.usage.inputTokens + LONG) / 2
   world.faux.models[0].contextWindow = Math.round(expected / share)
   const second = await say(world, main.id, words(LONG, last))
-  return { main, input: second.usage.inputTokens - first.usage.inputTokens, sent }
+  // What the chat's last request was sent: the reminder's.
+  const sent = world.faux.requests.at(-1)!.messages
+  const input = Math.round((second.usage.inputTokens - first.usage.inputTokens - LONG) / 2)
+  return { main, input, sent }
 }
 
 describe("compacting a quiet main chat while its cache is warm", () => {
@@ -540,10 +547,13 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     // What it repeats is exactly what the chat's last request was sent, then that answer, then
     // the request for the summary, which says what is kept.
     expect(sent.slice(0, -2)).toEqual(last)
-    expect(sent.at(-2)).toMatchObject({ role: "assistant", content: [{ text: "Noted again." }] })
+    // That answer is the reminder's, which said nothing.
+    expect(sent.at(-2)).toMatchObject({ role: "assistant", content: [{ text: "" }] })
+    expect(JSON.stringify(sent)).toContain("Noted again.")
     const request = JSON.stringify(sent.at(-1)!.content)
     expect(request).toContain(
-      'Its last 2 messages stay as they are, from the one that begins \\"second second',
+      // The newest message, its answer, the reminder and the reply to that.
+      'Its last 4 messages stay as they are, from the one that begins \\"second second',
     )
     expect(request).toContain("Sub-agents at work")
     // The summary is in the chat's context in place of the first long message.

@@ -1052,7 +1052,7 @@ export class Computers {
           )
         }
         const chats = (await api.snapshot(ChatsDoc, context))?.chats
-        // A sub-agent asks through a main chat with the bus on, and the answer comes back to it.
+        // A sub-agent asks through the main chat, and the answer comes back to it.
         if (!canAsk(chats, chatId)) {
           return fail(
             "Only a conversation with the user can ask for a computer: the answer has to have somewhere to arrive.",

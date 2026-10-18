@@ -21,6 +21,7 @@ import {
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 import { liveWork } from "../src/live.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 /** A task that never ends by itself, as one a deployment had and a later one has not. */
 const Stall = defineTask<Record<string, never>, { phase: "run" }, null>({
@@ -71,7 +72,9 @@ type World = {
 const worlds: World[] = []
 
 function open(directory: string, extensions: Extension[]): World {
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 2_000 })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 2_000 }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -135,7 +138,7 @@ describe("work this deployment cannot run", () => {
     const directory = mkdtempSync(join(tmpdir(), "dc-blocked-"))
     const before = open(directory, [Stalling])
     await call(before, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(before, "/chats", "POST", {})
+    const chat = await call<ChatSummary>(before, "/chats/main", "POST", {})
     before.faux.setResponses([
       fauxAssistantMessage([fauxToolCall("stall", {})], { stopReason: "toolUse" }),
       fauxAssistantMessage("It is started."),
