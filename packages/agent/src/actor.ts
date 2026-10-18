@@ -29,6 +29,7 @@ import {
   MAX_MESSAGE_IMAGES,
   MESSAGE_IMAGE_TYPES,
   type MessageImage,
+  latestOfSent,
   type ModelOption,
   NEW_CREATURE,
   parseAvatar,
@@ -3049,7 +3050,7 @@ export class AgentActor implements Actor {
     // Kept before the run is waited on, so that the agent's answer cannot come before it.
     await this.#record({
       kind: "said",
-      text: input.text,
+      text: latestOfSent(input.text),
       chatId,
       ...(caller === undefined ? {} : { by: caller.id }),
     })

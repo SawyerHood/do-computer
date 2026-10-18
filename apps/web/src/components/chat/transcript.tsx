@@ -18,6 +18,7 @@ import {
   isSubagentStart,
   continuesMain,
   type MessagePart,
+  sentWords,
 } from "@do-computer/protocol"
 import {
   ArrowClockwiseIcon,
@@ -27,11 +28,12 @@ import {
   DesktopIcon,
   KeyIcon,
   MicrophoneIcon,
+  PaperclipIcon,
   PlugsConnectedIcon,
   SlackLogoIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
-import { useContext, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useContext, useEffect, useMemo, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
 import { CallInChat, CallRecord } from "@/components/call/call"
 import { useAgentsById } from "@/components/computer-requests"
@@ -239,6 +241,42 @@ function FromAgent({
   )
 }
 
+const hasPictures = (message: ChatMessage) => message.parts.some((part) => part.type === "image")
+
+/**
+ * The words of a message someone sent, without the line that names its files for the agent.
+ * The pictures are shown as themselves; any other file it named is shown by its name, under it.
+ */
+function SentText({
+  text,
+  pictures,
+  children,
+}: {
+  text: string
+  pictures: boolean
+  children: (text: string) => ReactNode
+}) {
+  const shown = sentWords(text, pictures)
+  return (
+    <>
+      {shown.text === "" ? null : children(shown.text)}
+      {shown.files.length === 0 ? null : (
+        <ul aria-label="Sent files" className="flex flex-wrap justify-end gap-1.5 self-end">
+          {shown.files.map((name, index) => (
+            <li
+              key={index}
+              className="flex max-w-64 items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground"
+            >
+              <PaperclipIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
 /**
  * A message someone wrote in Slack, in the thread's conversation here: who wrote it and that it
  * came from there. Someone whose address in Slack is an account's here has their face. Anyone
@@ -275,11 +313,15 @@ function FromSlack({
         </span>
         {message.parts.map((part, index) =>
           part.type === "text" ? (
-            <Bubble key={index} align="end" variant="secondary">
-              <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
-                {part.text}
-              </BubbleContent>
-            </Bubble>
+            <SentText key={index} text={part.text} pictures={hasPictures(message)}>
+              {(text) => (
+                <Bubble align="end" variant="secondary">
+                  <BubbleContent className="whitespace-pre-wrap text-[0.9375rem]">
+                    {text}
+                  </BubbleContent>
+                </Bubble>
+              )}
+            </SentText>
           ) : part.type === "image" ? (
             <img
               key={index}
@@ -519,11 +561,15 @@ function MessageView({
           ) : null}
           {message.parts.map((part, index) =>
             part.type === "text" ? (
-              <Bubble key={index} align="end" variant={other === undefined ? "plain" : "secondary"}>
-                <BubbleContent className="rounded-[1.125rem] px-4 py-2 text-base leading-[1.55] whitespace-pre-wrap">
-                  {part.text}
-                </BubbleContent>
-              </Bubble>
+              <SentText key={index} text={part.text} pictures={hasPictures(message)}>
+                {(text) => (
+                  <Bubble align="end" variant={other === undefined ? "plain" : "secondary"}>
+                    <BubbleContent className="rounded-[1.125rem] px-4 py-2 text-base leading-[1.55] whitespace-pre-wrap">
+                      {text}
+                    </BubbleContent>
+                  </Bubble>
+                )}
+              </SentText>
             ) : part.type === "image" ? (
               <img
                 key={index}

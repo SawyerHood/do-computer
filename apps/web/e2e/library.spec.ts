@@ -207,7 +207,9 @@ test("a file attached to a message is one the agent can open", async ({ page }) 
   await composer(page).press("Enter")
   const transcript = page.getByRole("log")
   // The message names the file, and the chip is gone once it is sent.
-  await expect(transcript.getByText("Attached: shopping.txt").first()).toBeVisible()
+  await expect(
+    transcript.getByRole("list", { name: "Sent files" }).getByText("shopping.txt").first(),
+  ).toBeVisible()
   await expect(attached).toHaveCount(0)
   await expect(transcript.getByText(/echo model\.\)/)).toBeVisible()
 

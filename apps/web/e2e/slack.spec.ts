@@ -231,7 +231,13 @@ test.describe("slack", () => {
       .getByRole("list", { name: "From Slack" })
       .getByRole("link", { name: /keep this for me/ })
     await row.click()
-    await expect(page.getByRole("log").getByText("Attached: notes.txt").first()).toBeVisible()
+    await expect(
+      page
+        .getByRole("log")
+        .getByRole("list", { name: "Sent files" })
+        .getByText("notes.txt")
+        .first(),
+    ).toBeVisible()
     const { files } = (await (await page.request.get(`/api/agents/${agentId}/library`)).json()) as {
       files: { id: string; name: string; source: string }[]
     }
