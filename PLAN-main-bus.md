@@ -45,7 +45,7 @@ removes both reasons.
 | `send` | Required in the main chat **and in Slack threads**. The model's own text is never shown or posted |
 | Browser and screen tools in the main chat | Kept, but the prompt steers the main chat to hand that work to a sub-agent |
 | Compaction while idle | At **70% of the model's context window**, and **only on models with a long cache** (1 h or more). Never on 5-minute caches |
-| Tokens and secrets | **All in `AgentObject`.** Connector tokens, MCP sessions, Slack's bot token, secrets and saved logins never go to another object; other objects call through the agent's |
+| What sub-agents can do | **Everything the Dood can**: connectors, connected apps, Slack, secrets, saved logins, cards, computers, web search, the library. Where tokens are stored is an implementation detail that the model never sees and that limits nothing |
 
 ## 3. The main chat is a message bus
 
@@ -154,7 +154,7 @@ side chats, and sub-agents are background objects like schedules and Slack threa
 
 | Class | One for | Name | Holds |
 | --- | --- | --- | --- |
-| `AgentObject` | Each Dood, as now | agent id | Identity, memory, skills, schedules and their alarm, connectors and **every token and secret**, approvals, the index of chats and objects, and the main chat |
+| `AgentObject` | Each Dood, as now | agent id | Identity, memory, skills, schedules and their alarm, connectors and their stored tokens, secrets, approvals, the index of chats and objects, and the main chat |
 | `ChatObject`, new | Each sub-agent | `<agentId>/<n>` | That sub-agent's conversation |
 | | Each schedule | `<agentId>/<n>` | That schedule's runs, one at a time |
 | | Each Slack thread | `<agentId>/<n>` | That thread's conversation |
@@ -182,14 +182,34 @@ them. If it ever needs isolating too, it can move to `<agentId>/main` later.
 
 ### 4.2 What a sub-agent object knows
 
+A sub-agent has the same tools as the Dood, with the same rules, wherever it runs: every
+connector and connected app, the `slack` tool, secrets for commands, saved logins and cards,
+computers, web search, the library, memory and skills. Moving it to an object of its own must
+not take any of that away, and the tests for phase 6 check each one from a sub-agent. (What it
+cannot do today, start sub-agents of its own or change schedules, is unchanged.)
+
+**Asking a person, from a sub-agent.** Today a sub-agent cannot ask anyone for anything: asking
+for a secret (`secrets.ts:496`), a login (`sign-in.ts:287`), a computer (`computers.ts:947`) or an
+"Ask first" approval (`approvals.ts:572`) fails with "there has to be someone to type it". With
+the bus there is always somewhere to ask: the request is shown in the main chat, under the
+sub-agent's name, and the answer goes back to the sub-agent, which waits as a chat waits now.
+The main chat is told of it as an event and does not have to relay it. This is part of phase 3,
+before any object work, since it only needs the request to be drawn in a chat other than the one
+that asked.
+
+How that is wired is an implementation detail:
+
 - **A mirror** of what it reads while building a request: identity, memory (read-only), skills,
   model and thinking, computers, connector tool definitions, approval rules. Sent with `/start` and
   refreshed when its version is older than the agent's, as in `PLAN-chat-objects.md` 4.5.
-- **No tokens.** Per the decision, a connector call is made by `AgentObject`: the sub-agent
-  object sends `{ connector, tool, args }` and gets the result. MCP sessions, OAuth refresh and
-  secrets stay in one place. The same goes for secrets a command needs (the dotenv tool),
-  saved logins and payment cards: the object asks `AgentObject`, which writes them where they
-  are needed and never sends their values back.
+- **Connectors.** The likely first version: tokens and MCP sessions stay where they are stored
+  today, in `AgentObject`, and a sub-agent's connector tool calls are made through it
+  (`{ connector, tool, args }` in, the result out). That keeps one OAuth refresh and one MCP
+  session per server. The alternative is to give each object what it needs to call the server
+  itself. Either way the sub-agent sees the same tools with the same results as the main chat;
+  pick whichever is simpler and faster to build.
+- **Secrets, saved logins and cards.** Used from a sub-agent as from the main chat. Where the
+  values are read from is the same choice as for connectors.
 - **Model credentials.** The deployment's key is in the Worker's environment already. A model
   signed in with a person's subscription is reached as `AgentObject` reaches it now
   (`ModelAccessObject`), through `AgentObject` so there is one path for credentials.
@@ -262,7 +282,7 @@ do-computer that means watching `gh pr checks --watch` before merging, since not
 4. **Delete side chats** (3.7), calls moved to sub-agents. Turn the switch on for everyone.
    About 3–4 days.
 5. **Groundwork for objects of their own**: `PLAN-chat-objects.md` phases 1–2 (seams, the mirror,
-   calls through `AgentObject` for connectors and secrets, `ChatObject` switched off, the screen
+   connectors and secrets usable from any object, `ChatObject` switched off, the screen
    queue moved). About 1–2 weeks.
 6. **New sub-agents in their own objects** (4), then raise the cap. Sub-agents at work when it
    ships finish where they are. About a week.
