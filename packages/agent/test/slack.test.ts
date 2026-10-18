@@ -161,6 +161,7 @@ function open(
   keepAliveMs = 60_000,
   /** What a small model answers when asked for a thread's note. Absent: there is none. */
   note?: string,
+  extra: Partial<Parameters<typeof createAgentActor>[1]> = {},
 ): World {
   const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
@@ -220,6 +221,7 @@ function open(
         connectorFetch: world.mcp.fetch,
         onNotify: (notification) => world.reports.push(notification),
         onReport: (error) => world.errors.push(error),
+        ...extra,
       }),
     onError: (error) => world.errors.push(error),
   })
@@ -884,6 +886,82 @@ describe("a thread in Slack with the bus on", () => {
       (found) => found[0]?.status === "done",
     )
     expect(world.posts.map((post) => post.text)).toEqual(["Here you are."])
+  })
+
+  it("gives up posting after its tries, says why, and posts nothing twice", async () => {
+    const world = open(undefined, undefined, undefined, { slackRetryMs: () => 5 })
+    await onTheBus(world)
+    let tries = 0
+    world.onPost = () => {
+      tries++
+      throw new Error("Slack is down")
+    }
+    const results: string[] = []
+    world.faux.setResponses([
+      send("Here you are."),
+      (context) => {
+        results.push(JSON.stringify(context.messages.at(-1)))
+        return fauxAssistantMessage("It did not go.")
+      },
+      fauxAssistantMessage("Still nothing."),
+    ])
+    await say(world, mention("something"))
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status !== "working",
+    )
+    expect(tries).toBe(5)
+    expect(world.posts).toEqual([])
+    expect(results[0]).toContain("Slack could not be reached, so it was not posted.")
+  })
+
+  it("says only that it could not finish in Slack where a run fails", async () => {
+    const world = open()
+    await onTheBus(world)
+    world.faux.setResponses([
+      fauxAssistantMessage("", {
+        stopReason: "error",
+        errorMessage: "Credits ran out on acct 42.",
+      }),
+    ])
+    await say(world, mention("something"))
+    await posted(world, 1)
+    expect(world.posts.map((post) => post.text)).toEqual([
+      "Something went wrong, and I could not finish.",
+    ])
+  })
+
+  it("tells the main chat once for each message, and not at any length", async () => {
+    const world = open()
+    await onTheBus(world)
+    const results: string[] = []
+    const tell = (text: string) =>
+      fauxAssistantMessage([fauxToolCall("tell_main", { text })], { stopReason: "toolUse" })
+    world.faux.setResponses(
+      Array.from({ length: 12 }, () => (context: { messages: unknown[] }) => {
+        const seen = JSON.stringify(context.messages)
+        const last = JSON.stringify(context.messages.at(-1))
+        if (seen.includes("slack-thread")) return fauxAssistantMessage("quiet")
+        if (last.includes("toolResult")) {
+          results.push(last)
+          if (results.length === 1) return tell("x".repeat(5_000))
+          if (results.length === 2) return tell("Jon wants the budget.")
+          if (results.length === 3) return tell("And again.")
+          return fauxAssistantMessage("Done.")
+        }
+        return tell("First word.")
+      }),
+    )
+    await say(world, mention("tell them"))
+    await until(
+      async () => results,
+      (found) => found.length >= 4,
+    )
+    // The first is told, one too long is refused, and a second for the same message too.
+    expect(results[0]).toContain("Told your main conversation.")
+    expect(results[1]).toContain("That is too long to tell: at most 4000 characters.")
+    expect(results[2]).toContain("You have already told your main conversation something")
+    expect(results[3]).toContain("You have already told your main conversation something")
   })
 
   it("is reminded once where it sent nothing, then left to stay quiet", async () => {

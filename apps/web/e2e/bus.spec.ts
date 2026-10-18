@@ -231,12 +231,16 @@ test("shows what a sub-agent asks a person for in the main chat, under its name"
   })
   await expect(forms.getByText("From the sub-agent")).toBeVisible()
   await expect(forms.getByRole("link", { name: "Forecast helper" })).toBeVisible()
+  // What it was working on, and to fill it in only where that was expected.
+  await expect(
+    forms.getByText(/Asked while working on: .*Fill it in only if you expected it\./),
+  ).toBeVisible()
   // The main chat was told of it, in its working, and said nothing about it.
   const row = working(page).last()
   await expect(row.getByRole("button", { name: /event/ })).toBeVisible()
   await row.getByRole("button", { name: /Worked on it/ }).click()
   await expect(
-    row.getByText(/The sub-agent Forecast helper asked for the secrets FORECAST_KEY/),
+    row.getByText(/The sub-agent Forecast helper asked for the secret FORECAST_KEY/),
   ).toBeVisible()
   await shot(page, "subagent-asks")
 

@@ -693,3 +693,93 @@ describe("a command left running on a paired computer", () => {
     )
   })
 })
+
+describe("a computer asked for by a sub-agent through a main chat with the bus on", () => {
+  const AGENT = "agent-bus"
+  async function at<T>(path: string, method = "GET", payload?: unknown): Promise<T> {
+    const response = await agents.get(AGENT).fetch(
+      new Request(`http://actor${path}`, {
+        method,
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+        headers: payload === undefined ? undefined : { "content-type": "application/json" },
+      }),
+    )
+    const result = (await response.json()) as T & { error?: string }
+    if (!response.ok) throw new Error(`${response.status}: ${result.error}`)
+    return result
+  }
+  const computer = (id: string, name: string): NearbyComputer => ({
+    id,
+    name,
+    owner: "Maya",
+    team: false,
+    platform: "linux",
+    readOnly: false,
+    online: true,
+    connected: false,
+    asked: false,
+  })
+  async function until<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
+    const deadline = Date.now() + 8_000
+    for (;;) {
+      const value = await read()
+      if (done(value)) return value
+      if (Date.now() > deadline) throw new Error(`Timed out: ${JSON.stringify(value)}`)
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    }
+  }
+  const subagents = async () =>
+    (await at<{ chats: ChatSummary[] }>("/")).chats.filter((one) => one.kind === "subagent")
+  /** The main chat starts a sub-agent that asks for `name`, after asking itself if `first`. */
+  function script(name: string, first: boolean) {
+    const tool = (tool: string, args: Record<string, string>) =>
+      fauxAssistantMessage([fauxToolCall(tool, args)], { stopReason: "toolUse" })
+    // The main chat's steps, in order; what comes after them is quiet.
+    const steps = [
+      ...(first ? [tool("computers", { action: "request", name })] : []),
+      tool("subagent", { action: "start", title: "Box helper", task: `Get ${name}.` }),
+      tool("send", { text: "On it." }),
+    ]
+    faux.setResponses(
+      Array.from({ length: 12 }, () => (context: { messages: unknown[] }) => {
+        const seen = JSON.stringify(context.messages)
+        if (seen.includes("You are working as a sub-agent")) {
+          if (seen.includes("toolResult")) return fauxAssistantMessage(`Asked for ${name}.`)
+          return tool("computers", { action: "request", name })
+        }
+        return steps.shift() ?? fauxAssistantMessage("quiet")
+      }),
+    )
+  }
+
+  it("waits for the answer where it asked first, which comes back to it", async () => {
+    await at("/init", "POST", { ownerId: "user-1" })
+    await at("/", "PATCH", { bus: true })
+    const main = await at<ChatSummary>("/chats/main", "POST")
+    nearby.push(computer("c30", "vault-box"))
+    script("vault-box", false)
+    await at(`/chats/${main.id}/messages`, "POST", { text: "go", requestId: "bus-1" })
+    const [sub] = await until(subagents, (found) => found[0]?.status === "waiting")
+    expect(asks.at(-1)).toMatchObject({ agentId: AGENT, computerId: "c30", chatId: sub!.id })
+    // The answer goes to it, and it carries on and reports.
+    await at("/computers/c30/answer", "POST", {
+      requestId: "r30",
+      chatId: sub!.id,
+      approved: false,
+      by: "Maya",
+      name: "vault-box",
+    })
+    await until(subagents, (found) => found[0]?.status === "done")
+  })
+
+  it("does not wait where the main chat asked for the same computer first", async () => {
+    const main = await at<ChatSummary>("/chats/main", "POST")
+    nearby.push(computer("c31", "film-box"))
+    script("film-box", true)
+    await at(`/chats/${main.id}/messages`, "POST", { text: "go again", requestId: "bus-2" })
+    const found = await until(subagents, (all) => all.length === 2 && all[1]!.status !== "working")
+    // The answer will go to the main chat, which asked first: the sub-agent reports at once.
+    expect(found[1]!.status).toBe("done")
+    expect(asks.at(-1)).toMatchObject({ computerId: "c31", chatId: main.id })
+  })
+})
