@@ -183,13 +183,15 @@ export function shownMessages(
 ): { message: ChatMessage; failures: number }[] {
   if (isUntouched(state.messages)) return []
   const shows = (message: ChatMessage) =>
-    isVisibleMessage(message) &&
-    (message.role !== "assistant" ||
-      message.status === "error" ||
-      message.status === "aborted" ||
-      message.parts.some(
-        (part) => isShownPart(part) && (!isUse(part) || firstSteps.has(part.toolCallId)),
-      ))
+    // The agent's own working is one row, whatever is in it.
+    message.work === true ||
+    (isVisibleMessage(message) &&
+      (message.role !== "assistant" ||
+        message.status === "error" ||
+        message.status === "aborted" ||
+        message.parts.some(
+          (part) => isShownPart(part) && (!isUse(part) || firstSteps.has(part.toolCallId)),
+        )))
   return foldFailures(state.messages.filter(shows), state.busy)
 }
 

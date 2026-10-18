@@ -17,6 +17,7 @@ import {
   type NoticePart,
   type Person,
   sentWords,
+  toolSummary,
 } from "@do-computer/protocol"
 import {
   type ComponentType,
@@ -249,6 +250,16 @@ function Notice({ part }: { part: NoticePart | undefined }) {
       </NoticeLine>
     )
   }
+  if (part?.kind === "approval") {
+    // Someone's answer to what the agent asked leave for, where it was told of it as an event.
+    return (
+      <NoticeLine icon="shield">
+        <Text variant="subhead" tone="ink2">
+          {part.by ?? "Someone"} {part.approved ? "allowed" : "said no to"} {part.text}
+        </Text>
+      </NoticeLine>
+    )
+  }
   if (part?.kind === "connector") {
     // How a sign-in to a connector the agent asked for went.
     return (
@@ -272,6 +283,39 @@ function Notice({ part }: { part: NoticePart | undefined }) {
             part.text || "Continues from the main chat"
           : "New context"}
     </Separator>
+  )
+}
+
+/**
+ * The agent's own working between two things it said, where it speaks only through `send`: one
+ * line that says so, which opens on what it thought, the steps it took and what it was told.
+ */
+function WorkRow({ message }: { message: ChatMessage }) {
+  const steps = message.parts.filter((part) => part.type === "tool").length
+  const label = [
+    message.status === "streaming" ? "Working on it" : "Worked on it",
+    steps === 0 ? undefined : steps === 1 ? "1 step" : `${steps} steps`,
+  ]
+    .filter((said) => said !== undefined)
+    .join(" · ")
+  return (
+    <Fold label={label}>
+      <View style={{ gap: 8 }}>
+        {message.parts.map((part, index) =>
+          part.type === "text" || part.type === "thinking" ? (
+            <Text key={index} variant="subhead" tone="ink2">
+              {part.text}
+            </Text>
+          ) : part.type === "notice" ? (
+            <Notice key={index} part={part} />
+          ) : part.type === "tool" ? (
+            <Text key={part.toolCallId} variant="footnote" tone="ink3">
+              {toolSummary(part)}
+            </Text>
+          ) : null,
+        )}
+      </View>
+    </Fold>
   )
 }
 
@@ -523,6 +567,7 @@ const MessageRow = memo(function MessageRow({
   asker,
   delivery,
 }: RowProps) {
+  if (message.work === true) return <WorkRow message={message} />
   if (message.role === "notice") {
     const part = message.parts[0]
     return <Notice part={part?.type === "notice" ? part : undefined} />
