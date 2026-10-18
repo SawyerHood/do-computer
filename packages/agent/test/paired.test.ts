@@ -33,6 +33,8 @@ let nearby: NearbyComputer[] = []
 /** Computers the host no longer lets the agent use, whatever the agent was told. */
 const takenAway = new Set<string>()
 const asks: { agentId: string; computerId: string; chatId: string; reason: string }[] = []
+/** The asks the agent took back. */
+const withdrawn: { agentId: string; computerId: string; chatId: string }[] = []
 const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
 const models = createModels()
 models.setProvider(faux.provider)
@@ -47,6 +49,8 @@ const agents = new NodeActorNamespace({
         { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
       ],
       keepAliveMs: 100,
+      // One agent gives up on an unanswered ask quickly, to see what a late answer does.
+      ...(host.name === "agent-expiry" ? { subagentAskTtlMs: 400 } : {}),
       sandbox: (host) => justBashSandbox({ id: host.name, database: host.sql }),
       computerLinks: links,
       computerDirectory: {
@@ -59,6 +63,11 @@ const agents = new NodeActorNamespace({
           if (fresh) asks.push({ agentId, ...ask })
           computer.asked = true
           return { asked: computer.team ? `anyone in ${computer.owner}` : computer.owner, fresh }
+        },
+        withdraw: async (agentId, ask) => {
+          withdrawn.push({ agentId, ...ask })
+          const computer = nearby.find((one) => one.id === ask.computerId)
+          if (computer !== undefined) computer.asked = false
         },
       },
     }),
@@ -695,7 +704,7 @@ describe("a command left running on a paired computer", () => {
 })
 
 describe("a computer asked for by a sub-agent through a main chat with the bus on", () => {
-  const AGENT = "agent-bus"
+  let AGENT = "agent-bus"
   async function at<T>(path: string, method = "GET", payload?: unknown): Promise<T> {
     const response = await agents.get(AGENT).fetch(
       new Request(`http://actor${path}`, {
@@ -781,5 +790,99 @@ describe("a computer asked for by a sub-agent through a main chat with the bus o
     // The answer will go to the main chat, which asked first: the sub-agent reports at once.
     expect(found[1]!.status).toBe("done")
     expect(asks.at(-1)).toMatchObject({ computerId: "c31", chatId: main.id })
+  })
+
+  /** Every request the model was sent from a chat, by what it was last shown. */
+  function watch(name: string) {
+    const turns: { sub: boolean; last: string }[] = []
+    const tool = (tool: string, args: Record<string, string>) =>
+      fauxAssistantMessage([fauxToolCall(tool, args)], { stopReason: "toolUse" })
+    const steps = [
+      tool("subagent", { action: "start", title: "Box helper", task: `Get ${name}.` }),
+      tool("send", { text: "On it." }),
+    ]
+    faux.setResponses(
+      Array.from({ length: 16 }, () => (context: { messages: unknown[] }) => {
+        const seen = JSON.stringify(context.messages)
+        const sub = seen.includes("You are working as a sub-agent")
+        turns.push({ sub, last: JSON.stringify(context.messages.at(-1)) })
+        if (sub) {
+          if (seen.includes("toolResult")) return fauxAssistantMessage(`Asked for ${name}.`)
+          return tool("computers", { action: "request", name })
+        }
+        return steps.shift() ?? fauxAssistantMessage("quiet")
+      }),
+    )
+    return turns
+  }
+  const mainChat = () =>
+    until(
+      () => at<ChatState>(`/chats/${main.id}`),
+      (state) =>
+        !state.busy &&
+        state.messages.some((one) =>
+          one.parts.some((part) => part.type === "notice" && part.kind === "computer"),
+        ),
+    )
+  let main: ChatSummary
+
+  it("does not set a stopped sub-agent going when its computer is answered late", async () => {
+    main = await at<ChatSummary>("/chats/main", "POST")
+    nearby.push(computer("c32", "late-box"))
+    const turns = watch("late-box")
+    await at(`/chats/${main.id}/messages`, "POST", { text: "go once more", requestId: "bus-3" })
+    const waiting = await until(subagents, (all) => all.some((one) => one.status === "waiting"))
+    const sub = waiting.find((one) => one.status === "waiting")
+    const status = async () => (await subagents()).find((one) => one.id === sub!.id)!.status
+    await at(`/chats/${sub!.id}/abort`, "POST")
+    await until(status, (now) => now === "stopped")
+    // Taken back where it was asked, so that nobody is shown it to answer.
+    expect(withdrawn.at(-1)).toEqual({ agentId: AGENT, computerId: "c32", chatId: sub!.id })
+    const before = turns.filter((turn) => turn.sub).length
+    await at("/computers/c32/answer", "POST", {
+      requestId: "r32",
+      chatId: sub!.id,
+      approved: true,
+      by: "Maya",
+      name: "late-box",
+    })
+    // The main chat is told, and decides; the sub-agent is not set going.
+    const state = await mainChat()
+    const told = turns.find((turn) => !turn.sub && turn.last.includes("computer-answered"))
+    expect(told!.last).toContain("It has stopped, and was not told.")
+    expect(
+      state.messages
+        .flatMap((one) => one.parts)
+        .find((part) => part.type === "notice" && part.kind === "computer"),
+    ).toMatchObject({ detail: "asked for by the sub-agent Box helper, which had stopped" })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(turns.filter((turn) => turn.sub).length).toBe(before)
+    expect(await status()).toBe("stopped")
+  })
+
+  it("does not set going a sub-agent that gave up waiting, when the answer comes after", async () => {
+    AGENT = "agent-expiry"
+    await at("/init", "POST", { ownerId: "user-1" })
+    await at("/", "PATCH", { bus: true })
+    main = await at<ChatSummary>("/chats/main", "POST")
+    nearby.push(computer("c33", "slow-box"))
+    const turns = watch("slow-box")
+    await at(`/chats/${main.id}/messages`, "POST", { text: "go", requestId: "exp-1" })
+    await until(subagents, (all) => all[0]?.status === "waiting")
+    // Nobody answers in time: it is taken back, and the sub-agent reports.
+    const [sub] = await until(subagents, (all) => all[0]?.status === "done")
+    expect(withdrawn.at(-1)).toEqual({ agentId: AGENT, computerId: "c33", chatId: sub!.id })
+    const before = turns.filter((turn) => turn.sub).length
+    await at("/computers/c33/answer", "POST", {
+      requestId: "r33",
+      chatId: sub!.id,
+      approved: true,
+      by: "Maya",
+      name: "slow-box",
+    })
+    await mainChat()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(turns.filter((turn) => turn.sub).length).toBe(before)
+    expect((await subagents())[0]!.status).toBe("done")
   })
 })

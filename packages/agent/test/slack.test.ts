@@ -964,6 +964,86 @@ describe("a thread in Slack with the bus on", () => {
     expect(results[3]).toContain("You have already told your main conversation something")
   })
 
+  it("tells the main chat once where one answer calls tell_main three times", async () => {
+    const world = open()
+    const main = await onTheBus(world)
+    let results: string[] = []
+    let told = 0
+    type Message = { role: string; toolName?: string; isError?: boolean; content?: unknown }
+    world.faux.setResponses(
+      Array.from({ length: 8 }, () => (context: { messages: Message[] }) => {
+        const seen = JSON.stringify(context.messages)
+        if (seen.includes("slack-thread")) {
+          told++
+          return fauxAssistantMessage("quiet")
+        }
+        // After the three, and when reminded that it sent nothing to the thread, it is done.
+        if (seen.includes('"toolName":"tell_main"')) {
+          results = context.messages
+            .filter((one) => one.role === "toolResult" && one.toolName === "tell_main")
+            .map((one) => JSON.stringify(one.content))
+          return fauxAssistantMessage("Done.")
+        }
+        return fauxAssistantMessage(
+          ["One.", "Two.", "Three."].map((text) => fauxToolCall("tell_main", { text })),
+          { stopReason: "toolUse" },
+        )
+      }),
+    )
+    await say(world, mention("tell them three times"))
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) =>
+        !state.busy &&
+        state.messages.some((one) => one.parts.some((part) => part.type === "notice")),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(results).toHaveLength(3)
+    expect(results.filter((one) => one.includes("Told your main conversation."))).toHaveLength(1)
+    expect(
+      results.filter((one) => one.includes("You have already told your main conversation")),
+    ).toHaveLength(2)
+    expect(told).toBe(1)
+    const notices = state.messages
+      .flatMap((one) => one.parts)
+      .filter((part) => part.type === "notice" && part.kind === "slack")
+    expect(notices).toHaveLength(1)
+  })
+
+  it("does not tell the main chat where the bus went off while the thread was at work", async () => {
+    const world = open()
+    await onTheBus(world)
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let started = false
+    let result = ""
+    world.faux.setResponses([
+      async () => {
+        started = true
+        await held
+        return fauxAssistantMessage([fauxToolCall("tell_main", { text: "Jon wants it." })], {
+          stopReason: "toolUse",
+        })
+      },
+      (context) => {
+        result = JSON.stringify(context.messages.at(-1))
+        return fauxAssistantMessage("ok")
+      },
+    ])
+    await say(world, mention("tell them"))
+    await until(
+      async () => started,
+      (yes) => yes,
+    )
+    await call(world, "/", "PATCH", { bus: false })
+    release()
+    await until(
+      async () => result,
+      (found) => found !== "",
+    )
+    expect(result).toContain("The main conversation is not taking word from Slack now.")
+  })
+
   it("is reminded once where it sent nothing, then left to stay quiet", async () => {
     const world = open()
     await onTheBus(world)

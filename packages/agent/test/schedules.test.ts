@@ -14,6 +14,7 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
   fauxProvider,
+  fauxText,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
@@ -890,6 +891,57 @@ describe("automations on the bus", () => {
       detail: "It ended without saying anything.",
     })
     expect((await schedules(world))[0]!.lastRun).toMatchObject({ outcome: "failed" })
+  })
+
+  it("is failed where it was stopped while a step ran, whatever it wrote before", async () => {
+    const world = open(temporary())
+    const main = await onTheBus(world)
+    script(world, (turn) => {
+      if (turn.run) {
+        return fauxAssistantMessage(
+          [fauxText("Let me check the forecast."), fauxToolCall("bash", { command: "sleep 20" })],
+          { stopReason: "toolUse" },
+        )
+      }
+      if (turn.last.includes("automation")) return fauxAssistantMessage("quiet")
+      if (turn.last.includes("Scheduled.")) return send("Will do.")
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return creating(300)
+    })
+    await ask(world, main.id, "check the weather")
+    // The run is at its step when it is stopped.
+    const [running] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.running === true,
+    )
+    const chats = await until(
+      async () => (await call<{ chats: ChatSummary[] }>(world, "/")).chats,
+      (all) => all.some((one) => one.kind === "schedule"),
+    )
+    const run = chats.find((one) => one.kind === "schedule")!
+    await until(
+      () => chatState(world, run.id),
+      (state) =>
+        state.messages.some((one) =>
+          one.parts.some((part) => part.type === "tool" && part.status === "running"),
+        ),
+    )
+    await call(world, `/chats/${run.id}/abort`, "POST")
+    const [done] = await until(
+      () => schedules(world),
+      ([schedule]) => schedule?.lastRun != null,
+    )
+    expect(running).toBeDefined()
+    expect(done!.lastRun).toMatchObject({ outcome: "failed" })
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) => events(state).length === 1,
+    )
+    expect(events(state)[0]).toMatchObject({ outcome: "failed" })
+    expect(events(state)[0]!.detail).toMatch(
+      /^It (did not finish|was stopped before it finished)\./,
+    )
+    expect(events(state)[0]!.detail).toContain("Let me check the forecast.")
   })
 
   it("cuts a long result short in the event, and says where the rest is", async () => {
