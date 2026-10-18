@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { ChatMessage, ChatState, ChatSummary } from "@do-computer/protocol"
+import type { ChatMessage, ChatState, ChatSummary, SecretRequest } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -899,5 +899,260 @@ describe("the main chat as a bus", () => {
     expect(texts(state.messages)).toEqual(["hi", "Plain."])
     const { bus } = await request<{ bus: boolean }>(world, "/")
     expect(bus).toBe(false)
+  })
+})
+
+describe("sub-agents asking a person through the main chat", () => {
+  const subagents = async (world: World) =>
+    (await request<{ chats: ChatSummary[] }>(world, "/")).chats.filter(
+      (one) => one.kind === "subagent",
+    )
+  const asked = (state: ChatState) =>
+    state.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "notice" && part.kind === "asked" ? [part] : [],
+      ),
+    )
+  /** The main chat starts one sub-agent, says so, and is quiet about events. */
+  const coordinate = (turn: Turn, task: string) => {
+    // Read from all it was shown: an event can be placed after a tool's result, mid-run.
+    if (!turn.seen.includes("Started sub-agent")) {
+      return use("subagent", { action: "start", title: "Key helper", task })
+    }
+    if (!turn.seen.includes("A helper is on it."))
+      return use("send", { text: "A helper is on it." })
+    return fauxAssistantMessage("Nothing to say.")
+  }
+
+  it("asks for a secret, shown in the main chat under its name, and carries on with the answer", async () => {
+    const world = open(temporary(), true)
+    const main = await setup(world, true)
+    let subTurns = 0
+    const turns = script(world, (turn) => {
+      if (!turn.sub) return coordinate(turn, "Get an API key saved, then say it is ready.")
+      subTurns++
+      if (turn.last.includes("secrets was answered"))
+        return fauxAssistantMessage("The key is saved.")
+      if (afterTool(turn)) return fauxAssistantMessage("Waiting for the key.")
+      return use("request_secret", { secrets: [{ name: "API_KEY" }], purpose: "To call the API" })
+    })
+    await say(world, main.id, "get the key")
+    // It asked, and waits for the answer instead of reporting.
+    const [waiting] = await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "waiting",
+    )
+    const requests = await until(
+      () => request<{ requests: SecretRequest[] }>(world, "/secrets"),
+      (state) => state.requests.length === 1,
+    )
+    expect(requests.requests[0]).toMatchObject({
+      chatId: waiting!.id,
+      subagent: { title: "Key helper" },
+    })
+    // It was told the request is shown in the main chat, and to stop there.
+    expect(turns.find((turn) => turn.sub && afterTool(turn))!.last).toContain(
+      "shown to the people of your main conversation",
+    )
+    expect(turns.find((turn) => turn.sub)!.seen).toContain("you can still ask for with the tools")
+    // The main chat was told of it, with no turn of its own for it.
+    const before = await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && asked(state).length === 1,
+    )
+    expect(asked(before)[0]).toMatchObject({
+      text: "Key helper",
+      chatId: waiting!.id,
+      detail: "the secrets API_KEY",
+    })
+    expect(turns.some((turn) => !turn.sub && turn.last.includes("subagent-asked"))).toBe(false)
+    expect(turns.some((turn) => !turn.sub && turn.last.includes("subagent-report"))).toBe(false)
+
+    await request(world, `/secrets/${requests.requests[0]!.id}`, "POST", {
+      values: { API_KEY: "sk-test" },
+    })
+    // The answer went to the sub-agent, which carried on and then reported, once.
+    await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "done",
+    )
+    await until(
+      async () => turns,
+      (all) => all.some((turn) => !turn.sub && turn.last.includes("subagent-report")),
+    )
+    const reports = turns.filter((turn) => !turn.sub && turn.last.includes("subagent-report"))
+    expect(reports).toHaveLength(1)
+    expect(reports[0]!.last).toContain("The key is saved.")
+    // The main chat had the asking in front of it by then.
+    expect(reports[0]!.seen).toContain("subagent-asked")
+    expect(subTurns).toBe(3)
+    // Nobody was shown the value.
+    expect(JSON.stringify(turns)).not.toContain("sk-test")
+  })
+
+  it("asks first where a rule says so, and is let through by the answer from the main chat", async () => {
+    const world = open(temporary(), true)
+    const main = await setup(world, true)
+    await request(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
+    const turns = script(world, (turn) => {
+      if (!turn.sub) return coordinate(turn, "Run echo built and report what it printed.")
+      if (afterTool(turn) && turn.last.includes("built\\n"))
+        return fauxAssistantMessage("It printed built.")
+      if (afterTool(turn) && turn.last.includes("approval first")) {
+        return fauxAssistantMessage("Waiting for leave.")
+      }
+      return use("bash", { command: "echo built" })
+    })
+    await say(world, main.id, "build it")
+    await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "waiting",
+    )
+    const { pending } = await until(
+      () =>
+        request<{ pending: { id: string; chatKind: string; chatTitle: string }[] }>(
+          world,
+          "/approvals",
+        ),
+      (state) => state.pending.length === 1,
+    )
+    expect(pending[0]).toMatchObject({ chatKind: "subagent", chatTitle: "Key helper" })
+    await until(
+      () => chat(world, main.id),
+      (state) => asked(state).length === 1,
+    )
+    await request(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "once" })
+    await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "done",
+    )
+    const report = await until(
+      async () => turns.find((turn) => !turn.sub && turn.last.includes("subagent-report")),
+      (found) => found !== undefined,
+    )
+    expect(report!.last).toContain("It printed built.")
+  })
+
+  it("cannot ask anything where the bus is off, as before", async () => {
+    const world = open(temporary(), true)
+    const main = await setup(world, false)
+    const results: string[] = []
+    script(world, (turn) => {
+      if (!turn.sub) {
+        if (turn.last.includes("sub-agent of yours")) return fauxAssistantMessage("ok")
+        if (afterTool(turn)) return fauxAssistantMessage("Started.")
+        return use("subagent", { action: "start", title: "Key helper", task: "Get a key." })
+      }
+      if (afterTool(turn)) {
+        results.push(turn.last)
+        return fauxAssistantMessage("I could not ask.")
+      }
+      return use("request_secret", { secrets: [{ name: "API_KEY" }] })
+    })
+    await say(world, main.id, "get the key")
+    await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "done",
+    )
+    expect(results[0]).toContain("Only a conversation with the user can ask for a secret")
+    expect((await request<{ requests: unknown[] }>(world, "/secrets")).requests).toEqual([])
+  })
+
+  it("still cannot change schedules or start sub-agents, with the bus on", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    const results: string[] = []
+    script(world, (turn) => {
+      if (!turn.sub) return coordinate(turn, "Try things.")
+      if (afterTool(turn)) {
+        results.push(turn.seen)
+        return fauxAssistantMessage("Could not.")
+      }
+      return fauxAssistantMessage(
+        [
+          fauxToolCall("schedule", { action: "create", schedule: "every 1h", prompt: "x" }),
+          fauxToolCall("subagent", { action: "start", task: "y" }),
+        ],
+        { stopReason: "toolUse" },
+      )
+    })
+    await say(world, main.id, "go")
+    await until(
+      () => subagents(world),
+      (found) => found.length === 1 && found[0]!.status === "done",
+    )
+    expect(results.join("\n")).toContain("A sub-agent cannot change schedules.")
+    expect(results.join("\n")).toContain("Only a conversation with the user can use sub-agents.")
+  })
+})
+
+describe("the main chat as a coordinator", () => {
+  it("keeps the browser and the screen, with a word on handing that work over", () => {
+    const extension = busExtension({
+      harness: () => {
+        throw new Error("not used")
+      },
+      checkFiles: async () => undefined,
+      onSent: () => {},
+      onError: () => {},
+    })
+    for (const name of ["browser", "screen"]) {
+      const wrap = extension.wraps!.find((one) => "tool" in one && one.tool === name)
+      const wrapped = (wrap as { wrap: (tool: never) => { description: string } }).wrap({
+        name,
+        description: "Use it.",
+      } as never)
+      expect(wrapped.description).toMatch(/^Use it\. In your main conversation, hand browsing/)
+    }
+  })
+
+  it("is told to hand work over, and points a sub-agent at files and links", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    const turns = script(world, (turn) => {
+      if (turn.sub) return fauxAssistantMessage("Read them.")
+      if (turn.last.includes("subagent-report")) return fauxAssistantMessage("quiet")
+      if (afterTool(turn) && turn.last.includes("Started")) return use("send", { text: "On it." })
+      if (afterTool(turn)) return fauxAssistantMessage("ok")
+      return use("subagent", {
+        action: "start",
+        title: "Reader",
+        task: "Summarize these.",
+        files: ["notes/plan.md"],
+        links: ["https://example.com/spec"],
+      })
+    })
+    await say(world, main.id, "summarize the plan")
+    const sub = await until(
+      async () => turns.find((turn) => turn.sub),
+      (found) => found !== undefined,
+    )
+    expect(turns[0]!.system).toContain("You coordinate")
+    expect(turns[0]!.system).toContain('"name":"subagent"')
+    expect(sub!.seen).toContain("Summarize these.")
+    expect(sub!.seen).toContain("- notes/plan.md")
+    expect(sub!.seen).toContain("- https://example.com/spec")
+    // A sub-agent's own prompt has neither the bus nor its steer.
+    expect(sub!.system).not.toContain("You coordinate")
+  })
+
+  it("refuses a link that is not a web address", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    const results: string[] = []
+    script(world, (turn) => {
+      if (afterTool(turn)) {
+        results.push(turn.last)
+        return use("send", { text: "Could not." })
+      }
+      if (turn.last.includes("toolResult")) return fauxAssistantMessage("ok")
+      return use("subagent", { action: "start", task: "Read it.", links: ["file:///etc/passwd"] })
+    })
+    await say(world, main.id, "read it")
+    await until(
+      async () => results,
+      (found) => found.length > 0,
+    )
+    expect(results[0]).toContain("is not a web address")
   })
 })

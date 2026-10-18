@@ -812,3 +812,151 @@ describe("an agent in Slack", () => {
     expect(world.errors).toEqual([])
   })
 })
+
+describe("a thread in Slack with the bus on", () => {
+  /** An agent in Slack with the bus switched on, and its main chat. */
+  async function onTheBus(world: World): Promise<ChatSummary> {
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    await call(world, "/", "PATCH", { bus: true })
+    return call<ChatSummary>(world, "/chats/main", "POST")
+  }
+  const send = (text: string) =>
+    fauxAssistantMessage([fauxToolCall("send", { text })], { stopReason: "toolUse" })
+
+  it("posts each send to the thread at once and once, and nothing it wrote besides", async () => {
+    const world = open()
+    await onTheBus(world)
+    let first = ""
+    const seen: string[] = []
+    world.faux.setResponses([
+      (context) => {
+        first = JSON.stringify(context)
+        return send("Looking now.")
+      },
+      async () => {
+        // The first send is in the thread before the run goes on.
+        seen.push(...world.posts.map((post) => post.text))
+        return send("Three things are open.")
+      },
+      fauxAssistantMessage("Done, that was my private note."),
+    ])
+    const message = mention("what is open?")
+    const { chatId } = await say(world, message)
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(seen).toEqual(["Looking now."])
+    expect(world.posts).toEqual([
+      { channel: "C1", thread: message.ts, text: "Looking now." },
+      { channel: "C1", thread: message.ts, text: "Three things are open." },
+    ])
+    // It is told how the thread works, and `send` is how it answers there.
+    expect(first).toContain("What you pass to `send` is posted to the thread at once")
+    expect(first).toContain('"name":"send"')
+    expect(first).toContain('"name":"tell_main"')
+    expect(first).not.toContain('"name":"send_file"')
+    // Its own words are not posted, nor drawn as said in the app.
+    const state = await chatState(world, chatId)
+    const said = state.messages
+      .filter((one) => one.work !== true && one.role === "assistant")
+      .map((one) => one.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(""))
+    expect(said).toEqual(["Looking now.", "Three things are open."])
+    // What it sent is its latest line, from the channel, and nobody in the app is told.
+    const { agent } = await call<{ agent: AgentSummary }>(world, "/")
+    expect(agent.latest).toMatchObject({ kind: "slack", text: "Three things are open." })
+    expect(world.reports).toEqual([])
+    expect(world.errors).toEqual([])
+  })
+
+  it("tries again when posting fails, and posts once", async () => {
+    const world = open()
+    await onTheBus(world)
+    let failures = 1
+    world.onPost = () => {
+      if (failures-- > 0) throw new Error("Slack is down")
+    }
+    world.faux.setResponses([send("Here you are."), fauxAssistantMessage("ok")])
+    await say(world, mention("something"))
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    expect(world.posts.map((post) => post.text)).toEqual(["Here you are."])
+  })
+
+  it("is reminded once where it sent nothing, then left to stay quiet", async () => {
+    const world = open()
+    await onTheBus(world)
+    const turns: string[] = []
+    world.faux.setResponses(
+      Array.from({ length: 4 }, () => (context: { messages: unknown[] }) => {
+        turns.push(JSON.stringify(context.messages.at(-1)))
+        return fauxAssistantMessage("Not for me to answer.")
+      }),
+    )
+    await say(world, mention("hello all"))
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(turns).toHaveLength(2)
+    expect(turns[1]).toContain('kind=\\"unsent\\"')
+    expect(world.posts).toEqual([])
+  })
+
+  it("tells the main chat something with tell_main, as an event", async () => {
+    const world = open()
+    const main = await onTheBus(world)
+    const told: string[] = []
+    world.faux.setResponses(
+      Array.from({ length: 6 }, () => (context: { messages: unknown[] }) => {
+        const seen = JSON.stringify(context.messages)
+        const last = JSON.stringify(context.messages.at(-1))
+        if (seen.includes("slack-thread")) {
+          told.push(last)
+          return fauxAssistantMessage("Nothing to send.")
+        }
+        if (last.includes("toolResult") && last.includes("Told your main")) {
+          return send("I have let them know.")
+        }
+        if (last.includes("toolResult")) return fauxAssistantMessage("ok")
+        return fauxAssistantMessage(
+          [fauxToolCall("tell_main", { text: "Jon wants the budget by Friday." })],
+          { stopReason: "toolUse" },
+        )
+      }),
+    )
+    const { chatId } = await say(world, mention("tell your owner we need the budget"))
+    const state = await until(
+      () => chatState(world, main.id),
+      (state) =>
+        !state.busy &&
+        state.messages.some((one) => one.parts.some((part) => part.type === "notice")),
+    )
+    expect(told[0]).toContain("Jon wants the budget by Friday.")
+    expect(told[0]).toContain('from=\\"slack\\"')
+    const notice = state.messages.flatMap((one) => one.parts).find((part) => part.type === "notice")
+    expect(notice).toMatchObject({ kind: "slack", text: "#launch", chatId })
+    expect(world.posts.map((post) => post.text)).toEqual(["I have let them know."])
+  })
+
+  it("answers as it did before where the bus is off", async () => {
+    const world = open()
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    let first = ""
+    world.faux.setResponses([
+      (context) => {
+        first = JSON.stringify(context)
+        return fauxAssistantMessage("Plain answer.")
+      },
+    ])
+    await say(world, mention("hi"))
+    await posted(world, 1)
+    expect(world.posts.map((post) => post.text)).toEqual(["Plain answer."])
+    expect(first).not.toContain('"name":"send"')
+    expect(first).not.toContain('"name":"tell_main"')
+  })
+})
