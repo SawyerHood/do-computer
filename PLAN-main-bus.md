@@ -271,16 +271,20 @@ recorded per compaction, with the tokens before and after, so the 70% can be tun
   retention, with one more message asking for the summary.
 - **Where that fails, nothing is compacted.** Falling back to pi-durable's summarizer would send
   the whole chat uncached, often while the provider is overloaded. The chat waits for its next
-  turn and pi-durable's own threshold.
+  turn and pi-durable's own threshold, and is not asked again from the cache for an hour. Text
+  not in the form asked for counts as a failure.
 - **pi-durable's own threshold compactions are summarized from the cache too**, by the same hook,
-  where the model keeps a long cache and it is still warm (otherwise pi-durable's summarizer,
-  which those need). On a 200k window pi-durable starts at about 151k, so the idle compaction's
+  where the model keeps a long cache, it is still warm and the window has room for the summary
+  past the whole chat: in practice its background compactions, not its blocking ones. Otherwise,
+  and whenever that fails, pi-durable's summarizer, which those need. Chats other than the main
+  one are asked in pi-durable's own form. On a 200k window pi-durable starts at about 151k, so the idle compaction's
   own band is 140k to 151k; above that, its work is still done from the cache. This was chosen
   over setting `backgroundTokens` to 0 for long-cache models, which the harness's settings,
   being one for every chat, cannot do for a model.
 - **Long caches are by provider**, not by interface: Anthropic and Claude through OpenRouter an
-  hour, OpenAI and Azure a day (not a model with an explicit cache mode, which gets 30 minutes),
-  otherwise only what the model's own `promptCache` says.
+  hour; OpenAI's GPT-5 and GPT-4.1, directly or through OpenRouter, a day (not a model with an
+  explicit cache mode, which gets 30 minutes); otherwise only what the model's own `promptCache`
+  says. Azure gets nothing, since pi-ai never asks it for a long cache.
 - **The alarm is the actor's one wake-up**, as for schedules: a row per chat in the agent's
   database, set only by an answer that could qualify, which each answer moves ten minutes on.
 - **Main chats only** for the idle compaction. Sub-agents end once they report; Slack threads can

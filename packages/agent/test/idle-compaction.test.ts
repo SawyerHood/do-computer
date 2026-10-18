@@ -15,7 +15,10 @@ import {
   fauxProvider,
   fauxToolCall,
 } from "@earendil-works/pi-ai/providers/faux"
+import { Type } from "@earendil-works/pi-ai"
+import { defineExtension, defineTool } from "@earendil-works/pi-durable"
 import { afterEach, describe, expect, it } from "vitest"
+import type { ImageLimits } from "../src/limits.ts"
 import { createAgentActor } from "../src/index.ts"
 import {
   CACHE_MARGIN_MS,
@@ -23,7 +26,11 @@ import {
   decide,
   IDLE_SHARE,
   type IdleFacts,
+  BACKOFF_MS,
+  failedLately,
+  isSummary,
   restDecision,
+  summaryRequest,
   TYPING_CAP_MS,
 } from "../src/idle-compaction.ts"
 
@@ -70,12 +77,31 @@ describe("how long a model's long cache lasts", () => {
     ).toBe(HOUR)
   })
 
-  it("is a day for OpenAI's models, from OpenAI, Azure or through OpenRouter", () => {
-    expect(cacheLifetimeMs(model({ api: "openai-responses", provider: "openai" }))).toBe(24 * HOUR)
-    expect(cacheLifetimeMs(model({ api: "azure-openai-responses", provider: "azure" }))).toBe(
-      24 * HOUR,
-    )
+  it("is a day for OpenAI's GPT-5 and GPT-4.1, from OpenAI or through OpenRouter", () => {
+    const openAi = (id: string) => model({ api: "openai-responses", provider: "openai", id })
+    expect(cacheLifetimeMs(openAi("gpt-5.1"))).toBe(24 * HOUR)
+    expect(cacheLifetimeMs(openAi("gpt-4.1-mini"))).toBe(24 * HOUR)
     expect(cacheLifetimeMs(model({ provider: "openrouter", id: "openai/gpt-5.1" }))).toBe(24 * HOUR)
+    expect(cacheLifetimeMs(model({ provider: "openrouter", id: "openai/gpt-4.1" }))).toBe(24 * HOUR)
+  })
+
+  it("is not known for OpenAI's other models, which keep it in memory only", () => {
+    for (const id of ["gpt-4o", "gpt-4", "gpt-3.5-turbo", "o3", "o4-mini"]) {
+      expect(cacheLifetimeMs(model({ api: "openai-responses", provider: "openai", id }))).toBe(
+        undefined,
+      )
+      expect(cacheLifetimeMs(model({ provider: "openrouter", id: `openai/${id}` }))).toBe(undefined)
+    }
+  })
+
+  it("is not known for Azure, which pi-ai never asks for a long cache", () => {
+    const azure = model({
+      api: "azure-openai-responses",
+      provider: "azure",
+      id: "gpt-5.1",
+      baseUrl: "https://example.openai.azure.com/openai/v1",
+    })
+    expect(cacheLifetimeMs(azure)).toBeUndefined()
   })
 
   it("is not known for other providers behind the same interfaces", () => {
@@ -109,6 +135,7 @@ describe("how long a model's long cache lasts", () => {
         model({
           api: "openai-responses",
           provider: "openai",
+          id: "gpt-5.6",
           compat: { supportsExplicitPromptCacheMode: true },
         } as never),
       ),
@@ -129,6 +156,47 @@ describe("how long a model's long cache lasts", () => {
 
   it("is what the model says, for a provider nothing else is known of", () => {
     expect(cacheLifetimeMs(model({ promptCache: { long: 7200 } }))).toBe(2 * HOUR)
+  })
+})
+
+describe("what is asked for, and what is taken as a summary", () => {
+  const kept = { count: 2, opening: "second second" }
+
+  it("asks a main chat for what a long conversation with the person needs", () => {
+    const asked = summaryRequest(kept, true)
+    expect(asked).toContain("## Sub-agents at work")
+    expect(asked).toContain("long-running main conversation")
+    expect(asked).toContain(
+      'Its last 2 messages stay as they are, from the one that begins "second second"',
+    )
+  })
+
+  it("asks any other chat in pi-durable's own form", () => {
+    const asked = summaryRequest(kept, false)
+    expect(asked).toContain("## Next Steps")
+    expect(asked).toContain("## Critical Context")
+    expect(asked).not.toContain("Sub-agents at work")
+    expect(asked).not.toContain("main conversation")
+  })
+
+  it("takes only text in that form as a summary", () => {
+    expect(isSummary(SUMMARY)).toBe(true)
+    expect(isSummary("## Goal\nShip it.\n\n## Next Steps\n1. Go\n\n## Critical Context\n- x")).toBe(
+      true,
+    )
+    // An answer to the conversation, not a summary of it.
+    expect(isSummary("Sure, the report is done. Anything else?")).toBe(false)
+    expect(isSummary("## Goal\nOnly a start.")).toBe(false)
+  })
+
+  it("is not asked for again in a chat for an hour after it failed there", () => {
+    const record = (chatId: string, summarized: boolean, at: number) =>
+      ({ chatId, summarized, at }) as IdleCompactionRecord
+    const now = 1_800_000_000_000
+    expect(failedLately([record("7", false, now - BACKOFF_MS + 1)], "7", now)).toBe(true)
+    expect(failedLately([record("7", false, now - BACKOFF_MS)], "7", now)).toBe(false)
+    expect(failedLately([record("8", false, now)], "7", now)).toBe(false)
+    expect(failedLately([record("7", true, now)], "7", now)).toBe(false)
   })
 })
 
@@ -206,6 +274,7 @@ function open(
     afterMs?: number
     typing?: (agentId: string, chatId: string) => Promise<boolean>
     compaction?: { reserveTokens?: number; backgroundTokens?: number }
+    imageLimits?: ImageLimits
   } = {},
 ): World {
   const faux = fauxProvider({
@@ -228,8 +297,17 @@ function open(
         models,
         defaultModel: "test/model",
         modelOptions: [
-          { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
+          {
+            id: "test/model",
+            name: "Test",
+            reasoning: false,
+            inputCost: 0,
+            outputCost: 0,
+            images: true,
+          },
         ],
+        extensions: [snapping],
+        ...(more.imageLimits === undefined ? {} : { imageLimits: more.imageLimits }),
         keepAliveMs: 100,
         // So that a chat can fill most of the window without pi-durable compacting it first.
         compaction: more.compaction ?? { enabled: false },
@@ -307,13 +385,84 @@ function probe() {
   return looks
 }
 
+/** A summary in the form it is asked for. */
+const SUMMARY = "## Goal\nCarry on with the report.\n\n## Critical context\n- (none)"
+
+/** A tiny picture: 96 characters of base64. */
+const PIXEL = {
+  mimeType: "image/png",
+  data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+}
+
+/** A tool that gives a picture, as a screenshot does. */
+const snapping = defineExtension({
+  name: "test.snap",
+  tools: [
+    defineTool({
+      name: "snap",
+      description: "Take a picture.",
+      parameters: Type.Object({}),
+      execute: async () => ({ output: [{ type: "image" as const, ...PIXEL }] }),
+    }),
+  ],
+})
+
 /** A summary the scripted model writes, with what it was asked kept for the test to look at. */
 function summarizer(asked: { context?: ModelContext; options?: SimpleStreamOptions }) {
   return (context: ModelContext, options: SimpleStreamOptions | undefined) => {
     asked.context = context
     asked.options = options
-    return fauxAssistantMessage("## Goal\nCarry on with the report.")
+    return fauxAssistantMessage(SUMMARY)
   }
+}
+
+/**
+ * A world where pi-durable compacts on its own: it blocks within 1,000 tokens of the window, and
+ * starts in the background 40,000 before that. The idle look is far off, so it is not what
+ * compacts.
+ */
+const thresholdWorld = () =>
+  open(temporary(), {
+    afterMs: 600_000,
+    compaction: { reserveTokens: 1_000, backgroundTokens: 40_000 },
+  })
+
+/**
+ * Scripted answers for requests that can come in any order: the chat's own, the summary asked
+ * from the cache (`cached`, answered with `summary`), and pi-durable's own summarizer, which asks
+ * with no cache (`uncached`, answered with a summary).
+ */
+function routed() {
+  const seen = {
+    cached: [] as { context: ModelContext; options: SimpleStreamOptions | undefined }[],
+    uncached: 0,
+    responses: (summary: string) =>
+      Array.from({ length: 6 }, () => (context: ModelContext, options?: SimpleStreamOptions) => {
+        if (options?.cacheRetention === "none") {
+          seen.uncached++
+          return fauxAssistantMessage(SUMMARY)
+        }
+        if (JSON.stringify(context.messages.at(-1)).includes("Write a checkpoint")) {
+          seen.cached.push({ context, options })
+          return fauxAssistantMessage(summary)
+        }
+        return fauxAssistantMessage("Answered.")
+      }),
+  }
+  return seen
+}
+
+/** Send one more message, and wait for its answer, which comes after pi-durable compacts. */
+async function answerAfterCompaction(world: World, chatId: string): Promise<ChatState> {
+  await call(world, `/chats/${chatId}/messages`, "POST", {
+    text: "and one more thing",
+    requestId: "r",
+  })
+  // The answers it summarized are no longer shown, so the chat is waited on for the new one.
+  return until(
+    () => chatOf(world, chatId),
+    (chat) => !chat.busy && compacted(chat) && JSON.stringify(chat.messages).includes("Answered."),
+  )
 }
 
 /** How long each of the two long messages a chat is filled with is, in tokens. */
@@ -330,6 +479,7 @@ async function fill(
   world: World,
   share: number,
   last = "second",
+  pictures = false,
 ): Promise<{ main: ChatSummary; input: number; sent: ModelContext["messages"] }> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
   const main = await call<ChatSummary>(world, "/chats/main", "POST", {})
@@ -337,6 +487,15 @@ async function fill(
   // What the chat's last request was sent, as the provider got it.
   let sent: ModelContext["messages"] = []
   world.faux.setResponses([
+    // Three pictures first, where asked, which are in every request after.
+    ...(pictures
+      ? [
+          fauxAssistantMessage(
+            [fauxToolCall("snap", {}), fauxToolCall("snap", {}), fauxToolCall("snap", {})],
+            { stopReason: "toolUse" },
+          ),
+        ]
+      : []),
     fauxAssistantMessage("Hello."),
     fauxAssistantMessage("Noted."),
     (context: ModelContext) => {
@@ -413,6 +572,30 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     expect(world.reports).toEqual([])
   })
 
+  it("repeats exactly what the chat's last request was sent, pictures left out as it left them", async () => {
+    // Small limits, so that of the three pictures in the chat only the newest is sent: a summary
+    // request shaped any other way would not start as the chat's last request did.
+    const world = open(temporary(), {
+      imageLimits: { highBytes: 250, lowBytes: 100, highCount: 80, lowCount: 40 },
+    })
+    const { sent: last } = await fill(world, 0.8, "second", true)
+    const asked: { context?: ModelContext; options?: SimpleStreamOptions } = {}
+    world.faux.appendResponses([summarizer(asked)])
+    await until(
+      async () => asked.context,
+      (context) => context !== undefined,
+    )
+    const pictures = (messages: ModelContext["messages"]) =>
+      messages.flatMap((message) =>
+        Array.isArray(message.content)
+          ? message.content.filter((block) => block.type === "image")
+          : [],
+      ).length
+    expect(pictures(last)).toBe(1)
+    expect(JSON.stringify(last)).toContain("left out of this request")
+    expect(asked.context!.messages.slice(0, -2)).toEqual(last)
+  })
+
   it("leaves the chat as it is when the provider fails, and never asks uncached instead", async () => {
     const world = open(temporary())
     const { main } = await fill(world, 0.8)
@@ -431,9 +614,39 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     // pi-durable's summarizer, which would send the whole chat uncached, was not asked.
     expect(world.faux.getPendingResponseCount()).toBe(1)
     expect(String(world.reports[0])).toContain("529 overloaded")
+
+    // For an hour after, the chat is not asked again, though its next answer qualifies.
+    world.faux.setResponses([
+      fauxAssistantMessage("Welcome back."),
+      fauxAssistantMessage("## Goal\nNot asked for."),
+    ])
+    await say(world, main.id, "I am back")
+    await sleep(AFTER_MS * 2.5)
+    expect(world.faux.getPendingResponseCount()).toBe(1)
+    expect(await compactions(world)).toHaveLength(1)
   })
 
-  it("leaves the chat as it is when what comes back is not a summary", async () => {
+  it("leaves the chat as it is when what comes back is an answer and not a summary", async () => {
+    const world = open(temporary())
+    const { main } = await fill(world, 0.8)
+    world.faux.appendResponses([
+      fauxAssistantMessage("Sure, the report is done. Anything else?"),
+      fauxAssistantMessage("## Goal\nNot asked for."),
+    ])
+    const [record] = await until(
+      () => compactions(world),
+      (records) => records.length > 0,
+    )
+    expect(record).toMatchObject({
+      summarized: false,
+      failure: "it was not in the form of a summary",
+    })
+    await sleep(AFTER_MS)
+    expect(compacted(await chatOf(world, main.id))).toBe(false)
+    expect(world.faux.getPendingResponseCount()).toBe(1)
+  })
+
+  it("leaves the chat as it is when what comes back is a tool call", async () => {
     const world = open(temporary())
     const { main } = await fill(world, 0.8)
     world.faux.appendResponses([
@@ -450,40 +663,54 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     expect(world.faux.getPendingResponseCount()).toBe(1)
   })
 
-  it("summarizes from the cache at pi-durable's own threshold too", async () => {
-    // pi-durable compacts the chat before its next request: the window is set so that the next
-    // request would pass the threshold. The idle look is far off, so it is not what compacts.
-    const world = open(temporary(), {
-      afterMs: 60_000,
-      compaction: { reserveTokens: 1_000, backgroundTokens: 0 },
-    })
-    const { main, input } = await fill(world, 0.8)
-    world.faux.models[0].contextWindow = input
-    const asked: { context?: ModelContext; options?: SimpleStreamOptions } = {}
-    world.faux.appendResponses([summarizer(asked), fauxAssistantMessage("Answered.")])
-    await call(world, `/chats/${main.id}/messages`, "POST", {
-      text: "and one more thing",
-      requestId: "r",
-    })
-    // The answers it summarized are no longer shown, so the chat is waited on for the new one.
-    const state = await until(
-      () => chatOf(world, main.id),
-      (chat) => !chat.busy && JSON.stringify(chat.messages).includes("Answered."),
-    )
+  it("summarizes pi-durable's own compaction from the cache where it has room", async () => {
+    const seen = routed()
+    const world = thresholdWorld()
+    const { main, input } = await fill(world, 0.5)
+    // The next request comes into pi-durable's background band, with room past it to write in.
+    world.faux.models[0].contextWindow = input + 30_000
+    world.faux.setResponses(seen.responses(SUMMARY))
+    const state = await answerAfterCompaction(world, main.id)
     expect(compacted(state)).toBe(true)
-    expect(state.messages.at(-1)).toMatchObject({
-      role: "assistant",
-      parts: [{ type: "text", text: "Answered." }],
-    })
+    expect(seen.cached).toHaveLength(1)
+    expect(seen.uncached).toBe(0)
     const [record] = await compactions(world)
     expect(record).toMatchObject({ reason: "threshold", summarized: true })
     expect(record!.cacheReadShare).toBeGreaterThan(0.95)
-    expect(asked.options?.cacheRetention).toBe("long")
-    // It is not the main chat's focus unless it is the main chat, which this one is.
-    expect(JSON.stringify(asked.context!.messages.at(-1))).toContain(
+    expect(seen.cached[0]!.options?.cacheRetention).toBe("long")
+    // The main chat is summarized in its own form.
+    expect(JSON.stringify(seen.cached[0]!.context.messages.at(-1))).toContain(
       "long-running main conversation",
     )
     expect(world.reports).toEqual([])
+  })
+
+  it("leaves pi-durable's own compaction to it where the summary would have no room", async () => {
+    const seen = routed()
+    const world = thresholdWorld()
+    const { main, input } = await fill(world, 0.5)
+    // The next request comes within `reserveTokens` of the window: pi-durable compacts first.
+    world.faux.models[0].contextWindow = input
+    world.faux.setResponses(seen.responses(SUMMARY))
+    const state = await answerAfterCompaction(world, main.id)
+    expect(compacted(state)).toBe(true)
+    expect(seen.cached).toHaveLength(0)
+    expect(seen.uncached).toBe(1)
+    expect(await compactions(world)).toEqual([])
+  })
+
+  it("leaves pi-durable's own compaction to it where what comes back is not a summary", async () => {
+    const seen = routed()
+    const world = thresholdWorld()
+    const { main, input } = await fill(world, 0.5)
+    world.faux.models[0].contextWindow = input + 30_000
+    world.faux.setResponses(seen.responses("Sure, and here is the answer to your last message."))
+    const state = await answerAfterCompaction(world, main.id)
+    expect(compacted(state)).toBe(true)
+    expect(seen.cached).toHaveLength(1)
+    expect(seen.uncached).toBe(1)
+    const [record] = await compactions(world)
+    expect(record).toMatchObject({ reason: "threshold", summarized: false })
   })
 
   it("leaves a chat that fills less than 70% of the window", async () => {

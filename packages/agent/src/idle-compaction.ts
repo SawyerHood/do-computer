@@ -75,6 +75,15 @@ const TYPING_AGAIN_MS = 2 * 60_000
 export const TYPING_CAP_MS = 10 * 60_000
 /** How many compactions are kept on record, newest last. */
 const RECORDS = 50
+/** How long a chat whose cached summary failed is not asked for one again. */
+export const BACKOFF_MS = 60 * 60_000
+/**
+ * The least room past the whole chat a threshold compaction's cached request needs, for the
+ * summary and any thinking before it. pi-durable gives its own summarizer up to 13,107.
+ */
+const SUMMARY_ROOM = 16_384
+/** What pi-ai leaves free of the window when it fits a request's output to it. */
+const PI_AI_MARGIN = 4_096
 
 /**
  * The cache retention the agent asks for on every request. The summary is asked for with the
@@ -86,12 +95,22 @@ const HOUR_MS = 60 * 60_000
 const DAY_MS = 24 * HOUR_MS
 
 /**
+ * Whether an OpenAI model is of a family OpenAI keeps the extended (24-hour) cache for: GPT-5 and
+ * GPT-4.1. Others keep it in memory, for an hour at most.
+ */
+function extendedOpenAi(id: string): boolean {
+  const name = id.replace(/^openai\//, "")
+  return name.startsWith("gpt-5") || name.startsWith("gpt-4.1")
+}
+
+/**
  * How long a model's provider keeps the long cache the agent asks for, or undefined where that is
  * only minutes or is not known. Only providers known to keep it are given a lifetime: Anthropic
- * (an hour), Claude through OpenRouter (an hour), and OpenAI or Azure (a day), except an OpenAI
- * model with an explicit cache mode, which pi-ai asks to keep for 30 minutes. Others behind the
- * same interfaces (MiniMax, Vercel's gateway and the like) are not known to, whatever pi-ai sends
- * them, so they have only what the model itself says, where it says an hour or more.
+ * (an hour), Claude through OpenRouter (an hour), and OpenAI's GPT-5 and GPT-4.1, directly or
+ * through OpenRouter (a day), except a model with an explicit cache mode, which pi-ai asks to keep
+ * for 30 minutes. Azure is not among them: pi-ai never asks it for a long cache. Others behind the
+ * same interfaces (MiniMax, Vercel's gateway and the like) are not known to keep one, whatever
+ * pi-ai sends them, so they have only what the model itself says, where it says an hour or more.
  */
 export function cacheLifetimeMs(model: Model<string>): number | undefined {
   const compat = model.compat as
@@ -100,14 +119,14 @@ export function cacheLifetimeMs(model: Model<string>): number | undefined {
   const openRouter = model.provider === "openrouter" || model.baseUrl.includes("openrouter.ai")
   if (model.provider === "anthropic" || model.baseUrl.includes("api.anthropic.com")) return HOUR_MS
   if (openRouter && model.id.startsWith("anthropic/")) return HOUR_MS
-  if (
-    model.provider === "openai" ||
-    model.provider === "azure" ||
-    model.baseUrl.includes("api.openai.com")
-  ) {
-    return compat?.supportsExplicitPromptCacheMode === true ? undefined : DAY_MS
+  if (model.provider === "openai" || model.baseUrl.includes("api.openai.com")) {
+    return compat?.supportsExplicitPromptCacheMode !== true && extendedOpenAi(model.id)
+      ? DAY_MS
+      : undefined
   }
-  if (openRouter && model.id.startsWith("openai/")) return DAY_MS
+  if (openRouter && model.id.startsWith("openai/")) {
+    return extendedOpenAi(model.id) ? DAY_MS : undefined
+  }
   const stated = model.promptCache?.long
   return stated !== undefined && stated * 1000 >= MIN_CACHE_MS ? stated * 1000 : undefined
 }
@@ -153,6 +172,8 @@ export type IdleDecision =
   | "uncached"
   /** The cache has gone, or is about to: its next request compacts it if it needs to. */
   | "cold"
+  /** A cached summary of it failed lately, so none is asked for a while. */
+  | "backoff"
 
 /** Whether a chat's work keeps it from being compacted now. Asked first, as it reads nothing. */
 export function restDecision(facts: RestFacts): "busy" | "later" | undefined {
@@ -162,7 +183,9 @@ export function restDecision(facts: RestFacts): "busy" | "later" | undefined {
 }
 
 /** Whether a resting chat is worth compacting from the cache now. */
-export function cacheDecision(facts: CacheFacts): Exclude<IdleDecision, "busy" | "later"> {
+export function cacheDecision(
+  facts: CacheFacts,
+): Exclude<IdleDecision, "busy" | "later" | "backoff"> {
   if (facts.last === undefined) return "nothing"
   if (facts.last.inputTokens < IDLE_SHARE * facts.contextWindow) return "small"
   if (!facts.sameModel || facts.cacheLifetimeMs === undefined) return "uncached"
@@ -215,15 +238,8 @@ export const IDLE_INSTRUCTIONS =
 /** Where what is kept word for word starts: how many messages it is, and how the first begins. */
 export type Kept = { readonly count: number; readonly opening: string }
 
-/** The words that ask for the summary, after the conversation itself. */
-export function summaryRequest(kept: Kept | undefined, main: boolean): string {
-  const where =
-    kept === undefined
-      ? "Summarize the conversation above."
-      : `The conversation above is about to be compacted. Its last ${kept.count === 1 ? "message stays" : `${kept.count} messages stay`} as they are, from the one that begins "${kept.opening}"; summarize everything before ${kept.count === 1 ? "it" : "them"}, and refer to what follows only where the summary needs it.`
-  return `${where} Write a checkpoint that you will continue from, in place of what it summarizes. Do not continue the conversation, do not answer anything in it, and do not call any tool: write only the summary, in this form.
-
-## Goal
+/** The form a main chat's summary takes: what a long conversation with the person needs kept. */
+const MAIN_FORM = `## Goal
 [What the person is trying to accomplish, over the whole conversation.]
 
 ## Asked for and not yet done
@@ -247,7 +263,107 @@ export function summaryRequest(kept: Kept | undefined, main: boolean): string {
 ## Critical context
 - [Data, names, ids, paths, links and error messages needed to carry on, exactly as they were]
 
-Write "(none)" under a heading with nothing in it. Keep each section short, and keep exact names, ids, paths and numbers.${main ? `\n\n${IDLE_INSTRUCTIONS}` : ""}`
+Write "(none)" under a heading with nothing in it. Keep each section short, and keep exact names, ids, paths and numbers.
+
+${IDLE_INSTRUCTIONS}`
+
+/**
+ * The form any other chat's summary takes: pi-durable's own (`SUMMARIZATION_PROMPT` in its
+ * `harness/compaction.js`, which it does not export), so that a sub-agent, an automation, a
+ * thread in Slack or a side chat is summarized as it would have been without this hook.
+ */
+const OTHER_FORM = `If the conversation starts with an earlier summary, preserve its information and fold the newer messages into it.
+
+Use this EXACT format:
+
+## Goal
+[What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
+
+## Constraints & Preferences
+- [Any constraints, preferences, or requirements mentioned by user]
+- [Or "(none)" if none were mentioned]
+
+## Progress
+### Done
+- [x] [Completed tasks/changes]
+
+### In Progress
+- [ ] [Current work]
+
+### Blocked
+- [Issues preventing progress, if any]
+
+## Key Decisions
+- **[Decision]**: [Brief rationale]
+
+## Next Steps
+1. [Ordered list of what should happen next]
+
+## Critical Context
+- [Any data, examples, or references needed to continue]
+- [Or "(none)" if not applicable]
+
+Keep each section concise. Preserve exact file paths, function names, and error messages.`
+
+/** The words that ask for the summary, after the conversation itself. */
+export function summaryRequest(kept: Kept | undefined, main: boolean): string {
+  const where =
+    kept === undefined
+      ? "Summarize the conversation above."
+      : `The conversation above is about to be compacted. Its last ${kept.count === 1 ? "message stays" : `${kept.count} messages stay`} as they are, from the one that begins "${kept.opening}"; summarize everything before ${kept.count === 1 ? "it" : "them"}, and refer to what follows only where the summary needs it.`
+  return `${where} Write a checkpoint that you will continue from, in place of what it summarizes. Do not continue the conversation, do not answer anything in it, and do not call any tool: write only the summary, in this form.
+
+${main ? MAIN_FORM : OTHER_FORM}`
+}
+
+/**
+ * Whether text has the form a summary was asked in. Both forms begin with a goal and end with
+ * the critical context. A model that answered the conversation instead of summarizing it, as one
+ * can where a message is still open, writes something else, which must not replace the chat.
+ */
+export function isSummary(text: string): boolean {
+  return /^## Goal\b/m.test(text) && /^## Critical context\b/im.test(text)
+}
+
+/** The message that asks for the summary of a chat, cut at `firstKept`. */
+function askFor(view: ContextView, firstKept: EntryId, main: boolean, now: number): Message {
+  return {
+    role: "user",
+    content: [
+      { type: "text", text: summaryRequest(keptFrom(keptMessages(view, firstKept)), main) },
+    ],
+    timestamp: now,
+  }
+}
+
+/** The messages pi-durable keeps word for word, from `firstKept` on. */
+function keptMessages(view: ContextView, firstKept: EntryId): Message[] {
+  const at = view.entries.findIndex((entry) => entry.id === firstKept)
+  return at < 0 ? [] : view.contributions.slice(at).flat()
+}
+
+/**
+ * About how many tokens a request of these messages is: the input and output of the newest
+ * answer that says, as pi-durable measures it, and an estimate of what came after.
+ */
+export function estimateRequest(messages: readonly Message[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]!
+    if (message.role !== "assistant" || inputTokens(message.usage) === 0) continue
+    return inputTokens(message.usage) + message.usage.output + tokens(messages.slice(index + 1))
+  }
+  return tokens(messages)
+}
+
+/** Whether a cached summary of a chat failed lately, after which it is not asked for a while. */
+export function failedLately(
+  records: readonly IdleCompactionRecord[],
+  chatId: string,
+  now: number,
+): boolean {
+  return records.some(
+    (record) => record.chatId === chatId && !record.summarized && now - record.at < BACKOFF_MS,
+  )
 }
 
 /** How what is kept word for word starts, to say where the summary ends. */
@@ -292,7 +408,9 @@ function summaryOf(message: AssistantMessage): { summary: string } | { failure: 
     .flatMap((block) => (block.type === "text" ? [block.text] : []))
     .join("\n")
     .trim()
-  return text === "" ? { failure: "it had no text" } : { summary: text }
+  if (text === "") return { failure: "it had no text" }
+  if (!isSummary(text)) return { failure: "it was not in the form of a summary" }
+  return { summary: text }
 }
 
 /** How pi-durable puts a summary into the chat, for an estimate of what the chat holds after. */
@@ -509,6 +627,7 @@ export class IdleCompaction {
         : false
     const rest = restDecision({ resting, queued, typing })
     if (rest !== undefined) return rest
+    if (failedLately(await this.records(context), chatId, this.#options.now())) return "backoff"
     const conversation = await harness.conversation(Number(chatId) as ConversationId, context)
     if (conversation === undefined) return "nothing"
     const [view, agent] = await Promise.all([
@@ -549,49 +668,128 @@ export class IdleCompaction {
     api: HookApi,
     context: Context,
   ): Promise<{ summary: string } | { decline: true } | undefined> {
-    const idle = compaction.reason === "manual" && compaction.instructions === IDLE_INSTRUCTIONS
-    if (!idle && compaction.reason !== "threshold") return undefined
+    if (compaction.reason === "manual" && compaction.instructions === IDLE_INSTRUCTIONS) {
+      // Where there is no summary, an idle compaction does nothing: the chat is not in the way of
+      // anything, and pi-durable's summarizer would send the whole chat uncached.
+      return (await this.#idleSummary(compaction, api, context)) ?? { decline: true }
+    }
+    if (compaction.reason !== "threshold") return undefined
+    // A chat at its threshold needs the room, so anything that goes wrong here leaves it to
+    // pi-durable's summarizer, as it was before this hook.
+    try {
+      return await this.#thresholdSummary(compaction, api, context)
+    } catch (error) {
+      if (context.abortSignal?.aborted) throw error
+      this.#options.onReport(error)
+      return undefined
+    }
+  }
+
+  async #idleSummary(
+    compaction: Parameters<CompactionHooks["beforeCompact"]>[0],
+    api: HookApi,
+    context: Context,
+  ): Promise<{ summary: string } | undefined> {
     const harness = this.#harness
     if (harness === undefined) return undefined
-    // What an idle compaction does where there is no summary: nothing, since the chat is not in
-    // the way of anything, and asking pi-durable's summarizer would send the whole chat
-    // uncached. A chat at its threshold needs the room, so it gets that summarizer.
-    const without = idle ? ({ decline: true } as const) : undefined
     // Asked once for a task: one taken up again after a restart uses what it was told.
     const remembered = await api.memo<Memo>(MEMO, context)
     if (remembered !== undefined) {
-      return remembered.summary === null ? without : { summary: remembered.summary }
+      return remembered.summary === null ? undefined : { summary: remembered.summary }
     }
     const conversation = await harness.conversation(api.conversationId, context)
-    if (conversation === undefined) return without
-    const [view, agent, chats] = await Promise.all([
+    if (conversation === undefined) return undefined
+    const [view, agent] = await Promise.all([
       conversation.context(context),
       conversation.agent(context),
-      api.snapshot(ChatsDoc, context),
     ])
     const ref = agent.model
     const model = ref === undefined ? undefined : api.models.getModel(ref.provider, ref.modelId)
-    if (model === undefined) return without
-    if (!idle) {
-      // From a cold cache, the whole chat would be paid for in full, where pi-durable's
-      // summarizer sends a shorter transcript of it.
-      const facts = this.#cacheFacts(view, model)
-      const warm =
-        facts.last !== undefined &&
-        facts.sameModel &&
-        facts.cacheLifetimeMs !== undefined &&
-        facts.now - facts.last.at < facts.cacheLifetimeMs - CACHE_MARGIN_MS
-      if (!warm) return undefined
+    if (model === undefined) return undefined
+    return this.#attempt(harness, compaction, view, model, agent.thinkingLevel, true, api, context)
+  }
+
+  /**
+   * The cached summary for pi-durable's own compaction at its threshold, or undefined to leave
+   * it to pi-durable's summarizer. A model without a long cache is known from the agent alone,
+   * before anything else is read, so such a chat compacts exactly as it did before this hook.
+   */
+  async #thresholdSummary(
+    compaction: Parameters<CompactionHooks["beforeCompact"]>[0],
+    api: HookApi,
+    context: Context,
+  ): Promise<{ summary: string } | undefined> {
+    const harness = this.#harness
+    if (harness === undefined) return undefined
+    const conversation = await harness.conversation(api.conversationId, context)
+    if (conversation === undefined) return undefined
+    const agent = await conversation.agent(context)
+    const ref = agent.model
+    const model = ref === undefined ? undefined : api.models.getModel(ref.provider, ref.modelId)
+    if (model === undefined || cacheLifetimeMs(model) === undefined) return undefined
+    const remembered = await api.memo<Memo>(MEMO, context)
+    if (remembered !== undefined) {
+      return remembered.summary === null ? undefined : { summary: remembered.summary }
     }
+    const chatId = String(api.conversationId)
+    if (failedLately(await this.records(context), chatId, this.#options.now())) return undefined
+    const [view, chats] = await Promise.all([
+      conversation.context(context),
+      api.snapshot(ChatsDoc, context),
+    ])
+    // From a cold cache, the whole chat would be paid for in full, where pi-durable's summarizer
+    // sends a shorter transcript of it.
+    const facts = this.#cacheFacts(view, model)
+    const warm =
+      facts.last !== undefined &&
+      facts.sameModel &&
+      facts.cacheLifetimeMs !== undefined &&
+      facts.now - facts.last.at < facts.cacheLifetimeMs - CACHE_MARGIN_MS
+    if (!warm) return undefined
+    // The request carries the whole chat, so the room left for the summary is what the window
+    // holds past it; pi-ai keeps a further margin of its own. A blocking compaction, which comes
+    // only once the chat is within `reserveTokens` of the window, mostly has too little, and a
+    // summary cut off would be paid for and then written again by pi-durable.
+    const asked = askFor(view, compaction.firstKept, chats?.main === chatId, this.#options.now())
+    const room =
+      model.contextWindow -
+      estimateRequest(view.messages) -
+      estimateMessageTokens(asked) -
+      PI_AI_MARGIN
+    if (room < SUMMARY_ROOM) return undefined
+    return this.#attempt(
+      harness,
+      compaction,
+      view,
+      model,
+      agent.thinkingLevel,
+      chats?.main === chatId,
+      api,
+      context,
+    )
+  }
+
+  /** Ask for the summary, and remember and report what came of it. */
+  async #attempt(
+    harness: Harness,
+    compaction: Parameters<CompactionHooks["beforeCompact"]>[0],
+    view: ContextView,
+    model: Model<string>,
+    thinking: Agent["thinkingLevel"],
+    main: boolean,
+    api: HookApi,
+    context: Context,
+  ): Promise<{ summary: string } | undefined> {
+    const idle = compaction.reason === "manual"
     let outcome: { summary: string } | { failure: string }
     try {
       outcome = await this.#ask(harness, {
         view,
         model,
-        thinking: agent.thinkingLevel,
+        thinking,
         firstKept: compaction.firstKept,
         reason: idle ? "idle" : "threshold",
-        main: chats?.main === String(api.conversationId),
+        main,
         api,
         context,
       })
@@ -607,7 +805,7 @@ export class IdleCompaction {
         `Chat ${String(api.conversationId)}: the summary asked for from the cache (task ${String(api.taskId)}) failed, so ${idle ? "the chat was left as it is" : "pi-durable's own summarizer writes it"}: ${outcome.failure}`,
       ),
     )
-    return without
+    return undefined
   }
 
   async #ask(
@@ -625,17 +823,12 @@ export class IdleCompaction {
   ): Promise<{ summary: string } | { failure: string }> {
     const { view, model, api, context } = asking
     const provider = await api.snapshot(ProviderDoc, api.conversationId, context)
-    const keptAt = view.entries.findIndex((entry) => entry.id === asking.firstKept)
-    const kept = keptAt < 0 ? [] : view.contributions.slice(keptAt).flat()
+    const kept = keptMessages(view, asking.firstKept)
     const before = lastAnswer(view)
     // Shaped as every request of the chat's is, so that it starts as the last one did.
     const messages = shapeRequest(view.messages, this.#options.imageLimits)
     const now = this.#options.now()
-    const asked: Message = {
-      role: "user",
-      content: [{ type: "text", text: summaryRequest(keptFrom(kept), asking.main) }],
-      timestamp: now,
-    }
+    const asked = askFor(view, asking.firstKept, asking.main, now)
     const answer = await api.models.completeSimple(
       model,
       { messages: [...messages, asked] },
