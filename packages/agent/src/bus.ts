@@ -179,7 +179,8 @@ The people here see only what you pass to the \`send\` tool, and what you tell t
 - Answer a person with \`send\`. A \`progress\` is not the answer: it is a word on the way, and they are not told of it. Put what they need in it, in your own words; put files they should have in its \`files\`.
 - When you need something from them, ask with \`send\` too.
 - An event often needs nothing from them. Then end your turn without sending: staying quiet is fine, and is usually right. Send when there is something they would want to know now.
-- Do not send to say that you have nothing to say, and do not send the same thing twice.`
+- Do not send to say that you have nothing to say, and do not send the same thing twice.
+- There is no \`send_file\` here. Wherever your instructions or a skill say to send or show a file with \`send_file\`, put its path in \`send\`'s \`files\` instead.`
 
 /** Whether a send's files can all be sent, and if not, why. */
 export type FileCheck = (
@@ -246,6 +247,12 @@ async function told(
   for (const one of sent) options.onSent(one)
 }
 
+/** A tool that other tools can call and the model is not offered. */
+const forToolsOnly = (tool: ToolRegistration): ToolRegistration => ({
+  ...tool,
+  callers: ["tools"],
+})
+
 const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
 
 /**
@@ -259,10 +266,8 @@ export function busExtension(options: BusOptions): Extension {
     // A call that a restart cut off is made again. What it sends is remembered by the call's id,
     // and what it puts in the library replaces what the same call put there.
     replay: "safe",
-    // Two in one answer are sent in the order they were written.
-    executionMode: "sequential",
     description:
-      "Say something to the people in this conversation: the only way to reach them here. Its text is shown to them as your message, as you write it, and they are told of it if they are not looking. `files` are paths of files on a computer, as `send_file` takes them, put in front of them with the message; name the computer in `computer` where it is not the one you work on. It returns at once. Anything else you write is not shown.",
+      "Say something to the people in this conversation: the only way to reach them here. Its text is shown to them as your message, as you write it, and they are told of it if they are not looking. `files` are paths of files on a computer (a document, an image, an export, anything they should have), each put in front of them with the message, where they can open it, and kept in their library; name the computer in `computer` where it is not the one you work on. It returns at once. Anything else you write is not shown.",
     parameters: Type.Object({
       text: Type.String({ description: "What to say, in Markdown" }),
       files: Type.Optional(
@@ -314,7 +319,7 @@ export function busExtension(options: BusOptions): Extension {
     tools: [send],
     // `send` takes files, so the model is not offered `send_file` here. It is still there for
     // `send` to call.
-    wraps: [{ tool: SEND_FILE_TOOL, wrap: (tool: ToolRegistration): ToolRegistration => ({ ...tool, callers: ["tools"] as const }) }],
+    wraps: [{ tool: SEND_FILE_TOOL, wrap: forToolsOnly }],
     sections: [section("bus", () => PROMPT)],
     hooks: [
       hook(GenerationTask, {

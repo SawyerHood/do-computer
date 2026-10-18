@@ -15,7 +15,12 @@ import type { ConversationView, EntryRecord, JsonObject } from "@earendil-works/
 import { afterEach, describe, expect, it } from "vitest"
 import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { busExtension, eventText, UNSENT, unsent } from "../src/bus.ts"
-import { type AgentNotification, createAgentActor } from "../src/index.ts"
+import {
+  type AgentNotification,
+  CALLER_HEADER,
+  createAgentActor,
+  encodeCaller,
+} from "../src/index.ts"
 import { projectChat } from "../src/project.ts"
 
 // --- What is drawn, from entries made up here.
@@ -116,6 +121,8 @@ describe("what the bus shows", () => {
       )
     expect(after([{ type: "thinking", thinking: "Was that enough?" } as never])).toHaveLength(1)
     expect(after([{ type: "text", text: "Done." }])).toHaveLength(0)
+    // Words enough to be an answer it forgot to send are kept where they can be found.
+    expect(after([{ type: "text", text: "The answer is ".padEnd(240, "x") }])).toHaveLength(1)
     expect(after([{ type: "text", text: "And then" }, call("c3", "web_search", {})])).toMatchObject(
       [{ id: "work:send:c2" }],
     )
@@ -222,6 +229,25 @@ describe("what the bus shows", () => {
       parts: [{ type: "text", text: "Here it is." }],
       notSent: "could not find gone.md: missing",
     })
+  })
+
+  it("keeps what it wrote after a send that failed, and leaves out a failed send with no words", () => {
+    const failed = (args: JsonObject) =>
+      projectChat(
+        view([
+          mark(true),
+          person("the report?"),
+          said([call("c1", "send", args)], "toolUse"),
+          result("c1", true),
+          said([{ type: "text", text: "The file was not there." }]),
+        ]),
+      )
+    const worded = failed({ text: "Here.", files: ["gone.md"] })
+    expect(worded.messages.at(-2)!.notSent).toBeDefined()
+    expect(texts(working(worded))).toEqual(["The file was not there."])
+    const empty = failed({ text: "", files: ["gone.md"] })
+    expect(empty.messages.some((message) => message.notSent !== undefined)).toBe(false)
+    expect(working(empty)[0]!.parts.map((part) => part.type)).toEqual(["tool", "text"])
   })
 
   it("does not show an event, nor the reminder", () => {
@@ -629,6 +655,44 @@ describe("the main chat as a bus", () => {
     expect(world.notified.map((one) => one.text)).toEqual([
       "Two helpers are on it.",
       "Both reported: A=1 B=2.",
+    ])
+  })
+
+  it("is off unless switched on: in a team, each person whose message a run answers is told once", async () => {
+    const world = open(temporary())
+    await request(world, "/init", "POST", { ownerId: "user-A" })
+    await request(world, "/team", "PUT", { team: "Crew" })
+    await request(world, "/", "PATCH", { name: "Juniper" })
+    const main = await request<ChatSummary>(world, "/chats/main", "POST")
+    const as = (who: string) => ({ [CALLER_HEADER]: encodeCaller({ id: who, name: who }) })
+    const post = (who: string, text: string) =>
+      world.namespace.get("agent-1").fetch(
+        new Request(`http://actor/chats/${main.id}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ text, requestId: crypto.randomUUID() }),
+          headers: { "content-type": "application/json", ...as(who) },
+        }),
+      )
+    let steered: () => void = () => {}
+    const steering = new Promise<void>((resolve) => (steered = resolve))
+    script(world, async (turn) => {
+      if (afterTool(turn)) return fauxAssistantMessage("Answer for both.")
+      // Still working on A's message when B writes, so that B's joins the same run.
+      await steering
+      return use("progress", { message: "Looking." })
+    })
+    await post("user-A", "what is up?")
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await post("user-B", "and for me?")
+    steered()
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && texts(state.messages).includes("Answer for both."),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(world.notified.map((one) => `${one.userId}: ${one.text}`).sort()).toEqual([
+      "user-A: Answer for both.",
+      "user-B: Answer for both.",
     ])
   })
 

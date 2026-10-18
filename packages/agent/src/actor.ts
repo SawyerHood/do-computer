@@ -3349,12 +3349,16 @@ export class AgentActor implements Actor {
     try {
       const settled = await submission.wait(context)
       if (settled.status !== "done" || settled.type !== "input") return
-      // The same answer, to more than one input that the run took up together, is told once.
-      const answerKey = `${chatId}:${settled.answer}`
+      // The same answer, to more than one input that the run took up together, is told once to
+      // each person it answers: two people of a team who wrote in the same run are each told.
+      // A call that only keeps the line claims nothing, so a later one that tells still can.
+      const answerKey = `${chatId}:${settled.answer}:${caller?.id ?? "*"}`
       if (this.#toldAnswers.has(answerKey)) return
-      this.#toldAnswers.add(answerKey)
-      if (this.#toldAnswers.size > MAX_TOLD_ANSWERS) {
-        this.#toldAnswers.delete(this.#toldAnswers.values().next().value!)
+      if (!quiet) {
+        this.#toldAnswers.add(answerKey)
+        if (this.#toldAnswers.size > MAX_TOLD_ANSWERS) {
+          this.#toldAnswers.delete(this.#toldAnswers.values().next().value!)
+        }
       }
       // With the bus on, what a run ends with is nobody's to read: a send is told of as it is made.
       if (await busOn(harness, chatId, context)) return

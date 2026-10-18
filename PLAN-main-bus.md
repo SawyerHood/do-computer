@@ -358,7 +358,9 @@ Notes from building it, where it differs from or adds to the sections above.
 - **`send` replaces `send_file`** in a chat with the bus on: the bus wraps `send_file` so that
   only tools may call it, and `send` calls it for each of its files. Every file is looked at
   first (that it is there, is a file and is small enough), so a send goes whole or not at all.
-  Two sends in one answer run one after the other.
+  The bus's section says that wherever instructions or a skill say `send_file`, use `send`'s
+  `files`. Sends are not made sequential (that would make every tool of their round wait in
+  turn); they are told of in the order they were written all the same.
 - **Streaming.** pi-durable does commit the partial message with a tool call's partial arguments
   in `pi.live` (it copies pi-ai's `partial`, whose `arguments` providers fill with
   `parseStreamingJson`), so `send`'s text grows in the chat as it is written. Checked in a unit
@@ -370,7 +372,9 @@ Notes from building it, where it differs from or adds to the sections above.
 - **The rows of working** are assistant messages with `work: true`, named for what they follow so
   that they keep their id while they grow. Web and mobile draw them the same way, from
   `workSummary` in the protocol: one line that opens. A row after the last send of a turn that
-  holds only the model's own words ("Done.") is not drawn at all.
+  holds only a few of the model's own words ("Done.", 200 characters at most) is not drawn at
+  all; a longer one, which may be an answer it forgot to send, and one after a send that failed
+  are.
 - **The reminder** is decided from the context: a person wrote since the bus was switched on,
   and since their last message nothing was sent (with `send`, or a page drawn with `visual`),
   nothing failed or was stopped, and it was not reminded already. See 3.3 for when that lands on
@@ -384,10 +388,11 @@ Notes from building it, where it differs from or adds to the sections above.
   by their text, and the prompt says events never come inside a person's message. Answers to
   asks for secrets, computers and connector sign-ins are unchanged and still nudge.
 - **Notifications** in a chat with the bus on come from `send` alone, once its result is stored
-  (the round's `afterTools`), remembered by call id. They go to whoever the chat last answered,
+  (the round's `afterTools`, so after the round's slowest tool), remembered by call id. They go
+  to whoever the chat last answered,
   and in a team Dood to everyone, since who a send answers is not known yet (section 9). A run
   that ends tells nobody anything. Off the bus, an answer that settles several inputs at once
-  (follow-ups taken together) is told of once.
+  (follow-ups taken together) is told of once to each person it answers.
 - **Side chats lose the cache.** A side chat forked from a main chat with the bus on has neither
   the bus's section nor `send`, so its prompt differs from the main chat's from the start and
   reads nothing from the main chat's cache. That includes the side chat a call works in. Side

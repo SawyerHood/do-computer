@@ -11,6 +11,7 @@ import {
   type LibraryFile,
   type MessagePart,
   type QueuedInput,
+  type TextPart,
   type ToolPart,
 } from "@do-computer/protocol"
 import type {
@@ -663,8 +664,11 @@ function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessag
     for (const part of message.parts) {
       if (part.type === "tool" && part.name === SEND_TOOL && part.status === "error") {
         // Its words may have been on screen as they were written. They stay, marked as not
-        // sent, and say why: they do not just go.
-        said({ ...sentMessage(part, message), notSent: notSentWhy(part.output) })
+        // sent, and say why: they do not just go. One with no words had none on screen, and
+        // is a step like any other.
+        const failed = sentMessage(part, message)
+        if (failed.parts.length > 0) said({ ...failed, notSent: notSentWhy(part.output) })
+        else working.push(part)
       } else if (part.type === "tool" && part.name === SEND_TOOL) {
         const sent = sentMessage(part, message)
         // Nothing of it to show yet, while its words are on their way.
@@ -702,15 +706,23 @@ function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessag
     }
   }
   // What the agent writes after the last thing it sent in a turn, with nothing done or told
-  // besides ("Done."), is not worth a row of working.
+  // besides ("Done."), is not worth a row of working. Something longer may be an answer it
+  // forgot to send, and after a send that failed it may say why: those stay in a row.
   return folded.filter((message, index) => {
     if (message.work !== true || !message.parts.every((part) => part.type === "text")) return true
-    const before = folded[index - 1]?.id ?? ""
+    const words = message.parts.reduce((sum, part) => sum + (part as TextPart).text.length, 0)
+    const before = folded[index - 1]
     const after = folded[index + 1]
-    const sent = before.startsWith("send:") || before.startsWith("shown:")
-    return !(sent && (after === undefined || after.role === "user"))
+    const sent =
+      before !== undefined &&
+      before.notSent === undefined &&
+      (before.id.startsWith("send:") || before.id.startsWith("shown:"))
+    return !(sent && words <= SHORT_CLOSE_CHARS && (after === undefined || after.role === "user"))
   })
 }
+
+/** The longest the agent's own words after its last send can be and still be left out. */
+const SHORT_CLOSE_CHARS = 200
 
 /** Why a send was not sent, from what it answered. */
 function notSentWhy(output: string | undefined): string {
