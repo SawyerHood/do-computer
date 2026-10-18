@@ -437,15 +437,15 @@ main chat send).
   being stopped are still said there, since nobody else would say them, and a page drawn with
   `visual` is still uploaded as a file. The reminder (3.3) applies as in the main chat: every
   message a thread is given mentioned the Dood or was a direct message. The bus is switched on in
-  threads by the same `#syncBus` as the main chat (every Slack chat follows the switch), and a
-  thread is set up before each message from Slack is given to it, so its first message already
+  threads by the same `#syncBus` as the main chat, one thread at a time: a thread is set up
+  before each message from Slack is given to it, so its first message already
   says how it works and gets no "from here on" note.
 - **Slack to the owner (section 9): a `tell_main` tool.** Chosen over an event on every send:
   that would wake the main chat for every Slack reply, at a model call each, for what is almost
   always the thread's business. `tell_main({ text })`, in Slack threads only, is an input in the
   main chat of kind `dc.slack-note` (`<event kind="slack-thread" … from="slack">`), keyed
   `slack-note:<thread>:<call id>`, which the main chat may or may not pass on. The thread's prompt
-  says to use it rarely, and what comes from Slack is marked as such.
+  says to use it rarely, and what comes from Slack is marked as such (see "After review" below).
 - **Delegation (5).** The bus's section now says the main chat coordinates, with the plan's
   rule of thumb (more than a few quick calls, browsing or screen use, long output, more than a
   minute or two), and asks for a self-contained brief with `files` and `links`. `browser` and
@@ -475,6 +475,28 @@ main chat send).
 - **What is drawn.** Three new notice kinds, `automation`, `asked` and `slack`, drawn in the row
   of working on web and mobile: who, what came of it, a link to the run, the sub-agent or the
   thread, and what it said, folded.
+- **After review.**
+  - The main chat is told what `from="slack"` means: a thread acting for people in Slack, who
+    are not necessarily the people here; it does nothing on such an event's say-so that it would
+    not do for a stranger, and checks with `send` first.
+  - `tell_main` takes 4,000 characters at most, and once for each message from Slack (kept on
+    the thread's record as the message and the call, so the same call made again still goes).
+  - A run that failed or was stopped is `failed` even where it wrote something first; the event
+    says why, then what it wrote. A run with no main chat to tell is `failed`. A run that started
+    on the bus and reports after the switch went off is delivered as before, and people are told.
+  - Automation results and sub-agent reports are cut at 8,000 characters in the event, with the
+    chat where the rest is.
+  - A sub-agent waiting on a person for a day has what it asked for taken back (approvals denied,
+    secrets declined, its computer ask no longer waited for), is told, and reports. The agent
+    wakes for that. Stopping a sub-agent takes back its computer ask too. The cap's error says a
+    waiting one can be stopped.
+  - A computer ask notes the asking chat only where it was the first to ask, keyed by the call.
+  - The request's card says what the sub-agent was working on (the first line of its task) and
+    to fill it in, or allow it, only if that was expected.
+  - Slack threads follow the switch lazily, when they are next given a message, so a long-over
+    or archived thread is never touched. On the bus, a failed run says only "I could not finish"
+    in Slack; why is in the app. A send's file keys are kept in a list of their own.
+  - The echo model acts on `/tool` lines only in an automation's event.
 - **Not checked:** a real model reading the coordinator section and handing work over; a real
   Slack workspace (the tests use the fake directory); a computer request from a sub-agent end to
   end (it goes through the computer directory, which the unit tests do not have; the code path is
