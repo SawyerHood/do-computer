@@ -137,7 +137,10 @@
   a browser, with [dev-browser](https://github.com/SawyerHood/dev-browser), which the daemon
   fetches the first time. It uses your own Chrome when that is open and lets itself be used
   (tick "Allow remote debugging for this browser instance" at `chrome://inspect/#remote-debugging`,
-  or start Chrome with a debugging port), and is then signed in wherever you are. Chrome asks
+  or start Chrome with a debugging port), and is then signed in wherever you are. It works in a
+  window of its own, opened behind yours, and does not bring your Chrome to the front while you
+  work in something else; only a picture of a tab of yours that is not showing brings that tab
+  forward. Chrome asks
   you once whether to allow it, the first time a Dood uses it, and not again until Chrome or
   the daemon is started again. On a Mac, finding your Chrome takes Full Disk Access for the
   desktop app (or the terminal the daemon runs in), since macOS keeps apps out of each other's
