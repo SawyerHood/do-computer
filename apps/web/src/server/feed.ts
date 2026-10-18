@@ -1,4 +1,10 @@
-import { type AgentActivity, type FeedEvent, personalWorkspaceId } from "@do-computer/protocol"
+import {
+  type AgentActivity,
+  type FeedEvent,
+  isPersonalWorkspace,
+  type Presence,
+  personalWorkspaceId,
+} from "@do-computer/protocol"
 import type { ActorNamespace, AppDatabase } from "@do-computer/runtime"
 import { peopleOfAgent } from "./teams.ts"
 
@@ -26,6 +32,35 @@ export function tellPerson(
       () => undefined,
       () => undefined,
     )
+}
+
+/**
+ * Whether someone is writing a message in one of an agent's chats right now. Only a team's
+ * presence says who is typing; in a personal workspace nobody is known to be. Never fails: what
+ * cannot be asked is taken as nobody typing.
+ */
+export async function typingIn(
+  db: AppDatabase,
+  presence: ActorNamespace,
+  agentId: string,
+  chatId: string,
+): Promise<boolean> {
+  try {
+    const row = await db.get<{ workspace_id: string | null }>(
+      "SELECT workspace_id FROM dc_agents WHERE id = ?",
+      agentId,
+    )
+    const workspaceId = row?.workspace_id ?? null
+    if (workspaceId === null || isPersonalWorkspace(workspaceId)) return false
+    const response = await presence.get(workspaceId).fetch(new Request("http://presence/"))
+    if (!response.ok) return false
+    const { here } = (await response.json()) as { here?: Presence[] }
+    return (here ?? []).some(
+      (someone) => someone.agentId === agentId && someone.chatId === chatId && someone.typing,
+    )
+  } catch {
+    return false
+  }
 }
 
 /**

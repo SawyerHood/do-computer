@@ -34,7 +34,7 @@ import { callDirectory } from "./calls-directory.ts"
 import { everyoneIsAdmin, savedDirectory } from "./passwords-directory.ts"
 import { type Platform, readConfig } from "./platform.ts"
 import { notifyPeople } from "./push.ts"
-import { tellPeopleOfAgent } from "./feed.ts"
+import { tellPeopleOfAgent, typingIn } from "./feed.ts"
 import { createLiveActor } from "./presence-actor.ts"
 import { nodeProviders } from "./sandbox.node.ts"
 import { computerChoices, unsharedKinds } from "./sandbox.ts"
@@ -151,6 +151,7 @@ function create(): NodePlatform {
         onNotify: (notification) =>
           void notifyPeople(app, notification.agentId, notification.agentName, notification),
         onActivity: (change) => void tellPeopleOfAgent(app, presence, change),
+        typing: (agentId, chatId) => typingIn(app, presence, agentId, chatId),
         onReport: (error) => console.error(`[agent ${host.name}]`, error),
       })
     },

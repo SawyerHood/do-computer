@@ -6,7 +6,7 @@ import { type FeedEvent, personalWorkspaceId } from "@do-computer/protocol"
 import type { ActorHost, ActorNamespace, ActorSocket, AppDatabase } from "@do-computer/runtime"
 import { openNodeAppDatabase } from "@do-computer/runtime/node"
 import { beforeEach, describe, expect, it } from "vitest"
-import { tellPeopleOfAgent, tellPerson } from "./feed.ts"
+import { tellPeopleOfAgent, tellPerson, typingIn } from "./feed.ts"
 import { createFeedActor, createLiveActor } from "./presence-actor.ts"
 import { migrateAppDatabase } from "./schema.ts"
 
@@ -70,6 +70,56 @@ describe("what an agent is up to is told to the people it works for", () => {
     await expect(
       tellPerson(down, "sawyer", { type: "seen", agentId: "mine", seenAt: 1 }),
     ).resolves.toBeUndefined()
+  })
+})
+
+describe("whether someone is typing in an agent's chat", () => {
+  /** A team's presence that says who is where, and the names of the actors it was asked. */
+  function presence(here: unknown[]) {
+    const asked: string[] = []
+    const namespace: ActorNamespace = {
+      get: (name) => ({
+        fetch: async () => {
+          asked.push(name)
+          return Response.json({ here })
+        },
+      }),
+    }
+    return { namespace, asked }
+  }
+  const someone = (more: object) => ({
+    userId: "maya",
+    agentId: "shared",
+    chatId: "7",
+    typing: true,
+    ...more,
+  })
+
+  it("asks a team's presence, and is so only for someone typing in that very chat", async () => {
+    const team = presence([someone({})])
+    expect(await typingIn(db, team.namespace, "shared", "7")).toBe(true)
+    expect(team.asked).toEqual(["team-a"])
+    expect(await typingIn(db, team.namespace, "shared", "8")).toBe(false)
+    const idle = presence([someone({ typing: false }), someone({ agentId: "other" })])
+    expect(await typingIn(db, idle.namespace, "shared", "7")).toBe(false)
+  })
+
+  it("is never so in a personal workspace, whose presence is not asked", async () => {
+    const team = presence([someone({ agentId: "mine" })])
+    expect(await typingIn(db, team.namespace, "mine", "7")).toBe(false)
+    expect(await typingIn(db, team.namespace, "deleted", "7")).toBe(false)
+    expect(team.asked).toEqual([])
+  })
+
+  it("is not so where presence cannot be asked", async () => {
+    const down: ActorNamespace = {
+      get: () => ({ fetch: () => Promise.reject(new Error("unreachable")) }),
+    }
+    expect(await typingIn(db, down, "shared", "7")).toBe(false)
+    const refusing: ActorNamespace = {
+      get: () => ({ fetch: async () => new Response("no", { status: 500 }) }),
+    }
+    expect(await typingIn(db, refusing, "shared", "7")).toBe(false)
   })
 })
 

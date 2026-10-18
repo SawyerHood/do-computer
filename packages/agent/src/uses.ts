@@ -24,8 +24,6 @@ import {
   defineExtension,
   defineTool,
   type Extension,
-  GenerationTask,
-  hook,
   section,
   type ToolExecutionResult,
   type ToolRegistration,
@@ -242,6 +240,7 @@ function desktopAction(args: {
 /**
  * Take the older pictures out of what the model is sent, leaving the newest few. Each one costs
  * as much as a page of text, and one from ten steps ago shows a screen that is no longer so.
+ * Applied to every request by `shapeRequest` in `limits.ts`.
  */
 export function dropOldPictures(messages: readonly Message[], keep = KEPT_PICTURES): Message[] {
   let left = keep
@@ -294,14 +293,6 @@ export class Uses {
           () =>
             `On somebody's own computer you may be able to use more than files and commands. \`${BROWSER_TOOL}\` runs a short script in a browser there: use it for anything on a website. It is their own Chrome when that is open and lets itself be used, with everything they are signed in to, and otherwise a browser kept for agents. \`${SCREEN_TOOL}\` works the programs on the computer's screen: use it for programs that can be worked no other way, and prefer a command, a file or the browser when one of those would do, because the screen is slow. Work in one window at a time, which is done behind whatever the person has in front and leaves them their mouse and keyboard, so that they can carry on with their own work; only the whole screen, and a window you ask to have brought forward, take those from them. The person can watch either while you work, pause you, and stop you. Say what you are doing in each call's \`note\`, in a few words, for them to read. Whether a computer allows either is its owner's to say, on that computer: where it does not, the tool says so, and you cannot switch it on.`,
         ),
-      ],
-      hooks: [
-        hook(GenerationTask, {
-          beforeRequest: (request) => {
-            const messages = dropOldPictures(request.messages)
-            return { messages }
-          },
-        }),
       ],
     })
   }

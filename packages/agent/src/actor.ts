@@ -66,6 +66,7 @@ import type { Usage } from "@earendil-works/pi-ai"
 import type { Models } from "@earendil-works/pi-ai/models"
 import {
   AssistantEntry,
+  type CompactionPolicy,
   type Conversation,
   type ConversationId,
   createRegistry,
@@ -117,6 +118,7 @@ import {
 import { Journal, type ReviewOptions } from "./journal.ts"
 import { type JudgeOptions, KeepGoing } from "./keep-going.ts"
 import { logExtension } from "./log.ts"
+import { CACHE_RETENTION, IdleCompaction } from "./idle-compaction.ts"
 import { type ImageLimits, RequestLimits } from "./limits.ts"
 import {
   type AgentComputer,
@@ -240,6 +242,21 @@ export type AgentActorOptions = {
   readonly requestTries?: number
   /** How much of a chat's pictures a request carries (`limits.ts`). Only a test changes it. */
   readonly imageLimits?: ImageLimits
+  /**
+   * pi-durable's own compaction thresholds, over its defaults. Only a test changes them, so that
+   * a chat can fill most of a model's window without pi-durable compacting it first.
+   */
+  readonly compaction?: Partial<CompactionPolicy>
+  /**
+   * How long after its last answer a quiet main chat is looked at, to be compacted while its
+   * prompt is still in the provider's cache (`idle-compaction.ts`). Ten minutes if left out.
+   */
+  readonly idleCompactionMs?: number
+  /**
+   * Whether someone is writing a message in one of the agent's chats right now, where the host
+   * can tell. A quiet chat is not compacted under them. Absent: nobody is taken to be.
+   */
+  readonly typing?: (agentId: string, chatId: string) => Promise<boolean>
   /** How long a command is waited for before it is left to run in the background. */
   readonly foregroundMs?: number
   /**
@@ -599,6 +616,7 @@ export class AgentActor implements Actor {
   readonly #pays: Pays
   readonly #keepGoing: KeepGoing
   readonly #limits: RequestLimits
+  readonly #idle: IdleCompaction
   readonly #journal: Journal
   readonly #history: HistoryIndex
   #harness: Promise<Harness> | undefined
@@ -843,6 +861,19 @@ export class AgentActor implements Actor {
       context,
       ...(options.requestTries === undefined ? {} : { tries: options.requestTries }),
       ...(options.imageLimits === undefined ? {} : { images: options.imageLimits }),
+      onReport: (error) => options.onReport?.(error),
+    })
+    this.#idle = new IdleCompaction({
+      sql: host.sql,
+      now: () => host.now(),
+      context,
+      models: options.models,
+      ...(options.imageLimits === undefined ? {} : { imageLimits: options.imageLimits }),
+      ...(options.typing === undefined
+        ? {}
+        : { typing: (chatId: string) => options.typing!(host.name, chatId) }),
+      ...(options.idleCompactionMs === undefined ? {} : { afterMs: options.idleCompactionMs }),
+      armed: () => void this.#rearm().catch((error) => options.onReport?.(error)),
       onReport: (error) => options.onReport?.(error),
     })
     this.#keepGoing = new KeepGoing({
@@ -1256,6 +1287,7 @@ export class AgentActor implements Actor {
       }
       // What its other chats have been about, then the tool that reads them.
       registry.install(this.#journal.extension)
+      registry.install(this.#idle.extension)
       registry.install(
         historyExtension(() => {
           if (opened === undefined) throw new Error("The Dood is not open yet")
@@ -1265,7 +1297,10 @@ export class AgentActor implements Actor {
       // Finds the tools that are not offered until asked for, which a connector's are.
       registry.install(createToolSearchExtension())
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
-      // Last, so that what the others add to a request is counted with the rest.
+      // Last, so that what the others add to a request is counted with the rest. Its hook is the
+      // one place a request is changed (`shapeRequest`), which the idle compaction's summary
+      // request repeats so as to be read from the cache: another `beforeRequest` hook, such as
+      // one in `extensions`, would make the two differ.
       registry.install(this.#limits.extension)
       const harness = await Harness.open(
         await SqliteStorage.open(keptOpen(this.#host.sql)),
@@ -1279,7 +1314,10 @@ export class AgentActor implements Actor {
             // The longest cache a provider keeps: an hour on Claude where five minutes is usual.
             // It costs more to write and the same to read. A chat picked up again within the
             // hour then reads its prompt from the cache, and so does a side chat opened from it.
-            stream: { cacheRetention: "long" },
+            stream: { cacheRetention: CACHE_RETENTION },
+            ...(this.#options.compaction === undefined
+              ? {}
+              : { compaction: this.#options.compaction }),
             ...(this.#options.contextRetentionMs === undefined
               ? {}
               : { contextRetentionMs: this.#options.contextRetentionMs }),
@@ -1308,6 +1346,7 @@ export class AgentActor implements Actor {
       this.#keepGoing.attach(harness)
       this.#limits.attach(harness)
       this.#journal.attach(harness)
+      this.#idle.attach(harness)
       this.#computers.attach(harness)
       this.#scheduler.attach(harness)
       this.#subagents.attach(harness)
@@ -1440,7 +1479,11 @@ export class AgentActor implements Actor {
     this.#wake = keepAlive ?? undefined
     const tasks = await this.#scheduler.nextWake(context)
     const calls = await this.#calls.nextWake()
-    const scheduled = tasks === null ? calls : calls === null ? tasks : Math.min(tasks, calls)
+    const idle = await this.#idle.nextWake()
+    const scheduled = [tasks, calls, idle].reduce<number | null>(
+      (soonest, at) => (at === null ? soonest : soonest === null ? at : Math.min(soonest, at)),
+      null,
+    )
     const wake =
       keepAlive === null
         ? scheduled
@@ -1502,6 +1545,7 @@ export class AgentActor implements Actor {
     await this.#jobs.tick()
     await this.#peers?.tick()
     await this.#slack?.tick()
+    await this.#idle.tick()
     await this.#rearm()
     // One woken after its process was lost has told nobody how it stands, and what it said
     // before may not be so any more: work it had in hand can have ended with nobody told.
@@ -2377,6 +2421,8 @@ export class AgentActor implements Actor {
         total.cost += noted.spent.cost
       }
     }
+    const compactions = await this.#idle.records(context)
+    if (compactions.length > 0) usage.compactions = compactions
     usage.models = [...models]
       .map(([model, total]) => ({ model, ...total }))
       .sort(
