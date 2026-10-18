@@ -267,19 +267,34 @@ recorded per compaction, with the tokens before and after, so the 70% can be tun
   conversation as a new prompt (its own system prompt, the transcript as text) with
   `cacheRetention: "none"`, so its cache-read share would be about 0%. The idle compaction still
   calls `compact()`, and a `beforeCompact` hook answers for it with a summary asked for as the
-  chat's own next request: the same messages, provider session and cache retention, with one
-  more message asking for the summary. pi-durable's summarizer is the fallback.
+  chat's own next request: the same messages (`shapeRequest`), provider session and cache
+  retention, with one more message asking for the summary.
+- **Where that fails, nothing is compacted.** Falling back to pi-durable's summarizer would send
+  the whole chat uncached, often while the provider is overloaded. The chat waits for its next
+  turn and pi-durable's own threshold.
+- **pi-durable's own threshold compactions are summarized from the cache too**, by the same hook,
+  where the model keeps a long cache and it is still warm (otherwise pi-durable's summarizer,
+  which those need). On a 200k window pi-durable starts at about 151k, so the idle compaction's
+  own band is 140k to 151k; above that, its work is still done from the cache. This was chosen
+  over setting `backgroundTokens` to 0 for long-cache models, which the harness's settings,
+  being one for every chat, cannot do for a model.
+- **Long caches are by provider**, not by interface: Anthropic and Claude through OpenRouter an
+  hour, OpenAI and Azure a day (not a model with an explicit cache mode, which gets 30 minutes),
+  otherwise only what the model's own `promptCache` says.
 - **The alarm is the actor's one wake-up**, as for schedules: a row per chat in the agent's
-  database, which each answer moves ten minutes on. It works the same on Node and on Durable
-  Objects, and a restart keeps it.
-- **Main chats only** for now. Sub-agents end once they report; Slack threads can follow at the
-  same rule by widening one check.
-- **Presence** says who is typing only in a team, so a personal Dood is never held off by it.
+  database, set only by an answer that could qualify, which each answer moves ten minutes on.
+- **Main chats only** for the idle compaction. Sub-agents end once they report; Slack threads can
+  follow at the same rule by widening one check.
+- **Presence** says who is typing only in a team, so a personal Dood is never held off by it; it
+  holds a compaction off for ten minutes at most, since a draft left in the box counts.
 - **Memory.** The summary request can call no tool, so it does not save to memory itself; the
   journal's review, which already runs before every compaction, may add lasting facts there.
+- **Numbers to tune.** Each compaction records the chat's next request after it: how long after,
+  and what it wrote to the cache. Compacting at ten minutes only pays for chats that then stay
+  quiet past the cache's lifetime (or for the quality of the answers); this is what will show it.
 - **70% of a large window is a lot.** pi-ai's catalog lists Claude Sonnet 4.5 on OpenRouter at
   a 1,000,000-token window, where 70% is 700,000 tokens: such a chat is rarely compacted this
-  way. A cap in tokens as well as the share may be wanted once the numbers come in.
+  way. Left at 70% for now.
 
 ## 7. Messages while busy
 

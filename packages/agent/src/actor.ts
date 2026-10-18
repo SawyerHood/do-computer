@@ -868,6 +868,7 @@ export class AgentActor implements Actor {
       now: () => host.now(),
       context,
       models: options.models,
+      ...(options.imageLimits === undefined ? {} : { imageLimits: options.imageLimits }),
       ...(options.typing === undefined
         ? {}
         : { typing: (chatId: string) => options.typing!(host.name, chatId) }),
@@ -1296,7 +1297,10 @@ export class AgentActor implements Actor {
       // Finds the tools that are not offered until asked for, which a connector's are.
       registry.install(createToolSearchExtension())
       for (const extension of this.#options.extensions ?? []) registry.install(extension)
-      // Last, so that what the others add to a request is counted with the rest.
+      // Last, so that what the others add to a request is counted with the rest. Its hook is the
+      // one place a request is changed (`shapeRequest`), which the idle compaction's summary
+      // request repeats so as to be read from the cache: another `beforeRequest` hook, such as
+      // one in `extensions`, would make the two differ.
       registry.install(this.#limits.extension)
       const harness = await Harness.open(
         await SqliteStorage.open(keptOpen(this.#host.sql)),

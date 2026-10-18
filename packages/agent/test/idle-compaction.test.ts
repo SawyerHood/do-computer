@@ -1,7 +1,12 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { AgentUsage, ChatState, ChatSummary, IdleCompaction } from "@do-computer/protocol"
+import type {
+  AgentUsage,
+  ChatState,
+  ChatSummary,
+  IdleCompactionRecord,
+} from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import type { Context as ModelContext, Model, SimpleStreamOptions } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
@@ -18,6 +23,8 @@ import {
   decide,
   IDLE_SHARE,
   type IdleFacts,
+  restDecision,
+  TYPING_CAP_MS,
 } from "../src/idle-compaction.ts"
 
 const HOUR = 60 * 60_000
@@ -34,7 +41,7 @@ describe("how long a model's long cache lasts", () => {
       ...fields,
     }) as Model<string>
 
-  it("is an hour for Claude, through Anthropic or OpenRouter", () => {
+  it("is an hour for Claude, from Anthropic or through OpenRouter", () => {
     expect(
       cacheLifetimeMs(
         model({
@@ -42,6 +49,11 @@ describe("how long a model's long cache lasts", () => {
           provider: "anthropic",
           promptCache: { short: 300, long: 3600 },
         }),
+      ),
+    ).toBe(HOUR)
+    expect(
+      cacheLifetimeMs(
+        model({ api: "anthropic-messages", provider: "x", baseUrl: "https://api.anthropic.com" }),
       ),
     ).toBe(HOUR)
     expect(
@@ -58,16 +70,49 @@ describe("how long a model's long cache lasts", () => {
     ).toBe(HOUR)
   })
 
-  it("is a day for OpenAI's models", () => {
+  it("is a day for OpenAI's models, from OpenAI, Azure or through OpenRouter", () => {
     expect(cacheLifetimeMs(model({ api: "openai-responses", provider: "openai" }))).toBe(24 * HOUR)
+    expect(cacheLifetimeMs(model({ api: "azure-openai-responses", provider: "azure" }))).toBe(
+      24 * HOUR,
+    )
     expect(cacheLifetimeMs(model({ provider: "openrouter", id: "openai/gpt-5.1" }))).toBe(24 * HOUR)
   })
 
-  it("is not known for others, or where the model says it keeps only minutes", () => {
+  it("is not known for other providers behind the same interfaces", () => {
+    // pi-ai asks all of these for its long cache; none is known to keep one.
+    const minimax = model({
+      api: "anthropic-messages",
+      provider: "minimax",
+      id: "MiniMax-M2",
+      baseUrl: "https://api.minimax.io/anthropic",
+    })
+    const vercel = model({
+      api: "anthropic-messages",
+      provider: "vercel-ai-gateway",
+      id: "anthropic/claude-sonnet-4.5",
+      baseUrl: "https://ai-gateway.vercel.sh",
+    })
+    const xai = model({ api: "openai-responses", provider: "xai", baseUrl: "https://api.x.ai/v1" })
+    expect(cacheLifetimeMs(minimax)).toBeUndefined()
+    expect(cacheLifetimeMs(vercel)).toBeUndefined()
+    expect(cacheLifetimeMs(xai)).toBeUndefined()
     expect(
       cacheLifetimeMs(model({ provider: "openrouter", id: "meta/muse-spark" })),
     ).toBeUndefined()
     expect(cacheLifetimeMs(model({ api: "google-generative-ai" }))).toBeUndefined()
+  })
+
+  it("is not long enough where the cache is kept for minutes", () => {
+    // An OpenAI model with an explicit cache mode is asked to keep it for 30 minutes.
+    expect(
+      cacheLifetimeMs(
+        model({
+          api: "openai-responses",
+          provider: "openai",
+          compat: { supportsExplicitPromptCacheMode: true },
+        } as never),
+      ),
+    ).toBeUndefined()
     expect(
       cacheLifetimeMs(model({ api: "anthropic-messages", promptCache: { short: 300, long: 300 } })),
     ).toBeUndefined()
@@ -75,10 +120,15 @@ describe("how long a model's long cache lasts", () => {
       cacheLifetimeMs(
         model({
           api: "anthropic-messages",
+          provider: "anthropic",
           compat: { supportsLongCacheRetention: false },
         } as never),
       ),
     ).toBeUndefined()
+  })
+
+  it("is what the model says, for a provider nothing else is known of", () => {
+    expect(cacheLifetimeMs(model({ promptCache: { long: 7200 } }))).toBe(2 * HOUR)
   })
 })
 
@@ -106,10 +156,11 @@ describe("whether a quiet chat is compacted", () => {
     expect(decide(facts({ queued: true }))).toBe("busy")
   })
 
-  it("waits while someone is typing in it", () => {
+  it("waits while someone is typing in it, which is asked before the chat is read", () => {
     expect(decide(facts({ typing: true }))).toBe("later")
-    // Typing does not keep alive a chat that would not be compacted anyway.
-    expect(decide(facts({ typing: true, last: { inputTokens: 1_000, at: NOW } }))).toBe("small")
+    expect(restDecision({ resting: true, queued: false, typing: true })).toBe("later")
+    expect(restDecision({ resting: false, queued: false, typing: true })).toBe("busy")
+    expect(restDecision({ resting: true, queued: false, typing: false })).toBeUndefined()
   })
 
   it("is not so under the share of the window, or with nothing since the last compaction", () => {
@@ -154,6 +205,7 @@ function open(
     tokensPerSecond?: number
     afterMs?: number
     typing?: (agentId: string, chatId: string) => Promise<boolean>
+    compaction?: { reserveTokens?: number; backgroundTokens?: number }
   } = {},
 ): World {
   const faux = fauxProvider({
@@ -180,7 +232,7 @@ function open(
         ],
         keepAliveMs: 100,
         // So that a chat can fill most of the window without pi-durable compacting it first.
-        compaction: { enabled: false },
+        compaction: more.compaction ?? { enabled: false },
         idleCompactionMs: more.afterMs ?? AFTER_MS,
         ...(more.typing === undefined ? {} : { typing: more.typing }),
         onReport: (error) => reports.push(error),
@@ -237,7 +289,7 @@ async function say(world: World, chatId: string, text: string): Promise<ChatStat
   )
 }
 
-const compactions = async (world: World): Promise<IdleCompaction[]> =>
+const compactions = async (world: World): Promise<IdleCompactionRecord[]> =>
   (await call<AgentUsage>(world, "/usage")).compactions ?? []
 
 const compacted = (state: ChatState) =>
@@ -278,27 +330,32 @@ async function fill(
   world: World,
   share: number,
   last = "second",
-): Promise<{ main: ChatSummary; input: number }> {
+): Promise<{ main: ChatSummary; input: number; sent: ModelContext["messages"] }> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
   const main = await call<ChatSummary>(world, "/chats/main", "POST", {})
   world.faux.models[0].contextWindow = 100_000_000
+  // What the chat's last request was sent, as the provider got it.
+  let sent: ModelContext["messages"] = []
   world.faux.setResponses([
     fauxAssistantMessage("Hello."),
     fauxAssistantMessage("Noted."),
-    fauxAssistantMessage("Noted again."),
+    (context: ModelContext) => {
+      sent = structuredClone(context.messages)
+      return fauxAssistantMessage("Noted again.")
+    },
   ])
   const hello = await say(world, main.id, "hi")
   const first = await say(world, main.id, words(LONG, "first"))
   const expected = first.usage.inputTokens - hello.usage.inputTokens + LONG
   world.faux.models[0].contextWindow = Math.round(expected / share)
   const second = await say(world, main.id, words(LONG, last))
-  return { main, input: second.usage.inputTokens - first.usage.inputTokens }
+  return { main, input: second.usage.inputTokens - first.usage.inputTokens, sent }
 }
 
 describe("compacting a quiet main chat while its cache is warm", () => {
   it("compacts it once everything holds, reading what it repeats from the cache", async () => {
     const world = open(temporary())
-    const { main } = await fill(world, 0.8)
+    const { main, sent: last } = await fill(world, 0.8)
     const asked: { context?: ModelContext; options?: SimpleStreamOptions } = {}
     world.faux.appendResponses([summarizer(asked)])
 
@@ -321,9 +378,14 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     expect(asked.options?.cacheRetention).toBe("long")
     expect(asked.options?.sessionId).toBeTruthy()
     const sent = asked.context!.messages
+    // What it repeats is exactly what the chat's last request was sent, then that answer, then
+    // the request for the summary, which says what is kept.
+    expect(sent.slice(0, -2)).toEqual(last)
     expect(sent.at(-2)).toMatchObject({ role: "assistant", content: [{ text: "Noted again." }] })
     const request = JSON.stringify(sent.at(-1)!.content)
-    expect(request).toContain('Everything from the message that begins \\"second second')
+    expect(request).toContain(
+      'Its last 2 messages stay as they are, from the one that begins \\"second second',
+    )
     expect(request).toContain("Sub-agents at work")
     // The summary is in the chat's context in place of the first long message.
     const context = JSON.stringify(state.messages)
@@ -338,25 +400,90 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     await sleep(AFTER_MS * 3)
     expect(await compactions(world)).toHaveLength(1)
     expect(world.faux.getPendingResponseCount()).toBe(0)
+
+    // The next message is noted on the record: how long after it came, and what it cost the cache.
+    world.faux.appendResponses([fauxAssistantMessage("Welcome back.")])
+    await say(world, main.id, "I am back")
+    const [noted] = await until(
+      () => compactions(world),
+      (records) => records[0]?.next !== undefined,
+    )
+    expect(noted!.next!.afterMs).toBeGreaterThan(AFTER_MS)
+    expect(noted!.next!.cacheWrite).toBeGreaterThan(0)
     expect(world.reports).toEqual([])
   })
 
-  it("leaves the summary to pi-durable's own summarizer where asking for one fails", async () => {
+  it("leaves the chat as it is when the provider fails, and never asks uncached instead", async () => {
     const world = open(temporary())
     const { main } = await fill(world, 0.8)
     world.faux.appendResponses([
-      // Not a summary: it calls a tool.
-      fauxAssistantMessage([fauxToolCall("bash", { command: "ls" })]),
-      fauxAssistantMessage("## Goal\nWritten by the fallback."),
+      fauxAssistantMessage("", { stopReason: "error", errorMessage: "529 overloaded" }),
+      fauxAssistantMessage("## Goal\nNot asked for."),
     ])
-    const state = await until(() => chatOf(world, main.id), compacted)
-    expect(compacted(state)).toBe(true)
     const [record] = await until(
       () => compactions(world),
       (records) => records.length > 0,
     )
     expect(record).toMatchObject({ summarized: false, after: null })
-    expect(world.faux.getPendingResponseCount()).toBe(0)
+    expect(record!.failure).toContain("529 overloaded")
+    await sleep(AFTER_MS)
+    expect(compacted(await chatOf(world, main.id))).toBe(false)
+    // pi-durable's summarizer, which would send the whole chat uncached, was not asked.
+    expect(world.faux.getPendingResponseCount()).toBe(1)
+    expect(String(world.reports[0])).toContain("529 overloaded")
+  })
+
+  it("leaves the chat as it is when what comes back is not a summary", async () => {
+    const world = open(temporary())
+    const { main } = await fill(world, 0.8)
+    world.faux.appendResponses([
+      fauxAssistantMessage([fauxToolCall("bash", { command: "ls" })]),
+      fauxAssistantMessage("## Goal\nNot asked for."),
+    ])
+    const [record] = await until(
+      () => compactions(world),
+      (records) => records.length > 0,
+    )
+    expect(record).toMatchObject({ summarized: false, failure: "it called a tool instead" })
+    await sleep(AFTER_MS)
+    expect(compacted(await chatOf(world, main.id))).toBe(false)
+    expect(world.faux.getPendingResponseCount()).toBe(1)
+  })
+
+  it("summarizes from the cache at pi-durable's own threshold too", async () => {
+    // pi-durable compacts the chat before its next request: the window is set so that the next
+    // request would pass the threshold. The idle look is far off, so it is not what compacts.
+    const world = open(temporary(), {
+      afterMs: 60_000,
+      compaction: { reserveTokens: 1_000, backgroundTokens: 0 },
+    })
+    const { main, input } = await fill(world, 0.8)
+    world.faux.models[0].contextWindow = input
+    const asked: { context?: ModelContext; options?: SimpleStreamOptions } = {}
+    world.faux.appendResponses([summarizer(asked), fauxAssistantMessage("Answered.")])
+    await call(world, `/chats/${main.id}/messages`, "POST", {
+      text: "and one more thing",
+      requestId: "r",
+    })
+    // The answers it summarized are no longer shown, so the chat is waited on for the new one.
+    const state = await until(
+      () => chatOf(world, main.id),
+      (chat) => !chat.busy && JSON.stringify(chat.messages).includes("Answered."),
+    )
+    expect(compacted(state)).toBe(true)
+    expect(state.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [{ type: "text", text: "Answered." }],
+    })
+    const [record] = await compactions(world)
+    expect(record).toMatchObject({ reason: "threshold", summarized: true })
+    expect(record!.cacheReadShare).toBeGreaterThan(0.95)
+    expect(asked.options?.cacheRetention).toBe("long")
+    // It is not the main chat's focus unless it is the main chat, which this one is.
+    expect(JSON.stringify(asked.context!.messages.at(-1))).toContain(
+      "long-running main conversation",
+    )
+    expect(world.reports).toEqual([])
   })
 
   it("leaves a chat that fills less than 70% of the window", async () => {
@@ -443,6 +570,26 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     expect(compacted(await chatOf(world, main.id))).toBe(false)
     expect(looked[0]).toBe(`agent-1/${main.id}`)
     typing = false
+    expect(compacted(await until(() => chatOf(world, main.id), compacted))).toBe(true)
+  })
+
+  it("stops waiting for someone typing after ten minutes, as for a draft left in the box", async () => {
+    let looked = 0
+    const world = open(temporary(), {
+      typing: async () => {
+        looked++
+        return true
+      },
+    })
+    const { main } = await fill(world, 0.8)
+    world.faux.appendResponses([summarizer({})])
+    await until(
+      async () => looked,
+      (count) => count >= 2,
+    )
+    expect(compacted(await chatOf(world, main.id))).toBe(false)
+    // Ten minutes and more since it was first put off, by the agent's clock.
+    world.clock.ahead = TYPING_CAP_MS + 60_000
     expect(compacted(await until(() => chatOf(world, main.id), compacted))).toBe(true)
   })
 

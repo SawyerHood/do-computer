@@ -494,25 +494,32 @@ export type AgentUsage = {
   /** How many chats and runs the total covers. */
   chats: number
   /**
-   * The latest compactions of a quiet main chat while its prompt was still in the provider's
-   * cache, newest last, so that what sets one off can be tuned. What each cost is in the totals.
+   * The latest compactions whose summary was asked for while the chat's prompt was still in the
+   * provider's cache, newest last, so that what sets one off can be tuned. What each cost is in
+   * the totals.
    */
-  compactions?: IdleCompaction[]
+  compactions?: IdleCompactionRecord[]
 }
 
-/** One compaction of a quiet main chat, as it was recorded when its summary was asked for. */
-export type IdleCompaction = {
+/** One compaction whose summary was asked for from the provider's cache, as it was recorded. */
+export type IdleCompactionRecord = {
   chatId: string
   /** The compaction task, which a record is kept once for. */
   taskId: string
+  /**
+   * What started it: a main chat that went quiet (`idle`), or pi-durable's own compaction of a
+   * chat whose next request would come near the model's window (`threshold`).
+   */
+  reason: "idle" | "threshold"
   at: number
   /** `provider/model` that wrote the summary. */
   model: string
   /** The input of the chat's last request before it, in tokens. */
   before: number
   /**
-   * An estimate of the chat's context after it, in tokens: its system prompt, the summary and
-   * what was kept word for word. Null where no summary came of the request.
+   * An estimate of the chat's context after it, in tokens: every system message the chat had
+   * (including ones in the part summarized, so it is on the high side), the summary, and what was
+   * kept word for word. Null where no summary came of the request.
    */
   after: number | null
   /** The summary request's input: not cached, read from the cache, and written to it. */
@@ -521,10 +528,20 @@ export type IdleCompaction = {
   cacheWrite: number
   /** The part of that input read from the cache, from 0 to 1. */
   cacheReadShare: number
-  /** What the summary request cost, in dollars. */
+  /** What the summary request cost, in dollars. Each time it was asked for, where that was more than once. */
   cost: number
-  /** Whether it gave a summary; where it did not, pi-durable's own summarizer wrote one. */
+  /**
+   * Whether it gave a summary. An idle compaction that got none was left undone; a threshold one
+   * was left to pi-durable's own summarizer.
+   */
   summarized: boolean
+  /** Why it gave none, where it did not. */
+  failure?: string
+  /**
+   * The chat's first request after it: how long after the summary was asked for it was made, and
+   * what it read from and wrote to the cache. Absent until there is one.
+   */
+  next?: { afterMs: number; input: number; cacheRead: number; cacheWrite: number }
 }
 
 /** A place in the agent's past chats where a search matched. */

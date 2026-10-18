@@ -10,6 +10,7 @@ import {
   type Harness,
   hook,
 } from "@earendil-works/pi-durable"
+import { dropOldPictures } from "./uses.ts"
 
 /** One message of a request to the model, as a `beforeRequest` hook is given it. */
 export type SentMessage = Parameters<GenerationHooks["beforeRequest"]>[0]["messages"][number]
@@ -136,6 +137,21 @@ export function keepPicturesSmall(
     )
     return { ...message, content } as SentMessage
   })
+}
+
+/**
+ * What a chat's request to the model carries, from the chat's context: the older pictures of the
+ * screen and the browser left out (`uses.ts`), then the oldest pictures past the limits. Every
+ * change the agent makes to a request belongs here, and nowhere else. The summary the idle
+ * compaction asks for (`idle-compaction.ts`) is shaped by the same function, so that it starts as
+ * the chat's last request did and is read from the provider's cache; a change made anywhere else
+ * would make the two differ, and that cache would not be read.
+ */
+export function shapeRequest(
+  messages: readonly SentMessage[],
+  limits: ImageLimits = IMAGE_LIMITS,
+): readonly SentMessage[] {
+  return keepPicturesSmall(dropOldPictures(messages), limits)
 }
 
 /**
@@ -284,7 +300,7 @@ export class RequestLimits {
               // run was stopped by then: it has been, so this ends the request and the run.
               throw new Error(CUT_OFF_TEXT)
             }
-            const kept = keepPicturesSmall(messages, this.#options.images)
+            const kept = shapeRequest(messages, this.#options.images)
             return kept === messages ? undefined : { messages: kept }
           },
           afterResponse: async (_message, api) => {

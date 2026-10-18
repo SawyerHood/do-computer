@@ -7464,52 +7464,76 @@ put` never has to ask whether to make a Worker. The first person to follow it on
        the hook keeps the request's copies small, not that one. Nothing watches for a run that
        makes no progress for other reasons.
 
-101. **A quiet main chat is compacted while its prompt is still in the provider's cache**
-     (2026-10-18; `packages/agent/src/idle-compaction.ts`, `PLAN-main-bus.md` section 6, phase 1
-     of that plan). pi-durable compacts a chat only when a request would pass the model's
-     window, which is when the chat is wanted. A long main chat that goes quiet for over an hour
-     then pays to write its whole prompt into the cache again on the next message.
-     - **When.** An answer in a main chat whose request filled 70% of the window, on a model
-       with a long cache, records a time ten minutes on, in the agent's own database
-       (`dc_idle_compaction`, a row per chat that each answer moves later or clears), and the
-       actor's one wake-up covers the soonest; other answers wake nothing. Then the chat is
-       compacted if it is at rest (no task in it, nothing waiting to be taken up), its last
-       request's input was at least 70% of the model's window, the model keeps a long cache
-       (`cacheLifetimeMs`: the model's own `promptCache` where pi-ai has one, otherwise an hour
-       for Claude through Anthropic's interface or OpenRouter's, a day for OpenAI's, and nothing
-       known for the rest), that request was less than the cache's lifetime less ten minutes
-       ago, and the model is still the one that answered. Someone typing in it (a team's presence; nothing is known of a
-       personal workspace) puts the look off by two minutes. A row is dropped once looked at;
-       the next answer makes another.
-     - **The summary is asked for as the chat's own request.** pi-durable's summarizer sends the
-       conversation as a new prompt of its own with no cache, so `compact()` alone would read
-       nothing from the cache. The idle compaction calls `conversation.compact()` with its own
-       instructions, and a `beforeCompact` hook answers for that compaction: it sends the
-       chat's messages as they stand (with the same picture limits as its requests), the same
-       provider session and cache retention, and one more message asking for a summary of
-       everything before the message pi-durable keeps from. Where that gives no summary, the
-       hook gives way and pi-durable's own summarizer writes one, with the same instructions as
-       its focus. The answer is kept as a memo of the task, so one taken up again after a
-       restart does not ask twice.
+101. **A quiet main chat is compacted while its prompt is still in the provider's cache, and
+     pi-durable's own compactions are summarized from the cache too** (2026-10-18;
+     `packages/agent/src/idle-compaction.ts`, `PLAN-main-bus.md` section 6, phase 1 of that
+     plan). pi-durable compacts a chat only when a request would come near the model's window,
+     which is when the chat is wanted, and its summarizer sends the conversation as a new prompt
+     with no cache. A long main chat that goes quiet for over an hour then pays to write its
+     whole prompt into the cache again on the next message.
+     - **When.** An answer a main chat's run rests on (`stop`, not a round of tool calls) whose
+       request filled 70% of the window, on a model with a long cache, records a time ten
+       minutes on in the agent's own database (`dc_idle_compaction`, a row per chat that each
+       answer moves later or clears), and the actor's one wake-up covers the soonest; other
+       answers wake nothing. Then, cheapest first: the chat must be at rest (no task in it,
+       nothing waiting) and nobody typing in it; only then is its context read, and its last
+       request must have filled 70%, on the same model, less than the cache's lifetime less
+       ten minutes ago. Someone typing (a team's presence, `typingIn` in `feed.ts`; a personal
+       workspace says nothing) puts it off by two minutes, for ten minutes at most, since
+       presence counts a draft left in the box as typing.
+     - **Long caches** (`cacheLifetimeMs`) are by provider, not by interface: Anthropic (by
+       provider or address) and Claude through OpenRouter an hour; OpenAI and Azure a day,
+       except a model with an explicit cache mode, which pi-ai asks for 30 minutes; OpenAI's
+       models through OpenRouter a day; anything else only where the model's own `promptCache`
+       says an hour or more. pi-ai asks MiniMax, Vercel's gateway, xAI and the like for a long
+       cache as well, and nothing says they keep one.
+     - **The summary is asked for as the chat's own request.** The idle compaction calls
+       `conversation.compact()` with its own instructions, and a `beforeCompact` hook answers:
+       it sends the chat's messages shaped as every request is (`shapeRequest` in `limits.ts`,
+       now the one `beforeRequest` change, which the summary repeats), the same provider
+       session, cache retention and thinking level, the model's whole output allowance, and one
+       more message asking for a summary of everything before the part pi-durable keeps (how
+       many messages that is, and how the first begins). A test checks that what it repeats is
+       exactly what the chat's last request was sent. The answer is a memo of the task, so one
+       taken up again after a restart does not ask twice, and the record is kept once a task.
+     - **Where asking fails** (the provider's error, a cut-off answer, a tool call, no text), an
+       idle compaction is declined and the failure reported: the chat stays as it is until its
+       next turn, and pi-durable's summarizer, which would send the whole chat uncached at a
+       moment the provider is struggling, is not asked.
+     - **pi-durable's own threshold compactions** (blocking and background), of any chat, are
+       answered by the same hook where the model keeps a long cache and the chat's last
+       request was recent enough for it to hold: those are read from the cache too, which
+       matters most above about 151,000 tokens of a 200,000 window, where pi-durable starts.
+       Where the cache is cold, or asking fails, they are left to pi-durable's summarizer, since
+       the chat needs the room. This was chosen over moving pi-durable's background threshold:
+       its settings are the harness's, not a model's.
      - **What it keeps** is written for a long main chat: what was asked for and not done,
        promises, sub-agents at work and what each is for, automations and when they run,
        decisions and preferences, marked where lasting. Saving those to memory is not done by
        this request, which can call no tool; the journal's review, which runs before every
        compaction, already may add one lasting fact to each store of notes.
      - **Recorded** in the session document `dc.idle-compactions`, the last 50, and given on
-       `GET /usage` as `compactions`: tokens before, an estimate of after, the summary
-       request's input, cache read and write, its cache-read share and cost. The cost is added
-       to the chat's `pi.usage`, so it is in the totals. Nothing in the apps shows the records.
-     - **Checked:** `pnpm check`; `packages/agent/test/idle-compaction.test.ts`: the rule and the
-       cache lifetimes, and through the actor with the faux provider: compacting when all
-       holds, with the request starting as the chat's own and 99% of it read from the cache;
-       none under 70%, on a five-minute cache, or with the cache about to run out; waiting out
-       a run and compacting after its answer; waiting while someone types; pi-durable's
-       summarizer when asking fails; and after a restart, compacting from the stored time, once.
+       `GET /usage` as `compactions` (`IdleCompactionRecord`): why, tokens before, an estimate
+       of after, the summary request's input, cache read and write, its cache-read share, cost,
+       why it failed, and the chat's next request after it (how long after, and what it read
+       and wrote), so that the ten minutes can be tuned as well as the 70%. The cost is added
+       to the chat's `pi.usage`. Nothing in the apps shows the records.
+     - **Checked:** `pnpm check`; `packages/agent/test/idle-compaction.test.ts`: the rules and
+       the cache lifetimes, with MiniMax, Vercel, xAI and an explicit-cache OpenAI model left
+       out, and through the actor with the faux provider: compacting when all holds, the
+       request repeating the last one exactly and 99% of it read from the cache, and the next
+       message noted; declining on a provider's error and on a tool call, without asking
+       uncached; a threshold compaction summarized from the cache; none under 70%, on a
+       five-minute cache, or with the cache about to run out; waiting out a run; waiting while
+       someone types, for ten minutes at most; and after a restart, compacting from the stored
+       time, once. `feed.test.ts` checks `typingIn`.
      - **Not checked:** a real provider (whether Claude through OpenRouter reads the request
-       from the cache, which is what this is for), a deployed Worker, and a team's presence
-       answering. The faux provider counts what it newly caches twice in a request's input,
-       which the tests work around.
+       from the cache, which is what this is for), a deployed Worker, a restart between the
+       record and the memo (reasoned, not tested), and the thinking budget near the top of the
+       window: pi-ai fits a thinking budget to the room left, so on Claude models without
+       adaptive thinking a summary request there can get a different budget from the last turn
+       and not be read from the cache, as ordinary turns there can too. The faux provider counts
+       what it newly caches twice in a request's input, which the tests work around.
 
 ## 6. What the owner has said they want
 
