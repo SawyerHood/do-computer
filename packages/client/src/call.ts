@@ -197,6 +197,16 @@ const wordsOf = (message: ChatMessage) =>
     .join("\n")
     .trim()
 
+/**
+ * Whether a message is something the Dood sent, whole: words a person was given. Its own words
+ * are not text in the chat, and a send that failed was not said.
+ */
+const isSent = (message: ChatMessage) =>
+  message.role === "assistant" &&
+  message.status !== "streaming" &&
+  message.notSent === undefined &&
+  wordsOf(message) !== ""
+
 export type Caller = ReturnType<typeof createCaller>
 
 /** The calls of one device. */
@@ -414,25 +424,22 @@ export function createCaller(options: CallerOptions) {
           answer(handoff, "I could not get to that. Ask me again.")
         continue
       }
-      // What follows it, up to whatever a person says next that is not more of this call. A later
-      // handoff of the call joins the run that is answering this one, and what that run sends is
-      // the answer to both: each is settled with the same words.
-      const next = chat.messages.findIndex(
-        (message, index) =>
-          index > at && message.role === "user" && message.spoken?.call !== mine.id,
-      )
+      // What follows it, up to whatever a person says next. A later handoff of the call that came
+      // before anything was sent joins the run that is answering this one, and what that run
+      // sends is the answer to both: each is settled with the same words. One that came after a
+      // send has an answer of its own, and this one was answered by what came before it.
+      let sentSince = false
+      const next = chat.messages.findIndex((message, index) => {
+        if (index <= at) return false
+        if (message.role === "user" && (message.spoken?.call !== mine.id || sentSince)) return true
+        if (isSent(message)) sentSince = true
+        return false
+      })
       const after = chat.messages.slice(at + 1, next === -1 ? undefined : next)
-      // What the Dood sent: its own words are not text in the chat, and a send that failed was not
-      // said. The first send is said as soon as it is whole, so that the voice is not kept
-      // waiting while the Dood carries on, or hands the work to a sub-agent; at rest, everything
-      // it sent is said.
-      const sent = after.filter(
-        (message) =>
-          message.role === "assistant" &&
-          message.status !== "streaming" &&
-          message.notSent === undefined &&
-          wordsOf(message) !== "",
-      )
+      // What the Dood sent. The first send is said as soon as it is whole, so that the voice is not
+      // kept waiting while the Dood carries on, or hands the work to a sub-agent; at rest,
+      // everything it sent is said.
+      const sent = after.filter(isSent)
       if (chat.busy && sent.length > 0) {
         answer(handoff, wordsOf(sent[0]!))
         continue

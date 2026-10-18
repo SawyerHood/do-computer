@@ -685,6 +685,15 @@ export class SlackChats {
     }, context)
   }
 
+  /**
+   * Whether a thread found not yet set up as a bus is still so, and has not been given anything
+   * since it was found: read again, as it stands now.
+   */
+  async #stillUnset(id: string, slack: SlackRecord, context: Context): Promise<boolean> {
+    const chat = own((await this.#require().snapshot(ChatsDoc, context))?.chats ?? {}, id)
+    return chat?.bus !== true && chat?.slack?.woken === slack.woken
+  }
+
   /** Show in Slack that a thread is being worked on, now and then, and without waiting on it. */
   #show(id: string, place: SlackPlace & { ts: string }): void {
     const now = this.#options.now()
@@ -768,6 +777,11 @@ export class SlackChats {
         // drew is posted as a file, as it always was.
         const files = await this.#sendFiles(id, slack, state, true, context)
         if (files === "later") return
+      } else if (last?.status === "streaming" || !(await this.#stillUnset(id, slack, context))) {
+        // A message from Slack came while this was looked at: the thread was set up as a bus
+        // and is at work again, and what is last in it is that run's, not an answer. The next
+        // look deals with it.
+        return
       } else if (said === "") {
         status = "failed"
         text = "I came to the end of that without an answer. Ask me again?"
