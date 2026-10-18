@@ -244,6 +244,14 @@ async function until<T>(
   }
 }
 
+/**
+ * The newest message of a request that is not the prompt. A change to the prompt (what the
+ * agent is told about its computers, say) is sent as a system message after what came before
+ * it, so the very last message may be that and not the input that set the request going.
+ */
+const newest = (messages: readonly unknown[]) =>
+  messages.findLast((message) => (message as { role?: string }).role !== "system")
+
 const threads = async (world: World) =>
   (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) => chat.kind === "slack")
 const chatState = (world: World, chatId: string) => call<ChatState>(world, `/chats/${chatId}`)
@@ -900,7 +908,7 @@ describe("a thread in Slack with the bus on", () => {
     world.faux.setResponses([
       send("Here you are."),
       (context) => {
-        results.push(JSON.stringify(context.messages.at(-1)))
+        results.push(JSON.stringify(newest(context.messages)))
         return fauxAssistantMessage("It did not go.")
       },
       fauxAssistantMessage("Still nothing."),
@@ -940,7 +948,7 @@ describe("a thread in Slack with the bus on", () => {
     world.faux.setResponses(
       Array.from({ length: 12 }, () => (context: { messages: unknown[] }) => {
         const seen = JSON.stringify(context.messages)
-        const last = JSON.stringify(context.messages.at(-1))
+        const last = JSON.stringify(newest(context.messages))
         if (seen.includes("slack-thread")) return fauxAssistantMessage("quiet")
         if (last.includes("toolResult")) {
           results.push(last)
@@ -1026,7 +1034,7 @@ describe("a thread in Slack with the bus on", () => {
         })
       },
       (context) => {
-        result = JSON.stringify(context.messages.at(-1))
+        result = JSON.stringify(newest(context.messages))
         return fauxAssistantMessage("ok")
       },
     ])
@@ -1050,7 +1058,7 @@ describe("a thread in Slack with the bus on", () => {
     const turns: string[] = []
     world.faux.setResponses(
       Array.from({ length: 4 }, () => (context: { messages: unknown[] }) => {
-        turns.push(JSON.stringify(context.messages.at(-1)))
+        turns.push(JSON.stringify(newest(context.messages)))
         return fauxAssistantMessage("Not for me to answer.")
       }),
     )
@@ -1072,7 +1080,7 @@ describe("a thread in Slack with the bus on", () => {
     world.faux.setResponses(
       Array.from({ length: 6 }, () => (context: { messages: unknown[] }) => {
         const seen = JSON.stringify(context.messages)
-        const last = JSON.stringify(context.messages.at(-1))
+        const last = JSON.stringify(newest(context.messages))
         if (seen.includes("slack-thread")) {
           told.push(last)
           return fauxAssistantMessage("Nothing to send.")

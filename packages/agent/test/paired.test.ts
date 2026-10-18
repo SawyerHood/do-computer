@@ -180,6 +180,14 @@ function noisyPng(width: number, height: number): Uint8Array {
   ])
 }
 
+/**
+ * The newest message of a request that is not the prompt. A change to the prompt (what the
+ * agent is told about its computers, say) is sent as a system message after what came before
+ * it, so the very last message may be that and not the input that set the request going.
+ */
+const newest = (messages: readonly unknown[]) =>
+  messages.findLast((message) => (message as { role?: string }).role !== "system")
+
 const lastTool = (state: ChatState) =>
   state.messages.flatMap((m) => m.parts).findLast((part): part is ToolPart => part.type === "tool")!
 const useTool = (name: string, args: Record<string, string>) => [
@@ -805,7 +813,7 @@ describe("a computer asked for by a sub-agent through a main chat with the bus o
       Array.from({ length: 16 }, () => (context: { messages: unknown[] }) => {
         const seen = JSON.stringify(context.messages)
         const sub = seen.includes("You are working as a sub-agent")
-        turns.push({ sub, last: JSON.stringify(context.messages.at(-1)) })
+        turns.push({ sub, last: JSON.stringify(newest(context.messages)) })
         if (sub) {
           if (seen.includes("toolResult")) return fauxAssistantMessage(`Asked for ${name}.`)
           return tool("computers", { action: "request", name })

@@ -580,6 +580,14 @@ async function until<T>(
   }
 }
 
+/**
+ * The newest message of a request that is not the prompt. A change to the prompt (what the
+ * agent is told about its computers, say) is sent as a system message after what came before
+ * it, so the very last message may be that and not the input that set the request going.
+ */
+const newest = (messages: readonly unknown[]) =>
+  messages.findLast((message) => (message as { role?: string }).role !== "system")
+
 /** An agent with a main chat, and the bus switched as `bus` says. */
 async function setup(world: World, bus: boolean): Promise<ChatSummary> {
   await request(world, "/init", "POST", { ownerId: "user-1" })
@@ -608,7 +616,7 @@ function script(world: World, reply: (turn: Turn) => AssistantMessage | Promise<
       const seen = JSON.stringify(context.messages)
       const turn = {
         seen,
-        last: JSON.stringify(context.messages.at(-1)),
+        last: JSON.stringify(newest(context.messages)),
         sub: seen.includes("You are working as a sub-agent"),
         system: JSON.stringify(context.messages.filter((message) => message.role === "system")),
       }
