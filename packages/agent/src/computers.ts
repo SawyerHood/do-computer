@@ -22,8 +22,8 @@ import {
   createReadTool,
   createWriteTool,
 } from "@earendil-works/pi-durable/tools"
-import { ASKED_THROUGH_MAIN, askingThrough, canAsk } from "./bus.ts"
-import { ChatsDoc, IdentityDoc } from "./docs.ts"
+import { ASKED_THROUGH_MAIN, askingThrough, canAsk, eventText } from "./bus.ts"
+import { ChatsDoc, IdentityDoc, type SubagentRecord } from "./docs.ts"
 import { isInherited, own } from "./own.ts"
 import { readPreparedImage } from "./read-images.ts"
 
@@ -135,6 +135,11 @@ export type ComputerDirectory = {
     agentId: string,
     ask: { computerId: string; chatId: string; reason: string; agentName: string | null },
   ): Promise<{ asked: string; fresh: boolean } | undefined>
+  /**
+   * Take back what a chat of the agent asked for a computer, which nobody is to answer now: the
+   * chat was stopped, or waited too long. Absent: a request stays until someone answers it.
+   */
+  withdraw?(agentId: string, ask: { computerId: string; chatId: string }): Promise<void>
   /**
    * The machines of the agent's workspace that it can use right now. This is how an agent
    * catches up when it was not told of one. Absent where the host has no such machines.
@@ -724,6 +729,11 @@ export class Computers {
     )
     if (chat === undefined || conversation === undefined) return undefined
     const by = answer.by.replace(/\s+/g, " ").trim().slice(0, 80) || "Someone"
+    // A sub-agent that has stopped, or gave up waiting, is not set going again by a late answer:
+    // that would be a run with tools nobody started and nobody reads. It is written in its chat
+    // for the record, and its main chat is told instead, which decides.
+    const sub = chat.subagent
+    const over = sub !== undefined && sub.status !== "working" && sub.status !== "waiting"
     await conversation.submit(
       {
         type: "write",
@@ -744,11 +754,55 @@ export class Computers {
       },
       context,
     )
+    if (over) {
+      await this.#lateAnswer(sub, chat.title, answer, name, by, id, context)
+      return undefined
+    }
     return conversation.submit(
       {
         type: "input",
         requestId: `computer-turn:${answer.requestId}`,
         content: [{ type: "text", text: NUDGE }],
+        whenBusy: "followUp",
+      },
+      context,
+    )
+  }
+
+  /**
+   * Tell the main chat that a computer its sub-agent asked for was answered after the sub-agent
+   * had stopped, as an event keyed by the answer. Nobody else is told.
+   */
+  async #lateAnswer(
+    sub: SubagentRecord,
+    title: string,
+    answer: ComputerAnswer,
+    name: string,
+    by: string,
+    computerId: string,
+    context: Context,
+  ): Promise<void> {
+    const harness = this.#require()
+    const parent = await harness.conversation(Number(sub.parentId) as ConversationId, context)
+    if (parent === undefined) return
+    await parent.submit(
+      {
+        type: "input",
+        requestId: `computer-late:${answer.requestId}`,
+        content: [
+          {
+            type: "text",
+            text: eventText(
+              "computer-answered",
+              { subagent: title, computer: name, approved: answer.approved, by },
+              `${by} ${answer.approved ? "said yes" : "said no"} to the use of the computer "${name}", which your sub-agent "${title}" asked for. It has stopped, and was not told. ${answer.approved ? `You can use "${name}" yourself now; ` : ""}Decide whether anything needs doing.`,
+            ),
+          },
+        ],
+        entry: {
+          kind: COMPUTER_ENTRY,
+          data: { computerId, name, approved: answer.approved, by, late: title },
+        },
         whenBusy: "followUp",
       },
       context,
@@ -790,11 +844,26 @@ export class Computers {
   async withdrawFor(chatId: string, context: Context): Promise<void> {
     const harness = this.#require()
     const asked = (await harness.snapshot(ComputersDoc, context))?.asked ?? {}
-    if (!Object.values(asked).some((computer) => computer.chatId === chatId)) return
+    const mine = Object.entries(asked).filter(([, computer]) => computer.chatId === chatId)
+    if (mine.length === 0) return
+    // Taken back where it was asked, so that nobody is shown it to answer any more.
+    const withdraw = this.#directory?.lookup.withdraw
+    const gone = new Set<string>()
+    for (const [computerId] of mine) {
+      if (withdraw === undefined) continue
+      try {
+        await withdraw(this.#directory!.agentId, { computerId, chatId })
+        gone.add(computerId)
+      } catch (error) {
+        this.#options.onProblem?.(error)
+      }
+    }
     await harness.commit(async (tx) => {
       const state = await tx.doc(ComputersDoc)
-      for (const computer of Object.values(state.asked ?? {})) {
-        if (computer.chatId === chatId) delete computer.chatId
+      for (const [computerId, computer] of Object.entries(state.asked ?? {})) {
+        if (computer.chatId !== chatId) continue
+        if (gone.has(computerId)) delete state.asked![computerId]
+        else delete computer.chatId
       }
     }, context)
   }

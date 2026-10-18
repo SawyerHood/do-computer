@@ -525,6 +525,7 @@ function MessageView({
           <span>
             {part.by ?? "Someone"} {part.approved ? "said yes to" : "said no to"} using{" "}
             <span className="font-mono font-medium text-foreground">{part.text}</span>
+            {part.detail ? `, ${part.detail}` : null}
           </span>
         </div>
       )

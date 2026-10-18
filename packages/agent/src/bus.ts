@@ -86,6 +86,9 @@ export const EVENT_ENTRIES: ReadonlySet<string> = new Set([
   AUTOMATION_ENTRY,
   ASKED_ENTRY,
   SLACK_NOTE_ENTRY,
+  // `computers.ts`'s COMPUTER_ENTRY, by name, where it is told to the main chat: an answer to
+  // a sub-agent that had stopped.
+  "dc.computer-access",
 ])
 
 /** The tool the agent says something to the people in the chat with. */

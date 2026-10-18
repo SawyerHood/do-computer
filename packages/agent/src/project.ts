@@ -440,7 +440,8 @@ function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined 
     }
     case "dc.computer-access": {
       // The answer to the agent's asking to use a computer, in the chat it asked from.
-      const answer = entry.data as { name?: string; approved?: boolean; by?: string } | undefined
+      const answer = entry.data as
+        { name?: string; approved?: boolean; by?: string; late?: string } | undefined
       return {
         id,
         role: "notice",
@@ -451,6 +452,10 @@ function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined 
             text: answer?.name ?? "a computer",
             approved: answer?.approved === true,
             ...(answer?.by ? { by: answer.by } : {}),
+            // Told to the main chat, where the sub-agent that asked had stopped.
+            ...(answer?.late
+              ? { detail: `asked for by the sub-agent ${answer.late}, which had stopped` }
+              : {}),
           },
         ],
         status: "done",

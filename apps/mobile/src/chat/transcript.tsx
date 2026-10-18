@@ -227,6 +227,7 @@ function Notice({ part }: { part: NoticePart | undefined }) {
         <Text variant="subhead" tone="ink2">
           {part.by ?? "Someone"} {part.approved ? "said yes to" : "said no to"} using{" "}
           <Code>{part.text}</Code>
+          {part.detail ? `, ${part.detail}` : null}
         </Text>
       </NoticeLine>
     )

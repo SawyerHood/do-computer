@@ -763,28 +763,31 @@ export class Scheduler {
     let why: string | undefined = "It did not finish."
     // What it ended with: its answer, or, for a run that failed on the way to one, the last
     // thing it wrote.
-    const message =
-      status.status === "done" && status.type === "input"
-        ? (await harness.commit((tx) => tx.entry(AssistantEntry, status.answer), context))
-            ?.model?.[0]
-        : (
-            await (
-              await harness.conversation(Number(runChatId) as ConversationId, context)
-            )?.context(context)
-          )?.entries.findLast((entry) => entry.kind === "pi.assistant")?.model?.[0]
+    const answered = status.status === "done" && status.type === "input"
+    const message = answered
+      ? (await harness.commit((tx) => tx.entry(AssistantEntry, status.answer), context))?.model?.[0]
+      : (
+          await (
+            await harness.conversation(Number(runChatId) as ConversationId, context)
+          )?.context(context)
+        )?.entries.findLast((entry) => entry.kind === "pi.assistant")?.model?.[0]
     if (message?.role === "assistant") {
       text = message.content
         .flatMap((block) => (block.type === "text" ? [block.text] : []))
         .join("")
         .trim()
+      // A run with no answer did not finish, whatever its last words were: they may be on the
+      // way to a step, such as "Let me check the forecast". Why is only made more exact.
       why =
         message.stopReason === "error"
           ? `It did not finish: ${message.errorMessage ?? "the model could not be reached."}`
           : message.stopReason === "aborted"
             ? "It was stopped before it finished."
-            : text === ""
-              ? "It ended without saying anything."
-              : undefined
+            : !answered
+              ? why
+              : text === ""
+                ? "It ended without saying anything."
+                : undefined
     }
     const said =
       why === undefined ? text : text === "" ? why : `${why}\n\nWhat it wrote first:\n\n${text}`

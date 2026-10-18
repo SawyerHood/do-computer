@@ -497,6 +497,13 @@ main chat send).
     or archived thread is never touched. On the bus, a failed run says only "I could not finish"
     in Slack; why is in the app. A send's file keys are kept in a list of their own.
   - The echo model acts on `/tool` lines only in an automation's event.
+  - A late answer to a computer ask never sets a stopped, or given-up, sub-agent going: it is
+    written in its chat for the record, and its main chat gets a `computer-answered` event that
+    says the sub-agent has stopped. Stopping or giving up also takes the ask back where it was
+    made (`ComputerDirectory.withdraw`), so its card goes.
+  - A run with no answer is `failed` whatever its last words were; only why is made more exact.
+  - `tell_main` is refused once the bus is off, and a telling that failed still uses the one for
+    that message, which its error says.
 - **Not checked:** a real model reading the coordinator section and handing work over; a real
   Slack workspace (the tests use the fake directory); a computer request from a sub-agent end to
   end (it goes through the computer directory, which the unit tests do not have; the code path is

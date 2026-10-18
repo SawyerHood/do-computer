@@ -3300,6 +3300,11 @@ export class AgentActor implements Actor {
     const { chats, main } = (await harness.snapshot(ChatsDoc, c)) ?? { chats: {} }
     const thread = own(chats, told.chatId)
     if (thread?.slack === undefined) return "Only a thread in Slack tells the main conversation."
+    // Switched off while this thread was at work: the main chat has no bus to take it, nor the
+    // words on what comes from Slack.
+    if ((await harness.snapshot(IdentityDoc, c))?.bus !== true) {
+      return "The main conversation is not taking word from Slack now."
+    }
     if (main === undefined) return "There is no main conversation to tell."
     const conversation = await harness.conversation(Number(main) as ConversationId, c)
     if (conversation === undefined) return "There is no main conversation to tell."
@@ -3315,35 +3320,42 @@ export class AgentActor implements Actor {
       return true
     }, c)
     if (!allowed) {
-      return "You have already told your main conversation something since this message came. Wait for the next message from Slack: what you told it is with the people there."
+      return "You have already told your main conversation something since this message came, or tried to and it failed, which uses the one telling too. Wait for the next message from Slack."
     }
     const where = thread.slack.direct
       ? "a direct message"
       : thread.slack.channelName === null
         ? "a channel"
         : `#${thread.slack.channelName}`
-    await conversation.submit(
-      {
-        type: "input",
-        requestId: `slack-note:${told.chatId}:${told.callId}`,
-        content: [
-          {
-            type: "text",
-            text: eventText(
-              "slack-thread",
-              { thread: told.chatId, where, title: thread.title, from: "slack" },
-              told.text,
-            ),
+    try {
+      await conversation.submit(
+        {
+          type: "input",
+          requestId: `slack-note:${told.chatId}:${told.callId}`,
+          content: [
+            {
+              type: "text",
+              text: eventText(
+                "slack-thread",
+                { thread: told.chatId, where, title: thread.title, from: "slack" },
+                told.text,
+              ),
+            },
+          ],
+          entry: {
+            kind: SLACK_NOTE_ENTRY,
+            data: { chatId: told.chatId, where, title: thread.title, text: told.text },
           },
-        ],
-        entry: {
-          kind: SLACK_NOTE_ENTRY,
-          data: { chatId: told.chatId, where, title: thread.title, text: told.text },
+          whenBusy: "followUp",
         },
-        whenBusy: "followUp",
-      },
-      c,
-    )
+        c,
+      )
+    } catch (error) {
+      this.#options.onReport?.(error)
+      // The one telling for this message is spent all the same: erring that way keeps a Slack
+      // thread from waking the main chat more than once a message.
+      return "Telling your main conversation failed, and that used the one telling for this message. Wait for the next message from Slack."
+    }
     return undefined
   }
 
