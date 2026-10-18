@@ -581,6 +581,11 @@ export type ApprovalRequest = {
   chatId: string
   chatTitle: string
   chatKind: ChatKind
+  /**
+   * For a sub-agent's request: the first line of what it was asked to do, so that whoever
+   * answers can tell whether they expected it.
+   */
+  task?: string
   /** What it wants to do, such as "Run commands on studio-mac". */
   title: string
   /** The specifics: the command, the file, the arguments. */
@@ -623,9 +628,10 @@ export type SecretRequest = {
   chatId: string
   /**
    * The sub-agent that asked, where one did: it asks a person through the main chat, where the
-   * request is shown under its name, and the answer goes back to it.
+   * request is shown under its name, and the answer goes back to it. `task` is the first line of
+   * what it was asked to do, so that whoever answers can tell whether they expected it.
    */
-  subagent?: { title: string }
+  subagent?: { title: string; task: string }
   /** What the secrets are for, in the agent's words. */
   purpose: string | null
   fields: SecretField[]

@@ -10,7 +10,7 @@ import {
   type Harness,
   section,
 } from "@earendil-works/pi-durable"
-import { busOn, eventText } from "./bus.ts"
+import { busOn, eventBody, eventText } from "./bus.ts"
 import { ChatsDoc, IdentityDoc, type SubagentRecord } from "./docs.ts"
 import { parseModel } from "./models.ts"
 import { own } from "./own.ts"
@@ -57,6 +57,13 @@ const preamble = (title: string, asks = false) =>
   "Your final reply is sent back to the main conversation as your report, so make it complete and able to stand on its own: what you found or did, and anything left undone. " +
   "You cannot start sub-agents or change schedules from here.</meta>"
 
+/** How long a sub-agent waits for a person's answer before what it asked for is taken back. */
+export const ASK_TTL_MS = 24 * 60 * 60 * 1000
+
+/** What a sub-agent is told when nobody answered what it asked for in time. */
+const UNANSWERED =
+  '<meta kind="subagent">Nobody answered what you asked for within a day, so the request was taken back. Do not ask again: finish what you can without it, and say in your report what you could not do and why.</meta>'
+
 /** How many files and links a brief can point at. */
 const MAX_POINTERS = 20
 const MAX_POINTER_CHARS = 1_000
@@ -69,8 +76,9 @@ function pointers(
   files: readonly string[] | undefined,
   links: readonly string[] | undefined,
 ): string | SubagentError {
+  // Trimmed, and nothing more: two spaces in a row are part of a path.
   const clean = (list: readonly string[] | undefined) =>
-    (list ?? []).map((item) => item.replace(/\s+/g, " ").trim()).filter((item) => item !== "")
+    (list ?? []).map((item) => item.trim()).filter((item) => item !== "")
   const named = clean(files)
   const linked = clean(links)
   if (named.length + linked.length > MAX_POINTERS) {
@@ -78,6 +86,9 @@ function pointers(
   }
   if ([...named, ...linked].some((item) => item.length > MAX_POINTER_CHARS)) {
     return new SubagentError("A file's path or a link is too long.")
+  }
+  if ([...named, ...linked].some((item) => /[\r\n]/.test(item))) {
+    return new SubagentError("A file's path or a link is one line.")
   }
   for (const link of linked) {
     let url: URL | undefined
@@ -137,6 +148,13 @@ export type SubagentsOptions = {
   readonly running?: (chatId: string, context: Context) => Promise<boolean>
   /** Called when a sub-agent was stopped, so that what it was waiting on is not left asking. */
   readonly onStopped?: (chatId: string, context: Context) => Promise<void>
+  /**
+   * Take back what a sub-agent asked a person for, when nobody answered in time. Absent: what it
+   * asked for is left waiting.
+   */
+  readonly withdraw?: (chatId: string, context: Context) => Promise<void>
+  /** How long it waits for an answer before that. Default ASK_TTL_MS. */
+  readonly askTtlMs?: number
   /** Called when word of a sub-agent has been sent to its parent chat. */
   readonly onReport?: (report: SubagentReport) => void
   /** Called when what is kept of a sub-agent has changed, such as whether it is at work. */
@@ -198,6 +216,21 @@ export class Subagents {
       .map(([id, chat]) => ({ id, title: chat.title, parentId, status: chat.subagent!.status }))
   }
 
+  /**
+   * When a sub-agent waiting for a person's answer will have waited too long, the soonest, or
+   * null: the agent wakes then to take the request back.
+   */
+  async nextWake(context: Context): Promise<number | null> {
+    const chats = (await this.#require().snapshot(ChatsDoc, context))?.chats ?? {}
+    const ttl = this.#options.askTtlMs ?? ASK_TTL_MS
+    let next: number | null = null
+    for (const chat of Object.values(chats)) {
+      const since = chat.subagent?.status === "waiting" ? chat.subagent.waitingSince : undefined
+      if (since !== undefined && (next === null || since + ttl < next)) next = since + ttl
+    }
+    return next
+  }
+
   /** Whether any sub-agent is at work, and so has a report still to come. */
   async working(context: Context): Promise<boolean> {
     const chats = (await this.#require().snapshot(ChatsDoc, context))?.chats ?? {}
@@ -243,7 +276,7 @@ export class Subagents {
           ).length
           if (working >= MAX_WORKING_SUBAGENTS) {
             throw new SubagentError(
-              `There are already ${MAX_WORKING_SUBAGENTS} sub-agents at work. Wait for one to report, or stop one.`,
+              `There are already ${MAX_WORKING_SUBAGENTS} sub-agents at work. Wait for one to report, or stop one: one that is waiting for a person's answer can be stopped too, and what it asked for is taken back.`,
             )
           }
           chats[String(conversationId)] = {
@@ -384,9 +417,10 @@ export class Subagents {
       // agent, or the user's answer to something it asked for.
       const inspection = await harness.inspect(context)
       if (inspection.submissions.some((entry) => String(entry.conversationId) === id)) {
-        if (subagent.status !== "working") {
+        if (subagent.status !== "working" || subagent.waitingSince !== undefined) {
           await this.#change(id, context, (stored) => {
             stored.status = "working"
+            delete stored.waitingSince
           })
         }
         this.#watch(id, conversation, context)
@@ -418,10 +452,39 @@ export class Subagents {
     if (await this.#options.running?.(id, context)) return
     // It stopped to ask the user for something. Their answer sets it going again.
     if (await this.#options.waiting(id, context)) {
-      if (subagent.status !== "waiting") {
+      const now = this.#options.now()
+      const since = subagent.waitingSince
+      if (subagent.status !== "waiting" || since === undefined) {
         await this.#change(id, context, (stored) => {
           stored.status = "waiting"
+          stored.waitingSince ??= now
         })
+        return
+      }
+      // Nobody answered in time. What it asked for is taken back, and it carries on without and
+      // reports, rather than hold a place among those at work for ever.
+      const ttl = this.#options.askTtlMs ?? ASK_TTL_MS
+      if (this.#options.withdraw !== undefined && now - since >= ttl) {
+        await this.#options.withdraw(id, context)
+        const conversation = await this.#require().conversation(
+          Number(id) as ConversationId,
+          context,
+        )
+        await conversation?.submit(
+          {
+            type: "input",
+            requestId: `subagent-unanswered:${id}:${since}`,
+            content: [{ type: "text", text: UNANSWERED }],
+            whenBusy: "followUp",
+          },
+          context,
+        )
+        await this.#change(id, context, (stored) => {
+          stored.status = "working"
+          delete stored.waitingSince
+        })
+        // Looked at again once this look is over, to watch it carry on.
+        void this.tick()
       }
       return
     }
@@ -483,7 +546,8 @@ export class Subagents {
       const event = eventText(
         "subagent-report",
         { id, title, ...(outcome === "reported" ? {} : { outcome }) },
-        outcome === "stopped" ? "The user stopped it before it had finished." : text,
+        // Long, it is cut short, with where the rest is.
+        outcome === "stopped" ? "The user stopped it before it had finished." : eventBody(text, id),
       )
       if (outcome === "stopped") {
         await parent.submit(

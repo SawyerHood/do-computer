@@ -186,7 +186,9 @@ export class Secrets {
         const through = askingThrough(chats, request.chatId)
         return {
           ...shown({ id, ...request }),
-          ...(through === undefined ? {} : { subagent: { title: through.title } }),
+          ...(through === undefined
+            ? {}
+            : { subagent: { title: through.title, task: through.task } }),
         }
       })
       .sort((a, b) => a.createdAt - b.createdAt)

@@ -162,7 +162,7 @@ function asked(text: string): { name: string; args: string }[] | undefined {
  * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
  * that tool and then report the result (several such lines make it call them all in one round),
  * and `/fail <error>` makes the reply fail with that error, the way a model provider's would. An
- * event's lines of that form are called in the same way.
+ * automation's result's lines of that form are called in the same way.
  * A tool it is not offered yet, as a connector's is not, it looks for first, as a model would.
  */
 function echoAnswer(context: EchoContext) {
@@ -174,10 +174,10 @@ function echoAnswer(context: EchoContext) {
     (message) => message.role === "user" && blockText(message.content) !== "",
   )
   const text = blockText(user?.content)
-  // An event is answered as what it carries asks: a line in it of the form `/tool …`, as the
-  // result of a scheduled run can have, is called, so that a main chat on the bus can be tried
-  // reacting to one.
-  const carried = text.startsWith("<event ")
+  // An automation's result is answered as what it carries asks: a line in it of the form
+  // `/tool …` is called, so that a main chat on the bus can be tried reacting to one. Only that
+  // event: the others carry what came from outside, such as a page or a thread in Slack.
+  const carried = text.startsWith('<event kind="automation"')
     ? text
         .split("\n")
         .filter((line) => /^\/tool\s+\w+\s+\{.*\}\s*$/.test(line))

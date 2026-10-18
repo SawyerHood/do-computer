@@ -43,6 +43,8 @@ const WORKING_EVERY_MS = 60_000
 const MAX_FILES = 5
 /** How many of a thread's messages and sent files are remembered as dealt with. */
 const MAX_REMEMBERED = 50
+/** How many files of sends, on the bus, are remembered as posted. */
+const MAX_SENT_FILES = 200
 
 /** A file attached to a message in Slack. */
 export type SlackFile = {
@@ -769,7 +771,11 @@ export class SlackChats {
     } else if (last === undefined || last.id !== slack.replied) {
       if (last?.status === "error") {
         status = "failed"
-        text = `Something went wrong, and I could not answer: ${last.error ?? "the model could not be reached."}`
+        // On the bus it may have answered already, and why is for the app: a provider's error
+        // can say more than a channel should read.
+        text = bus
+          ? "Something went wrong, and I could not finish."
+          : `Something went wrong, and I could not answer: ${last.error ?? "the model could not be reached."}`
       } else if (last?.status === "aborted") {
         status = "stopped"
         text = "I was interrupted before I had finished."
@@ -827,7 +833,9 @@ export class SlackChats {
   ): Promise<string[] | "later"> {
     const { agentId, directory, contents } = this.#options
     if (directory.upload === undefined || contents === undefined) return []
-    const posted = new Set(slack.files ?? [])
+    // A send's files, posted as it was made, are drawn as sent files too: switched off, the bus
+    // has left them posted already.
+    const posted = new Set([...(slack.files ?? []), ...(slack.sentFiles ?? [])])
     const missed: string[] = []
     // A visual is drawn in the app's chat. Slack has nowhere to draw it, so it goes as the file.
     const parts = (state?.messages ?? []).flatMap((message) =>
@@ -912,7 +920,7 @@ export class SlackChats {
     const slack = own((await harness.snapshot(ChatsDoc, context))?.chats, sent.chatId)?.slack
     if (slack === undefined) return "This conversation is not a thread in Slack."
     const place = { channel: slack.channel, thread: slack.thread }
-    const done = new Set([...(slack.files ?? []), ...(slack.sent ?? [])])
+    const done = new Set([...(slack.sentFiles ?? []), ...(slack.sent ?? [])])
     const missed: string[] = []
     for (const [index, file] of sent.files.entries()) {
       const key = `${sent.callId}:file${index}`
@@ -933,7 +941,7 @@ export class SlackChats {
       // One that cannot be posted is let go, and the thread is told it is missing.
       if (!uploaded) missed.push(file.name)
       await this.#change(sent.chatId, context, (stored) => {
-        stored.files = [...(stored.files ?? []), key].slice(-MAX_REMEMBERED)
+        stored.sentFiles = [...(stored.sentFiles ?? []), key].slice(-MAX_SENT_FILES)
       })
     }
     if (done.has(sent.callId)) return undefined

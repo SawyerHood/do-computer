@@ -117,6 +117,11 @@ export type SubagentRecord = {
   reports: number
   /** Who asked for it to be stopped, until it has been. */
   stopping?: "user" | "agent"
+  /**
+   * When it began waiting for a person's answer to what it asked for, while it waits. Nobody
+   * answering within a day takes the request back, and it carries on without.
+   */
+  waitingSince?: number
 }
 
 /** What is kept about a conversation with another agent, on its chat. */
@@ -179,6 +184,17 @@ export type SlackRecord = {
    * call made again posts nothing twice.
    */
   sent?: string[]
+  /**
+   * With the bus on: the files of those sends that have been posted, as `<call id>:file<n>`.
+   * Kept apart from `files`, so that many of them cannot push out what says a page it drew was
+   * posted.
+   */
+  sentFiles?: string[]
+  /**
+   * With the bus on: the last time it told the main chat something with `tell_main`, as the
+   * message from Slack it was working on (`woken`) and the call that told it. Once for each.
+   */
+  toldMain?: { woken: number; callId: string }
   /** Set when someone asked for it to be stopped, until it has been. */
   stopping?: true
   /** How many times in a row an answer could not be posted. */

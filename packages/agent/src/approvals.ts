@@ -17,7 +17,14 @@ import {
   hook,
   ToolTask,
 } from "@earendil-works/pi-durable"
-import { APPROVAL_ENTRY, ASKED_THROUGH_MAIN, askingThrough, busOn, eventText } from "./bus.ts"
+import {
+  APPROVAL_ENTRY,
+  ASKED_THROUGH_MAIN,
+  askingThrough,
+  busOn,
+  eventText,
+  taskLine,
+} from "./bus.ts"
 import { type Caller, sentMeta } from "./caller.ts"
 import { ChatsDoc } from "./docs.ts"
 import { ComputersDoc } from "./computers.ts"
@@ -696,6 +703,9 @@ export class Approvals {
         chatId: request.chatId,
         chatTitle: own(chats, request.chatId)?.title ?? "A chat",
         chatKind: own(chats, request.chatId)?.kind ?? "chat",
+        ...(own(chats, request.chatId)?.subagent === undefined
+          ? {}
+          : { task: taskLine(own(chats, request.chatId)!.subagent!.task) }),
         title: request.title,
         detail: request.detail,
         createdAt: request.createdAt,

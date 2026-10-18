@@ -16,7 +16,7 @@ import {
   type Harness,
   type SubmissionRecord,
 } from "@earendil-works/pi-durable"
-import { AUTOMATION_ENTRY, eventText } from "./bus.ts"
+import { AUTOMATION_ENTRY, eventBody, eventText } from "./bus.ts"
 import { ChatsDoc, IdentityDoc, type ScheduleRecord, SchedulesDoc } from "./docs.ts"
 import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone, nextRunAt, parseSchedule } from "./schedule.ts"
@@ -705,7 +705,9 @@ export class Scheduler {
         continue
       }
       let outcome: NonNullable<ScheduleRecord["lastRun"]>["outcome"] = "failed"
-      if (pending.bus === true) {
+      // Started on the bus and reporting with it still on. A run started on the bus whose agent
+      // has had it switched off since is delivered as runs are without it, and people are told.
+      if (pending.bus === true && identity?.bus === true) {
         outcome = await this.#report(id, record.title, runChatId, pending.firedAt, status, context)
       } else if (status.status === "done" && status.type === "input") {
         const answer = await harness.commit(
@@ -756,28 +758,43 @@ export class Scheduler {
     const harness = this.#require()
     const now = this.#options.now()
     let text = ""
-    let why = "It did not finish."
-    if (status.status === "done" && status.type === "input") {
-      const answer = await harness.commit((tx) => tx.entry(AssistantEntry, status.answer), context)
-      const message = answer?.model?.[0]
-      if (message?.role === "assistant") {
-        text = message.content
-          .flatMap((block) => (block.type === "text" ? [block.text] : []))
-          .join("")
-          .trim()
-        if (message.stopReason === "error") {
-          why = `It did not finish: ${message.errorMessage ?? "the model could not be reached."}`
-        } else if (message.stopReason === "aborted") why = "It was stopped before it finished."
-        else why = "It ended without saying anything."
-      }
+    // Why it failed, where it did. A run that wrote something and then failed or was stopped
+    // failed all the same, and what it wrote comes after why.
+    let why: string | undefined = "It did not finish."
+    // What it ended with: its answer, or, for a run that failed on the way to one, the last
+    // thing it wrote.
+    const message =
+      status.status === "done" && status.type === "input"
+        ? (await harness.commit((tx) => tx.entry(AssistantEntry, status.answer), context))
+            ?.model?.[0]
+        : (
+            await (
+              await harness.conversation(Number(runChatId) as ConversationId, context)
+            )?.context(context)
+          )?.entries.findLast((entry) => entry.kind === "pi.assistant")?.model?.[0]
+    if (message?.role === "assistant") {
+      text = message.content
+        .flatMap((block) => (block.type === "text" ? [block.text] : []))
+        .join("")
+        .trim()
+      why =
+        message.stopReason === "error"
+          ? `It did not finish: ${message.errorMessage ?? "the model could not be reached."}`
+          : message.stopReason === "aborted"
+            ? "It was stopped before it finished."
+            : text === ""
+              ? "It ended without saying anything."
+              : undefined
     }
-    const outcome = text === "" ? "failed" : "reported"
-    const said = outcome === "reported" ? text : why
+    const said =
+      why === undefined ? text : text === "" ? why : `${why}\n\nWhat it wrote first:\n\n${text}`
     const mainId = (await harness.snapshot(ChatsDoc, context))?.main
     const main =
       mainId === undefined
         ? undefined
         : await harness.conversation(Number(mainId) as ConversationId, context)
+    // Told to nobody, where there is no main chat to tell, it did not report.
+    const outcome = why === undefined && main !== undefined ? "reported" : "failed"
     if (main !== undefined) {
       await main.submit(
         {
@@ -793,7 +810,8 @@ export class Scheduler {
                   title,
                   ...(outcome === "reported" ? {} : { outcome }),
                 },
-                said,
+                // Long, it is cut short, with where the rest is.
+                eventBody(said, runChatId),
               ),
             },
           ],

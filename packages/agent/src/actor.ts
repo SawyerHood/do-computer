@@ -337,6 +337,13 @@ export type AgentActorOptions = {
    */
   readonly slackDirectory?: SlackDirectory
   /**
+   * How long a sub-agent waits for a person's answer to what it asked for before it is taken
+   * back. Default a day. For tests.
+   */
+  readonly subagentAskTtlMs?: number
+  /** How long to wait before posting to Slack again, after the `n`th failure in a row. For tests. */
+  readonly slackRetryMs?: (n: number) => number
+  /**
    * A browser the server has, which draws a page for the agent to look at before it shows it
    * to the person: Cloudflare's on a Worker, a Chrome on the machine under Node. Without one,
    * the agent has no such tool and draws without looking.
@@ -844,7 +851,7 @@ export class AgentActor implements Actor {
             ? `a login for ${request.destination.site}`
             : request.destination.kind === "connector"
               ? `the access token of the connector ${request.destination.name}`
-              : `the secrets ${request.fields.map((field) => field.name).join(", ")}`,
+              : `${request.fields.length === 1 ? "the secret" : "the secrets"} ${request.fields.map((field) => field.name).join(", ")}`,
           request.purpose,
           `secret:${request.id}`,
         )
@@ -1009,9 +1016,17 @@ export class AgentActor implements Actor {
         (await this.#secrets.waitingIn(chatId, c)) ||
         (await this.#computers.waitingIn(chatId, c)),
       running: (chatId, c) => this.#jobs.waiting(chatId, c),
+      // Nobody answered what it asked for in time: it is taken back, everywhere it was asked.
+      withdraw: async (chatId, c) => {
+        await this.#approvals.withdraw(chatId, c)
+        await this.#secrets.withdraw(chatId, c)
+        await this.#computers.withdrawFor(chatId, c)
+      },
+      ...(options.subagentAskTtlMs === undefined ? {} : { askTtlMs: options.subagentAskTtlMs }),
       onStopped: async (chatId, c) => {
         await this.#approvals.withdraw(chatId, c)
         await this.#secrets.withdraw(chatId, c)
+        await this.#computers.withdrawFor(chatId, c)
         // What a stopped sub-agent left running would only set it going again.
         await this.#jobs.stopFor(chatId, c)
       },
@@ -1048,6 +1063,7 @@ export class AgentActor implements Actor {
         : new SlackChats({
             agentId: host.name,
             directory: options.slackDirectory,
+            ...(options.slackRetryMs === undefined ? {} : { retryMs: options.slackRetryMs }),
             now: () => host.now(),
             context,
             chat: (chatId) => this.#chatState(chatId),
@@ -1058,7 +1074,7 @@ export class AgentActor implements Actor {
             // Set up for the bus, or back from it, before a message is given to it.
             prepare: async (chatId, c) => {
               const harness = await this.#open()
-              await this.#syncBus(harness)
+              await this.#syncBus(harness, chatId)
               return busOn(harness, chatId, c)
             },
             keep: (file) => this.#library.keep(file),
@@ -1595,7 +1611,9 @@ export class AgentActor implements Actor {
     const tasks = await this.#scheduler.nextWake(context)
     const calls = await this.#calls.nextWake()
     const idle = await this.#idle.nextWake()
-    const scheduled = [tasks, calls, idle].reduce<number | null>(
+    // A sub-agent waiting too long for an answer has what it asked for taken back.
+    const unanswered = await this.#subagents.nextWake(context)
+    const scheduled = [tasks, calls, idle, unanswered].reduce<number | null>(
       (soonest, at) => (at === null ? soonest : soonest === null ? at : Math.min(soonest, at)),
       null,
     )
@@ -3087,15 +3105,18 @@ export class AgentActor implements Actor {
    * selects what every chat does, after a mark that says so. A chat that is already as the
    * switch says is left alone, so this is called wherever the two could differ: when the switch
    * is changed, when the main chat is settled on, and before a person's message is given to it.
+   * `thread` is a thread in Slack about to be given a message, which is set up the same way.
    */
-  #syncBus(harness: Harness): Promise<void> {
+  #syncBus(harness: Harness, thread?: string): Promise<void> {
     const run = async () => {
       const on = (await harness.snapshot(IdentityDoc, context))?.bus === true
       const { chats, main } = (await harness.snapshot(ChatsDoc, context)) ?? { chats: {} }
       // A chat that was the main one and is no longer has the bus taken off it: it is the main
-      // chat's, and the threads in Slack's, alone.
+      // chat's, and the threads in Slack's, alone. A thread in Slack follows the switch when it
+      // is next given a message (`thread`), and not before: most are long over.
       for (const [id, record] of Object.entries(chats)) {
-        const wanted = on && (id === main || record.kind === "slack")
+        if (record.kind === "slack" && id !== thread) continue
+        const wanted = on && (id === main || id === thread)
         if ((record.bus === true) !== wanted) {
           await this.#switchBus(harness, id, record, wanted)
         }
@@ -3282,6 +3303,20 @@ export class AgentActor implements Actor {
     if (main === undefined) return "There is no main conversation to tell."
     const conversation = await harness.conversation(Number(main) as ConversationId, c)
     if (conversation === undefined) return "There is no main conversation to tell."
+    // Once for each message from Slack: anyone there can ask a thread to, and each time is a
+    // turn of the main chat's. The same call, made again after a restart, is the same telling.
+    const woken = thread.slack.woken ?? 0
+    const allowed = await harness.commit(async (tx) => {
+      const slack = own((await tx.doc(ChatsDoc)).chats, told.chatId)?.slack
+      if (slack === undefined) return false
+      const last = slack.toldMain
+      if (last !== undefined && last.woken === woken && last.callId !== told.callId) return false
+      slack.toldMain = { woken, callId: told.callId }
+      return true
+    }, c)
+    if (!allowed) {
+      return "You have already told your main conversation something since this message came. Wait for the next message from Slack: what you told it is with the people there."
+    }
     const where = thread.slack.direct
       ? "a direct message"
       : thread.slack.channelName === null

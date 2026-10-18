@@ -783,6 +783,22 @@ export class Computers {
     }, context)
   }
 
+  /**
+   * Forget that a chat waits for an answer about a computer, when its work was stopped or nobody
+   * answered in time. The people asked may still answer; their answer then reaches the chat.
+   */
+  async withdrawFor(chatId: string, context: Context): Promise<void> {
+    const harness = this.#require()
+    const asked = (await harness.snapshot(ComputersDoc, context))?.asked ?? {}
+    if (!Object.values(asked).some((computer) => computer.chatId === chatId)) return
+    await harness.commit(async (tx) => {
+      const state = await tx.doc(ComputersDoc)
+      for (const computer of Object.values(state.asked ?? {})) {
+        if (computer.chatId === chatId) delete computer.chatId
+      }
+    }, context)
+  }
+
   /** Whether a chat asked to use a computer and has not been answered. */
   async waitingIn(chatId: string, context: Context): Promise<boolean> {
     const asked = (await this.#require().snapshot(ComputersDoc, context))?.asked ?? {}
@@ -982,16 +998,18 @@ export class Computers {
           agentName: identity?.name ?? null,
         })
         if (asked === undefined) return fail(`There is no computer named "${args.name}" any more.`)
+        // Only the chat that asked first waits for the answer, which goes to it.
         await this.#noteAsked(
           [...named.filter((other) => other.asked && !other.connected), computer],
           context,
-          { id: computer.id, chatId },
+          asked.fresh ? { id: computer.id, chatId } : undefined,
         )
         if (asked.fresh) {
+          // Keyed by the call, which is the same call if it is made again.
           this.#options.onAsked?.({
             chatId,
             computer: computer.name,
-            requestKey: `${computer.id}:${chatId}:${Date.now()}`,
+            requestKey: `${computer.id}:${api.callId}`,
           })
         }
         return reply(
