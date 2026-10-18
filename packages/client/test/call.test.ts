@@ -251,6 +251,51 @@ describe("a call", () => {
     await call.caller.end()
   })
 
+  it("answers two things handed on in one run with what that run sent", async () => {
+    const call = setUp("codex")
+    await call.caller.start(agent, "main")
+    call.voice({ type: "session.started" })
+    const handOn = (id: string, text: string) =>
+      call.voice({
+        type: "delegation.created",
+        item: { id, target: "client", content: [{ type: "input_text", text }] },
+      })
+    handOn("d1", "What is in my calendar?")
+    await vi.waitFor(() => expect(call.work).toHaveLength(1))
+    handOn("d2", "And tomorrow?")
+    await vi.waitFor(() => expect(call.work).toHaveLength(2))
+    const spoken = (index: number) =>
+      ({ spoken: { call: "call-1", request: call.work[index]!.requestId } }) as Partial<ChatMessage>
+    // The second joined the run answering the first, which sent once, after both.
+    call.chat({
+      ...EMPTY_CHAT,
+      messages: [
+        say("user", "What is in my calendar?", spoken(0)),
+        say("user", "And tomorrow?", spoken(1)),
+        say("assistant", "Lunch with Sam at one, and nothing tomorrow."),
+      ],
+    })
+    const answers = call.sent
+      .map(
+        (event) =>
+          JSON.parse(event) as {
+            type: string
+            channel?: string
+            delegation_item_id?: string
+            content?: { text: string }[]
+          },
+      )
+      .filter(
+        (event) => event.type === "delegation.context.append" && event.channel === "speakable",
+      )
+    expect(answers.map((event) => [event.delegation_item_id, event.content?.[0]?.text])).toEqual([
+      ["d1", "Lunch with Sam at one, and nothing tomorrow."],
+      ["d2", "Lunch with Sam at one, and nothing tomorrow."],
+    ])
+    expect(call.caller.getState().call?.works.map((work) => work.done)).toEqual([true, true])
+    await call.caller.end()
+  })
+
   it("mutes the microphone and says so, and hears again when unmuted", async () => {
     const call = setUp("openai")
     await call.caller.start(agent, "main")

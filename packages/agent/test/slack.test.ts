@@ -30,6 +30,7 @@ import {
 } from "../src/index.ts"
 import { fakeMcp } from "./fake-mcp.ts"
 import { quietOnReminder, sent as sending } from "./quiet.ts"
+import { chatRecord, inStore, seedChat, wakeSoon } from "./seed.ts"
 
 const AGENT = "agent-1"
 
@@ -1110,5 +1111,52 @@ describe("a thread in Slack, which is a bus", () => {
     const notice = state.messages.flatMap((one) => one.parts).find((part) => part.type === "notice")
     expect(notice).toMatchObject({ kind: "slack", text: "#launch", chatId })
     expect(world.posts.map((post) => post.text)).toEqual(["I have let them know."])
+  })
+})
+
+describe("a thread in Slack from before it was a bus", () => {
+  it("posts the last reply of a run that was in hand, as it was then", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "dc-slack-"))
+    let world = open(folder)
+    await call(world, "/init", "POST", { ownerId: "user-1" })
+    await world.namespace.close()
+    // A thread whose run came to an end, with its answer not yet posted, before every thread
+    // was a bus: it was told its last reply is posted, and had no `send`.
+    const thread = await inStore(folder, AGENT, (harness) =>
+      seedChat(
+        harness,
+        chatRecord("slack", "Launch question", {
+          slack: {
+            channel: "C1",
+            channelName: "launch",
+            direct: false,
+            thread: "1700000000.000100",
+            url: null,
+            status: "working",
+            replied: null,
+            replies: 0,
+            woken: 1,
+          },
+        }),
+        [
+          { kind: "pi.user", said: "When is the launch?" },
+          { kind: "pi.assistant", model: [fauxAssistantMessage("The launch is on Friday.")] },
+        ],
+      ),
+    )
+    wakeSoon(folder, AGENT)
+    world = open(folder)
+    await posted(world, 1)
+    expect(world.posts).toMatchObject([
+      { channel: "C1", thread: "1700000000.000100", text: "The launch is on Friday." },
+    ])
+    const [after] = await until(
+      () => threads(world),
+      (all) => all[0]?.status === "done",
+    )
+    expect(after).toMatchObject({ id: thread, status: "done" })
+    // Posted once.
+    await call(world, "/")
+    expect(world.posts).toHaveLength(1)
   })
 })

@@ -22,7 +22,13 @@ import {
 import { afterEach, describe, expect, it } from "vitest"
 import type { ChatsState, SchedulesState } from "../src/docs.ts"
 import { createAgentActor } from "../src/index.ts"
-import { type JournalState, parseReview, recentActivity, recordDone } from "../src/journal.ts"
+import {
+  type JournalState,
+  NOTHING_AROUND,
+  parseReview,
+  recentActivity,
+  recordDone,
+} from "../src/journal.ts"
 import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
@@ -295,6 +301,40 @@ describe("what goes on around a chat", () => {
     expect(journal.done.map((done) => done.outcome)).toEqual(["Tuesday.", "Answered again."])
   })
 
+  it("knows a schedule's runs by its id, whatever it is called by now", () => {
+    const journal: JournalState = { notes: {}, done: [] }
+    // From before ids were kept, known by its title.
+    recordDone(journal, chats, { chatId: "3", title: "Morning digest", outcome: "Monday.", at: 2 })
+    const renamed: ChatsState = {
+      ...chats,
+      chats: { ...chats.chats, "8": chat("schedule", "News at nine") },
+    }
+    recordDone(journal, chats, {
+      chatId: "4",
+      title: "Morning digest",
+      outcome: "Tuesday.",
+      at: 3,
+      schedule: "ab12",
+    })
+    recordDone(journal, renamed, {
+      chatId: "8",
+      title: "News at nine",
+      outcome: "Wednesday.",
+      at: 4,
+      schedule: "ab12",
+    })
+    expect(journal.done.map((done) => [done.schedule, done.outcome])).toEqual([
+      ["ab12", "Wednesday."],
+    ])
+    // Its last run is shown under the title it has now.
+    const named = {
+      schedules: { ab12: { ...schedules.schedules.ab12!, title: "News at nine" } },
+    } as SchedulesState
+    expect(recentActivity(journal, renamed, "7", null, named)).toContain(
+      '"News at nine" (schedule ab12), 0 9 * * *; last run',
+    )
+  })
+
   it("is the sub-agents at work, the automations and the threads in Slack, and no side chat", () => {
     const journal: JournalState = {
       notes: {
@@ -310,8 +350,10 @@ describe("what goes on around a chat", () => {
     expect(shown).toContain("Sub-agents at work:")
     expect(shown).toContain('Your sub-agent "Research" (chat 5), at work')
     expect(shown).not.toContain("Old errand")
-    expect(shown).toContain('"Morning digest" (schedule ab12), 0 9 * * *; last run')
-    expect(shown).toContain(": Tuesday.")
+    // The main chat was told of each run as it happened: it is not told again here, so that the
+    // section does not change with every run.
+    expect(shown).toContain('"Morning digest" (schedule ab12), 0 9 * * *\n')
+    expect(shown).not.toContain("Tuesday.")
     expect(shown).toContain("Threads in Slack with something open")
     expect(shown).toContain(
       'A Slack thread in #launch, "Launch question" (chat 7), waiting for an answer from a person',
@@ -326,16 +368,20 @@ describe("what goes on around a chat", () => {
     expect(thread).toContain("Where your main chat (chat 1) stands")
     expect(thread).toContain("Planning the launch.")
     expect(thread).not.toContain("Launch question")
-    // A sub-agent is told nothing, and where nothing goes on, nothing is said.
+    // And what each automation last came to.
+    expect(thread).toContain('"Morning digest" (schedule ab12), 0 9 * * *; last run')
+    expect(thread).toContain(": Tuesday.")
+    // A sub-agent is told nothing. Where nothing goes on, that is said, under the same header.
     expect(recentActivity(journal, chats, "5", null)).toBeUndefined()
-    expect(
-      recentActivity(
-        { notes: {}, done: [] },
-        { main: "1", chats: { "1": chat("chat", "Main") } },
-        "1",
-        null,
-      ),
-    ).toBeUndefined()
+    const quiet = recentActivity(
+      { notes: {}, done: [] },
+      { main: "1", chats: { "1": chat("chat", "Main") } },
+      "1",
+      null,
+    )!
+    expect(quiet.split("\n")[0]).toBe(shown.split("\n")[0])
+    expect(quiet).toContain(NOTHING_AROUND)
+    expect(shown).not.toContain(NOTHING_AROUND)
   })
 
   it("reads a small model's answer through the words around it", () => {

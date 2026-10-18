@@ -21,6 +21,7 @@ import {
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
 import { quietOnReminder, sent } from "./quiet.ts"
+import { entriesOf, inStore } from "./seed.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -173,7 +174,8 @@ const NUDGED = "subagent-report"
 
 describe("sub-agents", () => {
   it("works in a chat of its own, reports back, and gives the agent a turn", async () => {
-    const world = open(temporary())
+    const directory = temporary()
+    const world = open(directory)
     const chat = await setup(world)
     const turns = script(world, (turn) => {
       if (turn.sub) {
@@ -257,6 +259,36 @@ describe("sub-agents", () => {
       { type: "text", text: "Also check Sunday." },
     ])
     expect(world.errors).toEqual([])
+
+    // Through two sub-agents' coming and going, what the main chat is shown of what goes on
+    // around it changed in place, by small patches: never every section taken away and sent
+    // again, which a section that came and went would have needed.
+    await world.namespace.close()
+    const prompts = await inStore(directory, "agent-1", async (harness) =>
+      (await entriesOf(harness, chat.id)).flatMap((entry) =>
+        entry.kind === "pi.system"
+          ? (entry.model ?? []).map(
+              (message) =>
+                ((message as { sections?: Record<string, string | null> }).sections ??
+                  {}) as Record<string, string | null>,
+            )
+          : [],
+      ),
+    )
+    const recent = prompts.flatMap((sections) =>
+      sections.recent === undefined ? [] : [sections.recent],
+    )
+    // Shown first with nothing around, then the sub-agent at work, then nothing again, twice.
+    expect(recent.length).toBeGreaterThanOrEqual(3)
+    expect(recent).not.toContain(null)
+    expect(recent.at(-1)).toContain("Nothing is at work around this conversation.")
+    expect(recent.some((text) => text?.includes('Your sub-agent "Flights"'))).toBe(true)
+    // After the first, no entry takes away more than one section.
+    for (const sections of prompts.slice(1)) {
+      expect(Object.values(sections).filter((value) => value === null).length).toBeLessThanOrEqual(
+        1,
+      )
+    }
   })
 
   it("is read and not written in by the user, who can stop it", async () => {
