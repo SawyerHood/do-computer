@@ -306,7 +306,8 @@ export async function readHistory(
   if (conversation === undefined) throw new HistoryError("There is no such chat.")
   const limit = Math.max(1, Math.min(options.limit ?? DEFAULT_HISTORY_PAGE, MAX_HISTORY_PAGE))
   // A side chat's own messages begin after the ones it carries from the chat it branched off.
-  const fork = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)?.fork
+  const record = own((await harness.snapshot(ChatsDoc, context))?.chats, chatId)
+  const fork = record?.fork
   const bounds = fork === undefined ? {} : { minEntryId: (fork.at + 1) as EntryId }
   let maxEntryId: EntryId | undefined
   if (options.before !== undefined) {
@@ -336,8 +337,11 @@ export async function readHistory(
     if (entries.at(-1)?.kind !== "pi.tool-result") break
   }
   entries.reverse()
+  // Whether the bus was on where the page begins, from where it was last switched before then.
+  const first = entries[0] === undefined ? 0 : Number(entries[0].id)
+  const bus = record?.busMarks?.findLast((mark) => mark.at < first)?.on === true
   return {
-    messages: projectPast(entries),
+    messages: projectPast(entries, bus),
     before: more && entries.length > 0 ? String(entries[0]!.id) : null,
   }
 }

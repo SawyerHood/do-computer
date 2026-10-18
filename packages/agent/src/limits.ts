@@ -275,7 +275,8 @@ export type RequestLimitsOptions = {
  * for the actor's memory takes the actor down with it, and the run, taken up again by the next
  * one, would make it again. Pictures past a size are left out of it, and a request started over
  * and over without an answer is not started again: that chat's run ends, and the chat says why.
- * Installed after every other extension, so that what they add to a request is counted.
+ * Installed after every extension that adds to a request (only the bus comes later, and it adds
+ * a section and a tool), so that what they add is counted.
  */
 export class RequestLimits {
   readonly extension: Extension

@@ -19,6 +19,9 @@ import {
   continuesMain,
   type MessagePart,
   sentWords,
+  drawnInWork,
+  toolSummary,
+  workSummary,
 } from "@do-computer/protocol"
 import {
   ArrowClockwiseIcon,
@@ -30,6 +33,7 @@ import {
   MicrophoneIcon,
   PaperclipIcon,
   PlugsConnectedIcon,
+  ShieldCheckIcon,
   SlackLogoIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react"
@@ -406,12 +410,91 @@ function Delivery({ delivered }: { delivered: boolean }) {
   )
 }
 
+/** One part of the agent's working, as it is shown once the row of it is opened. */
+function WorkPart({ part }: { part: MessagePart }) {
+  if (part.type === "notice") {
+    return (
+      <MessageView
+        message={{ id: "", role: "notice", parts: [part], status: "done" }}
+        failures={0}
+      />
+    )
+  }
+  if (part.type === "text" || part.type === "thinking") {
+    return (
+      <div className="text-sm text-muted-foreground [&_p]:my-1">
+        <Markdown text={part.text} writing={false} />
+      </div>
+    )
+  }
+  // What is drawn in a chat, such as a screen it used, is drawn here as it is there.
+  if (part.type === "tool" && (drawnInWork(part) || keptLine(part) !== undefined)) {
+    return <AssistantPart part={part} writing={false} />
+  }
+  if (part.type === "tool") {
+    return (
+      <div
+        className={cn(
+          "flex min-w-0 items-center gap-2 text-sm text-muted-foreground",
+          part.status === "error" && "text-destructive/80",
+        )}
+      >
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full bg-muted-foreground/50",
+            (part.status === "pending" || part.status === "running") && "animate-pulse",
+          )}
+        />
+        <span className="truncate">{toolSummary(part)}</span>
+      </div>
+    )
+  }
+  return null
+}
+
+/**
+ * The agent's own working between two things it said, where it speaks only through `send`: one
+ * quiet line that says it worked on it, which opens on what it thought, the steps it took and
+ * the events it was told of. None of it was said to anyone.
+ */
+function WorkRow({ message, last, busy }: { message: ChatMessage; last: boolean; busy: boolean }) {
+  const [open, setOpen] = useState(false)
+  const { working, title, counts } = workSummary(message, last, busy)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} data-work="">
+      <CollapsibleTrigger
+        render={
+          <button
+            type="button"
+            className="group flex items-center gap-1.5 px-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          />
+        }
+      >
+        <CaretRightIcon className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+        <span className={working ? "animate-shine" : undefined}>{title}</span>
+        {counts.length === 0 ? null : (
+          <span className="text-xs text-muted-foreground/80">· {counts.join(" · ")}</span>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-2 ml-[0.4375rem] flex flex-col gap-2.5 border-l pl-4">
+          {message.parts.map((part, index) => (
+            <WorkPart key={part.type === "tool" ? part.toolCallId : index} part={part} />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 function MessageView({
   message,
   failures,
   onRetry,
   asker,
   delivery,
+  last = false,
+  busy = false,
 }: {
   message: ChatMessage
   failures: number
@@ -419,8 +502,12 @@ function MessageView({
   asker?: string | undefined
   /** For a message of the user's: whether the agent has it. Left out where that is not said. */
   delivery?: "sent" | "delivered" | undefined
+  /** Whether it is the last message shown, and whether the agent is at work in the chat. */
+  last?: boolean
+  busy?: boolean
 }) {
   const team = useContext(TeamContext)
+  if (message.work === true) return <WorkRow message={message} last={last} busy={busy} />
   if (message.role === "notice") {
     const part = message.parts[0]
     if (part?.type === "notice" && part.kind === "subagent") return <SubagentWord part={part} />
@@ -468,6 +555,18 @@ function MessageView({
                 for <span className="font-mono">{part.text}</span>
               </>
             )}
+          </span>
+        </div>
+      )
+    }
+    if (part?.type === "notice" && part.kind === "approval") {
+      // Someone's answer to what the agent asked leave for, where it was told of it as an event.
+      return (
+        <div className="flex items-center gap-2 border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
+          <ShieldCheckIcon className="size-4 shrink-0" />
+          <span className="min-w-0 wrap-anywhere">
+            {part.by ?? "Someone"} {part.approved ? "allowed" : "said no to"}{" "}
+            <span className="font-medium text-foreground">{part.text}</span>
           </span>
         </div>
       )
@@ -609,6 +708,13 @@ function MessageView({
               writing={message.status === "streaming"}
             />
           ))}
+        {message.notSent === undefined ? null : (
+          // Its words were on screen as they were written; it says it did not go, and why.
+          <div role="alert" className="flex items-start gap-1.5 px-1 text-sm text-destructive">
+            <WarningCircleIcon className="mt-0.5 size-4 shrink-0" />
+            <span className="min-w-0 wrap-anywhere">Not sent: {message.notSent}</span>
+          </div>
+        )}
         {message.status === "error" ? (
           <ReplyError error={message.error} failures={failures} onRetry={onRetry} />
         ) : null}
@@ -715,6 +821,9 @@ export function Transcript({
   }, [state, chatId])
   // A message whose every shown part is a later step of a use shows nothing, and leaves no gap.
   const shows = (message: ChatMessage) =>
+    // The agent's own working is one row, whatever is in it, and a send that failed says so.
+    message.work === true ||
+    message.notSent !== undefined ||
     message.role !== "assistant" ||
     message.status === "error" ||
     message.status === "aborted" ||
@@ -771,6 +880,8 @@ export function Transcript({
                       failures={failures}
                       onRetry={index === shown.length - 1 && !state.busy ? onRetry : undefined}
                       asker={asker}
+                      last={index === shown.length - 1}
+                      busy={state.busy}
                       delivery={
                         undelivered?.has(message.id) === true
                           ? "sent"

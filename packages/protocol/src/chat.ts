@@ -32,6 +32,8 @@ export type NoticePart = {
    * a command the agent left running in the background; its text is the command. `branch` is
    * where a side chat's own messages begin, after the ones it carries from the main chat. `call`
    * is a voice call that was held in the chat, once it is over; its text is how long it was.
+   * `approval` is someone's answer to something the agent asked leave for, where it is told as an
+   * event; its text is what was asked.
    */
   kind:
     | "reset"
@@ -46,13 +48,14 @@ export type NoticePart = {
     | "connector"
     | "command"
     | "call"
+    | "approval"
   text: string
   /**
    * For `computer`: whether the agent was let in. For `secret`: whether they were saved. For
-   * `connector`: whether it is connected now.
+   * `connector`: whether it is connected now. For `approval`: whether it was allowed.
    */
   approved?: boolean
-  /** For `computer`, `secret` and `connector`: who answered. */
+  /** For `computer`, `secret`, `connector` and `approval`: who answered. */
   by?: string
   /** For `subagent`: the sub-agent's own chat. For `agent`: the conversation on the other agent. */
   chatId?: string
@@ -104,6 +107,18 @@ export type ChatMessage = {
    * call, and the id the device sent it under, by which the device finds the answer to it.
    */
   spoken?: { call: string; request: string }
+  /**
+   * An assistant message that is the agent's own working and not something it said: in a chat
+   * where it reaches people only through `send`, everything it did between two things that were
+   * said (its own text, its steps, the events it was told of) is folded into one such row, which
+   * can be opened. A client shows it as one line, and never as words to the person.
+   */
+  work?: true
+  /**
+   * A call to `send` that failed: why. Its words are still shown, as they may have been while
+   * they were written, marked as not sent.
+   */
+  notSent?: string
 }
 
 export type QueuedInput = {

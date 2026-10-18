@@ -4,10 +4,14 @@ import {
   type ChatMessage,
   type ChatState,
   type ChatUsage,
+  isSentFile,
+  isVisual,
   type JobStatus,
   type Json,
+  type LibraryFile,
   type MessagePart,
   type QueuedInput,
+  type TextPart,
   type ToolPart,
 } from "@do-computer/protocol"
 import type {
@@ -26,6 +30,14 @@ import type {
   UsageState,
 } from "@earendil-works/pi-durable"
 import type { Carried } from "./branch.ts"
+import {
+  APPROVAL_ENTRY,
+  BUS_ENTRY,
+  BUS_EXTENSION,
+  type BusMark,
+  EVENT_ENTRIES,
+  SEND_TOOL,
+} from "./bus.ts"
 import { CALL_ENTRY, type CallEntry, callOf } from "./calls.ts"
 import { CUT_OFF_ENTRY, type CutOffEntry } from "./limits.ts"
 import { agentSenderOf, type Caller, senderOf, type SlackSender, slackSenderOf } from "./caller.ts"
@@ -133,7 +145,11 @@ function addSaid(parts: MessagePart[], text: string): void {
   parts.push({ type: "text", text })
 }
 
-function assistantParts(message: AssistantMessage): MessagePart[] {
+/**
+ * The parts of an answer. In a chat with the bus on, a progress call is kept as the call it is,
+ * for the bus to show as something said (`foldBus`).
+ */
+function assistantParts(message: AssistantMessage, bus = false): MessagePart[] {
   const parts: MessagePart[] = []
   for (const block of message.content) {
     if (block.type === "text") {
@@ -143,7 +159,7 @@ function assistantParts(message: AssistantMessage): MessagePart[] {
       if (!block.redacted && block.thinking !== "") {
         parts.push({ type: "thinking", text: block.thinking })
       }
-    } else if (progressText(block) !== undefined) {
+    } else if (!bus && progressText(block) !== undefined) {
       addSaid(parts, progressText(block)!)
     } else {
       parts.push({
@@ -158,11 +174,16 @@ function assistantParts(message: AssistantMessage): MessagePart[] {
   return parts
 }
 
-function assistantMessage(id: string, message: AssistantMessage, live: boolean): ChatMessage {
+function assistantMessage(
+  id: string,
+  message: AssistantMessage,
+  live: boolean,
+  bus = false,
+): ChatMessage {
   const result: ChatMessage = {
     id,
     role: "assistant",
-    parts: assistantParts(message),
+    parts: assistantParts(message, bus),
     status: live
       ? "streaming"
       : message.stopReason === "error"
@@ -215,7 +236,7 @@ export function addUsage(total: ChatUsage, usage: Usage): void {
   total.cost += usage.cost.total
 }
 
-function entryMessage(entry: EntryRecord): ChatMessage | undefined {
+function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined {
   const id = String(entry.id)
   const first = entry.model?.[0]
   switch (entry.kind) {
@@ -248,7 +269,7 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
     }
     case "pi.assistant": {
       if (first?.role !== "assistant") return undefined
-      const message = assistantMessage(id, first, false)
+      const message = assistantMessage(id, first, false, bus)
       // An attempt that was cut off before it produced anything has nothing to show.
       return message.parts.length === 0 && message.status !== "error" ? undefined : message
     }
@@ -467,6 +488,25 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
         createdAt: first?.role === "user" ? first.timestamp : undefined,
       }
     }
+    case APPROVAL_ENTRY: {
+      // Someone's answer to what the agent asked leave for, where it was told as an event.
+      const answer = entry.data as { title?: string; approved?: boolean; by?: string } | undefined
+      return {
+        id,
+        role: "notice",
+        parts: [
+          {
+            type: "notice",
+            kind: "approval",
+            text: answer?.title ?? "",
+            approved: answer?.approved === true,
+            ...(answer?.by ? { by: answer.by } : {}),
+          },
+        ],
+        status: "done",
+        createdAt: first?.role === "user" ? first.timestamp : undefined,
+      }
+    }
     case "dc.connector": {
       // How a sign-in to a connector the agent asked for went, in the chat it asked from.
       const word = entry.data as
@@ -493,9 +533,14 @@ function entryMessage(entry: EntryRecord): ChatMessage | undefined {
   }
 }
 
-/** Transcript entries, oldest first, as messages, with each tool call joined to its result. */
-function projectEntries(entries: readonly EntryRecord[]) {
+/**
+ * Transcript entries, oldest first, as messages, with each tool call joined to its result. `bus`
+ * is whether the bus was on before the first of them; the marks among them switch it. The
+ * messages made while it was on are in `inBus`, for `foldBus`.
+ */
+function projectEntries(entries: readonly EntryRecord[], bus = false) {
   const messages: ChatMessage[] = []
+  const inBus = new Set<ChatMessage>()
   const tools = new Map<string, ToolPart>()
   const register = (message: ChatMessage) => {
     for (const part of message.parts) if (part.type === "tool") tools.set(part.toolCallId, part)
@@ -503,6 +548,10 @@ function projectEntries(entries: readonly EntryRecord[]) {
   let lastEntryId = "0"
   for (const entry of entries) {
     lastEntryId = String(entry.id)
+    if (entry.kind === BUS_ENTRY) {
+      bus = (entry.data as BusMark | undefined)?.on === true
+      continue
+    }
     if (entry.kind === "pi.tool-result") {
       const result = entry.model?.[0] as ToolResultMessage | undefined
       const part = result === undefined ? undefined : tools.get(result.toolCallId)
@@ -512,26 +561,191 @@ function projectEntries(entries: readonly EntryRecord[]) {
       if (result.details !== undefined) part.details = result.details as Json
       continue
     }
-    const message = entryMessage(entry)
+    const message = entryMessage(entry, bus)
     if (message === undefined) continue
     register(message)
     messages.push(message)
+    if (bus) inBus.add(message)
   }
-  return { messages, tools, register, lastEntryId }
+  return { messages, inBus, tools, register, lastEntryId, bus }
+}
+
+/** Whether the bus was on before the first of these entries, where nothing earlier says. */
+function busBefore(entries: readonly EntryRecord[], agent: unknown): boolean {
+  const mark = entries.find((entry) => entry.kind === BUS_ENTRY)
+  // The first mark switched it from what it was.
+  if (mark !== undefined) return (mark.data as BusMark | undefined)?.on !== true
+  // None is left in the context: it is as the chat is set up now.
+  const extensions = (agent as { extensions?: unknown } | undefined)?.extensions
+  const named = Array.isArray(extensions)
+    ? extensions
+    : ((extensions as { add?: unknown } | undefined)?.add ?? [])
+  return Array.isArray(named) && named.includes(BUS_EXTENSION)
+}
+
+/** A call to `send`, as the message it says, with the files it sent as sent files are shown. */
+function sentMessage(part: ToolPart, from: ChatMessage): ChatMessage {
+  const text = (part.args as { text?: unknown } | null)?.text
+  const files = (part.details as { files?: LibraryFile[] } | null | undefined)?.files ?? []
+  return {
+    id: `send:${part.toolCallId}`,
+    role: "assistant",
+    parts: [
+      ...(typeof text === "string" && text !== "" ? [{ type: "text" as const, text }] : []),
+      ...files.map((file, index): ToolPart => ({
+        type: "tool",
+        toolCallId: `${part.toolCallId}:file${index}`,
+        name: "send_file",
+        args: { path: file.path },
+        status: "done",
+        details: file as unknown as Json,
+      })),
+    ],
+    status: from.status === "streaming" ? "streaming" : "done",
+    ...(from.createdAt === undefined ? {} : { createdAt: from.createdAt }),
+    ...(from.model === undefined ? {} : { model: from.model }),
+  }
+}
+
+/**
+ * The messages of a chat with the bus on, as people are shown them: what they said, and each
+ * thing the agent said to them, with a call to `send` (or to `progress`, while it works) or by
+ * putting a file or a page in front of them. Everything else between two of those, its own text
+ * and steps and the events it was told of, is one row of its working, which a client folds.
+ * Messages from before the bus was on are as they were.
+ *
+ * Each row of working is named for what it follows, so that it keeps its id as it grows and
+ * once what was live in it is stored.
+ */
+function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessage>): ChatMessage[] {
+  const folded: ChatMessage[] = []
+  let work: ChatMessage | undefined
+  let before: string | undefined
+  const show = (message: ChatMessage) => {
+    work = undefined
+    before = message.id
+    folded.push(message)
+  }
+  const keep = (parts: MessagePart[], from: ChatMessage) => {
+    if (parts.length === 0) return
+    if (work === undefined) {
+      const live = from.id.startsWith("live:")
+      work = {
+        id:
+          before !== undefined
+            ? `work:${before}`
+            : `${live ? "live:" : ""}work:${from.id.replace(/^live:/, "")}`,
+        role: "assistant",
+        parts: [],
+        status: "done",
+        work: true,
+        ...(from.createdAt === undefined ? {} : { createdAt: from.createdAt }),
+      }
+      folded.push(work)
+    }
+    work.parts.push(...parts)
+    if (from.status === "streaming") work.status = "streaming"
+  }
+  for (const message of messages) {
+    if (!inBus.has(message) || message.role === "user") {
+      show(message)
+      continue
+    }
+    if (message.role === "notice") {
+      keep(message.parts, message)
+      continue
+    }
+    let working: MessagePart[] = []
+    const said = (shown: ChatMessage) => {
+      keep(working, message)
+      working = []
+      show(shown)
+    }
+    for (const part of message.parts) {
+      if (part.type === "tool" && part.name === SEND_TOOL && part.status === "error") {
+        // Its words may have been on screen as they were written. They stay, marked as not
+        // sent, and say why: they do not just go. One with no words had none on screen, and
+        // is a step like any other.
+        const failed = sentMessage(part, message)
+        if (failed.parts.length > 0) said({ ...failed, notSent: notSentWhy(part.output) })
+        else working.push(part)
+      } else if (part.type === "tool" && part.name === SEND_TOOL) {
+        const sent = sentMessage(part, message)
+        // Nothing of it to show yet, while its words are on their way.
+        if (sent.parts.length > 0) said(sent)
+        else working.push(part)
+      } else if (part.type === "tool" && part.name === PROGRESS_TOOL) {
+        const words = (part.args as { message?: unknown } | null)?.message
+        const text = typeof words === "string" ? words : ""
+        if (text === "") continue
+        said({
+          id: `said:${part.toolCallId}`,
+          role: "assistant",
+          parts: [{ type: "text", text }],
+          status: message.status === "streaming" ? "streaming" : "done",
+          ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
+          ...(message.model === undefined ? {} : { model: message.model }),
+        })
+      } else if (isSentFile(part) || isVisual(part)) {
+        said({
+          id: `shown:${part.toolCallId}`,
+          role: "assistant",
+          parts: [part],
+          status: "done",
+          ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
+          ...(message.model === undefined ? {} : { model: message.model }),
+        })
+      } else {
+        working.push(part)
+      }
+    }
+    keep(working, message)
+    // A reply that failed or was stopped says so, as it always has.
+    if (message.status === "error" || message.status === "aborted") {
+      show({ ...message, parts: [] })
+    }
+  }
+  // What the agent writes after the last thing it sent in a turn, with nothing done or told
+  // besides ("Done."), is not worth a row of working. Something longer may be an answer it
+  // forgot to send, and after a send that failed it may say why: those stay in a row.
+  return folded.filter((message, index) => {
+    if (message.work !== true || !message.parts.every((part) => part.type === "text")) return true
+    const words = message.parts.reduce((sum, part) => sum + (part as TextPart).text.length, 0)
+    const before = folded[index - 1]
+    const after = folded[index + 1]
+    const sent =
+      before !== undefined &&
+      before.notSent === undefined &&
+      (before.id.startsWith("send:") || before.id.startsWith("shown:"))
+    return !(sent && words <= SHORT_CLOSE_CHARS && (after === undefined || after.role === "user"))
+  })
+}
+
+/** The longest the agent's own words after its last send can be and still be left out. */
+const SHORT_CLOSE_CHARS = 200
+
+/** Why a send was not sent, from what it answered. */
+function notSentWhy(output: string | undefined): string {
+  const said = (output ?? "")
+    .replace(/<\/?harness>/g, "")
+    .replace(/^\s*\[error\]\s*/m, "")
+    .replace(/^\s*Nothing was sent:\s*/, "")
+    .trim()
+  return said === "" ? "It could not be sent." : said
 }
 
 /**
  * Entries from a chat's past, oldest first, as messages. Nothing in the past is still running, so
- * a tool call with no result was interrupted.
+ * a tool call with no result was interrupted. `bus` is whether the bus was on before the first.
  */
-export function projectPast(entries: readonly EntryRecord[]): ChatMessage[] {
-  const { messages, tools } = projectEntries(entries)
+export function projectPast(entries: readonly EntryRecord[], bus = false): ChatMessage[] {
+  const { messages, inBus, tools } = projectEntries(entries, bus)
   for (const part of tools.values()) {
     if (part.status !== "pending") continue
     part.status = "error"
     part.output ??= "Interrupted before it finished."
   }
-  return messages
+  return inBus.size === 0 ? messages : foldBus(messages, inBus)
 }
 
 /** The words of an entry that a person wrote or read, for searching. Undefined for the rest. */
@@ -648,14 +862,19 @@ export function projectChat(view: ConversationView): ChatState {
     carried === undefined
       ? view.entries
       : view.entries.filter((entry) => Number(entry.id) > Number(carried))
-  const { messages, tools, register, lastEntryId } = projectEntries(entries)
+  const { messages, inBus, tools, register, lastEntryId, bus } = projectEntries(
+    entries,
+    // A side chat starts where it branched off, and the bus is never on in one.
+    carried === undefined && busBefore(entries, view.docs["pi.agent"]),
+  )
 
   const partial = live?.generation?.message
   if (partial !== undefined) {
-    const message = assistantMessage(`live:${lastEntryId}`, partial as AssistantMessage, true)
+    const message = assistantMessage(`live:${lastEntryId}`, partial as AssistantMessage, true, bus)
     if (message.parts.length > 0) {
       register(message)
       messages.push(message)
+      if (bus) inBus.add(message)
     }
   }
 
@@ -687,6 +906,9 @@ export function projectChat(view: ConversationView): ChatState {
     // sub-agent reports, was written by nobody: it waits its turn without being shown.
     if (typeof content !== "string" && content.every((b) => b.type === "text" && isMeta(b.text)))
       continue
+    // Nor are the events the bus is told of, which are known by their kind.
+    const kind = (item as { entry?: { kind?: unknown } }).entry?.kind
+    if (typeof kind === "string" && EVENT_ENTRIES.has(kind)) continue
     queued.push({ id: String(item.id), mode: item.mode, text: contentText(content) })
   }
 
@@ -694,5 +916,5 @@ export function projectChat(view: ConversationView): ChatState {
   for (const entry of Object.values(usageDoc?.models ?? {})) addUsage(usage, entry as Usage)
   for (const entry of Object.values(usageDoc?.tools ?? {})) addUsage(usage, entry as Usage)
 
-  return { messages, busy, queued, usage }
+  return { messages: inBus.size === 0 ? messages : foldBus(messages, inBus), busy, queued, usage }
 }

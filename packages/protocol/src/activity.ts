@@ -589,3 +589,36 @@ export function isVisibleMessage(message: ChatMessage): boolean {
     message.parts.some(isShownPart)
   )
 }
+
+/**
+ * What a row of the agent's own working (`ChatMessage.work`) says of itself, folded: whether it
+ * is still at it, and how many steps and events are in it. `last` is whether it is the last row
+ * shown, `busy` whether the agent is at work in the chat. The same on every client.
+ */
+export function workSummary(
+  message: ChatMessage,
+  last: boolean,
+  busy: boolean,
+): { working: boolean; title: string; counts: string[] } {
+  const working = message.status === "streaming" || (busy && last)
+  const steps = message.parts.filter((part) => part.type === "tool").length
+  const events = message.parts.filter((part) => part.type === "notice").length
+  const count = (n: number, one: string) => (n === 1 ? `1 ${one}` : `${n} ${one}s`)
+  return {
+    working,
+    title: working ? "Working on it" : "Worked on it",
+    counts: [
+      ...(steps === 0 ? [] : [count(steps, "step")]),
+      ...(events === 0 ? [] : [count(events, "event")]),
+    ],
+  }
+}
+
+/**
+ * Whether a step in a row of working is drawn as it is in a chat (a screen it used, a page)
+ * and not as a line saying what it did. A sub-agent it started is a line: what it reported is
+ * the event beside it, which says it better.
+ */
+export function drawnInWork(part: MessagePart): boolean {
+  return part.type === "tool" && isShownPart(part) && !isSubagentStart(part)
+}

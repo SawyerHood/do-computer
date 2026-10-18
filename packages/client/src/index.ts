@@ -188,6 +188,11 @@ export type AgentState = {
   timezone: string | null
   /** The team that shares it, by name. Null: it is one person's. */
   team?: string | null
+  /**
+   * Whether its main chat works as a message bus: it speaks there only through `send`, and its
+   * own working is folded away. Absent from a server from before there was the switch.
+   */
+  bus?: boolean
   soul: string
   user: string
   memory: string
@@ -210,6 +215,8 @@ export type AgentPatch = {
   hatched?: true
   /** The voice it speaks in on a call. Null: the one picked for it by its id. */
   voice?: string | null
+  /** Whether its main chat speaks only through `send`. Applies from the next message there. */
+  bus?: boolean
 }
 
 /** A computer waiting to be paired, as shown to the user before they agree. */
