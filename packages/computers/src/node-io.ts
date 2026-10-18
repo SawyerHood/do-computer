@@ -50,6 +50,9 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
   return {
     jobs: nodeJobs({ home: options.home, shell, resolve }),
     exec(command, execOptions) {
+      if (execOptions.signal?.aborted) {
+        return Promise.resolve({ stdout: "", stderr: "Command aborted.", exitCode: 130 })
+      }
       return new Promise((done) => {
         // Its own process group, so a timeout stops the command's children too. Windows has
         // none: there its children are found by who started them.
@@ -61,10 +64,28 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
         })
         let stdout = ""
         let stderr = ""
-        let timedOut = false
-        const timer = setTimeout(() => {
-          timedOut = true
+        let settled = false
+        const finish = (exitCode: number, message?: string) => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          execOptions.signal?.removeEventListener("abort", abort)
+          stdout += decoders.stdout.decode()
+          stderr += decoders.stderr.decode()
+          // An escaped descendant may keep the pipes open after the shell is gone. Never
+          // depend on `close` for deadline or cancellation completion.
+          child.stdin.destroy()
+          child.stdout.destroy()
+          child.stderr.destroy()
+          done({ stdout, stderr: message ? `${stderr}\n${message}`.trim() : stderr, exitCode })
+        }
+        const stop = (exitCode: number, message: string) => {
           if (child.pid !== undefined) killTree(child.pid, "SIGKILL")
+          finish(exitCode, message)
+        }
+        const abort = () => stop(130, "Command aborted.")
+        const timer = setTimeout(() => {
+          stop(124, `Stopped after the ${Math.round(execOptions.timeoutMs / 1000)}s time limit.`)
         }, execOptions.timeoutMs)
         // Streaming decoders, so a character split across two chunks is not garbled.
         const decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() }
@@ -76,21 +97,10 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
           if (stderr.length < EXEC_STDIO_CAP)
             stderr += decoders.stderr.decode(chunk, { stream: true })
         })
-        child.on("error", (error) => {
-          clearTimeout(timer)
-          done({ stdout: "", stderr: `Could not start the command: ${error.message}`, exitCode: 1 })
-        })
-        child.on("close", (code) => {
-          clearTimeout(timer)
-          if (timedOut) {
-            const seconds = Math.round(execOptions.timeoutMs / 1000)
-            done({
-              stdout,
-              stderr: `${stderr}\nStopped after the ${seconds}s time limit.`.trim(),
-              exitCode: 124,
-            })
-          } else done({ stdout, stderr, exitCode: code ?? 1 })
-        })
+        child.on("error", (error) => finish(1, `Could not start the command: ${error.message}`))
+        child.on("close", (code) => finish(code ?? 1))
+        execOptions.signal?.addEventListener("abort", abort, { once: true })
+        if (execOptions.signal?.aborted) abort()
       })
     },
     async statSize(target) {

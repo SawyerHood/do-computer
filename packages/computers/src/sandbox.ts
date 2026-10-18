@@ -15,6 +15,7 @@ import {
   type SandboxFs,
 } from "@do-computer/sandbox"
 import type { LinkStatus } from "./link-actor.ts"
+import { abortable } from "./abort.ts"
 
 /** Error codes of a paired computer, as the codes file tools understand. */
 const CODES: Record<string, SandboxErrorCode> = {
@@ -118,8 +119,12 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
     },
     // The daemon keeps jobs itself, and nothing of what one prints arrives before the answer.
     jobs(scope) {
-      const ask = async <T>(request: Record<string, unknown>): Promise<T> =>
-        ((await (await post("/job", { scope, ...request })).json()) as { value: T }).value
+      const ask = <T>(request: Record<string, unknown>, signal?: AbortSignal): Promise<T> =>
+        abortable(
+          async () =>
+            ((await (await post("/job", { scope, ...request })).json()) as { value: T }).value,
+          signal,
+        )
       const following = (follow: JobFollowOptions) => ({
         waitMs: follow.waitMs,
         ...(follow.removeUnder === undefined ? {} : { removeUnder: follow.removeUnder }),
@@ -130,19 +135,23 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
       }
       return {
         start: (job, follow) =>
-          ask<JobFollowed>({
-            op: "start",
-            job: job.id,
-            command: job.command,
-            cwd: job.cwd,
-            env: job.env,
-            lifeMs: job.lifeMs,
-            ...following(follow),
-          }).then(told(follow)),
+          ask<JobFollowed>(
+            {
+              op: "start",
+              job: job.id,
+              command: job.command,
+              cwd: job.cwd,
+              env: job.env,
+              lifeMs: job.lifeMs,
+              ...following(follow),
+            },
+            follow.signal,
+          ).then(told(follow)),
         follow: (id, follow) =>
-          ask<JobFollowed>({ op: "follow", job: id, from: follow.from, ...following(follow) }).then(
-            told(follow),
-          ),
+          ask<JobFollowed>(
+            { op: "follow", job: id, from: follow.from, ...following(follow) },
+            follow.signal,
+          ).then(told(follow)),
         stop: async (id) => void (await ask({ op: "stop", job: id })),
         check: (ids) =>
           ids.length === 0
@@ -155,17 +164,31 @@ export function computerSandbox(options: ComputerSandboxOptions): Sandbox {
       }
     },
     async exec(command: string, execOptions: ExecOptions = {}): Promise<ExecOutcome> {
-      const response = await post("/exec", {
-        command,
-        cwd: execOptions.cwd,
-        env: execOptions.env,
-        timeoutMs: execOptions.timeoutMs,
-      })
-      const result = (await response.json()) as { stdout: string; stderr: string; exitCode: number }
-      const output = result.stdout + result.stderr
-      if (output !== "") execOptions.onOutput?.(output)
-      // The daemon kills a command at its deadline and reports the conventional exit code.
-      return { exitCode: result.exitCode, output, timedOut: result.exitCode === 124 }
+      const requestId = crypto.randomUUID()
+      return abortable(
+        async () => {
+          const response = await post("/exec", {
+            command,
+            cwd: execOptions.cwd,
+            env: execOptions.env,
+            timeoutMs: execOptions.timeoutMs,
+            requestId,
+          })
+          const result = (await response.json()) as {
+            stdout: string
+            stderr: string
+            exitCode: number
+          }
+          const output = result.stdout + result.stderr
+          if (!execOptions.signal?.aborted && output !== "") execOptions.onOutput?.(output)
+          return { exitCode: result.exitCode, output, timedOut: result.exitCode === 124 }
+        },
+        execOptions.signal,
+        () => {
+          // Do not wait for cancellation acknowledgement from an unreachable computer.
+          void post("/cancel", { id: requestId }).catch(() => {})
+        },
+      )
     },
   }
 }

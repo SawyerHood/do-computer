@@ -93,7 +93,7 @@ export interface DaemonIO {
   /** Run a shell command. Resolves with capped output; never rejects for a failing command. */
   exec(
     command: string,
-    options: { cwd?: string; env: Record<string, string>; timeoutMs: number },
+    options: { cwd?: string; env: Record<string, string>; timeoutMs: number; signal?: AbortSignal },
   ): Promise<{ stdout: string; stderr: string; exitCode: number }>
   /** File size, or null when there is no such file. */
   statSize(path: string): Promise<number | null>
@@ -229,6 +229,7 @@ export type DaemonCoreOptions = {
 export class DaemonCore {
   readonly #outbox: string[] = []
   readonly #writes = new Map<string, PendingWrite>()
+  readonly #execs = new Map<string, AbortController>()
   #working = 0
   readonly #io: DaemonIO
   readonly #send: (frame: string) => boolean
@@ -292,6 +293,9 @@ export class DaemonCore {
     this.#collectStaleWrites()
 
     switch (frame.t) {
+      case "cancel":
+        this.#execs.get(frame.id)?.abort()
+        return
       case "exec":
         if (this.#readOnly) return this.#refuse(frame.id, "run commands")
         this.#track(
@@ -371,15 +375,24 @@ export class DaemonCore {
   ): Promise<void> {
     const deadline = Math.min(timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS, MAX_EXEC_TIMEOUT_MS)
     const startedAt = this.#now()
+    const controller = new AbortController()
+    this.#execs.set(id, controller)
     let result: { stdout: string; stderr: string; exitCode: number }
     try {
-      result = await this.#io.exec(command, { cwd, env, timeoutMs: deadline })
+      result = await this.#io.exec(command, {
+        cwd,
+        env,
+        timeoutMs: deadline,
+        signal: controller.signal,
+      })
     } catch (error) {
       result = {
         stdout: "",
         stderr: `The daemon could not run the command: ${(error as Error)?.message}`,
         exitCode: 1,
       }
+    } finally {
+      this.#execs.delete(id)
     }
     this.#io.audit({
       ts: startedAt,

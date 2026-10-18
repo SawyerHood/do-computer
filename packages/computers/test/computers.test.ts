@@ -256,6 +256,19 @@ registerSandboxConformance({ describe, it, expect }, "paired computer", async ()
 })
 
 describe("computer link", () => {
+  it("cancels a running exec through the paired computer's link actor", async () => {
+    const { sandbox, home, audits } = await connectDaemon()
+    const controller = new AbortController()
+    const pending = sandbox.exec("echo started > started; sleep 30", { signal: controller.signal })
+    const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" })
+    await expect.poll(() => existsSync(join(home, "started"))).toBe(true)
+    controller.abort()
+    await rejected
+    await expect
+      .poll(() => audits.some((entry) => entry.kind === "exec" && entry.exitCode === 130))
+      .toBe(true)
+  })
+
   it("reports whether the computer is online and what it said about itself", async () => {
     const { name, home } = await connectDaemon()
     await new Promise((resolve) => setTimeout(resolve, 10))
