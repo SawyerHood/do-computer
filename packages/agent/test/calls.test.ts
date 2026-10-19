@@ -851,6 +851,14 @@ describe("the pieces", () => {
           status: "done",
         },
         text("assistant", "Two"),
+        // A send that failed was said to nobody, and its own words are not text.
+        { ...text("assistant", "Not sent."), notSent: "could not find it" },
+        {
+          id: "own",
+          role: "assistant",
+          parts: [{ type: "thinking", text: "Private.", written: true }],
+          status: "done",
+        },
         { ...text("assistant", "Three"), status: "streaming" },
       ]),
     ).toEqual([

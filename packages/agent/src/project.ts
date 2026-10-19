@@ -32,12 +32,13 @@ import type { Carried } from "./branch.ts"
 import {
   APPROVAL_ENTRY,
   ASKED_ENTRY,
-  asksToEnd,
   AUTOMATION_ENTRY,
   BUS_ENTRY,
   BUS_EXTENSIONS,
   type BusMark,
+  endsRun,
   EVENT_ENTRIES,
+  saysDone,
   SEND_TOOL,
   SLACK_NOTE_ENTRY,
 } from "./bus.ts"
@@ -214,21 +215,22 @@ export const BRANCH_ENTRY = "dc.branch"
 export function branchPoint(entries: readonly EntryRecord[]): EntryRecord["id"] | undefined {
   const spoken = (entry: EntryRecord) =>
     entry.kind === "pi.user" || entry.kind === "pi.assistant" || entry.kind === "pi.tool-result"
-  // A finished answer, or a round of sends marked done whose every result is in and worked:
-  // the run ended with that round (`asksToEnd`).
+  // A finished answer, or a round of sends whose every result is in and asked to end the run
+  // (`endsRun`): the run ended with that round.
   let answered = -1
   let ending: Set<string> | undefined
   for (const [index, entry] of entries.entries()) {
     const message = entry.model?.[0]
     if (entry.kind === "pi.assistant" && message?.role === "assistant") {
       ending = undefined
-      if (message.stopReason === "stop" && !message.content.some((b) => b.type === "toolCall")) {
+      const calls = message.content.flatMap((b) => (b.type === "toolCall" ? [b] : []))
+      if (message.stopReason === "stop" && calls.length === 0) {
         answered = index
-      } else if (message.stopReason === "toolUse" && asksToEnd(message)) {
-        ending = new Set(message.content.flatMap((b) => (b.type === "toolCall" ? [b.id] : [])))
+      } else if (calls.length > 0 && calls.every((call) => call.name === SEND_TOOL)) {
+        ending = new Set(calls.map((call) => call.id))
       }
     } else if (entry.kind === "pi.tool-result" && message?.role === "toolResult" && ending) {
-      if (message.isError) ending = undefined
+      if (!endsRun(message)) ending = undefined
       else {
         ending.delete(message.toolCallId)
         if (ending.size === 0) {
@@ -676,6 +678,11 @@ function busBefore(entries: readonly EntryRecord[], agent: unknown): boolean {
 function sentMessage(part: ToolPart, from: ChatMessage): ChatMessage {
   const text = (part.args as { text?: unknown } | null)?.text
   const files = (part.details as { files?: LibraryFile[] } | null | undefined)?.files ?? []
+  // The last word for now: as its result says once that is in, and its arguments until then.
+  const done =
+    part.status === "done"
+      ? (part.details as { done?: unknown } | null | undefined)?.done === true
+      : part.status !== "error" && saysDone(part.args)
   return {
     id: `send:${part.toolCallId}`,
     role: "assistant",
@@ -693,6 +700,8 @@ function sentMessage(part: ToolPart, from: ChatMessage): ChatMessage {
     status: from.status === "streaming" ? "streaming" : "done",
     ...(from.createdAt === undefined ? {} : { createdAt: from.createdAt }),
     ...(from.model === undefined ? {} : { model: from.model }),
+    ...(part.status === "error" ? {} : { sent: part.status === "done" ? "sent" : "sending" }),
+    ...(done ? { done: true } : {}),
   }
 }
 
@@ -720,16 +729,25 @@ function busMessages(
       continue
     }
     let rest: MessagePart[] = []
-    let id = message.id
-    const piece = (parts: MessagePart[], status: ChatMessage["status"]): ChatMessage => {
+    // What comes before the first thing said is named for that, and what comes after each
+    // thing said for it, so that a piece keeps its id from live to stored. Only an answer with
+    // nothing said in it keeps its own id, which a live one gives up for the stored one's.
+    let id: string | undefined
+    const piece = (
+      parts: MessagePart[],
+      status: ChatMessage["status"],
+      named: string,
+    ): ChatMessage => {
       const { error: _error, ...others } = message
       return status === "error"
-        ? { ...message, id, parts, status }
-        : { ...others, id, parts, status }
+        ? { ...message, id: named, parts, status }
+        : { ...others, id: named, parts, status }
     }
     const said = (shown: ChatMessage) => {
-      if (rest.length > 0)
-        out.push(piece(rest, message.status === "streaming" ? "streaming" : "done"))
+      if (rest.length > 0) {
+        const status = message.status === "streaming" ? "streaming" : "done"
+        out.push(piece(rest, status, id ?? `before:${shown.id}`))
+      }
       rest = []
       out.push(shown)
       id = `after:${shown.id}`
@@ -780,7 +798,9 @@ function busMessages(
     // The last piece has the answer's status: a reply that failed or was stopped says so, as it
     // always has, even with nothing else left in it.
     const ended = message.status === "error" || message.status === "aborted"
-    if (rest.length > 0 || ended || id === message.id) out.push(piece(rest, message.status))
+    if (rest.length > 0 || ended || id === undefined) {
+      out.push(piece(rest, message.status, id ?? message.id))
+    }
   }
   return out
 }

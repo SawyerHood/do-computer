@@ -1,5 +1,5 @@
 import type { Context } from "@earendil-works/chord"
-import { type AssistantMessage, Type } from "@earendil-works/pi-ai"
+import { type AssistantMessage, type ToolResultMessage, Type } from "@earendil-works/pi-ai"
 import {
   type ConversationId,
   defineDocFamily,
@@ -95,21 +95,62 @@ export const EVENT_ENTRIES: ReadonlySet<string> = new Set([
 export const SEND_TOOL = "send"
 
 /**
- * Whether a round of tool calls asks to end the run: every call in it is a `send` marked
- * `done`. The run then ends with that round, where each of them worked, and no answer with
- * `stopReason: "stop"` follows it.
+ * Whether a send's arguments say it is the last word for now, read as pi-ai reads a boolean for
+ * the tool: `"true"` and `1` are taken for `true`, as some models write them.
  */
-export function asksToEnd(message: AssistantMessage): boolean {
-  const calls = message.content.filter((block) => block.type === "toolCall")
+export function saysDone(args: unknown): boolean {
+  const done = (args as { done?: unknown } | null | undefined)?.done
+  return done === true || done === "true" || done === 1
+}
+
+/**
+ * Whether a tool's stored result asked to end the run: a `send` that went and was the last
+ * word for now, which says so in its details.
+ */
+export function endsRun(result: ToolResultMessage): boolean {
+  return !result.isError && (result.details as { done?: unknown } | null | undefined)?.done === true
+}
+
+/**
+ * Whether a round of tool calls ended the run: every call in it has a stored result that asked
+ * to (`endsRun`). Decided from the results, as pi-durable decides it from their controls, so
+ * that what follows a run agrees with how it ended whatever form its arguments came in.
+ */
+export function roundEnded(
+  answer: AssistantMessage,
+  results: readonly ToolResultMessage[],
+): boolean {
+  const calls = answer.content.flatMap((block) => (block.type === "toolCall" ? [block] : []))
+  const byCall = new Map(results.map((result) => [result.toolCallId, result]))
   return (
     calls.length > 0 &&
-    calls.every(
-      (call) =>
-        call.type === "toolCall" &&
-        call.name === SEND_TOOL &&
-        (call.arguments as { done?: unknown } | undefined)?.done === true,
-    )
+    calls.every((call) => {
+      const result = byCall.get(call.id)
+      return result !== undefined && endsRun(result)
+    })
   )
+}
+
+/**
+ * A round as it is stored, from the entries `afterTools` is given: the answer that called the
+ * tools, and their results. Undefined where the answer is not there.
+ */
+export async function storedRound(
+  harness: Harness,
+  assistant: EntryId,
+  results: readonly EntryId[],
+  context: Context,
+): Promise<{ answer: AssistantMessage; results: ToolResultMessage[] } | undefined> {
+  return harness.commit(async (tx) => {
+    const answer = (await tx.entry(assistant))?.model?.[0]
+    if (answer?.role !== "assistant") return undefined
+    const stored: ToolResultMessage[] = []
+    for (const id of results) {
+      const result = (await tx.entry(id))?.model?.[0]
+      if (result?.role === "toolResult") stored.push(result)
+    }
+    return { answer, results: stored }
+  }, context)
 }
 
 /** The tool a thread in Slack tells the main chat something with. */
@@ -478,9 +519,10 @@ function sendTool(options: BusOptions, post?: SlackBusOptions["post"]): ToolRegi
                 : `Sent, with ${files.map((file) => file.name).join(", ")}.`,
           },
         ],
-        details: { files } as unknown as JsonObject,
         // The last word for now ends the run here, with no request made just to stop. Only where
         // every call of the round asks it, so a send beside other work goes on to its results.
+        // The details say so too, for what follows the run to read from what is stored.
+        details: { files, ...(args.done === true ? { done: true } : {}) } as unknown as JsonObject,
         ...(args.done === true ? { control: { terminate: true as const } } : {}),
       }
     },

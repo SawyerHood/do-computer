@@ -27,7 +27,7 @@ import {
   ProviderDoc,
   UsageDoc,
 } from "@earendil-works/pi-durable"
-import { asksToEnd } from "./bus.ts"
+import { roundEnded, storedRound } from "./bus.ts"
 import { ChatsDoc } from "./docs.ts"
 import { type ImageLimits, shapeRequest } from "./limits.ts"
 
@@ -469,6 +469,20 @@ export class IdleCompaction {
       hooks: [
         hook(GenerationTask, {
           afterResponse: (message, api, context) => this.#answered(message, api, context),
+          // A round of sends marked done ends the run without a final answer: it is one the run
+          // rests on, as that is. Read from the stored results, as the run's end was decided.
+          afterTools: async (assistant, results, api, context) => {
+            const harness = this.#harness
+            if (harness === undefined) return
+            try {
+              const round = await storedRound(harness, assistant, results, context)
+              if (round === undefined || !roundEnded(round.answer, round.results)) return
+              await this.#rested(String(api.conversationId), round.answer, api, context)
+            } catch (error) {
+              // Not being able to look must never cost the run its end.
+              this.#options.onReport(error)
+            }
+          },
         }),
         hook(CompactionTask, {
           beforeCompact: (compaction, api, context) => this.#summarize(compaction, api, context),
@@ -487,10 +501,19 @@ export class IdleCompaction {
     const chatId = String(api.conversationId)
     await this.#noteNext(chatId, message, api, context)
     // Only an answer the run rests on: a round of tool calls is followed by more, and the last
-    // answer moves the time on anyway.
-    // A round of sends marked done is one the run may rest on too: it ends the run where they
-    // work, and the look this sets up is put off by whatever comes after it anyway.
-    if (message.stopReason !== "stop" && !asksToEnd(message)) return
+    // answer moves the time on anyway. A round that ended the run is told of once its results
+    // are stored (`afterTools`).
+    if (message.stopReason !== "stop") return
+    await this.#rested(chatId, message, api, context)
+  }
+
+  /** A chat came to rest on an answer: set when to look at it, where it is worth looking at. */
+  async #rested(
+    chatId: string,
+    message: AssistantMessage,
+    api: HookApi,
+    context: Context,
+  ): Promise<void> {
     const chats = await api.snapshot(ChatsDoc, context)
     if (chats?.main !== chatId) return
     // Most answers leave a chat too small to compact, or come from a model with no long cache.

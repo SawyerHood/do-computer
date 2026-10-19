@@ -210,34 +210,46 @@ export function toolSummary(part: Pick<ToolPart, "name" | "args">): string {
 
 /**
  * Whether a message is something the agent sent with `send` that went, in a chat where it speaks
- * only through it.
+ * only through it: its result is in, and it worked.
  */
 export function isSent(message: ChatMessage): boolean {
-  return (
-    message.role === "assistant" && message.id.startsWith("send:") && message.notSent === undefined
-  )
+  return message.role === "assistant" && message.sent === "sent" && message.notSent === undefined
 }
 
 /** How many of its own words the agent can write after a send and still be only finishing up. */
 const QUIET_WORDS = 200
 
 /**
- * Whether, in a chat where the agent speaks only through `send`, nothing has happened since
- * the last thing it sent that is worth saying it is at work: no step, nothing shown, no new
- * input, only its thoughts and a few words of its own (a closing "Done."). The person has its
- * message; a "Thinking" line under it would say it is still on their question.
+ * Whether, in a chat where the agent speaks only through `send`, it is only finishing up after
+ * its last word for now: a send marked `done`, after which nothing has happened worth saying it
+ * is at work (no step, nothing shown, no new input, only its thoughts and a few words of its
+ * own, such as a closing "Done."). The person has its message, and its turn ends with it; a
+ * "Thinking" line under it would say it is still on their question. After an update, a send
+ * without `done`, it carries on working, and is said to.
+ *
+ * The send counts once its result is in, or once something follows it in the same answer (its
+ * words are whole then, and the closing ones are being written).
  */
 export function quietSinceSend(messages: readonly ChatMessage[]): boolean {
   let words = 0
+  let after = false
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index]!
-    if (isSent(message)) return message.status !== "streaming" && words <= QUIET_WORDS
+    if (message.role === "assistant" && message.sent !== undefined) {
+      return (
+        message.done === true &&
+        message.notSent === undefined &&
+        (message.sent === "sent" || after) &&
+        words <= QUIET_WORDS
+      )
+    }
     if (message.role !== "assistant" || message.status === "error" || message.status === "aborted")
       return false
     for (const part of message.parts) {
       if (part.type !== "thinking") return false
       if (part.written === true) words += part.text.length
     }
+    after = true
   }
   return false
 }
@@ -316,6 +328,8 @@ export function chatMood(state: ChatState): Mood {
   if (!state.busy) {
     return { state: last?.role === "assistant" && last.status === "error" ? "error" : "idle" }
   }
+  // As `chatActivity` says nothing: it said its last word for now, and only finishes up.
+  if (quietSinceSend(state.messages)) return { state: "idle" }
   if (last === undefined || last.role !== "assistant") return { state: "thinking" }
   const active = last.parts.findLast(
     (part): part is ToolPart =>
