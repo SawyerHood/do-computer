@@ -1,9 +1,7 @@
 import { useLocation } from "@tanstack/react-router"
-import { PANEL_HEADING, PanelHeading } from "@/components/chat/panel-section"
 import {
   AgentRowsPlaceholder,
   ComposerPlaceholder,
-  RowsPlaceholder,
   TranscriptPlaceholder,
 } from "@/components/placeholders"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -45,12 +43,6 @@ export function AgentPanelPlaceholder({
         <div className="flex h-5 items-center">
           <Skeleton className="h-2.5 w-16 rounded-full" />
         </div>
-      </div>
-      <div className="flex-1 border-t">
-        <h3 className={PANEL_HEADING}>
-          <PanelHeading title="What it did here" open />
-        </h3>
-        <RowsPlaceholder now className="px-2.5" />
       </div>
     </aside>
   )
