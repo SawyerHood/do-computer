@@ -26,9 +26,8 @@ test("an agent told to ask first waits for an answer before it acts", async ({ p
 
   await waiting.getByRole("button", { name: "Allow once" }).click()
   await expect(waiting).toHaveCount(0)
-  // The answer is told to the main chat as an event, drawn in its place.
   await expect(
-    transcript.getByText(/allowed Run commands: echo ran-with-permission/).first(),
+    transcript.getByText("Approved: Run commands: echo ran-with-permission", { exact: true }),
   ).toBeVisible()
   // The echo model does not act on being told; a real one would. Its next attempt is let through.
   await expect(composer(page)).toBeEnabled()
@@ -41,7 +40,7 @@ test("an agent told to ask first waits for an answer before it acts", async ({ p
   await composer(page).press("Enter")
   await waiting.getByRole("button", { name: "Don’t allow" }).click()
   await expect(
-    transcript.getByText(/said no to Run commands: echo second-try/).first(),
+    transcript.getByText("Not allowed: Run commands: echo second-try", { exact: true }),
   ).toBeVisible()
   await expect(waiting).toHaveCount(0)
 

@@ -27,7 +27,6 @@ import {
   createAgentActor,
 } from "../src/index.ts"
 import { fakeMcp } from "./fake-mcp.ts"
-import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -45,13 +44,11 @@ afterEach(async () => {
 
 function open(): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-approvals-"))
-  const faux = quietOnReminder(
-    fauxProvider({
-      provider: "test",
-      models: [{ id: "model" }],
-      tokensPerSecond: 50_000,
-    }),
-  )
+  const faux = fauxProvider({
+    provider: "test",
+    models: [{ id: "model" }],
+    tokensPerSecond: 50_000,
+  })
   const models = createModels()
   models.setProvider(faux.provider)
   const notifications: AgentNotification[] = []
@@ -128,8 +125,7 @@ async function say(world: World, chatId: string, text: string): Promise<ChatStat
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  const main = await call<ChatSummary>(world, "/chats/main", "POST")
-  return call<ChatSummary>(world, `/chats/${main.id}`, "PATCH", { title: "Chores" })
+  return call<ChatSummary>(world, "/chats", "POST", { title: "Chores" })
 }
 
 type ToolArguments = Record<string, string | number | { oldText: string; newText: string }[]>
@@ -152,24 +148,12 @@ const useTool = (name: string, args: ToolArguments, then = "Done.") => [
       ]
     : []),
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" }),
-  // What it then says to the person, in the main chat, it sends.
-  sent(then),
+  fauxAssistantMessage(then),
 ]
 const tools = (state: ChatState) =>
   state.messages.flatMap((m) => m.parts).filter((p): p is ToolPart => p.type === "tool")
 const said = (state: ChatState) =>
-  state.messages.map((m) =>
-    m.parts
-      .map((p) =>
-        p.type === "text"
-          ? p.text
-          : // Someone's answer is told to the main chat as an event, drawn as what was asked.
-            p.type === "notice" && p.kind === "approval"
-            ? `${p.approved === false ? "Not allowed" : "Approved"}: ${p.text}`
-            : "",
-      )
-      .join(""),
-  )
+  state.messages.map((m) => m.parts.map((p) => (p.type === "text" ? p.text : "")).join(""))
 
 describe("approval rules", () => {
   it("are empty by default, and then nothing is asked", async () => {
@@ -273,7 +257,7 @@ describe("approval rules", () => {
     await say(world, chat.id, "clean up")
     const { pending } = await call<ApprovalsState>(world, "/approvals")
 
-    world.faux.setResponses([sent("Understood, I will leave it.")])
+    world.faux.setResponses([fauxAssistantMessage("Understood, I will leave it.")])
     await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "deny" })
     const after = await settled(world, chat.id)
     expect(said(after)).toContain("Not allowed: Run commands: rm -rf build")
@@ -472,7 +456,7 @@ describe("approval rules", () => {
 
     // Refused, it is asking for nothing, and what it says then is its line.
     const { pending } = await call<ApprovalsState>(world, "/approvals")
-    world.faux.setResponses([sent("Then I will not.")])
+    world.faux.setResponses([fauxAssistantMessage("Then I will not.")])
     const answered = world.activity.length
     await call(world, `/approvals/${pending[0]!.id}`, "POST", { decision: "deny" })
     expect(

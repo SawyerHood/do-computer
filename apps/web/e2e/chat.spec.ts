@@ -282,8 +282,8 @@ test("starting fresh keeps the earlier messages within reach", async ({ page }) 
   await expect(page.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
   // In order: the old exchange, the marker, the new one.
   const text = await transcript.innerText()
-  expect(text.indexOf("The first thing I said")).toBeLessThan(text.lastIndexOf("New context"))
-  expect(text.lastIndexOf("New context")).toBeLessThan(text.indexOf("The second thing"))
+  expect(text.indexOf("The first thing I said")).toBeLessThan(text.indexOf("New context"))
+  expect(text.indexOf("New context")).toBeLessThan(text.indexOf("The second thing"))
 })
 
 test("chatting works over plain http, where the browser withholds some features", async ({

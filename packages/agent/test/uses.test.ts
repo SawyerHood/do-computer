@@ -22,8 +22,6 @@ import {
 import { afterAll, describe, expect, it } from "vitest"
 import { computerActorName, createAgentActor } from "../src/index.ts"
 import { dropOldPictures, screenAction } from "../src/uses.ts"
-import { quietOnReminder } from "./quiet.ts"
-import { newest } from "./newest.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-uses-"))
 const links = new NodeActorNamespace({
@@ -31,13 +29,11 @@ const links = new NodeActorNamespace({
   blobs: () => fileBlobs(join(directory, "link-blobs")),
   factory: (host) => createComputerLinkActor(host),
 })
-const faux = quietOnReminder(
-  fauxProvider({
-    provider: "test",
-    models: [{ id: "model", input: ["text", "image"] }, { id: "blind" }],
-    tokensPerSecond: 5_000,
-  }),
-)
+const faux = fauxProvider({
+  provider: "test",
+  models: [{ id: "model", input: ["text", "image"] }, { id: "blind" }],
+  tokensPerSecond: 5_000,
+})
 const models = createModels()
 models.setProvider(faux.provider)
 const agents = new NodeActorNamespace({
@@ -185,7 +181,7 @@ describe("the screen of somebody's own computer", () => {
 
   it("is used one thing at a time, in the order asked, with a picture after each", async () => {
     await call("/init", "POST", { ownerId: "user-1" })
-    chat = await call<ChatSummary>("/chats/main", "POST", {})
+    chat = await call<ChatSummary>("/chats", "POST", {})
     const home = await startDaemon("mac", { screen: true, browser: true })
     await call("/computers/mac", "PUT", {
       name: "MacBook",
@@ -320,7 +316,7 @@ describe("a window on somebody's own computer", () => {
         stopReason: "toolUse",
       }),
       (context) => {
-        shown = JSON.stringify(newest(context.messages))
+        shown = JSON.stringify(context.messages.at(-1))
         return fauxAssistantMessage("done")
       },
     ])
@@ -329,7 +325,7 @@ describe("a window on somebody's own computer", () => {
   }
 
   it("is found in a list of them, which comes in words and with no picture", async () => {
-    chat = await call<ChatSummary>("/chats/main", "POST", {})
+    chat = await call<ChatSummary>("/chats", "POST", {})
     const { part, shown } = await screen("MacBook", { action: "windows" })
     expect(part.status).toBe("done")
     // A title that says no more than the app is left out, and one that cannot be seen is said to be.
@@ -461,7 +457,7 @@ describe("a window on somebody's own computer", () => {
 
 describe("a browser on somebody's own computer", () => {
   it("runs a script there, and shows the model the pictures it took", async () => {
-    const chat = await call<ChatSummary>("/chats/main", "POST", {})
+    const chat = await call<ChatSummary>("/chats", "POST", {})
     let second = ""
     faux.setResponses([
       fauxAssistantMessage(
@@ -475,8 +471,7 @@ describe("a browser on somebody's own computer", () => {
         { stopReason: "toolUse" },
       ),
       (context) => {
-        // What the browser gave back, which is the newest thing the model is shown.
-        second = JSON.stringify(newest(context.messages))
+        second = JSON.stringify(context.messages)
         return fauxAssistantMessage("done")
       },
     ])
@@ -497,7 +492,7 @@ describe("a browser on somebody's own computer", () => {
   })
 
   it("is asked for a browser that is shown or not, as the agent's workspace has it then", async () => {
-    const chat = await call<ChatSummary>("/chats/main", "POST", {})
+    const chat = await call<ChatSummary>("/chats", "POST", {})
     const browse = async () => {
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall("browser", { computer: "MacBook", script: "1" })], {
@@ -519,7 +514,7 @@ describe("a browser on somebody's own computer", () => {
   })
 
   it("tells the agent how a script failed, as a failure", async () => {
-    const chat = await call<ChatSummary>("/chats/main", "POST", {})
+    const chat = await call<ChatSummary>("/chats", "POST", {})
     faux.setResponses([
       fauxAssistantMessage(
         [fauxToolCall("browser", { computer: "MacBook", script: 'throw new Error("no")' })],

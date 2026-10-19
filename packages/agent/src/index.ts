@@ -70,7 +70,7 @@ export {
 } from "./slack.ts"
 export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"
-export { type ScheduledReport, Scheduler } from "./schedules.ts"
+export { type ScheduledReport, Scheduler, SILENT_MARKER } from "./schedules.ts"
 export { fetchSkill } from "./skill-fetch.ts"
 export { parseFrontmatter, renderSkill, SkillError, validateSkill } from "./skill-format.ts"
 export { Skills } from "./skills.ts"

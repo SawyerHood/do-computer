@@ -683,6 +683,7 @@ function AgentRow({
   const items: MenuItem[] = [
     { title: "Library", icon: "folder", onPress: () => router.push(`${base}/library`) },
     { title: "Automations", icon: "clock", onPress: () => router.push(`${base}/automations`) },
+    { title: "Side chats", icon: "chats", onPress: () => router.push(`${base}/side-chats`) },
     ...(agent.hatched
       ? [
           {

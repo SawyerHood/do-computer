@@ -20,7 +20,6 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -31,9 +30,7 @@ const worlds: World[] = []
 
 function open(): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-log-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const world: World = { namespace: undefined as never, faux, reports: [] }
@@ -98,7 +95,7 @@ describe("the list of what the agent did", () => {
   it("has an entry where the agent wrote one, and none for work it did not write up", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {})
 
     world.faux.setResponses([step("bash", { command: "date" }), fauxAssistantMessage("Noon.")])
     expect(chatRuns(await converse(world, chat.id, "what time is it?"))).toEqual([])
@@ -130,7 +127,7 @@ describe("the list of what the agent did", () => {
   it("turns away an entry with nothing in it", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {})
     world.faux.setResponses([
       step("log", { title: " ", outcome: "Done." }),
       fauxAssistantMessage("Done."),

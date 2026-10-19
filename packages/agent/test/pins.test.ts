@@ -29,7 +29,6 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor, createLibraryActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type World = {
   agents: NodeActorNamespace
@@ -42,9 +41,7 @@ const worlds: World[] = []
 /** Agents of one workspace, which keeps a library for them and has no machine at all. */
 function open(): World {
   const root = mkdtempSync(join(tmpdir(), "dc-pins-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -146,7 +143,7 @@ async function use(
 async function setup(world: World, agent = "agent-1"): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" }, agent)
   await call(world, "/", "PATCH", { name: "Scout" }, agent)
-  return call<ChatSummary>(world, "/chats/main", "POST", {}, agent)
+  return call<ChatSummary>(world, "/chats", "POST", {}, agent)
 }
 
 const put = (world: World, path: string, content: string) =>

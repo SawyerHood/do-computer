@@ -66,7 +66,7 @@ Write it as a complete brief to a capable stranger:
 
 - what to do, with the exact names, files, addresses and sources involved,
 - what the report should contain and how long it should be,
-- what counts as nothing new. A run's reply goes to your main conversation, not to the user, and you decide there whether it is worth a send; say in the prompt when the task is "tell me only if something changed", so that the run says plainly when nothing did.
+- when to stay silent. A run that replies with exactly [SILENT] sends nothing; say so in the prompt when the task is "tell me only if something changed".
 
 If the task needs to compare with last time, say where to keep state, for example a file in the workspace, and tell the run to read and update it.
 
@@ -82,7 +82,7 @@ When most runs would find nothing to do ("tell me when the build breaks", "only 
 
 Write the command, run it yourself with bash to see what it prints, then create the task with it and try it with the schedule tool's action "check".
 
-Without a check, every run starts you, and a run with nothing new still costs a model call, here and in your main conversation.
+Without a check, every run starts you, and [SILENT] only keeps the message back.
 
 ## Choosing the schedule
 

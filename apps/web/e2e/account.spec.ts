@@ -1,4 +1,3 @@
-import type { Page } from "@playwright/test"
 import { expect, test } from "./fixtures.ts"
 import {
   card,
@@ -7,24 +6,13 @@ import {
   introduce,
   openSettings,
   owner,
-  nameMenu,
+  sideChats,
   signIn,
   signUp,
   tab,
 } from "./helpers.ts"
 
 inOrder()
-
-// A side chat as there were before can be made here, to see that one is kept and read.
-test.use({ settings: { DC_TEST_OLD_SIDE_CHATS: "1" } })
-
-// The look the pictures are taken in, where a run asks for them (`DC_SHOTS`).
-const scheme = process.env.DC_SHOTS_SCHEME === "dark" ? "dark" : "light"
-test.use({ colorScheme: scheme })
-async function shot(page: Page, name: string) {
-  const folder = process.env.DC_SHOTS
-  if (folder) await page.screenshot({ path: `${folder}/${name}-${scheme}.png` })
-}
 
 test("a visitor is sent to sign in", async ({ page }) => {
   await page.goto("/")
@@ -79,46 +67,59 @@ test("assistant text is rendered as Markdown", async ({ page }) => {
   await expect(page.locator(".prose-chat li")).toHaveText(["one", "two"])
 })
 
-test("a Dood is talked to in its main chat alone, and an old side chat is kept to read", async ({
+test("a side chat opens beside the main chat, is separate from it, and can be put away", async ({
   page,
 }) => {
   await signIn(page)
   const main = page.url()
-  const agentId = /\/a\/([^/]+)/.exec(main)![1]!
-  // There is no way to start another chat: none in the menu on the name, and none on the server.
-  await nameMenu(page).click()
-  await expect(page.getByRole("menuitem", { name: /side chat/i })).toHaveCount(0)
+  await sideChats(page).click()
+  await expect(page.getByText(/^None yet\./)).toBeVisible()
+  await page.getByRole("menuitem", { name: "New side chat" }).click()
+
+  // The main chat stays where it is, and the side chat is in a column of its own beside it.
+  const beside = page.getByRole("complementary", { name: /^Side chat:/ })
+  // It continues from the main chat, which the agent carries into it and which is not shown in it.
+  await expect(beside.getByText(/picks up from the main chat, which stays as it was/)).toBeVisible()
+  await expect(beside.getByText("Continues from the main chat")).toHaveCount(0)
+  await expect(page).toHaveURL(new RegExp(`${new URL(main).pathname}\\?side=\\d+$`))
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await beside.getByRole("textbox", { name: "Message" }).fill("second chat here")
+  await page.keyboard.press("Enter")
+  await expect(beside.getByText("You said: second chat here")).toBeVisible()
+  await expect(beside.getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(beside.getByText("Continues from the main chat")).toBeVisible()
+  // What came before that is the main chat's, and is not offered here.
+  await expect(beside.getByRole("button", { name: "Show earlier messages" })).toHaveCount(0)
+  await expect(beside.getByRole("heading", { name: "second chat here" })).toBeVisible()
+  await page.screenshot({ path: process.env.DC_SIDE_CHAT_SHOT ?? "/dev/null" }).catch(() => {})
+
+  // It is still beside the main chat after a reload, and it is listed in the agent's side chats.
+  await page.reload()
+  await expect(beside.getByText("You said: second chat here")).toBeVisible()
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toBeVisible()
+  // Once for the side chats, and once for the menu on the name that they are in.
   await page.keyboard.press("Escape")
-  expect((await page.request.post(`/api/agents/${agentId}/chats`, { data: {} })).status()).toBe(410)
+  await page.keyboard.press("Escape")
 
-  // A side chat from before there were none, as a Dood that had one keeps it: archived.
-  const made = await page.request.post(`/api/agents/${agentId}/chats/old`, {
-    data: { text: "an aside from before", requestId: crypto.randomUUID() },
-  })
-  expect(made.status()).toBe(201)
-  const old = (await made.json()) as { id: string; archived: boolean }
-  expect(old.archived).toBe(true)
-
-  // It is reached from the menu on the name, where it is listed to read.
-  await nameMenu(page).click()
-  await page.getByRole("menuitem", { name: /'s old side chats$/ }).click()
-  await expect(page.getByText(/Kept to read\.$/)).toBeVisible()
-  await shot(page, "old-side-chats-menu")
-  await page.getByRole("menuitem", { name: /^an aside from before/ }).click()
-  await expect(page).toHaveURL(new RegExp(`/c/${old.id}$`))
-  const transcript = page.getByRole("log")
-  await expect(transcript.getByText("You said: an aside from before")).toBeVisible()
-  // It is read, and not written in: there is no message box, and the server says no too.
-  await expect(page.getByText("An old side chat, kept to read.")).toBeVisible()
-  await expect(composer(page)).toHaveCount(0)
-  await shot(page, "old-side-chat")
-  const said = await page.request.post(`/api/agents/${agentId}/chats/${old.id}/messages`, {
-    data: { text: "more", requestId: crypto.randomUUID() },
-  })
-  expect(said.status()).toBe(409)
-  // It leads back to the main chat, which is where everything happens.
-  await page.getByRole("link", { name: "Back to the main chat" }).click()
+  // Given the whole chat, a line under the strip says what it is and leads back.
+  await beside.getByRole("link", { name: "Give it the whole chat" }).click()
+  await expect(beside).toHaveCount(0)
+  await expect(page.getByRole("main").getByText("You said: second chat here")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toHaveCount(0)
+  await expect(composer(page)).toHaveAttribute("placeholder", /in this side chat$/)
+  await page.getByRole("link", { name: "Main chat", exact: true }).click()
   await expect(page).toHaveURL(main)
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+
+  // From the menu it opens beside the main chat again, and is put away from there.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^second chat here/ }).click()
+  await beside.getByRole("button", { name: "Archive second chat here" }).click()
+  await expect(beside).toHaveCount(0)
+  await expect(page).toHaveURL(main)
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: /^second chat here/ })).toHaveCount(0)
   await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
 })
 

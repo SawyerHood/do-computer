@@ -40,6 +40,7 @@ import {
   type ConnectorResult,
   type ConnectorSummary,
   type ConnectSlackRequest,
+  type CreateChatRequest,
   type CreateWorkspaceRequest,
   type CreatureState,
   EMPTY_CHAT,
@@ -187,6 +188,11 @@ export type AgentState = {
   timezone: string | null
   /** The team that shares it, by name. Null: it is one person's. */
   team?: string | null
+  /**
+   * Whether its main chat works as a message bus: it speaks there only through `send`, and its
+   * own working is folded away. Absent from a server from before there was the switch.
+   */
+  bus?: boolean
   soul: string
   user: string
   memory: string
@@ -209,6 +215,8 @@ export type AgentPatch = {
   hatched?: true
   /** The voice it speaks in on a call. Null: the one picked for it by its id. */
   voice?: string | null
+  /** Whether its main chat speaks only through `send`. Applies from the next message there. */
+  bus?: boolean
 }
 
 /** A computer waiting to be paired, as shown to the user before they agree. */
@@ -789,6 +797,8 @@ export function createClient(options: ClientOptions) {
         update: (change: AgentPatch) => patch<AgentState>(base, change),
         /** Say that the user is looking at the agent now, which is what its unread dot goes by. */
         seen: () => request<{ seenAt: number }>(`${base}/seen`, { method: "PUT" }),
+        /** Start a side chat: a conversation of its own, beside the main one. */
+        createChat: (input: CreateChatRequest = {}) => post<ChatSummary>(`${base}/chats`, input),
         /** The agent's main chat, which it is given if it has none yet. */
         mainChat: () => post<ChatSummary>(`${base}/chats/main`),
         updateChat: (chatId: string, change: UpdateChatRequest) =>
@@ -806,8 +816,8 @@ export function createClient(options: ClientOptions) {
         callSaid: (callId: string, lines: CallLine[]) =>
           post<{ ok: true }>(`${base}/calls/${encodeURIComponent(callId)}/lines`, { lines }),
         /**
-         * The voice of a call hands something on to the agent. It goes to the main chat, which
-         * the answer says, and the agent answers it there with `send`.
+         * The voice of a call hands something on to the agent. It goes to the call's side chat,
+         * which the answer says, and the agent answers it there.
          */
         callWork: (callId: string, input: CallWorkRequest) =>
           post<CallWorkResponse>(`${base}/calls/${encodeURIComponent(callId)}/work`, input),

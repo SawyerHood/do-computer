@@ -4,8 +4,8 @@ import type { MessageOrigin } from "./origin.ts"
  * A voice call with an agent. The sound goes straight between the person's device and the
  * provider of the voice; the server starts the call, is told what was said, and keeps the record.
  * The voice is a small fast model that talks. It is not the agent: whatever needs the agent it
- * hands on to the main chat, where the call is held, and the agent answers it with `send`, which
- * the voice says, and hands what takes longer to a sub-agent, as it does any work.
+ * hands on, and the agent does it in a side chat that is the call's own, as it does what is
+ * asked of it in a typed message.
  */
 
 /** One thing said on a call. */
@@ -109,8 +109,8 @@ export type StartCallResponse = { call: StartedCall }
 export type CallLinesRequest = { lines: CallLine[] }
 
 /**
- * Something the voice hands on to the agent: what was asked, in words. It goes to the main chat
- * as a message said out loud, and what the agent sends in answer is what the voice says.
+ * Something the voice hands on to the agent: what was asked, in words. It goes to the call's
+ * side chat as a message, where the agent does it with everything it can do.
  */
 export type CallWorkRequest = {
   text: string
@@ -122,7 +122,7 @@ export type CallWorkRequest = {
 }
 
 export type CallWorkResponse = {
-  /** The chat it went to: the main chat, where the call is held and the agent answers it. */
+  /** The chat it went to: the call's own side chat, where the agent answers it. */
   chatId: string
   submissionId: string
 }

@@ -16,7 +16,6 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -32,9 +31,7 @@ const worlds: World[] = []
 
 function open(): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-creature-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 2_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 2_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []

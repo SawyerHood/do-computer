@@ -30,7 +30,6 @@ import {
   createAgentActor,
   IdentityDoc,
 } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type Machine = AgentComputer & { id: string }
 
@@ -92,9 +91,7 @@ const Antique = defineExtension({
 })
 
 function open(directory: string, setup: Setup = {}): World {
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -297,7 +294,7 @@ async function told(world: World, chatId: string, agent = "agent-1"): Promise<st
 
 async function setup(world: World, agent = "agent-1"): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" }, agent)
-  return call<ChatSummary>(world, "/chats/main", "POST", {}, agent)
+  return call<ChatSummary>(world, "/chats", "POST", {}, agent)
 }
 
 const names = async (world: World, agent = "agent-1") =>

@@ -658,6 +658,9 @@ switch.
 
 ## 8.4 Rolling back phase 4
 
+**Rolled back.** This plan's phase 4 was undone by the change described here: the code is as
+it was before phase 4, and the sections on it (8.3) say what was built and is no longer there.
+
 Phase 4 can be undone without losing anything people see, with the draft pull request "Undo bus
 phase 4 (rollback, keep as draft)" (branch `bus-4-undo`). It is the revert of this phase, plus a
 small step that runs as a Dood's actor opens on the reverted code: chats marked

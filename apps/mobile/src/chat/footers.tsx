@@ -1,6 +1,6 @@
 import type { Person } from "@do-computer/protocol"
-import type { ReactNode } from "react"
-import { View } from "react-native"
+import { type ReactNode, useState } from "react"
+import { TextInput, View } from "react-native"
 import { radius, useTheme } from "@/lib/theme"
 import { Button, Faces, Glass, Text } from "@/ui"
 import { names } from "./chats"
@@ -62,5 +62,52 @@ export function TypingLine({ people }: { people: readonly Person[] }) {
         {names(people)} {people.length === 1 ? "is" : "are"} typing…
       </Text>
     </View>
+  )
+}
+
+/** A small field to give a chat another name, where the system has no prompt to ask with. */
+export function RenameBar({
+  title,
+  onSave,
+  onCancel,
+}: {
+  title: string
+  onSave: (title: string) => void
+  onCancel: () => void
+}) {
+  const theme = useTheme()
+  const [value, setValue] = useState(title)
+  const save = () => (value.trim() === "" ? onCancel() : onSave(value.trim()))
+  return (
+    <Glass
+      style={{
+        borderRadius: radius.lg,
+        padding: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <TextInput
+        accessibilityLabel="Chat title"
+        autoFocus
+        value={value}
+        onChangeText={setValue}
+        onSubmitEditing={save}
+        returnKeyType="done"
+        selectionColor={theme.tint}
+        style={{
+          flex: 1,
+          height: 36,
+          paddingHorizontal: 10,
+          color: theme.ink,
+          fontSize: 16,
+          backgroundColor: theme.fill,
+          borderRadius: radius.sm,
+        }}
+      />
+      <Button title="Cancel" kind="plain" size="small" onPress={onCancel} />
+      <Button title="Save" size="small" onPress={save} />
+    </Glass>
   )
 }

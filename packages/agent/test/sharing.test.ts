@@ -43,7 +43,6 @@ import {
   LIBRARY_SITE_HEADER,
   type SiteDirectory,
 } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 const STYLE = '<style id="dc-visual-theme">'
 const count = (text: string, part: string) => text.split(part).length - 1
@@ -97,9 +96,7 @@ function directory(sites: SiteSummary[]): SiteDirectory {
  */
 function open(previewer?: PagePreviewer): World {
   const root = mkdtempSync(join(tmpdir(), "dc-sharing-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -194,7 +191,7 @@ async function use(
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
   await call(world, "/", "PATCH", { name: "Scout" })
-  return call<ChatSummary>(world, "/chats/main", "POST", {})
+  return call<ChatSummary>(world, "/chats", "POST", {})
 }
 
 const put = (world: World, path: string, content: string) =>

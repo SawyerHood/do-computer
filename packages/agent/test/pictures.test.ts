@@ -14,19 +14,16 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type World = { namespace: NodeActorNamespace; faux: ReturnType<typeof fauxProvider> }
 const worlds: World[] = []
 
 function open(directory: string): World {
-  const faux = quietOnReminder(
-    fauxProvider({
-      provider: "test",
-      models: [{ id: "seeing" }, { id: "blind" }],
-      tokensPerSecond: 5_000,
-    }),
-  )
+  const faux = fauxProvider({
+    provider: "test",
+    models: [{ id: "seeing" }, { id: "blind" }],
+    tokensPerSecond: 5_000,
+  })
   const models = createModels()
   models.setProvider(faux.provider)
   const option = (id: string, images: boolean) => ({
@@ -119,7 +116,7 @@ describe("pictures sent with a message", () => {
   it("reach a model that can look at them, and are kept with the message", async () => {
     const world = open(temporary())
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {})
     const heard = listen(world)
     const state = await converse(world, chat.id, "What is this?", [PIXEL])
     expect(heard.blocks().map((block) => block.type)).toEqual(["text", "image", "text"])
@@ -134,17 +131,17 @@ describe("pictures sent with a message", () => {
   it("are left out for a model that cannot take them, and the words still go", async () => {
     const world = open(temporary())
     await call(world, "/init", "POST", { ownerId: "user-1", model: "test/blind" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {})
     const heard = listen(world)
     const state = await converse(world, chat.id, "What is this?", [PIXEL])
     expect(heard.blocks().map((block) => block.type)).toEqual(["text", "text"])
-    expect(state.messages.at(-1)!.parts).toEqual([{ type: "thinking", text: "I see.", written: true }])
+    expect(state.messages.at(-1)!.parts).toEqual([{ type: "text", text: "I see." }])
   })
 
   it("have to be a few small pictures of a kind a model reads", async () => {
     const world = open(temporary())
     await call(world, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {})
     const send = (images: unknown) =>
       call(world, `/chats/${chat.id}/messages`, "POST", {
         text: "look",

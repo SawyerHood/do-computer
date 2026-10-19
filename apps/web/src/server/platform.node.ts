@@ -121,7 +121,6 @@ function create(): NodePlatform {
         judge: models.judge,
         review: models.review,
         allowPrivateHosts: config.allowPrivateHosts,
-        testOldSideChats: config.testOldSideChats,
         boxEveryMs: config.boxEveryMs,
         ...(config.requestTries === undefined ? {} : { requestTries: config.requestTries }),
         ...(previewer === undefined ? {} : { pagePreviewer: previewer }),

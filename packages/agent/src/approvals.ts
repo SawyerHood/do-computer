@@ -225,7 +225,7 @@ const abilityOf = (id: string) => ABILITIES.find((ability) => ability.id === id)
 
 /**
  * What asks first because it wants someone's yes, and not because it changes the app: a
- * sub-agent asking through the main chat can ask for these. Paying is not among
+ * sub-agent asking through a main chat with the bus on can ask for these. Paying is not among
  * them: whoever says yes types the card's code, in a conversation with them.
  */
 const SOMEONES_YES: ReadonlySet<string> = new Set([SIGN_IN_ABILITY, "tool:share_public"])
@@ -581,7 +581,7 @@ export class Approvals {
     const binding = described?.binding
 
     // What changes the app is for a person to ask for, and there is nobody in these to ask. A
-    // sub-agent, which asks through the main chat, can still ask for someone's yes.
+    // sub-agent that asks through a main chat with the bus on can still ask for someone's yes.
     const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
     const kind = own(chats, chatId)?.kind
     const through = askingThrough(chats, chatId) !== undefined

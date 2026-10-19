@@ -157,27 +157,6 @@ function asked(text: string): { name: string; args: string }[] | undefined {
   return command ? [{ name: command[1]!, args: command[2]! }] : undefined
 }
 
-/** The tool a main chat or a thread in Slack says things to people with (`bus.ts`). */
-const SEND = "send"
-
-/**
- * Whether the echo model, answering a person where only what is sent is shown, has sent them
- * anything since their message: it then has nothing more to send, and says the rest to itself.
- */
-function sentSince(context: EchoContext, person: number): boolean {
-  return context.messages
-    .slice(person + 1)
-    .some(
-      (message) =>
-        message.role === "assistant" &&
-        Array.isArray(message.content) &&
-        message.content.some(
-          (block: { type?: string; name?: string }) =>
-            block.type === "toolCall" && block.name === SEND,
-        ),
-    )
-}
-
 /**
  * What the echo model answers. It repeats the last user message, with two affordances for trying
  * the app without a model key: a message of the form `/tool <name> <json arguments>` makes it call
@@ -185,35 +164,8 @@ function sentSince(context: EchoContext, person: number): boolean {
  * and `/fail <error>` makes the reply fail with that error, the way a model provider's would. An
  * automation's result's lines of that form are called in the same way.
  * A tool it is not offered yet, as a connector's is not, it looks for first, as a model would.
- *
- * Where it is offered `send`, in a main chat or a thread in Slack, it answers a person as a model
- * there would: what it would have said goes in a `send` marked `done`, once, which ends its turn
- * (a send it is told to make goes on to its result, and anything after that it says to itself). An event, or a note for the model alone, gets words that nobody is shown, and so does
- * a message that begins `/quiet`, as from a model that forgot to send.
  */
 function echoAnswer(context: EchoContext) {
-  const answer = echoWords(context)
-  if (typeof answer === "object") return answer
-  const at = context.messages.findLastIndex(
-    (message) => message.role === "user" && blockText(message.content) !== "",
-  )
-  const newest = at === -1 ? "" : blockText(context.messages[at]!.content)
-  const person =
-    at !== -1 &&
-    !newest.startsWith("<event ") &&
-    !newest.startsWith("<meta ") &&
-    !newest.startsWith("/quiet")
-  if (!person || !offered(context).has(SEND) || sentSince(context, at)) {
-    return fauxAssistantMessage(answer)
-  }
-  // Its answer is its last word for now, which ends its turn.
-  return fauxAssistantMessage([fauxToolCall(SEND, { text: answer, done: true })], {
-    stopReason: "toolUse",
-  })
-}
-
-/** What the echo model would say, or the message it answers with where that is not words. */
-function echoWords(context: EchoContext): string | ReturnType<typeof fauxAssistantMessage> {
   // Prompt changes are recorded as system entries, which can follow a tool result.
   const last = context.messages.findLast((message) => message.role !== "system")
   // The newest thing said to it. A note for the model alone, such as word that a sub-agent has
@@ -239,7 +191,7 @@ function echoWords(context: EchoContext): string | ReturnType<typeof fauxAssista
     calls !== undefined &&
     calls.every((call) => call.name !== TOOL_SEARCH_TOOL_NAME)
   if (last?.role === "toolResult" && !looked) {
-    return `The tool returned:\n\n${blockText(last.content)}`
+    return fauxAssistantMessage(`The tool returned:\n\n${blockText(last.content)}`)
   }
   const failure = /^\/fail\s+([\s\S]+)$/.exec(text)
   if (failure) {
@@ -259,10 +211,12 @@ function echoWords(context: EchoContext): string | ReturnType<typeof fauxAssista
       }
       return fauxAssistantMessage(use, { stopReason: "toolUse" })
     } catch {
-      return "Those tool arguments are not valid JSON."
+      return fauxAssistantMessage("Those tool arguments are not valid JSON.")
     }
   }
-  return `You said: ${text}\n\n(No OPENROUTER_API_KEY is configured, so this is the built-in echo model.)`
+  return fauxAssistantMessage(
+    `You said: ${text}\n\n(No OPENROUTER_API_KEY is configured, so this is the built-in echo model.)`,
+  )
 }
 
 /** What model access is built from besides the deployment's settings. */

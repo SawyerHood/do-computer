@@ -24,7 +24,6 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentComputer, createAgentActor, createLibraryActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type Machine = AgentComputer & { id: string }
 type World = {
@@ -42,9 +41,7 @@ let machine = (_key: string): Sandbox => {
 
 /** `shared`: the agents are in one workspace that keeps a library for them all. */
 function open(directory: string, shared: boolean): World {
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -160,7 +157,7 @@ async function run(
 async function setup(world: World, agent: string, name: string): Promise<ChatSummary> {
   await call(world, agent, "/init", "POST", { ownerId: "user-1" })
   await call(world, agent, "/", "PATCH", { name })
-  return call<ChatSummary>(world, agent, "/chats/main", "POST", {})
+  return call<ChatSummary>(world, agent, "/chats", "POST", {})
 }
 
 const listing = (world: World, agent: string) => call<LibraryListing>(world, agent, "/library")
