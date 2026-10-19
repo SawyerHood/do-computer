@@ -692,7 +692,11 @@ describe("an agent in Slack", () => {
     expect(world.mcp.calls).toHaveLength(1)
     const { pending } = await call<ApprovalsState>(world, "/approvals")
     expect(pending).toMatchObject([{ chatId, chatKind: "slack", title: "Use Calculator" }])
-    expect((await threads(world)).find((thread) => thread.id === chatId)?.status).toBe("waiting")
+    // Posted as it is sent: the run comes to rest, waiting, just after.
+    await until(
+      async () => (await threads(world)).find((thread) => thread.id === chatId)?.status,
+      (status) => status === "waiting",
+    )
     expect(world.reports).toMatchObject([{ kind: "approval", chatId }])
 
     // The OK sets it going again, and what it then says is posted to the same thread.
