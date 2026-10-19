@@ -25,9 +25,13 @@ import type { ConversationView, EntryRecord, JsonObject } from "@earendil-works/
 import { afterEach, describe, expect, it } from "vitest"
 import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { busExtension, eventText, FROM_SLACK, UNSENT, unsent } from "../src/bus.ts"
-import { type AgentNotification, createAgentActor } from "../src/index.ts"
-import { projectChat } from "../src/project.ts"
-import { newest } from "./newest.ts"
+import {
+  type AgentNotification,
+  CALLER_HEADER,
+  createAgentActor,
+  encodeCaller,
+} from "../src/index.ts"
+import { branchPoint, projectChat } from "../src/project.ts"
 
 // --- What is drawn, from entries made up here.
 
@@ -566,6 +570,48 @@ describe("a reply with thinking before its send", () => {
   })
 })
 
+describe("a run a send marked done ended", () => {
+  it("is where a side chat can branch, as an answer is, read from the stored result", () => {
+    const ended = result("d1", false, { files: [], done: true })
+    const entries = [
+      mark(true),
+      person("hi"),
+      // The flag as a model wrote it, which pi-ai took for true: the result says what it did.
+      said([call("d1", "send", { text: "Hi.", done: "true" })], "toolUse"),
+      ended,
+    ]
+    expect(branchPoint(entries)).toBe(ended.id)
+    // One whose result did not ask to end the run did not end it.
+    expect(
+      branchPoint([
+        mark(true),
+        person("hi"),
+        said([call("d0", "send", { text: "Hi.", done: true })], "toolUse"),
+        result("d0", false, { files: [] }),
+      ]),
+    ).toBeUndefined()
+    // One that failed did not end it: the run went on, and nothing has finished yet.
+    expect(
+      branchPoint([
+        mark(true),
+        person("hi"),
+        said([call("d2", "send", { text: "Hi.", done: true })], "toolUse"),
+        result("d2", true),
+      ]),
+    ).toBeUndefined()
+    // Nor does one beside other work.
+    expect(
+      branchPoint([
+        mark(true),
+        person("hi"),
+        said([call("d3", "send", { text: "Hi.", done: true }), call("d4", "bash", {})], "toolUse"),
+        result("d3", false, { files: [], done: true }),
+        result("d4"),
+      ]),
+    ).toBeUndefined()
+  })
+})
+
 describe("when the agent is reminded it sent nothing", () => {
   it("is after a person's message that nothing was sent for", () => {
     expect(unsent([mark(true), person("hi"), said([{ type: "text", text: "hmm" }])])).toBe(true)
@@ -830,10 +876,18 @@ async function until<T>(
   }
 }
 
-/** An agent with a main chat, which is a bus. */
-async function setup(world: World): Promise<ChatSummary> {
+/**
+ * The newest message of a request that is not the prompt. A change to the prompt (what the
+ * agent is told about its computers, say) is sent as a system message after what came before
+ * it, so the very last message may be that and not the input that set the request going.
+ */
+const newest = (messages: readonly unknown[]) =>
+  messages.findLast((message) => (message as { role?: string }).role !== "system")
+
+/** An agent with a main chat, and the bus switched as `bus` says. */
+async function setup(world: World, bus: boolean): Promise<ChatSummary> {
   await request(world, "/init", "POST", { ownerId: "user-1" })
-  await request(world, "/", "PATCH", { name: "Juniper" })
+  await request(world, "/", "PATCH", { name: "Juniper", bus })
   return request<ChatSummary>(world, "/chats/main", "POST")
 }
 
@@ -881,9 +935,106 @@ const spoken = (state: ChatState) =>
   texts(drawn(state).filter((message) => message.role !== "notice")).filter((text) => text !== "")
 
 describe("the main chat as a bus", () => {
+  it("is off unless switched on: no send, and the answer is shown", async () => {
+    const world = open(temporary())
+    const main = await setup(world, false)
+    const turns = script(world, () => fauxAssistantMessage("Plain answer."))
+    await say(world, main.id, "hi")
+    const state = await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && state.messages.length >= 2,
+    )
+    expect(texts(state.messages)).toEqual(["hi", "Plain answer."])
+    expect(turns[0]!.system).toContain('"name":"send_file"')
+    expect(turns[0]!.system).not.toContain('"name":"send"')
+    expect(turns[0]!.system).not.toContain("message bus")
+    expect(world.notified.map((one) => one.text)).toEqual(["Plain answer."])
+  })
+
+  it("is off unless switched on: two reports taken up together tell people once", async () => {
+    const world = open(temporary())
+    const main = await setup(world, false)
+    let reports = 0
+    const turns = script(world, async (turn) => {
+      if (turn.sub) {
+        reports++
+        return fauxAssistantMessage(turn.seen.includes("Find A") ? "A is 1." : "B is 2.")
+      }
+      if (turn.last.includes("sub-agent of yours has sent word")) {
+        return fauxAssistantMessage("Both reported: A=1 B=2.")
+      }
+      if (afterTool(turn)) {
+        // Busy until both have reported, so that both reports wait for it.
+        await until(
+          async () => reports,
+          (count) => count >= 2,
+        )
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        return fauxAssistantMessage("Two helpers are on it.")
+      }
+      return fauxAssistantMessage(
+        [
+          fauxToolCall("subagent", { action: "start", title: "A", task: "Find A." }),
+          fauxToolCall("subagent", { action: "start", title: "B", task: "Find B." }),
+        ],
+        { stopReason: "toolUse" },
+      )
+    })
+    await say(world, main.id, "find A and B")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && texts(state.messages).includes("Both reported: A=1 B=2."),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    // One turn for both reports, and one notification for its one answer.
+    expect(turns.filter((turn) => turn.last.includes("sub-agent of yours"))).toHaveLength(1)
+    expect(world.notified.map((one) => one.text)).toEqual([
+      "Two helpers are on it.",
+      "Both reported: A=1 B=2.",
+    ])
+  })
+
+  it("is off unless switched on: in a team, each person whose message a run answers is told once", async () => {
+    const world = open(temporary())
+    await request(world, "/init", "POST", { ownerId: "user-A" })
+    await request(world, "/team", "PUT", { team: "Crew" })
+    await request(world, "/", "PATCH", { name: "Juniper" })
+    const main = await request<ChatSummary>(world, "/chats/main", "POST")
+    const as = (who: string) => ({ [CALLER_HEADER]: encodeCaller({ id: who, name: who }) })
+    const post = (who: string, text: string) =>
+      world.namespace.get("agent-1").fetch(
+        new Request(`http://actor/chats/${main.id}/messages`, {
+          method: "POST",
+          body: JSON.stringify({ text, requestId: crypto.randomUUID() }),
+          headers: { "content-type": "application/json", ...as(who) },
+        }),
+      )
+    let steered: () => void = () => {}
+    const steering = new Promise<void>((resolve) => (steered = resolve))
+    script(world, async (turn) => {
+      if (afterTool(turn)) return fauxAssistantMessage("Answer for both.")
+      // Still working on A's message when B writes, so that B's joins the same run.
+      await steering
+      return use("progress", { message: "Looking." })
+    })
+    await post("user-A", "what is up?")
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await post("user-B", "and for me?")
+    steered()
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && texts(state.messages).includes("Answer for both."),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(world.notified.map((one) => `${one.userId}: ${one.text}`).sort()).toEqual([
+      "user-A: Answer for both.",
+      "user-B: Answer for both.",
+    ])
+  })
+
   it("keeps a send whose file is missing in view, marked, and tells nobody of it", async () => {
     const world = open(temporary(), true)
-    const main = await setup(world)
+    const main = await setup(world, true)
     script(world, (turn) =>
       afterTool(turn)
         ? fauxAssistantMessage("It failed.")
@@ -902,7 +1053,7 @@ describe("the main chat as a bus", () => {
 
   it("shows what is sent, keeps the rest to itself, and tells people of the send alone", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = script(world, (turn) =>
       afterTool(turn)
         ? fauxAssistantMessage("All done, nothing more.")
@@ -932,7 +1083,7 @@ describe("the main chat as a bus", () => {
 
   it("ends its turn with a send marked done, with no request made just to stop", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = script(world, (turn) =>
       afterTool(turn)
         ? fauxAssistantMessage("A request that must not be made.")
@@ -976,7 +1127,7 @@ describe("the main chat as a bus", () => {
       },
     }
     const world = open(temporary(), false, { review })
-    const main = await setup(world)
+    const main = await setup(world, true)
     // First a run that ends on an answer, after an update and a send that failed: reviewed
     // once, when it yields, and never for the rounds that did not end it.
     world.faux.setResponses([
@@ -1025,7 +1176,7 @@ describe("the main chat as a bus", () => {
 
   it("is reminded once at most after a send that failed, however it answers", async () => {
     const world = open(temporary(), true)
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = script(world, (turn) =>
       afterTool(turn)
         ? fauxAssistantMessage("That did not go.")
@@ -1044,7 +1195,7 @@ describe("the main chat as a bus", () => {
 
   it("goes on after a send beside other work, even marked done", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = script(world, (turn) =>
       afterTool(turn)
         ? fauxAssistantMessage("Finished.")
@@ -1067,7 +1218,7 @@ describe("the main chat as a bus", () => {
 
   it("takes up events that came while it worked, after a send marked done ends its turn", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     let reports = 0
     const turns = script(world, async (turn) => {
       if (turn.sub) {
@@ -1110,7 +1261,7 @@ describe("the main chat as a bus", () => {
 
   it("reminds a run that sent nothing once, then lets it stay quiet", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = script(world, () => fauxAssistantMessage("I will not say anything."))
     await say(world, main.id, "hi")
     const state = await until(
@@ -1127,7 +1278,7 @@ describe("the main chat as a bus", () => {
 
   it("gives events to the agent together, and never reminds a run they started", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     let reports = 0
     const turns = script(world, async (turn) => {
       if (turn.sub) {
@@ -1174,7 +1325,7 @@ describe("the main chat as a bus", () => {
 
   it("is told of a command that ended, and of an answer to what it asked, as events", async () => {
     const world = open(temporary(), true)
-    const main = await setup(world)
+    const main = await setup(world, true)
     await request(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
     const turns = script(world, (turn) => {
       if (turn.last.includes("command-ended"))
@@ -1215,7 +1366,7 @@ describe("the main chat as a bus", () => {
   it("is drawn the same after the agent is opened again, with each send once", async () => {
     const directory = temporary()
     const world = open(directory)
-    const main = await setup(world)
+    const main = await setup(world, true)
     script(world, (turn) =>
       afterTool(turn) ? fauxAssistantMessage("ok") : use("send", { text: "Once." }),
     )
@@ -1230,6 +1381,25 @@ describe("the main chat as a bus", () => {
     const after = await chat(again, main.id)
     expect(after.messages).toEqual(before.messages)
     expect(spoken(after)).toEqual(["hi", "Once."])
+  })
+
+  it("switched off again, answers as it did before", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    script(world, (turn) =>
+      turn.system.includes('"name":"send"')
+        ? use("send", { text: "Bus." })
+        : fauxAssistantMessage("Plain."),
+    )
+    await request(world, "/", "PATCH", { bus: false })
+    await say(world, main.id, "hi")
+    const state = await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && state.messages.length >= 2,
+    )
+    expect(texts(state.messages)).toEqual(["hi", "Plain."])
+    const { bus } = await request<{ bus: boolean }>(world, "/")
+    expect(bus).toBe(false)
   })
 })
 
@@ -1257,7 +1427,7 @@ describe("sub-agents asking a person through the main chat", () => {
 
   it("asks for a secret, shown in the main chat under its name, and carries on with the answer", async () => {
     const world = open(temporary(), true)
-    const main = await setup(world)
+    const main = await setup(world, true)
     let subTurns = 0
     const turns = script(world, (turn) => {
       if (!turn.sub) return coordinate(turn, "Get an API key saved, then say it is ready.")
@@ -1323,7 +1493,7 @@ describe("sub-agents asking a person through the main chat", () => {
 
   it("asks first where a rule says so, and is let through by the answer from the main chat", async () => {
     const world = open(temporary(), true)
-    const main = await setup(world)
+    const main = await setup(world, true)
     await request(world, "/approvals/rules", "PATCH", { "tool:bash": "ask" })
     const turns = script(world, (turn) => {
       if (!turn.sub) return coordinate(turn, "Run echo built and report what it printed.")
@@ -1364,9 +1534,34 @@ describe("sub-agents asking a person through the main chat", () => {
     expect(report!.last).toContain("It printed built.")
   })
 
+  it("cannot ask anything where the bus is off, as before", async () => {
+    const world = open(temporary(), true)
+    const main = await setup(world, false)
+    const results: string[] = []
+    script(world, (turn) => {
+      if (!turn.sub) {
+        if (turn.last.includes("sub-agent of yours")) return fauxAssistantMessage("ok")
+        if (afterTool(turn)) return fauxAssistantMessage("Started.")
+        return use("subagent", { action: "start", title: "Key helper", task: "Get a key." })
+      }
+      if (afterTool(turn)) {
+        results.push(turn.last)
+        return fauxAssistantMessage("I could not ask.")
+      }
+      return use("request_secret", { secrets: [{ name: "API_KEY" }] })
+    })
+    await say(world, main.id, "get the key")
+    await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "done",
+    )
+    expect(results[0]).toContain("Only a conversation with the user can ask for a secret")
+    expect((await request<{ requests: unknown[] }>(world, "/secrets")).requests).toEqual([])
+  })
+
   it("still cannot change schedules or start sub-agents, with the bus on", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const results: string[] = []
     script(world, (turn) => {
       if (!turn.sub) return coordinate(turn, "Try things.")
@@ -1388,7 +1583,7 @@ describe("sub-agents asking a person through the main chat", () => {
       (found) => found.length === 1 && found[0]!.status === "done",
     )
     expect(results.join("\n")).toContain("A sub-agent cannot change schedules.")
-    expect(results.join("\n")).toContain("Only your main conversation can use sub-agents.")
+    expect(results.join("\n")).toContain("Only a conversation with the user can use sub-agents.")
   })
 })
 
@@ -1420,7 +1615,7 @@ describe("sub-agents asking through the main chat: what they may ask for", () =>
 
   it("may ask for what wants someone's yes, such as making a page public", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     delegate(world, "Make the plan public.", [["share", { action: "public", site: "Plan" }]])
     await say(world, main.id, "share the plan")
     const [waiting] = await until(
@@ -1438,11 +1633,27 @@ describe("sub-agents asking through the main chat: what they may ask for", () =>
     ])
   })
 
+  it("may not ask for that where the bus is off, as before", async () => {
+    const world = open(temporary())
+    const main = await setup(world, false)
+    const turns = delegate(world, "Make the plan public.", [
+      ["share", { action: "public", site: "Plan" }],
+    ])
+    await say(world, main.id, "share the plan")
+    await until(
+      () => subagents(world),
+      (found) => found[0]?.status === "done",
+    )
+    const refused = turns.find((turn) => turn.sub && afterTool(turn))!
+    expect(refused.last).toContain("A sub-agent cannot do this (Make something shared public)")
+    expect((await request<{ pending: unknown[] }>(world, "/approvals")).pending).toEqual([])
+  })
+
   // Machines and Doods are refused by the same rule, where a deployment has them; paying by
   // its own tool, which asks only in a conversation with a person.
   it("still may not change the app: connectors, settings", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = delegate(world, "Change things.", [
       ["connectors", { action: "add", url: "https://mcp.example.com" }],
       ["settings", { action: "set", model: "test/model" }],
@@ -1461,7 +1672,7 @@ describe("sub-agents asking through the main chat: what they may ask for", () =>
 
   it("takes back what it asked for when it is stopped", async () => {
     const world = open(temporary(), true)
-    const main = await setup(world)
+    const main = await setup(world, true)
     delegate(world, "Get a key.", [["request_secret", { secrets: [{ name: "API_KEY" }] }]], () =>
       fauxAssistantMessage("Waiting."),
     )
@@ -1481,7 +1692,7 @@ describe("sub-agents asking through the main chat: what they may ask for", () =>
 
   it("takes back what nobody answered in time, and the sub-agent carries on and reports", async () => {
     const world = open(temporary(), true, { subagentAskTtlMs: 500 })
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = delegate(
       world,
       "Get a key.",
@@ -1547,7 +1758,7 @@ describe("the main chat as a coordinator", () => {
 
   it("is told to hand work over, and points a sub-agent at files and links", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const turns = script(world, (turn) => {
       if (turn.sub) return fauxAssistantMessage("Read them.")
       if (turn.last.includes("subagent-report")) return fauxAssistantMessage("quiet")
@@ -1577,7 +1788,7 @@ describe("the main chat as a coordinator", () => {
 
   it("refuses a link that is not a web address", async () => {
     const world = open(temporary())
-    const main = await setup(world)
+    const main = await setup(world, true)
     const results: string[] = []
     script(world, (turn) => {
       if (afterTool(turn)) {

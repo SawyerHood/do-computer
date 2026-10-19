@@ -1,11 +1,5 @@
 # Forked chats, and joining them back: plan
 
-> **Replaced by `PLAN-main-bus.md`.** A Dood is now talked to in its main chat alone: side chats
-> are no longer made (those from before are kept, archived, to read), and sub-agents start fresh
-> rather than as forks. Step one below was built and has since been taken out again (phase 4 of
-> `PLAN-main-bus.md`, section 8.3); steps two to four will not be built. What follows is kept as
-> the record of what was planned and why.
-
 **Status:** a plan, written 2026-10-13 and changed the same day after the owner's answers.
 **Step one is built** (section 8): side chats, the session id and the one-hour cache. HANDOFF.md
 section 5 item 75 says how, and where the build departed from this plan. Steps two to four are

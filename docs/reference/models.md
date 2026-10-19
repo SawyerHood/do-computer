@@ -87,4 +87,5 @@ answering or someone stops the conversation.
 
 Every Dood asks its provider for the longest prompt cache it keeps. On Claude that is an hour
 where five minutes is usual: writing to it costs twice the input price and not 1.25 times, and
-reading it a tenth. A chat picked up again within the hour is then read from the cache.
+reading it a tenth. A chat picked up again within the hour is then read from the cache, and so
+is a side chat opened from it, which carries the whole main chat while the cache holds it.

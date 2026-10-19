@@ -20,9 +20,9 @@ import { addWords, NOTHING_SAID, type Said, takePause, takePauses, turnDone } fr
 /**
  * A voice call with a Dood, as one device holds it. The sound goes straight between the device
  * and the provider of the voice; the server starts the call and keeps what was said. The voice
- * is not the Dood and can only talk: what it hands on is sent to the Dood's main chat, where the
- * call is held, as a message said out loud. What the Dood sends there in answer is handed back for
- * the voice to say; what takes longer it hands to a sub-agent, as it does any work.
+ * is not the Dood and can only talk: what it hands on is sent to the call's side chat as a
+ * message, where the Dood does it with everything it can do, and the Dood's answer there is
+ * handed back for the voice to say.
  *
  * Everything here is the same in a browser and on a phone. What differs is handed in: how the
  * sound is carried (`openLine`), how a chat is followed, and where a message is from. There is
@@ -42,8 +42,13 @@ export type CallWork = { id: string; ask: string; done: boolean; step?: string }
 export type CallView = {
   agentId: string
   agentName: string
-  /** The chat the call is held in, the main chat, where what it hands on goes. */
+  /** The chat the call is held in, which is given its record. */
   chatId: string
+  /**
+   * The chat the Dood does the call's work in, once something was handed on: a side chat of the
+   * call's own where the call is held in the main chat, else the chat it is held in.
+   */
+  workChatId?: string
   phase: CallPhase
   /** When the voice was ready to talk. Until then nothing is counted. */
   startedAt: number | undefined
@@ -197,16 +202,6 @@ const wordsOf = (message: ChatMessage) =>
     .join("\n")
     .trim()
 
-/**
- * Whether a message is something the Dood sent, whole: words a person was given. Its own words
- * are not text in the chat, and a send that failed was not said.
- */
-const isSent = (message: ChatMessage) =>
-  message.role === "assistant" &&
-  message.status !== "streaming" &&
-  message.notSent === undefined &&
-  wordsOf(message) !== ""
-
 export type Caller = ReturnType<typeof createCaller>
 
 /** The calls of one device. */
@@ -356,13 +351,14 @@ export function createCaller(options: CallerOptions) {
   }
 
   /**
-   * The chat the call's work goes to is followed for as long as the call lasts, wherever the
-   * person goes: what the Dood sends there is what its voice says.
+   * The chat the call's work is done in is followed for as long as the call lasts, wherever the
+   * person goes: what the Dood answers there is what its voice says.
    */
   function follow(mine: Session, chatId: string): void {
     if (mine.workChatId === chatId) return
     mine.workChatId = chatId
     mine.workChat = EMPTY_CHAT
+    patch({ workChatId: chatId })
     mine.cleanups.push(
       options.follow(mine.agentId, chatId, (chat) => {
         if (session !== mine || mine.workChatId !== chatId) return
@@ -407,8 +403,8 @@ export function createCaller(options: CallerOptions) {
   }
 
   /**
-   * The chat the call is held in changed: what the Dood sends there in answer to something handed
-   * on goes back to its voice.
+   * The chat the call works in changed: what the Dood answers there to something handed on goes
+   * back to its voice.
    */
   function chatChanged(chat: ChatState): void {
     const mine = session
@@ -424,29 +420,18 @@ export function createCaller(options: CallerOptions) {
           answer(handoff, "I could not get to that. Ask me again.")
         continue
       }
-      // What follows it, up to whatever a person says next. A later handoff of the call that came
-      // before anything was sent joins the run that is answering this one, and what that run
-      // sends is the answer to both: each is settled with the same words. One that came after a
-      // send has an answer of its own, and this one was answered by what came before it.
-      let sentSince = false
-      const next = chat.messages.findIndex((message, index) => {
-        if (index <= at) return false
-        if (message.role === "user" && (message.spoken?.call !== mine.id || sentSince)) return true
-        if (isSent(message)) sentSince = true
-        return false
-      })
-      const after = chat.messages.slice(at + 1, next === -1 ? undefined : next)
-      // What the Dood sent. The first send is said as soon as it is whole, so that the voice is not
-      // kept waiting while the Dood carries on, or hands the work to a sub-agent; at rest,
-      // everything it sent is said.
-      const sent = after.filter(isSent)
-      if (chat.busy && sent.length > 0) {
-        answer(handoff, wordsOf(sent[0]!))
-        continue
-      }
+      const after = chat.messages.slice(at + 1)
       if (!chat.busy) {
+        // What it said. Where it speaks only through `send`, its own words are not text, and
+        // a send that failed was not said.
+        const last = after.findLast(
+          (message) =>
+            message.role === "assistant" &&
+            message.notSent === undefined &&
+            wordsOf(message) !== "",
+        )
         const failed = after.findLast((message) => message.role === "assistant")
-        if (sent.length > 0) answer(handoff, sent.map(wordsOf).join(" "))
+        if (last !== undefined) answer(handoff, wordsOf(last))
         else if (failed?.status === "error") {
           answer(handoff, "Something went wrong on my side. What happened is in the chat.")
         } else if (now - handoff.sentAt > 6_000) {

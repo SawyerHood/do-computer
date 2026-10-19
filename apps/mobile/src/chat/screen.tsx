@@ -1,9 +1,10 @@
-import { type MessageImage, randomId } from "@do-computer/protocol"
+import { continuesMain, type MessageImage, randomId } from "@do-computer/protocol"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type Href, Stack, useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -50,6 +51,7 @@ import {
   isSideChat,
   mainChatOf,
   type Sending,
+  sideChatsOf,
   slackPlace,
   startsMidway,
   subagentSeed,
@@ -60,9 +62,9 @@ import {
   withSending,
 } from "./chats"
 import { Composer } from "./composer"
-import { ReadOnlyFoot, TypingLine } from "./footers"
+import { ReadOnlyFoot, RenameBar, TypingLine } from "./footers"
 import { ChatTitle } from "./header"
-import { Hello, useMarkHatched } from "./hello"
+import { Hello, SideChatHello, useMarkHatched } from "./hello"
 import { Transcript } from "./transcript"
 
 /** The chat screen that last told the team where this phone is. */
@@ -115,14 +117,13 @@ export function ChatScreen({
   const thread = chat?.kind === "agent" && chat.peer !== undefined ? chat : undefined
   const peerName = thread?.peer?.name ?? "the other Dood"
   const slack = chat?.kind === "slack" ? chat : undefined
-  // Whether this chat is the reader's to write in. An old side chat, from before a Dood was
-  // talked to in its main chat alone, is kept to read.
-  const own =
-    sub === undefined && thread === undefined && slack === undefined && aside === undefined
+  // Whether this chat is the reader's to write in.
+  const own = sub === undefined && thread === undefined && slack === undefined
   const atWork = useMemo(
     () => subagentsOf(chats, chatId).filter((entry) => isAtWork(entry.status)),
     [chats, chatId],
   )
+  const sideCount = sideChatsOf(chats).length
   const pinnedMenu = usePinnedMenu(agentId)
   /** Where a chat of this agent is: its main chat is the agent's own address. */
   const hrefOf = (id: string): Href => (id === main?.id ? `/a/${agentId}` : `/a/${agentId}/c/${id}`)
@@ -342,7 +343,7 @@ export function ChatScreen({
         <ChatTitle
           face={face}
           title={aside.title}
-          subtitle={reconnecting ? "reconnecting…" : `Old side chat with ${name}`}
+          subtitle={reconnecting ? "reconnecting…" : `Side chat with ${name}`}
           label={`${name}'s page`}
           onPress={toPage}
         />
@@ -419,6 +420,48 @@ export function ChatScreen({
     }
   }
 
+  const [renaming, setRenaming] = useState(false)
+  const rename = async (next: string) => {
+    setRenaming(false)
+    if (next.trim() === "" || next.trim() === chat?.title) return
+    try {
+      await api.updateChat(chatId, { title: next.trim() })
+      await queryClient.invalidateQueries({ queryKey: keys.agent(agentId) })
+    } catch (error) {
+      tell("The chat was not renamed", errorText(error))
+    }
+  }
+  const askName = () => {
+    if (Platform.OS !== "ios") return setRenaming(true)
+    Alert.prompt(
+      "Rename",
+      undefined,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Save", onPress: (value?: string) => void rename(value ?? "") },
+      ],
+      "plain-text",
+      chat?.title,
+    )
+  }
+  const archive = async () => {
+    const sure = await confirm({
+      title: "Archive this side chat?",
+      message: "It is put away, out of the list of side chats.",
+      action: "Archive",
+    })
+    if (!sure) return
+    try {
+      await api.updateChat(chatId, { archived: true })
+      await queryClient.invalidateQueries({ queryKey: keys.agent(agentId) })
+      haptic.done()
+      if (router.canGoBack()) router.back()
+      else router.replace(`/a/${agentId}`)
+    } catch (error) {
+      tell("The chat was not archived", errorText(error))
+    }
+  }
+
   const toMain: MenuItem = {
     title: "Main chat",
     icon: "chats",
@@ -479,38 +522,51 @@ export function ChatScreen({
               ],
             },
           ]
-        : aside !== undefined
-          ? [{ icon: "more", label: "More", menu: [toMain] }]
-          : !isMain
-            ? [
-                callItem,
-                {
-                  icon: "more",
-                  label: "More",
-                  menu: [toMain, fresh],
-                },
-              ]
-            : [
-                callItem,
-                {
-                  icon: "more",
-                  label: "More",
-                  menu: [
-                    {
-                      title: "Library",
-                      icon: "folder",
-                      onPress: () => router.push(`/a/${agentId}/library`),
-                    },
-                    ...pinnedMenu,
-                    {
-                      title: "Automations",
-                      icon: "clock",
-                      onPress: () => router.push(`/a/${agentId}/automations`),
-                    },
-                    fresh,
-                  ],
-                },
-              ]
+        : !isMain
+          ? [
+              callItem,
+              {
+                icon: "more",
+                label: "More",
+                menu: [
+                  ...(aside === undefined
+                    ? []
+                    : ([
+                        { title: "Rename", icon: "pencil", onPress: askName },
+                        { title: "Archive", icon: "archive", onPress: () => void archive() },
+                      ] satisfies MenuItem[])),
+                  toMain,
+                  fresh,
+                ],
+              },
+            ]
+          : [
+              callItem,
+              {
+                icon: "chats",
+                label:
+                  sideCount === 0 ? `${name}'s side chats` : `${name}'s side chats, ${sideCount}`,
+                onPress: () => router.push(`/a/${agentId}/side-chats`),
+              },
+              {
+                icon: "more",
+                label: "More",
+                menu: [
+                  {
+                    title: "Library",
+                    icon: "folder",
+                    onPress: () => router.push(`/a/${agentId}/library`),
+                  },
+                  ...pinnedMenu,
+                  {
+                    title: "Automations",
+                    icon: "clock",
+                    onPress: () => router.push(`/a/${agentId}/automations`),
+                  },
+                  fresh,
+                ],
+              },
+            ]
 
   /* ---------- the page ---------- */
 
@@ -527,7 +583,9 @@ export function ChatScreen({
   ) : !live.loaded ? (
     // What it holds is on its way. Not the hello of an empty chat.
     <ActivityIndicator color={theme.ink3} />
-  ) : !own ? null : agent === undefined ? null : (
+  ) : !own ? null : aside !== undefined ? (
+    <SideChatHello name={agent?.name ?? "Your Dood"} carried={continuesMain(state.messages)} />
+  ) : agent === undefined ? null : (
     <Hello agent={agent} mood={mood} accent={accent} onSay={(text) => void send(text)} />
   )
 
@@ -640,15 +698,6 @@ export function ChatScreen({
                 onPress: () => router.push(`/a/${thread.peer?.agentId}/c/${thread.peer?.chatId}`),
               }}
             />
-          ) : aside !== undefined ? (
-            <ReadOnlyFoot
-              face={smallFace}
-              words={`An old side chat, kept to read. Everything with ${name} now happens in its main chat.`}
-              action={{
-                title: "Back to the main chat",
-                onPress: () => router.dismissTo(`/a/${agentId}`),
-              }}
-            />
           ) : slack !== undefined ? (
             <ReadOnlyFoot
               words="This conversation is in Slack. Reply there to carry it on."
@@ -660,13 +709,26 @@ export function ChatScreen({
             />
           ) : (
             <>
+              {renaming && chat !== undefined ? (
+                <RenameBar
+                  title={chat.title}
+                  onSave={(next) => void rename(next)}
+                  onCancel={() => setRenaming(false)}
+                />
+              ) : null}
               <TypingLine people={typing} />
               <Composer
                 key={chatId}
                 agentId={agentId}
                 chatId={chatId}
                 accent={accent}
-                placeholder={agent?.name ? `Message ${agent.name}` : "Say hello"}
+                placeholder={
+                  aside !== undefined
+                    ? `Message ${name} in this side chat`
+                    : agent?.name
+                      ? `Message ${agent.name}`
+                      : "Say hello"
+                }
                 busy={live.state.busy}
                 onSend={send}
                 error={sendError}

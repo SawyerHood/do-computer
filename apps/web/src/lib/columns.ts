@@ -63,8 +63,14 @@ export const DOC_PANEL_LEAVES = "20rem"
 export const BESIDE_GAP = "0.625rem"
 
 /**
+ * A side chat open beside the main chat, in the panel's place. It leaves the main chat the room
+ * a document does.
+ */
+export const sideChatColumn = column("dc-side-chat-width", { min: 352, max: 960, start: 448 })
+
+/**
  * How much of the right of the window is taken by what is beside the chat, in pixels, its margin
- * and all: a document, in the panel's place. Zero while nothing is. What floats
+ * and all: a side chat or a document, in the panel's place. Zero while nothing is. What floats
  * over the page at that edge keeps clear of it by this much.
  */
 export const besideWidthAtom = atom(0)

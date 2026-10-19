@@ -18,7 +18,6 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor, createLibraryActor } from "../src/index.ts"
-import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -35,9 +34,7 @@ function open(
   database: (sql: ActorDatabase) => ActorDatabase = (sql) => sql,
 ): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-agent-sockets-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: unknown[] = []
@@ -49,8 +46,6 @@ function open(
       createAgentActor(Object.assign(host, { sql: database(host.sql) }), {
         models,
         defaultModel: "test/model",
-        // A Dood has one chat with people: more to follow are old side chats, made for the test.
-        testOldSideChats: true,
         modelOptions: [
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
@@ -85,7 +80,7 @@ async function call<T>(world: World, path: string, method = "GET", payload?: unk
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats/main", "POST", {})
+  return call<ChatSummary>(world, "/chats", "POST", {})
 }
 
 const send = (world: World, chatId: string, text: string) =>
@@ -223,7 +218,7 @@ describe("following an agent over a socket", () => {
       ["user", "done"],
       ["assistant", "done"],
     ])
-    expect(state.messages[1]!.parts).toEqual([{ type: "thinking", text: answer, written: true }])
+    expect(state.messages[1]!.parts).toEqual([{ type: "text", text: answer }])
     // What the socket's changes made is what the chat is.
     expect(digest(state)).toBe(digest(await call<ChatState>(world, `/chats/${chat.id}`)))
     expect(kinds(client, chat.id).filter((kind) => kind === "snapshot")).toHaveLength(1)
@@ -233,8 +228,8 @@ describe("following an agent over a socket", () => {
   it("sends a chat to everyone following it, and no longer to one who stopped", async () => {
     const world = open()
     const chat = await setup(world)
-    const other = await call<ChatSummary>(world, "/chats/old", "POST", {})
-    world.faux.setResponses([sent("One."), sent("Two.")])
+    const other = await call<ChatSummary>(world, "/chats", "POST", {})
+    world.faux.setResponses([fauxAssistantMessage("One."), fauxAssistantMessage("Two.")])
     const first = await connect(world)
     const second = await connect(world)
     first.say({ type: "follow", chat: chat.id })
@@ -267,7 +262,7 @@ describe("following an agent over a socket", () => {
 
     const ids = [chat.id]
     for (let made = 1; made < MAX_FOLLOWED_CHATS + 1; made++) {
-      ids.push((await call<ChatSummary>(world, "/chats/old", "POST", {})).id)
+      ids.push((await call<ChatSummary>(world, "/chats", "POST", {})).id)
     }
     for (const id of ids) client.say({ type: "follow", chat: id })
     await client.until(() => client.heard.at(-1)?.type === "gone")
@@ -409,7 +404,11 @@ describe("following an agent over a socket", () => {
   it("counts someone following a chat as there to see its answer, put away or not", async () => {
     const world = open()
     const chat = await setup(world)
-    world.faux.setResponses([sent("Seen."), sent("Seen again."), sent("Unseen.")])
+    world.faux.setResponses([
+      fauxAssistantMessage("Seen."),
+      fauxAssistantMessage("Seen again."),
+      fauxAssistantMessage("Unseen."),
+    ])
     const client = await connect(world)
     client.say({ type: "follow", chat: chat.id })
     await client.until(() => client.chats.has(chat.id))

@@ -22,8 +22,6 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
-import { quietOnReminder, sent } from "./quiet.ts"
-import { newest } from "./newest.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -38,9 +36,7 @@ type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
 function open(directory: string, options: { shell?: "light"; foregroundMs?: number } = {}): World {
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
@@ -112,7 +108,7 @@ const jobs = async (world: World) => (await call<{ jobs: JobSummary[] }>(world, 
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats/main", "POST", {})
+  return call<ChatSummary>(world, "/chats", "POST", {})
 }
 
 const send = (world: World, chatId: string, text: string) =>
@@ -145,8 +141,7 @@ function script(world: World, answer: (turn: Turn) => AssistantMessage) {
     Array.from({ length: 40 }, () => (context: { messages: unknown[] }) => {
       const turn: Turn = {
         seen: JSON.stringify(context.messages),
-        // What it was last told, past what changed of its prompt since.
-        last: JSON.stringify(newest(context.messages)),
+        last: JSON.stringify(context.messages.at(-1)),
       }
       seen.push(turn)
       return answer(turn)
@@ -158,18 +153,15 @@ function script(world: World, answer: (turn: Turn) => AssistantMessage) {
 const use = (name: string, args: Parameters<typeof fauxToolCall>[1]) =>
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" })
 const afterTool = (turn: Turn) => turn.last.includes('"toolResult"')
-/** What the main chat is told of a command that ended: an event. */
-const NUDGED = '<event kind=\\"command-ended\\"'
-/** And a sub-agent, which is not told it as an event. */
-const NUDGED_SUB = "A command you left running in the background has ended"
+const NUDGED = "A command you left running in the background has ended"
 
 describe("background commands", () => {
   it("moves a slow command to the background, and gives the agent a turn when it ends", async () => {
     const world = open(temporary())
     const chat = await setup(world)
     const turns = script(world, (turn) => {
-      if (afterTool(turn)) return sent("It is still building.")
-      if (turn.last.includes(NUDGED)) return sent("The build is done.")
+      if (afterTool(turn)) return fauxAssistantMessage("It is still building.")
+      if (turn.last.includes(NUDGED)) return fauxAssistantMessage("The build is done.")
       return use("bash", { command: "echo begun; sleep 1.5; echo built" })
     })
 
@@ -237,13 +229,17 @@ describe("background commands", () => {
     const chat = await setup(world)
     script(world, (turn) => {
       if (turn.last.includes("look at it")) {
-        return afterTool(turn) ? sent("Looked.") : use("background", { action: "output", id: "b1" })
+        return afterTool(turn)
+          ? fauxAssistantMessage("Looked.")
+          : use("background", { action: "output", id: "b1" })
       }
       if (turn.last.includes("stop it")) {
-        return afterTool(turn) ? sent("Stopped.") : use("background", { action: "stop", id: "b1" })
+        return afterTool(turn)
+          ? fauxAssistantMessage("Stopped.")
+          : use("background", { action: "stop", id: "b1" })
       }
       if (afterTool(turn)) {
-        return sent(
+        return fauxAssistantMessage(
           turn.last.includes("Stopped b1")
             ? "Stopped."
             : turn.last.includes("is still running")
@@ -302,8 +298,8 @@ describe("background commands", () => {
     const world = open(temporary())
     const chat = await setup(world)
     const turns = script(world, (turn) => {
-      if (turn.last.includes(NUDGED)) return sent("It failed.")
-      if (afterTool(turn)) return sent("Started.")
+      if (turn.last.includes(NUDGED)) return fauxAssistantMessage("It failed.")
+      if (afterTool(turn)) return fauxAssistantMessage("Started.")
       return use("bash", {
         command: turn.last.includes("serve") ? "sleep 300" : "sleep 2.5; echo no good >&2; exit 7",
         run_in_background: true,
@@ -348,7 +344,7 @@ describe("background commands", () => {
     const world = open(temporary())
     const chat = await setup(world)
     script(world, (turn) => {
-      if (afterTool(turn)) return sent("Done.")
+      if (afterTool(turn)) return fauxAssistantMessage("Done.")
       return turn.last.includes("wait")
         ? use("bash", { command: "echo waiting; sleep 30", timeout: 1 })
         : use("bash", { command: "echo out; echo err >&2; exit 3" })
@@ -384,7 +380,7 @@ describe("background commands", () => {
     const chat = await setup(world)
     script(world, (turn) =>
       afterTool(turn)
-        ? sent("Done.")
+        ? fauxAssistantMessage("Done.")
         : use("bash", { command: "echo $$ > pid; echo waiting; sleep 300" }),
     )
     await send(world, chat.id, "run it")
@@ -411,13 +407,13 @@ describe("background commands", () => {
     const chat = await setup(world)
     script(world, (turn) => {
       if (turn.seen.includes("You are working as a sub-agent")) {
-        if (turn.last.includes(NUDGED_SUB)) return fauxAssistantMessage("It built.")
+        if (turn.last.includes(NUDGED)) return fauxAssistantMessage("It built.")
         if (afterTool(turn)) return fauxAssistantMessage("Building, more soon.")
         return use("bash", { command: "sleep 2.5; echo built", run_in_background: true })
       }
-      if (afterTool(turn)) return sent("Handed over.")
-      if (turn.last.includes("subagent-report")) {
-        return sent("The build is in.")
+      if (afterTool(turn)) return fauxAssistantMessage("Handed over.")
+      if (turn.last.includes("A sub-agent of yours has sent word")) {
+        return fauxAssistantMessage("The build is in.")
       }
       return use("subagent", { action: "start", title: "Build", task: "Build the site." })
     })
@@ -440,7 +436,7 @@ describe("background commands", () => {
     const world = open(temporary(), { shell: "light" })
     const chat = await setup(world)
     script(world, (turn) => {
-      if (afterTool(turn)) return sent("Done.")
+      if (afterTool(turn)) return fauxAssistantMessage("Done.")
       return turn.last.includes("background")
         ? use("bash", { command: "echo hi", run_in_background: true })
         : use("bash", { command: "echo hi" })

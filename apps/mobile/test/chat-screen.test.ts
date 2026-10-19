@@ -49,9 +49,9 @@ describe("an agent's chats", () => {
     chat("sub-c", { kind: "subagent", parentId: "new" }),
   ]
 
-  it("has one main chat, and old side chats, archived or not, the latest first", () => {
+  it("has one main chat, and side chats that are neither it nor put away, the latest first", () => {
     expect(mainChatOf(chats)?.id).toBe("main")
-    expect(sideChatsOf(chats).map((each) => each.id)).toEqual(["new", "old", "away"])
+    expect(sideChatsOf(chats).map((each) => each.id)).toEqual(["new", "old"])
     expect(sideChatsOf(undefined)).toEqual([])
   })
 

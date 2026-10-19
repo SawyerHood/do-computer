@@ -22,11 +22,12 @@ test("a document the agent writes opens from the chat, to be read and edited", a
     { path: "library/notes/more.md", content: "# More\n" },
     "Successfully wrote to library/notes/more.md",
   )
-  await composer(page).fill('/tool send {"text":"","files":["library/notes/plan.md"]}')
+  await composer(page).fill('/tool send_file {"path":"library/notes/plan.md"}')
   await page.keyboard.press("Enter")
 
   const card = page
-    // Within the transcript, where the file was sent.
+    // Within the transcript: a side chat is named after what was first said in it, which here
+    // is this file's path, and so is the button that puts the chat away.
     .getByRole("log")
     .getByRole("button", { name: /plan\.md/ })
     .first()

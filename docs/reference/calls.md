@@ -24,21 +24,22 @@ with its tools, its computers and its memory, and it is not replaced.
 4. While the Dood works, the voice is told which step it is on. When the Dood has answered, the
    voice says the answer in its own words, and shortens a long one.
 
-## Where the call's work is done
+## The call's side chat
 
-A call is held in the Dood's main chat. What is handed on goes there, as a message from you
-marked "Said on a call", with what was said on the call beside it for the Dood to read.
+What is handed on goes to a side chat, as a message from you marked "Said on a call", with what
+was said on the call beside it for the Dood to read.
 
-- **What the Dood sends is what its voice says.** In the main chat a Dood speaks only with what
-  it sends; on a call, its first send after what was handed on is said as soon as it is whole,
-  and everything it sent once it is at rest.
-- **Longer work goes to a sub-agent.** The Dood is told to hand anything more than a quick look
-  (browsing, several steps, anything long) to a sub-agent and to send that it is on it, so the
-  voice is not kept waiting and the main chat is not filled with the work. The sub-agent's
-  report reaches the main chat as an event; what the Dood sends about it then is in the chat.
+- **A call held in the main chat is given a side chat of its own**, the first time something
+  is handed on. It branches off the main chat, so the Dood arrives knowing what was being
+  talked about, and it is named for the call ("Call: …"). The main chat is neither held up by
+  the call nor filled with it: the Dood can be in the middle of something there and still do
+  what the call asks. A call on which nothing is handed on leaves no side chat.
+- **A call held in a side chat works in that side chat.**
 
-Work that is not finished when you hang up carries on in its sub-agent, and the Dood sends what
-came of it in the main chat.
+The side chat is one like any other. It is in the list of side chats, opens beside the main
+chat from the call's card ("Open it") and afterwards from the call's record, can be typed in,
+and can be put away. Work that is not finished when you hang up carries on there, and its
+answer is read there.
 
 ## What the chat keeps, and what is remembered
 
@@ -50,8 +51,9 @@ without one the record has only the words.
 
 What was said out loud counts as said:
 
-- **The Dood in the main chat is told the call is over**, as an event, with whatever was said on
-  it that it had not been shown, so it remembers a call like anything else in the chat.
+- **The Dood in the chat the call was held in is told all of it** when the call ends, and
+  where it did the call's work, so it remembers a call like anything else in the chat. In the
+  call's side chat it is told that the call is over.
 - **The Dood's other chats** find the call's words with the `history` tool, and the chat's
   note for them takes the call in: the same small model reads the call when it ends.
 - **Lasting things are remembered.** That small model adds what will still matter months from

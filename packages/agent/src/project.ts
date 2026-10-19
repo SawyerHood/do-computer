@@ -28,6 +28,7 @@ import type {
   LiveState,
   UsageState,
 } from "@earendil-works/pi-durable"
+import type { Carried } from "./branch.ts"
 import {
   APPROVAL_ENTRY,
   ASKED_ENTRY,
@@ -35,6 +36,7 @@ import {
   BUS_ENTRY,
   BUS_EXTENSIONS,
   type BusMark,
+  endsRun,
   EVENT_ENTRIES,
   saysDone,
   SEND_TOOL,
@@ -202,13 +204,47 @@ function assistantMessage(
   return result
 }
 
-/**
- * The entry that begins an old side chat's own messages, after the ones it carried from the main
- * chat it branched off, from when there were side chats. It says how much of that chat it
- * carried: all of it, all but its older tool output and pictures, or only its most recent part.
- */
+/** The entry that begins a side chat's own messages, after the ones it carries from another chat. */
 export const BRANCH_ENTRY = "dc.branch"
-type Carried = "whole" | "trimmed" | "recent"
+
+/**
+ * Where a chat can be branched from: its last entry while the agent is at rest in it, and the
+ * agent's last finished answer while it is working, so that a side chat never begins in the
+ * middle of a step. Undefined when the agent has not answered anything there yet.
+ */
+export function branchPoint(entries: readonly EntryRecord[]): EntryRecord["id"] | undefined {
+  const spoken = (entry: EntryRecord) =>
+    entry.kind === "pi.user" || entry.kind === "pi.assistant" || entry.kind === "pi.tool-result"
+  // A finished answer, or a round of sends whose every result is in and asked to end the run
+  // (`endsRun`): the run ended with that round.
+  let answered = -1
+  let ending: Set<string> | undefined
+  for (const [index, entry] of entries.entries()) {
+    const message = entry.model?.[0]
+    if (entry.kind === "pi.assistant" && message?.role === "assistant") {
+      ending = undefined
+      const calls = message.content.flatMap((b) => (b.type === "toolCall" ? [b] : []))
+      if (message.stopReason === "stop" && calls.length === 0) {
+        answered = index
+      } else if (calls.length > 0 && calls.every((call) => call.name === SEND_TOOL)) {
+        ending = new Set(calls.map((call) => call.id))
+      }
+    } else if (entry.kind === "pi.tool-result" && message?.role === "toolResult" && ending) {
+      if (!endsRun(message)) ending = undefined
+      else {
+        ending.delete(message.toolCallId)
+        if (ending.size === 0) {
+          answered = index
+          ending = undefined
+        }
+      }
+    }
+  }
+  if (answered === -1) return undefined
+  // Only notes written into the chat follow the answer: the agent is at rest.
+  const resting = !entries.slice(answered + 1).some(spoken)
+  return (resting ? entries.at(-1)! : entries[answered]!).id
+}
 
 function notice(id: string, kind: "reset" | "compaction" | "branch", text: string): ChatMessage {
   return { id, role: "notice", parts: [{ type: "notice", kind, text }], status: "done" }
@@ -815,13 +851,6 @@ export function projectPast(entries: readonly EntryRecord[], bus = false): ChatM
   return inBus.size === 0 ? messages : busMessages(messages, inBus)
 }
 
-/** What a call to `send` said, which is what the people in a main chat were told. */
-function sendText(block: { name: string; arguments?: unknown }): string | undefined {
-  if (block.name !== SEND_TOOL) return undefined
-  const text = (block.arguments as { text?: unknown } | undefined)?.text
-  return typeof text === "string" ? text : undefined
-}
-
 /** The words of an entry that a person wrote or read, for searching. Undefined for the rest. */
 export function entryText(
   entry: EntryRecord,
@@ -839,7 +868,7 @@ export function entryText(
           block.type === "text"
             ? [block.text]
             : block.type === "toolCall"
-              ? [progressText(block) ?? sendText(block) ?? ""]
+              ? [progressText(block) ?? ""]
               : [],
         )
         .filter((said) => said !== "")
@@ -931,7 +960,7 @@ export function projectChat(view: ConversationView): ChatState {
   const inbox = view.docs["pi.inbox"] as InboxState | undefined
   const usageDoc = view.docs["pi.usage"] as UsageState | undefined
 
-  // An old side chat carries the messages of the chat it branched off. They are in front of the
+  // A side chat carries the messages of the chat it branched off. They are in front of the
   // agent, and are that chat's to show.
   const carried = view.conversation.parent?.at
   const entries =

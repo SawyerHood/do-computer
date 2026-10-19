@@ -107,7 +107,7 @@ test("a file the agent sends is the thing itself, with its card under it", async
     { command: "printf 'Day,Visits\\nMon,120\\nTue,98\\n' > visits.csv && echo made" },
     /^made$/,
   )
-  await tool(page, "send", { text: "The visits.", files: ["visits.csv"] }, "The visits.")
+  await tool(page, "send_file", { path: "visits.csv" }, /Sent visits\.csv/)
   const log = page.getByRole("log")
   const table = log.getByRole("table", { name: "visits.csv" })
   await expect(table.getByRole("cell", { name: "120" })).toBeVisible()

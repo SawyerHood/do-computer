@@ -81,7 +81,7 @@ describe("DC_CALLS and its limits", () => {
     })
     expect(
       readConfig({ DC_CALL_MINUTES: "10", DC_CALL_MONTHLY_MINUTES: "0", DC_CALLS_SCRIPT: "1" }),
-    ).toMatchObject({ callMinutes: 10, callMonthlyMinutes: 0, callScript: "plain" })
+    ).toMatchObject({ callMinutes: 10, callMonthlyMinutes: 0, callScript: true })
     // What is not a number is as if unset, and a call is never no minutes long.
     expect(readConfig({ DC_CALL_MINUTES: "soon" }).callMinutes).toBe(30)
     expect(readConfig({ DC_CALL_MINUTES: "0" }).callMinutes).toBe(1)

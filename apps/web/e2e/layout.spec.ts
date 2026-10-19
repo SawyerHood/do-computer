@@ -3,10 +3,10 @@ import {
   asOwner,
   closeSettings,
   composer,
-  nameMenu,
   newChat,
   openSettings,
   sectionHeading,
+  sideChats,
   signIn,
   tab,
   tool,
@@ -41,11 +41,10 @@ test("the sidebar is a column of faces until it is opened out, and stays how it 
   await panelSwitch(page, "Hide")
   await expect(panel).toHaveCount(0)
 
-  // The menu on the name has its pages and settings, and no way to start another chat: the
-  // main chat is the one conversation with a Dood.
-  await nameMenu(page).click()
-  await expect(page.getByRole("menuitem", { name: "Library" })).toBeVisible()
-  await expect(page.getByRole("menuitem", { name: /side chat/i })).toHaveCount(0)
+  // The agent's side chats are in the same menu.
+  await sideChats(page).click()
+  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
 
   // Opened out by its edge, the sidebar is the list by name, and still is after a reload.
@@ -156,7 +155,7 @@ test("a section of the panel folds under its heading, and the face gives way to 
     { path: "library/folds/notes.md", content: "# Fold notes\n" },
     "Successfully wrote to library/folds/notes.md",
   )
-  await composer(page).fill('/tool send {"text":"","files":["library/folds/notes.md"]}')
+  await composer(page).fill('/tool send_file {"path":"library/folds/notes.md"}')
   await page.keyboard.press("Enter")
   await expect(page.getByRole("link", { name: "Download notes.md" })).toBeVisible()
   await panelSwitch(page, "Show")
@@ -184,9 +183,7 @@ test("a section of the panel folds under its heading, and the face gives way to 
       { path: `library/folds/more-${n}.md`, content: "# More\n" },
       `Successfully wrote to library/folds/more-${n}.md`,
     )
-    await composer(page).fill(
-      `/tool send ${JSON.stringify({ text: "", files: [`library/folds/more-${n}.md`] })}`,
-    )
+    await composer(page).fill(`/tool send_file {"path":"library/folds/more-${n}.md"}`)
     await page.keyboard.press("Enter")
     await expect(shared.getByRole("listitem")).toHaveCount(n + 1)
   }
@@ -224,7 +221,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
     "Successfully wrote to library/handout/index.html",
   )
   for (const name of ["notes.md", "index.html"]) {
-    await composer(page).fill(`/tool send {"text":"","files":["library/handout/${name}"]}`)
+    await composer(page).fill(`/tool send_file {"path":"library/handout/${name}"}`)
     await page.keyboard.press("Enter")
     await expect(page.getByRole("link", { name: `Download ${name}` })).toBeVisible()
   }
@@ -410,10 +407,14 @@ test("the layout works at phone width", async ({ page }) => {
   await composer(page).fill("What can you do?")
   await composer(page).press("Enter")
   await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await newChat(page)
+  await composer(page).fill("Something aside")
+  await composer(page).press("Enter")
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   await page.setViewportSize({ width: 400, height: 800 })
   await page.reload()
   // Above the page is one row with the agent's name in it: its pages are in the menu on that.
-  const name = page.getByRole("button", { name: "Juniper: pages and settings" })
+  const name = page.getByRole("button", { name: "Juniper: pages, side chats and settings" })
   expect((await page.locator("header").filter({ has: name }).boundingBox())!.height).toBe(52)
   await name.click()
   await expect(page.getByRole("menuitem", { name: "Chat", exact: true })).toHaveAttribute(
@@ -426,9 +427,9 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(name).not.toContainText("·")
   // And the row starts with the way back to the chat.
   await page.getByRole("button", { name: "Back to the chat" }).click()
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
-  // Over the main chat the name is the Dood's alone, and no longer which page.
-  await expect(name).not.toContainText("·")
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
+  // Over a side chat the name says which one it is, and no longer which page.
+  await expect(name).toContainText("Juniper · Something aside")
   await expect(page.getByRole("button", { name: "Back to the chat" })).toHaveCount(0)
   // The menu leads back as well.
   await name.click()
@@ -438,7 +439,7 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(name).toContainText("Juniper · Automations")
   await name.click()
   await page.getByRole("menuitem", { name: "Chat", exact: true }).click()
-  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
   // The sidebar is out of sight, and the page has the whole width. The way to it is at the
   // start of the row.
   const agents = page.getByRole("navigation", { name: "Doods" })
@@ -465,6 +466,13 @@ test("the layout works at phone width", async ({ page }) => {
   await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   // The name above says whose chat this is, so nothing is over the transcript saying it again.
   await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(0)
+  // With no room for two chats, a side chat takes the place of the main one, and leads back.
+  await sideChats(page).click()
+  await page.getByRole("menuitem", { name: /^Something aside/ }).click()
+  await expect(page.getByRole("main").getByText("You said: Something aside")).toBeVisible()
+  await expect(page.getByRole("complementary", { name: /^Side chat:/ })).toHaveCount(0)
+  await page.getByRole("link", { name: "Main chat", exact: true }).click()
+  await expect(page.getByRole("main").getByText("You said: What can you do?")).toBeVisible()
   // Nothing is wider than the screen.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -567,9 +575,6 @@ test("at phone width a finger pulls the sidebar out across the page, and pushes 
   await expect
     .poll(() => code.evaluate((pre) => pre.scrollWidth - pre.clientWidth))
     .toBeGreaterThan(300)
-  // And once the Dood is done, so that nothing moves under the finger.
-  await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0)
-  await page.waitForTimeout(300)
   const block = (await code.boundingBox())!
   const middle = block.y + block.height / 2
   await swipe({ x: block.x + 216, y: middle }, { x: block.x + 16, y: middle })

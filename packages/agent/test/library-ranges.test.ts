@@ -8,7 +8,6 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor, createLibraryActor, LIBRARY_SITE_HEADER } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 const STYLE = '<style id="dc-visual-theme">'
 
@@ -47,9 +46,7 @@ function watched(blobs: BlobStore, reads: Read[]): BlobStore {
 /** `shared`: the agent is in a workspace that keeps the library. Otherwise it keeps its own. */
 function open(shared = true): World {
   const root = mkdtempSync(join(tmpdir(), "dc-ranges-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reads: Read[] = []

@@ -23,7 +23,6 @@ import {
   createAgentActor,
   type PeerReply,
 } from "../src/index.ts"
-import { quietOnReminder, sent } from "./quiet.ts"
 
 const ADA = "agent-a"
 const BO = "agent-b"
@@ -91,9 +90,7 @@ function directory(world: World): AgentDirectory {
 }
 
 function open(folder: string, keepAliveMs = 60_000): World {
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
@@ -159,7 +156,7 @@ const threads = async (world: World, agentId: string) =>
 async function agent(world: World, agentId: string, name: string): Promise<ChatSummary> {
   await call(world, agentId, "/init", "POST", { ownerId: "user-1" })
   await call(world, agentId, "/", "PATCH", { name })
-  return call<ChatSummary>(world, agentId, "/chats/main", "POST", {})
+  return call<ChatSummary>(world, agentId, "/chats", "POST", {})
 }
 
 const send = (world: World, agentId: string, chatId: string, text: string) =>
@@ -175,16 +172,11 @@ const notices = (state: ChatState) =>
       (part): part is NoticePart => part.type === "notice" && part.kind === "agent",
     ),
   )
-/** What the agent wrote: in the main chat its own words, kept as thinking nobody is shown. */
 const said = (state: ChatState) =>
   state.messages
     .filter((message) => message.role === "assistant")
     .flatMap((message) =>
-      message.parts.flatMap((part) =>
-        part.type === "text" || (part.type === "thinking" && part.written === true)
-          ? [part.text]
-          : [],
-      ),
+      message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
     )
 const tools = (state: ChatState) =>
   state.messages.flatMap((message) =>
@@ -238,14 +230,11 @@ describe("messages between agents", () => {
       if (turn.from !== undefined) {
         return fauxAssistantMessage(turn.last.includes("And where?") ? "At the pier." : "March 3.")
       }
-      // Ada speaks to her person in her main chat, with what she sends.
-      if (afterTool(turn)) return sent("Asked.")
-      // The reply can be written in after the word that sets it going, where it came while the
-      // agent was still sending.
-      if (turn.last.includes(NUDGED) || turn.last.includes("has replied. This is its reply.")) {
-        const text = turn.seen.includes("At the pier.") ? "It is at the pier." : "Bo says March 3."
-        // Told once: the reply and the word that sets it going can each start a turn.
-        return turn.seen.includes(`"text":"${text}"`) ? fauxAssistantMessage("") : sent(text)
+      if (afterTool(turn)) return fauxAssistantMessage("Asked.")
+      if (turn.last.includes(NUDGED)) {
+        return fauxAssistantMessage(
+          turn.seen.includes("At the pier.") ? "It is at the pier." : "Bo says March 3.",
+        )
       }
       return use("agents", {
         action: "message",

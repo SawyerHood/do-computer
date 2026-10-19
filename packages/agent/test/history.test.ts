@@ -18,7 +18,6 @@ import {
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 import { searchTerms } from "../src/history.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 type World = { namespace: NodeActorNamespace; faux: ReturnType<typeof fauxProvider> }
 const worlds: World[] = []
@@ -28,13 +27,11 @@ afterEach(async () => {
 
 function open(): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-history-"))
-  const faux = quietOnReminder(
-    fauxProvider({
-      provider: "test",
-      models: [{ id: "model" }],
-      tokensPerSecond: 50_000,
-    }),
-  )
+  const faux = fauxProvider({
+    provider: "test",
+    models: [{ id: "model" }],
+    tokensPerSecond: 50_000,
+  })
   const models = createModels()
   models.setProvider(faux.provider)
   const namespace = new NodeActorNamespace({
@@ -48,8 +45,6 @@ function open(): World {
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
         keepAliveMs: 100,
-        // Side chats from before there were none are searched as the main chat is.
-        testOldSideChats: true,
       }),
   })
   namespace.start()
@@ -84,34 +79,12 @@ async function say(world: World, chatId: string, text: string): Promise<ChatStat
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  const main = await call<ChatSummary>(world, "/chats/main", "POST")
-  return call<ChatSummary>(world, `/chats/${main.id}`, "PATCH", { title: "Trip planning" })
-}
-
-/** An old side chat with something said in it, and the scripted answer, under `title`. */
-async function oldSideChat(world: World, title: string, text: string): Promise<ChatSummary> {
-  const old = await call<ChatSummary>(world, "/chats/old", "POST", {
-    text,
-    requestId: crypto.randomUUID(),
-  })
-  for (let attempt = 0; attempt < 400; attempt++) {
-    const state = await call<ChatState>(world, `/chats/${old.id}`)
-    if (!state.busy && state.messages.at(-1)?.role === "assistant") break
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  return call<ChatSummary>(world, `/chats/${old.id}`, "PATCH", { title })
+  return call<ChatSummary>(world, "/chats", "POST", { title: "Trip planning" })
 }
 
 const texts = (page: ChatHistoryPage | ChatState) =>
   page.messages.map((message) =>
-    message.parts
-      .map((part) =>
-        // The agent's own words in the main chat are kept as thinking that nobody is shown.
-        part.type === "text" || (part.type === "thinking" && part.written === true)
-          ? part.text
-          : `<${part.type}>`,
-      )
-      .join(""),
+    message.parts.map((part) => (part.type === "text" ? part.text : `<${part.type}>`)).join(""),
   )
 
 describe("search terms", () => {
@@ -126,7 +99,7 @@ describe("search terms", () => {
 })
 
 describe("searching past chats", () => {
-  it("finds what was said in any chat, old side chats too, by either side, newest first", async () => {
+  it("finds what was said in any chat, by either side, newest first", async () => {
     const world = open()
     const trip = await setup(world)
     world.faux.setResponses([
@@ -136,7 +109,8 @@ describe("searching past chats", () => {
     ])
     await say(world, trip.id, "How do I get across the river in Lisbon?")
     await say(world, trip.id, "We land on the 14th, flight TP1352.")
-    const baking = await oldSideChat(world, "Baking", "Why is my bread flat?")
+    const baking = await call<ChatSummary>(world, "/chats", "POST", { title: "Baking" })
+    await say(world, baking.id, "Why is my bread flat?")
 
     const ferry = await call<{ hits: HistoryHit[]; complete: boolean; partial: boolean }>(
       world,
@@ -192,11 +166,11 @@ describe("searching past chats", () => {
 
   it("lets the agent search its other chats, and read around what it finds", async () => {
     const world = open()
-    const second = await setup(world)
+    const first = await setup(world)
     world.faux.setResponses([fauxAssistantMessage("Your locker code is 4417, I will remember it.")])
-    // Said in a side chat, from before there were none.
-    const first = await oldSideChat(world, "Gym", "My gym locker code is 4417.")
+    await say(world, first.id, "My gym locker code is 4417.")
 
+    const second = await call<ChatSummary>(world, "/chats", "POST", {})
     world.faux.setResponses([
       fauxAssistantMessage([fauxToolCall("history", { action: "search", query: "locker code" })], {
         stopReason: "toolUse",
@@ -208,7 +182,7 @@ describe("searching past chats", () => {
       .flatMap((m) => m.parts)
       .find((p) => p.type === "tool") as ToolPart
     expect(search.status).toBe("done")
-    expect(search.output).toContain(`chat ${first.id} "Gym"`)
+    expect(search.output).toContain(`chat ${first.id} "Trip planning"`)
     expect(search.output).toContain("locker code is 4417")
     // It searched the other chats, not the question it was just asked.
     expect(search.output).not.toContain("What was my locker code?")
@@ -241,13 +215,13 @@ describe("earlier messages", () => {
     for (let index = 1; index <= 6; index++) await say(world, chat.id, `question ${index}`)
 
     const state = await call<ChatState>(world, `/chats/${chat.id}`)
-    const last = state.messages.findLast((message) => message.role === "user")!
+    const last = state.messages.at(-1)!
     const page = await call<ChatHistoryPage>(
       world,
       `/chats/${chat.id}/history?before=${last.id}&limit=4`,
     )
-    // The newest of what came before the last question, in the order it was said.
-    expect(texts(page).at(-1)).toBe("answer 5")
+    // The newest of what came before the last answer, in the order it was said.
+    expect(texts(page).at(-1)).toBe("question 6")
     expect(page.before).not.toBe(null)
 
     // Walk to the beginning: nothing is skipped or repeated.
@@ -272,6 +246,7 @@ describe("earlier messages", () => {
       "answer 4",
       "question 5",
       "answer 5",
+      "question 6",
     ])
   })
 

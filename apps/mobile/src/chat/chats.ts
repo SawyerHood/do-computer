@@ -15,16 +15,15 @@ import {
 export const mainChatOf = (chats: readonly ChatSummary[] | undefined): ChatSummary | undefined =>
   chats?.find((chat) => chat.main === true)
 
-/**
- * Whether a chat is an old side chat: one someone talked in that is not the main one. Side chats
- * are from before a Dood was talked to in its main chat alone; they are kept, archived, to read.
- */
+/** Whether a chat is a side chat: one someone talks in that is not the main one. */
 export const isSideChat = (chat: ChatSummary | undefined): chat is ChatSummary =>
   chat !== undefined && chat.kind === "chat" && chat.main !== true
 
-/** The agent's old side chats, the one last used first. */
+/** The agent's side chats that have not been put away, the one last used first. */
 export const sideChatsOf = (chats: readonly ChatSummary[] | undefined): ChatSummary[] =>
-  (chats ?? []).filter((chat) => isSideChat(chat)).sort((a, b) => b.updatedAt - a.updatedAt)
+  (chats ?? [])
+    .filter((chat) => isSideChat(chat) && !chat.archived)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
 
 /**
  * A chat whose transcript starts at a summary or a fresh start has more before it. One that

@@ -13,12 +13,9 @@ import {
 import { afterAll, describe, expect, it } from "vitest"
 import { cleanFileName, contentTypeFor } from "../src/library.ts"
 import { createAgentActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-library-"))
-const faux = quietOnReminder(
-  fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-)
+const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
 const models = createModels()
 models.setProvider(faux.provider)
 const open = () =>
@@ -89,7 +86,7 @@ describe("library", () => {
 
   it("keeps a file the agent sends, and shows it in the chat", async () => {
     await call("/init", "POST", { ownerId: "user-1" })
-    chat = await call<ChatSummary>("/chats/main", "POST", {})
+    chat = await call<ChatSummary>("/chats", "POST", {})
     faux.setResponses([
       fauxAssistantMessage(
         [
@@ -99,11 +96,10 @@ describe("library", () => {
         ],
         { stopReason: "toolUse" },
       ),
-      // In the main chat a file goes to the person with what is sent.
-      fauxAssistantMessage(
-        [fauxToolCall("send", { text: "Here is the report.", files: ["out/report.csv"] })],
-        { stopReason: "toolUse" },
-      ),
+      fauxAssistantMessage([fauxToolCall("send_file", { path: "out/report.csv" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage("Here is the report."),
     ])
     const sent = lastTool(await say(chat.id, "make me a report"))
     expect(sent).toMatchObject({ name: "send_file", status: "done" })
@@ -123,12 +119,16 @@ describe("library", () => {
   it("serves files as downloads that a browser will not run", async () => {
     faux.setResponses([
       fauxAssistantMessage(
-        [fauxToolCall("write", { path: "My page.html", content: "<script>alert(1)</script>" })],
+        [fauxToolCall("write", { path: "page.html", content: "<script>alert(1)</script>" })],
         { stopReason: "toolUse" },
       ),
-      fauxAssistantMessage([fauxToolCall("send", { text: "", files: ["My page.html"] })], {
-        stopReason: "toolUse",
-      }),
+      fauxAssistantMessage(
+        [fauxToolCall("send_file", { path: "page.html", name: "My page.html" })],
+        {
+          stopReason: "toolUse",
+        },
+      ),
+      fauxAssistantMessage("Sent."),
     ])
     await say(chat.id, "send me a page")
     const page = (await files()).find((file) => file.name === "My page.html")!
@@ -230,19 +230,19 @@ describe("library", () => {
 
   it("explains what it cannot send", async () => {
     faux.setResponses([
-      fauxAssistantMessage([fauxToolCall("send", { text: "One.", files: ["nope.txt"] })], {
+      fauxAssistantMessage([fauxToolCall("send_file", { path: "nope.txt" })], {
         stopReason: "toolUse",
       }),
-      fauxAssistantMessage([fauxToolCall("send", { text: "Two.", files: ["out"] })], {
-        stopReason: "toolUse",
-      }),
+      fauxAssistantMessage([fauxToolCall("send_file", { path: "out" })], { stopReason: "toolUse" }),
       fauxAssistantMessage("Neither worked."),
     ])
     const state = await say(chat.id, "send things that are not files")
-    // Each send is kept in view, marked as not sent, with why.
-    const why = state.messages.flatMap((m) => (m.notSent === undefined ? [] : [m.notSent]))
-    expect(why.at(-2)).toContain("could not find nope.txt")
-    expect(why.at(-1)).toContain("out is not a file.")
+    const outputs = state.messages
+      .flatMap((m) => m.parts)
+      .filter((part): part is ToolPart => part.type === "tool" && part.status === "error")
+      .map((part) => part.output)
+    expect(outputs.at(-2)).toContain("Could not find nope.txt")
+    expect(outputs.at(-1)).toBe("out is not a file.")
   })
 
   it("deletes a file and its bytes", async () => {

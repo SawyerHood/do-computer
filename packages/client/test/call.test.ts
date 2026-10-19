@@ -46,7 +46,7 @@ function setUp(
     },
     callWork: async (_id, input) => {
       work.push(input)
-      return { chatId: "main", submissionId: "s1" }
+      return { chatId: "side-1", submissionId: "s1" }
     },
     endCall: async (id, lines = []) => {
       ended.push({ id, lines })
@@ -149,7 +149,7 @@ describe("a call", () => {
     expect(call.sent.at(-1)).toBe(JSON.stringify({ type: "session.close" }))
   })
 
-  it("hands on what was asked, follows the main chat, and gives what the Dood sends to the voice", async () => {
+  it("hands on what was asked, follows the chat it is worked in, and gives the Dood's answer to the voice", async () => {
     const call = setUp("codex")
     await call.caller.start(agent, "main")
     call.voice({ type: "session.started" })
@@ -168,6 +168,7 @@ describe("a call", () => {
     })
     await vi.waitFor(() => expect(call.following).toBe(true))
     expect(call.caller.getState().call).toMatchObject({
+      workChatId: "side-1",
       works: [{ id: "d1", ask: "What is in my calendar?", done: false }],
     })
 
@@ -198,20 +199,8 @@ describe("a call", () => {
     })
     expect(call.caller.getState().call?.works[0]?.step).toBeTruthy()
 
-    // It sent something while still at work, as it does when it hands the rest to a sub-agent:
-    // the voice is given that to say at once, and the work is done.
-    call.chat({
-      ...EMPTY_CHAT,
-      busy: true,
-      messages: [
-        asked,
-        {
-          ...say("assistant", ""),
-          parts: [{ type: "thinking", text: "On it, through a helper.", written: true }],
-        },
-        say("assistant", "Lunch with Sam at one."),
-      ],
-    })
+    // It answered: the voice is given the answer to say, and the work is done.
+    call.chat({ ...EMPTY_CHAT, messages: [asked, say("assistant", "Lunch with Sam at one.")] })
     const answer = call.sent
       .map((event) => JSON.parse(event) as { type: string; channel?: string; content?: unknown })
       .find((event) => event.type === "delegation.context.append" && event.channel === "speakable")
@@ -250,80 +239,6 @@ describe("a call", () => {
       )
     expect(spoken.map((event) => event.content)).toEqual([
       [{ type: "input_text", text: "Here it is." }],
-    ])
-    await call.caller.end()
-  })
-
-  /** Two things handed on in one call, d1 and d2, each in the chat as said out loud. */
-  async function twoHandoffs() {
-    const call = setUp("codex")
-    await call.caller.start(agent, "main")
-    call.voice({ type: "session.started" })
-    const handOn = (id: string, text: string) =>
-      call.voice({
-        type: "delegation.created",
-        item: { id, target: "client", content: [{ type: "input_text", text }] },
-      })
-    handOn("d1", "What is in my calendar?")
-    await vi.waitFor(() => expect(call.work).toHaveLength(1))
-    handOn("d2", "And the weather?")
-    await vi.waitFor(() => expect(call.work).toHaveLength(2))
-    const spoken = (index: number) =>
-      ({ spoken: { call: "call-1", request: call.work[index]!.requestId } }) as Partial<ChatMessage>
-    /** What each was answered with, in the order it was. */
-    const answers = () =>
-      call.sent
-        .map(
-          (event) =>
-            JSON.parse(event) as {
-              type: string
-              channel?: string
-              delegation_item_id?: string
-              content?: { text: string }[]
-            },
-        )
-        .filter(
-          (event) => event.type === "delegation.context.append" && event.channel === "speakable",
-        )
-        .map((event) => [event.delegation_item_id, event.content?.[0]?.text])
-    return { call, spoken, answers }
-  }
-
-  it("answers two things handed on in one run with what that run sent", async () => {
-    const { call, spoken, answers } = await twoHandoffs()
-    // The second joined the run answering the first, which sent once, after both.
-    call.chat({
-      ...EMPTY_CHAT,
-      messages: [
-        say("user", "What is in my calendar?", spoken(0)),
-        say("user", "And the weather?", spoken(1)),
-        say("assistant", "Lunch with Sam at one, and sunny all day."),
-      ],
-    })
-    expect(answers()).toEqual([
-      ["d1", "Lunch with Sam at one, and sunny all day."],
-      ["d2", "Lunch with Sam at one, and sunny all day."],
-    ])
-    expect(call.caller.getState().call?.works.map((work) => work.done)).toEqual([true, true])
-    await call.caller.end()
-  })
-
-  it("answers the first thing handed on with what was sent before the second came", async () => {
-    const { call, spoken, answers } = await twoHandoffs()
-    // The first was answered before the second was handed on, and the chat is first seen at
-    // rest: each is answered with its own words, and the second is not said twice.
-    call.chat({
-      ...EMPTY_CHAT,
-      messages: [
-        say("user", "What is in my calendar?", spoken(0)),
-        say("assistant", "Lunch with Sam at one."),
-        say("user", "And the weather?", spoken(1)),
-        say("assistant", "Sunny all day."),
-      ],
-    })
-    expect(answers()).toEqual([
-      ["d1", "Lunch with Sam at one."],
-      ["d2", "Sunny all day."],
     ])
     await call.caller.end()
   })

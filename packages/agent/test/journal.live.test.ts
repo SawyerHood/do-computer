@@ -7,7 +7,6 @@ import { createModels } from "@earendil-works/pi-ai/models"
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
 import { afterAll, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 const apiKey = process.env.OPENROUTER_API_KEY ?? ""
 const model = process.env.DC_REVIEW_MODEL ?? "anthropic/claude-haiku-4.5"
@@ -20,13 +19,11 @@ describe.skipIf(apiKey === "")("a chat's note, written for real", () => {
   const reports: unknown[] = []
   /** What the small model answered, each time it was asked. */
   const answers: string[] = []
-  const faux = quietOnReminder(
-    fauxProvider({
-      provider: "test",
-      models: [{ id: "model" }],
-      tokensPerSecond: 50_000,
-    }),
-  )
+  const faux = fauxProvider({
+    provider: "test",
+    models: [{ id: "model" }],
+    tokensPerSecond: 50_000,
+  })
   const models = createModels()
   models.setProvider(faux.provider)
   const directory = mkdtempSync(join(tmpdir(), "dc-journal-live-"))
@@ -106,7 +103,7 @@ describe.skipIf(apiKey === "")("a chat's note, written for real", () => {
     }
     await new Promise((resolve) => setTimeout(resolve, 500))
     const { user, memory } = await call<{ user: string; memory: string }>("/")
-    const side = await call<ChatSummary>("/chats/main", "POST", { title: "Other" })
+    const side = await call<ChatSummary>("/chats", "POST", { title: "Other" })
     faux.setResponses([
       (context: unknown) => {
         seen.push(JSON.stringify(context))

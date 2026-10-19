@@ -1,4 +1,4 @@
-import type { AgentSummary } from "@do-computer/protocol"
+import { type AgentSummary, continuesMain } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useRouteContext } from "@tanstack/react-router"
 import { ArrowLeftIcon, StopIcon } from "@phosphor-icons/react"
@@ -43,7 +43,7 @@ import { Composer } from "./composer.tsx"
 import { PanelSection } from "./panel-section.tsx"
 import { DocPanel } from "@/components/library/doc-panel"
 import { AgentIdContext, OpenFileContext } from "./sent-file.tsx"
-import { OldSideChatBar, OldSideChatFoot } from "./old-side-chat.tsx"
+import { SideChat, SideChatBar, SideChatWelcome } from "./side-chat.tsx"
 import { SlackBar, SlackFoot, useSlackThreads } from "./slack-threads.tsx"
 import {
   isAtWork,
@@ -205,10 +205,18 @@ function Welcome({
 
 /**
  * One chat: the transcript, kept live by its event stream, and the composer. Beside it is the
- * agent's panel, or a document. People talk to the agent in its main chat; every other chat is
- * read here: a sub-agent's, a thread in Slack, a conversation with another agent, an old side chat.
+ * agent's panel, or a document, or, beside the main chat, one of the agent's side chats.
  */
-export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: string }) {
+export function ChatView({
+  agent,
+  chatId,
+  sideId,
+}: {
+  agent: AgentSummary
+  chatId: string
+  /** A side chat to have open beside this one, where there is room. */
+  sideId?: string | undefined
+}) {
   const { live, state, undelivered, earlier, send, sendError, retry, stop, attach } = useChat(
     agent.id,
     chatId,
@@ -218,9 +226,11 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const { data: agentState } = useQuery(agentQuery(agent.id))
   const chat = agentState?.chats.find((entry) => entry.id === chatId)
   const main = mainChatOf(agentState?.chats)
-  // An old side chat, from before the agent was talked to in its main chat alone, is read here.
-  // Until the agent has a main chat there are none.
+  // A side chat has the middle to itself here. Until the agent has a main chat there are none.
   const aside = main !== undefined && isSideChat(chat) ? chat : undefined
+  const side = agentState?.chats.find(
+    (entry) => entry.id === sideId && entry.id !== chatId && isSideChat(entry) && !entry.archived,
+  )
   const sub = chat?.kind === "subagent" ? chat : undefined
   const parent = agentState?.chats.find((entry) => entry.id === sub?.parentId)
   const subagents = useSubagents(agent.id, chatId)
@@ -234,9 +244,8 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   // So is a thread in Slack the agent was spoken to in: it is written in from there.
   const slack = chat?.kind === "slack" ? chat : undefined
   const slackThreads = useSlackThreads(agent.id)
-  // Whether this chat is the user's to write in: the main chat, and nothing else.
-  const own =
-    sub === undefined && thread === undefined && slack === undefined && aside === undefined
+  // Whether this chat is the user's to write in.
+  const own = sub === undefined && thread === undefined && slack === undefined
   // Where there is nothing to send yet, the end of the message box is the way to talk instead.
   const calls = useCallButton(agent)
 
@@ -278,10 +287,11 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
   const wide = useWide()
   // A file from the library that is open beside this chat, by its id. It takes the panel's place.
   const [openDoc, setOpenDoc] = useState<string>()
-  useEffect(() => setOpenDoc(undefined), [chatId])
-  // The panel is beside the chat only where there is room for both. Of the things that can be
-  // there, one is: a document, else the panel.
-  const beside = panel && wide && openDoc === undefined
+  useEffect(() => setOpenDoc(undefined), [chatId, sideId])
+  // A side chat is beside the chat only where there is room for both, and so is the panel. Of
+  // the things that can be there, one is: a document, else a side chat, else the panel.
+  const sideOpen = wide && side !== undefined && openDoc === undefined
+  const beside = panel && wide && openDoc === undefined && side === undefined
   // Someone who starts talking before the egg has opened has met their agent all the same.
   const talked = live.loaded && live.state.messages.length > 0
   useEffect(() => {
@@ -302,7 +312,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {aside === undefined || main === undefined ? null : (
-          <OldSideChatBar agent={agent} main={main} />
+          <SideChatBar agent={agent} chat={aside} main={main} />
         )}
         {slack === undefined ? null : (
           <SlackBar agent={agent} chat={slack} main={main} onStop={stop} />
@@ -457,7 +467,9 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
                       ) : !live.loaded ? (
                         // What it holds is on its way. Not the hello of an empty chat.
                         <TranscriptPlaceholder />
-                      ) : !own ? null : (
+                      ) : !own ? null : aside !== undefined ? (
+                        <SideChatWelcome agent={agent} carried={continuesMain(state.messages)} />
+                      ) : (
                         <Welcome
                           agent={agent}
                           onSay={(text) => void send(text)}
@@ -548,8 +560,6 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
             </div>
           ) : slack !== undefined ? (
             <SlackFoot chat={slack} />
-          ) : aside !== undefined && main !== undefined ? (
-            <OldSideChatFoot agent={agent} main={main} />
           ) : (
             <>
               {typing.length === 0 ? null : (
@@ -565,7 +575,13 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
               <Composer
                 onTyping={team === undefined ? undefined : noteTyping}
                 draftKey={chatKey(agent.id, chatId)}
-                placeholder={agent.name ? `Message ${agent.name}` : "Say hello"}
+                placeholder={
+                  aside !== undefined
+                    ? `Message ${name} in this side chat`
+                    : agent.name
+                      ? `Message ${agent.name}`
+                      : "Say hello"
+                }
                 busy={live.state.busy}
                 onSend={send}
                 error={sendError}
@@ -593,6 +609,7 @@ export function ChatView({ agent, chatId }: { agent: AgentSummary; chatId: strin
           onClose={() => setOpenDoc(undefined)}
         />
       ) : null}
+      {sideOpen ? <SideChat agent={agent} chat={side} mainId={chatId} /> : null}
       {beside ? (
         <AgentPanel
           agent={agent}

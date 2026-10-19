@@ -19,7 +19,6 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor, fetchSkill, parseFrontmatter, validateSkill } from "../src/index.ts"
-import { quietOnReminder } from "./quiet.ts"
 
 describe("skill format", () => {
   it("reads plain, quoted and block descriptions", () => {
@@ -145,9 +144,7 @@ type World = {
 const worlds: World[] = []
 
 function open(directory: string, sandbox?: () => Sandbox): World {
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
   const models = createModels()
   models.setProvider(faux.provider)
   const errors: unknown[] = []
@@ -220,7 +217,7 @@ const temporary = () => mkdtempSync(join(tmpdir(), "dc-skills-"))
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats/main", "POST", {})
+  return call<ChatSummary>(world, "/chats", "POST", {})
 }
 
 describe("the browsing skill", () => {
@@ -297,7 +294,7 @@ describe("agent skills", () => {
       files: ["SKILL.md"],
     })
 
-    const later = await call<ChatSummary>(world, "/chats/main", "POST", {})
+    const later = await call<ChatSummary>(world, "/chats", "POST", {})
     let prompt = ""
     world.faux.setResponses([
       (context) => {

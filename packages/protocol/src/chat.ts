@@ -38,7 +38,7 @@ export type NoticePart = {
    * agent's asking for secrets; its text is where they were to be saved. `connector` is how a
    * sign-in the agent asked for went; its text is the connector's name. `command` is the end of
    * a command the agent left running in the background; its text is the command. `branch` is
-   * where an old side chat's own messages begin, after the ones it carries from the main chat. `call`
+   * where a side chat's own messages begin, after the ones it carries from the main chat. `call`
    * is a voice call that was held in the chat, once it is over; its text is how long it was.
    * `approval` is someone's answer to something the agent asked leave for, where it is told as an
    * event; its text is what was asked. `automation` is what a run of an automation came to, told
@@ -95,10 +95,7 @@ export type NoticePart = {
     seconds: number
     summary: string[]
     lines: CallLine[]
-    /**
-     * The side chat the agent did the call's work in, on a call from before what was handed on
-     * went to the main chat.
-     */
+    /** The side chat the agent did the call's work in, where the call had one of its own. */
     chatId?: string
     /** What whoever was on it is called, where that is known. */
     by?: string

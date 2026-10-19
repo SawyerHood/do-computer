@@ -34,19 +34,6 @@ const SCRIPT: CallScriptStep[] = [
   { say: "Any time." },
 ]
 
-/**
- * The same, where what is handed on is work: the echo model is asked, as a `/tool` line, to hand
- * it to a sub-agent, as a model would with anything that takes more than a quick look.
- */
-const WORK_SCRIPT: CallScriptStep[] = [
-  {
-    hear: '/tool subagent {"action":"start","title":"Launch checklist","task":"Write the checklist for Friday\'s launch."}',
-  },
-  { handOn: true },
-  { hear: "Thanks, that is all." },
-  { say: "Any time." },
-]
-
 type Kept = { type?: string; key?: unknown; access?: unknown; accountId?: unknown }
 
 /** What an actor that keeps sign-ins has for a provider. Undefined where it has nothing, or cannot say. */
@@ -112,9 +99,8 @@ export function callDirectory(
         }
       }
       const limits = { maxSeconds: settings.callMinutes * 60, quietSeconds: QUIET_SECONDS }
-      if (settings.callScript !== false) {
-        const script = settings.callScript === "work" ? WORK_SCRIPT : SCRIPT
-        return { pass: { dialect: "scripted", script, paidBy: "server" }, ...limits }
+      if (settings.callScript) {
+        return { pass: { dialect: "scripted", script: SCRIPT, paidBy: "server" }, ...limits }
       }
       const row = await db.get<{ owner_id: string; workspace_id: string | null }>(
         "SELECT owner_id, workspace_id FROM dc_agents WHERE id = ?",

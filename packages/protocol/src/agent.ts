@@ -123,9 +123,9 @@ export type ChatSummary = {
   updatedAt: number
   archived: boolean
   /**
-   * The agent's main chat: the one conversation people have with it, which opens when the agent
-   * is chosen and carries on from day to day. At most one of an agent's chats is. Any other of
-   * kind `chat` is a side chat from before there were none, archived, to read.
+   * The agent's main chat: the one conversation that opens when the agent is chosen, and carries
+   * on from day to day. At most one of an agent's chats is. The others someone talks in are its
+   * side chats.
    */
   main?: boolean
   /** The id of the user who started it, where that is known. */
@@ -421,9 +421,9 @@ export type ScheduleSummary = {
     /**
      * "skipped": its check found nothing, and the agent was not started. "check-failed": its
      * check could not be run, the agent has already been told, and it was not started again.
-     * "reported": its result went to the agent's main chat, which decides whether to tell anyone.
-     * "delivered" and "silent", on runs from before every main chat was a bus: its report was
-     * delivered where the task was made, or it had nothing to report.
+     * "reported": its result went to the agent's main chat, where the agent has the bus on, which
+     * decides whether to tell anyone. "delivered" and "silent", for an agent without the bus:
+     * its report was delivered where the task was made, or it had nothing to report.
      */
     outcome: "reported" | "delivered" | "silent" | "failed" | "skipped" | "check-failed"
   } | null
@@ -473,6 +473,15 @@ export type SendMessageRequest = {
 }
 
 export type SendMessageResponse = { submissionId: string }
+
+export type CreateChatRequest = {
+  title?: string
+  /**
+   * An id of the caller's own for this one chat. A request sent again under the same id, as
+   * after an answer that never arrived, is given the chat the first one made.
+   */
+  requestId?: string
+}
 
 export type UpdateChatRequest = { title?: string; archived?: boolean }
 

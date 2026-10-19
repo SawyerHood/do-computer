@@ -46,7 +46,7 @@ function AgentLayout() {
   }, [agentId])
 
   // An agent that was opened at one of its pages, and not by being chosen, may not have been
-  // given its main chat yet. Its pages tell the main chat from the others, so it is given now.
+  // given its main chat yet. Its pages tell the main chat from the side chats, so it is given now.
   const mainless = state !== undefined && mainChatOf(state.chats) === undefined
   useEffect(() => {
     if (!mainless) return

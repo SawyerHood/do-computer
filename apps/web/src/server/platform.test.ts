@@ -48,14 +48,3 @@ describe("the other addresses a server is reached at", () => {
     ).toEqual(["http://127.0.0.1:4310", "https://box.tail1234.ts.net:4310"])
   })
 })
-
-describe("a switch only a test turns on", () => {
-  it("is off unless it is turned on, and refused on a server run for real", () => {
-    expect(readConfig({}).testOldSideChats).toBe(false)
-    expect(readConfig({ DC_TEST_OLD_SIDE_CHATS: "1" }).testOldSideChats).toBe(true)
-    expect(() => readConfig({ DC_TEST_OLD_SIDE_CHATS: "1", NODE_ENV: "production" })).toThrow(
-      /DC_TEST_OLD_SIDE_CHATS is for tests/,
-    )
-    expect(readConfig({ NODE_ENV: "production" }).testOldSideChats).toBe(false)
-  })
-})

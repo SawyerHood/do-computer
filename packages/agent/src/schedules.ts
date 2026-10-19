@@ -8,6 +8,7 @@ import type { Context } from "@earendil-works/chord"
 import { Type } from "@earendil-works/pi-ai"
 import {
   AssistantEntry,
+  type Conversation,
   type ConversationId,
   defineExtension,
   defineTool,
@@ -21,6 +22,7 @@ import { parseModel } from "./models.ts"
 import { formatTime, isValidTimezone, nextRunAt, parseSchedule } from "./schedule.ts"
 import { own } from "./own.ts"
 
+export const SILENT_MARKER = "[SILENT]"
 export const MAX_ENABLED_SCHEDULES = 20
 const MAX_TITLE_CHARS = 80
 const MAX_PROMPT_CHARS = 8_000
@@ -30,25 +32,34 @@ const MAX_CHECK_OUTPUT_CHARS = 8_000
 /** How much of it is kept to say, next time, what changed. */
 const MAX_SEEN_CHARS = 4_000
 
-/**
- * What a run came to, once the main chat was told of it as an event. Nobody was told of it: the
- * main chat decides whether anyone is.
- */
+/** Entry kind of a scheduled task's report in the chat it was created in. */
+export const SCHEDULED_ENTRY = "dc.scheduled"
+
 export type ScheduledReport = {
   scheduleId: string
   title: string
   /** The chat holding the run's full transcript. */
   runChatId: string
-  /** The main chat, which was told of it, where there is one. */
+  /**
+   * The chat the report was delivered into, when it still exists. On the bus, the main chat,
+   * which was told of it as an event.
+   */
   chatId: string | null
   text: string
+  /**
+   * The run's result went to the main chat as an event, where the agent has the bus on: nobody
+   * was told of it, and the main chat decides whether anyone is.
+   */
+  bus?: true
 }
 
-function preamble(title: string, now: number, timezone: string | null): string {
-  return (
-    `[You are running the scheduled task "${title}". It is ${formatTime(now, timezone)}. Nobody is present, so you cannot ask questions. ` +
-    "When you finish, your final reply goes to your main conversation as this task's result, not to the user: your main conversation decides whether any of it is worth telling them. So say plainly and completely what you found or did, and what changed since last time if you can tell; where there is nothing new, say so in a few words.]"
-  )
+function preamble(title: string, now: number, timezone: string | null, bus = false): string {
+  return bus
+    ? `[You are running the scheduled task "${title}". It is ${formatTime(now, timezone)}. Nobody is present, so you cannot ask questions. ` +
+        "When you finish, your final reply goes to your main conversation as this task's result, not to the user: your main conversation decides whether any of it is worth telling them. So say plainly and completely what you found or did, and what changed since last time if you can tell; where there is nothing new, say so in a few words.]"
+    : `[You are running the scheduled task "${title}". It is ${formatTime(now, timezone)}. Nobody is present, so you cannot ask questions. ` +
+        "Your final reply is delivered to the user automatically; do not try to send it yourself. " +
+        `If there is genuinely nothing new to report, reply with exactly "${SILENT_MARKER}" and nothing else to skip the message.]`
 }
 
 /** What running a check came to: what it printed, or why it could not be run. */
@@ -278,6 +289,7 @@ export class Scheduler {
 
   async create(
     input: { schedule: string; prompt: string; title?: string; timezone?: string } & CheckInput,
+    originChatId: string | null,
     context: Context,
   ): Promise<ScheduleSummary> {
     const harness = this.#require()
@@ -306,9 +318,7 @@ export class Scheduler {
       enabled: true,
       nextRunAt: next,
       createdAt: now,
-      // Not read: a run reports to the main chat. Kept for code from before, which delivers a
-      // run's result where its schedule was made.
-      originChatId: (await harness.snapshot(ChatsDoc, context))?.main ?? null,
+      originChatId,
       pending: null,
       lastRun: null,
       runCount: 0,
@@ -531,7 +541,9 @@ export class Scheduler {
             updatedAt: now,
             archived: false,
           }
-          record.pending = { chatId, ...run }
+          // Whether it reports to the main chat is settled as it starts, with what it is told.
+          const bus = (await tx.doc(IdentityDoc)).bus === true
+          record.pending = { chatId, ...run, ...(bus ? { bus: true as const } : {}) }
         },
       },
       context,
@@ -671,7 +683,12 @@ export class Scheduler {
           type: "input",
           requestId: `schedule:${id}:${pending.firedAt}`,
           content: [
-            preamble(record.title, pending.firedAt, identity?.timezone ?? record.timezone),
+            preamble(
+              record.title,
+              pending.firedAt,
+              identity?.timezone ?? record.timezone,
+              pending.bus === true,
+            ),
             ...(pending.context === undefined ? [] : [pending.context]),
             record.prompt,
           ].join("\n\n"),
@@ -687,16 +704,35 @@ export class Scheduler {
         )
         continue
       }
-      // A run that began before every agent's main chat was a bus was told its reply went to the
-      // user, and could answer "[SILENT]": it reports to the main chat all the same.
-      const outcome = await this.#report(
-        id,
-        record.title,
-        runChatId,
-        pending.firedAt,
-        status,
-        context,
-      )
+      let outcome: NonNullable<ScheduleRecord["lastRun"]>["outcome"] = "failed"
+      // Started on the bus and reporting with it still on. A run started on the bus whose agent
+      // has had it switched off since is delivered as runs are without it, and people are told.
+      if (pending.bus === true && identity?.bus === true) {
+        outcome = await this.#report(id, record.title, runChatId, pending.firedAt, status, context)
+      } else if (status.status === "done" && status.type === "input") {
+        const answer = await harness.commit(
+          (tx) => tx.entry(AssistantEntry, status.answer),
+          context,
+        )
+        const message = answer?.model?.[0]
+        const text =
+          message?.role === "assistant"
+            ? message.content
+                .flatMap((block) => (block.type === "text" ? [block.text] : []))
+                .join("")
+                .trim()
+            : ""
+        if (text === SILENT_MARKER || text === "") outcome = "silent"
+        else {
+          outcome = "delivered"
+          await this.#deliver(
+            { scheduleId: id, title: record.title, runChatId, chatId: null, text },
+            record.originChatId,
+            pending.firedAt,
+            context,
+          )
+        }
+      }
       await harness.commit(async (tx) => {
         const stored = own((await tx.doc(SchedulesDoc)).schedules, id)
         if (stored === undefined || stored.pending?.firedAt !== pending.firedAt) return
@@ -707,8 +743,8 @@ export class Scheduler {
   }
 
   /**
-   * Tell the main chat what a run came to, as an event: what it ended with, or that it did not
-   * finish. The main chat decides whether anyone hears of it.
+   * Tell the main chat what a run came to, as an event, where the agent has the bus on: what it
+   * ended with, or that it did not finish. The main chat decides whether anyone hears of it.
    * Keyed by the run, so telling it again after a crash tells nothing twice.
    */
   async #report(
@@ -801,8 +837,56 @@ export class Scheduler {
       runChatId,
       chatId: main === undefined ? null : mainId!,
       text: said,
+      bus: true,
     })
     return outcome
+  }
+
+  async #deliver(
+    report: ScheduledReport,
+    originChatId: string | null,
+    firedAt: number,
+    context: Context,
+  ): Promise<void> {
+    const harness = this.#require()
+    const now = this.#options.now()
+    let origin: Conversation | undefined
+    const chats = (await harness.snapshot(ChatsDoc, context))?.chats ?? {}
+    if (originChatId !== null && chats[originChatId] !== undefined) {
+      origin = await harness.conversation(Number(originChatId) as ConversationId, context)
+    }
+    if (origin !== undefined) {
+      // A write, not an input: it lands in the chat without asking the model anything, and is in
+      // the model's context the next time the user replies there.
+      await origin.submit(
+        {
+          type: "write",
+          requestId: `delivery:${report.scheduleId}:${firedAt}`,
+          entry: {
+            kind: SCHEDULED_ENTRY,
+            model: [
+              {
+                role: "user",
+                content: `[Your scheduled task "${report.title}" ran and reported the following to the user.]\n\n${report.text}`,
+                timestamp: now,
+              },
+            ],
+            data: {
+              scheduleId: report.scheduleId,
+              title: report.title,
+              runChatId: report.runChatId,
+              text: report.text,
+            },
+          },
+        },
+        context,
+      )
+      await harness.commit(async (tx) => {
+        const chat = (await tx.doc(ChatsDoc)).chats[originChatId!]
+        if (chat !== undefined) chat.updatedAt = now
+      }, context)
+    }
+    this.#options.onReport?.({ ...report, chatId: origin === undefined ? null : originChatId })
   }
 
   #tool() {
@@ -811,7 +895,7 @@ export class Scheduler {
       description:
         'Manage tasks you run on your own later or repeatedly. action "create" needs `schedule` and `prompt`; "update", "pause", "resume", "remove", "run" and "check" need `id`; "list" shows them all. "run" runs one now, without changing when it next runs on its own: use it to try out a task you have just made. ' +
         '`schedule` is one of: "30m" (once, that long from now), "every 2h" (repeating), a 5-field cron expression such as "0 9 * * 1-5" (in the user\'s timezone), or an ISO 8601 timestamp. ' +
-        "`prompt` is what you will be asked to do on each run, written so it makes sense with no other context. Each run starts fresh, and its final reply comes back to your main conversation as an event, which decides whether it is worth telling anyone. " +
+        "`prompt` is what you will be asked to do on each run, written so it makes sense with no other context. Each run starts fresh and its final reply is delivered to the user. " +
         'Give a task a `check` when most of its runs would find nothing to do ("tell me when…", "only if…"): a shell command that is run first each time, with no model and at no cost in tokens. If it prints nothing, that time is skipped and you are not started; if it prints something, you are started with what it printed in front of the prompt. With `wake_on` "change" you are started instead when what it prints differs from the time before. A check only looks and never changes anything, since it can be run more than once; it must end with exit code 0 whether or not it found something, because failing counts as broken; and it should print nothing but what matters. After making or changing one, try it with action "check", which runs only the command and says what a run would have done.',
       parameters: Type.Object({
         action: Type.Union([
@@ -902,6 +986,7 @@ export class Scheduler {
                   wakeOn: args.wake_on,
                   computer: args.computer,
                 },
+                own(chats, chatId) === undefined ? null : chatId,
                 context,
               )
               return reply(`Scheduled. ${describe(created)}`)
@@ -917,7 +1002,7 @@ export class Scheduler {
               if (!args.id) return reply('"run" needs id.', true)
               await this.runNow(args.id, this.#options.context ?? context)
               return reply(
-                `Started a run of schedule ${args.id}. It runs on its own, and what it reports reaches your main conversation as an event: do not wait for it.`,
+                `Started a run of schedule ${args.id}. It runs on its own, and what it reports is delivered where the schedule's reports go: do not wait for it.`,
               )
             default: {
               if (!args.id) return reply(`"${args.action}" needs id.`, true)

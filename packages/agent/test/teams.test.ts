@@ -22,7 +22,6 @@ import {
   readCaller,
 } from "../src/index.ts"
 import { senderOf, sentFrom, sentMeta } from "../src/caller.ts"
-import { quietOnReminder, sent } from "./quiet.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -34,9 +33,7 @@ const worlds: World[] = []
 
 function open(tokensPerSecond = 2_000): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-agent-teams-"))
-  const faux = quietOnReminder(
-    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond }),
-  )
+  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond })
   const models = createModels()
   models.setProvider(faux.provider)
   const notified: AgentNotification[] = []
@@ -204,7 +201,7 @@ describe("an agent that is one person's", () => {
   it("is told nothing about who is speaking, and steers when it is busy", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-maya" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {}, maya)
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {}, maya)
     const seen: string[] = []
     world.faux.setResponses([
       (context: unknown) => {
@@ -230,7 +227,7 @@ describe("an agent a team shares", () => {
   it("knows its team, and who sent each message", async () => {
     const world = open()
     await call(world, "/init", "POST", { ownerId: "user-maya", team: "Tidewater" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {}, maya)
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {}, maya)
     const seen: string[] = []
     const reply = (text: string) => (context: unknown) => {
       seen.push(JSON.stringify(context))
@@ -261,20 +258,18 @@ describe("an agent a team shares", () => {
     const agent = await call<AgentView>(world, "/")
     expect(agent).toMatchObject({ team: "Tidewater" })
     expect(agent.chats[0]).toMatchObject({ createdBy: "user-maya" })
-    // What it sends with nobody there to read it is told of. Who of a team a send answers is
-    // not known, so it is for all of them.
-    world.faux.setResponses([sent("You are welcome.")])
+    // An answer nobody was there to read is for the one it answered.
+    world.faux.setResponses([fauxAssistantMessage("You are welcome.")])
     await send(world, chat.id, "Thanks.", jon)
     await expect
-      .poll(() => world.notified.map((notification) => notification.text))
-      .toContain("You are welcome.")
-    expect(world.notified.find((one) => one.text === "You are welcome.")?.userId).toBeUndefined()
+      .poll(() => world.notified.map((notification) => notification.userId))
+      .toContain("user-jon")
   })
 
   it("takes a teammate's message at once, into what it is doing", async () => {
     const world = open(150)
     await call(world, "/init", "POST", { ownerId: "user-maya", team: "Tidewater" })
-    const chat = await call<ChatSummary>(world, "/chats/main", "POST", {}, maya)
+    const chat = await call<ChatSummary>(world, "/chats", "POST", {}, maya)
     const long = "A long first answer that takes a little while to stream out in full. ".repeat(2)
     world.faux.setResponses([
       fauxAssistantMessage(long),

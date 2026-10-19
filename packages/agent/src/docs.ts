@@ -106,11 +106,6 @@ export const CreatureDoc = defineDoc<CreatureState>({
 export type SubagentRecord = {
   /** The chat it was started in, where its reports go. */
   parentId: string
-  /**
-   * The side chat it was started in, where the switch-over to the bus gave it to the main chat
-   * (`parentId`), so that the switch-over can be undone.
-   */
-  parentBefore?: string
   /** What it was asked to do: its first message. */
   task: string
   /** Whether that message has been sent to it. */
@@ -212,11 +207,6 @@ export type ChatRecord = {
   createdAt: number
   updatedAt: number
   archived: boolean
-  /**
-   * `"bus"` on a side chat that the switch-over to the bus archived, and not a person, so that
-   * the switch-over can be undone without bringing back what people archived themselves.
-   */
-  archivedBy?: "bus"
   /** The user who started it. Absent on a chat from before agents were shared, and on runs. */
   createdBy?: string
   /** The user who last wrote in it, where that is known: who the agent is answering. */
@@ -293,16 +283,15 @@ export type ScheduleRecord = {
   nextRunAt: number | null
   createdAt: number
   /**
-   * The chat the schedule was created in, where its reports were delivered before every main
-   * chat was a bus. A run's result goes to the main chat now, as an event, and this is not read;
-   * a new schedule still names the main chat, so that code from before would deliver there.
+   * The chat the schedule was created in, where its reports are delivered. Not where the agent
+   * has the bus on: a run's result then goes to the main chat, as an event.
    */
-  originChatId?: string | null
+  originChatId: string | null
   /**
    * A run that has fired and not been reported yet. It has no chat until its check, where the
    * schedule has one, has said the agent is to be started; `context` is what the check found.
-   * `bus` was set on a run started while the bus was a switch, and had it on; every run is told
-   * now that its result goes to the main chat, and it does.
+   * `bus` is set on a run started while the agent had the bus on: it was told its result goes
+   * to the main chat, and it does.
    */
   pending: { chatId: string | null; firedAt: number; context?: string; bus?: true } | null
   lastRun: {
@@ -310,8 +299,8 @@ export type ScheduleRecord = {
     chatId: string | null
     /**
      * "reported": its result went to the main chat, as an event, which decides whether to tell
-     * anyone. "delivered" and "silent" are on runs from before every agent had the bus: whether
-     * its report was delivered where the schedule was made.
+     * anyone. "delivered" and "silent" are for an agent without the bus: whether its report was
+     * delivered where the schedule was made.
      */
     outcome: "reported" | "delivered" | "silent" | "failed" | "skipped" | "check-failed"
   } | null
