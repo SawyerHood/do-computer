@@ -74,7 +74,9 @@ function diffMessage(before: ChatMessage, after: ChatMessage): ChatEvent[] {
     before.error === after.error &&
     before.createdAt === after.createdAt &&
     before.model === after.model &&
-    before.notSent === after.notSent
+    before.notSent === after.notSent &&
+    before.sent === after.sent &&
+    before.done === after.done
   if (!sameEnvelope || after.parts.length < before.parts.length) {
     return [{ type: "message", message: after }]
   }

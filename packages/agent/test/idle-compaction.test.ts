@@ -726,6 +726,38 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     expect(world.faux.getPendingResponseCount()).toBe(1)
   })
 
+  it("looks at a chat whose run a send marked done ended, as one an answer ended", async () => {
+    const looks = probe()
+    const world = open(temporary(), { typing: looks.typing })
+    const { main, input } = await fill(world, 0.6)
+    expect(looks.count).toBe(0)
+    // The next request comes to 75% of the window, and the run ends with a send marked done,
+    // with no answer after it.
+    world.faux.models[0].contextWindow = Math.round((input - LONG) / 0.75)
+    await call(world, "/", "PATCH", { bus: true })
+    world.faux.appendResponses([
+      // The flag as some models write it, which pi-ai takes for true: arming reads the stored
+      // result, as the run's end was decided, and not the raw arguments.
+      fauxAssistantMessage([fauxToolCall("send", { text: "Got it.", done: "true" })], {
+        stopReason: "toolUse",
+      }),
+      fauxAssistantMessage(SUMMARY),
+    ])
+    await call(world, `/chats/${main.id}/messages`, "POST", { text: "one more", requestId: "r" })
+    await until(
+      () => chatOf(world, main.id),
+      (state) => !state.busy && JSON.stringify(state.messages).includes("Got it."),
+    )
+    // It is looked at, and compacted, as after any answer it would be.
+    const state = await until(() => chatOf(world, main.id), compacted)
+    expect(compacted(state)).toBe(true)
+    // Armed once, and looked at once.
+    await sleep(AFTER_MS * 2)
+    expect(looks.count).toBe(1)
+    expect(await compactions(world)).toHaveLength(1)
+    expect(world.reports).toEqual([])
+  })
+
   it("leaves a chat whose model keeps its cache only for minutes", async () => {
     const looks = probe()
     const world = open(temporary(), { typing: looks.typing })

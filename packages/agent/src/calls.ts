@@ -298,6 +298,8 @@ export function voiceContext(messages: readonly ChatMessage[]): CallLine[] {
     const message = messages[i]!
     if (message.role !== "user" && message.role !== "assistant") continue
     if (message.status === "streaming") continue
+    // A send that failed was not said to anyone.
+    if (message.notSent !== undefined) continue
     const text = clip(
       message.parts
         .flatMap((part) => (part.type === "text" ? [part.text] : []))

@@ -17,6 +17,7 @@ import {
 import { type ChatRecord, ChatsDoc, type ChatsState, IdentityDoc } from "./docs.ts"
 import { own } from "./own.ts"
 import { addNotes } from "./persona.ts"
+import { onlySends, roundEnded, storedRound } from "./bus.ts"
 import { projectPast } from "./project.ts"
 import { isValidTimezone } from "./schedule.ts"
 
@@ -360,6 +361,23 @@ export class Journal {
           onYield: (answer, api) => {
             void this.review(String(api.conversationId), answer)
             return undefined
+          },
+          // A run that a send marked done ended never yields: it comes to rest with that round.
+          // Read from the stored results, as the run's end was decided. This runs before the
+          // commit that ends the run, so a round looked at again after a crash reviews again:
+          // one more small-model call, which writes the same note.
+          afterTools: async (assistant, results, api, context) => {
+            const harness = this.#harness
+            if (harness === undefined || this.#options.review === undefined) return
+            try {
+              if (!(await onlySends(api, context))) return
+              const round = await storedRound(harness, assistant, results, context)
+              if (round !== undefined && roundEnded(round.answer, round.results)) {
+                void this.review(String(api.conversationId))
+              }
+            } catch (error) {
+              this.#options.onError(error)
+            }
           },
         }),
         hook(CompactionTask, {

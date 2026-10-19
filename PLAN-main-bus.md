@@ -375,24 +375,52 @@ Notes from building it, where it differs from or adds to the sections above.
   model's own words: people's messages, each send (and a failed one, marked), a progress word, a
   file or page shown, a sub-agent it started, the events it was told of (a sub-agent's report,
   an automation's result with "View run", a sub-agent asking, word from Slack, a call, answers),
-  and a reply that failed or was stopped. Ordinary steps stay in their message, which a client
-  does not draw, as in any chat. The model's text outside `send` is kept in the state as a
-  `thinking` part marked `written`, which no client draws, so that what it is doing can still be
-  said. An answer is cut where it says something, and what follows a send is named
-  `after:send:<call>`, so ids stay put as it grows.
+  and a reply that failed or was stopped. That is meant to include everything else a chat draws
+  of a step: a command left running, a site shared, a pin, a screen or browser in use, a
+  connector's page, a picture. Ordinary steps stay in their message, which a client does not
+  draw, as in any chat. The model's text outside `send` is kept in the state as a `thinking`
+  part marked `written`, which no client draws, so that what it is doing can still be said. An
+  answer is cut where it says something: what comes before the first thing said is named
+  `before:<that>`, what follows each thing said `after:<that>` (`after:send:<call>`), so a piece
+  keeps its id from live to stored and watchers are sent a change, not the whole chat. Only an
+  answer with nothing said in it keeps its own id, as in any chat. Nothing outside the
+  transcripts read the old `work` flag but the voice (both of its readers are changed) and the
+  diff.
 - **Ending a turn with a send.** `send` takes `done: true` for the last word for now: it returns
   pi-durable's `control: { terminate: true }`, so the run ends with that round and no model
-  request is made just to stop. Without it, a send is an update and the run goes on, as before.
-  pi-durable ends the run only where every call of the round asks it, so a send beside other work
-  goes on to its results; a send that failed never asks. Inputs queued meanwhile are placed by
-  the final boundary as usual and start the next run. Such a run never reaches `onYield`, which
-  only matters to the reminder (not due: something was sent) and keep going (a send marked done
-  is a decision to stop). Idle compaction is armed by such a round as by a final answer, and a
-  side chat can branch from it (`asksToEnd`). Slack threads take the same flag.
-- **"Thinking" after a send.** Once a send is out, the chat says nothing more of what the Dood is
-  doing while it only finishes up (thinking, or no more than 200 characters of its own words):
-  the person has its message. A step, an event, a person's message or more words bring the line
-  back (`quietSinceSend`). The stop button still shows it is at work.
+  request is made just to stop, and its result's details say `done: true`. Without it, a send
+  is an update and the run goes on, as before. pi-durable ends the run only where every call of
+  the round asks it, so a send beside other work goes on to its results; a send that failed
+  never asks. Inputs queued meanwhile are placed by the final boundary as usual and start the
+  next run. What follows a run reads whether a round ended it from the stored results
+  (`roundEnded`), as pi-durable decided it from their controls, so a flag a model wrote as
+  `"true"` or `1` (which pi-ai takes for true) is read the same everywhere. Slack threads take
+  the same flag.
+- **What a run that a send ended misses.** Such a run never reaches `onYield`, which three
+  extensions listen on: the bus's reminder (not due: something was sent), keep going (a send
+  marked done is a decision to stop) and the journal, whose review keeps the main chat's note for
+  the other chats and adds lasting facts to memory. The journal therefore also reviews from the
+  round's `afterTools` when the round ended the run (a round looked at again after a crash
+  reviews again, which costs one more small-model call). Both `afterTools` hooks first check, from
+  the live slots and without a transaction, that every call of the round is a send, and idle
+  compaction that the chat is the main one, so other rounds read nothing stored. Idle compaction, which arms on the answer a
+  run rests on (`afterResponse`, before any tool runs), arms from `afterTools` for such a round,
+  and a side chat can branch from it (`branchPoint`).
+- **"Thinking" after a send.** After a send marked done (its result in, or its closing words
+  being written after it in the same answer), the chat says nothing more of what the Dood is
+  doing while it only finishes up (thinking, or no more than 200 characters of its own words),
+  and its creature is at rest: the person has its last word, and the run ends at once anyway. A
+  step, an event, a person's message or more words bring the line back (`quietSinceSend`). After
+  an update, a send without `done`, it is at work and is said to be, as usual. The send message
+  carries `sent` (`sending` until its result is in) and `done` for this. `done` is set only
+  where the whole round can end the run, as pi-durable decides it: every call in the answer is a
+  send saying done (its arguments while live, its stored result once that is in). A send marked
+  done beside other work (`[bash, send(done)]`, `[send, send(done)]`) is no last word: the run
+  goes on, and so does "Thinking".
+- **Known gap.** Sends stored while the first version of `done` was live kept the flag only in
+  their arguments, not in their result's details. For those rounds `branchPoint` and the
+  projection's `done` read nothing; it matters only behind the switch, and only for those few
+  rounds.
 - **The reminder** is decided from the context: a person wrote since the bus was switched on,
   and since their last message nothing was sent (with `send`, or a page drawn with `visual`),
   nothing failed or was stopped, and it was not reminded already. See 3.3 for when that lands on

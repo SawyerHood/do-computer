@@ -130,6 +130,16 @@ export type ChatMessage = {
    * they were written, marked as not sent.
    */
   notSent?: string
+  /**
+   * A call to `send`, in a chat where the agent speaks only through it: `sending` until its
+   * result is in, then `sent` (one that failed has `notSent` instead).
+   */
+  sent?: "sending" | "sent"
+  /**
+   * A call to `send` that is the agent's last word for now (`done`): its turn ends with it. Read
+   * from its result once that is in, and from its arguments until then.
+   */
+  done?: true
 }
 
 export type QueuedInput = {

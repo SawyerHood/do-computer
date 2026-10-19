@@ -6,6 +6,8 @@ import {
   type ChatState,
   type ChatSummary,
   chatActivity,
+  chatMood,
+  diffChat,
   isVisibleMessage,
   type SecretRequest,
   type SiteSummary,
@@ -377,68 +379,149 @@ describe("what the bus shows", () => {
 
 describe("what it is said to be doing, with the bus on", () => {
   const busy = (entries: EntryRecord[], live: Record<string, unknown> = {}) =>
-    chatActivity(projectChat(view(entries, { "pi.live": { run: {}, ...live } })))
-  const sent = () => [
+    projectChat(view(entries, { "pi.live": { run: {}, ...live } }))
+  const doing = (entries: EntryRecord[], live: Record<string, unknown> = {}) =>
+    chatActivity(busy(entries, live))
+  /** A person's message, and a send to it that went: its last word for now, or an update. */
+  const sent = (done = true) => [
     mark(true),
     person("wow"),
-    said([call("s1", "send", { text: "What about?" })], "toolUse"),
-    result("s1", false, { files: [] }),
+    said([call("s1", "send", { text: "What about?", ...(done ? { done: true } : {}) })], "toolUse"),
+    result("s1", false, { files: [], ...(done ? { done: true } : {}) }),
   ]
+  const closing = {
+    generation: {
+      message: answer(
+        [
+          { type: "thinking", thinking: "Sent. ".repeat(80) } as never,
+          { type: "text", text: "Done." },
+        ],
+        "stop",
+      ),
+    },
+  }
 
   it("is thinking until it has sent something", () => {
-    expect(busy([mark(true), person("wow")])).toBe("Thinking")
+    expect(doing([mark(true), person("wow")])).toBe("Thinking")
     // Its own words being written are not on screen, so they do not say it.
     expect(
-      busy([mark(true), person("wow")], {
+      doing([mark(true), person("wow")], {
         generation: { message: answer([{ type: "text", text: "Hm" }], "stop") },
       }),
     ).toBe("Thinking")
   })
 
-  it("says nothing once it has sent, while it only finishes up", () => {
-    expect(busy(sent())).toBeNull()
+  it("says nothing once its last word for now is out, while it only finishes up", () => {
+    expect(doing(sent())).toBeNull()
+    expect(doing(sent(), closing)).toBeNull()
+    // The creature is at rest with it.
+    expect(chatMood(busy(sent()))).toEqual({ state: "idle" })
+    expect(chatMood(busy(sent(), closing))).toEqual({ state: "idle" })
+  })
+
+  it("is thinking after an update, which it keeps working after", () => {
+    expect(doing(sent(false))).toBe("Thinking")
+    expect(doing(sent(false), closing)).toBe("Thinking")
+    expect(chatMood(busy(sent(false)))).toEqual({ state: "thinking" })
+  })
+
+  it("waits for a send's result, unless its closing words are being written after it", () => {
+    const asked = [
+      mark(true),
+      person("wow"),
+      said([call("s1", "send", { text: "What about?", done: true })], "toolUse"),
+    ]
+    const running = { tools: [{ callId: "s1", name: "send", status: "running" }] }
+    // Its result not in yet: it may still fail, as a post to Slack can.
+    expect(busy(asked, running).messages.at(-1)).toMatchObject({ sent: "sending", done: true })
+    expect(doing(asked, running)).toBe("Thinking")
+    // Closing words in the same answer after it: its words are whole, and the turn ends there.
+    // A model that writes the flag as a string is read as pi-ai reads it.
+    const words = answer(
+      [call("s1", "send", { text: "What about?", done: "true" }), { type: "text", text: "Done." }],
+      "toolUse",
+    )
+    expect(doing([mark(true), person("wow")], { generation: { message: words } })).toBeNull()
+    // One that failed is no last word.
     expect(
-      busy(sent(), {
-        generation: {
-          message: answer(
-            [
-              { type: "thinking", thinking: "Sent. ".repeat(80) } as never,
-              { type: "text", text: "Done." },
-            ],
-            "stop",
-          ),
-        },
-      }),
-    ).toBeNull()
+      doing([...asked, result("s1", true), said([{ type: "text", text: "It failed." }], "stop")]),
+    ).toBe("Thinking")
   })
 
   it("is at work again once it takes a step, writes more, or is given something new", () => {
     expect(
-      busy([...sent(), said([call("b1", "bash", { command: "ls" })], "toolUse")], {
+      doing([...sent(), said([call("b1", "bash", { command: "ls" })], "toolUse")], {
         tools: [{ callId: "b1", name: "bash", status: "running" }],
       }),
     ).toMatch(/^Running/)
     // A send beside a step: the step goes on after the message is out.
     expect(
-      busy(
+      doing(
         [
           mark(true),
           person("wow"),
           said(
-            [call("s1", "send", { text: "On it." }), call("b1", "bash", { command: "ls" })],
+            [
+              call("s1", "send", { text: "On it.", done: true }),
+              call("b1", "bash", { command: "ls" }),
+            ],
             "toolUse",
           ),
-          result("s1", false, { files: [] }),
+          result("s1", false, { files: [], done: true }),
         ],
         { tools: [{ callId: "b1", name: "bash", status: "running" }] },
       ),
     ).toMatch(/^Running/)
-    expect(busy([...sent(), said([{ type: "text", text: "x".repeat(300) }], "stop")])).toBe(
+    expect(doing([...sent(), said([{ type: "text", text: "x".repeat(300) }], "stop")])).toBe(
       "Thinking",
     )
-    expect(busy([...sent(), person("and?")])).toBe("Thinking")
+    // A last word beside other work in the same answer is no last word: that round does not end
+    // the run, whichever comes first.
+    const round = (calls: ReturnType<typeof call>[], live: Record<string, unknown>) =>
+      busy(
+        [
+          mark(true),
+          person("wow"),
+          said(calls, "toolUse"),
+          result("s1", false, { files: [], done: true }),
+        ],
+        live,
+      )
+    const bashFirst = round(
+      [call("b1", "bash", { command: "ls" }), call("s1", "send", { text: "Done!", done: true })],
+      { tools: [{ callId: "b1", name: "bash", status: "running" }] },
+    )
+    expect(chatActivity(bashFirst)).toBe("Thinking")
+    expect(chatMood(bashFirst)).not.toEqual({ state: "idle" })
+    expect(bashFirst.messages.find((message) => message.id === "send:s1")!.done).toBeUndefined()
+    // And after that round, while the next request only thinks.
+    const next = busy(
+      [
+        mark(true),
+        person("wow"),
+        said(
+          [
+            call("b1", "bash", { command: "ls" }),
+            call("s1", "send", { text: "Done!", done: true }),
+          ],
+          "toolUse",
+        ),
+        result("b1"),
+        result("s1", false, { files: [], done: true }),
+      ],
+      closing,
+    )
+    expect(chatActivity(next)).toBe("Thinking")
+    expect(chatMood(next)).not.toEqual({ state: "idle" })
+    const updateFirst = round(
+      [call("u1", "send", { text: "On it." }), call("s1", "send", { text: "Done!", done: true })],
+      {},
+    )
+    expect(chatActivity(updateFirst)).toBe("Thinking")
+    expect(chatMood(updateFirst)).not.toEqual({ state: "idle" })
+    expect(doing([...sent(), person("and?")])).toBe("Thinking")
     expect(
-      busy([
+      doing([
         ...sent(),
         entry("dc.subagent", {
           model: [{ role: "user", content: eventText("subagent-report", {}, "x"), timestamp: 4 }],
@@ -450,19 +533,63 @@ describe("what it is said to be doing, with the bus on", () => {
 
   it("is quiet once the run has ended", () => {
     expect(chatActivity(projectChat(view(sent())))).toBeNull()
+    expect(chatActivity(projectChat(view(sent(false))))).toBeNull()
+  })
+})
+
+describe("a reply with thinking before its send", () => {
+  it("keeps its ids from live to stored, so watchers are sent a change and not the whole chat", () => {
+    const before = [mark(true), person("wow")]
+    const content = [
+      { type: "thinking", thinking: "They seem pleased." } as never,
+      call("c1", "send", { text: "😄 what's the wow about?", done: true }),
+    ] as AssistantMessage["content"]
+    const live = projectChat(
+      view(before, { "pi.live": { run: {}, generation: { message: answer(content, "toolUse") } } }),
+    )
+    const stored = projectChat(
+      view([...before, said(content, "toolUse")], {
+        "pi.live": { run: {}, tools: [{ callId: "c1", name: "send", status: "running" }] },
+      }),
+    )
+    expect(live.messages.map((message) => message.id).slice(1)).toEqual([
+      "before:send:c1",
+      "send:c1",
+    ])
+    expect(stored.messages.map((message) => message.id)).toEqual(
+      live.messages.map((message) => message.id),
+    )
+    expect(diffChat(live, stored).map((event) => event.type)).not.toContain("snapshot")
+    // While it is only thinking, the answer is live, and gives way to its pieces.
+    const thinking = projectChat(
+      view(before, {
+        "pi.live": { run: {}, generation: { message: answer([content[0]!], "toolUse") } },
+      }),
+    )
+    expect(diffChat(thinking, live).map((event) => event.type)).not.toContain("snapshot")
   })
 })
 
 describe("a run a send marked done ended", () => {
-  it("is where a side chat can branch, as an answer is", () => {
-    const ended = result("d1", false, { files: [] })
+  it("is where a side chat can branch, as an answer is, read from the stored result", () => {
+    const ended = result("d1", false, { files: [], done: true })
     const entries = [
       mark(true),
       person("hi"),
-      said([call("d1", "send", { text: "Hi.", done: true })], "toolUse"),
+      // The flag as a model wrote it, which pi-ai took for true: the result says what it did.
+      said([call("d1", "send", { text: "Hi.", done: "true" })], "toolUse"),
       ended,
     ]
     expect(branchPoint(entries)).toBe(ended.id)
+    // One whose result did not ask to end the run did not end it.
+    expect(
+      branchPoint([
+        mark(true),
+        person("hi"),
+        said([call("d0", "send", { text: "Hi.", done: true })], "toolUse"),
+        result("d0", false, { files: [] }),
+      ]),
+    ).toBeUndefined()
     // One that failed did not end it: the run went on, and nothing has finished yet.
     expect(
       branchPoint([
@@ -478,7 +605,7 @@ describe("a run a send marked done ended", () => {
         mark(true),
         person("hi"),
         said([call("d3", "send", { text: "Hi.", done: true }), call("d4", "bash", {})], "toolUse"),
-        result("d3", false, { files: [] }),
+        result("d3", false, { files: [], done: true }),
         result("d4"),
       ]),
     ).toBeUndefined()
@@ -983,6 +1110,87 @@ describe("the main chat as a bus", () => {
       (state) => rested(state) && turns.length >= 2,
     )
     expect(turns[1]!.last).toContain("again")
+  })
+
+  it("notes where the chat stands after a run a send marked done ended, as after any run", async () => {
+    const reviewed: string[] = []
+    const review = {
+      apiKey: "key",
+      model: "tiny/notes",
+      fetch: async (_url: string, init: RequestInit) => {
+        const sent = JSON.parse(String(init.body)) as { messages: { content: string }[] }
+        reviewed.push(sent.messages[1]!.content)
+        return Response.json({
+          choices: [{ message: { content: "{}" } }],
+          usage: { prompt_tokens: 9, completion_tokens: 4, cost: 0 },
+        })
+      },
+    }
+    const world = open(temporary(), false, { review })
+    const main = await setup(world, true)
+    // First a run that ends on an answer, after an update and a send that failed: reviewed
+    // once, when it yields, and never for the rounds that did not end it.
+    world.faux.setResponses([
+      () => use("send", { text: "Looking." }),
+      () => use("send", { text: "With it.", files: ["missing.md"], done: true }),
+      () => fauxAssistantMessage("Nothing more to send."),
+    ])
+    await say(world, main.id, "look first")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && spoken(state).includes("Looking."),
+    )
+    await until(
+      async () => reviewed.length,
+      (count) => count >= 1,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    // Once, and at the end: what it read has the answer the run rested on. (A review of a round
+    // that did not end the run would have come first, without it, and a second one at the end
+    // would find nothing new a person said, and not be made.)
+    expect(reviewed).toHaveLength(1)
+    expect(reviewed[0]).toContain("Nothing more to send.")
+
+    // Then a run a send marked done ends: reviewed once more. The flag as some models write
+    // it, which pi-ai takes for true: the run ends all the same, and what follows it reads that
+    // from the stored result.
+    const turns = script(world, (turn) =>
+      afterTool(turn)
+        ? fauxAssistantMessage("A request that must not be made.")
+        : use("send", { text: "Booked it.", done: "true" }),
+    )
+    await say(world, main.id, "book it")
+    const state = await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && spoken(state).includes("Booked it."),
+    )
+    await until(
+      async () => reviewed.length,
+      (count) => count >= 2,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(reviewed).toHaveLength(2)
+    expect(turns).toHaveLength(1)
+    expect(state.messages.at(-1)).toMatchObject({ id: expect.stringMatching(/^send:/), done: true })
+  })
+
+  it("is reminded once at most after a send that failed, however it answers", async () => {
+    const world = open(temporary(), true)
+    const main = await setup(world, true)
+    const turns = script(world, (turn) =>
+      afterTool(turn)
+        ? fauxAssistantMessage("That did not go.")
+        : use("send", { text: "Here it is.", files: ["missing.md"] }),
+    )
+    await say(world, main.id, "the file?")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && turns.length >= 4,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    // Its send, what it said of the failure, the reminder's send, and what it said of that.
+    expect(turns).toHaveLength(4)
+    expect(turns.filter((turn) => turn.last.includes('kind=\\"unsent\\"'))).toHaveLength(1)
   })
 
   it("goes on after a send beside other work, even marked done", async () => {
