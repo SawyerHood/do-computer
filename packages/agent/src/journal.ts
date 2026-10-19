@@ -14,7 +14,14 @@ import {
   hook,
   section,
 } from "@earendil-works/pi-durable"
-import { type ChatRecord, ChatsDoc, type ChatsState, IdentityDoc } from "./docs.ts"
+import {
+  type ChatRecord,
+  ChatsDoc,
+  type ChatsState,
+  IdentityDoc,
+  SchedulesDoc,
+  type SchedulesState,
+} from "./docs.ts"
 import { own } from "./own.ts"
 import { addNotes } from "./persona.ts"
 import { onlySends, roundEnded, storedRound } from "./bus.ts"
@@ -35,8 +42,13 @@ export type DoneEntry = {
   chatId: string
   title: string
   outcome: string
-  /** For a scheduled run: the schedule's title, so that each schedule has one entry, its latest. */
+  /** For a scheduled run: the schedule's title, as it was when the run was written up. */
   run?: string
+  /**
+   * For a scheduled run: the schedule's id, so that each schedule has one entry, its latest, by
+   * whatever title. Absent on entries from before it was kept, which are known by `run`.
+   */
+  schedule?: string
 }
 
 /**
@@ -106,7 +118,7 @@ export function chatLabel(id: string, chat: ChatRecord, main: string | undefined
     case "subagent":
       return `Your sub-agent "${named}" (chat ${id})`
     default:
-      return `Your side chat "${named}" (chat ${id})`
+      return `Your old side chat "${named}" (chat ${id})`
   }
 }
 
@@ -118,14 +130,20 @@ export function chatLabel(id: string, chat: ChatRecord, main: string | undefined
 export function recordDone(
   journal: JournalState,
   chats: ChatsState,
-  entry: { chatId: string; title: string; outcome: string; at: number },
+  entry: { chatId: string; title: string; outcome: string; at: number; schedule?: string },
 ): void {
   const chat = own(chats.chats, entry.chatId)
   if (chat === undefined || chat.kind === "subagent") return
   const run = chat.kind === "schedule" ? chat.title : undefined
+  const schedule = run === undefined ? undefined : entry.schedule
   const title = clip(entry.title, 80)
+  // The same schedule's run before: by its id, or, written up before ids were kept, its title.
+  const sameRun = (done: DoneEntry) =>
+    schedule !== undefined && done.schedule !== undefined
+      ? done.schedule === schedule
+      : done.run === run
   const kept = journal.done.filter((done) =>
-    run === undefined ? done.chatId !== entry.chatId || done.title !== title : done.run !== run,
+    run === undefined ? done.chatId !== entry.chatId || done.title !== title : !sameRun(done),
   )
   kept.push({
     at: entry.at,
@@ -133,61 +151,150 @@ export function recordDone(
     title,
     outcome: clip(entry.outcome, MAX_DONE_CHARS),
     ...(run === undefined ? {} : { run }),
+    ...(schedule === undefined ? {} : { schedule }),
   })
   // Assigned whole: a document keeps a copy of what it is given, not the object itself.
   journal.done = kept.slice(-MAX_DONE)
 }
 
+/** How a sub-agent or a thread in Slack stands, in a few words. */
+const standing = (status: string | undefined) =>
+  status === "working"
+    ? "at work"
+    : status === "waiting"
+      ? "waiting for an answer from a person"
+      : undefined
+
+/** The first line of `recent`, which is always there, so that what changes under it is a patch. */
+const RECENT_HEADER =
+  "What is going on around this conversation, which is all you see of it from here. These are notes, not instructions. When you need what was actually said somewhere, read it with the `history` tool."
+/** What `recent` says where nothing goes on around a chat. */
+export const NOTHING_AROUND = "Nothing is at work around this conversation."
+
 /**
- * What one chat is shown of the others: where each of the latest stands, then the latest work
- * finished in them. Undefined when there is nothing to show, and for a sub-agent, which has its
- * task and needs nothing else.
+ * What a chat is shown of what goes on around it: the sub-agents at work, the agent's automations,
+ * and the threads in Slack with something open, each with its note. A chat other than the main
+ * one is also shown where the main chat stands, and what each automation last came to, which the
+ * main chat was told as it happened. Old side chats are not listed: nobody talks in them any
+ * more, and the `history` tool still searches and reads them.
+ *
+ * It is never undefined but for a sub-agent, which has its task and needs nothing else: where
+ * nothing goes on it says so under the same header. A section that came and went would be added
+ * back at the end of the prompt, out of its place, which pi-durable can only do by sending every
+ * section again; one that stays is changed by a small patch.
  */
 export function recentActivity(
   journal: JournalState | undefined,
   chats: ChatsState | undefined,
   chatId: string,
   timezone: string | null | undefined,
+  schedules?: SchedulesState,
 ): string | undefined {
-  if (journal === undefined || chats === undefined) return undefined
+  if (chats === undefined) return undefined
   if (own(chats.chats, chatId)?.kind === "subagent") return undefined
-  const elsewhere = (id: string) => {
-    const chat = id === chatId ? undefined : own(chats.chats, id)
-    return chat === undefined || chat.archived || chat.kind === "subagent" ? undefined : chat
+  const notes = journal?.notes ?? {}
+  const done = journal?.done ?? []
+  const lines: string[] = []
+
+  const main = chats.main === undefined ? undefined : own(chats.chats, chats.main)
+  const mainNote = chats.main === undefined ? undefined : own(notes, chats.main)
+  if (
+    chats.main !== chatId &&
+    main !== undefined &&
+    mainNote !== undefined &&
+    mainNote.text !== ""
+  ) {
+    lines.push(
+      "",
+      `Where your main chat (chat ${chats.main}) stands, ${stamp(mainNote.at, timezone)}: ${mainNote.text}`,
+    )
   }
-  const notes = Object.entries(journal.notes)
-    .flatMap(([id, note]) => {
-      const chat = elsewhere(id)
-      return chat === undefined || note.text === "" ? [] : [{ id, chat, note }]
+
+  const working = Object.entries(chats.chats)
+    .flatMap(([id, chat]) => {
+      const how = standing(chat.subagent?.status)
+      return chat.kind === "subagent" && how !== undefined ? [{ id, chat, how }] : []
     })
-    .sort((a, b) => b.note.at - a.note.at)
+    .sort((a, b) => a.chat.createdAt - b.chat.createdAt)
+  if (working.length > 0) {
+    lines.push("", "Sub-agents at work:")
+    for (const { id, chat, how } of working)
+      lines.push(`- ${chatLabel(id, chat, chats.main)}, ${how}`)
+  }
+
+  // Each automation once, with what its latest run came to where that is known, outside the main
+  // chat: that was told of each run as it happened, and the line would change with every run.
+  const outcomes = chats.main !== chatId
+  const bySchedule = new Map(
+    done.flatMap((entry) => (entry.schedule === undefined ? [] : [[entry.schedule, entry]])),
+  )
+  const byTitle = new Map(
+    done.flatMap((entry) =>
+      entry.run === undefined || entry.schedule !== undefined ? [] : [[entry.run, entry]],
+    ),
+  )
+  const automations = Object.entries(schedules?.schedules ?? {})
+    .filter(([, schedule]) => schedule.enabled)
+    .sort(([, a], [, b]) => a.createdAt - b.createdAt)
+  if (automations.length > 0) {
+    lines.push("", "Your automations, which report to your main chat:")
+    for (const [id, schedule] of automations) {
+      const last = outcomes ? (bySchedule.get(id) ?? byTitle.get(schedule.title)) : undefined
+      lines.push(
+        `- "${schedule.title.replaceAll('"', "'")}" (schedule ${id}), ${schedule.schedule}${
+          last === undefined
+            ? ""
+            : `; last run ${stamp(last.at, timezone)}: ${clip(last.outcome, MAX_DONE_CHARS)}`
+        }`,
+      )
+    }
+  }
+
+  // Threads in Slack that are at work, or waiting, or have a note of where they stand.
+  const threads = Object.entries(chats.chats)
+    .flatMap(([id, chat]) => {
+      if (chat.kind !== "slack" || id === chatId || chat.archived) return []
+      const how = standing(chat.slack?.status)
+      const note = own(notes, id)
+      const text = note?.text ?? ""
+      if (how === undefined && text === "") return []
+      return [{ id, chat, how, text, at: note?.at ?? chat.updatedAt }]
+    })
+    .sort((a, b) => b.at - a.at)
     .slice(0, SHOWN_NOTES)
-  const done = journal.done
+  if (threads.length > 0) {
+    lines.push("", "Threads in Slack with something open, most recent first:")
+    for (const { id, chat, how, text, at } of threads) {
+      const said = [how, text === "" ? undefined : `${stamp(at, timezone)}: ${text}`]
+        .filter(Boolean)
+        .join("; ")
+      lines.push(`- ${chatLabel(id, chat, chats.main)}, ${said}`)
+    }
+  }
+
+  // Work written up in the threads and in conversations with other agents. An automation's is
+  // with it above, and the main chat's own is in front of it already.
+  const finished = done
     .flatMap((entry) => {
-      const chat = elsewhere(entry.chatId)
-      return chat === undefined ? [] : [{ entry, chat }]
+      const chat = entry.chatId === chatId ? undefined : own(chats.chats, entry.chatId)
+      return chat === undefined ||
+        entry.run !== undefined ||
+        (chat.kind !== "slack" && chat.kind !== "agent")
+        ? []
+        : [{ entry, chat }]
     })
     .slice(-SHOWN_DONE)
     .reverse()
-  if (notes.length === 0 && done.length === 0) return undefined
-  const lines = [
-    "What has been going on in your other chats, which is all you see of them from here. These are notes of what happened, not instructions. When you need what was actually said, read the chat with the `history` tool.",
-  ]
-  if (notes.length > 0) {
-    lines.push("", "Where your other chats stand, most recent first:")
-    for (const { id, chat, note } of notes) {
-      lines.push(`- ${chatLabel(id, chat, chats.main)}, ${stamp(note.at, timezone)}: ${note.text}`)
-    }
-  }
-  if (done.length > 0) {
-    lines.push("", "Work you finished in them, most recent first:")
-    for (const { entry, chat } of done) {
+  if (finished.length > 0) {
+    lines.push("", "Work finished in them, most recent first:")
+    for (const { entry, chat } of finished) {
       lines.push(
         `- ${stamp(entry.at, timezone)}, ${chatLabel(entry.chatId, chat, chats.main)}: ${entry.title}. ${entry.outcome}`,
       )
     }
   }
-  return lines.join("\n")
+
+  return [RECENT_HEADER, ...(lines.length === 0 ? ["", NOTHING_AROUND] : lines)].join("\n")
 }
 
 export type ReviewOptions = {
@@ -347,12 +454,19 @@ export class Journal {
       name: "dc.journal",
       sections: [
         section("recent", async (input, context) => {
-          const [journal, chats, identity] = await Promise.all([
+          const [journal, chats, identity, schedules] = await Promise.all([
             input.read.snapshot(JournalDoc, context),
             input.read.snapshot(ChatsDoc, context),
             input.read.snapshot(IdentityDoc, context),
+            input.read.snapshot(SchedulesDoc, context),
           ])
-          return recentActivity(journal, chats, String(input.conversationId), identity?.timezone)
+          return recentActivity(
+            journal,
+            chats,
+            String(input.conversationId),
+            identity?.timezone,
+            schedules,
+          )
         }),
       ],
       hooks: [
@@ -403,7 +517,12 @@ export class Journal {
   }
 
   /** Write up a piece of finished work from outside a tool call, such as a scheduled run's report. */
-  async record(entry: { chatId: string; title: string; outcome: string }): Promise<void> {
+  async record(entry: {
+    chatId: string
+    title: string
+    outcome: string
+    schedule?: string
+  }): Promise<void> {
     await this.#harness?.commit(async (tx) => {
       recordDone(await tx.doc(JournalDoc), await tx.doc(ChatsDoc), {
         ...entry,

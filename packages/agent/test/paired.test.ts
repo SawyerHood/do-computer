@@ -21,6 +21,8 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterAll, describe, expect, it } from "vitest"
 import { computerActorName, createAgentActor, type NearbyComputer } from "../src/index.ts"
+import { quietOnReminder } from "./quiet.ts"
+import { newest } from "./newest.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-paired-"))
 const links = new NodeActorNamespace({
@@ -35,7 +37,9 @@ const takenAway = new Set<string>()
 const asks: { agentId: string; computerId: string; chatId: string; reason: string }[] = []
 /** The asks the agent took back. */
 const withdrawn: { agentId: string; computerId: string; chatId: string }[] = []
-const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+const faux = quietOnReminder(
+  fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+)
 const models = createModels()
 models.setProvider(faux.provider)
 const agents = new NodeActorNamespace({
@@ -180,14 +184,6 @@ function noisyPng(width: number, height: number): Uint8Array {
   ])
 }
 
-/**
- * The newest message of a request that is not the prompt. A change to the prompt (what the
- * agent is told about its computers, say) is sent as a system message after what came before
- * it, so the very last message may be that and not the input that set the request going.
- */
-const newest = (messages: readonly unknown[]) =>
-  messages.findLast((message) => (message as { role?: string }).role !== "system")
-
 const lastTool = (state: ChatState) =>
   state.messages.flatMap((m) => m.parts).findLast((part): part is ToolPart => part.type === "tool")!
 const useTool = (name: string, args: Record<string, string>) => [
@@ -201,7 +197,7 @@ describe("paired computers", () => {
 
   it("are listed for the agent once paired", async () => {
     await call("/init", "POST", { ownerId: "user-1" })
-    chat = await call<ChatSummary>("/chats", "POST", {})
+    chat = await call<ChatSummary>("/chats/main", "POST", {})
     laptopHome = await startDaemon("c1")
     await call("/computers/c1", "PUT", {
       name: "laptop",
@@ -341,11 +337,12 @@ describe("paired computers", () => {
     })
 
     faux.setResponses(useTool("read", { path: "notes/from-agent.md", computer: "laptop" }))
-    const before = (await call<ChatState>(`/chats/${chat.id}`)).messages.length
     await call(`/approvals/${pending[0]!.id}`, "POST", { decision: "always" })
+    // The answer is an event in the main chat, which sets the agent going again.
     for (;;) {
       const state = await call<ChatState>(`/chats/${chat.id}`)
-      if (!state.busy && state.messages.length > before + 1) break
+      const done = lastTool(state).output?.includes("second draft") === true
+      if (!state.busy && state.queued.length === 0 && done) break
       await new Promise((resolve) => setTimeout(resolve, 30))
     }
     expect(lastTool(await call<ChatState>(`/chats/${chat.id}`)).output).toContain("second draft")
@@ -467,7 +464,7 @@ describe("computers the agent was not given", () => {
     )
 
   it("are listed with whose they are and whether it can use them", async () => {
-    chat = await call<ChatSummary>("/chats", "POST", {})
+    chat = await call<ChatSummary>("/chats/main", "POST", {})
     nearby = [
       there({ id: "c1", name: "laptop", connected: true }),
       there({ id: "c8", name: "studio", owner: "Maya", platform: "darwin", online: false }),
@@ -589,8 +586,9 @@ describe("computers the agent was not given", () => {
     expect(sections.computers).not.toContain("You have asked to use")
     expect(lastTool(state).output).toContain("the designs")
     expect(state.messages.at(-1)!.parts).toContainEqual({
-      type: "text",
+      type: "thinking",
       text: "I have the designs now.",
+      written: true,
     })
 
     // Being told twice says nothing twice.
@@ -646,7 +644,7 @@ describe("computers the agent was not given", () => {
 
 describe("a command left running on a paired computer", () => {
   it("is refused with the reason where the daemon is too old, and still runs when waited for", async () => {
-    const chat = await call<ChatSummary>("/chats", "POST", {})
+    const chat = await call<ChatSummary>("/chats/main", "POST", {})
     faux.setResponses(
       useTool("bash", { command: "echo hi", computer: "laptop", run_in_background: true } as never),
     )
@@ -659,7 +657,7 @@ describe("a command left running on a paired computer", () => {
   })
 
   it("carries on there, and the agent is told when it ends", async () => {
-    const chat = await call<ChatSummary>("/chats", "POST", {})
+    const chat = await call<ChatSummary>("/chats/main", "POST", {})
     const home = await startDaemon("c20", false, true)
     await call("/computers/c20", "PUT", {
       name: "desk",
@@ -711,7 +709,7 @@ describe("a command left running on a paired computer", () => {
   })
 })
 
-describe("a computer asked for by a sub-agent through a main chat with the bus on", () => {
+describe("a computer asked for by a sub-agent through the main chat", () => {
   let AGENT = "agent-bus"
   async function at<T>(path: string, method = "GET", payload?: unknown): Promise<T> {
     const response = await agents.get(AGENT).fetch(
@@ -771,7 +769,6 @@ describe("a computer asked for by a sub-agent through a main chat with the bus o
 
   it("waits for the answer where it asked first, which comes back to it", async () => {
     await at("/init", "POST", { ownerId: "user-1" })
-    await at("/", "PATCH", { bus: true })
     const main = await at<ChatSummary>("/chats/main", "POST")
     nearby.push(computer("c30", "vault-box"))
     script("vault-box", false)
@@ -871,7 +868,6 @@ describe("a computer asked for by a sub-agent through a main chat with the bus o
   it("does not set going a sub-agent that gave up waiting, when the answer comes after", async () => {
     AGENT = "agent-expiry"
     await at("/init", "POST", { ownerId: "user-1" })
-    await at("/", "PATCH", { bus: true })
     main = await at<ChatSummary>("/chats/main", "POST")
     nearby.push(computer("c33", "slow-box"))
     const turns = watch("slow-box")

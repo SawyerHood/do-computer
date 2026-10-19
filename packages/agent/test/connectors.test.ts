@@ -23,6 +23,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { bounded } from "../src/connectors.ts"
 import { CONNECTOR_REDIRECT_HEADER, connectorToolName, createAgentActor } from "../src/index.ts"
 import { APP_PAGE, APP_URI, fakeMcp, type FakeMcpOptions, GOOD_CODE, ISSUER } from "./fake-mcp.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 const REDIRECT = "https://app.example/api/connectors/callback"
 
@@ -34,7 +35,9 @@ type World = {
 const worlds: World[] = []
 
 function open(directory: string, mcp: ReturnType<typeof fakeMcp>): World {
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const namespace = new NodeActorNamespace({
@@ -128,7 +131,7 @@ async function setup(
 ) {
   const world = open(directory, fakeMcp(options))
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  const chat = await call<ChatSummary>(world, "/chats", "POST", {})
+  const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
   return { world, chat, directory }
 }
 
@@ -416,7 +419,7 @@ describe("connectors", () => {
 
     const mcp = fakeMcp({ oauth: true })
     const reopened = open(directory, mcp)
-    const chat = await call<ChatSummary>(reopened, "/chats", "POST", {})
+    const chat = await call<ChatSummary>(reopened, "/chats/main", "POST", {})
     let offered: string[] = []
     reopened.faux.setResponses([
       find("add numbers"),

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react"
 
-/** The width from which there is room for a column beside the chat: the agent's panel, a document, a side chat. */
+/** The width from which there is room for a column beside the chat: the agent's panel or a document. */
 const WIDE = "(min-width: 80rem)"
 
 /** Whether the screen answers to a media query, kept up as it changes. */

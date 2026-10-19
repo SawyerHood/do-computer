@@ -1,8 +1,9 @@
 # The main chat as a message bus: plan
 
-**Status:** a plan, written 2026-10-18. Phase 1 (section 6) is built, and phases 2 and 3 are
-built behind a switch (8.1 and 8.2 say how); the rest is not. Sawyer made the choices in section 2; section 9
-lists what is still open.
+**Status:** a plan, written 2026-10-18. Phases 1 to 4 are built: phase 1 (section 6), phases 2
+and 3 first behind a switch (8.1 and 8.2), and phase 4 (8.3), which took the switch away, so that
+every Dood's main chat and threads in Slack are a bus, and took side chats away. Phases 5 to 7 are
+not built. Sawyer made the choices in section 2; section 9 lists what is still open.
 
 This is the shape described in Lee Robinson's Stanford CS146S lecture on always-on agents
 (how Grok's bot is built), adapted to Do Computer. The ideas taken from it:
@@ -405,7 +406,7 @@ Notes from building it, where it differs from or adds to the sections above.
   the live slots and without a transaction, that every call of the round is a send, and idle
   compaction that the chat is the main one, so other rounds read nothing stored. Idle compaction, which arms on the answer a
   run rests on (`afterResponse`, before any tool runs), arms from `afterTools` for such a round,
-  and a side chat can branch from it (`branchPoint`).
+  and a side chat could branch from it (`branchPoint`, gone with side chats in phase 4).
 - **"Thinking" after a send.** After a send marked done (its result in, or its closing words
   being written after it in the same answer), the chat says nothing more of what the Dood is
   doing while it only finishes up (thinking, or no more than 200 characters of its own words),
@@ -419,7 +420,7 @@ Notes from building it, where it differs from or adds to the sections above.
   goes on, and so does "Thinking".
 - **Known gap.** Sends stored while the first version of `done` was live kept the flag only in
   their arguments, not in their result's details. For those rounds `branchPoint` and the
-  projection's `done` read nothing; it matters only behind the switch, and only for those few
+  projection's `done` read nothing; it mattered only behind the switch, and only for those few
   rounds.
 - **The reminder** is decided from the context: a person wrote since the bus was switched on,
   and since their last message nothing was sent (with `send`, or a page drawn with `visual`),
@@ -555,6 +556,123 @@ main chat send).
   end (it goes through the computer directory, which the unit tests do not have; the code path is
   the same as a chat's, with the asking chat noted for "waiting").
 
+## 8.3 Phase 4 as built
+
+Side chats are gone, calls work through the main chat and sub-agents, and the bus is no longer a
+switch.
+
+- **The switch is removed**, not kept as an escape hatch. Keeping it would have kept every
+  bus-off path alive (delivery into `originChatId`, `[SILENT]`, posting a thread's last answer, a
+  sub-agent's nudge into a side chat), which is what this phase was to delete; the bus-on paths
+  had been tested by phases 2 and 3 behind it. `bus` is gone from the identity document, the
+  agent's state and its `PATCH`; a client that still sends it is not refused, and it does
+  nothing. The settings switch is gone from web. A value stored before is left where it was, and
+  not read.
+- **Existing Doods are set up as they open.** `#syncBus` runs as the actor opens, as the main
+  chat is settled on, and before a message is given to a chat: the main chat gets the `dc.bus`
+  mark and, where it had been talked in, the `dc.bus-note` saying what changed; a thread in Slack
+  is set up the same way when it is next given a message (most are long over). A chat with
+  nothing in it yet is given no note: its first message says how it works. Marks that say off,
+  from when there was a switch, are still read, so old history is drawn as it was. A thread in
+  Slack from before, which was at work or waiting when it was last looked at and has not been set
+  up yet, was told its last reply is posted and has no `send`: its last reply is posted as before
+  (`#rested`, where the record has no `bus`). A test opens a Dood left as before this phase
+  (`migration.test.ts`): one mark and one note, nothing more on a second open. What it changes
+  says so, for undoing it (see "Rolling back phase 4"): a side chat it archives is marked
+  `archivedBy: "bus"`, apart from those people archived themselves (a person archiving or
+  bringing one back clears it), and a sub-agent it gives to the main chat keeps its old parent as
+  `parentBefore`.
+- **Side chats.** `POST /chats` answers 410; `POST /chats/main` stays. `#branchChat`, `branch.ts`
+  and its tests are gone; `BRANCH_ENTRY` stays, to draw an old side chat's first notice. Every
+  side chat is archived as the actor opens, and a message to one (or a reset of one) is refused
+  with 409, "This side chat is archived, to read." They are read where they were: on web, from
+  "Old side chats" in the menu on the Dood's name, shown only where there are any; on the phone,
+  from an "Old side chats" row on the Dood's page, which opens a list. An old side chat is drawn
+  read-only, with "Back to the main chat" where the message box was. History search and the
+  `history` tool still search and read them. A side chat a person had archived themselves is
+  listed with the rest. A sub-agent started in a side chat before this is given to the main chat
+  in the same commit that archives the side chat (`parentId`), so it reports there, takes more
+  from there, and asks a person through it. The web's side-chat column (`sideChatColumn`, `?side=`), its bar, its welcome
+  and "New side chat" are gone, and so are the phone's sheet and its links.
+- **Sub-agents** are started from the main chat alone ("Only your main conversation can start
+  sub-agents"), always as able to ask a person through it (`askingThrough` no longer looks at a
+  switch), and always report as events.
+- **`recent`** (`journal.ts`) is now what goes on around a chat: the sub-agents at work, the
+  automations, the threads in Slack that are at work, waiting, or have a note of where they stand,
+  and work written up in Slack threads and conversations with other agents. A chat other than the
+  main one is also shown where the main chat stands, and what each automation last came to (the
+  main chat was told of each run as it happened). Side chats' notes are not shown. The section
+  changes as sub-agents start and end, and is always there in a chat other than a sub-agent's,
+  saying "Nothing is at work around this conversation." where nothing is: pi-durable adds a
+  section that is new at the end of the prompt, and where that is out of its place it removes
+  every section and sends them all again. A section that stays is changed by a small patch, so
+  the cache is kept; a test counts the prompt's entries through two sub-agents. An automation's
+  last run is kept by its schedule's id, and by its title for one written up before.
+- **Calls.** A call is held in the main chat alone (409 elsewhere). What its voice hands on goes
+  into the main chat as a message said out loud; the call's note (`callMeta`) now says that what
+  is sent is read out, and that anything more than a quick look goes to a sub-agent while a word
+  that it is on it is sent. On the device, the voice says the first send after the handed-on
+  message as soon as it is whole (the chat may still be at work, for instance starting a
+  sub-agent), or everything sent once the chat is at rest. The call's record is a `dc.call` write
+  in the main chat whose model text is `<event kind="call-ended" length="…">`, with what was said
+  that the agent was not shown; it gives no turn, as before. The record is drawn as it always was.
+  `workChatId`, `CALL_OVER_ENTRY`, `worksIn` and the side-chat
+  notes are gone; a call record from before still opens its old side chat. A script for tests
+  (`DC_CALLS_SCRIPT=work`) hands on a `/tool subagent …` line, so that a call's work going to a
+  sub-agent can be seen end to end.
+- **Automations.** Every run reports to the main chat; `[SILENT]`, `#deliver`, `SCHEDULED_ENTRY`
+  delivery and `SILENT_MARKER` are gone. A run started before this phase, which was told it could
+  answer `[SILENT]`, is reported all the same. `originChatId` is not read; a new schedule still
+  names the main chat in it, so that code from before (main as it was, or the rollback) delivers
+  its results there. The
+  schedule skill no longer mentions `[SILENT]`. `delivered` and `silent` remain as outcomes of
+  old runs.
+- **Slack.** Every thread is a bus; `onAnswered` and the error text with the provider's message
+  are gone (it says only that it could not finish). A last answer is posted at rest only for a
+  thread from before that has not been set up yet (above).
+- **What is drawn.** What a chat draws is as 8.1 has it since the rows of working went, in every
+  main chat now: a reset, a compaction and a call's record are shown as they always were, and
+  `GET /chats/:id/history?before=` takes a message id, as before the bus. What a send said is now
+  found by history search. (Built first against the rows of working, this phase also read back
+  from a row's `work:N` id and kept a `send` whose words had not started out of its row; both
+  went when it was rebased onto the row-less chat, where neither applies.)
+- **The echo model**, which runs where no key is configured and in the browser tests, answers as
+  a model on the bus would: in a chat that offers `send`, its answer to a person is a `send`
+  marked `done`, which ends its turn; after a send it was told to make (`/tool send …`), what
+  follows is its own; an event or a note gets words nobody sees, and so does a message that
+  begins `/quiet`, as from a model that forgot to send.
+- **Tests.** A test may make an old side chat (`testOldSideChats`, `POST /chats/old`;
+  `DC_TEST_OLD_SIDE_CHATS=1` in the browser tests, refused where `NODE_ENV=production`), as nothing
+  else can. Unit tests that are not about the bus wrap their scripted model in `quietOnReminder`,
+  which answers the reminder, the request after a send and an event nothing was scripted for with
+  nothing, so that what they script stays for the requests they are about; a send marked `done`
+  makes no request after it at all. Tests that read the agent's own words in the main chat read
+  them as the `thinking` marked `written` they are kept as. In the browser tests `newChat` now
+  starts the main chat fresh, and what a chat draws of a step or an event is looked for where it
+  is drawn, as in any chat.
+- **Not done:** a send made while a call is on, after the voice has said its answer (a sub-agent's
+  result, say), is shown in the chat and not said: the voice has nothing to say it against.
+- **Known:** something handed on by a call while the main chat is in the middle of a long turn
+  waits for that turn, as any message does, and the voice says "This is taking me a while" in the
+  meantime. Two things handed on into one run are answered with what that run sends, each.
+
+## 8.4 Rolling back phase 4
+
+Phase 4 can be undone without losing anything people see, with the draft pull request "Undo bus
+phase 4 (rollback, keep as draft)" (branch `bus-4-undo`). It is the revert of this phase, plus a
+small step that runs as a Dood's actor opens on the reverted code: chats marked
+`archivedBy: "bus"` are brought back (and the mark cleared), sub-agents that are still at work
+go back to their `parentBefore`, and the main chat gets one note for the model that side chats
+are back and it answers as before. The per-Dood switch comes back off, so the bus is taken off
+the main chat as it was when the switch was turned off. It is keyed, so a second open changes
+nothing. Once this phase is on main: retarget that pull request to main
+(`gh pr edit --base main`), rebase it if main has moved, and merge it to roll back.
+
+What it cannot give back: the bus's marks, notes and sends in the main chat stay in its history,
+drawn as the bus drew them where it was on. Sub-agents that ended under phase 4 reported to the
+main chat, and stay there. Calls held under phase 4 have their records in the main chat. Schedules
+made under phase 4 deliver to the main chat, where they were made.
+
 ## 9. Still open
 
 - **Unanswered message.** After the nudge, does a turn that still sends nothing stay silent, or
@@ -562,8 +680,9 @@ main chat send).
 - **Team Doods.** The main chat is one per Dood today, shared by its people. Does a shared
   Dood's bus send to everyone, or does `send` take a person?
 - ~~**Slack to the owner.**~~ Decided in phase 3: a `tell_main` tool (8.2).
-- **Old side chats.** Kept archived and readable (this plan), or merged into the main chat's
-  history as notes.
+- ~~**Old side chats.**~~ Kept archived and readable, from the Dood's menu or page (8.3).
+- **Late sends on a call.** Whether what the main chat sends after the voice has answered should
+  be said too, as a word the voice offers on its own (8.3).
 - **Sub-agent cap** once each has an isolate.
 
 ## 10. Not checked

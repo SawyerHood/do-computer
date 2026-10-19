@@ -44,14 +44,15 @@ test.describe("what an agent can do in the app by itself", () => {
     await forms.getByRole("button", { name: "Save secret" }).click()
 
     await expect(forms).toHaveCount(0)
-    await expect(transcript.getByText(/gave WEATHER_KEY, saved to .*\.env/)).toBeVisible()
+    // Told of in the main chat, drawn as in any chat.
+    await expect(transcript.getByText(/gave WEATHER_KEY, saved to .*\.env/).first()).toBeVisible()
     await expect(transcript.getByText(/sunny-123/)).toHaveCount(0)
     // It is in the file, where a command can use it.
     await use(page, "bash", { command: "sed s/sunny/found/ .env" })
     await expect(transcript.getByText(/WEATHER_KEY='found-123'/).first()).toBeVisible()
     // And still nowhere in what was said, after the page is loaded again.
     await page.reload()
-    await expect(transcript.getByText(/gave WEATHER_KEY/)).toBeVisible()
+    await expect(transcript.getByText(/gave WEATHER_KEY/).first()).toBeVisible()
     await expect(transcript.getByText(/sunny-123/)).toHaveCount(0)
   })
 
@@ -64,7 +65,10 @@ test.describe("what an agent can do in the app by itself", () => {
     await forms.getByRole("button", { name: "Not now" }).click()
     await expect(forms).toHaveCount(0)
     await expect(
-      page.getByRole("log").getByText(/chose not to give BANK_PIN, BANK_USER/),
+      page
+        .getByRole("log")
+        .getByText(/chose not to give BANK_PIN, BANK_USER/)
+        .first(),
     ).toBeVisible()
   })
 
@@ -98,7 +102,7 @@ test.describe("what an agent can do in the app by itself", () => {
     await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
     await page.getByRole("link", { name: "Allow" }).click()
     await expect(page).toHaveURL(chat)
-    await expect(transcript.getByText(/connected Calendar/)).toBeVisible()
+    await expect(transcript.getByText(/connected Calendar/).first()).toBeVisible()
     await expect(signIns).toHaveCount(0)
 
     await use(page, "calendar__today", {})
@@ -127,7 +131,7 @@ test.describe("what an agent can do in the app by itself", () => {
     await forms.getByRole("button", { name: "Save secret" }).click()
     await expect(forms).toHaveCount(0)
     await expect(
-      transcript.getByText(/gave its access token, saved to the connector Sums/),
+      transcript.getByText(/gave its access token, saved to the connector Sums/).first(),
     ).toBeVisible()
     await expect(transcript.getByText(FIXED_TOKEN)).toHaveCount(0)
 

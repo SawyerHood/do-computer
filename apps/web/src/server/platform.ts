@@ -121,8 +121,16 @@ export type Config = {
    * workspace's own sign-in is not counted.
    */
   readonly callMonthlyMinutes: number
-  /** A call has no voice and plays a script instead (`DC_CALLS_SCRIPT=1`). Only a test asks for it. */
-  readonly callScript: boolean
+  /**
+   * A call has no voice and plays a script instead (`DC_CALLS_SCRIPT=1`, or `work` for one that
+   * hands on work for a sub-agent). Only a test asks for it.
+   */
+  readonly callScript: false | "plain" | "work"
+  /**
+   * A test may make a side chat as there were before (`DC_TEST_OLD_SIDE_CHATS=1`), to see that
+   * one is kept and read. Only a test asks for it.
+   */
+  readonly testOldSideChats: boolean
   /** Connectors and skill installs may reach this machine and private networks. */
   readonly allowPrivateHosts: boolean
   /** OpenRouter speech-to-text model used for dictation. */
@@ -202,6 +210,18 @@ function sandboxKind(value: string | undefined, saying = "DC_SANDBOX is"): Sandb
     throw new ConfigError(`${saying} "${value}". It must be one of: ${SANDBOX_KINDS.join(", ")}.`)
   }
   return value as SandboxKind
+}
+
+/**
+ * A switch only a test turns on. A server run for real is refused it, so that it cannot be left
+ * on by mistake: it would let anyone make what the app no longer makes.
+ */
+function testOnly(env: Record<string, string | undefined>, name: string): boolean {
+  if (env[name] !== "1") return false
+  if (env.NODE_ENV === "production") {
+    throw new ConfigError(`${name} is for tests, and this server is run with NODE_ENV=production.`)
+  }
+  return true
 }
 
 function secretsMode(value: string | undefined, name = "DC_SECRETS"): SecretsMode {
@@ -311,7 +331,9 @@ export function readConfig(env: Record<string, string | undefined>): Config {
     calls: secretsMode(optional("DC_CALLS"), "DC_CALLS"),
     callMinutes: Math.max(1, wholeNumber(optional("DC_CALL_MINUTES")) ?? 30),
     callMonthlyMinutes: wholeNumber(optional("DC_CALL_MONTHLY_MINUTES")) ?? 60,
-    callScript: env.DC_CALLS_SCRIPT === "1",
+    callScript:
+      env.DC_CALLS_SCRIPT === "1" ? "plain" : env.DC_CALLS_SCRIPT === "work" ? "work" : false,
+    testOldSideChats: testOnly(env, "DC_TEST_OLD_SIDE_CHATS"),
     allowPrivateHosts: env.DC_ALLOW_PRIVATE_HOSTS === "1",
     transcriptionModel: optional("DC_TRANSCRIPTION_MODEL") ?? "openai/whisper-large-v3",
     slackApiUrl: optional("DC_SLACK_API_URL"),

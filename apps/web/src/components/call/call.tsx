@@ -17,7 +17,7 @@ import {
   WaveformIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
@@ -36,7 +36,7 @@ import {
   setCallMuted,
   startCall,
 } from "@/lib/call"
-import { isSideChat, mainChatOf, useOpenSideChat } from "@/lib/chats"
+import { isSideChat } from "@/lib/chats"
 import { client } from "@/lib/client"
 import { agentQuery, callsKey } from "@/lib/collections"
 import { besideWidthAtom } from "@/lib/columns"
@@ -291,8 +291,8 @@ export function CallCard() {
   const clock = useCallClock(call?.startedAt)
   const words = useAtomValue(callWordsAtom)
   const [problem, setProblem] = useAtom(callProblemAtom)
-  // A side chat or a document beside the chat has that corner: the card sits to its left, so
-  // that it is not over the top of it.
+  // A document beside the chat has that corner: the card sits to its left, so that it is not
+  // over the top of it.
   const beside = useAtomValue(besideWidthAtom)
   const clear: CSSProperties = beside === 0 ? {} : { right: beside + 10 }
   if (call === undefined) {
@@ -395,15 +395,17 @@ export function CallCard() {
 }
 
 /**
- * Opens the side chat a call's work is done in, beside the main chat where there is room.
- * Undefined where there is no such chat to open: it was put away, or is not known of yet.
+ * Opens the old side chat a call from before did its work in, to read. Undefined where there is
+ * no such chat: on every call since, the work was done in the main chat and its sub-agents.
  */
 function useCallChat(agentId: string | undefined, chatId: string | undefined) {
   const { data } = useQuery({ ...agentQuery(agentId ?? ""), enabled: agentId !== undefined })
-  const open = useOpenSideChat(agentId ?? "", mainChatOf(data?.chats)?.id)
+  const navigate = useNavigate()
   if (agentId === undefined || chatId === undefined) return undefined
   const chat = data?.chats.find((one) => one.id === chatId)
-  return isSideChat(chat) && !chat.archived ? () => void open(chatId) : undefined
+  return isSideChat(chat)
+    ? () => void navigate({ to: "/a/$agentId/c/$chatId", params: { agentId, chatId } })
+    : undefined
 }
 
 /** What was said, as rows: who, and their words. */
@@ -438,16 +440,11 @@ function Said({
 
 /**
  * A call as its chat shows it while it lasts: what is being said, and what was handed on to the
- * Dood, with what the Dood is doing about it. The Dood does that in the call's side chat, which
- * opens from here.
+ * Dood, with what the Dood is doing about it. That is in the main chat too, where the call is
+ * held, and what takes longer goes to a sub-agent, as any work does.
  */
 export function LiveCall({ call }: { call: CallView }) {
   const clock = useCallClock(call.startedAt)
-  // A call held in a side chat works in that one, which is this one: there is nothing to open.
-  const openWork = useCallChat(
-    call.agentId,
-    call.workChatId === call.chatId ? undefined : call.workChatId,
-  )
   const lines: (CallLine & { going?: boolean })[] = [
     ...call.lines.slice(-8),
     ...(call.you.trim() === ""
@@ -490,17 +487,6 @@ export function LiveCall({ call }: { call: CallView }) {
             </p>
           ))}
         </div>
-      )}
-      {openWork === undefined ? null : (
-        <footer className="flex items-center gap-3 border-t px-4 py-2 text-[0.8125rem] text-muted-foreground">
-          <ChatsIcon aria-hidden className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1">
-            {call.agentName} does what the call hands on in a side chat of the call’s own.
-          </span>
-          <Button variant="outline" size="xs" className="font-normal" onClick={openWork}>
-            Open it
-          </Button>
-        </footer>
       )}
     </section>
   )
@@ -560,7 +546,7 @@ export function CallRecord({ part, at }: { part: NoticePart; at?: number | undef
           </Button>
         )}
         {openWork === undefined ? null : (
-          // What the Dood did for the call is in the call's side chat, step by step.
+          // What the Dood did for a call from before is in that call's old side chat.
           <Button variant="outline" size="xs" onClick={openWork} className="font-normal">
             <ChatsIcon data-icon="inline-start" />
             Open its side chat

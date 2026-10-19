@@ -17,8 +17,8 @@ asOwner()
 // script to play, in which the voice hears a question, hands it on to the Dood, says what the
 // Dood answers, and then says goodbye. The Dood is the echo model, so nothing leaves the machine.
 //
-// A call held in a side chat does its work in that side chat, which is what most of these do.
-// One held in the main chat is given a side chat of its own: the last test.
+// A call is held in the main chat, where what it hands on goes, and where the Dood sends what
+// its voice says. A call whose work goes to a sub-agent is in `calls-work.spec.ts`.
 test.use({ settings: { DC_CALLS: "on", DC_CALLS_SCRIPT: "1" } })
 
 const panelOf = (page: Page) => page.getByRole("complementary", { name: "About Juniper" })
@@ -49,8 +49,9 @@ test("a Dood is called: its voice hands on what was asked, says the answer, and 
   await expect(live).toContainText("On a call with Juniper")
   await expect(live).toContainText("What did I say before the call?")
 
-  // What the voice handed on is a message in the side chat the call is held in, marked as said
-  // out loud, and the Dood answers it there as it would a typed one. There is no other chat to open.
+  // What the voice handed on is a message in the main chat, where the call is held, marked as
+  // said out loud, and the Dood sends its answer there as it would to a typed one. There is no
+  // other chat to open.
   await expect(page.getByText("Said on a call")).toBeVisible()
   await expect(live.getByRole("button", { name: "Open it" })).toHaveCount(0)
   await expect(page.getByText("You said: What did I say before the call?")).toHaveCount(2)
@@ -166,68 +167,4 @@ test("its voice is chosen in its settings", async ({ page }) => {
   await fromNameMenu(page, "Juniper's settings")
   const voices = page.getByRole("radiogroup", { name: "Voice" })
   await expect(voices.getByRole("radio", { name: "plain" })).toBeChecked()
-})
-
-test("a call held in the main chat does its work in a side chat of its own", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("dc-agent-panel", "open"))
-  await page.setViewportSize({ width: 1700, height: 900 })
-  await signIn(page)
-  // The main chat, with something said in it.
-  await composer(page).fill("The launch is on Friday.")
-  await composer(page).press("Enter")
-  await expect(page.getByText("You said: The launch is on Friday.")).toBeVisible()
-  const [agentId, mainId] = /\/a\/([^/]+)\/c\/([^/?]+)/.exec(page.url())!.slice(1)
-
-  await panelOf(page).getByRole("button", { name: "Call" }).click()
-  const live = page.getByRole("region", { name: "The call" })
-  // The voice hands the question on, and says what the Dood answers.
-  await expect(live).toContainText("You said: What did I say before the call?")
-  await expect(live).toContainText("Any time.")
-  // The main chat holds none of that as messages: the asking and the doing are in a side chat
-  // that is the call's own, which the call's card says and opens.
-  await expect(page.getByText("Said on a call")).toHaveCount(0)
-  await expect(live).toContainText("in a side chat of the call’s own")
-  await live.getByRole("button", { name: "Open it" }).click()
-  const beside = page.getByRole("complementary", {
-    name: "Side chat: Call: What did I say before the call?",
-  })
-  await expect(beside.getByText("Said on a call")).toBeVisible()
-  await expect(beside.getByText("You said: What did I say before the call?")).toBeVisible()
-  // The main chat is still in the middle, with the call still on in it.
-  await expect(page).toHaveURL(new RegExp(`/a/${agentId}/c/${mainId}\\?side=\\d+$`))
-  await expect(live).toBeVisible()
-  // The side chat has the panel's place, so the call is a card: it sits clear of the side chat.
-  const card = page.getByRole("region", { name: "Call with Juniper" })
-  await expect(card).toBeVisible()
-  await expect
-    .poll(async () => {
-      const [over, under] = [await card.boundingBox(), await beside.boundingBox()]
-      return over !== null && under !== null && over.x + over.width <= under.x
-    })
-    .toBe(true)
-  await page.screenshot({ path: "test-results/call-side-chat.png" })
-
-  await page
-    .getByRole("button", { name: /^End( the call)?$/ })
-    .first()
-    .click()
-  // The main chat has the call's one record, which leads to the side chat too.
-  const record = page.getByRole("region", { name: "A call" })
-  await expect(record).toContainText("Call with Juniper")
-  await expect(record.getByRole("button", { name: "Open its side chat" })).toBeVisible()
-  const main = (await (
-    await page.request.get(`/api/agents/${agentId}/chats/${mainId}`)
-  ).json()) as {
-    messages: { role: string; spoken?: unknown; parts: { call?: { chatId?: string } }[] }[]
-  }
-  expect(main.messages.some((message) => message.spoken !== undefined)).toBe(false)
-  const kept = main.messages.flatMap((message) => message.parts).find((part) => part.call)!.call!
-  expect(kept.chatId).toMatch(/^\d+$/)
-  expect(kept.chatId).not.toBe(mainId)
-
-  // From the record, with the side chat shut, it opens again.
-  await beside.getByRole("link", { name: "Close the side chat" }).click()
-  await expect(beside).toHaveCount(0)
-  await record.getByRole("button", { name: "Open its side chat" }).click()
-  await expect(beside.getByText("Said on a call")).toBeVisible()
 })

@@ -1,7 +1,7 @@
 # Mobile app
 
 `apps/mobile` is an Expo app for iOS and Android that does what the web app does, at a phone's
-width: your Doods under their workspaces, each with a main chat and side chats, and its own
+width: your Doods under their workspaces, each with its main chat, and its own
 page (profile, memory, model and computers, skills, connectors, permissions, usage). There is
 the creature's wardrobe with its treats and boxes, the library with a viewer and sharing by
 link, automations, approval requests, dictation, push notifications, and calling a Dood out

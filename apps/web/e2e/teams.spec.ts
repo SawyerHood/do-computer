@@ -247,7 +247,7 @@ test("a team's computer is anyone's in the team to connect, and a teammate's own
   await expect(asking.getByText("to check the build")).toBeVisible({ timeout: 15_000 })
   await asking.getByRole("button", { name: "Allow", exact: true }).click()
   await expect(asking).toHaveCount(0)
-  await expect(his.getByText("Maya Okafor said yes to using")).toBeVisible()
+  await expect(his.getByText("Maya Okafor said yes to using").first()).toBeVisible()
   await expect(waiting).toHaveCount(0)
   const hers = (await computersOf(her)).find((computer) => computer.name === "mayas-mac")!
   expect(hers.agentIds).toEqual([agentId])

@@ -5,7 +5,7 @@ import {
   composer,
   newChat,
   openSettings,
-  sideChats,
+  nameMenu,
   signIn,
   tab,
   tool,
@@ -16,9 +16,7 @@ asOwner()
 
 const panel = (page: Page) => page.getByRole("complementary", { name: "About Juniper" })
 
-test("a scheduled task runs on its own and reports back to the chat it was asked in", async ({
-  page,
-}) => {
+test("a scheduled task runs on its own and reports to the main chat", async ({ page }) => {
   await signIn(page)
   await newChat(page)
   const soon = new Date(Date.now() + 2_500).toISOString()
@@ -28,18 +26,15 @@ test("a scheduled task runs on its own and reports back to the chat it was asked
   await page.keyboard.press("Enter")
   await expect(page.getByText(/Scheduled\. \w+: "Magic words"/)).toBeVisible()
 
-  // Nothing else is sent: the report arrives by itself, live.
-  await expect(page.getByText("Scheduled: Magic words")).toBeVisible({ timeout: 15_000 })
-  await expect(
-    page
-      .getByRole("main")
-      .getByText(/You said: \[You are running the scheduled task "Magic words"/),
-  ).toBeVisible()
+  // Nothing else is sent: the report reaches the main chat by itself, live, as an event drawn in
+  // its place. Nothing in it is worth a word, so nothing is sent.
+  await expect(page.getByRole("log").getByText("The automation Magic words reported")).toBeVisible({
+    timeout: 15_000,
+  })
 
   await tab(page, "Automations").click()
   const card = page.getByRole("listitem").filter({ hasText: "Magic words" })
-  await expect(card.getByText("Done", { exact: true })).toBeVisible()
-  await expect(card.getByText(/reported back/)).toBeVisible()
+  await expect(card.getByText(/reported to the main chat/)).toBeVisible()
   await card.getByRole("link", { name: "View run" }).click()
   await expect(page.getByText("Say the magic words").first()).toBeVisible()
 })
@@ -96,7 +91,7 @@ test("an automation with a check starts the agent only when the check finds some
   )
   await tab(page, "Automations").click()
   await card.getByRole("button", { name: "Run now" }).click()
-  await expect(card.getByText(/reported back/)).toBeVisible({ timeout: 15_000 })
+  await expect(card.getByText(/reported to the main chat/)).toBeVisible({ timeout: 15_000 })
   await expect(card.getByText("Checked 2 times and started the Dood once.")).toBeVisible()
   await card.getByRole("link", { name: "View run" }).click()
   await expect(page.getByText(/the tests fail on main/).first()).toBeVisible()
@@ -106,10 +101,12 @@ test("an automation with a check starts the agent only when the check finds some
   await expect(page.getByRole("listitem").filter({ hasText: "Build watch" })).toHaveCount(0)
 })
 
-test("scheduled runs are not among the side chats", async ({ page }) => {
+test("scheduled runs are not chats of the user's, and are not in the menu on the name", async ({
+  page,
+}) => {
   await signIn(page)
-  await sideChats(page).click()
-  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await nameMenu(page).click()
+  await expect(page.getByRole("menuitem", { name: /side chats/ })).toHaveCount(0)
   await expect(page.getByRole("menuitem", { name: /Magic words/ })).toHaveCount(0)
   await expect(page.getByRole("menuitem", { name: /Stretch break/ })).toHaveCount(0)
 })
@@ -119,11 +116,7 @@ test("opening the agent lands on its main chat, whatever was used last", async (
   await page.waitForURL(/\/c\/\d+$/)
   const main = page.url()
 
-  // A side chat and a run of a schedule are both newer than anything said in the main chat.
-  await newChat(page)
-  await composer(page).fill("Chat to put away")
-  await page.keyboard.press("Enter")
-  await expect(page.getByRole("main").getByText("You said: Chat to put away")).toBeVisible()
+  // A run of a schedule is newer than anything said in the main chat.
   await composer(page).fill(
     '/tool schedule {"action":"create","schedule":"every 6h","prompt":"Look around","title":"Night watch"}',
   )
@@ -138,11 +131,8 @@ test("opening the agent lands on its main chat, whatever was used last", async (
   await page.goto("/")
   await page.waitForURL(/\/c\/\d+$/)
   expect(page.url()).toBe(main)
-  // Choosing the agent in the sidebar leads there too, from one of its side chats.
-  await sideChats(page).click()
-  await page.getByRole("menuitem", { name: /^Chat to put away/ }).click()
-  await page.getByRole("link", { name: "Give it the whole chat" }).click()
-  await expect(page.getByRole("link", { name: "Main chat", exact: true })).toBeVisible()
+  // Choosing the agent in the sidebar leads there too, from its automations.
+  await tab(page, "Automations").click()
   await page.getByRole("navigation", { name: "Doods" }).getByRole("link").first().click()
   await expect(page).toHaveURL(main)
 
@@ -166,12 +156,8 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   const transcript = page.getByRole("log")
   // The agent is not kept waiting: it answers, and the sub-agent's report arrives by itself.
   await expect(transcript.getByText(/Started sub-agent \d+, "Flights"/)).toBeVisible()
-  // Said where it reported and, once that has caught up, where it was started.
-  await expect(transcript.getByText("reported back").first()).toBeVisible({ timeout: 15_000 })
-  // The report is folded away, and the agent is given a turn to say what came of it.
-  await expect(transcript.getByText(/You said: \[Your sub-agent "Flights"/)).toBeVisible()
-  await transcript.getByText("What it reported").click()
-  await expect(transcript.getByText("You said: Find flights to Lisbon").first()).toBeVisible()
+  // Its report reaches the main chat as an event, drawn in its place.
+  await expect(transcript.getByText("Flights reported back")).toBeVisible({ timeout: 15_000 })
   // It has ended, so it is in the transcript only: not beside the creature, not in a list.
   await panelSwitch(page, "Show")
   await expect(panel(page)).toBeVisible()
@@ -180,7 +166,7 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   const mine = page.url()
 
   // Where it was started leads to its own chat, which says whose it is.
-  await transcript.getByRole("link", { name: /Flights reported back/ }).click()
+  await transcript.getByRole("link", { name: "Open its chat" }).first().click()
   await page.waitForURL((url) => url.href !== mine)
   await expect(page.getByText("Juniper asked")).toBeVisible()
   await expect(page.getByText("Find flights to Lisbon").first()).toBeVisible()
@@ -195,11 +181,10 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   )
   expect(sent.status()).toBe(409)
 
-  // It is not a chat of the user's: it is not among the agent's side chats.
+  // It is not a chat of the user's: it is not in the menu on the name.
   await page.getByRole("link", { name: "Back to Juniper" }).click()
   await page.waitForURL(mine)
-  await sideChats(page).click()
-  await expect(page.getByRole("menuitem", { name: "New side chat" })).toBeVisible()
+  await nameMenu(page).click()
   await expect(page.getByRole("menuitem", { name: /^Flights/ })).toHaveCount(0)
 })
 
@@ -212,15 +197,13 @@ test("a sub-agent at work can be stopped from its chat, and the agent is told", 
     '/tool subagent {"action":"start","title":"Slow job","task":"/tool bash {\\"command\\":\\"sleep 8\\"}"}',
   )
   await page.keyboard.press("Enter")
-  const transcript = page.getByRole("log")
-  const chip = transcript.getByRole("link", { name: /Slow job working/ })
-  await expect(chip).toBeVisible()
   // While it is at work it stands beside the agent's creature and is listed under it.
   await panelSwitch(page, "Show")
   await expect(panel(page).getByText("Sub-agents at work")).toBeVisible()
-  await expect(panel(page).getByRole("link", { name: "Open Slow job" })).toBeVisible()
+  const open = panel(page).getByRole("link", { name: "Open Slow job" })
+  await expect(open).toBeVisible()
   const mine = page.url()
-  await chip.click()
+  await open.click()
   await page.waitForURL((url) => url.href !== mine)
   await page.getByRole("button", { name: "Stop", exact: true }).click()
   await expect(page.getByText("Stopped", { exact: true }).first()).toBeVisible({ timeout: 15_000 })
@@ -228,8 +211,14 @@ test("a sub-agent at work can be stopped from its chat, and the agent is told", 
 
   await page.getByRole("link", { name: "Back to Juniper" }).click()
   await page.waitForURL(mine)
-  await expect(page.getByRole("log").getByText("You stopped")).toBeVisible()
-  await expect(page.getByRole("log").getByRole("link", { name: /Slow job stopped/ })).toBeVisible()
+  // The main chat is told, as an event drawn in its place.
+  await expect(page.getByRole("log").getByText("You stopped").first()).toBeVisible()
+  await expect(
+    page
+      .getByRole("log")
+      .getByText(/Slow job/)
+      .last(),
+  ).toBeVisible()
   await expect(panel(page)).toBeVisible()
   await expect(panel(page).getByRole("link", { name: /Slow job/ })).toHaveCount(0)
   await expect(panel(page).getByText("Sub-agents at work")).toHaveCount(0)
@@ -252,12 +241,13 @@ test("an agent writes to another agent of the workspace, whose answer comes back
   const transcript = page.getByRole("log")
   // The agent is not kept waiting: it answers, and the other agent's reply arrives by itself.
   await expect(transcript.getByText(/Sent to "Bramble"/)).toBeVisible()
-  await expect(transcript.getByText("Bramble replied")).toBeVisible({ timeout: 15_000 })
-  // The reply is folded away, and the agent is given a turn to say what came of it.
+  // The reply is told as an event drawn in its place, and it is given a turn to say what
+  // came of it, which the echo model sends.
+  await expect(transcript.getByText("Bramble replied").first()).toBeVisible({ timeout: 15_000 })
   await expect(
     transcript.getByText(/You said: \[Bramble, the agent you sent a message to/),
   ).toBeVisible()
-  await transcript.getByText("What it said").click()
+  await transcript.getByText("What it said").first().click()
   await expect(transcript.getByText("You said: When is the launch?").first()).toBeVisible()
 
   // Where it was sent leads to what the two said, on the other agent, which says whose it is.

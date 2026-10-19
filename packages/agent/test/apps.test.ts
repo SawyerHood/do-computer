@@ -19,6 +19,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { APPS_URL, CONNECTOR_REDIRECT_HEADER, createAgentActor } from "../src/index.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 const REDIRECT = "https://app.example/api/connectors/callback"
 const SERVER = "https://apps.test/mcp"
@@ -110,7 +111,9 @@ const worlds: World[] = []
 /** `appsUrl` null leaves the deployment saying nothing of where Apps is. */
 function open(appsUrl: string | null = SERVER): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-apps-"))
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const apps = fakeApps()
@@ -187,7 +190,7 @@ async function say(world: World, chatId: string, text: string): Promise<ChatStat
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats", "POST", {})
+  return call<ChatSummary>(world, "/chats/main", "POST", {})
 }
 
 const useTool = (name: string, args: Record<string, string | string[]> = {}) => [

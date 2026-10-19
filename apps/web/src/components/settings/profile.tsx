@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -348,48 +347,6 @@ function DeleteAgent({ agentId, name }: { agentId: string; name: string | null }
           Delete Dood…
         </Button>
       )}
-    </Section>
-  )
-}
-
-/**
- * Whether the agent's main chat works as a message bus: it speaks there only through `send`, and
- * what it writes otherwise is folded away as its own working. Saved as it is switched. A preview
- * while it is tried out.
- */
-function Bus({ agentId, name, on }: { agentId: string; name: string; on: boolean }) {
-  const save = useMutation({
-    mutationFn: (bus: boolean) => client.agent(agentId).update({ bus }),
-    onSuccess: (next) => {
-      queryClient.setQueryData(agentKey(agentId), next)
-    },
-  })
-  return (
-    <Section
-      title="Main chat"
-      hint={`On, ${name} reaches you in its main chat only with what it sends you. What it thinks and does along the way, and what its helpers, approvals and commands tell it, fold into one line you can open. It can also stay quiet when there is nothing worth saying. Applies from its next message there.`}
-    >
-      <Label className="font-normal">
-        <Switch
-          checked={save.isPending ? save.variables : on}
-          disabled={save.isPending}
-          onCheckedChange={(next) => save.mutate(next)}
-        />
-        Speak only through what it sends (preview)
-      </Label>
-      {/* Saved as it is switched, which the form's button below has nothing to do with. */}
-      <p className="text-sm text-muted-foreground" aria-live="polite">
-        {save.isPending
-          ? "Saving…"
-          : save.isSuccess
-            ? "Saved."
-            : "Saved as soon as it is switched."}
-      </p>
-      {save.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {save.error.message}
-        </p>
-      ) : null}
     </Section>
   )
 }
@@ -904,9 +861,6 @@ export function ProfileSettings({
         </Section>
 
         <Computers agentId={agentId} />
-
-        {/* Saved as it is switched, apart from the form. */}
-        <Bus agentId={agentId} name={name} on={state.bus === true} />
       </div>
       {section === "usage" ? <Usage agentId={agentId} /> : null}
       {typed || dirty ? (

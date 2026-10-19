@@ -22,9 +22,12 @@ import { createAgentActor } from "../src/index.ts"
 import { cleanLibraryPath, isLibraryPath } from "../src/library.ts"
 import { createLocalProcessSandbox } from "@do-computer/sandbox/testing"
 import { type Base, type Listed, listFolder, plan, type Stored } from "../src/library-sync.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 const directory = mkdtempSync(join(tmpdir(), "dc-library-sync-"))
-const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+const faux = quietOnReminder(
+  fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+)
 const models = createModels()
 models.setProvider(faux.provider)
 /** Failures that did not fail a request. None are expected. */
@@ -197,7 +200,7 @@ describe("planning a pass", () => {
 describe("the library folder", () => {
   it("takes what the agent writes there into the library, folders and all", async () => {
     await call("/init", "POST", { ownerId: "user-1" })
-    chat = await call<ChatSummary>("/chats", "POST", {})
+    chat = await call<ChatSummary>("/chats/main", "POST", {})
     await bash(
       "mkdir -p library/trip && printf '# Lisbon\\n' > library/trip/plan.md && printf 'x' > library/.hidden && mkdir -p library/node_modules/a && printf 'y' > library/node_modules/a/index.js",
     )
@@ -312,7 +315,7 @@ describe("the library folder", () => {
   it("shows the user a file from the folder without keeping a second copy", async () => {
     const state = await agentDoes(
       ["write", { path: "library/report.md", content: "# Report\n" }],
-      ["send_file", { path: "library/report.md" }],
+      ["send", { text: "The report.", files: ["library/report.md"] }],
     )
     const sent = lastTool(state)
     expect(sent).toMatchObject({ name: "send_file", status: "done" })

@@ -31,8 +31,8 @@ One codebase runs on plain Node and on Cloudflare Workers. Models are called thr
 
 ## What a Dood can do
 
-- **Keep working.** A reply carries on when you close the tab. Side chats and sub-agents let it
-  do several things at once.
+- **Keep working.** A reply carries on when you close the tab. Sub-agents let it do several
+  things at once, while its main chat stays free to talk.
 - **Use a computer.** It runs commands and edits files on a machine of its workspace: a
   built-in shell, a Linux machine on Daytona, Modal or Cloudflare Containers, or a computer of
   your own.

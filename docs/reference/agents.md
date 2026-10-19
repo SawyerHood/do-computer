@@ -1,11 +1,14 @@
 # What a Dood can do
 
-- **Chat.** Choosing a Dood opens its main chat, one conversation that carries on. Anything
-  else goes in a side chat, from the button on the Dood's strip: its own conversation, which
-  picks up from the main chat, open beside it on a wide screen. A reply keeps being written when
-  you close the tab, and is there when you come back. Every chat, a Slack thread included, is
-  told where the Dood's other chats stand and what was finished in them, and it can search and
-  read what was said there.
+- **Chat.** Choosing a Dood opens its main chat, the one conversation you have with it, which
+  carries on. Everything reaches the Dood there: what you say, its sub-agents' reports, what its
+  automations found, word from its threads in Slack. It speaks to you only with what it sends,
+  and folds the rest of its working into one row you can open. Work that takes more than a quick
+  look it hands to sub-agents, whose conversations you can read. A reply keeps being written when
+  you close the tab, and is there when you come back. Side chats from before the main chat was
+  the only one are kept, to read, under "Old side chats". The main chat is told which sub-agents
+  are at work, what each automation last came to and which threads in Slack have something open,
+  and it can search and read what was said anywhere.
 - **Be someone.** It names itself in its first conversation, picks its color, and keeps a
   personality, a profile of you and its own notes. They are capped, visible and editable in
   its settings. They are kept with the Dood and on no computer.

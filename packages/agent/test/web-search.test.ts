@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { createAgentActor, createAgentModels } from "../src/index.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 type Sent = { url: string; headers: Record<string, string>; body: Record<string, unknown> }
 type World = {
@@ -29,11 +30,13 @@ afterEach(async () => {
 const temporary = () => mkdtempSync(join(tmpdir(), "dc-search-"))
 
 function open(search = true, directory = temporary()): World {
-  const faux = fauxProvider({
-    provider: "test",
-    models: [{ id: "model" }],
-    tokensPerSecond: 50_000,
-  })
+  const faux = quietOnReminder(
+    fauxProvider({
+      provider: "test",
+      models: [{ id: "model" }],
+      tokensPerSecond: 50_000,
+    }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const world: World = {
@@ -96,7 +99,11 @@ async function call<T>(world: World, path: string, method = "GET", payload?: unk
 
 async function search(world: World, query: string): Promise<{ tool: ToolPart; prompt: string }> {
   await call(world, "/init", "POST", { ownerId: "user-1" }).catch(() => {})
-  const chat = await call<ChatSummary>(world, "/chats", "POST", {})
+  const chat = await call<ChatSummary>(world, "/chats/main", "POST", {})
+  const tools = (state: ChatState) =>
+    state.messages.flatMap((m) => m.parts).filter((p) => p.type === "tool")
+  // The main chat is one, and keeps the searches before this one.
+  const before = tools(await call<ChatState>(world, `/chats/${chat.id}`)).length
   let prompt = ""
   world.faux.setResponses([
     (context) => {
@@ -107,10 +114,13 @@ async function search(world: World, query: string): Promise<{ tool: ToolPart; pr
     },
     fauxAssistantMessage("Done."),
   ])
-  await call(world, `/chats/${chat.id}/messages`, "POST", { text: "look it up", requestId: "r" })
+  await call(world, `/chats/${chat.id}/messages`, "POST", {
+    text: "look it up",
+    requestId: crypto.randomUUID(),
+  })
   for (let attempt = 0; attempt < 400; attempt++) {
     const state = await call<ChatState>(world, `/chats/${chat.id}`)
-    const tool = state.messages.flatMap((m) => m.parts).find((p) => p.type === "tool")
+    const tool = tools(state)[before]
     if (!state.busy && tool !== undefined) return { tool: tool as ToolPart, prompt }
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
@@ -237,7 +247,7 @@ describe("the models on offer", () => {
     const before = open(true, directory)
     before.hang = true
     await call(before, "/init", "POST", { ownerId: "user-1" })
-    const chat = await call<ChatSummary>(before, "/chats", "POST", {})
+    const chat = await call<ChatSummary>(before, "/chats/main", "POST", {})
     before.faux.setResponses([
       fauxAssistantMessage([fauxToolCall("web_search", { query: "When is high tide?" })], {
         stopReason: "toolUse",
@@ -265,7 +275,7 @@ describe("the models on offer", () => {
     const tool = parts.find((part) => part.type === "tool") as ToolPart
     expect(tool.status).toBe("done")
     expect(tool.output).toContain("At 14:05.")
-    expect(parts.at(-1)).toEqual({ type: "text", text: "High tide is at 14:05." })
+    expect(parts.at(-1)).toEqual({ type: "thinking", text: "High tide is at 14:05.", written: true })
   })
 
   it("is the one echo model when there is no key", () => {

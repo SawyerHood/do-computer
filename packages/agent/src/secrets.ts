@@ -533,7 +533,7 @@ export class Secrets {
       execute: async (args, api, context) => {
         const chatId = String(api.conversationId)
         const chats = (await api.snapshot(ChatsDoc, context))?.chats
-        // A sub-agent asks through a main chat with the bus on, where someone can type it.
+        // A sub-agent asks through the main chat, where someone can type it.
         if (!canAsk(chats, chatId)) {
           return fail(
             "Only a conversation with the user can ask for a secret: there has to be someone to type it.",

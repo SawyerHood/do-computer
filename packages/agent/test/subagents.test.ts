@@ -20,6 +20,9 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
+import { quietOnReminder, sent } from "./quiet.ts"
+import { entriesOf, inStore } from "./seed.ts"
+import { newest } from "./newest.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -33,7 +36,9 @@ type Told = { agentId: string } & AgentActivity
 const worlds: World[] = []
 
 function open(directory: string): World {
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const reports: AgentNotification[] = []
@@ -101,7 +106,7 @@ const subagents = async (world: World) =>
 
 async function setup(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats", "POST", {})
+  return call<ChatSummary>(world, "/chats/main", "POST", {})
 }
 
 const send = (world: World, chatId: string, text: string) =>
@@ -147,7 +152,8 @@ function script(
     Array.from({ length: 40 }, () => (context: { messages: unknown[] }) => {
       const turn: Turn = {
         seen: JSON.stringify(context.messages),
-        last: JSON.stringify(context.messages.at(-1)),
+        // What it was last told, past what changed of its prompt since.
+        last: JSON.stringify(newest(context.messages)),
         sub: JSON.stringify(context.messages).includes("You are working as a sub-agent"),
       }
       seen.push(turn)
@@ -160,11 +166,13 @@ function script(
 const use = (name: string, args: Parameters<typeof fauxToolCall>[1]) =>
   fauxAssistantMessage([fauxToolCall(name, args)], { stopReason: "toolUse" })
 const afterTool = (turn: Turn) => turn.last.includes('"toolResult"')
-const NUDGED = "A sub-agent of yours has sent word"
+/** A sub-agent's word, as the main chat is told it: an event. */
+const NUDGED = "subagent-report"
 
 describe("sub-agents", () => {
   it("works in a chat of its own, reports back, and gives the agent a turn", async () => {
-    const world = open(temporary())
+    const directory = temporary()
+    const world = open(directory)
     const chat = await setup(world)
     const turns = script(world, (turn) => {
       if (turn.sub) {
@@ -172,11 +180,10 @@ describe("sub-agents", () => {
           turn.last.includes("Also check Sunday") ? "Sunday is cheaper." : "Three flights found.",
         )
       }
-      if (afterTool(turn)) return fauxAssistantMessage("Started.")
+      // In the main chat it speaks to the person with what it sends.
+      if (afterTool(turn)) return sent("Started.")
       if (turn.last.includes(NUDGED)) {
-        return fauxAssistantMessage(
-          turn.seen.includes("Sunday is cheaper.") ? "Go on Sunday." : "Flights are in.",
-        )
+        return sent(turn.seen.includes("Sunday is cheaper.") ? "Go on Sunday." : "Flights are in.")
       }
       if (turn.last.includes("ask it more")) {
         const id = /Started sub-agent (\d+)/.exec(turn.seen)![1]!
@@ -226,7 +233,7 @@ describe("sub-agents", () => {
     ])
     // The model saw the report where it was started, and knew what it was doing as a sub-agent.
     const relayed = turns.find((turn) => !turn.sub && turn.last.includes(NUDGED))!
-    expect(relayed.seen).toContain("has reported back")
+    expect(relayed.last).toContain('<event kind=\\"subagent-report\\"')
     expect(relayed.seen).toContain("Three flights found.")
     // What it said about the report is announced like any answer nobody was there to read.
     expect(world.reports.map((notification) => notification.text)).toContain("Flights are in.")
@@ -249,6 +256,36 @@ describe("sub-agents", () => {
       { type: "text", text: "Also check Sunday." },
     ])
     expect(world.errors).toEqual([])
+
+    // Through two sub-agents' coming and going, what the main chat is shown of what goes on
+    // around it changed in place, by small patches: never every section taken away and sent
+    // again, which a section that came and went would have needed.
+    await world.namespace.close()
+    const prompts = await inStore(directory, "agent-1", async (harness) =>
+      (await entriesOf(harness, chat.id)).flatMap((entry) =>
+        entry.kind === "pi.system"
+          ? (entry.model ?? []).map(
+              (message) =>
+                ((message as { sections?: Record<string, string | null> }).sections ??
+                  {}) as Record<string, string | null>,
+            )
+          : [],
+      ),
+    )
+    const recent = prompts.flatMap((sections) =>
+      sections.recent === undefined ? [] : [sections.recent],
+    )
+    // Shown first with nothing around, then the sub-agent at work, then nothing again, twice.
+    expect(recent.length).toBeGreaterThanOrEqual(3)
+    expect(recent).not.toContain(null)
+    expect(recent.at(-1)).toContain("Nothing is at work around this conversation.")
+    expect(recent.some((text) => text?.includes('Your sub-agent "Flights"'))).toBe(true)
+    // After the first, no entry takes away more than one section.
+    for (const sections of prompts.slice(1)) {
+      expect(Object.values(sections).filter((value) => value === null).length).toBeLessThanOrEqual(
+        1,
+      )
+    }
   })
 
   it("is read and not written in by the user, who can stop it", async () => {
@@ -258,7 +295,7 @@ describe("sub-agents", () => {
     const held = new Promise<AssistantMessage>((resolve) => (release = resolve))
     const turns = script(world, (turn) => {
       if (turn.sub) return held
-      if (afterTool(turn)) return fauxAssistantMessage("Started.")
+      if (afterTool(turn)) return sent("Started.")
       return use("subagent", { action: "start", task: "Shortlist hotels near Alfama." })
     })
 
@@ -317,8 +354,8 @@ describe("sub-agents", () => {
         }
         return fauxAssistantMessage("Did it alone.")
       }
-      if (afterTool(turn)) return fauxAssistantMessage("Started.")
-      if (turn.last.includes(NUDGED)) return fauxAssistantMessage("Done.")
+      if (afterTool(turn)) return sent("Started.")
+      if (turn.last.includes(NUDGED)) return sent("Done.")
       return use("subagent", { action: "start", title: "Dig", task: "Dig in." })
     })
     await send(world, chat.id, "dig")
@@ -329,7 +366,11 @@ describe("sub-agents", () => {
     const all = await subagents(world)
     expect(all).toHaveLength(1)
     expect(tools(await chatState(world, all[0]!.id))).toMatchObject([
-      { name: "subagent", status: "error", output: expect.stringContaining("Only a conversation") },
+      {
+        name: "subagent",
+        status: "error",
+        output: expect.stringContaining("Only your main conversation"),
+      },
       { name: "schedule", status: "error", output: "A sub-agent cannot change schedules." },
     ])
     expect(world.errors).toEqual([])
@@ -348,8 +389,8 @@ describe("sub-agents", () => {
       }
       // A change to its memory is shown to the model after whatever else is newest, so here the
       // newest thing it was shown does not say which turn this is.
-      if (turn.seen.includes(NUDGED)) return fauxAssistantMessage("It is saved.")
-      if (turn.seen.includes("Started sub-agent")) return fauxAssistantMessage("Started.")
+      if (turn.seen.includes(NUDGED)) return sent("It is saved.")
+      if (turn.seen.includes("Started sub-agent")) return sent("Started.")
       return use("subagent", { action: "start", title: "Note", task: "Save a note." })
     })
     await send(world, chat.id, "remember this")
@@ -415,7 +456,7 @@ describe("sub-agents", () => {
         if (turn.seen.includes("approval first")) return fauxAssistantMessage("May I save a note?")
         return use("memory", { action: "add", target: "memory", content: "likes Lisbon" })
       }
-      if (turn.seen.includes("Started sub-agent")) return fauxAssistantMessage("Started.")
+      if (turn.seen.includes("Started sub-agent")) return sent("Started.")
       return use("subagent", { action: "start", title: "Note", task: "Save a note." })
     })
     await send(world, chat.id, "remember this")
@@ -437,8 +478,8 @@ describe("sub-agents", () => {
     script(world, (turn) => {
       if (turn.sub)
         return fauxAssistantMessage("", { stopReason: "error", errorMessage: "No credit." })
-      if (turn.last.includes(NUDGED)) return fauxAssistantMessage("It failed.")
-      if (afterTool(turn)) return fauxAssistantMessage("Started.")
+      if (turn.last.includes(NUDGED)) return sent("It failed.")
+      if (afterTool(turn)) return sent("Started.")
       started += 1
       return use("subagent", { action: "start", title: `Job ${started}`, task: "Do it." })
     })

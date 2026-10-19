@@ -13,6 +13,7 @@ import {
 import { afterAll, describe, expect, it } from "vitest"
 import { createAgentActor } from "../src/index.ts"
 import { isInherited, own } from "../src/own.ts"
+import { quietOnReminder } from "./quiet.ts"
 
 /**
  * Ids and names come from URLs and from the model, and are looked up in plain objects. A name
@@ -22,7 +23,9 @@ import { isInherited, own } from "../src/own.ts"
 const NAMES = ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"]
 
 const directory = mkdtempSync(join(tmpdir(), "dc-inherited-"))
-const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 50_000 })
+const faux = quietOnReminder(
+  fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 50_000 }),
+)
 const models = createModels()
 models.setProvider(faux.provider)
 const agents = new NodeActorNamespace({
@@ -123,7 +126,7 @@ describe("names every object inherits", () => {
   })
 
   it("are never an id or a name the model can use in a tool", async () => {
-    const chat = (await (await request("/chats", "POST", {})).json()) as ChatSummary
+    const chat = (await (await request("/chats/main", "POST", {})).json()) as ChatSummary
     const attempt = async (tool: string, args: Record<string, string | boolean>) => {
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall(tool, args)], { stopReason: "toolUse" }),
@@ -139,7 +142,8 @@ describe("names every object inherits", () => {
         if (
           !state.busy &&
           last?.role === "assistant" &&
-          last.parts.some((p) => p.type === "text")
+          // Its own words, which in the main chat are kept as thinking nobody is shown.
+          last.parts.some((p) => p.type === "thinking" && p.written === true)
         ) {
           return state.messages
             .flatMap((m) => m.parts)

@@ -31,6 +31,7 @@ import {
   type SentMessage,
   shouldStart,
 } from "../src/limits.ts"
+import { quietOnReminder, sent } from "./quiet.ts"
 
 const limits: ImageLimits = { highBytes: 100, lowBytes: 40, highCount: 6, lowCount: 3 }
 
@@ -230,11 +231,13 @@ const worlds: World[] = []
 
 function open(options: { requestTries?: number; imageLimits?: ImageLimits }): World {
   const directory = mkdtempSync(join(tmpdir(), "dc-limits-"))
-  const faux = fauxProvider({
-    provider: "test",
-    models: [{ id: "seeing" }],
-    tokensPerSecond: 5_000,
-  })
+  const faux = quietOnReminder(
+    fauxProvider({
+      provider: "test",
+      models: [{ id: "seeing" }],
+      tokensPerSecond: 5_000,
+    }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const namespace = new NodeActorNamespace({
@@ -308,7 +311,7 @@ async function converse(
 
 async function chat(world: World): Promise<ChatSummary> {
   await call(world, "/init", "POST", { ownerId: "user-1" })
-  return call<ChatSummary>(world, "/chats", "POST", {})
+  return call<ChatSummary>(world, "/chats/main", "POST", {})
 }
 
 describe("a chat whose request keeps being cut off", () => {
@@ -345,7 +348,7 @@ describe("a chat whose request keeps being cut off", () => {
         [fauxToolCall("memory", { action: "add", target: "user", content: "Likes tea" })],
         { stopReason: "toolUse" },
       ),
-      fauxAssistantMessage("Noted."),
+      sent("Noted."),
     ])
     const first = await converse(world, id, "I like tea")
     expect(JSON.stringify(first.messages)).not.toContain(CUT_OFF_TEXT)
@@ -353,7 +356,7 @@ describe("a chat whose request keeps being cut off", () => {
     expect(JSON.stringify(first.messages)).toContain("Noted.")
     // Each later request in the same chat is started afresh.
     for (const text of ["one", "two", "three"]) {
-      world.faux.setResponses([fauxAssistantMessage(`You said ${text}.`)])
+      world.faux.setResponses([sent(`You said ${text}.`)])
       const after = await converse(world, id, text)
       expect(JSON.stringify(after.messages)).not.toContain(CUT_OFF_TEXT)
       expect(after.messages.at(-1)).toMatchObject({
@@ -362,7 +365,8 @@ describe("a chat whose request keeps being cut off", () => {
         parts: [{ type: "text", text: `You said ${text}.` }],
       })
     }
-    expect(world.faux.state.callCount).toBe(5)
+    // Every answer scripted was asked for, and nothing more was left over.
+    expect(world.faux.getPendingResponseCount()).toBe(0)
   }, 30_000)
 })
 

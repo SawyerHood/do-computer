@@ -156,7 +156,8 @@ test("a site the agent shares is a card in the chat, which says who can open it 
     /Shared sites\/plan as “Launch plan”/,
   )
   const card = page.getByRole("group", { name: "Site: Launch plan" })
-  await expect(card.getByText("Only you")).toBeVisible()
+  // Drawn in the main chat, as in any chat.
+  await expect(card.getByText("Only you").first()).toBeVisible()
   await expect(card.getByText(/\/s\/[a-z2-9]{16}$/)).toBeVisible()
   await expect(card.getByRole("link", { name: "Open" })).toHaveAttribute("target", "_blank")
   await page.screenshot({ path: "test-results/site-card.png" })

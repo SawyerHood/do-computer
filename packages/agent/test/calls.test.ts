@@ -17,12 +17,17 @@ import {
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import type { Context as FauxContext } from "@earendil-works/pi-ai"
 import { createModels } from "@earendil-works/pi-ai/models"
-import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux"
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxToolCall,
+} from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import type { CallAllowance, CallDirectory } from "../src/calls.ts"
 import { callMeta, callOf, parseSummary, readLines, voiceContext } from "../src/calls.ts"
 import { CALLER_HEADER, encodeCaller } from "../src/caller.ts"
 import { createAgentActor } from "../src/index.ts"
+import { quietOnReminder, sent as sending } from "./quiet.ts"
 
 const OFFER = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
 const ANSWER = "v=0\r\no=- 3 4 IN IP4 0.0.0.0\r\ns=-\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
@@ -51,7 +56,9 @@ const worlds: World[] = []
 
 function open(): World {
   const root = mkdtempSync(join(tmpdir(), "dc-calls-"))
-  const faux = fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 })
+  const faux = quietOnReminder(
+    fauxProvider({ provider: "test", models: [{ id: "model" }], tokensPerSecond: 5_000 }),
+  )
   const models = createModels()
   models.setProvider(faux.provider)
   const world: World = {
@@ -91,6 +98,8 @@ function open(): World {
       createAgentActor(host, {
         models,
         defaultModel: "test/model",
+        // To show that a call is not held in an old side chat.
+        testOldSideChats: true,
         modelOptions: [
           { id: "test/model", name: "Test", reasoning: false, inputCost: 0, outputCost: 0 },
         ],
@@ -172,7 +181,7 @@ async function setup(world: World): Promise<ChatSummary> {
     soul: "Dry, quick, kind.",
     user: "Sawyer likes teal.",
   })
-  return call<ChatSummary>(world, "/chats", "POST", {})
+  return call<ChatSummary>(world, "/chats/main", "POST", {})
 }
 
 async function converse(
@@ -296,7 +305,7 @@ describe("starting a call", () => {
   it("asks a ChatGPT sign-in for one, with who the voice is and what was said before", async () => {
     const world = open()
     const chat = await setup(world)
-    world.faux.setResponses([fauxAssistantMessage("Ticked it off, and the test starts today.")])
+    world.faux.setResponses([sending("Ticked it off, and the test starts today.")])
     await converse(world, chat.id, { text: "The one-row layout shipped this morning." })
 
     const { call: started } = await call<StartCallResponse>(world, "/calls", "POST", {
@@ -474,11 +483,11 @@ describe("what is said on a call", () => {
     expect(theirs.status).toBe(403)
   })
 
-  it("is done in a side chat of the call's own, where the call is held in the main chat", async () => {
+  it("goes to the main chat, where the call is held, whose sends are what the voice says", async () => {
     const world = open()
     await setup(world)
     const main = await call<ChatSummary>(world, "/chats/main", "POST")
-    world.faux.setResponses([fauxAssistantMessage("The launch is on Friday, noted.")])
+    world.faux.setResponses([sending("The launch is on Friday, noted.")])
     await converse(world, main.id, { text: "The launch is on Friday." })
     const { call: started } = await call<StartCallResponse>(world, "/calls", "POST", {
       chatId: main.id,
@@ -486,114 +495,94 @@ describe("what is said on a call", () => {
     })
     await call(world, `/calls/${started.id}/lines`, "POST", {
       lines: [
-        { who: "you", text: "Can you check which files are in my library?" },
+        { who: "you", text: "Can you write up a launch checklist?" },
         { who: "dood", text: "On it." },
       ],
     })
     let seen: string[] = []
+    // What takes more than a quick look goes to a sub-agent; what the agent sends is said.
     world.faux.setResponses([
       (context) => {
         seen = everySeen(context)
-        return fauxAssistantMessage("There are three files in your library.")
+        return fauxAssistantMessage(
+          [
+            fauxToolCall("subagent", {
+              action: "start",
+              title: "Launch checklist",
+              task: "Write a launch checklist for Friday.",
+            }),
+            fauxToolCall("send", { text: "I have someone on it." }),
+          ],
+          { stopReason: "toolUse" },
+        )
       },
+      // The sub-agent's own answer, which is its report.
+      fauxAssistantMessage("1. Tell the press."),
+      // The main chat is told of the report, as an event, and has nothing to send.
+      fauxAssistantMessage(""),
     ])
-    const first = await handOn(world, started.id, "Check which files are in my library.")
-    // A chat beside the main one, named for the call and what was asked.
-    expect(first.chatId).not.toBe(main.id)
+    const first = await handOn(world, started.id, "Write up a launch checklist.")
+    // No chat was made for it: the call's work is in the main chat, and in a sub-agent.
+    expect(first.chatId).toBe(main.id)
     const chats = (await call<{ chats: ChatSummary[] }>(world, "/")).chats
-    expect(chats.find((chat) => chat.id === first.chatId)).toMatchObject({
-      kind: "chat",
-      title: "Call: Check which files are in my library.",
-      archived: false,
+    expect(chats.filter((chat) => chat.kind === "chat").map((chat) => chat.id)).toEqual([main.id])
+    expect(chats.find((chat) => chat.kind === "subagent")).toMatchObject({
+      title: "Launch checklist",
+      parentId: main.id,
     })
-    expect(chats.find((chat) => chat.id === first.chatId)!.main).not.toBe(true)
-    // It branched off the main chat, so the agent knows there what was said before the call,
-    // that it is in a side chat, and what was said on the call.
+    // The agent knows what was said before the call, and what was said on it, and is told to
+    // send what the voice is to say, and hand longer work over.
     expect(seen).toContain("The launch is on Friday.")
-    expect(seen.some((text) => text.startsWith('<meta kind="side-chat">'))).toBe(true)
     const note = seen.find((text) => callOf(text) !== undefined)!
-    expect(note).toContain("They: Can you check which files are in my library?")
-    // The main chat is as it was: nothing was added to it, and it is not held up.
-    const before = await chatOf(world, main.id)
-    expect(before.messages.map((message) => message.role)).toEqual(["user", "assistant"])
-    expect(before.busy).toBe(false)
-
-    // What is handed on next goes to the same chat.
-    await call(world, `/calls/${started.id}/lines`, "POST", {
-      lines: [
-        { who: "dood", text: "There are three files in your library." },
-        { who: "you", text: "Remember that I like the short one best." },
-      ],
-    })
-    world.faux.setResponses([fauxAssistantMessage("Noted.")])
-    const second = await handOn(world, started.id, "Remember that I like the short one best.")
-    expect(second.chatId).toBe(first.chatId)
-    expect(
-      (await call<{ chats: ChatSummary[] }>(world, "/")).chats.filter((chat) =>
-        chat.title.startsWith("Call:"),
-      ),
-    ).toHaveLength(1)
+    expect(note).toContain("They: Can you write up a launch checklist?")
+    expect(note).toContain("What you `send` before you finish is read out by it")
+    expect(note).toContain("goes to a sub-agent with `subagent`")
+    // What it sent is what follows the message, for the voice to say.
+    const at = first.state.messages.findIndex(
+      (message) => message.spoken?.request === first.request,
+    )
+    const said = first.state.messages
+      .slice(at + 1)
+      .filter((message) => message.role === "assistant" && message.parts.some((p) => p.type === "text"))
+    expect(said.map((message) => message.parts)).toEqual([
+      [{ type: "text", text: "I have someone on it." }],
+    ])
 
     world.ahead += 61_000
     await call(world, `/calls/${started.id}/end`, "POST", {
       lines: [
-        { who: "dood", text: "Noted." },
+        { who: "dood", text: "I have someone on it." },
         { who: "you", text: "Thanks, bye." },
       ],
     })
-    // The main chat has the call's one record, which says where its work was done and who called.
-    const record = (await chatOf(world, main.id)).messages.at(-1)!
-    expect(record.parts[0]).toMatchObject({
-      kind: "call",
-      call: { id: started.id, chatId: first.chatId, by: "Sawyer" },
-    })
-    // The side chat shows nothing more for the call being over.
-    const worked = await chatOf(world, first.chatId)
-    expect(worked.messages.filter((message) => message.role === "notice")).toHaveLength(1)
+    // The main chat has the call's one record, shown as it always was, and who called.
+    const after = await chatOf(world, main.id)
+    const record = after.messages.findLast((message) => message.role === "notice")!
+    expect(record.parts[0]).toMatchObject({ kind: "call", call: { id: started.id, by: "Sawyer" } })
+    expect((record.parts[0] as { call?: { chatId?: string } }).call?.chatId).toBeUndefined()
 
-    // The agent in the main chat was shown none of the call, and is now told all of it and
-    // where it did the work.
+    // The agent is told the call is over, as an event, with what it was not shown of it.
     world.faux.setResponses([
       (context) => {
         seen = everySeen(context)
-        return fauxAssistantMessage("Three.")
+        return sending("Done.")
       },
     ])
-    await converse(world, main.id, { text: "How many files was it?" })
-    const ended = seen.find((text) => text.startsWith('<meta kind="call-ended">'))!
-    expect(ended).toContain("A voice call was held here, and ended after 1 min.")
-    expect(ended).toContain(`side chat ${first.chatId}`)
-    expect(ended).toContain("They: Can you check which files are in my library?")
-    expect(ended).toContain("Juniper: There are three files in your library.")
+    await converse(world, main.id, { text: "How did it go?" })
+    const ended = seen.find((text) => text.startsWith('<event kind="call-ended"'))!
+    expect(ended).toContain('length="1 min"')
+    expect(ended).toContain("The voice call held here is over.")
     expect(ended).toContain("They: Thanks, bye.")
-    // In the side chat it is told the call is over, and what it had not been shown of it.
-    world.faux.setResponses([
-      (context) => {
-        seen = everySeen(context)
-        return fauxAssistantMessage("The short one.")
-      },
-    ])
-    await converse(world, first.chatId, { text: "Which one did I like?" })
-    const over = seen.find((text) => text.startsWith('<meta kind="call-ended">'))!
-    expect(over).toContain("The voice call this side chat worked for ended after 1 min.")
-    expect(over).toContain("They: Thanks, bye.")
-    expect(over).not.toContain("Can you check which files")
+    expect(ended).not.toContain("Can you write up a launch checklist")
     expect(world.reports).toEqual([])
   })
 
-  it("is given a side chat all the same where the main chat has nothing to carry", async () => {
+  it("is held in the main chat alone", async () => {
     const world = open()
     await setup(world)
-    const main = await call<ChatSummary>(world, "/chats/main", "POST")
-    const { call: started } = await call<StartCallResponse>(world, "/calls", "POST", {
-      chatId: main.id,
-      sdp: OFFER,
-    })
-    world.faux.setResponses([fauxAssistantMessage("Hello to you.")])
-    const first = await handOn(world, started.id, "Say hello.")
-    expect(first.chatId).not.toBe(main.id)
-    expect((await chatOf(world, main.id)).messages).toEqual([])
-    expect(world.reports).toEqual([])
+    const old = await call<ChatSummary>(world, "/chats/old", "POST", {})
+    const refused = await ask(world, "/calls", "POST", { chatId: old.id, sdp: OFFER })
+    expect(refused.status).toBe(409)
   })
 
   it("is not taken from someone the call is not theirs", async () => {
@@ -672,8 +661,8 @@ describe("the end of a call", () => {
       },
     ])
     await converse(world, chat.id, { text: "When does the test end?" })
-    const note = seen.find((text) => text.startsWith('<meta kind="call-ended">'))!
-    expect(note).toContain("The voice call ended after 1 min.")
+    const note = seen.find((text) => text.startsWith('<event kind="call-ended"'))!
+    expect(note).toContain('length="1 min"')
     expect(note).toContain("They: Give it till Friday.")
 
     // Ending it again changes nothing, and it is gone for whoever asks after it.

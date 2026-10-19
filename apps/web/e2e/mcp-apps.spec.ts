@@ -27,7 +27,8 @@ test("a connector's own page for a tool is shown with what the tool answered, ke
   await tool(page, "weather__forecast", { city: "Lisbon" }, /Sunny, 21 degrees/)
   // It says whose page it is: not the agent's, and not the app's.
   const log = page.getByRole("log")
-  await expect(log.getByText("From Weather")).toBeVisible()
+  // Drawn in the main chat, as in any chat.
+  await expect(log.getByText("From Weather").first()).toBeVisible()
   const app = log.getByRole("figure", { name: "App: forecast from Weather" })
   const frame = app.frameLocator("iframe")
   // The page was told what the tool was asked and what it answered.
@@ -66,6 +67,7 @@ test("the page uses its server's tools: one that only reads at once, one that ma
   await newChat(page)
   await tool(page, "weather__forecast", { city: "Porto" }, /Sunny, 21 degrees/)
   const app = page.getByRole("log").getByRole("figure", { name: "App: forecast from Weather" })
+  await expect(app.first()).toBeVisible()
   const frame = app.frameLocator("iframe")
   await expect(frame.locator("#city")).toHaveText("Porto")
 

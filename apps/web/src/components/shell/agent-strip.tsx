@@ -9,7 +9,7 @@ import {
   SlidersHorizontalIcon,
 } from "@phosphor-icons/react"
 import { useQuery } from "@tanstack/react-query"
-import { useNavigate, useParams, useRouter, useSearch } from "@tanstack/react-router"
+import { useNavigate, useParams, useRouter } from "@tanstack/react-router"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useEffect, useState } from "react"
 import { AgentFace } from "@/components/agent-avatar"
@@ -34,7 +34,7 @@ import { useSettings } from "@/lib/settings"
 import { useWide } from "@/lib/use-wide"
 import { useHere, usePeople, whoIs } from "@/lib/workspaces"
 import { DoodsButton } from "./agent-list.tsx"
-import { SideChats } from "./side-chats.tsx"
+import { OldSideChats } from "./old-side-chats.tsx"
 
 /** The pages of an agent: the things it is used for, as against how it is set up. */
 export type AgentTab = "chat" | "library" | "automations"
@@ -71,8 +71,9 @@ function useOpenTab(agentId: string, back: string | undefined) {
 /**
  * The agent's name, afloat over the top of its pages, and all there is above them. Its face is
  * the way to its panel (to its wardrobe, on a narrow screen). Its name opens what else there is
- * of it: its pages, its side chats, a call, its panel and its settings. Beside the name is which page is open, where the page does
- * not say so itself, which side chat it is, and who else is here.
+ * of it: its pages, its old side chats where it has any, a call, its panel and its settings.
+ * Beside the name is which page is open, where the page does not say so itself, which thread or
+ * old side chat it is, and who else is here.
  */
 function AgentPill({
   agent,
@@ -92,8 +93,6 @@ function AgentPill({
   callIn: string | undefined
 }) {
   const { chatId } = useParams({ strict: false })
-  const { side } = useSearch({ strict: false })
-  const navigate = useNavigate()
   const open = useOpenTab(agent.id, back)
   const router = useRouter()
   const ahead = (to: AgentTab) => {
@@ -114,18 +113,10 @@ function AgentPill({
   const call = useCallButton(agent)
   // The panel is only ever beside a page where there is room for both.
   const wide = useWide()
-  const [wanted, setPanel] = useAtom(agentPanelOpenAtom)
-  // A side chat beside the main chat is where the panel would be.
-  const panel = wanted && side === undefined
-  const togglePanel = () => {
-    setPanel(!panel)
-    // The side chat makes way for the panel.
-    if (side !== undefined && chatId !== undefined) {
-      void navigate({ to: "/a/$agentId/c/$chatId", params: { agentId: agent.id, chatId } })
-    }
-  }
+  const [panel, setPanel] = useAtom(agentPanelOpenAtom)
+  const togglePanel = () => setPanel(!panel)
 
-  // A side chat that has the middle, or a thread from Slack, is named beside the Dood's name:
+  // An old side chat, or a thread from Slack, is named beside the Dood's name:
   // nothing else over the chat says which it is.
   const onScreen = page === "chat" ? state?.chats.find((chat) => chat.id === chatId) : undefined
   const titled =
@@ -184,7 +175,7 @@ function AgentPill({
           </span>
         )}
         <DropdownMenuTrigger
-          aria-label={`${name}: pages, side chats and settings`}
+          aria-label={`${name}: pages and settings`}
           className="flex h-8 min-w-0 items-center gap-1.5 rounded-full pr-2.5 pl-1.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 aria-expanded:bg-accent"
         >
           <span className="flex min-w-0 text-[0.875rem]">
@@ -223,12 +214,7 @@ function AgentPill({
             ))}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <SideChats
-            agent={agent}
-            workspace={workspace}
-            state={state}
-            onDone={() => setShown(false)}
-          />
+          <OldSideChats agent={agent} state={state} />
           {!call.available || callIn === undefined || !agent.hatched ? null : (
             <DropdownMenuItem disabled={call.busy} onClick={() => call.start(callIn)}>
               <PhoneIcon weight={call.on ? "fill" : "regular"} />
@@ -292,12 +278,10 @@ export function AgentStrip({
   }, [agentId, chatId])
   const back = lastChat.get(agentId)
   const open = useOpenTab(agentId, back)
-  // A call is held in the chat on screen where that is one the person talks in, and otherwise
-  // in the Dood's main chat.
-  const onScreen = state?.chats.find((chat) => chat.id === chatId)
-  const callIn = (onScreen?.kind === "chat" ? onScreen : mainChatOf(state?.chats))?.id
+  // A call is held in the Dood's main chat, wherever the person is.
+  const callIn = mainChatOf(state?.chats)?.id
   // The name is over the middle of the page's own column, and not of what is beside it: a
-  // document or a side chat, or else the agent's panel, where that is wanted and there is room.
+  // document, or else the agent's panel, where that is wanted and there is room.
   const beside = useAtomValue(besideWidthAtom)
   const panel = useAtomValue(agentPanelOpenAtom)
   const panelWidth = useAtomValue(agentPanelColumn.width)

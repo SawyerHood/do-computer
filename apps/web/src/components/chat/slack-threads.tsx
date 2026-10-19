@@ -12,7 +12,7 @@ import { client } from "@/lib/client"
 import { agentKey } from "@/lib/collections"
 import { cn } from "@/lib/utils"
 import { StatusMark, threadWords } from "./agent-threads.tsx"
-import { FLOATS, MainChatLink } from "./side-chat.tsx"
+import { FLOATS, MainChatLink } from "./old-side-chat.tsx"
 import { isAtWork } from "./subagents.tsx"
 
 /** Where in Slack a thread is, in a word or two. */
