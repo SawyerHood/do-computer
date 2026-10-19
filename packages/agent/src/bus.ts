@@ -53,6 +53,13 @@ export type BusMark = { on: boolean }
  * says what changed, so that the plain replies above, or the sends, do not lead it astray.
  */
 export const BUS_NOTE_ENTRY = "dc.bus-note"
+/**
+ * What the main chat is told where the bus for everyone (phase 4, since rolled back) is undone:
+ * side chats are back. That the bus is off again, where it is, is the note of `busNote`.
+ */
+export const BUS_UNDONE_NOTE =
+  '<meta kind="bus">Side chats are back: people can start side chats with you again, and the ones archived when they went are open again. A sub-agent started in one reports there again. Answer as you did before side chats went; whether this conversation is a message bus is as its own switch says.</meta>'
+
 export const busNote = (on: boolean, slack = false) =>
   on
     ? slack

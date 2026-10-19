@@ -106,6 +106,11 @@ export const CreatureDoc = defineDoc<CreatureState>({
 export type SubagentRecord = {
   /** The chat it was started in, where its reports go. */
   parentId: string
+  /**
+   * The side chat it was started in, where the bus for everyone (phase 4, rolled back) gave it
+   * to the main chat. Read once, to give it back (`#undoBusForEveryone`).
+   */
+  parentBefore?: string
   /** What it was asked to do: its first message. */
   task: string
   /** Whether that message has been sent to it. */
@@ -207,6 +212,11 @@ export type ChatRecord = {
   createdAt: number
   updatedAt: number
   archived: boolean
+  /**
+   * `"bus"` on a side chat that the bus for everyone (phase 4, rolled back) archived, and not a
+   * person. Read once, to bring it back (`#undoBusForEveryone`).
+   */
+  archivedBy?: "bus"
   /** The user who started it. Absent on a chat from before agents were shared, and on runs. */
   createdBy?: string
   /** The user who last wrote in it, where that is known: who the agent is answering. */

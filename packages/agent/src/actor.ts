@@ -102,6 +102,7 @@ import {
   BUS_ENTRY,
   BUS_EXTENSIONS,
   BUS_NOTE_ENTRY,
+  BUS_UNDONE_NOTE,
   busExtension,
   busNote,
   busOn,
@@ -1269,6 +1270,64 @@ export class AgentActor implements Actor {
   }
 
   /**
+   * Undo what the bus for everyone (phase 4 of PLAN-main-bus.md, since rolled back) changed, for
+   * an agent that was opened while it was in: the side chats it archived are brought back, the
+   * sub-agents it gave to the main chat that are still at work go back to the side chat they
+   * were started in, and the main chat is told, once, that side chats are back. People's own
+   * archiving is left as it is. The switch for the bus is off again unless someone had turned it
+   * on, so `#syncBus` takes the bus off the main chat, with its note, as it does when the switch
+   * is turned off. Done once: what it reads is cleared as it is undone, the bus is then off, and
+   * the note is keyed. An agent with nothing to undo is not written to.
+   */
+  async #undoBusForEveryone(harness: Harness): Promise<void> {
+    const doc = await harness.snapshot(ChatsDoc, context)
+    if (doc === undefined) return
+    const chats = Object.entries(doc.chats)
+    const archived = chats.filter(([, chat]) => chat.archivedBy === "bus")
+    const moved = chats.filter(([, chat]) => chat.subagent?.parentBefore !== undefined)
+    const main = doc.main === undefined ? undefined : own(doc.chats, doc.main)
+    // A main chat that phase 4 set up for the bus: every one it opened had it on.
+    const identity = await harness.snapshot(IdentityDoc, context)
+    const bused = main?.bus === true && identity?.bus !== true
+    if (archived.length === 0 && moved.length === 0 && !bused) return
+    // The note first, keyed, so that one cut short is not written twice when it is done again.
+    const conversation =
+      doc.main === undefined
+        ? undefined
+        : await harness.conversation(Number(doc.main) as ConversationId, context)
+    await conversation?.submit(
+      {
+        type: "write",
+        requestId: `bus-undone:${doc.main}`,
+        entry: {
+          kind: BUS_NOTE_ENTRY,
+          model: [{ role: "user", content: BUS_UNDONE_NOTE, timestamp: this.#host.now() }],
+        },
+      },
+      context,
+    )
+    await harness.commit(async (tx) => {
+      const chatsDoc = await tx.doc(ChatsDoc)
+      const live = (status: string) => status === "working" || status === "waiting"
+      for (const chat of Object.values(chatsDoc.chats)) {
+        if (chat.archivedBy === "bus") {
+          chat.archived = false
+          delete chat.archivedBy
+        }
+        const sub = chat.subagent
+        if (sub?.parentBefore !== undefined) {
+          // One that has ended reported to the main chat, and stays where its report is.
+          if (live(sub.status) && own(chatsDoc.chats, sub.parentBefore) !== undefined) {
+            sub.parentId = sub.parentBefore
+          }
+          delete sub.parentBefore
+        }
+      }
+    }, context)
+    if (bused) await this.#syncBus(harness)
+  }
+
+  /**
    * An agent that kept a library for itself, in a workspace that now keeps one for all its
    * agents: its files move there, with their history, and its own is left empty. Running it
    * again after it was cut short moves what is left.
@@ -1490,6 +1549,7 @@ export class AgentActor implements Actor {
       // Neither stops the agent opening: what could not be done now is tried the next time.
       await this.#adopt(harness).catch((error) => this.#options.onReport?.(error))
       await this.#moveLibrary().catch((error) => this.#options.onReport?.(error))
+      await this.#undoBusForEveryone(harness).catch((error) => this.#options.onReport?.(error))
       // Connector tools come and go while the agent runs, so they are installed after opening.
       this.#connectors = new Connectors({
         sql: this.#host.sql,
