@@ -239,6 +239,7 @@ const setIdentity = (writes: PersonaWrites) =>
           ...(args.color === undefined ? {} : { color: args.color }),
         },
         context,
+        (change, c) => api.commit(change, c),
       )
       return {
         output: [{ type: "text", text: `Saved. You are now: ${JSON.stringify(saved)}` }],
@@ -278,6 +279,7 @@ const memory = (writes: PersonaWrites) =>
           ...(args.match === undefined ? {} : { match: args.match }),
         },
         context,
+        (change, c) => api.commit(change, c),
       )
       if ("error" in outcome) return fail(outcome.error)
       return {

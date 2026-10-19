@@ -159,8 +159,8 @@ import { bindingOf, SignIns } from "./sign-in.ts"
 import { type SettingsChange, SettingsError, settingsExtension } from "./settings.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
-import { changeIdentity, editMemory, MEMORY_LIMIT, persona, USER_LIMIT } from "./persona.ts"
-import { type AgentLink, readMirror } from "./agent-link.ts"
+import { MEMORY_LIMIT, persona, USER_LIMIT } from "./persona.ts"
+import { type AgentLink, identityWrites, readMirror } from "./agent-link.ts"
 import { preview } from "./preview.ts"
 import { addUsage, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
@@ -655,13 +655,7 @@ export class AgentActor implements Actor {
     this.#options = options
     this.#link = {
       mirror: async (known, c) => readMirror(await this.#open(), known, c),
-      changeIdentity: async (_from, change, c) =>
-        (await this.#open()).commit(
-          async (tx) => changeIdentity(await tx.doc(IdentityDoc), change),
-          c,
-        ),
-      editMemory: async (_from, edit, c) =>
-        (await this.#open()).commit(async (tx) => editMemory(await tx.doc(IdentityDoc), edit), c),
+      ...identityWrites(() => this.#open()),
       sent: (sent) => this.#sent(sent.chatId, sent.text, sent.files),
       tellMain: (told, c) => this.#tellMain(told, c),
     }

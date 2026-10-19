@@ -4,15 +4,20 @@ import { createRegistry, Harness } from "@earendil-works/pi-durable"
 import { MemoryStorage } from "@earendil-works/pi-durable/storage/memory"
 import { afterEach, describe, expect, it } from "vitest"
 import {
+  type AgentLink,
   type AgentMirror,
+  type CallCommit,
   fingerprint,
+  identityWrites,
+  MirrorSkewError,
   mirrored,
   MIRRORED_KINDS,
   readMirror,
   writeMirror,
 } from "../src/agent-link.ts"
 import { ChatsDoc, IdentityDoc } from "../src/docs.ts"
-import { changeIdentity, editMemory } from "../src/persona.ts"
+import { JournalDoc } from "../src/journal.ts"
+import { changeIdentity, editMemory, persona } from "../src/persona.ts"
 import { SkillsDoc } from "../src/skills.ts"
 
 const context = BACKGROUND_CONTEXT
@@ -112,6 +117,121 @@ describe("the mirror of an agent's documents", () => {
       memory: "likes tea",
     })
     expect((await readMirror(chat, now, context)).docs).toEqual({})
+  })
+})
+
+describe("a mirror written over a copy", () => {
+  it("takes away a document the agent does not have, so the two agree", async () => {
+    const agent = await agentStore()
+    const chat = await store()
+    await chat.commit(async (tx) => {
+      ;(await tx.doc(JournalDoc)).done.push({ chatId: "9", title: "Old", outcome: "Kept", at: 1 })
+    }, context)
+    const had = await chat.commit(
+      async (tx) => writeMirror(tx, await readMirror(agent, undefined, context), undefined),
+      context,
+    )
+    expect(had["dc.journal"]).toBe("-")
+    expect(await chat.snapshot(JournalDoc, context)).toBeUndefined()
+    expect((await readMirror(chat, had, context)).docs).toEqual({})
+  })
+
+  it("is refused whole from a build whose documents are not this one's", async () => {
+    const agent = await agentStore()
+    const chat = await store()
+    const mirror = await readMirror(agent, undefined, context)
+    const skewed: AgentMirror = {
+      ...mirror,
+      schemas: { ...mirror.schemas, "dc.skills": mirror.schemas["dc.skills"] + 1 },
+    }
+    await expect(
+      chat.commit((tx) => writeMirror(tx, skewed, undefined), context),
+    ).rejects.toBeInstanceOf(MirrorSkewError)
+    expect(await chat.snapshot(IdentityDoc, context)).toBeUndefined()
+  })
+})
+
+describe("the agent's link for the persona", () => {
+  it("makes a change with the asking call's commit, and nothing once that refuses", async () => {
+    const agent = await agentStore()
+    const writes = identityWrites(async () => agent)
+    const from = { chatId: "2", callId: "call-1" }
+    // As pi-durable's commit for a tool call refuses once the call has been stopped.
+    const stopped: CallCommit = async () => {
+      throw new Error("The tool call has ended")
+    }
+    await expect(
+      writes.editMemory(from, { action: "add", target: "memory", content: "no" }, context, stopped),
+    ).rejects.toThrow("ended")
+    await expect(writes.changeIdentity(from, { name: "No" }, context, stopped)).rejects.toThrow()
+    expect(await agent.snapshot(IdentityDoc, context)).toMatchObject({
+      name: "Juniper",
+      memory: "likes tea",
+    })
+
+    let used = 0
+    const running: CallCommit = (change, c) => {
+      used++
+      return agent.commit(change, c)
+    }
+    expect(
+      await writes.editMemory(
+        from,
+        { action: "add", target: "memory", content: "yes" },
+        context,
+        running,
+      ),
+    ).toEqual({ used: 13 })
+    expect(used).toBe(1)
+    // Without a call's commit, the store's own.
+    expect(await writes.changeIdentity(from, { name: "Fern" }, context)).toMatchObject({
+      name: "Fern",
+    })
+    expect(await agent.snapshot(IdentityDoc, context)).toMatchObject({
+      name: "Fern",
+      memory: "likes tea\nyes",
+    })
+  })
+
+  it("is what the persona's tools ask, with the call and the edit as the tool makes it", async () => {
+    const asked: unknown[] = []
+    const commit: CallCommit = async () => {
+      throw new Error("not this")
+    }
+    const link: Pick<AgentLink, "changeIdentity" | "editMemory"> = {
+      editMemory: async (from, edit, _c, given) => {
+        asked.push({ from, edit, commit: given !== undefined })
+        return { used: 4 }
+      },
+      changeIdentity: async (from, change, _c, given) => {
+        asked.push({ from, change, commit: given !== undefined })
+        return { name: "Fern", tagline: null, color: null }
+      },
+    }
+    const tools = persona(link).tools!
+    const api = { conversationId: 12, callId: "call-7", commit } as never
+    const memory = tools.find((tool) => tool.name === "memory")!
+    const identity = tools.find((tool) => tool.name === "set_identity")!
+    expect(
+      await memory.execute(
+        { action: "add", target: "user", content: "  likes\n  tea " },
+        api,
+        context,
+      ),
+    ).toMatchObject({ output: [{ text: "Saved. the user profile: 4/4000 characters." }] })
+    await identity.execute({ name: " Fern ", tagline: "Hi" }, api, context)
+    expect(asked).toEqual([
+      {
+        from: { chatId: "12", callId: "call-7" },
+        edit: { action: "add", target: "user", content: "likes tea" },
+        commit: true,
+      },
+      {
+        from: { chatId: "12", callId: "call-7" },
+        change: { name: "Fern", tagline: "Hi" },
+        commit: true,
+      },
+    ])
   })
 })
 
