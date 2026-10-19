@@ -306,6 +306,9 @@ export class Scheduler {
       enabled: true,
       nextRunAt: next,
       createdAt: now,
+      // Not read: a run reports to the main chat. Kept for code from before, which delivers a
+      // run's result where its schedule was made.
+      originChatId: (await harness.snapshot(ChatsDoc, context))?.main ?? null,
       pending: null,
       lastRun: null,
       runCount: 0,

@@ -128,6 +128,10 @@ describe("a Dood from before every main chat was a bus", () => {
       const side = await seedChat(harness, chatRecord("chat", "An aside"), [
         { kind: "dc.legacy", said: "An aside, from before." },
       ])
+      // One a person had archived themselves.
+      const put = await seedChat(harness, chatRecord("chat", "Put away", { archived: true }), [
+        { kind: "dc.legacy", said: "Put away, from before." },
+      ])
       const subagent = await seedChat(
         harness,
         chatRecord("subagent", "Venue", {
@@ -174,7 +178,7 @@ describe("a Dood from before every main chat was a bus", () => {
           runCount: 1,
         } satisfies ScheduleRecord
       }, BACKGROUND_CONTEXT)
-      return { main, side, subagent, slack, run }
+      return { main, side, put, subagent, slack, run }
     })
 
     wakeSoon(directory, AGENT)
@@ -211,7 +215,23 @@ describe("a Dood from before every main chat was a bus", () => {
     expect(main.record.busMarks).toHaveLength(1)
     expect(await busEntries(directory, ids.slack)).toMatchObject({ marks: [], notes: 0 })
 
-    // Opened again, it adds nothing.
+    // What it changed says so, and what it was, so that it can be undone: the side chat it
+    // archived, and not the one a person had, and the sub-agent's parent before.
+    const records = async () =>
+      inStore(directory, AGENT, async (harness) => {
+        const doc = await harness.snapshot(ChatsDoc, BACKGROUND_CONTEXT)
+        return doc!.chats
+      })
+    const changed = await records()
+    expect(changed[ids.side]).toMatchObject({ archived: true, archivedBy: "bus" })
+    expect(changed[ids.put]).toMatchObject({ archived: true })
+    expect(changed[ids.put]!.archivedBy).toBeUndefined()
+    expect(changed[ids.subagent]!.subagent).toMatchObject({
+      parentId: ids.main,
+      parentBefore: ids.side,
+    })
+
+    // Opened again, it adds nothing, and changes nothing it recorded.
     agent = open(directory)
     await call(agent, "/")
     await call(agent, "/chats/main", "POST")
@@ -219,6 +239,7 @@ describe("a Dood from before every main chat was a bus", () => {
     const again = await busEntries(directory, ids.main)
     expect(again).toMatchObject({ marks: [true], notes: 1 })
     expect(again.record.busMarks).toHaveLength(1)
+    expect(await records()).toEqual(changed)
   })
 
   it("marks a main chat that had the bus switched on and off once more, with the next key", async () => {
@@ -261,4 +282,5 @@ describe("a Dood from before every main chat was a bus", () => {
     expect(after).toMatchObject({ marks: [true, false, true], notes: 1, record: { bus: true } })
     expect(after.record.busMarks!.map((mark) => mark.on)).toEqual([true, false, true])
   })
+
 })

@@ -2894,6 +2894,8 @@ export class AgentActor implements Actor {
       createdAt: now,
       updatedAt: now,
       archived: true,
+      // As the switch-over to the bus archived every side chat from before.
+      archivedBy: "bus",
       ...(caller === undefined ? {} : { createdBy: caller.id }),
     }
     const conversation = await harness.createConversation(
@@ -2961,7 +2963,9 @@ export class AgentActor implements Actor {
       }
       // Only the main chat is talked in now. The others are kept, as they were, to be read, and
       // a sub-agent one of them started is the main chat's from now on: it reports there, takes
-      // more from there, and asks a person through it.
+      // more from there, and asks a person through it. What is changed here says so, and what it
+      // was, so that it can be undone exactly: a side chat archived here is marked as archived by
+      // the bus, apart from those people archived themselves, and a sub-agent keeps its parent.
       if (main === undefined) return
       const isSide = (id: string) => own(chats, id)?.kind === "chat" && id !== main
       const side = Object.entries(chats).filter(([id, record]) => isSide(id) && !record.archived)
@@ -2972,8 +2976,12 @@ export class AgentActor implements Actor {
       await harness.commit(async (tx) => {
         const doc = await tx.doc(ChatsDoc)
         for (const [id, record] of Object.entries(doc.chats)) {
-          if (record.kind === "chat" && id !== main && !record.archived) record.archived = true
+          if (record.kind === "chat" && id !== main && !record.archived) {
+            record.archived = true
+            record.archivedBy = "bus"
+          }
           if (record.subagent !== undefined && isSide(record.subagent.parentId)) {
+            record.subagent.parentBefore ??= record.subagent.parentId
             record.subagent.parentId = main
           }
         }
@@ -3224,7 +3232,12 @@ export class AgentActor implements Actor {
       if (typeof input.title === "string" && input.title.trim() !== "") {
         chat.title = input.title.trim().slice(0, MAX_TITLE_CHARS)
       }
-      if (typeof input.archived === "boolean") chat.archived = input.archived
+      if (typeof input.archived === "boolean" && input.archived !== chat.archived) {
+        chat.archived = input.archived
+        // Archived or brought back by a person: it is theirs, and undoing the switch-over to the
+        // bus leaves it as they left it.
+        delete chat.archivedBy
+      }
       return summarize(chatId, chat, doc.main)
     }, context)
     if (summary === undefined) {

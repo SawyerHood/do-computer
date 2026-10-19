@@ -10,6 +10,7 @@ import type {
 } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import { justBashSandbox } from "@do-computer/sandbox"
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { createModels } from "@earendil-works/pi-ai/models"
 import {
   fauxAssistantMessage,
@@ -19,7 +20,9 @@ import {
 } from "@earendil-works/pi-ai/providers/faux"
 import { afterEach, describe, expect, it } from "vitest"
 import { type AgentNotification, createAgentActor } from "../src/index.ts"
+import { SchedulesDoc } from "../src/docs.ts"
 import { quietOnReminder, sent } from "./quiet.ts"
+import { inStore } from "./seed.ts"
 
 type World = {
   namespace: NodeActorNamespace
@@ -226,6 +229,22 @@ describe("schedules", () => {
     )
     expect(world.activity.slice(rested).some((told) => told.working)).toBe(true)
     expect(world.errors).toEqual([])
+  })
+
+  it("names the main chat as its home, for code from before every main chat was a bus", async () => {
+    const directory = temporary()
+    const world = open(directory)
+    const chat = await setup(world)
+    world.faux.setResponses(createSchedule(6 * 3_600_000, "Check the weather.", "Weather check"))
+    await say(world, chat.id, "check the weather later")
+    const [created] = await schedules(world)
+    await world.namespace.close()
+    // Not read now, as a run reports to the main chat: it is where code from before delivers.
+    const stored = await inStore(directory, "agent-1", async (harness) => {
+      const doc = await harness.snapshot(SchedulesDoc, BACKGROUND_CONTEXT)
+      return doc!.schedules[created!.id]!
+    })
+    expect(stored.originChatId).toBe(chat.id)
   })
 
   it("puts what a run came to in the model's context, as an event", async () => {
