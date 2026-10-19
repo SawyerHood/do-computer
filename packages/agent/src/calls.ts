@@ -288,8 +288,8 @@ export function voiceInstructions(who: {
 
 /**
  * The end of a chat as the voice is given it: what was written, without the steps. Where the
- * agent speaks only through `send`, that is what people and it said to each other, and its own
- * working is left out with the steps.
+ * agent speaks only through `send`, that is what people and it said to each other: its own words
+ * are kept as thinking there, which is left out with the steps.
  */
 export function voiceContext(messages: readonly ChatMessage[]): CallLine[] {
   const lines: CallLine[] = []
@@ -297,7 +297,6 @@ export function voiceContext(messages: readonly ChatMessage[]): CallLine[] {
   for (let i = messages.length - 1; i >= 0 && lines.length < MAX_CONTEXT_MESSAGES; i--) {
     const message = messages[i]!
     if (message.role !== "user" && message.role !== "assistant") continue
-    if (message.work === true) continue
     if (message.status === "streaming") continue
     const text = clip(
       message.parts

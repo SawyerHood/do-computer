@@ -674,9 +674,14 @@ describe("automations on the bus", () => {
   const ask = async (world: World, chatId: string, text: string) => {
     await call(world, `/chats/${chatId}/messages`, "POST", { text, requestId: crypto.randomUUID() })
   }
-  /** What people are shown as said in a chat with the bus on, without the agent's working. */
+  /** What people are shown as said in a chat with the bus on: its own words are not text there. */
   const spoken = (state: ChatState) =>
-    texts({ ...state, messages: state.messages.filter((message) => message.work !== true) })
+    texts({
+      ...state,
+      messages: state.messages
+        .map((message) => ({ ...message, parts: message.parts.filter((p) => p.type === "text") }))
+        .filter((message) => message.parts.length > 0),
+    })
   const events = (state: ChatState) =>
     state.messages.flatMap((message) =>
       message.parts.flatMap((part) =>

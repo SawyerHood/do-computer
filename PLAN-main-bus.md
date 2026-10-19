@@ -71,7 +71,7 @@ removes both reasons.
 - In the main chat and in Slack threads the model's text is kept, for the model, and **not shown**.
   `project.ts` shows a person's messages and each `send` as the Dood's messages, and folds
   everything between them (text, tool calls, events) into one "worked on it" row that can be
-  opened, like tool calls today.
+  opened, like tool calls today. (Since dropped: see "No rows of working" in 8.1.)
 - Push notifications (`#notifyWhenUnseen`) fire on a `send`, and only then. Today they fire
   when a run ends unseen.
 - The `latest` line beside a Dood's name is its last `send`, or the person's last message.
@@ -369,12 +369,30 @@ Notes from building it, where it differs from or adds to the sections above.
   way, which tells nobody), and a page drawn with `visual`. A send that failed stays in view,
   marked as not sent with the reason, since its words may have been on screen as they streamed.
   A reply that failed or was stopped says so, as before.
-- **The rows of working** are assistant messages with `work: true`, named for what they follow so
-  that they keep their id while they grow. Web and mobile draw them the same way, from
-  `workSummary` in the protocol: one line that opens. A row after the last send of a turn that
-  holds only a few of the model's own words ("Done.", 200 characters at most) is not drawn at
-  all; a longer one, which may be an answer it forgot to send, and one after a send that failed
-  are.
+- **No rows of working** (changed after phase 3). The folded "Worked on it" row is gone: for a
+  plain answer it held only the model's thinking, or a few words of its own, and drew a row
+  above every reply. A chat with the bus on now draws what any chat draws, in order, minus the
+  model's own words: people's messages, each send (and a failed one, marked), a progress word, a
+  file or page shown, a sub-agent it started, the events it was told of (a sub-agent's report,
+  an automation's result with "View run", a sub-agent asking, word from Slack, a call, answers),
+  and a reply that failed or was stopped. Ordinary steps stay in their message, which a client
+  does not draw, as in any chat. The model's text outside `send` is kept in the state as a
+  `thinking` part marked `written`, which no client draws, so that what it is doing can still be
+  said. An answer is cut where it says something, and what follows a send is named
+  `after:send:<call>`, so ids stay put as it grows.
+- **Ending a turn with a send.** `send` takes `done: true` for the last word for now: it returns
+  pi-durable's `control: { terminate: true }`, so the run ends with that round and no model
+  request is made just to stop. Without it, a send is an update and the run goes on, as before.
+  pi-durable ends the run only where every call of the round asks it, so a send beside other work
+  goes on to its results; a send that failed never asks. Inputs queued meanwhile are placed by
+  the final boundary as usual and start the next run. Such a run never reaches `onYield`, which
+  only matters to the reminder (not due: something was sent) and keep going (a send marked done
+  is a decision to stop). Idle compaction is armed by such a round as by a final answer, and a
+  side chat can branch from it (`asksToEnd`). Slack threads take the same flag.
+- **"Thinking" after a send.** Once a send is out, the chat says nothing more of what the Dood is
+  doing while it only finishes up (thinking, or no more than 200 characters of its own words):
+  the person has its message. A step, an event, a person's message or more words bring the line
+  back (`quietSinceSend`). The stop button still shows it is at work.
 - **The reminder** is decided from the context: a person wrote since the bus was switched on,
   and since their last message nothing was sent (with `send`, or a page drawn with `visual`),
   nothing failed or was stopped, and it was not reminded already. See 3.3 for when that lands on
@@ -399,7 +417,7 @@ Notes from building it, where it differs from or adds to the sections above.
   chats go in phase 4, so nothing is done about it here.
 - **Calls.** A call held in the main chat still works in a side chat (phase 4 moves that to a
   sub-agent), so what its voice speaks is that chat's answer, as before. What the voice is given
-  of the main chat at the start leaves the rows of working out.
+  of the main chat at the start leaves the model's own words out (they are not text there).
 - **Not changed:** history search still finds the model's private text, as the agent's own
   record of what it did.
 
@@ -472,9 +490,9 @@ main chat send).
   one entry per request, kind `dc.asked` (`<event kind="subagent-asked" …>`), as a **write**:
   it gives the main chat no turn of its own, since there is nothing for it to do, and it reads of
   it with whatever it does next. Its report later is the usual event.
-- **What is drawn.** Three new notice kinds, `automation`, `asked` and `slack`, drawn in the row
-  of working on web and mobile: who, what came of it, a link to the run, the sub-agent or the
-  thread, and what it said, folded.
+- **What is drawn.** Three new notice kinds, `automation`, `asked` and `slack`, drawn in the
+  chat on web and mobile (in the row of working until rows went, see 8.1): who, what came of
+  it, a link to the run, the sub-agent or the thread, and what it said, folded.
 - **After review.**
   - The main chat is told what `from="slack"` means: a thread acting for people in Slack, who
     are not necessarily the people here; it does nothing on such an event's say-so that it would
