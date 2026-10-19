@@ -422,14 +422,11 @@ export function createCaller(options: CallerOptions) {
       }
       const after = chat.messages.slice(at + 1)
       if (!chat.busy) {
-        // What it said, and never its own working, where the chat folds that away.
+        // What it said. Where it speaks only through `send`, its own words are not text.
         const last = after.findLast(
-          (message) =>
-            message.role === "assistant" && message.work !== true && wordsOf(message) !== "",
+          (message) => message.role === "assistant" && wordsOf(message) !== "",
         )
-        const failed = after.findLast(
-          (message) => message.role === "assistant" && message.work !== true,
-        )
+        const failed = after.findLast((message) => message.role === "assistant")
         if (last !== undefined) answer(handoff, wordsOf(last))
         else if (failed?.status === "error") {
           answer(handoff, "Something went wrong on my side. What happened is in the chat.")

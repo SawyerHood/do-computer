@@ -1709,3 +1709,34 @@ test("the Doods are in the order they were put in elsewhere, and are moved on th
   await agent(page, "Pip").click()
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
 })
+
+test("with the bus on, shows what was sent and what a chat draws anywhere, and no row of working", async ({
+  page,
+}) => {
+  await openChat(page)
+  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
+    agents: { id: string; name: string }[]
+  }
+  const pip = agents.find((one) => one.name === "Pip")!.id
+  // What it said before the switch is drawn as it was.
+  const returned = await words(page, /The tool returned/).count()
+  await page.request.patch(`/api/agents/${pip}`, { data: { bus: true } })
+  await send(page, '/tool send {"text":"Bus reply from Pip.","done":true}')
+  await expect(words(page, "Bus reply from Pip.")).toBeVisible()
+  await send(
+    page,
+    [
+      '/tool subagent {"action":"start","title":"Phone helper","task":"Say what you see."}',
+      '/tool send {"text":"A helper is on it."}',
+    ].join("\n"),
+  )
+  await expect(words(page, "A helper is on it.")).toBeVisible()
+  // The report is drawn in its place, as in any chat; the Dood's own words are not.
+  await expect(words(page, /reported back/).last()).toBeVisible({ timeout: 15_000 })
+  await expect(words(page, /Work(ed|ing) on it/)).toHaveCount(0)
+  await expect(words(page, /The tool returned/)).toHaveCount(returned)
+  // The turn the report started ends without a word, and leaves no line saying it is at work.
+  await expect(words(page, /^Thinking/)).toHaveCount(0)
+  await page.screenshot({ path: "test-results/phone-bus.png" })
+  await page.request.patch(`/api/agents/${pip}`, { data: { bus: false } })
+})

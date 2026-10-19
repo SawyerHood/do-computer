@@ -11,7 +11,6 @@ import {
   type LibraryFile,
   type MessagePart,
   type QueuedInput,
-  type TextPart,
   type ToolPart,
 } from "@do-computer/protocol"
 import type {
@@ -33,6 +32,7 @@ import type { Carried } from "./branch.ts"
 import {
   APPROVAL_ENTRY,
   ASKED_ENTRY,
+  asksToEnd,
   AUTOMATION_ENTRY,
   BUS_ENTRY,
   BUS_EXTENSIONS,
@@ -150,7 +150,7 @@ function addSaid(parts: MessagePart[], text: string): void {
 
 /**
  * The parts of an answer. In a chat with the bus on, a progress call is kept as the call it is,
- * for the bus to show as something said (`foldBus`).
+ * for the bus to show as something said (`busMessages`).
  */
 function assistantParts(message: AssistantMessage, bus = false): MessagePart[] {
   const parts: MessagePart[] = []
@@ -214,15 +214,30 @@ export const BRANCH_ENTRY = "dc.branch"
 export function branchPoint(entries: readonly EntryRecord[]): EntryRecord["id"] | undefined {
   const spoken = (entry: EntryRecord) =>
     entry.kind === "pi.user" || entry.kind === "pi.assistant" || entry.kind === "pi.tool-result"
-  const answered = entries.findLastIndex((entry) => {
+  // A finished answer, or a round of sends marked done whose every result is in and worked:
+  // the run ended with that round (`asksToEnd`).
+  let answered = -1
+  let ending: Set<string> | undefined
+  for (const [index, entry] of entries.entries()) {
     const message = entry.model?.[0]
-    return (
-      entry.kind === "pi.assistant" &&
-      message?.role === "assistant" &&
-      message.stopReason === "stop" &&
-      !message.content.some((block) => block.type === "toolCall")
-    )
-  })
+    if (entry.kind === "pi.assistant" && message?.role === "assistant") {
+      ending = undefined
+      if (message.stopReason === "stop" && !message.content.some((b) => b.type === "toolCall")) {
+        answered = index
+      } else if (message.stopReason === "toolUse" && asksToEnd(message)) {
+        ending = new Set(message.content.flatMap((b) => (b.type === "toolCall" ? [b.id] : [])))
+      }
+    } else if (entry.kind === "pi.tool-result" && message?.role === "toolResult" && ending) {
+      if (message.isError) ending = undefined
+      else {
+        ending.delete(message.toolCallId)
+        if (ending.size === 0) {
+          answered = index
+          ending = undefined
+        }
+      }
+    }
+  }
   if (answered === -1) return undefined
   // Only notes written into the chat follow the answer: the agent is at rest.
   const resting = !entries.slice(answered + 1).some(spoken)
@@ -610,7 +625,7 @@ function entryMessage(entry: EntryRecord, bus = false): ChatMessage | undefined 
 /**
  * Transcript entries, oldest first, as messages, with each tool call joined to its result. `bus`
  * is whether the bus was on before the first of them; the marks among them switch it. The
- * messages made while it was on are in `inBus`, for `foldBus`.
+ * messages made while it was on are in `inBus`, for `busMessages`.
  */
 function projectEntries(entries: readonly EntryRecord[], bus = false) {
   const messages: ChatMessage[] = []
@@ -682,72 +697,63 @@ function sentMessage(part: ToolPart, from: ChatMessage): ChatMessage {
 }
 
 /**
- * The messages of a chat with the bus on, as people are shown them: what they said, and each
- * thing the agent said to them, with a call to `send` (or to `progress`, while it works) or by
- * putting a file or a page in front of them. Everything else between two of those, its own text
- * and steps and the events it was told of, is one row of its working, which a client folds.
- * Messages from before the bus was on are as they were.
+ * The messages of a chat with the bus on, as people are shown them: what they said, each thing
+ * the agent said to them (with a call to `send`, or to `progress` while it works, or by putting
+ * a file or a page in front of them), and everything else a chat draws as it draws it in any
+ * chat: the events it was told of, a sub-agent it started, a screen it used, a call. What is left
+ * out is its own words: the text it writes outside `send` is kept, as thinking is, in a
+ * `thinking` part marked `written`, which no client draws, so that what it is doing can still
+ * be told (`chatActivity`). Its ordinary steps stay in their message, which a client does not
+ * draw either. Messages from before the bus was on are as they were.
  *
- * Each row of working is named for what it follows, so that it keeps its id as it grows and
- * once what was live in it is stored.
+ * An answer is cut where it says something: what comes before keeps its id, and what comes
+ * after each thing said is named for that, so that ids stay put as it grows.
  */
-function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessage>): ChatMessage[] {
-  const folded: ChatMessage[] = []
-  let work: ChatMessage | undefined
-  let before: string | undefined
-  const show = (message: ChatMessage) => {
-    work = undefined
-    before = message.id
-    folded.push(message)
-  }
-  const keep = (parts: MessagePart[], from: ChatMessage) => {
-    if (parts.length === 0) return
-    if (work === undefined) {
-      const live = from.id.startsWith("live:")
-      work = {
-        id:
-          before !== undefined
-            ? `work:${before}`
-            : `${live ? "live:" : ""}work:${from.id.replace(/^live:/, "")}`,
-        role: "assistant",
-        parts: [],
-        status: "done",
-        work: true,
-        ...(from.createdAt === undefined ? {} : { createdAt: from.createdAt }),
-      }
-      folded.push(work)
-    }
-    work.parts.push(...parts)
-    if (from.status === "streaming") work.status = "streaming"
-  }
+function busMessages(
+  messages: readonly ChatMessage[],
+  inBus: ReadonlySet<ChatMessage>,
+): ChatMessage[] {
+  const out: ChatMessage[] = []
   for (const message of messages) {
-    if (!inBus.has(message) || message.role === "user") {
-      show(message)
+    if (!inBus.has(message) || message.role !== "assistant") {
+      out.push(message)
       continue
     }
-    if (message.role === "notice") {
-      keep(message.parts, message)
-      continue
+    let rest: MessagePart[] = []
+    let id = message.id
+    const piece = (parts: MessagePart[], status: ChatMessage["status"]): ChatMessage => {
+      const { error: _error, ...others } = message
+      return status === "error"
+        ? { ...message, id, parts, status }
+        : { ...others, id, parts, status }
     }
-    let working: MessagePart[] = []
     const said = (shown: ChatMessage) => {
-      keep(working, message)
-      working = []
-      show(shown)
+      if (rest.length > 0)
+        out.push(piece(rest, message.status === "streaming" ? "streaming" : "done"))
+      rest = []
+      out.push(shown)
+      id = `after:${shown.id}`
+    }
+    const stamp = {
+      ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
+      ...(message.model === undefined ? {} : { model: message.model }),
     }
     for (const part of message.parts) {
-      if (part.type === "tool" && part.name === SEND_TOOL && part.status === "error") {
+      if (part.type === "text") {
+        // Its own words, which nobody is shown.
+        rest.push({ type: "thinking", text: part.text, written: true })
+      } else if (part.type === "tool" && part.name === SEND_TOOL && part.status === "error") {
         // Its words may have been on screen as they were written. They stay, marked as not
         // sent, and say why: they do not just go. One with no words had none on screen, and
         // is a step like any other.
         const failed = sentMessage(part, message)
         if (failed.parts.length > 0) said({ ...failed, notSent: notSentWhy(part.output) })
-        else working.push(part)
+        else rest.push(part)
       } else if (part.type === "tool" && part.name === SEND_TOOL) {
         const sent = sentMessage(part, message)
         // Nothing of it to show yet, while its words are on their way.
         if (sent.parts.length > 0) said(sent)
-        else working.push(part)
+        else rest.push(part)
       } else if (part.type === "tool" && part.name === PROGRESS_TOOL) {
         const words = (part.args as { message?: unknown } | null)?.message
         const text = typeof words === "string" ? words : ""
@@ -757,8 +763,7 @@ function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessag
           role: "assistant",
           parts: [{ type: "text", text }],
           status: message.status === "streaming" ? "streaming" : "done",
-          ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
-          ...(message.model === undefined ? {} : { model: message.model }),
+          ...stamp,
         })
       } else if (isSentFile(part) || isVisual(part)) {
         said({
@@ -766,37 +771,19 @@ function foldBus(messages: readonly ChatMessage[], inBus: ReadonlySet<ChatMessag
           role: "assistant",
           parts: [part],
           status: "done",
-          ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
-          ...(message.model === undefined ? {} : { model: message.model }),
+          ...stamp,
         })
       } else {
-        working.push(part)
+        rest.push(part)
       }
     }
-    keep(working, message)
-    // A reply that failed or was stopped says so, as it always has.
-    if (message.status === "error" || message.status === "aborted") {
-      show({ ...message, parts: [] })
-    }
+    // The last piece has the answer's status: a reply that failed or was stopped says so, as it
+    // always has, even with nothing else left in it.
+    const ended = message.status === "error" || message.status === "aborted"
+    if (rest.length > 0 || ended || id === message.id) out.push(piece(rest, message.status))
   }
-  // What the agent writes after the last thing it sent in a turn, with nothing done or told
-  // besides ("Done."), is not worth a row of working. Something longer may be an answer it
-  // forgot to send, and after a send that failed it may say why: those stay in a row.
-  return folded.filter((message, index) => {
-    if (message.work !== true || !message.parts.every((part) => part.type === "text")) return true
-    const words = message.parts.reduce((sum, part) => sum + (part as TextPart).text.length, 0)
-    const before = folded[index - 1]
-    const after = folded[index + 1]
-    const sent =
-      before !== undefined &&
-      before.notSent === undefined &&
-      (before.id.startsWith("send:") || before.id.startsWith("shown:"))
-    return !(sent && words <= SHORT_CLOSE_CHARS && (after === undefined || after.role === "user"))
-  })
+  return out
 }
-
-/** The longest the agent's own words after its last send can be and still be left out. */
-const SHORT_CLOSE_CHARS = 200
 
 /** Why a send was not sent, from what it answered. */
 function notSentWhy(output: string | undefined): string {
@@ -819,7 +806,7 @@ export function projectPast(entries: readonly EntryRecord[], bus = false): ChatM
     part.status = "error"
     part.output ??= "Interrupted before it finished."
   }
-  return inBus.size === 0 ? messages : foldBus(messages, inBus)
+  return inBus.size === 0 ? messages : busMessages(messages, inBus)
 }
 
 /** The words of an entry that a person wrote or read, for searching. Undefined for the rest. */
@@ -992,5 +979,10 @@ export function projectChat(view: ConversationView): ChatState {
   for (const entry of Object.values(usageDoc?.models ?? {})) addUsage(usage, entry as Usage)
   for (const entry of Object.values(usageDoc?.tools ?? {})) addUsage(usage, entry as Usage)
 
-  return { messages: inBus.size === 0 ? messages : foldBus(messages, inBus), busy, queued, usage }
+  return {
+    messages: inBus.size === 0 ? messages : busMessages(messages, inBus),
+    busy,
+    queued,
+    usage,
+  }
 }

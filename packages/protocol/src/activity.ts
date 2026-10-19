@@ -209,11 +209,47 @@ export function toolSummary(part: Pick<ToolPart, "name" | "args">): string {
 }
 
 /**
+ * Whether a message is something the agent sent with `send` that went, in a chat where it speaks
+ * only through it.
+ */
+export function isSent(message: ChatMessage): boolean {
+  return (
+    message.role === "assistant" && message.id.startsWith("send:") && message.notSent === undefined
+  )
+}
+
+/** How many of its own words the agent can write after a send and still be only finishing up. */
+const QUIET_WORDS = 200
+
+/**
+ * Whether, in a chat where the agent speaks only through `send`, nothing has happened since
+ * the last thing it sent that is worth saying it is at work: no step, nothing shown, no new
+ * input, only its thoughts and a few words of its own (a closing "Done."). The person has its
+ * message; a "Thinking" line under it would say it is still on their question.
+ */
+export function quietSinceSend(messages: readonly ChatMessage[]): boolean {
+  let words = 0
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]!
+    if (isSent(message)) return message.status !== "streaming" && words <= QUIET_WORDS
+    if (message.role !== "assistant" || message.status === "error" || message.status === "aborted")
+      return false
+    for (const part of message.parts) {
+      if (part.type !== "thinking") return false
+      if (part.written === true) words += part.text.length
+    }
+  }
+  return false
+}
+
+/**
  * What the agent is doing right now, as one line, or null when there is nothing to say: it is
  * idle, or its answer is being written on screen, which says so itself.
  */
 export function chatActivity(state: ChatState): string | null {
   if (!state.busy) return null
+  // The person has what it sent, and it is only finishing up.
+  if (quietSinceSend(state.messages)) return null
   const last = state.messages.at(-1)
   if (last === undefined || last.role !== "assistant") return "Thinking"
   const active = last.parts.findLast(
@@ -588,37 +624,4 @@ export function isVisibleMessage(message: ChatMessage): boolean {
     message.status === "aborted" ||
     message.parts.some(isShownPart)
   )
-}
-
-/**
- * What a row of the agent's own working (`ChatMessage.work`) says of itself, folded: whether it
- * is still at it, and how many steps and events are in it. `last` is whether it is the last row
- * shown, `busy` whether the agent is at work in the chat. The same on every client.
- */
-export function workSummary(
-  message: ChatMessage,
-  last: boolean,
-  busy: boolean,
-): { working: boolean; title: string; counts: string[] } {
-  const working = message.status === "streaming" || (busy && last)
-  const steps = message.parts.filter((part) => part.type === "tool").length
-  const events = message.parts.filter((part) => part.type === "notice").length
-  const count = (n: number, one: string) => (n === 1 ? `1 ${one}` : `${n} ${one}s`)
-  return {
-    working,
-    title: working ? "Working on it" : "Worked on it",
-    counts: [
-      ...(steps === 0 ? [] : [count(steps, "step")]),
-      ...(events === 0 ? [] : [count(events, "event")]),
-    ],
-  }
-}
-
-/**
- * Whether a step in a row of working is drawn as it is in a chat (a screen it used, a page)
- * and not as a line saying what it did. A sub-agent it started is a line: what it reported is
- * the event beside it, which says it better.
- */
-export function drawnInWork(part: MessagePart): boolean {
-  return part.type === "tool" && isShownPart(part) && !isSubagentStart(part)
 }

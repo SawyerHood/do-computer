@@ -1,12 +1,14 @@
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type {
-  ChatMessage,
-  ChatState,
-  ChatSummary,
-  SecretRequest,
-  SiteSummary,
+import {
+  type ChatMessage,
+  type ChatState,
+  type ChatSummary,
+  chatActivity,
+  isVisibleMessage,
+  type SecretRequest,
+  type SiteSummary,
 } from "@do-computer/protocol"
 import { fileBlobs, NodeActorNamespace } from "@do-computer/runtime/node"
 import type { AssistantMessage } from "@earendil-works/pi-ai"
@@ -27,7 +29,7 @@ import {
   createAgentActor,
   encodeCaller,
 } from "../src/index.ts"
-import { projectChat } from "../src/project.ts"
+import { branchPoint, projectChat } from "../src/project.ts"
 
 // --- What is drawn, from entries made up here.
 
@@ -74,23 +76,33 @@ const result = (id: string, isError = false, details?: unknown) =>
 const view = (entries: EntryRecord[], docs: Record<string, unknown> = {}) =>
   ({ conversation: {}, entries, docs }) as unknown as ConversationView
 
+/** The messages a transcript draws: what a client shows, and a send that failed. */
+const drawn = (state: ChatState) =>
+  state.messages.filter((message) => message.notSent !== undefined || isVisibleMessage(message))
 /** What people are shown as said, in order: theirs and the Dood's, without its working. */
 const shown = (state: ChatState) =>
-  state.messages
-    .filter((message) => message.work !== true && message.role !== "notice")
+  drawn(state)
+    .filter((message) => message.role !== "notice")
     .map(
       (message) =>
         `${message.role}: ${message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("")}`,
     )
-const working = (state: ChatState) => state.messages.filter((message) => message.work === true)
+/** Its own words, which are kept as thinking that no client draws. */
+const written = (state: ChatState) =>
+  state.messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      part.type === "thinking" && part.written === true ? [part.text] : [],
+    ),
+  )
 
 describe("what the bus shows", () => {
-  it("shows a person's messages and what is sent, and folds the rest into one row", () => {
+  it("shows a person's messages and what is sent, and none of its own words or steps", () => {
     const state = projectChat(
       view([
         mark(true),
         person("what's the weather?"),
         said([
+          { type: "thinking", thinking: "They want the weather." } as never,
           { type: "text", text: "Let me look." },
           call("c1", "web_search", { query: "weather" }),
         ]),
@@ -104,34 +116,82 @@ describe("what the bus shows", () => {
       ]),
     )
     expect(shown(state)).toEqual(["user: what's the weather?", "assistant: Sunny all day."])
-    const rows = working(state)
-    // What it wrote after its last send, with nothing done besides, is no row at all.
-    expect(rows).toHaveLength(1)
-    expect(rows[0]!.parts.map((part) => part.type)).toEqual(["text", "tool", "text"])
-    // Named for what it follows, so that a row keeps its id as it grows.
-    expect(rows[0]!.id).toBe(`work:${state.messages[0]!.id}`)
+    // No row of working: nothing is drawn but the two of them.
+    expect(drawn(state)).toHaveLength(2)
+    // Its own words are kept, as thinking, which no client draws.
+    expect(written(state)).toEqual(["Let me look.", "Sunny. Telling them.", "Done."])
+    expect(JSON.stringify(drawn(state))).not.toContain("They want the weather.")
   })
 
-  it("keeps a row after a send where it did something, or where more followed", () => {
-    const after = (last: AssistantMessage["content"]) =>
-      working(
-        projectChat(
-          view([
-            mark(true),
-            person("hi"),
-            said([call("c2", "send", { text: "Hi." })], "toolUse"),
-            result("c2", false, { files: [] }),
-            said(last),
-          ]),
+  it("draws a simple reply as the reply alone: thinking before a send is no row", () => {
+    const state = projectChat(
+      view([
+        mark(true),
+        person("wow"),
+        said(
+          [
+            { type: "thinking", thinking: "They seem pleased. Ask what about." } as never,
+            call("c1", "send", { text: "😄 what's the wow about?", done: true }),
+          ],
+          "toolUse",
         ),
-      )
-    expect(after([{ type: "thinking", thinking: "Was that enough?" } as never])).toHaveLength(1)
-    expect(after([{ type: "text", text: "Done." }])).toHaveLength(0)
-    // Words enough to be an answer it forgot to send are kept where they can be found.
-    expect(after([{ type: "text", text: "The answer is ".padEnd(240, "x") }])).toHaveLength(1)
-    expect(after([{ type: "text", text: "And then" }, call("c3", "web_search", {})])).toMatchObject(
-      [{ id: "work:send:c2" }],
+        result("c1", false, { files: [] }),
+      ]),
     )
+    expect(drawn(state).map((message) => message.id)).toEqual([state.messages[0]!.id, "send:c1"])
+  })
+
+  it("draws what a chat draws anywhere, in order: a sub-agent it started and what it reported", () => {
+    const state = projectChat(
+      view([
+        mark(true),
+        person("look into it"),
+        said(
+          [
+            { type: "text", text: "A helper should do this." },
+            call("c1", "subagent", { action: "start", title: "Look", task: "Look." }),
+            call("c2", "send", { text: "A helper is on it." }),
+            call("c3", "bash", { command: "ls" }),
+          ],
+          "toolUse",
+        ),
+        result("c1", false, { chatId: "4" }),
+        result("c2", false, { files: [] }),
+        result("c3"),
+        entry("dc.subagent", {
+          model: [
+            {
+              role: "user",
+              content: eventText("subagent-report", { id: "4" }, "Found it."),
+              timestamp: 4,
+            },
+          ],
+          data: { chatId: "4", title: "Look", outcome: "reported", text: "Found it." },
+        }),
+        said([call("c4", "send", { text: "It found it.", done: true })], "toolUse"),
+        result("c4", false, { files: [] }),
+      ]),
+    )
+    const drawnParts = drawn(state).map((message) =>
+      message.parts
+        .map((part) =>
+          part.type === "tool" ? part.name : part.type === "notice" ? part.kind : part.type,
+        )
+        .join("+"),
+    )
+    expect(drawnParts).toEqual(["text", "thinking+subagent", "text", "subagent", "text"])
+    expect(shown(state)).toEqual([
+      "user: look into it",
+      "assistant: ",
+      "assistant: A helper is on it.",
+      "assistant: It found it.",
+    ])
+    // The step after the send is in a message of its own, named for the send, and not drawn.
+    const after = state.messages.find((message) => message.id === "after:send:c2")!
+    expect(after.parts.map((part) => (part.type === "tool" ? part.name : part.type))).toEqual([
+      "bash",
+    ])
+    expect(isVisibleMessage(after)).toBe(false)
   })
 
   it("draws a chat from before the bus was switched on as it always was", () => {
@@ -144,7 +204,7 @@ describe("what the bus shows", () => {
       ]),
     )
     expect(shown(state)).toEqual(["user: hi", "assistant: Hello there.", "user: and now?"])
-    expect(working(state)).toHaveLength(0)
+    expect(written(state)).toEqual([])
   })
 
   it("draws what comes after it was switched off as it always was", () => {
@@ -237,7 +297,7 @@ describe("what the bus shows", () => {
     })
   })
 
-  it("keeps what it wrote after a send that failed, and leaves out a failed send with no words", () => {
+  it("keeps what it wrote after a send that failed to itself, and leaves out a failed send with no words", () => {
     const failed = (args: JsonObject) =>
       projectChat(
         view([
@@ -249,11 +309,11 @@ describe("what the bus shows", () => {
         ]),
       )
     const worded = failed({ text: "Here.", files: ["gone.md"] })
-    expect(worded.messages.at(-2)!.notSent).toBeDefined()
-    expect(texts(working(worded))).toEqual(["The file was not there."])
+    expect(drawn(worded).at(-1)!.notSent).toBeDefined()
+    expect(written(worded)).toEqual(["The file was not there."])
     const empty = failed({ text: "", files: ["gone.md"] })
     expect(empty.messages.some((message) => message.notSent !== undefined)).toBe(false)
-    expect(working(empty)[0]!.parts.map((part) => part.type)).toEqual(["tool", "text"])
+    expect(shown(empty)).toEqual(["user: the report?"])
   })
 
   it("does not show an event, nor the reminder", () => {
@@ -280,19 +340,18 @@ describe("what the bus shows", () => {
     )
     expect(shown(state)).toEqual(["user: hi", "assistant: With a file."])
     expect(state.messages[1]!.notSent).toBeDefined()
-    // The report is in the row of working, as a notice.
-    expect(
-      working(state)
-        .at(-1)!
-        .parts.some((part) => part.type === "notice"),
-    ).toBe(true)
+    // The report is drawn as it is anywhere, a notice of its own, and its words are not.
+    expect(drawn(state).at(-1)).toMatchObject({ role: "notice", parts: [{ kind: "subagent" }] })
+    expect(JSON.stringify(drawn(state))).not.toContain("subagent-report")
+    expect(JSON.stringify(drawn(state))).not.toContain("Nothing for them.")
   })
 
   it("shows a reply that failed, as it always has", () => {
     const state = projectChat(
       view([mark(true), person("hi"), said([{ type: "text", text: "half" }], "error")]),
     )
-    expect(state.messages.at(-1)).toMatchObject({ role: "assistant", status: "error", parts: [] })
+    expect(state.messages.at(-1)).toMatchObject({ role: "assistant", status: "error" })
+    expect(shown(state)).toEqual(["user: hi", "assistant: "])
   })
 
   it("does not list an event among what waits for the agent", () => {
@@ -313,6 +372,116 @@ describe("what the bus shows", () => {
       }),
     )
     expect(state.queued).toEqual([{ id: "4", mode: "steer", text: '<event kind="x"/> hi' }])
+  })
+})
+
+describe("what it is said to be doing, with the bus on", () => {
+  const busy = (entries: EntryRecord[], live: Record<string, unknown> = {}) =>
+    chatActivity(projectChat(view(entries, { "pi.live": { run: {}, ...live } })))
+  const sent = () => [
+    mark(true),
+    person("wow"),
+    said([call("s1", "send", { text: "What about?" })], "toolUse"),
+    result("s1", false, { files: [] }),
+  ]
+
+  it("is thinking until it has sent something", () => {
+    expect(busy([mark(true), person("wow")])).toBe("Thinking")
+    // Its own words being written are not on screen, so they do not say it.
+    expect(
+      busy([mark(true), person("wow")], {
+        generation: { message: answer([{ type: "text", text: "Hm" }], "stop") },
+      }),
+    ).toBe("Thinking")
+  })
+
+  it("says nothing once it has sent, while it only finishes up", () => {
+    expect(busy(sent())).toBeNull()
+    expect(
+      busy(sent(), {
+        generation: {
+          message: answer(
+            [
+              { type: "thinking", thinking: "Sent. ".repeat(80) } as never,
+              { type: "text", text: "Done." },
+            ],
+            "stop",
+          ),
+        },
+      }),
+    ).toBeNull()
+  })
+
+  it("is at work again once it takes a step, writes more, or is given something new", () => {
+    expect(
+      busy([...sent(), said([call("b1", "bash", { command: "ls" })], "toolUse")], {
+        tools: [{ callId: "b1", name: "bash", status: "running" }],
+      }),
+    ).toMatch(/^Running/)
+    // A send beside a step: the step goes on after the message is out.
+    expect(
+      busy(
+        [
+          mark(true),
+          person("wow"),
+          said(
+            [call("s1", "send", { text: "On it." }), call("b1", "bash", { command: "ls" })],
+            "toolUse",
+          ),
+          result("s1", false, { files: [] }),
+        ],
+        { tools: [{ callId: "b1", name: "bash", status: "running" }] },
+      ),
+    ).toMatch(/^Running/)
+    expect(busy([...sent(), said([{ type: "text", text: "x".repeat(300) }], "stop")])).toBe(
+      "Thinking",
+    )
+    expect(busy([...sent(), person("and?")])).toBe("Thinking")
+    expect(
+      busy([
+        ...sent(),
+        entry("dc.subagent", {
+          model: [{ role: "user", content: eventText("subagent-report", {}, "x"), timestamp: 4 }],
+          data: { chatId: "4", title: "Look", outcome: "reported", text: "x" },
+        }),
+      ]),
+    ).toBe("Thinking")
+  })
+
+  it("is quiet once the run has ended", () => {
+    expect(chatActivity(projectChat(view(sent())))).toBeNull()
+  })
+})
+
+describe("a run a send marked done ended", () => {
+  it("is where a side chat can branch, as an answer is", () => {
+    const ended = result("d1", false, { files: [] })
+    const entries = [
+      mark(true),
+      person("hi"),
+      said([call("d1", "send", { text: "Hi.", done: true })], "toolUse"),
+      ended,
+    ]
+    expect(branchPoint(entries)).toBe(ended.id)
+    // One that failed did not end it: the run went on, and nothing has finished yet.
+    expect(
+      branchPoint([
+        mark(true),
+        person("hi"),
+        said([call("d2", "send", { text: "Hi.", done: true })], "toolUse"),
+        result("d2", true),
+      ]),
+    ).toBeUndefined()
+    // Nor does one beside other work.
+    expect(
+      branchPoint([
+        mark(true),
+        person("hi"),
+        said([call("d3", "send", { text: "Hi.", done: true }), call("d4", "bash", {})], "toolUse"),
+        result("d3", false, { files: [] }),
+        result("d4"),
+      ]),
+    ).toBeUndefined()
   })
 })
 
@@ -634,6 +803,9 @@ const texts = (messages: ChatMessage[]) =>
   messages.map((message) =>
     message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(""),
   )
+/** The words a transcript draws, in order: people's and what was sent. */
+const spoken = (state: ChatState) =>
+  texts(drawn(state).filter((message) => message.role !== "notice")).filter((text) => text !== "")
 
 describe("the main chat as a bus", () => {
   it("is off unless switched on: no send, and the answer is shown", async () => {
@@ -770,18 +942,113 @@ describe("the main chat as a bus", () => {
     )
     expect(turns[0]!.system).toContain('"name":"send"')
     expect(turns[0]!.system).toContain("message bus")
-    const spoken = state.messages.filter((message) => message.work !== true)
-    expect(texts(spoken)).toEqual(["hi", "Hello, Sawyer."])
-    const folded = state.messages.filter((message) => message.work === true)
-    expect(texts(folded).join(" ")).toContain("Thinking out loud.")
-    // What it wrote after it sent, with nothing done besides, is not even a row.
-    expect(JSON.stringify(state)).not.toContain("All done, nothing more.")
+    expect(spoken(state)).toEqual(["hi", "Hello, Sawyer."])
+    // Its own words are kept to itself, before the send and after it.
+    expect(written(state)).toEqual(["Thinking out loud.", "All done, nothing more."])
+    expect(JSON.stringify(drawn(state))).not.toContain("Thinking out loud.")
     // `send` takes files, so `send_file` is no longer offered.
     expect(turns[0]!.system).not.toContain('"name":"send_file"')
     // Told of what was sent, and not of how the run ended.
     expect(world.notified.map((one) => one.text)).toEqual(["Hello, Sawyer."])
     const { agent } = await request<{ agent: { latest?: { text: string } } }>(world, "/")
     expect(agent.latest?.text).toBe("Hello, Sawyer.")
+  })
+
+  it("ends its turn with a send marked done, with no request made just to stop", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    const turns = script(world, (turn) =>
+      afterTool(turn)
+        ? fauxAssistantMessage("A request that must not be made.")
+        : fauxAssistantMessage(
+            [fauxText("Private."), fauxToolCall("send", { text: "Hi!", done: true })],
+            { stopReason: "toolUse" },
+          ),
+    )
+    await say(world, main.id, "hi")
+    const state = await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && spoken(state).includes("Hi!"),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(turns).toHaveLength(1)
+    expect(turns[0]!.system).toContain("done: true")
+    expect(spoken(state)).toEqual(["hi", "Hi!"])
+    expect(world.notified.map((one) => one.text)).toEqual(["Hi!"])
+    expect(state.busy).toBe(false)
+    // The next message is answered as usual, after the round that ended it.
+    await say(world, main.id, "again")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && turns.length >= 2,
+    )
+    expect(turns[1]!.last).toContain("again")
+  })
+
+  it("goes on after a send beside other work, even marked done", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    const turns = script(world, (turn) =>
+      afterTool(turn)
+        ? fauxAssistantMessage("Finished.")
+        : fauxAssistantMessage(
+            [
+              fauxToolCall("send", { text: "On it.", done: true }),
+              fauxToolCall("progress", { message: "Looking." }),
+            ],
+            { stopReason: "toolUse" },
+          ),
+    )
+    await say(world, main.id, "go")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && turns.length >= 2,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(turns).toHaveLength(2)
+  })
+
+  it("takes up events that came while it worked, after a send marked done ends its turn", async () => {
+    const world = open(temporary())
+    const main = await setup(world, true)
+    let reports = 0
+    const turns = script(world, async (turn) => {
+      if (turn.sub) {
+        reports++
+        return fauxAssistantMessage("A is 1.")
+      }
+      if (turn.last.includes("subagent-report")) return fauxAssistantMessage("Nothing to add.")
+      if (afterTool(turn) && turn.last.includes("Started sub-agent")) {
+        // Busy until the report has come, so that it waits for the run to end.
+        await until(
+          async () => reports,
+          (count) => count >= 1,
+        )
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return use("send", { text: "A helper is on it.", done: true })
+      }
+      if (afterTool(turn)) return fauxAssistantMessage("A request that must not be made.")
+      return use("subagent", { action: "start", title: "A", task: "Find A." })
+    })
+    await say(world, main.id, "find A")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && turns.some((turn) => turn.last.includes("subagent-report")),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const main_ = turns.filter((turn) => !turn.sub)
+    // The send ended the run; the report then set one going of its own, which was not reminded.
+    expect(main_.map((turn) => turn.last.includes("subagent-report"))).toEqual([false, false, true])
+    expect(main_.some((turn) => turn.last.includes("unsent"))).toBe(false)
+    const state = await chat(world, main.id)
+    expect(spoken(state)).toEqual(["find A", "A helper is on it."])
+    // The sub-agent it started and what it reported are drawn, each as its own item.
+    const notices = drawn(state).flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "notice" ? [part.kind] : part.type === "tool" ? [part.name] : [],
+      ),
+    )
+    expect(notices).toEqual(["subagent", "subagent"])
   })
 
   it("reminds a run that sent nothing once, then lets it stay quiet", async () => {
@@ -797,7 +1064,7 @@ describe("the main chat as a bus", () => {
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(turns).toHaveLength(2)
     expect(turns[1]!.last).toContain('kind=\\"unsent\\"')
-    expect(texts(state.messages.filter((message) => message.work !== true))).toEqual(["hi"])
+    expect(spoken(state)).toEqual(["hi"])
     expect(world.notified).toEqual([])
   })
 
@@ -844,10 +1111,7 @@ describe("the main chat as a bus", () => {
     // The run the reports set going stayed quiet, and was not reminded.
     expect(main_.some((turn) => turn.last.includes("unsent"))).toBe(false)
     const state = await chat(world, main.id)
-    expect(texts(state.messages.filter((message) => message.work !== true))).toEqual([
-      "find A and B",
-      "Two helpers are on it.",
-    ])
+    expect(spoken(state)).toEqual(["find A and B", "Two helpers are on it."])
     expect(world.notified.map((one) => one.text)).toEqual(["Two helpers are on it."])
   })
 
@@ -882,14 +1146,9 @@ describe("the main chat as a bus", () => {
       'decision=\\"approved\\"',
     )
     expect(turns.find((turn) => turn.last.includes("command-ended"))!.last).toContain("built")
-    expect(texts(state.messages.filter((message) => message.work !== true))).toEqual([
-      "build it",
-      "May I build it?",
-      "Building.",
-    ])
-    // Neither event is shown as words, and the answer is in the working.
-    const folded = state.messages.filter((message) => message.work === true)
-    const kinds = folded.flatMap((message) =>
+    expect(spoken(state)).toEqual(["build it", "May I build it?", "Building."])
+    // Neither event is shown as words: each is drawn as the notice it is anywhere.
+    const kinds = drawn(state).flatMap((message) =>
       message.parts.flatMap((part) => (part.type === "notice" ? [part.kind] : [])),
     )
     expect(kinds).toEqual(expect.arrayContaining(["approval", "command"]))
@@ -913,10 +1172,7 @@ describe("the main chat as a bus", () => {
     const again = open(directory)
     const after = await chat(again, main.id)
     expect(after.messages).toEqual(before.messages)
-    expect(texts(after.messages.filter((message) => message.work !== true))).toEqual([
-      "hi",
-      "Once.",
-    ])
+    expect(spoken(after)).toEqual(["hi", "Once."])
   })
 
   it("switched off again, answers as it did before", async () => {

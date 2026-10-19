@@ -7,7 +7,15 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 export type ToolStatus = "pending" | "running" | "done" | "error"
 
 export type TextPart = { type: "text"; text: string }
-export type ThinkingPart = { type: "thinking"; text: string }
+export type ThinkingPart = {
+  type: "thinking"
+  text: string
+  /**
+   * Words the agent wrote, and not its reasoning, in a chat where it reaches people only through
+   * `send`: its own working, which nobody is shown, kept as thinking is.
+   */
+  written?: true
+}
 export type ToolPart = {
   type: "tool"
   toolCallId: string
@@ -117,13 +125,6 @@ export type ChatMessage = {
    * call, and the id the device sent it under, by which the device finds the answer to it.
    */
   spoken?: { call: string; request: string }
-  /**
-   * An assistant message that is the agent's own working and not something it said: in a chat
-   * where it reaches people only through `send`, everything it did between two things that were
-   * said (its own text, its steps, the events it was told of) is folded into one such row, which
-   * can be opened. A client shows it as one line, and never as words to the person.
-   */
-  work?: true
   /**
    * A call to `send` that failed: why. Its words are still shown, as they may have been while
    * they were written, marked as not sent.

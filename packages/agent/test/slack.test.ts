@@ -870,13 +870,41 @@ describe("a thread in Slack with the bus on", () => {
     // Its own words are not posted, nor drawn as said in the app.
     const state = await chatState(world, chatId)
     const said = state.messages
-      .filter((one) => one.work !== true && one.role === "assistant")
+      .filter((one) => one.role === "assistant" && one.parts.some((p) => p.type === "text"))
       .map((one) => one.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(""))
     expect(said).toEqual(["Looking now.", "Three things are open."])
     // What it sent is its latest line, from the channel, and nobody in the app is told.
     const { agent } = await call<{ agent: AgentSummary }>(world, "/")
     expect(agent.latest).toMatchObject({ kind: "slack", text: "Three things are open." })
     expect(world.reports).toEqual([])
+    expect(world.errors).toEqual([])
+  })
+
+  it("ends its turn with a send marked done, and posts nothing more", async () => {
+    const world = open()
+    await onTheBus(world)
+    let requests = 0
+    world.faux.setResponses([
+      () => {
+        requests++
+        return fauxAssistantMessage([fauxToolCall("send", { text: "All set.", done: true })], {
+          stopReason: "toolUse",
+        })
+      },
+      () => {
+        requests++
+        return fauxAssistantMessage("A request that must not be made.")
+      },
+    ])
+    const message = mention("set it up")
+    await say(world, message)
+    await until(
+      () => threads(world),
+      (found) => found[0]?.status === "done",
+    )
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(requests).toBe(1)
+    expect(world.posts).toEqual([{ channel: "C1", thread: message.ts, text: "All set." }])
     expect(world.errors).toEqual([])
   })
 

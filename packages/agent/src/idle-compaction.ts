@@ -27,6 +27,7 @@ import {
   ProviderDoc,
   UsageDoc,
 } from "@earendil-works/pi-durable"
+import { asksToEnd } from "./bus.ts"
 import { ChatsDoc } from "./docs.ts"
 import { type ImageLimits, shapeRequest } from "./limits.ts"
 
@@ -487,7 +488,9 @@ export class IdleCompaction {
     await this.#noteNext(chatId, message, api, context)
     // Only an answer the run rests on: a round of tool calls is followed by more, and the last
     // answer moves the time on anyway.
-    if (message.stopReason !== "stop") return
+    // A round of sends marked done is one the run may rest on too: it ends the run where they
+    // work, and the look this sets up is put off by whatever comes after it anyway.
+    if (message.stopReason !== "stop" && !asksToEnd(message)) return
     const chats = await api.snapshot(ChatsDoc, context)
     if (chats?.main !== chatId) return
     // Most answers leave a chat too small to compact, or come from a model with no long cache.

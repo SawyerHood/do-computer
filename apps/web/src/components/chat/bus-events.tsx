@@ -10,7 +10,7 @@ import { AgentIdContext } from "./sent-file.tsx"
 /**
  * An event the main chat was told of, where it is a message bus: what a run of an automation
  * came to, a sub-agent of its asking a person for something, or word from a thread in Slack.
- * Drawn in the row of the agent's working, where it is one of the things it was told.
+ * Drawn in the chat where it was told, as the other events are.
  */
 export function BusEvent({ part }: { part: NoticePart }) {
   const agentId = useContext(AgentIdContext)
@@ -38,8 +38,7 @@ export function BusEvent({ part }: { part: NoticePart }) {
   // What it asked for is said in the line; what the others said is folded away.
   const detail = part.kind === "asked" ? undefined : part.detail
   return (
-    // Drawn inside the row of working, whose own rule is beside it: it needs none of its own.
-    <div data-event={part.kind} className="py-0.5 text-sm text-muted-foreground">
+    <div data-event={part.kind} className="border-l-2 py-0.5 pl-3 text-sm text-muted-foreground">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <Icon className="size-4 shrink-0" />
         <span className="min-w-0 wrap-anywhere">{said}</span>
