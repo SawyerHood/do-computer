@@ -19,7 +19,7 @@ import {
   VIEW_WAIT_MS,
 } from "@do-computer/protocol"
 
-export type RemoteErrorCode = DaemonErrorCode | "offline" | "timeout"
+export type RemoteErrorCode = DaemonErrorCode | "offline" | "timeout" | "aborted"
 
 /** A failed operation on a paired computer, in words fit to show the agent. */
 export class RemoteError extends Error {
@@ -71,6 +71,7 @@ export class LinkCore {
   readonly #fileOpTimeoutMs: number
   readonly #useGraceMs: number
   #counter = 0
+  readonly #cancelled = new Map<string, number>()
 
   /** @param send Deliver one frame to the live socket; false means there is none. */
   constructor(send: (frame: string) => boolean, options?: LinkCoreOptions) {
@@ -92,6 +93,7 @@ export class LinkCore {
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#waiters.delete(id)
+        if (kind === "exec") this.cancel(id)
         reject(new RemoteError("timeout", message))
       }, timeoutMs)
       this.#waiters.set(id, {
@@ -115,12 +117,39 @@ export class LinkCore {
     return waiter
   }
 
+  /** Cancel an exec, including one whose HTTP request has not arrived yet. */
+  cancel(id: string): void {
+    const now = Date.now()
+    for (const [key, until] of this.#cancelled) {
+      if (until < now) this.#cancelled.delete(key)
+    }
+    this.#cancelled.set(id, now + MAX_EXEC_TIMEOUT_MS + this.#execGraceMs)
+    this.#settle(id)?.reject(new RemoteError("aborted", "Command aborted."))
+    // Best effort while disconnected; the daemon still enforces the execution deadline.
+    try {
+      this.#send(JSON.stringify({ t: "cancel", id }))
+    } catch {
+      // A transport closing between its state check and send must not break cancellation.
+    }
+  }
+
   exec(
     command: string,
-    options?: { cwd?: string; env?: Record<string, string>; timeoutMs?: number },
+    options?: {
+      cwd?: string
+      env?: Record<string, string>
+      timeoutMs?: number
+      requestId?: string
+    },
   ): Promise<RemoteExecResult> {
     const timeoutMs = Math.min(options?.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS, MAX_EXEC_TIMEOUT_MS)
-    const id = this.#nextId()
+    const id = options?.requestId ?? this.#nextId()
+    const cancelledUntil = this.#cancelled.get(id)
+    if (cancelledUntil !== undefined) {
+      if (cancelledUntil >= Date.now())
+        return Promise.reject(new RemoteError("aborted", "Command aborted."))
+      this.#cancelled.delete(id)
+    }
     const frame = JSON.stringify({
       t: "exec",
       id,

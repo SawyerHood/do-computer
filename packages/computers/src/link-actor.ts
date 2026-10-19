@@ -17,6 +17,7 @@ export type LinkStatus = {
 const STATUS: Partial<Record<RemoteErrorCode, number>> = {
   offline: 503,
   timeout: 504,
+  aborted: 499,
   not_found: 404,
   read_only: 403,
   refused: 403,
@@ -130,6 +131,13 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
             // Someone looked and saw that it is behind. Only one that updates itself is told.
             const hello = (await status()).hello
             return json({ told: hello?.updates === true && tell() })
+          }
+          case "/cancel": {
+            const { id } = (await request.json()) as { id?: unknown }
+            if (typeof id !== "string" || id.length > 200)
+              return json({ error: "Invalid exec id" }, 400)
+            core.cancel(id)
+            return json({ ok: true })
           }
           case "/exec":
             return json(await core.exec(...execArguments(await request.json())))
@@ -250,12 +258,16 @@ export function createComputerLinkActor(host: ActorHost, options?: LinkActorOpti
 
 function execArguments(
   input: unknown,
-): [string, { cwd?: string; env?: Record<string, string>; timeoutMs?: number }] {
-  const { command, cwd, env, timeoutMs } = input as {
+): [
+  string,
+  { cwd?: string; env?: Record<string, string>; timeoutMs?: number; requestId?: string },
+] {
+  const { command, cwd, env, timeoutMs, requestId } = input as {
     command: string
     cwd?: string
     env?: Record<string, string>
     timeoutMs?: number
+    requestId?: string
   }
-  return [command, { cwd, env, timeoutMs }]
+  return [command, { cwd, env, timeoutMs, requestId }]
 }

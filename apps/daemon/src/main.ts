@@ -36,6 +36,7 @@ import { BROWSER_ENV, type DaemonEvent, formatEvent, SCREEN_ENV } from "./events
 import { POLL_EAGER_MS, pollDelay } from "./pairing.ts"
 import { appScreen } from "./screen.ts"
 import { serviceFile } from "./service.ts"
+import { connectSocket } from "./socket.ts"
 import { supervise } from "./supervisor.ts"
 import { RESTART_EXIT_CODE, restorePrevious, update } from "./update.ts"
 
@@ -285,7 +286,7 @@ async function run(config: Config): Promise<void> {
   let attempt = 0
   for (;;) {
     const closed = await new Promise<number>((resolve) => {
-      const current = new WebSocket(url, { headers: { authorization: `Bearer ${config.token}` } })
+      const current = connectSocket(url, config.token)
       socket = current
       let pongDue: ReturnType<typeof setTimeout> | undefined
       const ping = setInterval(() => {

@@ -201,6 +201,7 @@ export type RevokedFrame = { t: "revoked" }
 
 export type HostFrame =
   | ExecFrame
+  | { t: "cancel"; id: string }
   | ReadFrame
   | ImageFrame
   | WriteBeginFrame
