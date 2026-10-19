@@ -10,8 +10,6 @@ import {
   tab,
   tool,
   panelSwitch,
-  unfoldWork,
-  seeInWork,
 } from "./helpers.ts"
 
 asOwner()
@@ -28,12 +26,11 @@ test("a scheduled task runs on its own and reports to the main chat", async ({ p
   await page.keyboard.press("Enter")
   await expect(page.getByText(/Scheduled\. \w+: "Magic words"/)).toBeVisible()
 
-  // Nothing else is sent: the report reaches the main chat by itself, live, as an event that is
-  // folded in with the Dood's working. Nothing in it is worth a word, so nothing is sent.
-  const row = page.getByRole("log").locator("[data-work]").last()
-  await expect(row.getByRole("button", { name: /1 event/ })).toBeVisible({ timeout: 15_000 })
-  await row.getByRole("button", { name: /Worked on it/ }).click()
-  await expect(row.getByText("The automation Magic words reported")).toBeVisible()
+  // Nothing else is sent: the report reaches the main chat by itself, live, as an event drawn in
+  // its place. Nothing in it is worth a word, so nothing is sent.
+  await expect(page.getByRole("log").getByText("The automation Magic words reported")).toBeVisible({
+    timeout: 15_000,
+  })
 
   await tab(page, "Automations").click()
   const card = page.getByRole("listitem").filter({ hasText: "Magic words" })
@@ -159,11 +156,8 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   const transcript = page.getByRole("log")
   // The agent is not kept waiting: it answers, and the sub-agent's report arrives by itself.
   await expect(transcript.getByText(/Started sub-agent \d+, "Flights"/)).toBeVisible()
-  // Its report reaches the main chat as an event, folded in with the Dood's working.
-  const row = transcript.locator("[data-work]").last()
-  await expect(row.getByRole("button", { name: /1 event/ })).toBeVisible({ timeout: 15_000 })
-  await row.getByRole("button", { name: /Worked on it/ }).click()
-  await expect(row.getByText("Flights reported back")).toBeVisible()
+  // Its report reaches the main chat as an event, drawn in its place.
+  await expect(transcript.getByText("Flights reported back")).toBeVisible({ timeout: 15_000 })
   // It has ended, so it is in the transcript only: not beside the creature, not in a list.
   await panelSwitch(page, "Show")
   await expect(panel(page)).toBeVisible()
@@ -172,7 +166,6 @@ test("the agent hands work to a sub-agent, whose chat is read and not written in
   const mine = page.url()
 
   // Where it was started leads to its own chat, which says whose it is.
-  await unfoldWork(page)
   await transcript.getByRole("link", { name: "Open its chat" }).first().click()
   await page.waitForURL((url) => url.href !== mine)
   await expect(page.getByText("Juniper asked")).toBeVisible()
@@ -218,8 +211,8 @@ test("a sub-agent at work can be stopped from its chat, and the agent is told", 
 
   await page.getByRole("link", { name: "Back to Juniper" }).click()
   await page.waitForURL(mine)
-  // The main chat is told, in the row of its working.
-  await seeInWork(page, page.getByRole("log").getByText("You stopped"))
+  // The main chat is told, as an event drawn in its place.
+  await expect(page.getByRole("log").getByText("You stopped").first()).toBeVisible()
   await expect(
     page
       .getByRole("log")
@@ -248,9 +241,9 @@ test("an agent writes to another agent of the workspace, whose answer comes back
   const transcript = page.getByRole("log")
   // The agent is not kept waiting: it answers, and the other agent's reply arrives by itself.
   await expect(transcript.getByText(/Sent to "Bramble"/)).toBeVisible()
-  // The reply is told in the row of the agent's working, and it is given a turn to say what
+  // The reply is told as an event drawn in its place, and it is given a turn to say what
   // came of it, which the echo model sends.
-  await seeInWork(page, transcript.getByText("Bramble replied"), 15_000)
+  await expect(transcript.getByText("Bramble replied").first()).toBeVisible({ timeout: 15_000 })
   await expect(
     transcript.getByText(/You said: \[Bramble, the agent you sent a message to/),
   ).toBeVisible()

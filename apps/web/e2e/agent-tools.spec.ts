@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures.ts"
 import { FIXED_TOKEN, startFakeMcp } from "./fake-mcp-server.ts"
-import { asOwner, composer, newChat, openSettings, signIn, seeInWork } from "./helpers.ts"
+import { asOwner, composer, newChat, openSettings, signIn } from "./helpers.ts"
 
 asOwner()
 
@@ -44,15 +44,15 @@ test.describe("what an agent can do in the app by itself", () => {
     await forms.getByRole("button", { name: "Save secret" }).click()
 
     await expect(forms).toHaveCount(0)
-    // Told of in the row of the agent's working, which opens on it.
-    await seeInWork(page, transcript.getByText(/gave WEATHER_KEY, saved to .*\.env/))
+    // Told of in the main chat, drawn as in any chat.
+    await expect(transcript.getByText(/gave WEATHER_KEY, saved to .*\.env/).first()).toBeVisible()
     await expect(transcript.getByText(/sunny-123/)).toHaveCount(0)
     // It is in the file, where a command can use it.
     await use(page, "bash", { command: "sed s/sunny/found/ .env" })
     await expect(transcript.getByText(/WEATHER_KEY='found-123'/).first()).toBeVisible()
     // And still nowhere in what was said, after the page is loaded again.
     await page.reload()
-    await seeInWork(page, transcript.getByText(/gave WEATHER_KEY/))
+    await expect(transcript.getByText(/gave WEATHER_KEY/).first()).toBeVisible()
     await expect(transcript.getByText(/sunny-123/)).toHaveCount(0)
   })
 
@@ -64,7 +64,12 @@ test.describe("what an agent can do in the app by itself", () => {
     await expect(forms.getByText("Juniper asks for 2 secrets")).toBeVisible()
     await forms.getByRole("button", { name: "Not now" }).click()
     await expect(forms).toHaveCount(0)
-    await seeInWork(page, page.getByRole("log").getByText(/chose not to give BANK_PIN, BANK_USER/))
+    await expect(
+      page
+        .getByRole("log")
+        .getByText(/chose not to give BANK_PIN, BANK_USER/)
+        .first(),
+    ).toBeVisible()
   })
 
   test("it asks before adding a connector, and has the person sign in from the chat", async ({
@@ -97,7 +102,7 @@ test.describe("what an agent can do in the app by itself", () => {
     await expect(page.getByRole("heading", { name: /use your account/ })).toBeVisible()
     await page.getByRole("link", { name: "Allow" }).click()
     await expect(page).toHaveURL(chat)
-    await seeInWork(page, transcript.getByText(/connected Calendar/))
+    await expect(transcript.getByText(/connected Calendar/).first()).toBeVisible()
     await expect(signIns).toHaveCount(0)
 
     await use(page, "calendar__today", {})
@@ -125,10 +130,9 @@ test.describe("what an agent can do in the app by itself", () => {
     await forms.getByLabel("Access token").fill(FIXED_TOKEN)
     await forms.getByRole("button", { name: "Save secret" }).click()
     await expect(forms).toHaveCount(0)
-    await seeInWork(
-      page,
-      transcript.getByText(/gave its access token, saved to the connector Sums/),
-    )
+    await expect(
+      transcript.getByText(/gave its access token, saved to the connector Sums/).first(),
+    ).toBeVisible()
     await expect(transcript.getByText(FIXED_TOKEN)).toHaveCount(0)
 
     await use(page, "sums__add", { a: 19, b: 23 })

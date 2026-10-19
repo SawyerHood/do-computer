@@ -184,7 +184,9 @@ test("a section of the panel folds under its heading, and the face gives way to 
       { path: `library/folds/more-${n}.md`, content: "# More\n" },
       `Successfully wrote to library/folds/more-${n}.md`,
     )
-    await composer(page).fill(`/tool send_file {"path":"library/folds/more-${n}.md"}`)
+    await composer(page).fill(
+      `/tool send ${JSON.stringify({ text: "", files: [`library/folds/more-${n}.md`] })}`,
+    )
     await page.keyboard.press("Enter")
     await expect(shared.getByRole("listitem")).toHaveCount(n + 1)
   }

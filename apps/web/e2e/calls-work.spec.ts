@@ -58,11 +58,11 @@ test("a call held in the main chat hands its work to a sub-agent, and leaves its
   const sub = state.chats.find((chat) => chat.kind === "subagent")!
   expect(sub).toMatchObject({ title: "Launch checklist", parentId: mainId })
 
-  // The sub-agent's report reaches the main chat as an event, folded in with the Dood's working.
+  // The sub-agent's report reaches the main chat as an event, drawn in its place.
   const transcript = page.getByRole("log")
-  await expect(
-    transcript.locator("[data-work]").getByRole("button", { name: /event/ }).last(),
-  ).toBeVisible({ timeout: 15_000 })
+  await expect(transcript.getByText("Launch checklist reported back").last()).toBeVisible({
+    timeout: 15_000,
+  })
   // The call's notes are an event in the main chat: the agent is told it is over.
   const main = (await (
     await page.request.get(`/api/agents/${agentId}/chats/${mainId}`)

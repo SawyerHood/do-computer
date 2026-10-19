@@ -15,7 +15,6 @@ import {
   openWorkspaceSettings,
   signIn,
   tool,
-  seeInWork,
 } from "./helpers.ts"
 
 asOwner()
@@ -104,8 +103,8 @@ test.describe("pairing a computer", () => {
     await page.keyboard.press("Enter")
     // It is where the agent started it, with its clock going, and counted above the message box.
     const chip = page.getByTestId("command-chip")
-    // In the row of the agent's working, opened.
-    await seeInWork(page, chip)
+    // Drawn in the main chat, as in any chat.
+    await expect(chip.first()).toBeVisible()
     await expect(chip).toContainText("echo serving; sleep 2; echo a request; sleep 300")
     await expect(chip).toContainText("test-laptop · in the background")
     await expect(page.getByRole("button", { name: "1 running" })).toBeVisible()
@@ -127,7 +126,7 @@ test.describe("pairing a computer", () => {
       .getByRole("button", { name: /^Stop echo serving/ })
       .first()
       .click()
-    await seeInWork(page, page.getByTestId("command-word"))
+    await expect(page.getByTestId("command-word").first()).toBeVisible()
     await expect(page.getByTestId("command-word")).toContainText("You stopped")
     await expect(chip).toContainText("test-laptop · stopped after")
     await expect(page.getByRole("button", { name: "1 running" })).toHaveCount(0)
@@ -139,7 +138,7 @@ test.describe("pairing a computer", () => {
     )
     await page.keyboard.press("Enter")
     const word = page.getByTestId("command-word")
-    await seeInWork(page, word, 20_000)
+    await expect(word.first()).toBeVisible({ timeout: 20_000 })
     await expect(word).toContainText(/finished in \d+s on test-laptop/, { timeout: 20_000 })
     await word.getByRole("button", { name: "What it printed" }).click()
     await expect(word).toContainText("built")
@@ -185,7 +184,7 @@ test.describe("pairing a computer", () => {
     await expect(asked).toHaveCount(0)
 
     // The agent is told in the chat it asked from, and the computer is its to use.
-    await seeInWork(page, page.getByRole("log").getByText("Sawyer said yes to using"))
+    await expect(page.getByRole("log").getByText("Sawyer said yes to using").first()).toBeVisible()
     await expect(
       page.getByRole("main").getByText(/You said: \[Sawyer said yes: you can now use/),
     ).toBeVisible()

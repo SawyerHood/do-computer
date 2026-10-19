@@ -1,7 +1,7 @@
 import type { Pin } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, signIn, tab, tool, openFile, seeInWork } from "./helpers.ts"
+import { asOwner, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -43,7 +43,7 @@ test("what the agent pins stays under its face, drawn small, and follows the fil
   )
   // The chat says that it was pinned, with the way to open it and to take the pin off.
   const card = page.getByRole("group", { name: "Pinned: Launch board" })
-  await seeInWork(page, card.getByText("Juniper pinned Launch board"))
+  await expect(card.getByText("Juniper pinned Launch board").first()).toBeVisible()
   // Under the face it is the page itself, small.
   await expect(shelf.getByText("Launch board")).toBeVisible()
   const small = shelf.frameLocator("iframe")

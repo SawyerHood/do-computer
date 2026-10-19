@@ -202,32 +202,7 @@ export async function newChat(page: Page) {
     .toBe(true)
   const transcript = page.getByRole("log")
   await expect(transcript.getByText("New context")).toHaveCount(1)
-  await expect(transcript.locator("[data-work]")).toHaveCount(0)
   await expect(composer(page)).toBeVisible()
-}
-
-/**
- * Open every row of the agent's working in the transcript, which in the main chat holds its
- * steps, what it thought and the events it was told of, folded away until it is opened.
- */
-export async function unfoldWork(page: Page) {
-  const folded = page.getByRole("log").locator("[data-work] > button[aria-expanded=false]")
-  for (let count = await folded.count(); count > 0; count = await folded.count()) {
-    await folded.first().click()
-  }
-}
-
-/** Wait for something drawn in a row of the agent's working, opening the rows as they come. */
-export async function seeInWork(page: Page, locator: Locator, timeout = 10_000) {
-  await expect
-    .poll(
-      async () => {
-        await unfoldWork(page)
-        return locator.first().isVisible()
-      },
-      { timeout },
-    )
-    .toBe(true)
 }
 
 /** Whether the chat on screen is the Dood's main chat. */

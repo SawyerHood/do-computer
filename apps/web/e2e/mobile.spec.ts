@@ -74,27 +74,6 @@ const agentId = async (page: Page) =>
   ((await (await page.request.get("/api/agents")).json()) as { agents: { id: string }[] })
     .agents[0]!.id
 
-/**
- * Wait for something in a row of the agent's working, which in the main chat holds its steps and
- * the events it was told of, folded until opened: the rows are opened as they come.
- */
-async function seeInWork(page: Page, locator: ReturnType<Page["locator"]>, timeout = 10_000) {
-  // A row does not say whether it is open, so each is opened once, as it comes.
-  const rows = page.getByRole("button", { name: /^Work(ed|ing) on it/ }).filter({ visible: true })
-  let opened = 0
-  await expect
-    .poll(
-      async () => {
-        for (const count = await rows.count(); opened < count; opened++) {
-          await rows.nth(opened).click()
-        }
-        return locator.first().isVisible()
-      },
-      { timeout },
-    )
-    .toBe(true)
-}
-
 /** Say yes to the next thing the app asks before doing, and give back what it asked. */
 function agree(page: Page): Promise<string> {
   return new Promise((resolve) => {
@@ -288,8 +267,8 @@ test("a request for approval can be answered from the phone", async ({ page }) =
 
     await page.getByRole("button", { name: "Allow once" }).click()
     await expect(words(page, "Pip asks first · from this chat")).toHaveCount(0)
-    // The answer is told to the agent as an event, in the row of its working.
-    await seeInWork(page, words(page, /allowed Run commands: echo from-the-phone/))
+    // The answer is told to the agent as an event, drawn in its place.
+    await expect(words(page, /allowed Run commands: echo from-the-phone/).first()).toBeVisible()
   } finally {
     await page.request.patch(rules, { data: { "tool:bash": "allow" } })
   }
@@ -615,9 +594,8 @@ test("what the Dood pins is shown in its chat, and under its face on its page as
   await expect(words(page, /Successfully wrote/).last()).toBeVisible()
   await send(page, '/tool pin {"action":"pin","path":"boards/launch.html","title":"Launch board"}')
 
-  // The chat says what was pinned, with the way to open it and to take the pin off, in the row
-  // of the Dood's working.
-  await seeInWork(page, words(page, "Pip pinned Launch board"))
+  // The chat says what was pinned, with the way to open it and to take the pin off.
+  await expect(words(page, "Pip pinned Launch board").first()).toBeVisible()
   await expect(words(page, "boards/launch.html").last()).toBeVisible()
   await shoot(page, "pin-card")
   // The card says how the pin stands now: taken off, it offers to put it back as it was.
@@ -1126,9 +1104,8 @@ test("a connector's own page for a tool is shown in the chat, told what the tool
     expect(added.ok()).toBe(true)
     await agent(page, "Pip").click()
     await send(page, `/tool weather__forecast ${JSON.stringify({ city: "Lisbon" })}`)
-    // It says whose page it is: not the Dood's, and not the app's. It is in the row of the
-    // Dood's working.
-    await seeInWork(page, words(page, "From Weather"))
+    // It says whose page it is: not the Dood's, and not the app's.
+    await expect(words(page, "From Weather").first()).toBeVisible()
     const frame = page.getByLabel("App: forecast from Weather").frameLocator("iframe")
     // The page was told what the tool was asked and what it answered, and where it is shown.
     await expect(frame.locator("#city")).toHaveText("Lisbon")
@@ -1743,17 +1720,11 @@ test("the Doods are in the order they were put in elsewhere, and are moved on th
   await expect(composer(page)).toHaveAttribute("placeholder", "Message Pip")
 })
 
-test("with the bus on, shows what was sent and what a chat draws anywhere, and no row of working", async ({
+test("shows what was sent and what a chat draws anywhere, and no row of working", async ({
   page,
 }) => {
   await openChat(page)
-  const { agents } = (await (await page.request.get("/api/agents")).json()) as {
-    agents: { id: string; name: string }[]
-  }
-  const pip = agents.find((one) => one.name === "Pip")!.id
-  // What it said before the switch is drawn as it was.
   const returned = await words(page, /The tool returned/).count()
-  await page.request.patch(`/api/agents/${pip}`, { data: { bus: true } })
   await send(page, '/tool send {"text":"Bus reply from Pip.","done":true}')
   await expect(words(page, "Bus reply from Pip.")).toBeVisible()
   await send(
@@ -1771,5 +1742,4 @@ test("with the bus on, shows what was sent and what a chat draws anywhere, and n
   // The turn the report started ends without a word, and leaves no line saying it is at work.
   await expect(words(page, /^Thinking/)).toHaveCount(0)
   await page.screenshot({ path: "test-results/phone-bus.png" })
-  await page.request.patch(`/api/agents/${pip}`, { data: { bus: false } })
 })

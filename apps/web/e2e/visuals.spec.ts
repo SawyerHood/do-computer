@@ -1,7 +1,7 @@
 import type { SiteSummary } from "@do-computer/protocol"
 import { expect, type Page } from "@playwright/test"
 import { test } from "./fixtures.ts"
-import { asOwner, newChat, signIn, tab, tool, openFile, seeInWork } from "./helpers.ts"
+import { asOwner, newChat, signIn, tab, tool, openFile } from "./helpers.ts"
 
 asOwner()
 
@@ -156,8 +156,8 @@ test("a site the agent shares is a card in the chat, which says who can open it 
     /Shared sites\/plan as “Launch plan”/,
   )
   const card = page.getByRole("group", { name: "Site: Launch plan" })
-  // In the row of the agent's working, which opens on it.
-  await seeInWork(page, card.getByText("Only you"))
+  // Drawn in the main chat, as in any chat.
+  await expect(card.getByText("Only you").first()).toBeVisible()
   await expect(card.getByText(/\/s\/[a-z2-9]{16}$/)).toBeVisible()
   await expect(card.getByRole("link", { name: "Open" })).toHaveAttribute("target", "_blank")
   await page.screenshot({ path: "test-results/site-card.png" })
