@@ -736,7 +736,9 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     world.faux.models[0].contextWindow = Math.round((input - LONG) / 0.75)
     await call(world, "/", "PATCH", { bus: true })
     world.faux.appendResponses([
-      fauxAssistantMessage([fauxToolCall("send", { text: "Got it.", done: true })], {
+      // The flag as some models write it, which pi-ai takes for true: arming reads the stored
+      // result, as the run's end was decided, and not the raw arguments.
+      fauxAssistantMessage([fauxToolCall("send", { text: "Got it.", done: "true" })], {
         stopReason: "toolUse",
       }),
       fauxAssistantMessage(SUMMARY),
@@ -748,8 +750,11 @@ describe("compacting a quiet main chat while its cache is warm", () => {
     )
     // It is looked at, and compacted, as after any answer it would be.
     const state = await until(() => chatOf(world, main.id), compacted)
-    expect(looks.count).toBeGreaterThan(0)
     expect(compacted(state)).toBe(true)
+    // Armed once, and looked at once.
+    await sleep(AFTER_MS * 2)
+    expect(looks.count).toBe(1)
+    expect(await compactions(world)).toHaveLength(1)
     expect(world.reports).toEqual([])
   })
 

@@ -675,14 +675,34 @@ function busBefore(entries: readonly EntryRecord[], agent: unknown): boolean {
 }
 
 /** A call to `send`, as the message it says, with the files it sent as sent files are shown. */
-function sentMessage(part: ToolPart, from: ChatMessage): ChatMessage {
+/**
+ * Whether a send asks to end the run: as its result says once that is in (`endsRun`), and as
+ * its arguments say until then (`saysDone`, read as pi-ai reads them).
+ */
+function asksToEnd(part: ToolPart): boolean {
+  if (part.status === "error") return false
+  return part.status === "done"
+    ? (part.details as { done?: unknown } | null | undefined)?.done === true
+    : saysDone(part.args)
+}
+
+/**
+ * Whether an answer's round can end the run: every call in it is a send that asks to, as
+ * pi-durable ends it only where every call does (`roundEnded`, from what is stored).
+ */
+function roundCanEnd(message: ChatMessage): boolean {
+  const calls = message.parts.filter((part): part is ToolPart => part.type === "tool")
+  return calls.length > 0 && calls.every((part) => part.name === SEND_TOOL && asksToEnd(part))
+}
+
+/**
+ * A call to `send`, as the message it says, with the files it sent as sent files are shown.
+ * `ending` is whether its round can end the run, which makes it the last word for now.
+ */
+function sentMessage(part: ToolPart, from: ChatMessage, ending = false): ChatMessage {
   const text = (part.args as { text?: unknown } | null)?.text
   const files = (part.details as { files?: LibraryFile[] } | null | undefined)?.files ?? []
-  // The last word for now: as its result says once that is in, and its arguments until then.
-  const done =
-    part.status === "done"
-      ? (part.details as { done?: unknown } | null | undefined)?.done === true
-      : part.status !== "error" && saysDone(part.args)
+  const done = ending && asksToEnd(part)
   return {
     id: `send:${part.toolCallId}`,
     role: "assistant",
@@ -728,6 +748,8 @@ function busMessages(
       out.push(message)
       continue
     }
+    // A send beside other work, or beside an update, is not a last word: the run goes on.
+    const ending = roundCanEnd(message)
     let rest: MessagePart[] = []
     // What comes before the first thing said is named for that, and what comes after each
     // thing said for it, so that a piece keeps its id from live to stored. Only an answer with
@@ -768,7 +790,7 @@ function busMessages(
         if (failed.parts.length > 0) said({ ...failed, notSent: notSentWhy(part.output) })
         else rest.push(part)
       } else if (part.type === "tool" && part.name === SEND_TOOL) {
-        const sent = sentMessage(part, message)
+        const sent = sentMessage(part, message, ending)
         // Nothing of it to show yet, while its words are on their way.
         if (sent.parts.length > 0) said(sent)
         else rest.push(part)

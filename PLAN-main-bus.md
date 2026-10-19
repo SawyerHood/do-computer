@@ -400,7 +400,10 @@ Notes from building it, where it differs from or adds to the sections above.
   extensions listen on: the bus's reminder (not due: something was sent), keep going (a send
   marked done is a decision to stop) and the journal, whose review keeps the main chat's note for
   the other chats and adds lasting facts to memory. The journal therefore also reviews from the
-  round's `afterTools` when the round ended the run. Idle compaction, which arms on the answer a
+  round's `afterTools` when the round ended the run (a round looked at again after a crash
+  reviews again, which costs one more small-model call). Both `afterTools` hooks first check, from
+  the live slots and without a transaction, that every call of the round is a send, and idle
+  compaction that the chat is the main one, so other rounds read nothing stored. Idle compaction, which arms on the answer a
   run rests on (`afterResponse`, before any tool runs), arms from `afterTools` for such a round,
   and a side chat can branch from it (`branchPoint`).
 - **"Thinking" after a send.** After a send marked done (its result in, or its closing words
@@ -409,7 +412,15 @@ Notes from building it, where it differs from or adds to the sections above.
   and its creature is at rest: the person has its last word, and the run ends at once anyway. A
   step, an event, a person's message or more words bring the line back (`quietSinceSend`). After
   an update, a send without `done`, it is at work and is said to be, as usual. The send message
-  carries `sent` (`sending` until its result is in) and `done` for this.
+  carries `sent` (`sending` until its result is in) and `done` for this. `done` is set only
+  where the whole round can end the run, as pi-durable decides it: every call in the answer is a
+  send saying done (its arguments while live, its stored result once that is in). A send marked
+  done beside other work (`[bash, send(done)]`, `[send, send(done)]`) is no last word: the run
+  goes on, and so does "Thinking".
+- **Known gap.** Sends stored while the first version of `done` was live kept the flag only in
+  their arguments, not in their result's details. For those rounds `branchPoint` and the
+  projection's `done` read nothing; it matters only behind the switch, and only for those few
+  rounds.
 - **The reminder** is decided from the context: a person wrote since the bus was switched on,
   and since their last message nothing was sent (with `send`, or a page drawn with `visual`),
   nothing failed or was stopped, and it was not reminded already. See 3.3 for when that lands on

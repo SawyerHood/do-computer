@@ -11,6 +11,8 @@ import {
   GenerationTask,
   type Harness,
   hook,
+  type HookApi,
+  LiveDoc,
   type JsonObject,
   section,
   type ToolRegistration,
@@ -129,6 +131,16 @@ export function roundEnded(
       return result !== undefined && endsRun(result)
     })
   )
+}
+
+/**
+ * Whether the round a generation is finishing can have ended the run at all: every call in it
+ * is a `send`. Read from the live slots, without a transaction, so that what follows a run can
+ * leave every other round (nearly all of them, in every chat) before reading anything stored.
+ */
+export async function onlySends(api: HookApi, context: Context): Promise<boolean> {
+  const slots = (await api.snapshot(LiveDoc, api.conversationId, context))?.tools ?? []
+  return slots.length > 0 && slots.every((slot) => slot.name === SEND_TOOL)
 }
 
 /**

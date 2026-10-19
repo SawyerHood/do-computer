@@ -208,14 +208,6 @@ export function toolSummary(part: Pick<ToolPart, "name" | "args">): string {
   return done === undefined ? doing : done + doing.slice(verb.length)
 }
 
-/**
- * Whether a message is something the agent sent with `send` that went, in a chat where it speaks
- * only through it: its result is in, and it worked.
- */
-export function isSent(message: ChatMessage): boolean {
-  return message.role === "assistant" && message.sent === "sent" && message.notSent === undefined
-}
-
 /** How many of its own words the agent can write after a send and still be only finishing up. */
 const QUIET_WORDS = 200
 

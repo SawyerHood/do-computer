@@ -27,7 +27,7 @@ import {
   ProviderDoc,
   UsageDoc,
 } from "@earendil-works/pi-durable"
-import { roundEnded, storedRound } from "./bus.ts"
+import { onlySends, roundEnded, storedRound } from "./bus.ts"
 import { ChatsDoc } from "./docs.ts"
 import { type ImageLimits, shapeRequest } from "./limits.ts"
 
@@ -475,9 +475,13 @@ export class IdleCompaction {
             const harness = this.#harness
             if (harness === undefined) return
             try {
+              // Only a main chat is ever looked at, and only a round of sends can end a run.
+              const chatId = String(api.conversationId)
+              if ((await api.snapshot(ChatsDoc, context))?.main !== chatId) return
+              if (!(await onlySends(api, context))) return
               const round = await storedRound(harness, assistant, results, context)
               if (round === undefined || !roundEnded(round.answer, round.results)) return
-              await this.#rested(String(api.conversationId), round.answer, api, context)
+              await this.#rested(chatId, round.answer, api, context)
             } catch (error) {
               // Not being able to look must never cost the run its end.
               this.#options.onReport(error)

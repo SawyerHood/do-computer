@@ -210,6 +210,39 @@ describe("a call", () => {
     expect(call.following).toBe(false)
   })
 
+  it("never gives the voice a send that failed as the Dood's answer", async () => {
+    const call = setUp("codex")
+    await call.caller.start(agent, "main")
+    call.voice({ type: "session.started" })
+    call.voice({
+      type: "delegation.created",
+      item: { id: "d1", target: "client", content: [{ type: "input_text", text: "The report?" }] },
+    })
+    await vi.waitFor(() => expect(call.work).toHaveLength(1))
+    await vi.waitFor(() => expect(call.following).toBe(true))
+    const asked = say("user", "The report?", {
+      spoken: { request: call.work[0]!.requestId },
+    } as Partial<ChatMessage>)
+    // Where it speaks only through `send`: one that failed, then the one that went.
+    call.chat({
+      ...EMPTY_CHAT,
+      messages: [
+        asked,
+        say("assistant", "Here it is.", { id: "send:ok" }),
+        say("assistant", "Here it is again.", { id: "send:x", notSent: "could not find it" }),
+      ],
+    })
+    const spoken = call.sent
+      .map((event) => JSON.parse(event) as { type: string; channel?: string; content?: unknown })
+      .filter(
+        (event) => event.type === "delegation.context.append" && event.channel === "speakable",
+      )
+    expect(spoken.map((event) => event.content)).toEqual([
+      [{ type: "input_text", text: "Here it is." }],
+    ])
+    await call.caller.end()
+  })
+
   it("mutes the microphone and says so, and hears again when unmuted", async () => {
     const call = setUp("openai")
     await call.caller.start(agent, "main")

@@ -475,6 +475,50 @@ describe("what it is said to be doing, with the bus on", () => {
     expect(doing([...sent(), said([{ type: "text", text: "x".repeat(300) }], "stop")])).toBe(
       "Thinking",
     )
+    // A last word beside other work in the same answer is no last word: that round does not end
+    // the run, whichever comes first.
+    const round = (calls: ReturnType<typeof call>[], live: Record<string, unknown>) =>
+      busy(
+        [
+          mark(true),
+          person("wow"),
+          said(calls, "toolUse"),
+          result("s1", false, { files: [], done: true }),
+        ],
+        live,
+      )
+    const bashFirst = round(
+      [call("b1", "bash", { command: "ls" }), call("s1", "send", { text: "Done!", done: true })],
+      { tools: [{ callId: "b1", name: "bash", status: "running" }] },
+    )
+    expect(chatActivity(bashFirst)).toBe("Thinking")
+    expect(chatMood(bashFirst)).not.toEqual({ state: "idle" })
+    expect(bashFirst.messages.find((message) => message.id === "send:s1")!.done).toBeUndefined()
+    // And after that round, while the next request only thinks.
+    const next = busy(
+      [
+        mark(true),
+        person("wow"),
+        said(
+          [
+            call("b1", "bash", { command: "ls" }),
+            call("s1", "send", { text: "Done!", done: true }),
+          ],
+          "toolUse",
+        ),
+        result("b1"),
+        result("s1", false, { files: [], done: true }),
+      ],
+      closing,
+    )
+    expect(chatActivity(next)).toBe("Thinking")
+    expect(chatMood(next)).not.toEqual({ state: "idle" })
+    const updateFirst = round(
+      [call("u1", "send", { text: "On it." }), call("s1", "send", { text: "Done!", done: true })],
+      {},
+    )
+    expect(chatActivity(updateFirst)).toBe("Thinking")
+    expect(chatMood(updateFirst)).not.toEqual({ state: "idle" })
     expect(doing([...sent(), person("and?")])).toBe("Thinking")
     expect(
       doing([
@@ -1084,8 +1128,32 @@ describe("the main chat as a bus", () => {
     }
     const world = open(temporary(), false, { review })
     const main = await setup(world, true)
-    // The flag as some models write it, which pi-ai takes for true: the run ends all the same,
-    // and what follows it reads that from the stored result.
+    // First a run that ends on an answer, after an update and a send that failed: reviewed
+    // once, when it yields, and never for the rounds that did not end it.
+    world.faux.setResponses([
+      () => use("send", { text: "Looking." }),
+      () => use("send", { text: "With it.", files: ["missing.md"], done: true }),
+      () => fauxAssistantMessage("Nothing more to send."),
+    ])
+    await say(world, main.id, "look first")
+    await until(
+      () => chat(world, main.id),
+      (state) => rested(state) && spoken(state).includes("Looking."),
+    )
+    await until(
+      async () => reviewed.length,
+      (count) => count >= 1,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    // Once, and at the end: what it read has the answer the run rested on. (A review of a round
+    // that did not end the run would have come first, without it, and a second one at the end
+    // would find nothing new a person said, and not be made.)
+    expect(reviewed).toHaveLength(1)
+    expect(reviewed[0]).toContain("Nothing more to send.")
+
+    // Then a run a send marked done ends: reviewed once more. The flag as some models write
+    // it, which pi-ai takes for true: the run ends all the same, and what follows it reads that
+    // from the stored result.
     const turns = script(world, (turn) =>
       afterTool(turn)
         ? fauxAssistantMessage("A request that must not be made.")
@@ -1098,11 +1166,11 @@ describe("the main chat as a bus", () => {
     )
     await until(
       async () => reviewed.length,
-      (count) => count >= 1,
+      (count) => count >= 2,
     )
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(reviewed).toHaveLength(2)
     expect(turns).toHaveLength(1)
-    expect(reviewed).toHaveLength(1)
     expect(state.messages.at(-1)).toMatchObject({ id: expect.stringMatching(/^send:/), done: true })
   })
 
