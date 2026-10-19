@@ -275,7 +275,7 @@ describe("the models on offer", () => {
     const tool = parts.find((part) => part.type === "tool") as ToolPart
     expect(tool.status).toBe("done")
     expect(tool.output).toContain("At 14:05.")
-    expect(parts.at(-1)).toEqual({ type: "text", text: "High tide is at 14:05." })
+    expect(parts.at(-1)).toEqual({ type: "thinking", text: "High tide is at 14:05.", written: true })
   })
 
   it("is the one echo model when there is no key", () => {

@@ -6,6 +6,7 @@ import {
   type ChatEvent,
   type ChatState,
   type ChatSummary,
+  type MessagePart,
   EMPTY_CHAT,
   readSse,
   reduceChat,
@@ -134,20 +135,29 @@ async function setup(world: World): Promise<ChatSummary> {
 
 const step = (command: string) =>
   fauxAssistantMessage([fauxToolCall("bash", { command })], { stopReason: "toolUse" })
+/** The agent's own words, which in the main chat are kept as thinking that nobody is shown. */
+const ownWords = (part: MessagePart) =>
+  part.type === "text" || (part.type === "thinking" && part.written === true)
+    ? part.text
+    : undefined
 /**
  * Each message as who says it and what it holds. In the main chat the agent's own words and
- * steps are one row of its working; a word on the way with `progress` is said to the person.
+ * steps are its working, which is not drawn; a word on the way with `progress` is said to the
+ * person.
  */
 const shape = (state: ChatState) =>
   state.messages.map((message) => [
-    message.work === true ? "working" : message.role,
-    message.parts.map((part) => (part.type === "text" ? part.text : part.type)).join(" + "),
+    message.role === "assistant" && !message.parts.some((part) => part.type === "text")
+      ? "working"
+      : message.role,
+    message.parts.map((part) => ownWords(part) ?? part.type).join(" + "),
   ])
-/** The words the agent wrote last, in the main chat's row of its working. */
+/** The words the agent wrote last, in the main chat its own working. */
 const lastWords = (state: ChatState) =>
   state.messages
     .flatMap((message) => message.parts)
-    .findLast((part) => part.type === "text" && part.text !== "")
+    .map(ownWords)
+    .findLast((text) => text !== undefined && text !== "")
 const temporary = () => mkdtempSync(join(tmpdir(), "dc-keep-going-"))
 
 describe("an agent that stops on a progress update", () => {
@@ -170,7 +180,10 @@ describe("an agent that stops on a progress update", () => {
 
     expect(shape(state)).toEqual([
       ["user", "Make a.txt and b.txt, one at a time."],
-      ["working", "tool + a.txt is done, making b.txt next. + tool + Both files are made."],
+      ["working", "tool"],
+      ["working", "a.txt is done, making b.txt next."],
+      ["working", "tool"],
+      ["working", "Both files are made."],
     ])
     // The agent was told why it is going again. Nobody said that in the chat, so it is not in it.
     expect(nudged).toContain('<meta kind=\\"continue\\">')
@@ -197,7 +210,7 @@ describe("an agent that stops on a progress update", () => {
     world.verdicts = ["DONE"]
     world.faux.setResponses([step("echo a > a.txt"), fauxAssistantMessage("a.txt is made.")])
     const state = await converse(world, chat.id, "Make a.txt.")
-    expect(lastWords(state)).toEqual({ type: "text", text: "a.txt is made." })
+    expect(lastWords(state)).toBe("a.txt is made.")
     expect(world.judged).toHaveLength(1)
   })
 
@@ -211,7 +224,7 @@ describe("an agent that stops on a progress update", () => {
     const state = await converse(world, chat.id, "Tidy my notes.")
     // Its first reply, and one more for each of the three times it was set going.
     const said = state.messages.flatMap((message) =>
-      message.parts.filter((part) => part.type === "text" && part.text === "On it, starting now."),
+      message.parts.filter((part) => ownWords(part) === "On it, starting now."),
     )
     expect(said).toHaveLength(4)
     expect(world.judged).toHaveLength(3)
@@ -227,7 +240,7 @@ describe("an agent that stops on a progress update", () => {
     const chat = await setup(none)
     none.faux.setResponses([step("echo a"), fauxAssistantMessage("Done with a, doing b next.")])
     const ended = await converse(none, chat.id, "Do a and b.")
-    expect(lastWords(ended)).toEqual({ type: "text", text: "Done with a, doing b next." })
+    expect(lastWords(ended)).toBe("Done with a, doing b next.")
 
     const failing = open(temporary())
     const other = await setup(failing)
@@ -235,7 +248,7 @@ describe("an agent that stops on a progress update", () => {
     failing.faux.setResponses([step("echo a"), fauxAssistantMessage("Done with a, doing b next.")])
     const kept = await converse(failing, other.id, "Do a and b.")
     // The answer is not lost to a failed check. It is reported, and the run ends.
-    expect(lastWords(kept)).toEqual({ type: "text", text: "Done with a, doing b next." })
+    expect(lastWords(kept)).toBe("Done with a, doing b next.")
     expect(failing.reports.map(String).join("\n")).toContain(
       "Could not check whether the agent meant to stop: overloaded",
     )
@@ -275,7 +288,8 @@ describe("an agent that says how the work is going with the progress tool", () =
       ["working", "tool"],
       ["assistant", "a.txt is done, making b.txt next."],
       ["assistant", "Writing b.txt now."],
-      ["working", "tool + Both files are made."],
+      ["working", "tool"],
+      ["working", "Both files are made."],
     ]
     expect(shape(state)).toEqual(expected)
     expect(told).toContain("Shown to them")

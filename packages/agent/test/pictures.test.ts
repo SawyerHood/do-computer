@@ -138,7 +138,7 @@ describe("pictures sent with a message", () => {
     const heard = listen(world)
     const state = await converse(world, chat.id, "What is this?", [PIXEL])
     expect(heard.blocks().map((block) => block.type)).toEqual(["text", "text"])
-    expect(state.messages.at(-1)!.parts).toEqual([{ type: "text", text: "I see." }])
+    expect(state.messages.at(-1)!.parts).toEqual([{ type: "thinking", text: "I see.", written: true }])
   })
 
   it("have to be a few small pictures of a kind a model reads", async () => {

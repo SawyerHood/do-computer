@@ -35,7 +35,6 @@ import {
   BUS_ENTRY,
   BUS_EXTENSIONS,
   type BusMark,
-  endsRun,
   EVENT_ENTRIES,
   saysDone,
   SEND_TOOL,

@@ -586,8 +586,9 @@ describe("computers the agent was not given", () => {
     expect(sections.computers).not.toContain("You have asked to use")
     expect(lastTool(state).output).toContain("the designs")
     expect(state.messages.at(-1)!.parts).toContainEqual({
-      type: "text",
+      type: "thinking",
       text: "I have the designs now.",
+      written: true,
     })
 
     // Being told twice says nothing twice.

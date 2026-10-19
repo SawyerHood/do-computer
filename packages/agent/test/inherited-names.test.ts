@@ -142,7 +142,8 @@ describe("names every object inherits", () => {
         if (
           !state.busy &&
           last?.role === "assistant" &&
-          last.parts.some((p) => p.type === "text")
+          // Its own words, which in the main chat are kept as thinking nobody is shown.
+          last.parts.some((p) => p.type === "thinking" && p.written === true)
         ) {
           return state.messages
             .flatMap((m) => m.parts)

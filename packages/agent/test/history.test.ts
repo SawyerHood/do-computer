@@ -104,7 +104,14 @@ async function oldSideChat(world: World, title: string, text: string): Promise<C
 
 const texts = (page: ChatHistoryPage | ChatState) =>
   page.messages.map((message) =>
-    message.parts.map((part) => (part.type === "text" ? part.text : `<${part.type}>`)).join(""),
+    message.parts
+      .map((part) =>
+        // The agent's own words in the main chat are kept as thinking that nobody is shown.
+        part.type === "text" || (part.type === "thinking" && part.written === true)
+          ? part.text
+          : `<${part.type}>`,
+      )
+      .join(""),
   )
 
 describe("search terms", () => {
@@ -234,9 +241,7 @@ describe("earlier messages", () => {
     for (let index = 1; index <= 6; index++) await say(world, chat.id, `question ${index}`)
 
     const state = await call<ChatState>(world, `/chats/${chat.id}`)
-    // The last question, which in the main chat is followed by a row of the agent's working.
     const last = state.messages.findLast((message) => message.role === "user")!
-    expect(state.messages.at(-1)!.id).toBe(`work:${last.id}`)
     const page = await call<ChatHistoryPage>(
       world,
       `/chats/${chat.id}/history?before=${last.id}&limit=4`,
@@ -268,12 +273,6 @@ describe("earlier messages", () => {
       "question 5",
       "answer 5",
     ])
-    // A row of working is read back from as the message it is named for.
-    const fromRow = await call<ChatHistoryPage>(
-      world,
-      `/chats/${chat.id}/history?before=${state.messages.at(-1)!.id}&limit=4`,
-    )
-    expect(fromRow).toEqual(page)
   })
 
   it("brings back what a reset moved out of the transcript", async () => {

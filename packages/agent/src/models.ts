@@ -187,8 +187,8 @@ function sentSince(context: EchoContext, person: number): boolean {
  * A tool it is not offered yet, as a connector's is not, it looks for first, as a model would.
  *
  * Where it is offered `send`, in a main chat or a thread in Slack, it answers a person as a model
- * there would: what it would have said goes in a `send`, once, and anything after that it says to
- * itself. An event, or a note for the model alone, gets words that nobody is shown, and so does
+ * there would: what it would have said goes in a `send` marked `done`, once, which ends its turn
+ * (a send it is told to make goes on to its result, and anything after that it says to itself). An event, or a note for the model alone, gets words that nobody is shown, and so does
  * a message that begins `/quiet`, as from a model that forgot to send.
  */
 function echoAnswer(context: EchoContext) {
@@ -206,7 +206,10 @@ function echoAnswer(context: EchoContext) {
   if (!person || !offered(context).has(SEND) || sentSince(context, at)) {
     return fauxAssistantMessage(answer)
   }
-  return fauxAssistantMessage([fauxToolCall(SEND, { text: answer })], { stopReason: "toolUse" })
+  // Its answer is its last word for now, which ends its turn.
+  return fauxAssistantMessage([fauxToolCall(SEND, { text: answer, done: true })], {
+    stopReason: "toolUse",
+  })
 }
 
 /** What the echo model would say, or the message it answers with where that is not words. */

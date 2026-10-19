@@ -426,7 +426,7 @@ describe("agent actor", () => {
     expect(state.messages.at(-1)).toMatchObject({
       role: "assistant",
       status: "done",
-      parts: [{ type: "text", text: "Finished after the restart." }],
+      parts: [{ type: "thinking", text: "Finished after the restart.", written: true }],
     })
   })
 
@@ -474,7 +474,7 @@ describe("agent actor", () => {
     expect(state?.messages.at(-1)).toMatchObject({
       role: "assistant",
       status: "done",
-      parts: [{ type: "text", text: "Finished after the failure." }],
+      parts: [{ type: "thinking", text: "Finished after the failure.", written: true }],
     })
   })
 

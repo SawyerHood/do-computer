@@ -205,7 +205,10 @@ describe("a call", () => {
       busy: true,
       messages: [
         asked,
-        { ...say("assistant", "", { work: true } as Partial<ChatMessage>), parts: [] },
+        {
+          ...say("assistant", ""),
+          parts: [{ type: "thinking", text: "On it, through a helper.", written: true }],
+        },
         say("assistant", "Lunch with Sam at one."),
       ],
     })

@@ -543,7 +543,7 @@ describe("what is said on a call", () => {
     )
     const said = first.state.messages
       .slice(at + 1)
-      .filter((message) => message.role === "assistant" && message.work !== true)
+      .filter((message) => message.role === "assistant" && message.parts.some((p) => p.type === "text"))
     expect(said.map((message) => message.parts)).toEqual([
       [{ type: "text", text: "I have someone on it." }],
     ])

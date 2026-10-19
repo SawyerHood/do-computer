@@ -175,11 +175,16 @@ const notices = (state: ChatState) =>
       (part): part is NoticePart => part.type === "notice" && part.kind === "agent",
     ),
   )
+/** What the agent wrote: in the main chat its own words, kept as thinking nobody is shown. */
 const said = (state: ChatState) =>
   state.messages
     .filter((message) => message.role === "assistant")
     .flatMap((message) =>
-      message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+      message.parts.flatMap((part) =>
+        part.type === "text" || (part.type === "thinking" && part.written === true)
+          ? [part.text]
+          : [],
+      ),
     )
 const tools = (state: ChatState) =>
   state.messages.flatMap((message) =>

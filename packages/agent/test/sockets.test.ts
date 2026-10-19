@@ -223,7 +223,7 @@ describe("following an agent over a socket", () => {
       ["user", "done"],
       ["assistant", "done"],
     ])
-    expect(state.messages[1]!.parts).toEqual([{ type: "text", text: answer }])
+    expect(state.messages[1]!.parts).toEqual([{ type: "thinking", text: answer, written: true }])
     // What the socket's changes made is what the chat is.
     expect(digest(state)).toBe(digest(await call<ChatState>(world, `/chats/${chat.id}`)))
     expect(kinds(client, chat.id).filter((kind) => kind === "snapshot")).toHaveLength(1)
