@@ -67,8 +67,7 @@ test("the agent uses its computer: one line says what it is doing, and only its 
   await expect(transcript.getByRole("button", { name: /echo from the shell/ })).toHaveCount(0)
   await expect(transcript.getByText(/echo from the shell > note/)).toHaveCount(1)
 
-  // The panel about the agent opens from the strip. It lists what the agent wrote up, which it
-  // does only for big things: this was not one.
+  // The panel about the agent opens from the strip.
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   await expect(panel).toHaveCount(0)
   await panelSwitch(page, "Show")
@@ -76,22 +75,8 @@ test("the agent uses its computer: one line says what it is doing, and only its 
     "data-mood",
     /idle|done/,
   )
-  await expect(panel.getByText("Nothing yet.")).toBeVisible()
-  await expect(panel.getByRole("listitem")).toHaveCount(0)
-
-  // The agent adds an entry itself, with a tool: a few words, so the list can be taken in at a
-  // glance, with what came of it inside.
-  await composer(page).fill(
-    '/tool log {"title":"Write a note","outcome":"Left a note in the workspace."}',
-  )
-  await page.keyboard.press("Enter")
-  const work = panel.getByRole("listitem").filter({ hasText: "Write a note" }).first()
-  await expect(work).toBeVisible()
-  await expect(panel.getByText("Nothing yet.")).toHaveCount(0)
-  await expect(work.getByText("Left a note in the workspace.")).toBeHidden()
-  await work.getByText("Write a note").click()
-  await expect(work.getByText("Left a note in the workspace.")).toBeVisible()
-  await expect(work.getByText("0 steps")).toBeVisible()
+  // What the agent did is not listed beside it: the transcript is where its work is.
+  await expect(panel.getByRole("region", { name: "What it did here" })).toHaveCount(0)
   await expect(page.getByRole("status")).toHaveCount(0)
   // Beside its name it says what it is doing in a word or two, not the whole command.
   await expect(panel.getByText("Ready", { exact: true })).toBeVisible()

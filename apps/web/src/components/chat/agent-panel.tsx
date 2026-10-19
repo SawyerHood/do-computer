@@ -1,29 +1,21 @@
 import {
   type AgentSummary,
-  type ChatRun,
-  chatRuns,
   type ChatState,
   type ChatSummary,
   type JobSummary,
   type LibraryFile,
   sentFiles,
   chatUses,
-  toolActivity,
-  useOf,
-  type ToolPart,
-  toolSummary,
 } from "@do-computer/protocol"
-import { CheckCircleIcon, FileIcon, TShirtIcon, WarningCircleIcon } from "@phosphor-icons/react"
+import { FileIcon, TShirtIcon } from "@phosphor-icons/react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { type ReactNode, useMemo, useRef, useState } from "react"
 import { AgentAvatar, AgentFace } from "@/components/agent-avatar"
 import { CallButton, CallFace } from "@/components/call/call"
 import { CreatureCare } from "@/components/creature/care"
 import { PinnedShelf } from "@/components/pins/shelf"
-import { RowsPlaceholder } from "@/components/placeholders"
 import { ResizeHandle } from "@/components/shell/resize-handle"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { callAtom } from "@/lib/call"
@@ -32,7 +24,6 @@ import { agentPanelColumn } from "@/lib/columns"
 import { creatureWardrobeAtom } from "@/lib/creature"
 import { formatBytes, isViewable } from "@/lib/library"
 import { type MascotMood, mascotMoodAtom } from "@/lib/mascot"
-import { keptLine } from "@/lib/passwords"
 import { cn } from "@/lib/utils"
 
 import { ThreadRows } from "./agent-threads.tsx"
@@ -42,12 +33,6 @@ import { SlackRows } from "./slack-threads.tsx"
 import { AgentIdContext } from "./sent-file.tsx"
 import { UseNow } from "./uses.tsx"
 import { SubagentBrood, SubagentRows, subagentSeed, subagentWords } from "./subagents.tsx"
-
-/** How many of the latest pieces of work are listed. */
-const SHOWN = 30
-
-/** How many of them are listed until the rest are asked for. */
-const FIRST = 5
 
 /** How tall the bar is that stands in for the face once it has been scrolled away, in pixels. */
 const BAR = 52
@@ -81,78 +66,6 @@ function moodWords(mood: MascotMood, hatched: boolean): string {
     default:
       return "Ready"
   }
-}
-
-const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
-
-/** One step of a piece of work, which opens to show what came back. */
-function Step({ part }: { part: ToolPart }) {
-  const going = part.status === "pending" || part.status === "running"
-  const output = part.output?.trim() ?? ""
-  const kept = keptLine(part)
-  return (
-    <li>
-      <Collapsible className="group/step">
-        <CollapsibleTrigger className="flex w-full cursor-default items-start gap-2 rounded-lg px-2 py-1 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40">
-          <span
-            aria-hidden
-            className={cn(
-              "mt-1.5 size-1.5 shrink-0 rounded-full bg-current",
-              part.status === "error" && "bg-destructive",
-              going && "animate-pulse",
-            )}
-          />
-          <span className="line-clamp-1 min-w-0 flex-1 break-all group-data-open/step:line-clamp-none">
-            {/* A step on a screen says what it did there, not only that it used it. */}
-            {useOf(part)?.say ??
-              // A sign-in or a payment says how it went, which what it was called with does not.
-              (kept === undefined ? (going ? toolActivity(part) : toolSummary(part)) : kept.words)}
-          </span>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <pre className="mt-1 mb-1.5 ml-5 max-h-56 overflow-auto rounded-lg bg-background p-2 text-xs whitespace-pre-wrap break-words text-muted-foreground">
-            {output === "" ? (going ? "Still going." : "It returned nothing.") : output}
-          </pre>
-        </CollapsibleContent>
-      </Collapsible>
-    </li>
-  )
-}
-
-/** One piece of work: what it was, what came of it, and its steps for whoever wants them. */
-function Work({ run }: { run: ChatRun }) {
-  const summary = run.entry
-  return (
-    <li>
-      <Collapsible className="group rounded-xl data-open:bg-surface">
-        {/* Only the title, so the list can be taken in at a glance. The rest is inside. */}
-        <CollapsibleTrigger className="flex w-full cursor-default items-center gap-2.5 rounded-xl px-2.5 py-2 text-left outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/40">
-          {run.status === "working" ? (
-            <Spinner className="shrink-0 text-muted-foreground" />
-          ) : run.status === "failed" ? (
-            <WarningCircleIcon className="size-4 shrink-0 text-destructive" />
-          ) : (
-            <CheckCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-          )}
-          <span className="min-w-0 flex-1 truncate text-sm group-data-open:font-medium group-data-open:whitespace-normal">
-            {summary.title}
-          </span>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="flex flex-col gap-1.5 px-2.5 pb-2.5 pl-9">
-          <p className="text-sm break-words text-muted-foreground">{summary.outcome}</p>
-          <p className="text-xs text-muted-foreground">
-            {run.at === undefined ? "" : `${clock.format(run.at)} · `}
-            {run.steps.length} {run.steps.length === 1 ? "step" : "steps"}
-          </p>
-          <ol aria-label="Steps" className="-ml-2 flex flex-col">
-            {run.steps.map((part) => (
-              <Step key={part.toolCallId} part={part} />
-            ))}
-          </ol>
-        </CollapsibleContent>
-      </Collapsible>
-    </li>
-  )
 }
 
 /** A file the agent sent in this chat: opened beside it where it can be shown, and otherwise downloaded. */
@@ -227,9 +140,8 @@ function threadsSaid(threads: ChatSummary[]): ReactNode {
 
 /**
  * The agent, beside its chat: its creature at a size where it can be watched, what it is doing,
- * what it has shared here and what it has done here. The transcript keeps only what was said; this
- * is where the work behind an answer can be opened and read, and a file found without scrolling
- * back to where it was sent.
+ * and what it has shared here, so that a file can be found without scrolling back to where it was
+ * sent.
  *
  * All of it scrolls as one, the face with it; a bar with the agent's name takes the face's place
  * at the top once it has gone. Each section folds under its heading, so that a panel with a lot
@@ -249,7 +161,6 @@ export function AgentPanel({
   callIn,
   presence,
   onOpenFile,
-  chatless = false,
   loading = false,
 }: {
   agent: AgentSummary
@@ -277,13 +188,11 @@ export function AgentPanel({
   chatId?: string
   /** The chat a call with the agent would be held in. Without it there is no calling it from here. */
   callIn?: string | undefined
-  /** In a team: who is in this chat right now. Shown above what the agent did. */
+  /** In a team: who is in this chat right now. */
   presence?: React.ReactNode
   /** Opens a file the agent sent beside the chat, by its id. Without it the files are not listed. */
   onOpenFile?: (fileId: string) => void
-  /** Beside a page that is not a chat: there is then no work here to list. */
-  chatless?: boolean
-  /** The chat has not been heard from yet, so what the agent is doing and has done is not known. */
+  /** The chat has not been heard from yet, so what the agent is doing is not known. */
   loading?: boolean
 }) {
   const mood = useAtomValue(
@@ -294,13 +203,8 @@ export function AgentPanel({
   // A call with the agent happens here, where its face is. A sub-agent is not who is on it.
   const onCall = useAtomValue(callAtom)
   const call = subagent === undefined && onCall?.agentId === agent.id ? onCall : undefined
-  // Newest first. Each is a piece of work the agent wrote an entry for, which it does only for
-  // the substantial ones, however many steps it took.
-  const runs = useMemo(() => chatRuns(state).slice(-SHOWN).reverse(), [state])
   const files = useMemo(() => sentFiles(state), [state])
   const using = useMemo(() => chatUses(state).at(-1), [state])
-  // Whether every piece of work is listed, or only the latest few.
-  const [allRuns, setAllRuns] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
   const nameplate = useRef<HTMLDivElement>(null)
   // Whether the agent's name has gone up under where the bar is.
@@ -485,45 +389,6 @@ export function AgentPanel({
                 <Shared key={file.id} agentId={agent.id} file={file} onOpen={onOpenFile} />
               ))}
             </ul>
-          </PanelSection>
-        )}
-        {chatless ? null : (
-          <PanelSection
-            id="did"
-            title="What it did here"
-            count={runs.length === 0 ? undefined : runs.length}
-            said={
-              runs.some((run) => run.status === "working") ? (
-                <Spinner className="size-3.5" />
-              ) : undefined
-            }
-          >
-            {loading ? (
-              <RowsPlaceholder className="px-2.5 pb-4" />
-            ) : runs.length === 0 ? (
-              <p className="px-5 pb-4 text-sm text-muted-foreground">
-                Nothing yet. When {name} gets something substantial done in this chat, it notes it
-                here, with its steps inside.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-0.5 px-2.5 pb-4">
-                <ul className="flex flex-col gap-0.5">
-                  {(allRuns ? runs : runs.slice(0, FIRST)).map((run) => (
-                    <Work key={run.id} run={run} />
-                  ))}
-                </ul>
-                {runs.length <= FIRST ? null : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAllRuns(!allRuns)}
-                    className="ml-0.5 self-start font-normal text-muted-foreground"
-                  >
-                    {allRuns ? "Show fewer" : `Show ${runs.length - FIRST} more`}
-                  </Button>
-                )}
-              </div>
-            )}
           </PanelSection>
         )}
       </div>

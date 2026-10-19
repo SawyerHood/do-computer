@@ -160,39 +160,33 @@ test("a section of the panel folds under its heading, and the face gives way to 
   await expect(page.getByRole("link", { name: "Download notes.md" })).toBeVisible()
   await panelSwitch(page, "Show")
   const panel = page.getByRole("complementary", { name: "About Juniper" })
-  const did = panel.getByRole("region", { name: "What it did here" })
-  for (const title of ["One", "Two", "Three", "Four", "Five", "Six", "Seven"]) {
-    await composer(page).fill(`/tool log {"title":"Thing ${title}","outcome":"Done."}`)
-    await page.keyboard.press("Enter")
-    await expect(did.getByRole("listitem").filter({ hasText: `Thing ${title}` })).toBeVisible()
-  }
-
-  // What it did is open, with its latest few and a way to the rest, and its heading counts them all.
-  const didHeading = sectionHeading(page, "What it did here")
-  await expect(didHeading).toHaveText(/What it did here\s*7/)
-  await expect(did.getByRole("listitem")).toHaveCount(5)
-  await did.getByRole("button", { name: "Show 2 more" }).click()
-  await expect(did.getByRole("listitem")).toHaveCount(7)
-  await did.getByRole("button", { name: "Show fewer" }).click()
-  await expect(did.getByRole("listitem")).toHaveCount(5)
-  // It folds away under its heading.
-  await didHeading.click()
-  await expect(didHeading).toHaveAttribute("aria-expanded", "false")
-  await expect(did.getByRole("listitem")).toHaveCount(0)
   // What was shared starts folded, and is opened.
   const shared = panel.getByRole("region", { name: "Shared here" })
-  await expect(sectionHeading(page, "Shared here")).toHaveAttribute("aria-expanded", "false")
+  const sharedHeading = sectionHeading(page, "Shared here")
+  await expect(sharedHeading).toHaveAttribute("aria-expanded", "false")
   await unfold(page, "Shared here")
+  await expect(sharedHeading).toHaveAttribute("aria-expanded", "true")
   await expect(shared.getByRole("listitem")).toHaveText([/notes\.md/])
 
-  // Both are as they were left after a reload.
+  // It is as it was left after a reload.
   await page.reload()
   await expect(composer(page)).toBeVisible()
   await panelSwitch(page, "Show")
-  await expect(didHeading).toHaveAttribute("aria-expanded", "false")
+  await expect(sharedHeading).toHaveAttribute("aria-expanded", "true")
   await expect(shared.getByRole("listitem")).toHaveText([/notes\.md/])
-  await didHeading.click()
-  await expect(did.getByRole("listitem")).toHaveCount(5)
+
+  // Enough is shared that the open section runs past the bottom of a short window.
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    await tool(
+      page,
+      "write",
+      { path: `library/folds/more-${n}.md`, content: "# More\n" },
+      `Successfully wrote to library/folds/more-${n}.md`,
+    )
+    await composer(page).fill(`/tool send_file {"path":"library/folds/more-${n}.md"}`)
+    await page.keyboard.press("Enter")
+    await expect(shared.getByRole("listitem")).toHaveCount(n + 1)
+  }
 
   // In a short window the panel scrolls as one. Once the name has gone, a bar says who this is,
   // and a press on it brings the face back.
@@ -232,7 +226,7 @@ test("what the agent shared is listed in its panel, and a document's edge is dra
     await expect(page.getByRole("link", { name: `Download ${name}` })).toBeVisible()
   }
 
-  // The panel lists both, the newest first, under who is here and above what it did.
+  // The panel lists both, the newest first, under who is here.
   await panelSwitch(page, "Show")
   const panel = page.getByRole("complementary", { name: "About Juniper" })
   const shared = panel.getByRole("region", { name: "Shared here" })

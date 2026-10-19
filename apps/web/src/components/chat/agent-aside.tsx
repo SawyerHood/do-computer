@@ -20,7 +20,6 @@ export function AgentAside({ agent }: { agent: AgentSummary }) {
       face={<AgentFace agent={agent} className="size-52" pettable />}
       reconnecting={false}
       subagents={[]}
-      chatless
     />
   )
 }

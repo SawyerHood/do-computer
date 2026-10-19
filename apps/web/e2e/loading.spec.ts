@@ -59,7 +59,7 @@ test("the frame of the app is in the page as it is sent", async ({ page }) => {
   // Before any of the app's code has run, and before anything is known of who is asking.
   const sent = await (await page.request.get(page.url())).text()
   expect(sent).toContain("data-loading")
-  expect(sent).toContain("What it did here")
+  expect(sent).toContain('aria-label="Loading"')
 })
 
 test("choosing an agent moves the page before the server has answered", async ({ page }) => {

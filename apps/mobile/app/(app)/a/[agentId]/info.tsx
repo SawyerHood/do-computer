@@ -1,4 +1,4 @@
-import { type ChatSummary, chatRuns, chatUses, sentFiles, spanOf } from "@do-computer/protocol"
+import { type ChatSummary, chatUses, sentFiles, spanOf } from "@do-computer/protocol"
 import { useQuery } from "@tanstack/react-query"
 import { Stack, useLocalSearchParams, useRouter } from "expo-router"
 import { useMemo, useState } from "react"
@@ -316,8 +316,6 @@ function MainChat({
   const now = useNow(1000, running.length > 0)
   const using = useMemo(() => chatUses(live.state).findLast((use) => use.going), [live.state])
   const files = useMemo(() => sentFiles(live.state), [live.state])
-  const runs = useMemo(() => chatRuns(live.state), [live.state])
-  const steps = runs.reduce((sum, run) => sum + run.steps.length, 0)
   const threads = chats.filter((entry) => entry.kind === "agent" && !entry.archived)
   const slack = chats.filter((entry) => entry.kind === "slack" && !entry.archived)
   const canStartFresh =
@@ -394,19 +392,6 @@ function MainChat({
             onPress={() => router.push(`${base}/shared`)}
           />
         )}
-        <Row
-          icon={["list", "#4b5559"]}
-          title="What it did"
-          value={
-            !live.loaded
-              ? undefined
-              : steps === 0
-                ? "Nothing yet"
-                : `${steps} ${steps === 1 ? "step" : "steps"}`
-          }
-          go
-          onPress={() => router.push(`${base}/work`)}
-        />
         {threads.length === 0 ? null : (
           <Row
             icon={["people", "#c0607a"]}
