@@ -2,8 +2,9 @@
 
 **Status:** a plan, written 2026-10-18. Phases 1 to 4 are built: phase 1 (section 6), phases 2
 and 3 first behind a switch (8.1 and 8.2), and phase 4 (8.3), which took the switch away, so that
-every Dood's main chat and threads in Slack are a bus, and took side chats away. Phases 5 to 7 are
-not built. Sawyer made the choices in section 2; section 9 lists what is still open.
+every Dood's main chat and threads in Slack are a bus, and took side chats away. Phases 5 to 7
+are planned as pull requests in 8.5, and the first of them is built. Sawyer made the choices in
+section 2; section 9 lists what is still open.
 
 This is the shape described in Lee Robinson's Stanford CS146S lecture on always-on agents
 (how Grok's bot is built), adapted to Do Computer. The ideas taken from it:
@@ -32,7 +33,7 @@ Sections 3 to 7 cover the five pieces; section 8 says in what order to do them.
 | Compaction | Only pi-durable's own: when a request would pass `contextWindow - reserveTokens` (16k), or on overflow. `conversation.compact()` is never called | pi-durable `DEFAULT_COMPACTION_POLICY` |
 | Messages while busy | The user, Slack and answered approvals steer (`whenBusy: "steer"`). Sub-agent reports and ended commands were already follow-ups: a write, then a separate nudge input with `whenBusy: "followUp"` (`subagents.ts` `#deliver`, `jobs.ts` `#deliver`) | `actor.ts` :3044, `slack.ts` :559, `approvals.ts` :863 |
 
-`PLAN-chat-objects.md` (branch `plan-chat-objects`) is the groundwork for objects of their own
+`PLAN-chat-objects.md` (in the repository, marked as partly superseded) is the groundwork for objects of their own
 and is relied on in section 4. It kept sub-agents and side chats in one "talk object" because
 side chats are forks and `PLAN-forked-chats.md` proposed forking sub-agents too. This plan
 removes both reasons.
@@ -673,6 +674,232 @@ drawn as the bus drew them where it was on. Sub-agents that ended under phase 4 
 main chat, and stay there. Calls held under phase 4 have their records in the main chat. Schedules
 made under phase 4 deliver to the main chat, where they were made.
 
+## 8.5 Phases 5–7 as planned
+
+Phases 5 to 7 give every sub-agent, automation, thread in Slack and conversation with another
+agent a Durable Object of its own (section 4), as a stack of small pull requests. The owner's
+choices, fixed:
+
+- **The main chat stays in `AgentObject`.** A new `ChatObject` class holds one conversation's
+  worth of background work: one object per sub-agent, per schedule (its runs, one at a time), per
+  thread in Slack and per conversation with another agent, named `<agentId>/<n>`, `n` minted by
+  the agent.
+- **Sub-agents can do everything the Dood can** (4.2), and ask a person through the main chat as
+  now. Tokens, MCP sessions and requests to people stay in `AgentObject`, and other objects call
+  through it. Model credentials keep one path (below).
+- **Isolation is the goal**: a sub-agent that blows its isolate's 128 MB must not take the main
+  chat or another conversation with it.
+- **Node (in-process) and Cloudflare both**, with the same code.
+- **Nothing is moved.** Existing conversations stay in `AgentObject` and keep working; new work
+  starts in the new objects; work in flight finishes where it is. That drops
+  `PLAN-chat-objects.md`'s export, import, check and sweep (its section 5 and phases 3, 6 and 8),
+  which were most of its risk. `PLAN-chat-objects.md` is in the repository, marked as partly
+  superseded; its inventory (2), mirror (4.5), tools across objects (4.6) and Node (4.9) are
+  relied on here.
+
+### The switch
+
+`DC_CHAT_OBJECTS`, a server-side setting: a list of the kinds that start in objects of their
+own (`subagents`, `slack`, `schedules`, `peers`), empty by default, with a per-Dood override kept
+in `AgentObject` and set through an internal route, so that one Dood can go first. It is read
+when a conversation is **made**: a record says where its conversation is (`object: n`, or nothing
+for the agent's own store), and that never changes. Turning a kind off sends only new work back
+to `AgentObject`; objects already made finish their work, and are read, where they are.
+
+### How it fits together
+
+- **The agent's link** (`AgentLink`, `agent-link.ts`): what a conversation asks of its Dood,
+  where the answer is the Dood's. Plain data in and out, each change keyed by the asking
+  conversation and its tool call, so a call sent twice changes once. `AgentObject` implements it
+  in-process for its own conversations; a `ChatObject` gets an implementation that calls
+  `AgentObject`'s internal `/link/*` routes.
+- **The mirror**: what a conversation only reads of the Dood (identity and memory, skills,
+  connectors, computers, approval rules, the journal, schedules, the chats' index) is copied into
+  the chat object's own store **as the same documents under the same names**, so every section,
+  hook and tool reads them exactly as it does in `AgentObject`, with no change to the code that
+  reads. Each document has a fingerprint; a run asks for what differs before it starts, and
+  `AgentObject` pushes changes to objects with live work.
+- **The conversation's host** (`ChatHost`): what `AgentObject` does to a conversation (make,
+  submit, abort, read its view, entries, context, usage, follow it), behind one interface with
+  two implementations: its own harness, and a chat object over `fetch`.
+- **Between objects**, calls are `fetch` through `ActorNamespace`, as Doods already reach each
+  other (`agent-directory.ts`), so Node runs the same code in one process. Internal routes join
+  the gateway's `INTERNAL` list so no client reaches them.
+- **Model credentials**: a chat object builds its models as `AgentObject` does
+  (`createAgentModels`, with the workspace's and deployment's credentials looked up in
+  `ModelAccessObject` by the agent's id). One path, nothing copied. (Section 9 asks whether to
+  route model calls through `AgentObject` instead.)
+- **Ids**: object `n` takes its pi-durable ids from `[2^45 + n·2^32, 2^45 + (n+1)·2^32)`
+  (`PLAN-chat-objects.md` 4.1), so a chat id is unique across the Dood and is still its
+  conversation's id. The agent's index says which object holds it.
+
+### Phase 0: measuring (one pull request, beside phase 5)
+
+**0.1 What one Dood's work costs.** Each time `#rearm` inspects the harness, count the
+conversations with live work by kind, and log a line when that changes; the size of each request
+built, by chat kind, from the limits hook (which already measures its pictures); the database's
+size once a day (`ActorHost.size()`). A JSON line on Node; Workers Logs on Cloudflare, with a
+saved query for invocations that ended `exceededMemory` or `exceededCpu` (isolate resets). Nothing
+else changes. *Tested*: unit tests of the counting, on Node; `registerHostConformance` for
+`size()` on both. *Rollback*: revert. Gives the baseline phase 6 is judged against.
+
+### Phase 5: groundwork, nothing made in an object outside tests
+
+**5.1 Seams: the agent's link and the mirror** (this pull request). `AgentLink` with its first
+calls: `changeIdentity` and `editMemory` (the persona's tools now ask through it, with the
+change itself in `persona.ts` as functions on the identity document), `sent` and `tellMain` (the
+bus's `send` and `tell_main`), and `mirror`. `readMirror` and `writeMirror`, with fingerprints.
+No behaviour change. *Touches* `agent-link.ts` (new), `persona.ts`, `actor.ts`. *Tested*: the
+whole suite unchanged, plus `agent-link.test.ts` (a mirror sends everything once, then only what
+changed, and reads back the same from another store). *Rollback*: revert.
+
+**5.2 The link for skills and connectors.** The skill tool works on a `SkillStore` (list, get,
+save, enable, remove), which `Skills` is in-process and the link is elsewhere; a skill's files
+are read through it when one is loaded, not mirrored. Connector tools are built from
+`dc.connectors` (mirrored) and their calls go through `callConnector({ connector, tool, args })`,
+which `Connectors` answers with its sessions and tokens; a connector page (MCP app) comes back as
+a blob reference. The `connectors` tool's changes (`add`, `remove`, …) go through the link too.
+*Tested*: `skills.test.ts`, `connectors.test.ts`, `apps.test.ts` unchanged; one new test per call
+that sends the same call twice. *Rollback*: revert.
+
+**5.3 The link for asking and approving.** The approvals hook reads its rules as it does now
+(from the mirror elsewhere) and asks `askApproval` only where a rule asks first; `askSecret`,
+`askLogin`, `askComputer`, `allowOnce` and the card hold go through the link. The request is
+recorded in `AgentObject`, drawn in the main chat as now, and the answer is sent back to the
+asking conversation as a keyed turn (`approval:<id>`, `secret:<id>`, already keyed). Also
+`saveLogin` and the vault: the values stay where they are read today, and a chat object reaches
+them through the link. *Tested*: `approvals.test.ts`, `secrets` and `sign-in.test.ts`,
+`vault.test.ts`, `paired.test.ts` unchanged. *Rollback*: revert.
+
+**5.4 The conversation's host.** Every place that reaches a conversation (`actor.ts`,
+`subagents.ts`, `schedules.ts`, `slack.ts`, `peers.ts`, `jobs.ts`, `journal.ts`, `history.ts`,
+`keep-going.ts`, `approvals.ts`, `calls.ts`) goes through `ChatHost` instead of
+`harness.conversation(Number(chatId))`. Usage and "at work" read through it too, and a
+conversation reports its usage, being at work (with a lease) and its latest line through the link
+(in-process: nothing to report, the agent reads its own harness). The search index is filled
+through it. No behaviour change. *Tested*: the whole suite. *Rollback*: revert. The largest of the
+seams; split by loop if review wants.
+
+**5.5 The screen and browser queue on the computer.** The queue that keeps two calls off one
+screen (`uses.ts` `#turns`) is in the agent's memory, which a sub-agent in another object would
+not share. It moves to the computer: `ComputerObject` for a paired computer, the sandbox's own
+object for a machine. That also keeps two Doods sharing a paired computer apart, which nothing
+does today (a small behaviour change, for the better). *Tested*: `uses.test.ts`, and a new test
+of two Doods taking turns on one screen. *Rollback*: revert.
+
+**5.6 The built-in shell's files on Node.** On Node, `just-bash` keeps a Dood's files in the
+agent's own database (`sandbox.ts`), where a chat object cannot reach them. They move to a store
+of their own beside it, as on Cloudflare (`ShellObject`): copied once when the Dood is opened, the
+old tables left in place. *Tested*: `sandbox.test.ts`, `machines.test.ts`, and a Dood from before
+reopened. *Rollback*: revert; the old tables are still there, missing only what was written
+since.
+
+**5.7 `ChatObject`, unused.** `createChatActor` in `packages/agent`: a harness over the object's
+own store with the conversation-side extensions (everything but the agent's loops, schedules'
+alarm, the agent's socket), the mirror kept and refreshed, the link over `fetch`, the id floor,
+its keep-alive, and the internal routes it answers (`/start`, `/input`, `/abort`, `/view`,
+`/entries`, `/events`, `/usage`) and that `AgentObject` answers for it (`/link/*`). On Node a
+`chats/` namespace in the data folder, and putting away a chat actor idle for some minutes with no
+follower and no alarm due (`NodeActorNamespace` keeps every actor it loads today). On Cloudflare
+the class is exported from `server.cloudflare.ts` **but not bound**: no binding and no migration
+in `apps/web/wrangler.jsonc` yet. Nothing makes one except tests. *Tested*: Node unit tests of a
+sub-agent run end to end in a chat object (the mirror reaching its next request; a change made
+through the link; each keyed call sent twice; a lease that lapses); Workers tests in
+`packages/agent/test/workers` (whose own `wrangler.jsonc` binds the class) for two objects calling
+each other, alarms in both, the id floor, and **one object thrown out of memory while the other
+answers**. *Rollback*: revert; nothing uses it.
+
+### Phase 6: sub-agents in objects of their own
+
+**6.1 Sub-agents start in objects, behind the switch.** With `subagents` on, `subagent start`
+mints `n` and writes the record (`object: n`, `status: "starting"`, the cap checked) in one
+commit, then calls the object's `/start` keyed `subagent:<id>`; a start that fails is tried again
+from the record and, after a few tries, reported failed as an event. Messages and stopping are
+forwarded, keyed. The object reports when its conversation rests (`subagent-report:<id>:<n>`, the
+same event as now) and keeps its status leased; asking a person goes through 5.3, so a request is
+drawn in the main chat as now. The sub-agent's page reads its conversation from the object
+through `AgentObject` (a proxy for `GET /chats/:id` and `/history`, and a relay of its events to
+a follower), which the clients do not notice. Usage, activity, history search and the journal's
+notes come from the object's reports. A sub-agent started before keeps running in `AgentObject`.
+*Touches* `subagents.ts`, `actor.ts`, the gateway's internal routes. *Tested*: `subagents.test.ts`
+run twice, with the switch off and on; the capabilities of 4.2 each called from a sub-agent in an
+object (a connector, Apps, `slack`, a secret for a command, a saved login, a card, a computer,
+web search, the library, memory, a skill), each also asking a person where it does; the e2e
+sub-agent specs (`bus.spec.ts`, `calls-work.spec.ts`, `approvals.spec.ts`) with
+`DC_CHAT_OBJECTS=subagents`; on Workers, a sub-agent whose object is thrown out of memory while
+the main chat answers. *Rollback*: switch off; sub-agents already in objects finish there.
+
+**6.2 Declare `ChatObject` on Cloudflare: the one irreversible step.** One binding (`CHAT`) and
+one migration (`{ "tag": "v8", "new_sqlite_classes": ["ChatObject"] }`) in
+`apps/web/wrangler.jsonc`, and nothing else. **Once deployed it cannot be taken back without
+deleting data**: removing the class needs a `deleted_classes` migration, which deletes every
+`ChatObject`'s storage, and migration tags only ever go forward. With the switch off, it holds
+nothing until 6.3. So it is the last thing before switching on, and it is small enough to review
+on its own. (Section 9 asks whether to avoid it: chat actors could be served by the existing
+`AgentObject` class under names with a `/`, with no migration at all, at the cost of mixing the
+two in Cloudflare's per-class metrics.)
+
+**6.3 On, one Dood first.** The switch on for the owner's Doods through the per-Dood override,
+then the deployment's default after a week. Watched against phase 0: isolate resets of
+`AgentObject` (should fall), requests and duration billed per class, calls between objects and
+their time, leases that lapsed, starts retried. *Rollback*: the override or the default off.
+
+**6.4 The cap.** `MAX_WORKING_SUBAGENTS` from 6 to 12 for sub-agents in objects (section 9 asks
+the number). *Rollback*: revert.
+
+### Phase 7: threads in Slack, automations, other agents
+
+**7.1 Threads in Slack.** With `slack` on, a new thread is made in an object: `AgentObject` still
+receives `/slack/message`, finds or makes the thread's record by channel and thread, and hands the
+message on keyed by Slack's id. The object takes in its files, runs, and posts with `send`
+itself through the Slack directory; `tell_main` goes through the link. A thread from before stays
+in `AgentObject` for as long as it lives, since threads are answered again weeks later. *Tested*:
+`slack.test.ts` both ways, `slack.spec.ts` with the switch on. *Rollback*: switch off.
+
+**7.2 Automations.** With `schedules` on, a schedule's next run is made in its object; the
+schedule, its check and the alarm stay in `AgentObject`, which asks the object to run keyed
+`schedule:<id>:<firedAt>`. The run's result comes back through the link as the `automation` event
+it is now. A run in flight finishes where it started; a schedule from before moves at its next
+run (each run starts fresh, so nothing is carried). *Tested*: `schedules.test.ts` both ways,
+`automations.spec.ts` with the switch on. *Rollback*: switch off.
+
+**7.3 Conversations with another agent.** With `peers` on, a new thread from another Dood is made
+in an object; the reply is sent from there through the agent directory. *Tested*:
+`peers.test.ts` both ways. *Rollback*: switch off.
+
+**7.4 Every kind on by default**, after phase 6's soak. Code that runs background conversations
+in `AgentObject` stays, since old ones live there; it is removed only once none is live and the
+owner says so.
+
+### What cannot be undone, and where it sits
+
+| Step | Why | Where |
+| --- | --- | --- |
+| The `ChatObject` migration (`v8`) | A class is taken away only with its data, and tags go forward | 6.2, alone, just before switching on |
+| Work done in objects | A conversation made in an object is read there for good: turning the switch off does not bring it back | From 6.3, per Dood |
+| The built-in shell's files moved on Node | Copied, the old tables kept: going back loses only what was written since | 5.6 |
+
+Everything else reverts by reverting, or by the switch.
+
+### Risks
+
+- **Isolation is likely, not certain.** The 128 MB is an isolate's, and Cloudflare may run
+  several objects in one isolate (`PLAN-chat-objects.md` 4.10). Objects of their own make a
+  sub-agent taking the main chat down much less likely; they do not rule it out. The request
+  limits (#166, #167) stay. Phase 0 and 6.3 measure how often `AgentObject` is still reset.
+- **Steps that were one commit become two**: making a sub-agent and its conversation, a report
+  and its event, usage and activity. Each is keyed and finished by the next wake-up, as the loops
+  already are; reports are true a moment after the fact.
+- **Duration billing**: an object in memory for each piece of work at once, where there was one.
+  The agent's object stays out of a run's path (no stream through it except a relay to someone
+  watching a sub-agent's page), so the total should be close. 6.3 watches it.
+
+### What it costs
+
+About two weeks for phase 5 (5.4 and 5.7 most of it), a week for phase 6 and a week for phase 7,
+as section 8 has it. Each pull request leaves `main` deployable and changes nothing until the
+switch is on.
+
 ## 9. Still open
 
 - **Unanswered message.** After the nudge, does a turn that still sends nothing stay silent, or
@@ -683,7 +910,19 @@ made under phase 4 deliver to the main chat, where they were made.
 - ~~**Old side chats.**~~ Kept archived and readable, from the Dood's menu or page (8.3).
 - **Late sends on a call.** Whether what the main chat sends after the voice has answered should
   be said too, as a word the voice offers on its own (8.3).
-- **Sub-agent cap** once each has an isolate.
+- **Sub-agent cap** once each has an isolate. 8.5 says 12.
+- **One class or two on Cloudflare** (8.5, 6.2). A `ChatObject` class needs a migration that
+  cannot be taken back without its data. Serving chat actors from the existing `AgentObject` class
+  under names `<agentId>/<n>` needs none, and changes nothing about isolation (Cloudflare may run
+  several objects of one Worker in one isolate whichever class they are); it mixes the two in the per-class metrics and makes the class's code
+  choose what to be by its name. 8.5 plans the class, as decided, and puts the migration last.
+- **Model calls from a chat object** (8.5): its own models, with credentials looked up in
+  `ModelAccessObject` by the agent's id as `AgentObject` does (one store of credentials, no
+  extra hop), or every model request made through `AgentObject` (one caller, but the agent is
+  then in the path of every token streamed). 8.5 plans the first.
+- **Old background conversations.** Threads in Slack and with other agents from before stay in
+  `AgentObject` while they live. Keep that for good, or stop answering them there after some
+  months and start a new thread in an object?
 
 ## 10. Not checked
 
