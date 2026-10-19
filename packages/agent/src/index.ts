@@ -68,7 +68,7 @@ export {
   type SlackRead,
   type SlackSaid,
 } from "./slack.ts"
-export { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
+export { MEMORY_LIMIT, persona, USER_LIMIT } from "./persona.ts"
 export { formatTime, nextRunAt, parseSchedule, type ScheduleSpec } from "./schedule.ts"
 export { type ScheduledReport, Scheduler } from "./schedules.ts"
 export { fetchSkill } from "./skill-fetch.ts"

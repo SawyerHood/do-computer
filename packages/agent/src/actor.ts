@@ -159,7 +159,8 @@ import { bindingOf, SignIns } from "./sign-in.ts"
 import { type SettingsChange, SettingsError, settingsExtension } from "./settings.ts"
 import { SkillError, Skills, SkillsDoc } from "./skills.ts"
 import { SlackChats, type SlackDirectory, SlackError, type SlackMessage } from "./slack.ts"
-import { MEMORY_LIMIT, Persona, USER_LIMIT } from "./persona.ts"
+import { changeIdentity, editMemory, MEMORY_LIMIT, persona, USER_LIMIT } from "./persona.ts"
+import { type AgentLink, readMirror } from "./agent-link.ts"
 import { preview } from "./preview.ts"
 import { addUsage, projectChat } from "./project.ts"
 import { JobError, Jobs, JobsDoc } from "./jobs.ts"
@@ -591,6 +592,8 @@ export class AgentActor implements Actor {
   readonly #library: Library
   readonly #pins: Pins
   readonly #calls: Calls
+  /** What its conversations ask of it (`agent-link.ts`): all of them are kept here, for now. */
+  readonly #link: AgentLink
   /** The library the agent keeps for itself, where its workspace has none for it to share. */
   readonly #ownLibrary: LibraryStore
   /** The harness, once it is open, for what is built before it and needs it later. */
@@ -650,6 +653,18 @@ export class AgentActor implements Actor {
   constructor(host: ActorHost, options: AgentActorOptions) {
     this.#host = host
     this.#options = options
+    this.#link = {
+      mirror: async (known, c) => readMirror(await this.#open(), known, c),
+      changeIdentity: async (_from, change, c) =>
+        (await this.#open()).commit(
+          async (tx) => changeIdentity(await tx.doc(IdentityDoc), change),
+          c,
+        ),
+      editMemory: async (_from, edit, c) =>
+        (await this.#open()).commit(async (tx) => editMemory(await tx.doc(IdentityDoc), edit), c),
+      sent: (sent) => this.#sent(sent.chatId, sent.text, sent.files),
+      tellMain: (told, c) => this.#tellMain(told, c),
+    }
     // One kind without a name, when the deployment gives no choice.
     this.#choices = options.computers ?? {
       kinds: [],
@@ -906,7 +921,7 @@ export class AgentActor implements Actor {
       checkFiles: (paths: readonly string[], computer: string | undefined, c: Context) =>
         this.#checkFiles(paths, computer, c),
       onSent: (sent: { chatId: string; text: string; files: readonly unknown[] }) =>
-        void this.#sent(sent.chatId, sent.text, sent.files.length),
+        void this.#link.sent({ chatId: sent.chatId, text: sent.text, files: sent.files.length }),
       onError: (error: unknown) => options.onReport?.(error),
     }
     this.#bus = busExtension(busOptions)
@@ -914,7 +929,7 @@ export class AgentActor implements Actor {
       ...busOptions,
       post: async (sent, c) =>
         this.#slack === undefined ? "You are not in Slack." : this.#slack.post(sent, c),
-      tellMain: (told, c) => this.#tellMain(told, c),
+      tellMain: (told, c) => this.#link.tellMain(told, c),
     })
     this.#limits = new RequestLimits({
       sql: host.sql,
@@ -1251,7 +1266,7 @@ export class AgentActor implements Actor {
       const registry = createRegistry()
       // For tools that read the harness they are installed in, once it exists.
       let opened: Harness | undefined
-      registry.install(Persona)
+      registry.install(persona(this.#link))
       // First among the tool hooks: a call that is not allowed should cause nothing at all.
       registry.install(this.#approvals.extension)
       // The file and shell tools, which run on whichever computer a call is for.

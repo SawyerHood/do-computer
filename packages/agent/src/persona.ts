@@ -7,6 +7,7 @@ import {
   type DocumentReader,
   section,
 } from "@earendil-works/pi-durable"
+import type { AgentLink } from "./agent-link.ts"
 import { IdentityDoc, type IdentityState } from "./docs.ts"
 
 /**
@@ -119,147 +120,215 @@ export function addNotes(
   return added
 }
 
-const setIdentity = defineTool({
-  name: "set_identity",
-  description:
-    "Set or change who you are: your name, a short tagline, your personality in your own words, and your color. Pass only what you are changing.",
-  parameters: Type.Object({
-    name: Type.Optional(Type.String({ description: "Your name", maxLength: 40 })),
-    tagline: Type.Optional(
-      Type.String({ description: "One short line describing you", maxLength: 120 }),
-    ),
-    personality: Type.Optional(
-      Type.String({
-        description:
-          'Your personality, tone and boundaries, written in the second person ("You are..."). Replaces the previous one.',
-        maxLength: 4000,
-      }),
-    ),
-    color: Type.Optional(
-      Type.String({ description: `The color of the creature you appear as. ${colorCatalog()}` }),
-    ),
-  }),
-  execute: async (args, api, context) => {
-    if (args.color !== undefined) {
-      const parsed = parseAvatar({ color: args.color })
-      if ("error" in parsed) {
-        return {
-          isError: true,
-          output: [{ type: "text", text: `${parsed.error}. ${colorCatalog()}` }],
-        }
-      }
+/** What `set_identity` changes: only what it was given. Checked by the tool before it asks. */
+export type IdentityChange = {
+  readonly name?: string
+  readonly tagline?: string
+  readonly personality?: string
+  readonly color?: string
+}
+
+/** Who the agent is once a change is made, as `set_identity` tells the model. */
+export type IdentityChanged = {
+  readonly name: string | null
+  readonly tagline: string | null
+  readonly color: string | null
+}
+
+/** Make a change to who the agent is, on its identity document as it is being committed. */
+export function changeIdentity(doc: IdentityState, change: IdentityChange): IdentityChanged {
+  if (change.name !== undefined) doc.name = change.name
+  if (change.tagline !== undefined) doc.tagline = change.tagline.trim() || null
+  if (change.personality !== undefined) doc.soul = change.personality.trim()
+  // Its features grow from its seed, which a change of color leaves alone.
+  if (change.color !== undefined) {
+    const seed = doc.avatar?.seed
+    doc.avatar = seed === undefined ? { color: change.color } : { color: change.color, seed }
+  }
+  // Copy out of the draft: it cannot be read once the commit settles.
+  return { name: doc.name, tagline: doc.tagline, color: doc.avatar?.color ?? null }
+}
+
+/**
+ * One edit of the agent's memory, as the `memory` tool makes it. `content` is one line, already
+ * checked to be there for "add" and "replace", and `match` for "replace" and "remove".
+ */
+export type MemoryEdit = {
+  readonly action: "add" | "replace" | "remove"
+  readonly target: keyof typeof STORES
+  readonly content?: string
+  readonly match?: string
+}
+
+/** How full the store is after an edit, or why it was not made. */
+export type MemoryEdited = { readonly error: string } | { readonly used: number }
+
+/** Make an edit to the agent's memory, on its identity document as it is being committed. */
+export function editMemory(doc: IdentityState, edit: MemoryEdit): MemoryEdited {
+  const store = STORES[edit.target]
+  const lines = entries(doc[store.field])
+  if (edit.action === "add") {
+    if (lines.includes(edit.content!)) return { error: "That entry is already saved." }
+    lines.push(edit.content!)
+  } else {
+    const matches = lines.flatMap((line, index) => (line.includes(edit.match!) ? [index] : []))
+    if (matches.length === 0) return { error: `No entry contains "${edit.match}".` }
+    if (matches.length > 1) {
+      return { error: `${matches.length} entries contain "${edit.match}"; be more specific.` }
     }
-    const name = args.name?.trim()
-    if (name === "") {
-      return { isError: true, output: [{ type: "text", text: "A name cannot be empty." }] }
+    if (edit.action === "replace") lines[matches[0]!] = edit.content!
+    else lines.splice(matches[0]!, 1)
+  }
+  const next = lines.join("\n")
+  if (next.length > store.limit) {
+    return {
+      error: `That would make ${store.label} ${next.length} characters; the limit is ${store.limit}. Shorten, merge or remove entries first.`,
     }
-    const saved = await api.commit(async (tx) => {
-      const doc = await tx.doc(IdentityDoc)
-      if (name !== undefined) doc.name = name
-      if (args.tagline !== undefined) doc.tagline = args.tagline.trim() || null
-      if (args.personality !== undefined) doc.soul = args.personality.trim()
-      // Its features grow from its seed, which a change of color leaves alone.
+  }
+  doc[store.field] = next
+  return { used: next.length }
+}
+
+/**
+ * Where the persona's tools make their changes: the agent's own identity document, wherever the
+ * conversation that calls them is kept (`AgentLink`). `from` is the conversation and the call.
+ */
+export type PersonaWrites = Pick<AgentLink, "changeIdentity" | "editMemory">
+
+const setIdentity = (writes: PersonaWrites) =>
+  defineTool({
+    name: "set_identity",
+    description:
+      "Set or change who you are: your name, a short tagline, your personality in your own words, and your color. Pass only what you are changing.",
+    parameters: Type.Object({
+      name: Type.Optional(Type.String({ description: "Your name", maxLength: 40 })),
+      tagline: Type.Optional(
+        Type.String({ description: "One short line describing you", maxLength: 120 }),
+      ),
+      personality: Type.Optional(
+        Type.String({
+          description:
+            'Your personality, tone and boundaries, written in the second person ("You are..."). Replaces the previous one.',
+          maxLength: 4000,
+        }),
+      ),
+      color: Type.Optional(
+        Type.String({ description: `The color of the creature you appear as. ${colorCatalog()}` }),
+      ),
+    }),
+    execute: async (args, api, context) => {
       if (args.color !== undefined) {
-        const seed = doc.avatar?.seed
-        doc.avatar = seed === undefined ? { color: args.color } : { color: args.color, seed }
-      }
-      // Copy out of the draft: it cannot be read once the commit settles.
-      return { name: doc.name, tagline: doc.tagline, color: doc.avatar?.color ?? null }
-    }, context)
-    return {
-      output: [{ type: "text", text: `Saved. You are now: ${JSON.stringify(saved)}` }],
-      details: saved,
-    }
-  },
-})
-
-const memory = defineTool({
-  name: "memory",
-  description: `Edit your long-term memory, which is shown to you in every conversation. Target "user" is what you know about the person (limit ${USER_LIMIT} characters); target "memory" is your own notes (limit ${MEMORY_LIMIT} characters). Each entry is one line. "replace" and "remove" pick the entry containing "match", which must match exactly one entry. When a store is full, replace or remove entries to make room.`,
-  parameters: Type.Object({
-    action: Type.Union([Type.Literal("add"), Type.Literal("replace"), Type.Literal("remove")]),
-    target: Type.Union([Type.Literal("user"), Type.Literal("memory")]),
-    content: Type.Optional(Type.String({ description: "The entry text, for add and replace" })),
-    match: Type.Optional(
-      Type.String({ description: "Text that identifies the entry, for replace and remove" }),
-    ),
-  }),
-  execute: async (args, api, context) => {
-    const store = STORES[args.target]
-    const content = args.content?.replace(/\s*\n\s*/g, " ").trim()
-    const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
-    if (args.action !== "remove" && (content === undefined || content === "")) {
-      return fail(`"${args.action}" needs content.`)
-    }
-    if (args.action !== "add" && (args.match === undefined || args.match === "")) {
-      return fail(`"${args.action}" needs match.`)
-    }
-    const outcome = await api.commit(async (tx): Promise<{ error: string } | { used: number }> => {
-      const doc = await tx.doc(IdentityDoc)
-      const lines = entries(doc[store.field])
-      if (args.action === "add") {
-        if (lines.includes(content!)) return { error: "That entry is already saved." }
-        lines.push(content!)
-      } else {
-        const matches = lines.flatMap((line, index) => (line.includes(args.match!) ? [index] : []))
-        if (matches.length === 0) return { error: `No entry contains "${args.match}".` }
-        if (matches.length > 1) {
-          return { error: `${matches.length} entries contain "${args.match}"; be more specific.` }
-        }
-        if (args.action === "replace") lines[matches[0]!] = content!
-        else lines.splice(matches[0]!, 1)
-      }
-      const next = lines.join("\n")
-      if (next.length > store.limit) {
-        return {
-          error: `That would make ${store.label} ${next.length} characters; the limit is ${store.limit}. Shorten, merge or remove entries first.`,
+        const parsed = parseAvatar({ color: args.color })
+        if ("error" in parsed) {
+          return {
+            isError: true,
+            output: [{ type: "text", text: `${parsed.error}. ${colorCatalog()}` }],
+          }
         }
       }
-      doc[store.field] = next
-      return { used: next.length }
-    }, context)
-    if ("error" in outcome) return fail(outcome.error)
-    return {
-      output: [
-        { type: "text", text: `Saved. ${store.label}: ${outcome.used}/${store.limit} characters.` },
-      ],
-    }
-  },
-})
+      const name = args.name?.trim()
+      if (name === "") {
+        return { isError: true, output: [{ type: "text", text: "A name cannot be empty." }] }
+      }
+      const saved = await writes.changeIdentity(
+        { chatId: String(api.conversationId), callId: api.callId },
+        {
+          ...(name === undefined ? {} : { name }),
+          ...(args.tagline === undefined ? {} : { tagline: args.tagline }),
+          ...(args.personality === undefined ? {} : { personality: args.personality }),
+          ...(args.color === undefined ? {} : { color: args.color }),
+        },
+        context,
+      )
+      return {
+        output: [{ type: "text", text: `Saved. You are now: ${JSON.stringify(saved)}` }],
+        details: saved,
+      }
+    },
+  })
 
-/** The agent's sense of self: who it is, who its user is, what it remembers, and the tools to change them. */
-export const Persona = defineExtension({
-  name: "dc.persona",
-  sections: [
-    section(
-      "preamble",
-      async (input, context) => {
-        const team = (await readIdentity(input.read, context))?.team
-        return `${team ? shared(team) : ALONE}\n\n${CALLED}\n${HOW}`
-      },
-      { tag: false },
-    ),
-    section("identity", async (input, context) => {
-      const doc = await readIdentity(input.read, context)
-      if (doc === undefined || doc.name === null) {
-        return `${BOOTSTRAP}\n\n${doc?.team ? `${BOOTSTRAP_SHARED}\n\n` : ""}${colorCatalog()}`
+const memory = (writes: PersonaWrites) =>
+  defineTool({
+    name: "memory",
+    description: `Edit your long-term memory, which is shown to you in every conversation. Target "user" is what you know about the person (limit ${USER_LIMIT} characters); target "memory" is your own notes (limit ${MEMORY_LIMIT} characters). Each entry is one line. "replace" and "remove" pick the entry containing "match", which must match exactly one entry. When a store is full, replace or remove entries to make room.`,
+    parameters: Type.Object({
+      action: Type.Union([Type.Literal("add"), Type.Literal("replace"), Type.Literal("remove")]),
+      target: Type.Union([Type.Literal("user"), Type.Literal("memory")]),
+      content: Type.Optional(Type.String({ description: "The entry text, for add and replace" })),
+      match: Type.Optional(
+        Type.String({ description: "Text that identifies the entry, for replace and remove" }),
+      ),
+    }),
+    execute: async (args, api, context) => {
+      const store = STORES[args.target]
+      const content = args.content?.replace(/\s*\n\s*/g, " ").trim()
+      const fail = (text: string) => ({ isError: true, output: [{ type: "text" as const, text }] })
+      if (args.action !== "remove" && (content === undefined || content === "")) {
+        return fail(`"${args.action}" needs content.`)
       }
-      if (doc.namedByOwner && !doc.soul) {
-        return `${bootstrapNamed(doc.name)}\n\n${doc.team ? `${BOOTSTRAP_SHARED}\n\n` : ""}${colorCatalog()}`
+      if (args.action !== "add" && (args.match === undefined || args.match === "")) {
+        return fail(`"${args.action}" needs match.`)
       }
-      const lines = [`Your name is ${doc.name}.`]
-      if (doc.tagline) lines.push(doc.tagline)
-      if (doc.soul) lines.push("", doc.soul)
-      return lines.join("\n")
-    }),
-    section("user", async (input, context) => {
-      const doc = await readIdentity(input.read, context)
-      return shown(doc?.user, USER_LIMIT)
-    }),
-    section("memory", async (input, context) => {
-      const doc = await readIdentity(input.read, context)
-      return shown(doc?.memory, MEMORY_LIMIT)
-    }),
-  ],
-  tools: [setIdentity, memory],
-})
+      const outcome = await writes.editMemory(
+        { chatId: String(api.conversationId), callId: api.callId },
+        {
+          action: args.action,
+          target: args.target,
+          ...(content === undefined ? {} : { content }),
+          ...(args.match === undefined ? {} : { match: args.match }),
+        },
+        context,
+      )
+      if ("error" in outcome) return fail(outcome.error)
+      return {
+        output: [
+          {
+            type: "text",
+            text: `Saved. ${store.label}: ${outcome.used}/${store.limit} characters.`,
+          },
+        ],
+      }
+    },
+  })
+
+/**
+ * The agent's sense of self: who it is, who its user is, what it remembers, and the tools to
+ * change them. Its sections read the identity document of the store the conversation is kept in;
+ * its tools change the agent's through `writes`.
+ */
+export const persona = (writes: PersonaWrites) =>
+  defineExtension({
+    name: "dc.persona",
+    sections: [
+      section(
+        "preamble",
+        async (input, context) => {
+          const team = (await readIdentity(input.read, context))?.team
+          return `${team ? shared(team) : ALONE}\n\n${CALLED}\n${HOW}`
+        },
+        { tag: false },
+      ),
+      section("identity", async (input, context) => {
+        const doc = await readIdentity(input.read, context)
+        if (doc === undefined || doc.name === null) {
+          return `${BOOTSTRAP}\n\n${doc?.team ? `${BOOTSTRAP_SHARED}\n\n` : ""}${colorCatalog()}`
+        }
+        if (doc.namedByOwner && !doc.soul) {
+          return `${bootstrapNamed(doc.name)}\n\n${doc.team ? `${BOOTSTRAP_SHARED}\n\n` : ""}${colorCatalog()}`
+        }
+        const lines = [`Your name is ${doc.name}.`]
+        if (doc.tagline) lines.push(doc.tagline)
+        if (doc.soul) lines.push("", doc.soul)
+        return lines.join("\n")
+      }),
+      section("user", async (input, context) => {
+        const doc = await readIdentity(input.read, context)
+        return shown(doc?.user, USER_LIMIT)
+      }),
+      section("memory", async (input, context) => {
+        const doc = await readIdentity(input.read, context)
+        return shown(doc?.memory, MEMORY_LIMIT)
+      }),
+    ],
+    tools: [setIdentity(writes), memory(writes)],
+  })
