@@ -234,7 +234,7 @@ async function run(config: Config): Promise<void> {
       : nodeBrowserIO({ dir: path.join(CONFIG_DIR, "browser"), log })
   const core = new DaemonCore(
     {
-      ...nodeDaemonIO({ home: HOME, audit }),
+      ...nodeDaemonIO({ home: HOME, audit, nodeEnv: nodeEnv() }),
       ...(screen === undefined ? {} : { screen }),
       ...(browser === undefined ? {} : { browser }),
     },

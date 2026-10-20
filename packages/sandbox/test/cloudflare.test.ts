@@ -18,7 +18,13 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup()
 })
 
-function world(options: { configured?: boolean; image?: string } = {}) {
+function world(
+  options: {
+    configured?: boolean
+    image?: string
+    boot?: { script: string; env?: Record<string, string> }
+  } = {},
+) {
   const fake = fakeContainer()
   cleanups.push(fake.cleanup)
   const storage = fakeStore()
@@ -31,6 +37,7 @@ function world(options: { configured?: boolean; image?: string } = {}) {
       instance: "standard-1",
       internet: true,
       home: fake.home,
+      ...(options.boot === undefined ? {} : { boot: options.boot }),
     },
     () => clock.now,
   )
@@ -83,6 +90,25 @@ describe("cloudflare containers: the machine's life", () => {
     const { fake, sandbox } = world({ image: "custom" })
     await sandbox.exec("true")
     expect(fake.state.starts[0]!.image).toBe("registry.example/custom@sha256:abc")
+  })
+
+  it("runs the deployment's boot script on every start, with the key it was given", async () => {
+    const { sandbox, advance } = world({
+      boot: { script: 'echo "$BOOT_MARK" >> booted.txt', env: { BOOT_MARK: "one" } },
+    })
+    await sandbox.exec("true")
+    expect((await sandbox.exec("cat booted.txt")).output).toBe("one\n")
+
+    // The machine idles, is saved and stopped; the next command starts it from the snapshot,
+    // and the boot script runs again on the machine that comes back.
+    for (let minute = 0; minute < 11; minute++) await advance(MINUTE)
+    await sandbox.exec("true")
+    expect((await sandbox.exec("cat booted.txt")).output).toBe("one\none\n")
+  })
+
+  it("uses a machine whose boot script failed anyway", async () => {
+    const { sandbox } = world({ boot: { script: "echo why >&2; exit 7" } })
+    expect((await sandbox.exec("echo fine")).output).toBe("fine\n")
   })
 
   it("saves an idle machine and stops it, and the next command gets its files back", async () => {
