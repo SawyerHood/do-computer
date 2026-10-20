@@ -108,8 +108,10 @@ export class LinkCore {
     })
   }
 
-  #settle(id: string): Waiter | undefined {
+  #settle(id: string, kind?: Waiter["kind"]): Waiter | undefined {
     const waiter = this.#waiters.get(id)
+    // A faulty or incompatible peer must not disarm another operation's deadline.
+    if (waiter !== undefined && kind !== undefined && waiter.kind !== kind) return undefined
     if (waiter !== undefined) {
       this.#waiters.delete(id)
       clearTimeout(waiter.timer)
@@ -314,7 +316,7 @@ export class LinkCore {
       return
     }
     if (frame.t === "exec_result") {
-      const waiter = this.#settle(frame.id)
+      const waiter = this.#settle(frame.id, "exec")
       if (waiter?.kind === "exec") {
         waiter.resolve({ stdout: frame.stdout, stderr: frame.stderr, exitCode: frame.exitCode })
       }
@@ -335,7 +337,12 @@ export class LinkCore {
           waiter.reject(new RemoteError("io", "The file transfer arrived incomplete."))
           return
         }
-        parts.push(base64ToBytes(data))
+        try {
+          parts.push(base64ToBytes(data))
+        } catch {
+          waiter.reject(new RemoteError("io", "The file transfer contained invalid base64."))
+          return
+        }
       }
       const bytes = new Uint8Array(parts.reduce((total, part) => total + part.length, 0))
       let offset = 0
@@ -347,27 +354,27 @@ export class LinkCore {
       return
     }
     if (frame.t === "fs_result") {
-      const waiter = this.#settle(frame.id)
+      const waiter = this.#settle(frame.id, "fs")
       if (waiter?.kind === "fs") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "image_result") {
-      const waiter = this.#settle(frame.id)
+      const waiter = this.#settle(frame.id, "image")
       if (waiter?.kind === "image") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "job_result") {
-      const waiter = this.#settle(frame.id)
+      const waiter = this.#settle(frame.id, "job")
       if (waiter?.kind === "job") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "use_result") {
-      const waiter = this.#settle(frame.id)
+      const waiter = this.#settle(frame.id, "use")
       if (waiter?.kind === "use") waiter.resolve(frame.value)
       return
     }
     if (frame.t === "ok") {
-      const waiter = this.#settle(frame.id)
+      const waiter = this.#settle(frame.id, "write")
       if (waiter?.kind === "write") waiter.resolve(undefined)
     }
   }

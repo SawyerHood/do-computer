@@ -22,6 +22,8 @@ export type NodeDaemonIOOptions = {
    * `findShell` finds: `bash`, and on Windows Git for Windows' bash or else PowerShell.
    */
   readonly shell?: string | Shell
+  /** Runtime-only flags for detached job supervision, never given to the command. */
+  readonly nodeEnv?: NodeJS.ProcessEnv
 }
 
 function describe(stats: import("node:fs").Stats): RemoteFileStat {
@@ -48,7 +50,7 @@ export function nodeDaemonIO(options: NodeDaemonIOOptions): DaemonIO {
     return path.isAbsolute(expanded) ? expanded : path.join(options.home, expanded)
   }
   return {
-    jobs: nodeJobs({ home: options.home, shell, resolve }),
+    jobs: nodeJobs({ home: options.home, shell, resolve, nodeEnv: options.nodeEnv }),
     exec(command, execOptions) {
       if (execOptions.signal?.aborted) {
         return Promise.resolve({ stdout: "", stderr: "Command aborted.", exitCode: 130 })

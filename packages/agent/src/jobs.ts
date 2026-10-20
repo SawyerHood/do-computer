@@ -88,14 +88,18 @@ export type JobRecord = {
   reason?: "output" | "computer"
 }
 
-type JobsState = { jobs: Record<string, JobRecord>; next: number }
+type JobsState = {
+  jobs: Record<string, JobRecord>
+  next: number
+  intents?: Record<string, JobRecord>
+}
 
 /** The commands the agent left running in the background, by the id it calls each. */
 export const JobsDoc = defineDoc<JobsState>({
   kind: "dc.jobs",
   version: 1,
   scope: "session",
-  initial: () => ({ jobs: {}, next: 1 }),
+  initial: () => ({ jobs: {}, next: 1, intents: {} }),
 })
 
 /** Word of a command's end, as it was sent to the chat that started it. */
@@ -189,6 +193,8 @@ export class Jobs {
   readonly #options: JobsOptions
   readonly #plain = createBashTool()
   #harness: Harness | undefined
+  /** Foreground ownership is temporary; durable intents survive a crash before handoff. */
+  readonly #foreground = new Set<string>()
   #ticking: Promise<void> = Promise.resolve()
   /** When each running job was last looked at. */
   readonly #looked = new Map<string, number>()
@@ -258,6 +264,13 @@ export class Jobs {
     return (await this.#require().snapshot(JobsDoc, context))?.jobs ?? {}
   }
 
+  async #forgetIntent(folder: string): Promise<void> {
+    await this.#require().commit(async (tx) => {
+      const state = await tx.doc(JobsDoc)
+      if (state.intents) delete state.intents[folder]
+    }, this.#options.context)
+  }
+
   /** The agent's background commands, oldest first: the running ones and those lately over. */
   async list(context: Context): Promise<JobSummary[]> {
     return Object.entries(await this.#jobs(context))
@@ -277,7 +290,11 @@ export class Jobs {
 
   /** Whether any command is running, and so wants looking in on. */
   async working(context: Context): Promise<boolean> {
-    return Object.values(await this.#jobs(context)).some((job) => job.status === "running")
+    const state = await this.#require().snapshot(JobsDoc, context)
+    return (
+      Object.values(state?.jobs ?? {}).some((job) => job.status === "running") ||
+      Object.keys(state?.intents ?? {}).length > 0
+    )
   }
 
   /** Whether a chat has a command running, whose end will give the agent a turn there. */
@@ -419,9 +436,8 @@ export class Jobs {
         const running = Object.values(await this.#jobs(context)).filter(
           (job) => job.status === "running",
         )
-        if (running.length > 0) {
-          this.#soon(Math.min(...running.map((job) => now - job.startedAt)))
-        }
+        if (running.length > 0) this.#soon(Math.min(...running.map((job) => now - job.startedAt)))
+        else if (await this.working(context)) this.#soon(0)
       } catch (error) {
         this.#options.onError?.(error)
       }
@@ -431,6 +447,33 @@ export class Jobs {
   }
 
   async #look(context: Context): Promise<void> {
+    // Anything no longer owned by a live foreground call must be reconciled, even
+    // if the tool never reached its background handoff. Retain on uncertain cleanup.
+    const intents = (await this.#require().snapshot(JobsDoc, context))?.intents ?? {}
+    for (const [folder, intent] of Object.entries(intents)) {
+      if (this.#foreground.has(folder)) continue
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          (async () => {
+            const runner = await this.#reach(intent, context)
+            // The snapshot above may predate a completed background handoff.
+            const current = (await this.#require().snapshot(JobsDoc, context))?.intents?.[folder]
+            if (current === undefined || this.#foreground.has(folder)) return
+            await runner.stop(folder)
+            const state = (await runner.check([folder]))[folder]
+            if (state !== undefined && state.state !== "running") await this.#forgetIntent(folder)
+          })(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error("Job cleanup timed out")), 30_000)
+          }),
+        ])
+      } catch (error) {
+        this.#options.onError?.(error)
+      } finally {
+        clearTimeout(timer)
+      }
+    }
     const now = this.#options.now()
     const jobs = await this.#jobs(context)
     const stale = Object.entries(jobs).filter(
@@ -632,6 +675,7 @@ export class Jobs {
       while (Object.hasOwn(state.jobs, id)) id = `b${++state.next}`
       state.next += 1
       state.jobs[id] = { ...input, status: "running" }
+      if (state.intents) delete state.intents[input.folder]
       return id
     }, context)
     this.#options.onStarted?.()
@@ -711,129 +755,157 @@ export class Jobs {
         const waitMs = background === true ? STARTING_MS : waited ? lifeMs + 8_000 : foregroundMs
         const folder = crypto.randomUUID().replaceAll("-", "").slice(0, 12)
         const startedAt = this.#options.now()
-        // Stopping the call stops the command while the call is what waits for it.
-        const signal = context.abortSignal
-        const abort = () => void runner.stop(folder).catch(() => {})
-        signal?.addEventListener("abort", abort, { once: true })
-        let followed: JobFollowed
+        context.abortSignal?.throwIfAborted()
+        this.#foreground.add(folder)
         try {
-          const options = {
-            signal,
-            onOutput: (text: string) => api.output(text),
-            removeUnder: { bytes: KEEP_BYTES, lines: KEEP_LINES },
-          }
-          followed = await runner.start(
-            { id: folder, command, cwd: target.cwd, lifeMs },
-            { ...options, waitMs: Math.min(waitMs, FOLLOW_STEP_MS) },
-          )
-          // A wait longer than one call to the machine may last is made of several.
-          for (
-            let left = waitMs - FOLLOW_STEP_MS;
-            followed.state === "running" && left > 0;
-            left -= FOLLOW_STEP_MS
-          ) {
-            followed = await runner.follow(folder, {
-              ...options,
-              from: followed.next,
-              waitMs: Math.min(left, FOLLOW_STEP_MS),
-            })
-          }
-        } catch (error) {
-          if (error instanceof JobsUnsupported) {
-            if (background !== true) return plainly()
-            return fail(
-              `"${target.computer.name}" cannot run commands in the background yet. ${error.message} Until then, run it without run_in_background, with a timeout long enough for it.`,
-            )
-          }
-          // Whoever made the call is told it failed, so the command is not left running unseen.
-          await runner.stop(folder).catch(() => {})
-          throw error
-        } finally {
-          signal?.removeEventListener("abort", abort)
-        }
-        if (signal?.aborted) {
-          await runner.stop(folder).catch(() => {})
-          throw new Error("Command aborted")
-        }
-        if (followed.state === "running") {
-          if (waited) {
-            // Its time limit should have stopped it by now. It is not left to run unseen.
-            await runner.stop(folder).catch(() => {})
-            throw new Error(`Command timed out after ${timeout} seconds`)
-          }
-          const log = runner.log(folder)
-          const id = await this.#keep(
-            {
+          // Commit before the remote side effect, under a context that outlives the tool.
+          await this.#require().commit(async (tx) => {
+            const state = await tx.doc(JobsDoc)
+            state.intents ??= {}
+            state.intents[folder] = {
               chatId: String(api.conversationId),
               computerId: target.id,
               computer: target.computer.name,
               command,
               folder,
-              log,
+              log: runner.log(folder),
+              status: "running",
               startedAt,
               lifeMs,
-              seen: followed.next,
-            },
-            context,
-          )
-          const where = `on "${target.computer.name}"`
-          const rest = `You will get a message when it ends, so do not wait for it or run it again. Everything it prints is written to ${log}.`
-          if (background === true) {
+              seen: 0,
+            }
+          }, this.#options.context)
+          this.#options.onStarted?.()
+          context.abortSignal?.throwIfAborted()
+          // Stopping the call stops the command while the call is what waits for it.
+          const signal = context.abortSignal
+          const abort = () => void runner.stop(folder).catch(() => {})
+          signal?.addEventListener("abort", abort, { once: true })
+          let followed: JobFollowed
+          try {
+            const options = {
+              signal,
+              onOutput: (text: string) => api.output(text),
+              removeUnder: { bytes: KEEP_BYTES, lines: KEEP_LINES },
+            }
+            followed = await runner.start(
+              { id: folder, command, cwd: target.cwd, lifeMs },
+              { ...options, waitMs: Math.min(waitMs, FOLLOW_STEP_MS) },
+            )
+            // A wait longer than one call to the machine may last is made of several.
+            for (
+              let left = waitMs - FOLLOW_STEP_MS;
+              followed.state === "running" && left > 0;
+              left -= FOLLOW_STEP_MS
+            ) {
+              followed = await runner.follow(folder, {
+                ...options,
+                from: followed.next,
+                waitMs: Math.min(left, FOLLOW_STEP_MS),
+              })
+            }
+          } catch (error) {
+            if (error instanceof JobsUnsupported) {
+              await this.#forgetIntent(folder)
+              if (background !== true) return plainly()
+              return fail(
+                `"${target.computer.name}" cannot run commands in the background yet. ${error.message} Until then, run it without run_in_background, with a timeout long enough for it.`,
+              )
+            }
+            // Whoever made the call is told it failed, so the command is not left running unseen.
+            void runner.stop(folder).catch(() => {})
+            throw error
+          } finally {
+            signal?.removeEventListener("abort", abort)
+          }
+          if (signal?.aborted) {
+            void runner.stop(folder).catch(() => {})
+            throw new Error("Command aborted")
+          }
+          if (followed.state === "running") {
+            if (waited) {
+              // Its time limit should have stopped it by now. It is not left to run unseen.
+              void runner.stop(folder).catch(() => {})
+              throw new Error(`Command timed out after ${timeout} seconds`)
+            }
+            const log = runner.log(folder)
+            const id = await this.#keep(
+              {
+                chatId: String(api.conversationId),
+                computerId: target.id,
+                computer: target.computer.name,
+                command,
+                folder,
+                log,
+                startedAt,
+                lifeMs,
+                seen: followed.next,
+              },
+              context,
+            )
+            const where = `on "${target.computer.name}"`
+            const rest = `You will get a message when it ends, so do not wait for it or run it again. Everything it prints is written to ${log}.`
+            if (background === true) {
+              return {
+                output: [
+                  {
+                    type: "text" as const,
+                    text: [
+                      `Started in the background as ${id} ${where}. ${rest}`,
+                      followed.output.trim() === ""
+                        ? ""
+                        : `So far it has printed:\n${followed.output}`,
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n"),
+                  },
+                ],
+                details: { job: id },
+              }
+            }
+            api.output(
+              `\n[Still running after ${spanOf(waitMs)}, so it was moved to the background as ${id} ${where}. What it has printed so far is above. ${rest}]\n`,
+            )
+            return { details: { job: id } }
+          }
+          if (followed.state === "exited") await this.#forgetIntent(folder)
+          if (followed.kept && followed.state === "exited") {
+            api.diagnostic({
+              severity: "info",
+              code: "full_output",
+              message: `Full output: ${runner.log(folder)}`,
+            })
+          }
+          if (followed.state === "lost") {
+            throw new Error(
+              "The command could not be followed to its end: it did not start, or the machine stopped while it ran",
+            )
+          }
+          if (followed.timedOut) {
+            throw new Error(
+              waited
+                ? `Command timed out after ${timeout} seconds`
+                : `Command was stopped at its time limit of ${spanOf(lifeMs)}`,
+            )
+          }
+          if (followed.exitCode !== 0) {
+            // As pi-durable's own `bash` answers it: an error result, and nothing thrown.
             return {
-              output: [
+              isError: true,
+              diagnostics: [
                 {
-                  type: "text" as const,
-                  text: [
-                    `Started in the background as ${id} ${where}. ${rest}`,
-                    followed.output.trim() === ""
-                      ? ""
-                      : `So far it has printed:\n${followed.output}`,
-                  ]
-                    .filter(Boolean)
-                    .join("\n\n"),
+                  severity: "error" as const,
+                  code: "exit_code",
+                  message: `Command exited with code ${followed.exitCode}`,
                 },
               ],
-              details: { job: id },
             }
           }
-          api.output(
-            `\n[Still running after ${spanOf(waitMs)}, so it was moved to the background as ${id} ${where}. What it has printed so far is above. ${rest}]\n`,
-          )
-          return { details: { job: id } }
+          return {}
+        } finally {
+          this.#foreground.delete(folder)
+          this.#soon(0)
         }
-        if (followed.kept && followed.state === "exited") {
-          api.diagnostic({
-            severity: "info",
-            code: "full_output",
-            message: `Full output: ${runner.log(folder)}`,
-          })
-        }
-        if (followed.state === "lost") {
-          throw new Error(
-            "The command could not be followed to its end: it did not start, or the machine stopped while it ran",
-          )
-        }
-        if (followed.timedOut) {
-          throw new Error(
-            waited
-              ? `Command timed out after ${timeout} seconds`
-              : `Command was stopped at its time limit of ${spanOf(lifeMs)}`,
-          )
-        }
-        if (followed.exitCode !== 0) {
-          // As pi-durable's own `bash` answers it: an error result, and nothing thrown.
-          return {
-            isError: true,
-            diagnostics: [
-              {
-                severity: "error" as const,
-                code: "exit_code",
-                message: `Command exited with code ${followed.exitCode}`,
-              },
-            ],
-          }
-        }
-        return {}
       },
     })
   }

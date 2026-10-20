@@ -117,6 +117,21 @@ describe("jobs on a machine with a shell", () => {
     expect(await sandbox.fs.stat(jobs.log("l"))).toBe(undefined)
   })
 
+  it("makes an acknowledged stop terminal even if start arrives afterwards", async () => {
+    const { sandbox, jobs } = open()
+    await jobs.stop("late")
+    await jobs.start({ id: "late", command: "touch must-not-run", lifeMs: 1000 }, { waitMs: 0 })
+    expect(await sandbox.fs.stat(`${sandbox.home}/must-not-run`)).toBeUndefined()
+  })
+
+  it("does not replay an id after completion and output removal", async () => {
+    const { sandbox, jobs } = open()
+    const job = { id: "once", command: "echo once >> marker", lifeMs: 1000 }
+    await jobs.start(job, { waitMs: 3000, removeUnder: { bytes: 100, lines: 10 } })
+    await jobs.start(job, { waitMs: 0 })
+    expect((await sandbox.exec("cat marker")).output).toBe("once\n")
+  })
+
   it("keeps the trailer out of what it passes on, however the output is cut up", async () => {
     const { jobs } = open()
     const done = await jobs.start(
